@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Advance the single app version and date the unreleased notes in both languages."""
+"""Advance the single app version and date the unreleased notes."""
 import argparse
 from datetime import datetime, timedelta, timezone
 import json
@@ -18,15 +18,14 @@ if tuple(map(int, args.version.split("."))) <= tuple(map(int, config["version"].
     parser.error("version must increase")
 changes = {}
 date = datetime.now(timezone(timedelta(hours=8))).date().isoformat()
-for name in ("CHANGELOG.md", "CHANGELOG.zh.md"):
-    text = (root / name).read_text()
-    if text.count("\n## [Unreleased]\n") != 1:
-        parser.error(f"{name} must have one Unreleased section")
-    if f"\n## [{args.version}]" in text:
-        parser.error(f"{name} already contains this version")
-    changes[root / name] = text.replace("\n## [Unreleased]\n", f"\n## [Unreleased]\n\n## [{args.version}] - {date}\n", 1)
+text = (root / "CHANGELOG.md").read_text()
+if text.count("\n## [Unreleased]\n") != 1:
+    parser.error("CHANGELOG.md must have one Unreleased section")
+if f"\n## [{args.version}]" in text:
+    parser.error("CHANGELOG.md already contains this version")
+changes[root / "CHANGELOG.md"] = text.replace("\n## [Unreleased]\n", f"\n## [Unreleased]\n\n## [{args.version}] - {date}\n", 1)
 config["version"] = args.version
 changes[root / "mygo.json"] = json.dumps(config, indent=2) + "\n"
 for path, text in changes.items():
     path.write_text(text)
-print(f"Version {args.version}. Review and commit the three changed files before tagging v{args.version}.")
+print(f"Version {args.version}. Review and commit the two changed files before tagging v{args.version}.")

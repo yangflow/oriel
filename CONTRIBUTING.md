@@ -41,7 +41,7 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470   # run headles
 - The maintainer squash-merges, so the pull request title becomes the commit message. No DCO or sign-off is
   required.
 - When behavior changes, update the existing tests for that area. Add user-visible changes under
-  `## [Unreleased]` in both `CHANGELOG.md` and `CHANGELOG.zh.md`.
+  `## [Unreleased]` in `CHANGELOG.md`.
 - Interface strings live in each screen's `copy.json`, in English and Simplified Chinese only; change both.
   Product behavior changes start in [docs/product.md](docs/product.md).
 

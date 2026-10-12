@@ -43,7 +43,7 @@ go test -race ./...
 go tool mygo dev
 go tool mygo build
 ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
-python3 scripts/bump.py <version>   # the only way to change the version; dates both changelogs
+python3 scripts/bump.py <version>   # the only way to change the version; dates the changelog
 ```
 
 ## Conventions
@@ -68,8 +68,8 @@ python3 scripts/bump.py <version>   # the only way to change the version; dates 
 - A UI change starts from the mockup in design/; the maintainer confirms the visual direction before UI code is
   written. Mockup, `docs/design-system.md` and code go in the same pull request; screenshots go in the pull request
   body, not into the repository.
-- User-visible changes go under `## [Unreleased]` in both `CHANGELOG.md` and `CHANGELOG.zh.md`. Keep `README.md`
-  and `README.zh-CN.md` in sync; list only merged features, and mark plans as plans.
+- User-visible changes go under `## [Unreleased]` in `CHANGELOG.md`. Keep `README.md` and `README.zh-CN.md` in
+  sync; list only merged features, and mark plans as plans.
 - Commit messages and PR titles use Conventional Commits:
   `feat|fix|docs|refactor|perf|test|build|ci|chore|revert(scope)!: subject`. Branches are `<type>/<issue>-<slug>`;
   pull requests are squash-merged. Commit with the GitHub noreply address
