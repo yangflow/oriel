@@ -299,6 +299,8 @@ MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
 
 Contrast, scaling, keyboard use and screen readers are verified on real devices; a passing headless test does not
 count as accessibility acceptance.
+The [Inspector](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/inspector.md) (F12 in development builds) shows
+the element tree, roles and accessible names of a running window, which helps find a missing name before that check.
 
 ## Motion
 
