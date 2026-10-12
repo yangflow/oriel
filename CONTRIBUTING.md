@@ -47,9 +47,9 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470   # run headles
 
 ## UI changes
 
-- A UI change starts from the mockup in `design/` and [docs/design-system.md](docs/design-system.md); the
-  maintainer confirms the visual direction before UI code is written. Mockup, design notes and code go in the
-  same pull request.
+- A UI change starts from the mockup in `design/` and the design language in [docs/design.md](docs/design.md); the
+  maintainer confirms the visual direction before UI code is written. Mockup, design notes and code go in the same
+  pull request.
 - Use only MyGo native controls and theme colors. If a component is missing, specify it and all its states in the
   docs first.
 - Screenshots go in the pull request body (light and dark, one per state), not into the repository.

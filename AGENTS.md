@@ -9,7 +9,8 @@ runs the server headless. MIT licensed.
 Sources of truth:
 
 - `docs/product.md`: product behavior, data model, flows. New rules go into the docs first, then into code.
-- `docs/design-system.md`: colors, type, spacing, components.
+- `docs/design.md`: the design language: layout, color, type, components, accessibility, localization.
+- `design/tokens.md`: spacing, size and color values, mapped to MyGo theme roles.
 - `design/`: the mockup of each screen and its states.
 - `docs/adr/0002-standalone-client-and-server.md`: the client reads and writes only through the HTTP API and never
   touches storage directly; without authentication configured the server listens on `127.0.0.1` only.
@@ -32,7 +33,7 @@ internal/ui/startup/     copy for the native error dialog when desktop startup f
 resources/               shipped licenses and product assets
 scripts/                 checks, version bump, packaging, secret scan
 mygo.json                name, identifier, version, packaging
-docs/, design/           product spec, design system, ADRs, mockups
+docs/, design/           product spec, design language, ADRs, mockups, tokens
 ```
 
 ## Commands
@@ -66,7 +67,7 @@ python3 scripts/bump.py <version>   # the only way to change the version; dates 
   acceptance.
 - Do not split files just because they are long. Leave no temporary scripts, debug output or commented-out code.
 - A UI change starts from the mockup in design/; the maintainer confirms the visual direction before UI code is
-  written. Mockup, `docs/design-system.md` and code go in the same pull request; screenshots go in the pull request
+  written. Mockup, `docs/design.md` and code go in the same pull request; screenshots go in the pull request
   body, not into the repository.
 - User-visible changes go under `## [Unreleased]` in `CHANGELOG.md`. Keep `README.md` and `README.zh-CN.md` in
   sync; list only merged features, and mark plans as plans.

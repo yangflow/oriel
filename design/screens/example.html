@@ -2,18 +2,19 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Example fixture</title>
+<title>Example screen</title>
+<!-- Colors are the MyGo default theme roles; see design/tokens.md. -->
 <style>
-:root { color-scheme: light; --background:#fafafa; --text:#242424; --muted:#666; --button:#eee; --border:#d6d6d6 }
-:root[data-scheme=dark] { color-scheme:dark; --background:#202020; --text:#f3f3f3; --muted:#aaa; --button:#333; --border:#555 }
+:root { color-scheme: light; --background:#ffffff; --text:#18181b; --muted:#71717a; --button:#f4f4f5; --border:#d9d9de; --accent:#2563eb; --accent-text:#ffffff }
+:root[data-scheme=dark] { color-scheme:dark; --background:#18181b; --text:#f4f4f5; --muted:#a1a1aa; --button:#27272a; --border:#3f3f46; --accent:#3b82f6 }
 * { box-sizing:border-box }
 body { margin:0; font-family:system-ui,sans-serif; color:var(--text); background:var(--background) }
 main { width:100%; min-width:360px; height:320px; padding:24px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px }
-h1 { font-size:24px; margin:0 }
-output { font-size:48px; font-weight:700 }
+h1 { font-size:23px; margin:0 }
+output { font-size:47px; font-weight:700 }
 nav { display:flex; gap:8px }
 button { min-width:44px; padding:7px 12px; border:1px solid var(--border); border-radius:6px; background:var(--button); color:var(--text); font:inherit; font-size:13px }
-button:last-child { background:#006fdf; color:white; border-color:#006fdf }
+button:last-child { background:var(--accent); color:var(--accent-text); border-color:var(--accent) }
 button:disabled { opacity:.45 }
 p { margin:0; font-size:12px; color:var(--muted) }
 </style>

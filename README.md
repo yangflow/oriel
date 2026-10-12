@@ -42,7 +42,7 @@ Planned, in the order of the [roadmap](docs/roadmap.md) (in Chinese): adding and
 timeline with one layout per kind, the article reader, on-demand AI summaries and translation through your own
 OpenAI-compatible endpoint, settings and OPML import and export.
 
-Status: early development, version 0.1.0, no release yet. The window still shows the template's counter example;
+Status: early development, version 0.1.0, no release yet. The window still shows a counter example;
 subscriptions and settings have no API or screen yet. Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on
 amd64 and arm64. Linux builds need glibc, also when running headless.
 
@@ -75,12 +75,12 @@ scripts/check.sh --cross   # gofmt, go mod tidy, vet, tests, script tests, six c
 go test -race ./...
 ```
 
-| Topic | Where (in Chinese) |
+| Topic | Where |
 |---|---|
-| Behavior, data model, fetching, HTTP and sign-in | [docs/product.md](docs/product.md) |
-| Colors, type, spacing and components | [docs/design-system.md](docs/design-system.md) |
+| Behavior, data model, fetching, HTTP and sign-in (in Chinese) | [docs/product.md](docs/product.md) |
+| Design language: layout, color, type, components, accessibility | [docs/design.md](docs/design.md) |
 | Screen mockups | [design/README.md](design/README.md) |
-| Order of work | [docs/roadmap.md](docs/roadmap.md) |
+| Order of work (in Chinese) | [docs/roadmap.md](docs/roadmap.md) |
 | Architecture decisions | [docs/adr/](docs/adr/README.md) |
 | Repository rules for people and agents | [AGENTS.md](AGENTS.md) |
 

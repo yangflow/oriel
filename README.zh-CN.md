@@ -31,7 +31,7 @@
 
 按[路线图](docs/roadmap.md)的顺序计划中的：添加和编辑订阅、按四种形态排版的时间线、文章阅读器、通过你自己的 OpenAI 兼容接口按需生成摘要和翻译、设置、OPML 导入导出。
 
-项目状态：早期开发中，版本 0.1.0，还没有发布。窗口里仍是模板自带的计数示例；订阅和设置还没有接口和界面。目标平台：macOS 12+、Windows 10/11、带 GTK 3 的 Linux，amd64 和 arm64。Linux 版本需要 glibc，无界面运行也一样。
+项目状态：早期开发中，版本 0.1.0，还没有发布。窗口里仍是一个计数示例；订阅和设置还没有接口和界面。目标平台：macOS 12+、Windows 10/11、带 GTK 3 的 Linux，amd64 和 arm64。Linux 版本需要 glibc，无界面运行也一样。
 
 ## 快速开始
 
@@ -64,10 +64,10 @@ go test -race ./...
 | 内容 | 位置 |
 |---|---|
 | 产品行为、数据模型、抓取、HTTP 和登录 | [docs/product.md](docs/product.md) |
-| 颜色、字体、间距、组件 | [docs/design-system.md](docs/design-system.md) |
+| 设计语言：布局、颜色、字体、组件、无障碍（英文） | [docs/design.md](docs/design.md) |
 | 界面画板 | [design/README.md](design/README.md) |
 | 开发顺序 | [docs/roadmap.md](docs/roadmap.md) |
-| 架构决定 | [docs/adr/](docs/adr/README.md) |
+| 架构决定（英文） | [docs/adr/](docs/adr/README.md) |
 | 人和代理修改仓库的规则（英文） | [AGENTS.md](AGENTS.md) |
 
 ## 参与贡献
