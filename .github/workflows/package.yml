@@ -1,0 +1,29 @@
+# 手动触发，只出开发用的未签名包，不发布。
+name: Package
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: macos-latest, platform: 'darwin/universal', name: macos}
+          - {os: windows-latest, platform: 'windows/amd64,windows/arm64', name: windows}
+          - {os: ubuntu-latest, platform: 'linux/amd64,linux/arm64', name: linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go test ./...
+      - run: go tool mygo build -platform "${{ matrix.platform }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.name }}-development
+          path: build/
+          if-no-files-found: error

@@ -1,0 +1,36 @@
+# PR 里每个提交都要有作者本人的 Signed-off-by（CONTRIBUTING.md「怎么改」，Developer Certificate of Origin）。
+# GitHub 自己的机器人（Dependabot）签不了名，放行。不用第三方 App，只用默认的只读 token 读提交。
+name: DCO
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dco:
+    name: Commits are signed off
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check Signed-off-by
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          missing=0
+          for c in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            author=$(git log -1 --format='%an <%ae>' "$c")
+            case "$(git log -1 --format='%ae' "$c")" in
+              *'[bot]@users.noreply.github.com') continue ;;
+            esac
+            if ! git log -1 --format=%B "$c" | grep -qiF "Signed-off-by: $author"; then
+              echo "::error::$(git log -1 --format='%h %s' "$c") 没有 'Signed-off-by: $author'（用 git commit -s）"
+              missing=1
+            fi
+          done
+          exit $missing

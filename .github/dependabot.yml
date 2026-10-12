@@ -1,0 +1,10 @@
+# Dependabot 的 PR 标题不符合「#号 · [类型]」格式，pr-title 工作流放行它。
+# MyGo 的库和命令行工具是同一个模块，升级后要同步 THIRD_PARTY.md 和 resources/ThirdPartyLicenses/。
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

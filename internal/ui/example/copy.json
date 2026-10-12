@@ -1,0 +1,16 @@
+{
+  "en": {
+    "Title": "Example",
+    "Increment": "Increment",
+    "Decrement": "Decrement",
+    "Reset": "Reset",
+    "Hint": "Use the arrow keys to count."
+  },
+  "zh-Hans": {
+    "Title": "示例",
+    "Increment": "增加",
+    "Decrement": "减少",
+    "Reset": "重置",
+    "Hint": "使用上下方向键计数。"
+  }
+}

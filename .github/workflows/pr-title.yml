@@ -1,0 +1,27 @@
+# 提交信息第一行和 PR 标题都是 `#<issue 号> · [类型] 一句话`（AGENTS.md「工作流程」）。
+# squash 合并时 PR 标题就是提交标题。只读标题，不检出 PR 的代码。
+name: pr-title
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  title:
+    name: PR title format
+    # Dependabot 的标题没法带 issue 号。被跳过的必需检查算通过。
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if printf '%s' "$TITLE" | grep -Eq '^#[0-9]+ · \[(ui|bug|feat|documentation)\] .+'; then
+            exit 0
+          fi
+          echo "::error::PR 标题要写成 '#<issue 号> · [类型] 一句话'，类型用 ui、bug、feat、documentation。当前标题：$TITLE"
+          exit 1

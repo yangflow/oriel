@@ -1,0 +1,12 @@
+{
+  "en": {
+    "Title": "Oriel can't start",
+    "Locked": "Another Oriel process is using the data folder. Quit it, then open Oriel again.",
+    "Failed": "Oriel couldn't open its data folder:"
+  },
+  "zh-Hans": {
+    "Title": "Oriel 无法启动",
+    "Locked": "另一个 Oriel 进程正在使用数据文件夹。请先退出它，再重新打开 Oriel。",
+    "Failed": "Oriel 无法打开数据文件夹："
+  }
+}

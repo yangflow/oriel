@@ -1,0 +1,13 @@
+/build/
+/.mygo/
+/.design-review/
+# 截图贴在 PR 正文里，不进仓库。
+/design/screenshots/
+*.exe
+*.test
+__pycache__/
+*.pyc
+.DS_Store
+mygo-update.key
+*.p12
+*.pfx

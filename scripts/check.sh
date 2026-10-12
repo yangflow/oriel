@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Local format, module, test and optional cross-platform checks. No publication.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+[[ $# -eq 0 || ( $# -eq 1 && "$1" == --cross ) ]] || { echo 'usage: scripts/check.sh [--cross]' >&2; exit 2; }
+[[ -z "$(gofmt -l .)" ]] || { echo 'Run gofmt on the Go sources.' >&2; exit 1; }
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+cp go.mod go.sum "$work/"
+go mod tidy
+diff -u "$work/go.mod" go.mod
+diff -u "$work/go.sum" go.sum
+[[ "$(cat .go-version)" == "$(awk '/^go / { print $2 }' go.mod)" ]]
+go vet ./...
+go test ./...
+python3 -m unittest discover -s scripts -p 'test_*.py'
+if [[ "${1:-}" == --cross ]]; then
+  for target in darwin/arm64 darwin/amd64 windows/amd64 windows/arm64 linux/amd64 linux/arm64; do
+    echo "Compiling $target"
+    CGO_ENABLED=0 GOOS="${target%/*}" GOARCH="${target#*/}" go build -trimpath -o "$work/${target//\//-}" .
+  done
+fi

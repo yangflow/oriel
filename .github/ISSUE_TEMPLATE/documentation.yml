@@ -1,0 +1,26 @@
+name: Documentation
+description: 文档缺失、过期或会让人做错事
+title: "[documentation] "
+labels: ["documentation"]
+body:
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What's wrong
+      description: 哪个文件、哪一段。缺什么，或者哪句话不对。
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Fix direction
+      description: 该怎么改。基线（design/、docs/product.md、docs/design-system.md）和代码冲突时，先看 AGENTS.md「基线」。
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: 几行可检查的条件。
+    validations:
+      required: true
