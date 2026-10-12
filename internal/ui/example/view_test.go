@@ -36,6 +36,10 @@ func TestCounter(t *testing.T) {
 	if !tt.HasText("-1") {
 		t.Fatal("negative count is not visible")
 	}
+	announced := tt.Announcements()
+	if len(announced) == 0 || announced[len(announced)-1] != "-1" {
+		t.Fatalf("count change was not announced: %v", announced)
+	}
 	tt.SetDark(true)
 	if !tt.HasText("-1") {
 		t.Fatal("appearance change lost state")
