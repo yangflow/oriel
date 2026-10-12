@@ -1,21 +1,26 @@
-# 0001 纯 Go 原生 UI
+# 0001 Pure Go native UI
 
-- 状态：已采纳
-- 日期：2026-10-12
-- 相关：[docs/product.md](../product.md)「技术基线」
+- Status: accepted
+- Date: 2026-10-12
+- Related: [docs/product.md](../product.md), "Technical baseline" (技术基线)
 
-## 背景
+## Context
 
-用 Electron 套网页做桌面应用，体积和启动都重。Oriel 要一种语言、可复现的构建、真正的原生窗口。参考 [MyGo 原生 UI 文档](https://mygo.egoist.dev/docs/ui) 和[固定版本的源码](https://github.com/egoist/mygo/tree/v0.3.6)。
+A desktop app built with Electron around a web page is heavy in size and startup. Oriel wants a single language,
+reproducible builds and a truly native window. References: [MyGo native UI docs](https://mygo.egoist.dev/docs/ui)
+and [the source at the pinned version](https://github.com/egoist/mygo/tree/v0.3.6).
 
-## 决定
+## Decision
 
-用 MyGo 原生 UI，一个 Go 模块，命令行工具在 `go.mod` 里用 `tool` 固定版本。更新用原生更新插件。
+Use MyGo native UI and one Go module, with the command-line tool pinned in `go.mod` with `tool`. Updates use the
+native updater plugin.
 
-## 代价
+## Cost
 
-控件是 GPU 绘制的，无障碍和各平台表现要在真机上测。没有 WebView，视频和社交内容不能内嵌官方播放器。MyGo 版本还早，每次升级要看 API 和打包的变化。
+Controls are drawn on the GPU, so accessibility and behavior on each platform have to be tested on real devices.
+Without a WebView, video and social content cannot embed the official players. MyGo is at an early version; every
+upgrade needs a look at API and packaging changes.
 
-## 什么时候重新考虑
+## When to revisit
 
-某个必须的平台能力或无障碍要求，原生 UI 做不到。
+A required platform capability or accessibility requirement cannot be met by native UI.

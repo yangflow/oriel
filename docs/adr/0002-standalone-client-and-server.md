@@ -1,27 +1,34 @@
-# 0002 独立应用，同一个程序既是客户端又是服务器
+# 0002 A standalone app: one program is both the client and the server
 
-- 状态：已采纳
-- 日期：2026-10-12
-- 相关：[docs/product.md](../product.md)「架构」
+- Status: accepted
+- Date: 2026-10-12
+- Related: [docs/product.md](../product.md), "Architecture" (架构)
 
-## 背景
+## Context
 
-可选的路有两条：做某个现成服务器的原生客户端，或者做自带抓取、存储和 AI 调用的独立应用。前者离不开另一套服务，后者装上就能用。
+There were two paths: build a native client for an existing server, or build a standalone app with its own fetching,
+storage and AI calls. The first cannot work without another service; the second works as soon as it is installed.
 
-## 决定
+## Decision
 
-Oriel 是独立应用，不依赖其他服务。
+Oriel is a standalone app and depends on no other service.
 
-Oriel 是一个 Go 模块、一个程序，分三层：
+Oriel is one Go module and one program, in three layers:
 
-- 服务端：抓取订阅、抽取正文、存储、调 AI 接口、清理，并通过 HTTP API 对外提供数据。
-- 客户端：MyGo 原生界面，只通过 HTTP API 读写数据，不直接碰存储。
-- 启动方式：桌面模式在本机启动服务端、只监听 `127.0.0.1`，再打开窗口；无窗口模式只跑服务端，供其他设备上的 Oriel 客户端连接。客户端可以连本机的，也可以连远程的服务端。
+- Server: fetches subscriptions, extracts full text, stores data, calls the AI endpoint, prunes, and serves the data
+  through an HTTP API.
+- Client: the MyGo native UI. It reads and writes data only through the HTTP API and never touches storage directly.
+- Startup: desktop mode starts the server on this machine, listening only on `127.0.0.1`, then opens the window;
+  headless mode runs only the server, for Oriel clients on other devices to connect to. A client can connect to the
+  local server or to a remote one.
 
-## 代价
+## Cost
 
-客户端也走 HTTP，本机使用多一层序列化。HTTP API 要自己定义、做版本兼容和鉴权。不用 cgo，所以存储只能用纯 Go 的驱动。
+The client also goes through HTTP, which adds a layer of serialization for local use. The HTTP API has to be
+defined, kept compatible across versions and authenticated by us. Without cgo, storage can only use a pure Go
+driver.
 
-## 什么时候重新考虑
+## When to revisit
 
-本机走 HTTP 的开销在真机上测出来影响交互，或者无窗口模式长期没人用。
+The overhead of local HTTP is measured on real devices to affect interaction, or headless mode goes unused for a long
+time.

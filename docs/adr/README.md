@@ -1,9 +1,27 @@
-# 架构决定
+# Architecture Decision Records
 
-| 编号 | 决定 | 状态 |
+## Index
+
+| No. | Decision | Status |
 |---|---|---|
-| [0001](0001-pure-go-native-ui.md) | 纯 Go 原生 UI | 已采纳 |
-| [0002](0002-standalone-client-and-server.md) | 独立应用，同一个程序既是客户端又是服务器 | 已采纳 |
-| [0003](0003-pure-go-sqlite.md) | 用纯 Go 的 SQLite | 已采纳 |
+| [0001](0001-pure-go-native-ui.md) | Pure Go native UI | accepted |
+| [0002](0002-standalone-client-and-server.md) | A standalone app: one program is both the client and the server | accepted |
+| [0003](0003-pure-go-sqlite.md) | Pure Go SQLite | accepted |
 
-新决定新开一个文件，`NNNN-短名.md`，四位编号，小写连字符。每份写状态、日期、背景、决定、代价和什么时候重新考虑。推翻旧决定时保留旧文件，标上「被 NNNN 取代」。
+## Record format
+
+Each new decision gets a new file named `NNNN-short-title.md`: a four-digit number, lowercase words joined by
+hyphens. When a decision is overturned, keep the old file and mark it "superseded by NNNN".
+
+```markdown
+# NNNN Title
+
+- Status: proposed | accepted | superseded by NNNN
+- Date: YYYY-MM-DD
+- Related: optional links to the docs the decision affects
+
+## Context
+## Decision
+## Cost
+## When to revisit
+```
