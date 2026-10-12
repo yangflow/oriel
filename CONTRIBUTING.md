@@ -1,45 +1,64 @@
-# 参与贡献
+# Contributing
 
-Oriel 是单用户的原生桌面阅读器，主要由维护者和 AI 编码代理一起写。欢迎任何人提 issue 和 PR，流程在这一页。仓库的完整开发约束在 [AGENTS.md](AGENTS.md)，动手前读一遍。
+Thanks for helping. Oriel is a single-user native reader, mostly built by the maintainer working with AI coding
+agents; issues and pull requests from anyone are welcome. Read [AGENTS.md](AGENTS.md) for the full set of
+repository rules.
 
-## 开工前
+## Languages
 
-先开 issue，再写代码。
+Issues, pull requests, commit messages and reviews may be in English or Simplified Chinese. Replies follow the
+language of the thread.
 
-- 标题 `[类型] 动词开头的一句话`，类型用 `ui`、`bug`、`feat`、`documentation`。
-- 正文分「What's wrong」「Fix direction」「Done when」三段，issue 表单已经按这个排好。
-- 新功能先等维护者确认再动手。范围写在 [docs/product.md](docs/product.md)「范围」：没有多用户、插件、推荐这些。范围外的 PR 可能被直接关掉。需要拍板的 issue 会加 `needs-decision` 标签，决定记在 issue 里（见 [GOVERNANCE.md](GOVERNANCE.md)）。
-- 使用问题看 [SUPPORT.md](SUPPORT.md)。
-- 安全漏洞不要公开提，见 [SECURITY.md](SECURITY.md)。
+## Before you start
 
-## 怎么改
+- Search existing issues and pull requests first.
+- Open an issue before a large change so the direction can be agreed before you write code. Small fixes can go
+  straight to a pull request.
+- The scope is in [docs/product.md](docs/product.md) (no multiple users, plugins or recommendations). A pull
+  request outside it may be closed.
+- Questions go to issues; there are no Discussions and no paid support.
+- Report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
 
-1. 从 `main` 切分支，名字 `<类型>/<issue 号>-<短名>`，例如 `feat/12-timeline`。
-2. 一个 PR 只做一件事。
-3. 提交信息第一行 `#<issue 号> · [类型] 和 issue 标题同义的一句话`。每个提交用 `git commit -s` 签名：`Signed-off-by` 表示你同意 [Developer Certificate of Origin](https://developercertificate.org/)，DCO 检查没有它会失败。不想公开邮箱的话，用 GitHub 设置 → Emails 里的 noreply 地址。
-4. 本地跑检查，Go 版本见 `.go-version`：
+## Development setup
 
-   ```bash
-   scripts/check.sh --cross
-   go test -race ./...
-   ```
+Requirements: the Go version in `.go-version` and Python 3 for the helper scripts. No Node, Bun or WebView.
 
-   `check.sh` 包括 gofmt、`go mod tidy` 无差异、vet、测试和六个目标的交叉编译。合并前必须过。
-5. PR 标题同提交信息第一行，正文写 `Closes #<号>`，按模板填。PR 用 squash 合并，合并后删分支。`pr-title` 检查会拦格式不对的标题。
-6. 行为变了，就改该区域已有的测试。用户能感知的改动写进 `CHANGELOG.md` 和 `CHANGELOG.zh.md`。
+```bash
+scripts/check.sh --cross     # gofmt, go mod tidy without diff, vet, tests, script tests, six cross-compiled targets
+go test -race ./...
+go tool mygo dev             # run the desktop app
+ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470   # run headless
+```
 
-界面文案在各界面包的 `copy.json`，只有简体中文和英文，两种一起改。改产品行为先改 [docs/product.md](docs/product.md)。
+`scripts/check.sh --cross` and `go test -race ./...` must pass before merge.
 
-## 界面改动
+## Commits, branches and pull requests
 
-- 先改 `design/` 里的画板和 [docs/design-system.md](docs/design-system.md)，再改代码，三者放在同一个 PR。台账见 [design/README.md](design/README.md)。
-- 只用 MyGo 原生控件和主题色。缺组件时，先在文档里补上它的规格和全部状态。
-- 截图贴在 PR 正文里，浅色和深色、每个状态一张。不要把截图提交进仓库，图片会一直留在 git 历史里。
+- Commit messages and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/):
+  `feat|fix|docs|refactor|perf|test|build|ci|chore|revert(scope)!: subject`. The `pr-title` check enforces it.
+- Name branches `<type>/<issue>-<slug>`, for example `feat/12-timeline`.
+- One concern per pull request. Link the issue with `Closes #<n>`.
+- The maintainer squash-merges, so the pull request title becomes the commit message. No DCO or sign-off is
+  required.
+- When behavior changes, update the existing tests for that area. Add user-visible changes under
+  `## [Unreleased]` in both `CHANGELOG.md` and `CHANGELOG.zh.md`.
+- Interface strings live in each screen's `copy.json`, in English and Simplified Chinese only; change both.
+  Product behavior changes start in [docs/product.md](docs/product.md).
 
-## AI 辅助
+## UI changes
 
-可以用 AI 工具。在 PR 里写明用了哪个、做了什么。你提交的每一行都要自己读懂并跑过，作为作者你对这个改动负责。
+- A UI change starts from the mockup in `design/` and [docs/design-system.md](docs/design-system.md); the
+  maintainer confirms the visual direction before UI code is written. Mockup, design notes and code go in the
+  same pull request.
+- Use only MyGo native controls and theme colors. If a component is missing, specify it and all its states in the
+  docs first.
+- Screenshots go in the pull request body (light and dark, one per state), not into the repository.
+
+## AI-assisted changes
+
+AI tools are fine. Say in the pull request which one you used and for what. You are responsible for every line
+you submit: read it, understand it and run it.
 
 ## License
 
-提交贡献即表示你同意它按 [MIT](LICENSE) 授权。
+Contributions are licensed under the [MIT License](LICENSE).

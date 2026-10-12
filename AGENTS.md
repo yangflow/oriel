@@ -1,57 +1,84 @@
-# 开发约束
+# AGENTS.md
 
-本文件约束人和代理怎么改这个仓库，不重复产品说明。
+## What it is
 
-代理读到的文件名是 `AGENTS.md`。`CLAUDE.md` 只有一行 `@AGENTS.md`，不要往里写别的，也不要另起一份。
+Oriel is a personal mixed-timeline reader for RSS and RSSHub, written in pure Go with MyGo native UI (macOS 12+,
+Windows 10/11, Linux with GTK 3; amd64 and arm64). One program is both the desktop app and its server; `oriel serve`
+runs the server headless. MIT licensed.
 
-## 基线
+Sources of truth:
 
-- `docs/product.md`：产品行为、数据模型、流程。
-- `docs/design-system.md`：颜色、字体、间距、组件。
-- `design/`：每个界面的画板和状态，台账在 `design/README.md`。
+- `docs/product.md`: product behavior, data model, flows. New rules go into the docs first, then into code.
+- `docs/design-system.md`: colors, type, spacing, components.
+- `design/`: the mockup of each screen and its states.
+- `docs/adr/0002-standalone-client-and-server.md`: the client reads and writes only through the HTTP API and never
+  touches storage directly; without authentication configured the server listens on `127.0.0.1` only.
 
-产品行为以 `docs/product.md` 为准。新功能的规则先写进本仓库的文档，再写代码。
+When docs and code disagree, decide which side is wrong: if the docs record a changed decision, fix the code; if
+the docs still hold and the code quietly gave way, fix the code; fix the docs only when they would lead someone to
+do the wrong thing.
 
-架构见 `docs/adr/0002-standalone-client-and-server.md`：客户端只通过 HTTP API 读写数据，不直接碰存储；服务端未设鉴权时只听 `127.0.0.1`。
+## Layout
 
-文档和代码冲突时，先判断是哪边错了：文档已经改了决定就改代码；文档仍有效而代码悄悄退让也改代码；文档本身会让人做错事才改文档。
+```
+main.go                  dispatches desktop and headless (`oriel serve`) modes; lifecycle, menu, window, native updater
+backend.go               opens the database, starts and stops the HTTP server; shared by both modes
+internal/store/          SQLite and all queries; migrations in internal/store/migrations/
+internal/fetch/          fetch loop, feed parsing, failure backoff, full-text extraction, retention pruning
+internal/server/         HTTP API and authentication
+internal/ui/<screen>/    one package per screen: state, copy.json catalog, headless interaction tests
+internal/ui/locale/      system language to UI language (Simplified Chinese, English), shared by all catalogs
+internal/ui/startup/     copy for the native error dialog when desktop startup fails
+resources/               shipped licenses and product assets
+scripts/                 checks, version bump, packaging, secret scan
+mygo.json                name, identifier, version, packaging
+docs/, design/           product spec, design system, ADRs, mockups
+```
 
-## 工作流程
+## Commands
 
-1. 先开 issue。标题 `[类型] 动词开头的一句话`，类型用 `ui`、`bug`、`feat`、`documentation`；正文分「What's wrong」「Fix direction」「Done when」三段。要人拍板的加 `needs-decision` 标签，定了以后在 issue 里记下结论，再去掉标签。
-2. 分支 `<类型>/<issue 号>-<短名>`，例如 `feat/12-timeline`。
-3. 提交信息第一行 `#<issue 号> · [类型] <和 issue 标题同义的一句话>`。每个提交用 `git commit -s` 签名（DCO 检查会拦）。作者邮箱用 GitHub 的 noreply 地址 `269347247+yangflow@users.noreply.github.com`：克隆后先 `git config user.email` 设好，不用个人邮箱和本机的全局配置。
-4. PR 标题同上，正文写 `Closes #<号>`，squash 合并，合并后删分支。
-5. 改视觉或交互：先改画板和 `docs/design-system.md`，再改代码，放在同一个 PR。改产品行为：先改 `docs/product.md`。
-6. 合并前 `scripts/check.sh --cross` 要过。用户能感知的改动写进 `CHANGELOG.md` 和 `CHANGELOG.zh.md` 的 `[Unreleased]`。
-7. `README.md`（英文）和 `README.zh-CN.md`（中文）内容保持一致，改一份就同时改另一份。功能状态只写已经合并的，计划中的写明是计划。
+```sh
+scripts/check.sh --cross     # gofmt, go mod tidy without diff, vet, tests, script tests, six cross-compiled targets
+go test -race ./...
+go tool mygo dev
+go tool mygo build
+ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
+python3 scripts/bump.py <version>   # the only way to change the version; dates both changelogs
+```
 
-## 目录
+## Conventions
 
-- `main.go`：分派桌面模式和无窗口模式（`oriel serve`）；生命周期、菜单、窗口、原生更新插件。
-- `backend.go`：打开数据库、启动和关闭 HTTP 服务端，两种模式共用。
-- `internal/store/`：SQLite 和全部查询。迁移在 `internal/store/migrations/`，只加新文件，不改已发布的。
-- `internal/fetch/`：抓取循环、订阅解析、失败退避、正文抽取和过期清理，由 `backend.go` 启动。条目链接一律走 `guardedClient`，不要换成普通的 `http.Client`。
-- `internal/server/`：HTTP API 和鉴权。客户端只走这层，不直接 import `internal/store`。
-- `internal/ui/<界面>/`：一个界面一个包，放状态、文案目录和无头交互测试。目录名和 `design/screens/<界面>.html` 对应。
-- `internal/ui/locale/`：系统语言到界面语言（简体中文、英文）的映射，所有文案目录共用。
-- `internal/ui/startup/`：桌面模式启动失败时原生错误框的文案。
-- `resources/`：随包分发的许可证和产品资源。
-- `scripts/`：检查、版本号、打包。
-- `mygo.json`：名称、identifier、版本号、打包配置。版本号只写在这里，用 `python3 scripts/bump.py <版本>` 改，它会同时给两份 changelog 定日期。
+- Only MyGo native views and the native updater plugin. No WebView, HTML frontend, cgo production dependency or
+  frontend toolchain.
+- No disk or network work on the drawing path. Run slow work in the background and change state back on the UI
+  thread.
+- Interface strings live in each screen package's `copy.json`, `en` and `zh-Hans` only; change both together. Do
+  not add other languages.
+- `internal/ui/<screen>/` matches `design/screens/<screen>.html`.
+- The client only goes through `internal/server/`; UI code never imports `internal/store`.
+- Migrations: only add new files under `internal/store/migrations/`; never edit a released one.
+- Entry links are always fetched through `guardedClient` in `internal/fetch/`; never replace it with a plain
+  `http.Client`.
+- The version lives only in `mygo.json`; change it with `python3 scripts/bump.py <version>`.
+- The MyGo library and CLI are one module; update them together in `go.mod`. When dependencies change, update
+  `THIRD_PARTY.md` and `resources/ThirdPartyLicenses/`.
+- When behavior changes, update the existing tests for that area. Passing headless tests is not on-device
+  acceptance.
+- Do not split files just because they are long. Leave no temporary scripts, debug output or commented-out code.
+- A UI change starts from the mockup in design/; the maintainer confirms the visual direction before UI code is
+  written. Mockup, `docs/design-system.md` and code go in the same pull request; screenshots go in the pull request
+  body, not into the repository.
+- User-visible changes go under `## [Unreleased]` in both `CHANGELOG.md` and `CHANGELOG.zh.md`. Keep `README.md`
+  and `README.zh-CN.md` in sync; list only merged features, and mark plans as plans.
+- Commit messages and PR titles use Conventional Commits:
+  `feat|fix|docs|refactor|perf|test|build|ci|chore|revert(scope)!: subject`. Branches are `<type>/<issue>-<slug>`;
+  pull requests are squash-merged. Commit with the GitHub noreply address
+  `269347247+yangflow@users.noreply.github.com` (set `git config user.email` after cloning).
 
-## 代码
+## Red lines
 
-- 只用 MyGo 原生视图和原生更新插件。不引入 WebView、HTML 前端、cgo 生产依赖或前端工具链。
-- 绘制路径里不做磁盘和网络操作。耗时工作放到后台，结果回到 UI 线程再改状态。
-- 界面文案放在各界面包的 `copy.json`，只有 `en` 和 `zh-Hans`，两种一起改。不加其他语言。
-- 行为变了，就改该区域已有的测试。无头测试通过不等于真机验收。
-- 不因为文件长就拆。不留临时脚本、调试输出和注释掉的代码。
-- MyGo 库和命令行工具是同一个模块，在 `go.mod` 里一起升级。依赖变了同步改 `THIRD_PARTY.md` 和 `resources/ThirdPartyLicenses/`。
-
-## 红线
-
-- 口令、token、API key、签名私钥不出现在代码、PR、issue、日志和截图里。`scripts/scan_secrets.py` 在 CI 里扫全部历史。
-- 签名、发布、往外部服务发数据，先问维护者。
-- 提交前看清暂存的文件列表，不用 `git add -A`。
-- 个人邮箱、本机用户名和本机路径不进提交信息、文件和日志。
+- Credentials (passwords, tokens, API keys, signing keys) never appear in code, PRs, issues, logs, screenshots or
+  chat. `scripts/scan_secrets.py` scans the whole history in CI.
+- Signing, releases and anything sent to an external service need the maintainer's confirmation.
+- No blind `git add -A`; review the staged file list before committing.
+- Personal e-mail addresses, local user names and local paths never go into commits, files or logs.

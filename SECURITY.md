@@ -1,29 +1,33 @@
-# 安全策略
+# Security policy
 
-## 报告漏洞
+## Reporting a vulnerability
 
-用 GitHub 的私密漏洞报告：<https://github.com/yangflow/oriel/security/advisories/new>。不要开公开 issue、讨论或 PR。
+Use GitHub private vulnerability reporting: <https://github.com/yangflow/oriel/security/advisories/new>. Do not
+open a public issue or pull request.
 
-写清楚版本或提交、操作系统、怎么复现、攻击者能得到什么。不要贴真实的口令、token、API key 和阅读内容。
+Include the version or commit, the operating system, steps to reproduce and what an attacker gains. Do not include
+real passwords, tokens, API keys or reading content.
 
-## 范围
+## Scope
 
-下面这些算安全问题：
+In scope:
 
-- 更新：更新包的签名或校验被绕过，或从非 HTTPS 源安装了更新。
-- 凭据：服务器口令、AI 接口的 API key 出现在日志、崩溃报告或明文配置里。
-- 用户内容：订阅里的内容能让应用执行代码、读写任意文件或访问内网。
+- Updates: bypassing update signature or checksum verification, or installing an update from a non-HTTPS source.
+- Credentials: the server password or an AI endpoint API key appearing in logs, crash reports or plain-text
+  configuration.
+- The headless server (`oriel serve`): bypassing sign-in or sessions, or a remote client reaching data without
+  authentication.
+- User content: feed content that makes the app execute code, read or write arbitrary files, or reach private or
+  loopback addresses.
 
-下面这些不算：
+Out of scope:
 
-- 你自己配置的 RSSHub、AI 接口等第三方服务本身的漏洞。
-- 需要先拿到本机用户权限的攻击。
-- 开发用的未签名包没有签名。
+- Vulnerabilities in third-party services you configure yourself, such as RSSHub or an AI endpoint.
+- Attacks that first require local user access.
+- Unsigned development builds being unsigned.
 
-## 预期
+## What to expect
 
-维护者一个人，业余时间处理。大约一周内确认收到。确认的漏洞会在新版本修复，并发布 GitHub 安全公告，默认署名报告者。没有赏金。
-
-## 支持的版本
-
-只修最新版本。
+One maintainer, in spare time. Expect an acknowledgement within about a week. Confirmed issues are fixed in a new
+release with a GitHub security advisory, crediting the reporter by default. There is no bounty. Only the latest
+version is supported.
