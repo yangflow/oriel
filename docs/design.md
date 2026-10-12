@@ -1,0 +1,352 @@
+# Oriel design language
+
+This is the design language of Oriel: the rules every screen follows, and the place to record where a screen
+departs from them. Oriel is a single-user reader that mixes RSS and RSSHub subscriptions into one timeline of
+articles, videos, social posts and images (see [product.md](product.md), in Chinese). The same program is the
+desktop app and, with `oriel serve`, a headless server; only the desktop app has a UI, and that UI reads and writes
+through the HTTP API.
+
+The UI is built on the native toolkit of [MyGo](https://github.com/egoist/mygo). This document summarizes the parts
+of its [UI guides](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/README.md) that matter for design; the guides
+stay the authority on API details. Links point to MyGo v0.3.6, the version pinned in `go.mod`. When the pin moves,
+check the pages again and update the links and this document together.
+
+Today the window still shows the counter example in `internal/ui/example/`, kept to exercise the toolchain,
+localization and headless tests. It follows these rules and is the reference values below call "the example". It is
+removed when the first product screen lands; the timeline, reader, subscription and settings screens described here
+are plans until their mockup and code are merged.
+
+Related files: [design/README.md](../design/README.md) (mockups and how a UI change is made) and
+[design/tokens.md](../design/tokens.md) (spacing, size and color values in one table).
+
+## Contents
+
+1. [Principles](#principles)
+2. [Layout and spacing](#layout-and-spacing)
+3. [Color and dark mode](#color-and-dark-mode)
+4. [Typography](#typography)
+5. [Icons and images](#icons-and-images)
+6. [Component guide](#component-guide)
+7. [Windows, menus and navigation](#windows-menus-and-navigation)
+8. [Accessibility checklist](#accessibility-checklist)
+9. [Motion](#motion)
+10. [Localization](#localization)
+11. [Design acceptance checklist](#design-acceptance-checklist)
+12. [References](#references)
+
+## Principles
+
+- **Native first.** Use MyGo's native widgets and the theme defaults as they are, and follow the system's light and
+  dark appearance and accent color. A control that looks and behaves like the platform's is learned already. Style
+  an element yourself only when no widget does the job, and build it on the
+  [custom widget](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/custom-widgets.md) bases so focus, keyboard and
+  accessibility stay intact. No WebView and no HTML frontend.
+- **Consistent across platforms, respectful of each.** One view serves macOS, Windows and Linux. Follow each
+  platform's conventions where MyGo exposes them: menu roles, the accent color, the system font, shortcuts that use
+  `CmdOrCtrl`. Do not add chrome that imitates one platform on the others.
+- **Content first.** Oriel is for reading. The timeline and the reader give the room to titles, text and images;
+  controls stay quiet and secondary until they are needed.
+- **Accessible by default.** Every element can be reached with the keyboard, named for a screen reader, read in both
+  appearances, and still works at larger text sizes. See the [checklist](#accessibility-checklist).
+- **No custom motion.** State changes take effect at once. See [Motion](#motion).
+- **Meaning is never carried by color alone.** Say it in words; pair color with text, a symbol or a shape.
+- **The UI thread draws.** A frame is built from in-memory state. No disk, network or other blocking work in a view,
+  including calls to Oriel's own HTTP API and decoding images; start that work in the background and change the state
+  back on the UI thread (see [Views](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/views.md)).
+- **Spec before code.** Every screen is specified in its mockup in `design/` and in this document before it is
+  written. Only `design/` and this document count as the design reference for Oriel.
+
+## Layout and spacing
+
+Layout uses flexbox in device-independent pixels (DIPs); see
+[Layout](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/layout.md).
+
+- **One spacing unit.** The theme's `Spacing` (4 DIPs by default; 3 is compact, 5 roomy) is the unit of every widget's
+  padding and gap. Size your own elements with `t.Space(n)` so they follow it. Do not write raw pixel numbers for
+  spacing.
+- **Scale.** Use whole multiples of the unit: 1 (4) between a label and its control, 2 (8) between related controls
+  and between buttons, 4 (16) between groups, 6 (24) for the window's outer padding. Larger gaps need a reason, for
+  example a section break.
+- **Structure from containers.** `Column` and `Row` with `Gap` and `Padding`; `Grow(1)` and `Spacer` for free space;
+  `Grid` for forms and aligned tables of controls. Prefer `Gap` to margins on individual children.
+- **Sizes are bounds.** Give windows a minimum size and let content reflow; do not fix a width a translation can
+  overflow. Use `MinWidth`, `MaxWidth` and `Grow` instead of fixed widths, except for square symbol buttons.
+- **Alignment.** Left-align text and labels; center only isolated focal content, as the example's counter. Reading
+  text in the article reader gets a comfortable maximum line length (`MaxWidth`) instead of spanning a wide window.
+- **Scrolling.** Content that can exceed the window goes in a
+  [scroll view](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/scroll.md). The timeline is a
+  [list](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/list.md), which builds only the rows in view and lets rows
+  of different kinds have different heights.
+- **The example.** Default window 480×320, minimum 360×280; outer padding `Space(6)` (24); vertical gap `Space(4)`
+  (16); button gap `Space(2)` (8); symbol buttons `Space(11)` (44) wide. The reset button grows to fit its localized
+  label.
+
+## Color and dark mode
+
+Colors come from the theme, `c.Theme()`: it is the light or dark theme, switches when the system appearance changes,
+and carries the user's accent color and contrast settings. See
+[Styling and themes](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/styling.md).
+
+- **Always use theme roles, never literals.** Use only MyGo theme colors; for example, secondary text uses
+  `TextMuted`. Hard-coded colors do not follow dark mode, accent or high contrast.
+
+  | Role | Use |
+  |---|---|
+  | `Background` | window and page fill |
+  | `Surface`, `SurfaceHover`, `SurfacePressed` | faces of controls and cards, and their states |
+  | `Border` | outlines and dividers |
+  | `Text`, `TextMuted` | primary text; secondary text, hints and placeholders |
+  | `Accent`, `AccentHover`, `AccentPressed`, `AccentText` | primary action, selection and checked controls; text on the accent |
+  | `Danger`, `Warning`, `Success` | destructive, cautionary and positive status (always with text or a symbol) |
+  | `Selection`, `Focus` | selected text; the keyboard focus ring |
+  | `Inverse`, `InverseText` | tooltips and toasts (left zero, they are `Text` and `Background`) |
+  | `Scrollbar` | scroll bar thumbs |
+
+- **Appearance.** Do not implement your own dark mode switch; the theme follows the system. If a screen draws custom
+  elements, use only theme colors, or read `c.Theme().Dark` where a choice cannot be expressed with them. For derived
+  colors use `Mix` and `Alpha` on theme colors rather than new constants.
+- **Accent.** One primary action per group uses `PrimaryButton`. Oriel has no brand color and does not recolor the
+  accent; it is the user's system accent.
+- **Contrast.** Text and meaningful graphics should meet WCAG 2.1 AA: 4.5:1 for body text, 3:1 for large text and
+  control boundaries. Test with the desktop's high contrast setting on (`c.Preferences().HighContrast`).
+- **Status.** Color supplements a message; the message states the status in words. A read entry, a failing
+  subscription or a missing full text is said in text, not only shown as a dimmed or red row.
+- **Content colors.** Images and video thumbnails from feeds keep their own colors; everything Oriel draws around
+  them uses theme roles.
+- **Mockups.** Colors in `design/screens/` approximate the default theme; the app running on a real device is what
+  counts.
+
+## Typography
+
+- **System font.** Leave `Font` empty so text uses the platform's UI font. The default text size is 13 on macOS and
+  14 elsewhere, and scales with the desktop's text size (`Preferences().TextScale`) when you rely on the theme. See
+  [Text](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/text.md).
+- **Size relative to the theme.** Use `t.Rem(n)` for sizes (`n` times the theme font size) rather than fixed numbers,
+  so custom text follows the user's text scale. Widgets use the theme size.
+- **The example.** Title 1.8 rem bold, the count 3.6 rem bold, hint 0.9 rem in `TextMuted`. At the macOS default
+  of 13 these are about 23, 47 and 12; they replace the fixed 24, 48 and 12 used before sizes followed the theme.
+- **Hierarchy with few steps.** Body, secondary (`TextMuted`, about 0.9 rem), section heading (bold) and at most one
+  display size per screen. Weight and color before size.
+- **Headings are real headings.** Give the title of a screen or section `Role(ui.RoleHeading)` and a `Level` so
+  assistive technology can navigate by them.
+- **Do not truncate silently.** Prefer wrapping. Where a single line is needed (`SingleLine`, `MaxLines`), for
+  example an entry title in the timeline, make the full text available in a tooltip or in the reader.
+- **Numbers and dates.** Show counts and dates in the user's language when they are data, not identifiers. Digits
+  that change in place can use `FontFeatures("tnum")`.
+
+## Icons and images
+
+- **Icons are SVG** shown with `ui.Icon`, which takes the text color and the font size: an icon follows theme colors
+  and the text size automatically. Any set that uses plain SVG (Lucide, Heroicons, Tabler, Material Symbols) works;
+  pick one set for the whole app, and record it and its license in `THIRD_PARTY.md` when it ships. Embed icons with
+  `go:embed` and parse them once at package level. See
+  [Icon](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/icon.md).
+- **An icon needs a name when it is alone.** Icons are decoration for assistive technology unless given a `Label`.
+  A button that shows only an icon or a symbol must get a readable name with `.Label()`; an icon next to a visible
+  text label needs none.
+- **Icon before label** in buttons, one icon style for the product, sized with `FontSize`.
+- **Feed images** (thumbnails, image entries, site icons) use
+  [Image](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/image.md). Download and decode them in the background and
+  make each bitmap once, never in the view; until it is ready, keep the image's box at its final size so the timeline
+  does not jump. Images that carry meaning get a `Label`; decorative ones do not.
+- **The example.** The counter uses the text symbols `+` and `−` with localized accessible labels. There is no icon
+  set yet, and the product icon is still to be designed (see [design/README.md](../design/README.md)).
+
+## Component guide
+
+Pick the widget by the job. Each name links to the upstream page, which also says what assistive technology sees of
+the widget. The complete list is the
+[UI index](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/README.md).
+
+What Oriel uses today:
+
+| Component | Use |
+|---|---|
+| `ui.Button` | Secondary actions. A button that shows only a symbol must give a readable name with `.Label()`. |
+| `ui.PrimaryButton` | The main action of a group of buttons; at most one. |
+| `ui.Text` | Text. Secondary explanations use `TextMuted`. |
+
+The tables below say what to reach for as screens are added.
+
+### Actions
+
+| Need | Use |
+|---|---|
+| The main action of a group, once | [Button](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/button.md) (`PrimaryButton`) |
+| Other actions | [Button](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/button.md) |
+| Open an entry's original page in the system browser | [Link](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/link.md) |
+| Several related actions in one place | [Menu button](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/menu-button.md) |
+| Actions on a specific entry or subscription, on right click | [Context menu](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/context-menu.md) |
+| An on/off command that stays pressed | [Toggle](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/toggle.md) |
+| Choose one of a few views or modes | [Segmented control](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/segmented.md) |
+| Window-level commands | [Toolbar](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/toolbar.md) |
+
+### Choices
+
+| Need | Use |
+|---|---|
+| A setting applied immediately (for example a per-subscription switch) | [Switch](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/switch.md) |
+| A yes/no value submitted with a form, or several independent options | [Checkbox](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/checkbox.md) |
+| One of two to five visible options (for example a subscription's kind) | [Radio](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/radio.md) |
+| One of many options | [Select](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/select.md); with typing to filter, [Combobox](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/combobox.md) |
+| A value in a range | [Slider](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/slider.md); an exact number, [Number input](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/number-input.md) or [Stepper](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/stepper.md) |
+
+### Text
+
+| Need | Use |
+|---|---|
+| Free text, one or many lines (a feed URL, an RSSHub path, a prompt) | [Text input](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/text-input.md) |
+| Searching the timeline | [Search field](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/search-field.md), or [Find bar](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/find-bar.md) for text in the reader |
+| Mute keywords | [Token field](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/token-field.md) |
+| Rename a subscription in place | [Editable text](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/editable-text.md) |
+| Labeled controls with help and errors | [Form](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/form.md) |
+
+### Collections
+
+| Need | Use |
+|---|---|
+| The timeline, and other long lists of one kind | [List](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/list.md) |
+| Rows with sortable, resizable columns (for example subscription health) | [Table](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/table.md) |
+| Hierarchy | [Tree](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/tree.md), or [Outline](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/outline.md) when large |
+| Thumbnails | [Grid view](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/grid-view.md) |
+
+### Containers and navigation
+
+| Need | Use |
+|---|---|
+| Scrolling content, such as the reader | [Scroll view](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/scroll.md) |
+| Columns and rows of controls | [Grid](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/grid.md) |
+| Two resizable panes (timeline and reader) | [Split view](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/split.md) |
+| Optional detail | [Collapsible](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/collapsible.md), [Accordion](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/accordion.md) |
+| Top-level sections of the app | [Sidebar](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/sidebar.md) |
+| A few peer pages inside a screen | [Tabs](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/tabs.md) |
+| Pages with a history | [Router](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/navigation.md), with [Back and forward buttons](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/history-buttons.md) |
+
+### Dialogs, messages and status
+
+| Need | Use |
+|---|---|
+| A task that needs the user's full attention | [Dialog](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/dialog.md) |
+| Confirm something important or destructive (deleting a subscription and its entries) | [Alert dialog](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/alert-dialog.md); for system file and message dialogs (OPML import and export, the startup error), `mygo.Dialog` ([desktop APIs](https://github.com/egoist/mygo/blob/v0.3.6/docs/native.md)) |
+| A small panel tied to an element | [Popover](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/popover.md) |
+| A short label or hint for a control | [Tooltip](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/tooltip.md) (never the only place for essential information) |
+| Feedback that needs no decision | [Toast](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/toast.md) |
+| Known progress / unknown duration (a fetch, an AI summary) | [Progress bar](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/progress.md) / [Spinner](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/spinner.md) |
+| A count or short status (unread entries) | [Badge](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/badge.md) |
+
+Overlays share focus and Escape behavior; see
+[Overlays](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/overlays.md). Rules of thumb:
+
+- Prefer undo over confirmation. Confirm only what cannot be undone, with a button named for the action ("Delete"),
+  not "OK", and Cancel as the Escape action.
+- Do not stack dialogs. Use a toast for news that needs no answer.
+- Errors say what happened and what to do, next to the control that caused them (`Error`, or a
+  [form](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/form.md) field). The server returns stable error codes;
+  the UI maps each to localized copy and never shows the raw code alone.
+- AI summaries and translations are on demand and can be slow or fail: show that the work is going on, keep the
+  original text readable meanwhile, and say plainly when it failed.
+
+## Windows, menus and navigation
+
+- **Windows.** One main window; set `Title`, `Width`, `Height`, and `MinWidth`/`MinHeight` so content never clips.
+  Oriel's window is 480×320 with a minimum of 360×280, sized for the example; the first product screen sets the real
+  sizes. `StateKey` remembers size and position between runs and is not used yet. A second launch brings the existing
+  window to the front. See
+  [Windows with native UI](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/windows.md) and the
+  [window options](https://github.com/egoist/mygo/blob/v0.3.6/docs/windows.md).
+- **Title bar.** Keep the system title bar. A hidden title bar (`TitleBarStyle: mygo.TitleBarHidden`) makes the view
+  responsible for the room the window controls take (`c.TitleBar()`) and for a draggable area (`DragWindow`); use it
+  only with a mockup that shows why.
+- **Vibrancy and materials.** macOS vibrancy shows where the view draws no background; if used at all, use it for a
+  sidebar only, over opaque content. Oriel uses opaque theme surfaces and no custom glass.
+- **Menus.** The macOS menu bar belongs to the app. Oriel's menu has an app menu (About, check for updates, Quit),
+  the Edit menu (`RoleEditMenu`, so copy and paste work) and the Window menu (`RoleWindowMenu`). Use roles
+  (`RoleAbout`, `RoleQuit` and the others) for standard items: they carry the right label and shortcut, and items
+  that only macOS has are left out elsewhere. Give custom items an accelerator with `CmdOrCtrl`. Every command
+  reachable by a toolbar button should also be in a menu. See
+  [Menus](https://github.com/egoist/mygo/blob/v0.3.6/docs/menus.md).
+- **Navigation.** Choose the lightest structure that fits: a single screen;
+  [tabs](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/tabs.md) for a few peer views; a
+  [sidebar](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/sidebar.md) with a
+  [router](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/navigation.md) for several top-level sections (timeline,
+  subscriptions, settings). A router gives back/forward keys, state restored per page and focus handling. Give every
+  page a `Title`.
+- **Leaving the app.** Video and social entries have no embedded player; opening them hands the link to the system
+  browser. Say so in the control ("Open in browser"), not only with an icon.
+- **Toolbar.** Frequent window-level commands, in order of importance; controls that do not fit overflow into a menu.
+- **Notifications.** Use system notifications only for events the user would want when the app is in the background.
+
+## Accessibility checklist
+
+MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
+[Accessibility](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/accessibility.md).
+
+- [ ] Every interactive element has an accessible name: its text, or `Label` when it shows only an icon, a symbol or
+      a drawing.
+- [ ] `Description` carries help text; `Error` marks invalid values.
+- [ ] Custom elements that act as widgets set `Role`, and the states they show (`Checked`, `Expanded`, `Range`).
+- [ ] Section and screen titles are headings with a `Level`.
+- [ ] Changes that do not move the focus (a count, new entries arriving, a finished summary) call `c.Announce(text)`.
+      Toasts announce their text, and a router the title of a page shown while the focus stays outside it.
+- [ ] The whole UI works with the keyboard: the focus order is the standard one and follows reading order, there is
+      a visible focus ring (do not remove it), shortcuts exist for frequent actions, Escape closes overlays.
+- [ ] Text uses theme sizes (`Rem`) and scales; layouts reflow at larger text and in the longer translation.
+- [ ] Colors are theme roles; contrast holds in both appearances and with high contrast on.
+- [ ] Nothing depends on color, sound or motion alone.
+- [ ] Pointer targets are at least about 24×24 DIPs, and 32 or more for primary controls.
+- [ ] `ui.NewTester` tests click controls by their accessible names, so a missing name fails the test (see
+      [Testing](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/testing.md)).
+
+Contrast, scaling, keyboard use and screen readers are verified on real devices; a passing headless test does not
+count as accessibility acceptance.
+
+## Motion
+
+Oriel has no custom animation: state changes take effect immediately. See
+[Transitions](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/transitions.md) and
+[Drawing and animation](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/drawing.md) for what the toolkit offers.
+
+- **Default is none.** Do not add `Transition`, `Animate` or page transitions without a mockup that shows the change
+  they explain and the maintainer's agreement; record the exception here.
+- **If an exception is agreed,** use the built-ins with their defaults (element transitions are 200 ms, ease-out)
+  and nothing longer than 300 ms for interface feedback. Avoid frame-by-frame custom animation.
+- **Reduced motion.** `Animate` and element and page transitions already jump to the target when the desktop asks
+  for less motion (`c.Preferences().ReduceMotion`). Any motion you compute yourself must read the preference.
+  Spinners may keep turning: they show that work is going on.
+- **Never animate to hide latency**, and do not loop decoration.
+- **The example.** None; the count changes at once.
+
+## Localization
+
+- The UI is in English and Simplified Chinese only. Every user-visible string is in the embedded catalog `copy.json`
+  next to the screen, keyed `en` and `zh-Hans`. Change both together; do not add other languages.
+- `locale.Language` (in `internal/ui/locale/`) maps the system locale: every Chinese locale, Traditional included,
+  reads Simplified Chinese; everything else reads English. Screens use it rather than their own mapping.
+- Every key has both translations, and each screen's test fails on a missing or untranslated entry. Accessible
+  names are copy too: translate `Label` and `Description`.
+- Feed content (titles, text, author names) is shown as it comes, in whatever language it is in; it is not copy.
+  Translation of content is the on-demand AI feature, not localization.
+- English labels: short imperatives ("Reset", "Add subscription"), sentence case, no trailing period on labels and a
+  full stop on sentences. Chinese sentences use full-width punctuation. Do not concatenate sentence fragments, since
+  word order differs; use full-sentence strings with placeholders.
+- Layouts must tolerate the longer of the two translations, and English text 30–50% longer than the first draft.
+  Do not fix widths of text controls.
+- Format dates, times, numbers and plurals for the language. Chinese has no plural forms; English needs separate
+  strings for one and many where it matters.
+
+## Design acceptance checklist
+
+Run before a UI pull request is merged, and on each target platform before a release:
+
+- [ ] Every state in the mockup is reached in the app (for the example: zero, positive and negative counts).
+- [ ] Both languages, light and dark, the default and the minimum window size checked.
+- [ ] Keyboard-only run-through, and a screen reader pass on each target platform.
+- [ ] High contrast and larger text size checked.
+- [ ] Screenshots of each state, light and dark, are in the pull request body.
+
+## References
+
+This design language draws on the UI documentation of MyGo (MIT License, Copyright (c) egoist):
+<https://github.com/egoist/mygo/tree/v0.3.6/docs/ui>, together with `docs/native.md`, `docs/menus.md` and
+`docs/windows.md` from the same version. The text here is a summary in our own words; the upstream pages are the
+source for APIs and behavior. See also [THIRD_PARTY.md](../THIRD_PARTY.md).

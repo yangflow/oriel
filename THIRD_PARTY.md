@@ -33,3 +33,9 @@ Transitive modules are listed because their code ships. Directories with several
 notices keep every `LICENSE*` file the module carries; the memory logo license is omitted
 because the logo is not shipped. Go standard-library components
 retain their Go license; a copy ships under resources/ThirdPartyLicenses/go/.
+
+## Documentation
+
+`docs/design.md` and `design/` summarize, in our own words, the UI documentation of MyGo v0.3.6 (MIT License,
+Copyright (c) egoist): <https://github.com/egoist/mygo/tree/v0.3.6/docs/ui>. No upstream text or code is shipped in
+the app.

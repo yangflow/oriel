@@ -1,21 +1,27 @@
-# 0003 用纯 Go 的 SQLite
+# 0003 Pure Go SQLite
 
-- 状态：已采纳
-- 日期：2026-10-12
-- 相关：[docs/product.md](../product.md)「存储」
+- Status: accepted
+- Date: 2026-10-12
+- Related: [docs/product.md](../product.md), "Storage" (存储)
 
-## 背景
+## Context
 
-服务端要一个单文件、带全文检索的嵌入式数据库，单用户用 SQLite 足够。技术基线不允许生产代码用 cgo，否则交叉编译六个目标就要六套 C 工具链。
+The server needs a single-file embedded database with full-text search; for a single user SQLite is enough. The
+technical baseline does not allow cgo in production code; otherwise cross-compiling the six targets would need six C
+toolchains.
 
-## 决定
+## Decision
 
-用 `modernc.org/sqlite`。它是 SQLite 的 C 源码机器翻译成的 Go，带 FTS5 和 trigram 分词，六个目标都能用 `CGO_ENABLED=0` 编译。通过 `database/sql` 使用，驱动名 `sqlite`。
+Use `modernc.org/sqlite`. It is SQLite's C source machine-translated to Go, includes FTS5 and the trigram tokenizer,
+and compiles for all six targets with `CGO_ENABLED=0`. It is used through `database/sql` with the driver name
+`sqlite`.
 
-## 代价
+## Cost
 
-比 cgo 版慢，程序也更大。多了一串间接依赖（`modernc.org/libc` 等），每次升级都要同步 `THIRD_PARTY.md` 和许可证文件。SQLite 的版本跟着驱动走，不能单独升。
+It is slower than the cgo version, and the program is larger. It brings a chain of indirect dependencies
+(`modernc.org/libc` and others), so every upgrade has to sync `THIRD_PARTY.md` and the license files. The SQLite
+version follows the driver and cannot be upgraded on its own.
 
-## 什么时候重新考虑
+## When to revisit
 
-真机上测出查询或写入速度影响交互，或者驱动停止维护。
+Query or write speed is measured on real devices to affect interaction, or the driver stops being maintained.
