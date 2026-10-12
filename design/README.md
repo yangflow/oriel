@@ -1,22 +1,23 @@
-# 画板
+# Design
 
-`screens/<界面>.html` 是每个界面的画板，用浏览器打开。文件名和 `internal/ui/<界面>/` 对应。画板是近似效果，以真机运行的效果为准。
+HTML mockups of Oriel's screens. They approximate the result; the app running on a real device is what counts.
 
-## 台账
+## What is here
 
-| 界面 | 规格 | 画板 | 代码 | 状态 |
-|---|---|---|---|---|
-| Example | `docs/product.md` 当前界面 | `screens/example.html` | `internal/ui/example/` | 模板示例，产品第一个界面落地时删掉 |
-| 启动失败提示 | `docs/product.md` 运行模式 | 无，系统原生错误框 | `internal/ui/startup/` | 已定稿 |
+- `screens/<screen>.html`: one mockup per screen, matching the package `internal/ui/<screen>/`. Today there is only
+  `example.html`, the template's counter example, which goes away when the first product screen lands.
+- The startup failure message has no mockup; it is a native system error dialog (`internal/ui/startup/`).
+- Colors, type, spacing and components are specified in [docs/design-system.md](../docs/design-system.md).
 
-状态用：计划中、待评审、已定稿、已验收。定稿和验收由维护者在 PR 里确认。
+## Preview
 
-## 查看状态
+Open a mockup in a browser. States and color schemes are switched with URL parameters, for example
+`screens/example.html?state=zero|positive|negative&scheme=light|dark`. New mockups use URL parameters the same way,
+so every state can be seen.
 
-`example.html` 支持 `?state=zero|positive|negative` 和 `?scheme=light|dark`。新画板也用 URL 参数切状态和深浅色，每个状态都要能看到。
+## Icons
 
-## 维护
+There are no icon sources yet; the product icon is still to be designed. When it lands, its source and the script
+that exports it will live here.
 
-改界面时，规格、画板、代码放在同一个 PR。
-
-仓库里不存截图，`design/` 只放 HTML 画板和这份台账。验收用的截图贴在 PR 正文里，由 GitHub 托管，不进 git 历史。`.gitignore` 已忽略 `design/screenshots/`。
+Screenshots go in the pull request body, not into the repository; `design/screenshots/` is ignored by git.
