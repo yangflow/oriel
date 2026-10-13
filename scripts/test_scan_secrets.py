@@ -19,6 +19,9 @@ class ScanTest(unittest.TestCase):
             self.assertEqual(r.returncode, 1, r.stderr)
             self.assertIn("github-token", r.stdout)
             self.assertNotIn(value, r.stdout + r.stderr)
+            out = r.stdout + r.stderr
+            self.assertNotIn(value[:4], out)
+            self.assertRegex(out, r"<redacted %d chars, sha256:[0-9a-f]{8}>" % len(value))
 
     def test_public_key_does_not_hide_another_secret(self):
         with tempfile.TemporaryDirectory() as tmp:

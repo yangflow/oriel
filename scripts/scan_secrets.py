@@ -4,7 +4,7 @@
     python3 scripts/scan_secrets.py                 # every added line in every commit of every ref
     python3 scripts/scan_secrets.py --path build/release/Oriel.app --forbid "$HOME"   # a built app
 
-Matches are never printed in full: only commit, file, line and a redacted prefix, so the report itself
+Matches are never printed in full: only commit, file, line and a redacted length and fingerprint, so the report itself
 cannot leak a secret. Exit status 1 when anything is found. This is a pattern scan, not a proof that
 no secret exists: a clean result is not a statement that the project is secure.
 
@@ -14,6 +14,7 @@ The update public key is read from mygo.json; private keys are never allowed.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import math
 import json
 import re
@@ -62,7 +63,8 @@ def entropy(text: str) -> float:
 
 
 def redact(value: str) -> str:
-    return value[:4] + "…(" + str(len(value)) + " chars)"
+    """Length and a short SHA-256 fingerprint only: no character of the value is ever shown."""
+    return f"<redacted {len(value)} chars, sha256:{hashlib.sha256(value.encode()).hexdigest()[:8]}>"
 
 
 def scan_line(line: str) -> list[tuple[str, str]]:
@@ -81,7 +83,7 @@ def scan_line(line: str) -> list[tuple[str, str]]:
 
 
 def scan_history() -> tuple[list[str], list[str]]:
-    secrets: list[str] = []
+    findings: list[str] = []
     personal: dict[str, set[str]] = {}
     proc = subprocess.Popen(
         ["git", "log", "--all", "-p", "--no-color", "--format=@@@%h", "-U0", "--no-ext-diff", "--text"],
@@ -103,7 +105,7 @@ def scan_history() -> tuple[list[str], list[str]]:
             for name, shown in scan_line(line[1:]):
                 if path.startswith(ALLOW_PATHS):
                     continue
-                secrets.append(f"{commit} {path}:{line_no} {name} {shown}")
+                findings.append(f"{commit} {path}:{line_no} {name} {shown}")
             for name, pattern in PERSONAL.items():
                 for m in pattern.finditer(line[1:]):
                     personal.setdefault(name, set()).add(f"{path}")
@@ -111,7 +113,7 @@ def scan_history() -> tuple[list[str], list[str]]:
         raise RuntimeError("git history scan failed")
     summary = [f"{name}: {len(files)} file(s): " + ", ".join(sorted(files)[:6]) + ("…" if len(files) > 6 else "")
                for name, files in sorted(personal.items())]
-    return sorted(set(secrets)), summary
+    return sorted(set(findings)), summary
 
 
 def printable_strings(data: bytes) -> list[str]:
@@ -143,17 +145,17 @@ def main() -> int:
     if args.path:
         if not args.path.exists():
             parser.error("artifact path does not exist")
-        secrets, notes = scan_path(args.path, args.forbid), []
+        findings, notes = scan_path(args.path, args.forbid), []
         label = f"artifact {args.path}"
     else:
-        secrets, notes = scan_history()
+        findings, notes = scan_history()
         label = "git history (all refs)"
     print(f"Scanned {label}.")
     for item in notes:
         print("note:", item)
-    if secrets:
-        print(f"FOUND {len(secrets)} credential-like match(es) (values redacted):")
-        for item in secrets:
+    if findings:
+        print(f"FOUND {len(findings)} credential-like match(es) (values redacted):")
+        for item in findings:
             print(" ", item)
         return 1
     print("No credential-like patterns found (pattern scan only).")
