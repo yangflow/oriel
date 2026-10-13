@@ -76,6 +76,26 @@ python3 scripts/bump.py <version>   # the only way to change the version; dates 
   pull requests are squash-merged. Commit with the GitHub noreply address
   `269347247+yangflow@users.noreply.github.com` (set `git config user.email` after cloning).
 
+## Issues and pull requests
+
+`gh issue create` and `gh pr create --body` skip the issue forms and the pull request template, so write their
+structure yourself. Search open issues first; one issue is one problem.
+
+- Issue title: one short sentence that says the problem or the outcome, in English or Simplified Chinese. No type
+  prefix such as `[feat]`; the label carries the type.
+- Bug, `--label bug`: `## What happened`, `## What you expected`, `## Steps to reproduce`,
+  `## Version and environment`.
+- Feature or improvement, `--label enhancement`: `## Problem`, `## Proposed solution`,
+  `## Alternatives considered` (when there were any), `## Done when`.
+- Documentation, `--label documentation`: `## Where`, `## What is missing, unclear or wrong`, `## Suggested change`.
+- Labels: `ui` marks work on a screen or a mockup, together with `enhancement` or `bug`; `accessibility` marks
+  screen-reader, keyboard and contrast work.
+- Pull request: the title is the Conventional Commits subject (it becomes the squash commit). The body has
+  `## Summary` (what changes and why), `## Related issue` (`Closes #<n>`), `## How tested` (the commands run and
+  their results, and what was not run) and `## Checklist`:
+  `- [ ] PR title follows Conventional Commits`, `- [ ] Tests pass`,
+  `- [ ] Documentation updated where behavior changed`, ticked only when true.
+
 ## Red lines
 
 - Credentials (passwords, tokens, API keys, signing keys) never appear in code, PRs, issues, logs, screenshots or
