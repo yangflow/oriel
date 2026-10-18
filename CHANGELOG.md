@@ -10,6 +10,7 @@ All notable user-facing changes are recorded here, following [Keep a Changelog](
 
 ### Added
 
+- An HTTP API for the timeline: pages by cursor, filters by source, kind, unread and starred, full-text search, and marking entries read or starred.
 - An HTTP API for subscriptions: add, list, edit, pause, delete and refresh, with validation and duplicate detection.
 - Entries older than the retention period are pruned hourly unless starred, and expired items are not fetched again.
 - Article entries get their full text through Readability, retried up to three times; links found in feeds cannot reach private or loopback addresses.

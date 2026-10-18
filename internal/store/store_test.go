@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -242,5 +243,88 @@ func TestSources(t *testing.T) {
 	}
 	if _, err := s.Source(ctx, hub.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("deleted source: %v", err)
+	}
+}
+
+func TestEntries(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	start := time.UnixMilli(1_000_000)
+	blog, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "Blog", start)
+	tube, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/videos", Kind: "video", FetchInterval: time.Hour}, "", start)
+	feed := func(src Source, at time.Time, items ...FeedEntry) {
+		t.Helper()
+		if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: src.Kind}, "", "", items, time.Time{}, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	feed(blog, start, FeedEntry{GUID: "b1", Title: "Native readers", Images: []Image{{URL: "https://example.org/a.png", Width: 4}}},
+		FeedEntry{GUID: "b2", Title: "Older post"})
+	feed(tube, start.Add(time.Minute), FeedEntry{GUID: "v1", Title: "A video", DurationSec: 90})
+
+	ids := func(entries []Entry) (got []string) {
+		for _, e := range entries {
+			got = append(got, e.Title)
+		}
+		return got
+	}
+	all, err := s.Entries(ctx, EntryFilter{}, 10)
+	if err != nil || strings.Join(ids(all), "|") != "A video|Native readers|Older post" {
+		t.Fatalf("Entries = %v, %v", ids(all), err)
+	}
+	if all[0].Kind != "video" || all[0].SourceTitle != "https://example.org/videos" || all[0].DurationSec != 90 ||
+		all[1].SourceTitle != "Blog" || len(all[1].Images) != 1 || all[1].Images[0].Width != 4 || all[1].ExtractStatus != "pending" {
+		t.Fatalf("fields: %+v", all[:2])
+	}
+	after := Position{all[0].CreatedAt.UnixMilli(), all[0].ID}
+	if page, _ := s.Entries(ctx, EntryFilter{After: &after}, 1); len(page) != 1 || page[0].ID != all[1].ID {
+		t.Fatalf("second page: %v", ids(page))
+	}
+	if got, _ := s.Entries(ctx, EntryFilter{Kind: "article", Query: `NATIVE "READ`}, 10); len(got) != 0 {
+		t.Fatalf("a quote matched: %v", ids(got))
+	}
+	if got, _ := s.Entries(ctx, EntryFilter{Kind: "article", Query: "NATIVE READ"}, 10); len(got) != 1 || got[0].Title != "Native readers" {
+		t.Fatalf("search: %v", ids(got))
+	}
+	if got, _ := s.Entries(ctx, EntryFilter{SourceID: tube.ID}, 10); len(got) != 1 {
+		t.Fatalf("by source: %v", ids(got))
+	}
+
+	readTrue, readFalse, star := true, false, true
+	first := start.Add(time.Hour)
+	read, err := s.UpdateEntry(ctx, all[1].ID, EntryPatch{IsRead: &readTrue, Starred: &star}, first)
+	if err != nil || !read.IsRead || !read.Starred || !read.ReadAt.Equal(first) {
+		t.Fatalf("mark read: %+v, %v", read, err)
+	}
+	if again, _ := s.UpdateEntry(ctx, all[1].ID, EntryPatch{IsRead: &readTrue}, first.Add(time.Hour)); !again.ReadAt.Equal(first) {
+		t.Fatalf("read twice moved read_at: %v", again.ReadAt)
+	}
+	if unread, _ := s.UpdateEntry(ctx, all[1].ID, EntryPatch{IsRead: &readFalse}, first); unread.IsRead || !unread.ReadAt.IsZero() || !unread.Starred {
+		t.Fatalf("mark unread: %+v", unread)
+	}
+	if _, err := s.UpdateEntry(ctx, 99, EntryPatch{IsRead: &readTrue}, first); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing entry: %v", err)
+	}
+	var updated int64
+	s.db.QueryRow("SELECT updated_at FROM entries WHERE id = ?", all[1].ID).Scan(&updated)
+	if updated != start.UnixMilli() {
+		t.Fatal("reading state changed updated_at")
+	}
+	if starred, _ := s.Entries(ctx, EntryFilter{Starred: true}, 10); len(starred) != 1 {
+		t.Fatalf("starred: %v", ids(starred))
+	}
+
+	upTo, err := s.EntryPosition(ctx, all[1].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.MarkRead(ctx, EntryFilter{UpTo: &upTo}, first); err != nil || n != 2 {
+		t.Fatalf("MarkRead = %d, %v", n, err)
+	}
+	if unread, _ := s.Entries(ctx, EntryFilter{Unread: true}, 10); len(unread) != 1 || unread[0].ID != all[0].ID {
+		t.Fatalf("unread after MarkRead: %v", ids(unread))
+	}
+	if _, err := s.EntryPosition(ctx, 99); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("position of missing entry: %v", err)
 	}
 }

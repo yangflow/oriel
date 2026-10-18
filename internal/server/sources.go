@@ -47,13 +47,6 @@ type sourceJSON struct {
 }
 
 func toJSON(src store.Source) sourceJSON {
-	millis := func(t time.Time) *int64 {
-		if t.IsZero() {
-			return nil
-		}
-		ms := t.UnixMilli()
-		return &ms
-	}
 	return sourceJSON{
 		ID: src.ID, URL: src.URL, RSSHubPath: src.RSSHubPath, Title: src.Title, SiteURL: src.SiteURL,
 		IconURL: src.IconURL, Kind: src.Kind, FetchIntervalSec: int64(src.FetchInterval / time.Second),

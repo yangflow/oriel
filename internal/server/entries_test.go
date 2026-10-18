@@ -1,0 +1,151 @@
+package server
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/yangflow/oriel/internal/store"
+)
+
+// seed adds a source of kind with n entries titled "<kind> 0" and up, the last the newest, and returns its ID.
+func seed(t *testing.T, s *Server, kind string, n int, at time.Time) int64 {
+	t.Helper()
+	ctx := context.Background()
+	src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/" + kind, Kind: kind, FetchInterval: time.Hour}, "", at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := make([]store.FeedEntry, n)
+	for i := range items {
+		items[n-1-i] = store.FeedEntry{GUID: strconv.Itoa(i), Title: fmt.Sprintf("%s %d", kind, i), ContentHTML: "<p>body</p>"}
+	}
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: kind}, "", "", items, time.Time{}, at); err != nil {
+		t.Fatal(err)
+	}
+	return src.ID
+}
+
+func titles(t *testing.T, body map[string]any) []string {
+	t.Helper()
+	var got []string
+	for _, item := range body["entries"].([]any) {
+		got = append(got, item.(map[string]any)["title"].(string))
+	}
+	return got
+}
+
+func TestEntryQueryValidation(t *testing.T) {
+	s, _ := newServer(t, "")
+	for query, code := range map[string]string{
+		"source=x":             "invalid_source",
+		"source=0":             "invalid_source",
+		"kind=podcast":         "invalid_kind",
+		"q=ab":                 "query_too_short",
+		"q=%E4%B8%AD%E6%96%87": "query_too_short",
+		"limit=0":              "invalid_limit",
+		"limit=101":            "invalid_limit",
+		"cursor=abc":           "invalid_cursor",
+		"cursor=1.0":           "invalid_cursor",
+	} {
+		w := do(s, "GET", "/api/entries?"+query, "", nil)
+		if w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
+			t.Errorf("%s: %d %s, want %s", query, w.Code, w.Body, code)
+		}
+	}
+}
+
+func TestTimeline(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	if w := do(s, "GET", "/api/entries", "", nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without session: %d", w.Code)
+	}
+	seed(t, s, "article", 3, c.t)
+	video := seed(t, s, "video", 2, c.t.Add(time.Minute))
+
+	// Pages follow the cursor without gaps or repeats, even when newer entries arrive in between.
+	var got []string
+	target := "/api/entries?limit=2"
+	for pages := 0; ; pages++ {
+		body := decode(t, do(s, "GET", target, "", bearer(token)))
+		got = append(got, titles(t, body)...)
+		if pages == 0 {
+			seed(t, s, "social", 1, c.t.Add(time.Hour))
+		}
+		if body["nextCursor"] == nil {
+			break
+		}
+		target = "/api/entries?limit=2&cursor=" + body["nextCursor"].(string)
+	}
+	if fmt.Sprint(got) != "[video 1 video 0 article 2 article 1 article 0]" {
+		t.Fatalf("pages: %v", got)
+	}
+	if got := titles(t, decode(t, do(s, "GET", "/api/entries?kind=social", "", bearer(token)))); fmt.Sprint(got) != "[social 0]" {
+		t.Fatalf("new entry on top: %v", got)
+	}
+	if got := titles(t, decode(t, do(s, "GET", "/api/entries?source="+strconv.FormatInt(video, 10), "", bearer(token)))); len(got) != 2 {
+		t.Fatalf("by source: %v", got)
+	}
+	if got := titles(t, decode(t, do(s, "GET", "/api/entries?q=+ARTICLE+2+", "", bearer(token)))); fmt.Sprint(got) != "[article 2]" {
+		t.Fatalf("search: %v", got)
+	}
+
+	list := decode(t, do(s, "GET", "/api/entries?kind=article", "", bearer(token)))["entries"].([]any)
+	first := list[0].(map[string]any)
+	if first["sourceTitle"] != "https://example.org/article" || first["publishedAt"] != nil || first["durationSec"] != nil ||
+		first["readAt"] != nil || first["contentHtml"] != nil || len(first["images"].([]any)) != 0 {
+		t.Fatalf("list item: %v", first)
+	}
+	id := strconv.Itoa(int(first["id"].(float64)))
+
+	c.t = c.t.Add(2 * time.Hour)
+	w := do(s, "PATCH", "/api/entries/"+id, `{"isRead":true,"starred":true}`, bearer(token))
+	entry := decode(t, w)
+	if w.Code != http.StatusOK || entry["isRead"] != true || entry["starred"] != true || entry["readAt"] != float64(c.t.UnixMilli()) ||
+		entry["contentHtml"] != "<p>body</p>" || entry["extractedHtml"] != "" {
+		t.Fatalf("patch: %d %v", w.Code, entry)
+	}
+	if got := decode(t, do(s, "GET", "/api/entries/"+id, "", bearer(token))); got["starred"] != true {
+		t.Fatalf("get: %v", got)
+	}
+	if got := titles(t, decode(t, do(s, "GET", "/api/entries?starred=1", "", bearer(token)))); fmt.Sprint(got) != "[article 2]" {
+		t.Fatalf("starred: %v", got)
+	}
+	if w := do(s, "PATCH", "/api/entries/"+id, `{"isRead":"yes"}`, bearer(token)); w.Code != http.StatusBadRequest {
+		t.Fatalf("bad patch: %d", w.Code)
+	}
+
+	// Mark read up to the oldest video: the newer social entry and the newer video stay unread.
+	videos := decode(t, do(s, "GET", "/api/entries?kind=video", "", bearer(token)))["entries"].([]any)
+	oldestVideo := int(videos[1].(map[string]any)["id"].(float64))
+	w = do(s, "POST", "/api/entries/read", fmt.Sprintf(`{"upTo":%d}`, oldestVideo), bearer(token))
+	if w.Code != http.StatusOK || decode(t, w)["marked"] != 3.0 {
+		t.Fatalf("mark read: %d %s", w.Code, w.Body)
+	}
+	if got := titles(t, decode(t, do(s, "GET", "/api/entries?unread=1", "", bearer(token)))); fmt.Sprint(got) != "[social 0 video 1]" {
+		t.Fatalf("unread: %v", got)
+	}
+	if w := do(s, "POST", "/api/entries/read", `{"kind":"social"}`, bearer(token)); decode(t, w)["marked"] != 1.0 {
+		t.Fatalf("mark social read: %s", w.Body)
+	}
+	if w := do(s, "POST", "/api/entries/read", "", bearer(token)); w.Code != http.StatusOK || decode(t, w)["marked"] != 1.0 {
+		t.Fatalf("mark all read: %d %s", w.Code, w.Body)
+	}
+	for body, want := range map[string]int{`{"upTo":999}`: http.StatusNotFound, `{"kind":"link"}`: http.StatusBadRequest} {
+		if w := do(s, "POST", "/api/entries/read", body, bearer(token)); w.Code != want {
+			t.Errorf("%s: %d", body, w.Code)
+		}
+	}
+	for _, r := range []struct{ method, target, body string }{
+		{"GET", "/api/entries/999", ""},
+		{"PATCH", "/api/entries/999", `{"isRead":true}`},
+	} {
+		if w := do(s, r.method, r.target, r.body, bearer(token)); w.Code != http.StatusNotFound {
+			t.Errorf("%s %s: %d", r.method, r.target, w.Code)
+		}
+	}
+}
