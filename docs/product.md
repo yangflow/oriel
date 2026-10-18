@@ -152,7 +152,7 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 - 只用标准库 `net/http`。JSON 字段用 camelCase。
 - 出错时返回 `{ "error": "<代码>" }`，代码是稳定的小写英文，界面据此显示本地化文案。
 - `GET /health` 不要鉴权，返回版本、是否要求口令、数据库是否可写。数据库不可写时 503。
-- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」和「时间线接口」两节的路由。其余路由随各自的功能加进来，并写进这一节。
+- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「设置接口」三节的路由。其余路由随各自的功能加进来，并写进这一节。
 - 请求体是 JSON，最大 64 KiB；坏 JSON、多出未知字段或类型不对返回 400 `invalid_body`。
 
 ## 订阅接口
@@ -225,6 +225,21 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 - 被屏蔽的条目不出现在 `GET /api/entries` 的任何结果里，检索也一样；不计入源的 `unreadCount`；「全部已读」不改它们。
 - 收藏的条目不屏蔽：用户特意留下的，不因为后来加了屏蔽词就看不见。
 - 屏蔽只是隐藏，不删条目，也不改阅读状态。按 `id` 仍能取到和修改。改了屏蔽词马上生效，清空后条目重新出现。
+
+## 设置接口
+
+都要会话（设了口令时）。设置在 JSON 里是一个对象：`rsshubBaseUrl`（RSSHub 根地址，没设为空串）、`retentionDays`（保留期限的天数，`0` 是永久）。
+
+| 路由 | 作用 |
+|---|---|
+| `GET /api/settings` | 当前设置。 |
+| `PATCH /api/settings` | 改字段，只改请求里带的，返回改后的设置。 |
+
+- `rsshubBaseUrl` 去掉首尾空白，空串表示不设；否则必须是带主机名的 http 或 https 绝对地址，可以指向本机或内网，不然 `invalid_rsshub_base_url`。
+- `retentionDays` 是 0 到 3650 的整数，否则 `invalid_retention_days`；不是整数时 `invalid_body`。库里存的值读不成天数时按永久处理，返回 `0`（见「保留期限」）。
+- 有一个字段不对就整个请求不生效。
+- 抓取循环每次抓取和清理都重新读设置，改了从下一次抓取和清理起生效，不用重启。
+- 只下发上面列出的字段。API key 一类的密钥不进任何响应、日志和错误，只回是否已配置；AI 的设置由 AI 接口加进来。
 
 ## 当前界面
 

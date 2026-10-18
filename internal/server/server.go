@@ -77,6 +77,8 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("GET /api/entries/{id}", s.authed(s.getEntry))
 	mux.HandleFunc("PATCH /api/entries/{id}", s.authed(s.updateEntry))
 	mux.HandleFunc("POST /api/entries/read", s.authed(s.markRead))
+	mux.HandleFunc("GET /api/settings", s.authed(s.getSettings))
+	mux.HandleFunc("PATCH /api/settings", s.authed(s.updateSettings))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "not_found") })
 	s.handler = mux
 	return s, nil
