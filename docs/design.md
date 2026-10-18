@@ -11,10 +11,11 @@ of its [UI guides](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/README.md)
 stay the authority on API details. Links point to MyGo v0.3.6, the version pinned in `go.mod`. When the pin moves,
 check the pages again and update the links and this document together.
 
-Two screens are built: the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`), which
-connects the desktop app to a remote server, and the timeline in `internal/ui/timeline/` (mockup
-`design/screens/timeline.html`), which is home. The reader, subscription and settings screens described here are
-plans until their mockup and code are merged.
+Three screens are built: the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`), which
+connects the desktop app to a remote server, the timeline in `internal/ui/timeline/` (mockup
+`design/screens/timeline.html`), which is home, and the subscription dialogs over it in `internal/ui/subscriptions/`
+(mockup `design/screens/subscriptions.html`). The reader and settings screens described here are plans until their
+mockup and code are merged.
 
 Related files: [design/README.md](../design/README.md) (mockups and how a UI change is made) and
 [design/tokens.md](../design/tokens.md) (spacing, size and color values in one table).
@@ -89,7 +90,18 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   post share a grid at most 440 wide (520 in Social). Videos are a grid of cards at least 200 wide, 16:9 covers;
   Images are a masonry wall of up to three columns at least 170 wide, each picture at its own aspect ratio.
   Below a 760 wide window the segments show icons only. Sizes taken from the mockup are written `px(t, n)`, which is
-  `t.Rem(n / 13)`, so they follow the text size.
+  `t.Rem(n / 13)`, so they follow the text size. The sidebar's section header, 22 high, ends in a 22 square + button
+  that adds a subscription; it shows even when there are none. A paused subscription has its name in `TextMuted`, a
+  pause mark instead of the failure mark, and no count. With one subscription chosen, a pencil button after the
+  count edits it.
+- **The subscription dialogs.** Dialogs over the timeline on a `RGBA(0,0,0,.28)` backdrop: 440 wide to add, 480 to
+  edit, radius 12, `Border` and a soft shadow, at most the window's height less `Space(8)`. A header (a 32 square
+  tile or monogram, the title 15 semibold, a 28 square close button), a form that scrolls when the window is too low,
+  with `Space(3.5)` between fields and 20 to the sides, and a footer with the buttons at the right; in the edit
+  dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; title and interval share a
+  row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` tint) or what
+  the address was recognized as (`Accent` tint, the address in monospace). The edit dialog starts with a health line
+  (`Surface`, or the `Warning` tint while fetches fail) with a small Refresh button.
 
 ## Color and dark mode
 
@@ -191,9 +203,12 @@ What Oriel uses today:
 | `ui.TextInputBase` | A text field drawn by the screen, inside a box with its icon; `Error` names what is wrong for assistive technology, and the screen shows it under the field. The timeline's search is one too, since `SearchField` moves the focus to its box instead of the text. |
 | `ui.ButtonBase` | Buttons drawn by the screen in the Oriel look: an icon and a label, or an icon alone with a `Label`. |
 | `ui.Icon` | Lucide icons from `internal/ui/icons`. |
-| `ui.SegmentedBase` | The timeline's kind tabs and its Everything/Unread/Starred filter, drawn in the Oriel look. |
+| `ui.SegmentedBase` | The timeline's kind tabs and its Everything/Unread/Starred filter, and the kind of a subscription, drawn in the Oriel look. |
+| `ui.DialogBase` | The add and edit subscription dialogs: Escape and a click outside close them, the window's keys stop behind them, and the focus goes back where it was. |
+| `ui.SelectBase`, `ui.Switch`, `ui.TextArea` | A subscription's fetch interval, its pause switch and its mute keywords. |
+| `Element.ContextMenu` | Right click on a subscription: Refresh, Edit…, Pause or Resume, Delete…. |
 | `ui.List`, `ui.GridView` | The timeline's rows and its video cards; both build only what is in view. |
-| `ui.AlertDialog` | Confirming "Mark all as read". |
+| `ui.AlertDialog` | Confirming "Mark all as read" and deleting a subscription. Its last button, the action, is the default and takes the focus; Escape is Cancel. |
 | `c.Toast`, `c.Announce` | Feedback after starring, marking and failures; counts announced without moving the focus. |
 
 The tables below say what to reach for as screens are added.
@@ -308,6 +323,7 @@ Overlays share focus and Escape behavior; see
 - **Timeline keys.** J or Down and K or Up move between entries, O or Enter opens the chosen one in the browser and
   marks it read, S stars it, M toggles read, `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
   window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
+  Cmd/Ctrl+N adds a subscription.
   Every entry is also a focusable element with its own name, so Tab reaches it.
 
 ## Accessibility checklist

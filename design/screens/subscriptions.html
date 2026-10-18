@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Subscriptions</title>
+<!-- Adding, editing and deleting subscriptions, over the timeline. "+" next to Subscriptions in the sidebar, the
+     button of the empty timeline, and Cmd/Ctrl+N open the add dialog; right click on a subscription, or the pencil
+     in the toolbar while one subscription is chosen, edits it. The address field recognizes platform links and
+     says what it will subscribe to before anything is sent; the server checks again. Colors are the Oriel palette of
+     design/tokens.md; icons are Lucide (ISC License). The bar above the window only switches the mockup.
+     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
+<style>
+:root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
+:root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
+:root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --surface-pressed:#dfdbd2; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5) }
+:root[data-scheme=dark] { --background:#1b1a18; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55) }
+* { box-sizing:border-box }
+body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
+svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
+button, input, textarea, select { font:inherit; color:inherit }
+button { border:0; background:none; padding:0; cursor:default }
+.switcher { display:flex; flex-wrap:wrap; gap:8px 16px; margin:0 0 16px; font-size:12px; color:var(--stage-text) }
+
+.window { position:relative; width:960px; height:640px; border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; background:var(--background) }
+.window.min { width:640px; height:480px }
+.titlebar { height:28px; flex:none; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); background:var(--surface); border-bottom:1px solid var(--border) }
+.body { flex:1; min-height:0; display:flex }
+
+/* The timeline behind, as built in #14 */
+aside { width:212px; flex:none; display:flex; flex-direction:column; background:var(--surface); border-right:1px solid var(--border) }
+.min aside { width:184px }
+.tabs { flex:none; display:grid; grid-template-columns:repeat(5,1fr); gap:2px; padding:8px 8px 6px; border-bottom:1px solid var(--border) }
+.tab { height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-radius:8px; color:var(--muted) }
+.tab.on { background:var(--accent-soft); color:var(--accent) }
+.tab svg.icon { width:18px; height:18px }
+.tab span { min-height:10px; font-size:10px; line-height:1 }
+.nav { flex:1; overflow:hidden; padding:8px; position:relative }
+.section { display:flex; align-items:center; margin:6px 0 4px 8px; height:22px; font-size:11px; font-weight:600; color:var(--muted) }
+.section span { flex:1 }
+.section button { width:22px; height:22px; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
+.section button:hover, .section button.hover { background:var(--surface-hover); color:var(--text) }
+.section button svg.icon { width:14px; height:14px }
+.item { width:100%; height:28px; display:flex; align-items:center; gap:8px; padding:0 8px; border-radius:6px; text-align:left }
+.item.chosen { background:var(--surface-pressed) }
+.item.menued { box-shadow:inset 0 0 0 2px var(--focus) }
+.item .name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.item .count { font-size:11px; color:var(--muted) }
+.item .warn, .item .paused { color:var(--warning); display:flex }
+.item .paused { color:var(--muted) }
+.item .warn svg.icon, .item .paused svg.icon { width:14px; height:14px }
+.item.is-paused .name { color:var(--muted) }
+.mono { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:4px; font-size:10px; font-weight:600; background:var(--accent-soft); color:var(--accent) }
+.mono.k-video { background:var(--danger-soft); color:var(--danger) }
+.mono.k-social { background:var(--warning-soft); color:var(--warning) }
+.mono.k-image { background:color-mix(in srgb, var(--success) 14%, var(--background)); color:var(--success) }
+.mono.big { width:32px; height:32px; border-radius:8px; font-size:15px }
+.server { flex:none; display:flex; align-items:center; gap:8px; height:40px; padding:0 16px; border-top:1px solid var(--border); color:var(--muted); font-size:12px }
+.server .name { flex:1 }
+.server .dot { width:6px; height:6px; border-radius:50%; background:var(--success) }
+.main { flex:1; min-width:0; display:flex; flex-direction:column; position:relative }
+.toolbar { flex:none; height:48px; display:flex; align-items:center; gap:8px; padding:0 12px 0 20px; border-bottom:1px solid var(--border) }
+.toolbar h1 { margin:0; font-size:15px; font-weight:600 }
+.toolbar .sub { color:var(--muted); font-size:12px }
+.spacer { flex:1 }
+.tool { width:28px; height:28px; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
+.tool.hover { background:var(--surface-hover); color:var(--text) }
+.ghost { height:28px; width:280px; border-radius:8px; background:var(--surface) }
+.min .ghost { width:150px }
+.column { max-width:680px; margin:0 auto; padding:18px 20px; display:flex; flex-direction:column; gap:26px; width:100% }
+.bars { display:flex; flex-direction:column; gap:8px }
+.bar { height:10px; border-radius:5px; background:var(--surface) }
+.empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; text-align:center }
+.empty h2 { margin:0; font-size:15px; font-weight:600 }
+.empty p { margin:-4px 0 0; max-width:300px; color:var(--muted) }
+.tile { width:48px; height:48px; border-radius:12px; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent) }
+.tile.danger { background:var(--danger-soft); color:var(--danger) }
+.tile svg.icon { width:24px; height:24px; stroke-width:1.5 }
+
+/* Controls */
+.button { height:32px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 14px; white-space:nowrap; border:1px solid var(--border); border-radius:8px; background:var(--background) }
+.button.primary { border-color:var(--accent); background:var(--accent); color:var(--accent-text); font-weight:500 }
+.button.danger { border-color:var(--danger); background:var(--danger); color:var(--background); font-weight:500 }
+.button.quiet { border-color:transparent; background:none; color:var(--danger); padding:0 8px }
+.button.small { height:26px; padding:0 10px; font-size:12px }
+.button[disabled] { opacity:.5 }
+.button:focus-visible { outline:0; box-shadow:0 0 0 3px var(--focus) }
+.button svg.icon { width:14px; height:14px }
+.spin { animation:spin .9s linear infinite }
+@keyframes spin { to { transform:rotate(360deg) } }
+.field { display:flex; flex-direction:column; gap:4px }
+.field > label, .label { font-size:12px; font-weight:500 }
+.box { height:32px; display:flex; align-items:center; gap:8px; padding:0 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--muted) }
+.box.focused { border-color:var(--accent); background:var(--background); box-shadow:0 0 0 3px var(--focus) }
+.box.invalid { border-color:var(--danger) }
+.box input { flex:1; min-width:0; border:0; outline:0; background:none; color:var(--text) }
+.box input::placeholder { color:var(--muted) }
+.box.select { color:var(--text); justify-content:space-between }
+.box.select svg.icon { color:var(--muted); width:14px; height:14px }
+textarea { width:100%; min-height:72px; resize:none; padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); line-height:1.45 }
+.help { font-size:12px; color:var(--muted) }
+.error { display:flex; gap:6px; font-size:12px; color:var(--danger) }
+.error svg.icon, .help svg.icon { width:14px; height:14px; margin-top:1px }
+.found { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; background:var(--accent-soft) }
+.found .what { flex:1; min-width:0; display:flex; flex-direction:column }
+.found .what b { font-weight:600 }
+.found code { font:12px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.needs { display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:8px; background:var(--warning-soft) }
+.needs .head { display:flex; gap:6px; color:var(--warning); font-weight:500 }
+.needs .head svg.icon { width:14px; height:14px; margin-top:2px }
+.needs .box { background:var(--background) }
+.kinds { display:grid; grid-template-columns:repeat(4,1fr); gap:2px; padding:2px; border-radius:8px; background:var(--surface) }
+.kinds button { height:30px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:6px; color:var(--muted) }
+.kinds button svg.icon { width:14px; height:14px }
+.kinds button.on { background:var(--background); color:var(--text); box-shadow:0 0 0 1px var(--border) }
+.kinds button.on svg.icon { color:var(--accent) }
+.min .kinds button span { display:none }
+.pair { display:grid; grid-template-columns:1fr 1fr; gap:12px }
+.switch-row { display:flex; align-items:center; gap:10px }
+.switch-row .text { flex:1; display:flex; flex-direction:column }
+.switch { width:32px; height:18px; border-radius:9px; background:var(--surface-pressed); position:relative; flex:none }
+.switch::after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2) }
+.switch.on { background:var(--accent) }
+.switch.on::after { left:16px }
+
+/* Dialogs and the menu */
+.scrim { position:absolute; inset:0; background:rgba(0,0,0,.28); display:grid; place-items:center; z-index:3; padding:16px }
+.dialog { width:440px; max-height:100%; overflow:auto; border-radius:12px; background:var(--background); box-shadow:0 0 0 1px var(--border), 0 16px 40px rgba(0,0,0,.25); display:flex; flex-direction:column }
+.dialog.wide { width:480px }
+.dialog header { display:flex; align-items:center; gap:12px; padding:18px 20px 4px }
+.dialog header .titles { flex:1; min-width:0 }
+.dialog h2 { margin:0; font-size:15px; font-weight:600 }
+.dialog header p { margin:0; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.dialog .close { width:28px; height:28px; display:grid; place-items:center; border-radius:6px; color:var(--muted); align-self:flex-start }
+.dialog .form { display:flex; flex-direction:column; gap:14px; padding:14px 20px 4px }
+.dialog footer { display:flex; align-items:center; gap:8px; padding:16px 20px 18px }
+.health { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:var(--surface); font-size:12px; color:var(--muted) }
+.health.bad { background:var(--warning-soft); color:var(--warning) }
+.health span { flex:1 }
+.health svg.icon { width:14px; height:14px }
+.health .button { color:var(--text) }
+.alert { width:320px; padding:20px; border-radius:12px; background:var(--background); box-shadow:0 0 0 1px var(--border), 0 16px 40px rgba(0,0,0,.25); display:flex; flex-direction:column; gap:8px; text-align:center; align-items:center }
+.alert h2 { margin:4px 0 0; font-size:14px; font-weight:600 }
+.alert p { margin:0; color:var(--muted); font-size:12px }
+.alert .buttons { display:flex; gap:8px; margin-top:8px; width:100% }
+.alert .buttons .button { flex:1 }
+.menu { position:absolute; z-index:4; min-width:184px; padding:4px; border-radius:8px; background:var(--background); box-shadow:0 0 0 1px var(--border), 0 8px 24px rgba(0,0,0,.18) }
+.menu button { width:100%; height:28px; display:flex; align-items:center; gap:8px; padding:0 8px; border-radius:5px; text-align:left }
+.menu button.hover { background:var(--accent); color:var(--accent-text) }
+.menu button svg.icon { width:14px; height:14px }
+.menu button.danger { color:var(--danger) }
+.menu kbd { margin-left:auto; font:inherit; font-size:12px; color:var(--muted) }
+.menu hr { border:0; border-top:1px solid var(--border); margin:4px 2px }
+</style>
+<div class="switcher" aria-hidden="true">
+  <label>state <select id="state"></select></label>
+  <label>scheme <select id="scheme"></select></label>
+  <label>lang <select id="lang"></select></label>
+  <label>size <select id="size"></select></label>
+</div>
+<div class="window" id="window"><div class="titlebar">Oriel</div><div class="body" id="app"></div></div>
+<script>
+const states=['add','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','edit','edit-failing','edit-paused','delete'];
+const query=new URLSearchParams(location.search);
+const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
+const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
+const state=pick('state',states,'add');
+const scheme=pick('scheme',options.scheme,'light');
+const lang=pick('lang',options.lang,'en');
+const size=pick('size',options.size,'default');
+document.documentElement.dataset.scheme=scheme;
+document.documentElement.lang=lang;
+document.getElementById('window').classList.toggle('min',size==='min');
+for(const [id,list] of Object.entries(options)){
+  const select=document.getElementById(id);
+  select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
+  select.value={state,scheme,lang,size}[id];
+  select.onchange=()=>{query.set(id,select.value);location.search=query};
+}
+
+const icons={
+  inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  article:'<path d="M15 18h-5"/><path d="M18 14h-8"/><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="10" y="6" rx="1"/>',
+  video:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
+  social:'<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
+  image:'<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  trash:'<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  pause:'<rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/>',
+  refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  chevron:'<path d="m6 9 6 6 6-6"/>',
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  alert:'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  triangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  laptop:'<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
+};
+const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
+
+const copy={
+  en:{
+    all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
+    add:'Add subscription', addShort:'Add', adding:'Adding', cancel:'Cancel', close:'Close', save:'Save',
+    address:'Address', addressPlaceholder:'Feed URL, page link or RSSHub route',
+    addressHelp:'Links to YouTube, Bilibili, X, GitHub, Telegram and Weibo are turned into feeds.',
+    showAs:'Show as', title:'Title', titlePlaceholder:'From the feed', every:'Check every', minutes15:'15 min',
+    feed:'Feed', viaRsshub:'RSSHub route',
+    found:{bilibili:'Bilibili · videos of user 2267573', feed:'Feed at go.dev', route:'RSSHub route'},
+    needsBase:'RSSHub routes need an RSSHub instance. Enter its address; it is saved in Settings.',
+    rsshubAddress:'RSSHub address', rsshubPlaceholder:'https://rsshub.example.com',
+    invalidUrl:'Enter a full address starting with http:// or https://, or a route starting with /.',
+    exists:'You already follow this as “The Go Blog”.', show:'Show it',
+    addHere:'Add your first subscription', noSubscriptions:'No subscriptions yet',
+    noSubscriptionsHint:'Entries from your subscriptions show up here, newest first.',
+    refresh:'Refresh', edit:'Edit…', pause:'Pause', resume:'Resume', remove:'Delete…', editTitle:'Edit subscription',
+    checked:'Checked 5 min ago · next in 10 min', failing:'Failed 3 times in a row: HTTP 404 Not Found',
+    paused:'Paused. Nothing is fetched until you resume.',
+    pauseLabel:'Pause fetching', pauseHelp:'Entries already fetched stay.',
+    mute:'Mute keywords', muteHelp:'One per line. Entries whose title or summary contains one are hidden; starred ones stay.',
+    deleteTitle:'Delete “The Go Blog”?', deleteBody:'All its entries go too, starred ones included. This can’t be undone.', confirmDelete:'Delete',
+    thisComputer:'This computer', unread:'14 unread', editSource:'Edit subscription', failingMark:'Last fetch failed', pausedMark:'Paused',
+  },
+  'zh-Hans':{
+    all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
+    add:'添加订阅', addShort:'添加', adding:'正在添加', cancel:'取消', close:'关闭', save:'保存',
+    address:'地址', addressPlaceholder:'订阅地址、主页链接或 RSSHub 路由',
+    addressHelp:'YouTube、B 站、X、GitHub、Telegram 和微博的链接会自动转成订阅。',
+    showAs:'显示为', title:'标题', titlePlaceholder:'用订阅里的标题', every:'检查间隔', minutes15:'15 分钟',
+    feed:'订阅地址', viaRsshub:'RSSHub 路由',
+    found:{bilibili:'B 站 · 用户 2267573 的视频', feed:'go.dev 的订阅', route:'RSSHub 路由'},
+    needsBase:'RSSHub 路由要先有一个 RSSHub 实例。填上它的地址，会存进设置。',
+    rsshubAddress:'RSSHub 地址', rsshubPlaceholder:'https://rsshub.example.com',
+    invalidUrl:'填完整地址（以 http:// 或 https:// 开头），或以 / 开头的路由。',
+    exists:'已经订阅过了，叫「The Go Blog」。', show:'去看看',
+    addHere:'添加第一个订阅', noSubscriptions:'还没有订阅',
+    noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。',
+    refresh:'更新', edit:'编辑…', pause:'暂停', resume:'恢复', remove:'删除…', editTitle:'编辑订阅',
+    checked:'5 分钟前检查过 · 10 分钟后再查', failing:'连续失败 3 次：HTTP 404 Not Found',
+    paused:'已暂停，恢复之前不抓取。',
+    pauseLabel:'暂停抓取', pauseHelp:'已经抓到的条目保留。',
+    mute:'屏蔽词', muteHelp:'每行一个。标题或摘要里有的条目会隐藏，收藏的除外。',
+    deleteTitle:'删除「The Go Blog」？', deleteBody:'它的条目会一起删掉，收藏的也是。删了不能恢复。', confirmDelete:'删除',
+    thisComputer:'本机', unread:'14 条未读', editSource:'编辑订阅', failingMark:'上次抓取失败', pausedMark:'已暂停',
+  },
+}[lang];
+
+const sources=[
+  {kind:'article',name:'Simon Willison',mono:'S',unread:4},
+  {kind:'article',name:'The Go Blog',mono:'G',unread:14,failing:state==='edit-failing',paused:state==='edit-paused'},
+  {kind:'video',name:'3Blue1Brown',mono:'3',unread:2},
+  {kind:'social',name:'@rauchg',mono:'R',unread:9},
+  {kind:'image',name:'NASA APOD',mono:'N',unread:1},
+];
+const empty=state==='empty';
+const editing=['menu','edit','edit-failing','edit-paused','delete'].includes(state);
+const tabs=`<div class="tabs" role="tablist" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="tab${i===0?' on':''}" role="tab" aria-label="${copy[k]}">${icon(g)}<span>${empty?'':[30,18,2,9,1][i]}</span></button>`).join('')}</div>`;
+const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state==='menu'&&i===1?' menued':''}${s.paused?' is-paused':''}"><span class="mono k-${s.kind}">${s.mono}</span><span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
+const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
+const rows=Array.from({length:5},(_,i)=>`<div class="bars"><div class="bar" style="width:${30+i%3*6}%"></div><div class="bar" style="width:${74-i*5}%;height:14px"></div><div class="bar" style="width:${90-i*3}%"></div></div>`).join('');
+const toolbar=`<div class="toolbar"><h1>${editing?'The Go Blog':copy.all}</h1><span class="sub">${empty?'':copy.unread}</span>${editing?`<button class="tool${state==='edit'?' hover':''}" aria-label="${copy.editSource}" title="${copy.editSource}">${icon('pencil')}</button>`:''}<span class="spacer"></span><div class="ghost"></div></div>`;
+const main=empty
+  ?`<section class="main">${toolbar}<div class="empty" role="status"><div class="tile">${icon('rss')}</div><h2>${copy.noSubscriptions}</h2><p>${copy.noSubscriptionsHint}</p><button class="button primary">${icon('plus')}${copy.addHere}</button></div></section>`
+  :`<section class="main">${toolbar}<div class="column" aria-hidden="true">${rows}</div></section>`;
+
+const kindPicker=on=>`<div class="field"><span class="label" id="kind">${copy.showAs}</span><div class="kinds" role="radiogroup" aria-labelledby="kind">${['article','video','social','image'].map(k=>`<button role="radio" aria-checked="${k===on}" class="${k===on?'on':''}" aria-label="${copy[k]}">${icon(k)}<span>${copy[k]}</span></button>`).join('')}</div></div>`;
+const select=(label,value)=>`<div class="field"><label>${label}</label><div class="box select" role="combobox" aria-label="${label}"><span>${value}</span>${icon('chevron')}</div></div>`;
+const foundCard=(kind,what,code)=>`<div class="found" role="status">${icon(kind==='feed'?'rss':kind)}<div class="what"><b>${what}</b><code>${code}</code></div>${icon('check')}</div>`;
+
+function addDialog(){
+  const value={add:'','add-link':'https://space.bilibili.com/2267573','add-feed':'https://go.dev/blog/feed.atom','add-route':'/github/trending/daily','add-route-no-base':'/github/trending/daily','add-invalid':'go.dev/blog','add-exists':'https://go.dev/blog/feed.atom',adding:'https://space.bilibili.com/2267573'}[state];
+  const kind=['add-link','adding'].includes(state)?'video':'article';
+  const invalid=state==='add-invalid'||state==='add-exists';
+  let below=`<span class="help" id="ah">${copy.addressHelp}</span>`;
+  if(state==='add-link'||state==='adding')below=foundCard('video',copy.found.bilibili,`${copy.viaRsshub} /bilibili/user/video/2267573`);
+  if(state==='add-feed')below=foundCard('feed',copy.found.feed,'https://go.dev/blog/feed.atom');
+  if(state==='add-route')below=foundCard('article',copy.found.route,'/github/trending/daily');
+  if(state==='add-route-no-base')below=`<div class="needs" role="status"><div class="head">${icon('triangle')}<span>${copy.needsBase}</span></div><div class="box focused">${icon('link')}<input aria-label="${copy.rsshubAddress}" placeholder="${copy.rsshubPlaceholder}"></div></div>`;
+  if(state==='add-invalid')below=`<span class="error" id="ae">${icon('alert')}${copy.invalidUrl}</span>`;
+  if(state==='add-exists')below=`<span class="error" id="ae">${icon('alert')}<span>${copy.exists} <a href="#" style="color:inherit;font-weight:500">${copy.show}</a></span></span>`;
+  const busy=state==='adding';
+  return `<div class="scrim"><div class="dialog" role="dialog" aria-labelledby="dt">
+    <header><div class="tile" style="width:32px;height:32px;border-radius:8px">${icon('rss')}</div><div class="titles"><h2 id="dt">${copy.add}</h2></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>
+    <div class="form">
+      <div class="field"><label for="addr">${copy.address}</label><div class="box${state==='add'||state==='add-invalid'?' focused':''}${invalid?' invalid':''}">${icon('link')}<input id="addr" value="${value}" placeholder="${copy.addressPlaceholder}" ${invalid?'aria-invalid="true" aria-describedby="ae"':''}></div>${below}</div>
+      ${kindPicker(kind)}
+      <div class="pair"><div class="field"><label>${copy.title}</label><div class="box"><input placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.minutes15)}</div>
+    </div>
+    <footer><span class="spacer"></span><button class="button">${copy.cancel}</button><button class="button primary"${state==='add'||invalid?' disabled':''}>${busy?icon('loader','spin')+copy.adding:copy.addShort}</button></footer>
+  </div></div>`;
+}
+
+function editDialog(){
+  const failing=state==='edit-failing', paused=state==='edit-paused';
+  const health=failing
+    ?`<div class="health bad" role="status">${icon('alert')}<span>${copy.failing}</span><button class="button small">${icon('refresh')}${copy.refresh}</button></div>`
+    :paused?`<div class="health" role="status">${icon('pause')}<span>${copy.paused}</span></div>`
+    :`<div class="health" role="status">${icon('check')}<span>${copy.checked}</span><button class="button small">${icon('refresh')}${copy.refresh}</button></div>`;
+  return `<div class="scrim"><div class="dialog wide" role="dialog" aria-labelledby="dt">
+    <header><span class="mono big">G</span><div class="titles"><h2 id="dt">${copy.editTitle}</h2><p>https://go.dev/blog/feed.atom</p></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>
+    <div class="form">
+      ${health}
+      <div class="pair"><div class="field"><label>${copy.title}</label><div class="box focused"><input value="The Go Blog" placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.minutes15)}</div>
+      ${kindPicker('article')}
+      <div class="switch-row"><div class="text"><span class="label">${copy.pauseLabel}</span><span class="help">${copy.pauseHelp}</span></div><span class="switch${paused?' on':''}" role="switch" aria-checked="${paused}" aria-label="${copy.pauseLabel}"></span></div>
+      <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" aria-describedby="mh">${lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span></div>
+    </div>
+    <footer><button class="button quiet">${icon('trash')}${copy.remove}</button><span class="spacer"></span><button class="button">${copy.cancel}</button><button class="button primary">${copy.save}</button></footer>
+  </div></div>`;
+}
+
+let overlay='';
+if(state.startsWith('add')||state==='adding')overlay=addDialog();
+if(state.startsWith('edit'))overlay=editDialog();
+if(state==='menu')overlay=`<div class="menu" role="menu" style="left:150px;top:168px"><button role="menuitem">${icon('refresh')}${copy.refresh}</button><button role="menuitem" class="hover">${icon('pencil')}${copy.edit}</button><button role="menuitem">${icon('pause')}${copy.pause}</button><hr><button role="menuitem" class="danger">${icon('trash')}${copy.remove}</button></div>`;
+if(state==='delete')overlay=`<div class="scrim"><div class="alert" role="alertdialog" aria-labelledby="ct" aria-describedby="cb"><div class="tile danger">${icon('trash')}</div><h2 id="ct">${copy.deleteTitle}</h2><p id="cb">${copy.deleteBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button danger">${copy.confirmDelete}</button></div></div></div>`;
+
+document.getElementById('app').innerHTML=`${sidebar}${main}${overlay}`;
+</script>
+</html>

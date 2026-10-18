@@ -237,16 +237,53 @@ type Entry struct {
 	CreatedAt    int64   `json:"createdAt"`
 }
 
-// Source is a subscription as the timeline shows it.
+// Source is a subscription. Times are Unix milliseconds, 0 when it has not been fetched.
 type Source struct {
-	ID          int64  `json:"id"`
-	URL         string `json:"url"`
-	RSSHubPath  string `json:"rsshubPath"`
-	Title       string `json:"title"`
-	Kind        string `json:"kind"`
-	LastError   string `json:"lastError"`
-	Paused      bool   `json:"paused"`
-	UnreadCount int    `json:"unreadCount"`
+	ID                  int64  `json:"id"`
+	URL                 string `json:"url"`
+	RSSHubPath          string `json:"rsshubPath"`
+	Title               string `json:"title"`
+	Kind                string `json:"kind"`
+	FetchIntervalSec    int64  `json:"fetchIntervalSec"`
+	NextFetchAt         int64  `json:"nextFetchAt"`
+	LastFetchedAt       int64  `json:"lastFetchedAt"`
+	LastSuccessAt       int64  `json:"lastSuccessAt"`
+	LastError           string `json:"lastError"`
+	ConsecutiveFailures int    `json:"consecutiveFailures"`
+	MuteKeywords        string `json:"muteKeywords"`
+	Paused              bool   `json:"paused"`
+	UnreadCount         int    `json:"unreadCount"`
+}
+
+// NewSource is a subscription to add: exactly one of URL and RSSHubPath. An empty Title takes the feed's, and a zero
+// FetchIntervalSec the server's default.
+type NewSource struct {
+	URL              string `json:"url,omitempty"`
+	RSSHubPath       string `json:"rsshubPath,omitempty"`
+	Kind             string `json:"kind"`
+	Title            string `json:"title,omitempty"`
+	FetchIntervalSec int64  `json:"fetchIntervalSec,omitempty"`
+}
+
+// SourcePatch changes the fields of a subscription that are not nil; its address cannot change.
+type SourcePatch struct {
+	Title            *string `json:"title,omitempty"`
+	Kind             *string `json:"kind,omitempty"`
+	FetchIntervalSec *int64  `json:"fetchIntervalSec,omitempty"`
+	MuteKeywords     *string `json:"muteKeywords,omitempty"`
+	Paused           *bool   `json:"paused,omitempty"`
+}
+
+// Settings are the server's settings; RetentionDays is 0 to keep entries forever.
+type Settings struct {
+	RSSHubBaseURL string `json:"rsshubBaseUrl"`
+	RetentionDays int    `json:"retentionDays"`
+}
+
+// SettingsPatch changes the settings that are not nil.
+type SettingsPatch struct {
+	RSSHubBaseURL *string `json:"rsshubBaseUrl,omitempty"`
+	RetentionDays *int    `json:"retentionDays,omitempty"`
 }
 
 // Query selects a page of the timeline; the zero value is the first page of everything.
@@ -323,6 +360,44 @@ func (s Session) Sources(ctx context.Context) ([]Source, error) {
 	return reply.Sources, err
 }
 
+// AddSource subscribes to a feed or an RSSHub route and returns the subscription.
+func (s Session) AddSource(ctx context.Context, src NewSource) (Source, error) {
+	var added Source
+	err := s.call(ctx, http.MethodPost, "/api/sources", src, &added)
+	return added, err
+}
+
+// UpdateSource changes a subscription and returns it as changed.
+func (s Session) UpdateSource(ctx context.Context, id int64, patch SourcePatch) (Source, error) {
+	var changed Source
+	err := s.call(ctx, http.MethodPatch, "/api/sources/"+strconv.FormatInt(id, 10), patch, &changed)
+	return changed, err
+}
+
+// DeleteSource removes a subscription with all its entries, starred ones included.
+func (s Session) DeleteSource(ctx context.Context, id int64) error {
+	return s.call(ctx, http.MethodDelete, "/api/sources/"+strconv.FormatInt(id, 10), nil, nil)
+}
+
+// RefreshSource asks the server to fetch a subscription now.
+func (s Session) RefreshSource(ctx context.Context, id int64) error {
+	return s.call(ctx, http.MethodPost, "/api/sources/"+strconv.FormatInt(id, 10)+"/refresh", nil, nil)
+}
+
+// Settings returns the server's settings.
+func (s Session) Settings(ctx context.Context) (Settings, error) {
+	var settings Settings
+	err := s.call(ctx, http.MethodGet, "/api/settings", nil, &settings)
+	return settings, err
+}
+
+// SetSettings changes the server's settings and returns them all.
+func (s Session) SetSettings(ctx context.Context, patch SettingsPatch) (Settings, error) {
+	var settings Settings
+	err := s.call(ctx, http.MethodPatch, "/api/settings", patch, &settings)
+	return settings, err
+}
+
 // SetEntry changes whether an entry is read or starred and returns it as changed.
 func (s Session) SetEntry(ctx context.Context, id int64, patch EntryPatch) (Entry, error) {
 	var entry Entry
@@ -356,13 +431,17 @@ func (s Session) Image(ctx context.Context, address string) ([]byte, error) {
 	return body, nil
 }
 
-// call sends a JSON request and decodes the JSON reply into out.
+// call sends a JSON request and decodes the JSON reply into out, or drops the reply for a nil out.
 func (s Session) call(ctx context.Context, method, path string, in, out any) error {
 	resp, err := s.send(ctx, httpClient, method, path, in)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+	if out == nil {
+		io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+		return nil
+	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(out); err != nil {
 		return fmt.Errorf("%s %s: %w", method, path, err)
 	}

@@ -176,6 +176,17 @@ func TestTimelineAPI(t *testing.T) {
 			w.Write([]byte(`{"marked":4}`))
 		case "/api/image":
 			w.Write([]byte("PNG"))
+		case "/api/sources/5", "/api/sources/5/refresh":
+			if r.Method == http.MethodPatch {
+				w.Write([]byte(`{"id":5,"title":"New","kind":"video","paused":true,"lastFetchedAt":null}`))
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		case "/api/sources/6/refresh":
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(`{"error":"source_paused"}`))
+		case "/api/settings":
+			w.Write([]byte(`{"rsshubBaseUrl":"https://rsshub.app","retentionDays":30}`))
 		}
 	}))
 	defer srv.Close()
@@ -193,7 +204,8 @@ func TestTimelineAPI(t *testing.T) {
 		t.Errorf("short query: %v", err)
 	}
 	sources, err := session.Sources(ctx)
-	if err != nil || len(sources) != 1 || sources[0].UnreadCount != 3 || sources[0].LastError != "boom" {
+	if err != nil || len(sources) != 1 || sources[0].UnreadCount != 3 || sources[0].LastError != "boom" ||
+		sources[0].FetchIntervalSec != 900 {
 		t.Errorf("Sources = %+v, %v", sources, err)
 	}
 	starred := true
@@ -206,6 +218,31 @@ func TestTimelineAPI(t *testing.T) {
 	if body, err := session.Image(ctx, "https://i/1.jpg?w=2&h=1"); err != nil || string(body) != "PNG" {
 		t.Errorf("Image = %q, %v", body, err)
 	}
+	if _, err := session.AddSource(ctx, NewSource{RSSHubPath: "/x/y", Kind: "social"}); err != nil {
+		t.Errorf("AddSource: %v", err)
+	}
+	title, paused := "New", true
+	if src, err := session.UpdateSource(ctx, 5, SourcePatch{Title: &title, Paused: &paused}); err != nil ||
+		src.Title != "New" || !src.Paused || src.LastFetchedAt != 0 {
+		t.Errorf("UpdateSource = %+v, %v", src, err)
+	}
+	if err := session.RefreshSource(ctx, 5); err != nil {
+		t.Errorf("RefreshSource: %v", err)
+	}
+	if err := session.RefreshSource(ctx, 6); !errors.As(err, &apiErr) || apiErr.Code != "source_paused" {
+		t.Errorf("RefreshSource paused: %v", err)
+	}
+	if err := session.DeleteSource(ctx, 5); err != nil {
+		t.Errorf("DeleteSource: %v", err)
+	}
+	if settings, err := session.Settings(ctx); err != nil || settings.RetentionDays != 30 {
+		t.Errorf("Settings = %+v, %v", settings, err)
+	}
+	root := "https://rsshub.app"
+	if settings, err := session.SetSettings(ctx, SettingsPatch{RSSHubBaseURL: &root}); err != nil ||
+		settings.RSSHubBaseURL != root {
+		t.Errorf("SetSettings = %+v, %v", settings, err)
+	}
 	want := []string{
 		"GET /api/entries?cursor=1.2&kind=video&limit=50&q=go+fmt&unread=1 ",
 		"GET /api/entries?q=ab ",
@@ -213,6 +250,13 @@ func TestTimelineAPI(t *testing.T) {
 		`PATCH /api/entries/7 {"starred":true}`,
 		`POST /api/entries/read {"kind":"video","upTo":7}`,
 		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",
+		`POST /api/sources {"rsshubPath":"/x/y","kind":"social"}`,
+		`PATCH /api/sources/5 {"title":"New","paused":true}`,
+		"POST /api/sources/5/refresh ",
+		"POST /api/sources/6/refresh ",
+		"DELETE /api/sources/5 ",
+		"GET /api/settings ",
+		`PATCH /api/settings {"rsshubBaseUrl":"https://rsshub.app"}`,
 	}
 	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
 		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))

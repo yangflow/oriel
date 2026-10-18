@@ -11,8 +11,8 @@ what counts.
 | `screens/<screen>.html` | One self-contained mockup per screen: static HTML and CSS, no external resources |
 | `tokens.md` | Spacing, size, color and motion values, mapped to MyGo theme roles |
 
-The connect screen (`screens/connect.html`) and the timeline (`screens/timeline.html`, home) are the product screens
-so far. The startup failure message has no mockup; it is a native system error dialog (`internal/ui/startup/`).
+The connect screen (`screens/connect.html`), the timeline (`screens/timeline.html`, home) and the subscription dialogs
+over it (`screens/subscriptions.html`) are the product screens so far. The startup failure message has no mockup; it is a native system error dialog (`internal/ui/startup/`).
 
 ## Preview
 
@@ -26,6 +26,7 @@ state can be seen.
 |---|---|---|
 | Connect | `screens/connect.html` (`?state=…&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/connect/` |
 | Timeline | `screens/timeline.html` (`?state=…&scope=all|article|video|social|image|source&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/timeline/` |
+| Subscriptions | `screens/subscriptions.html` (`?state=…&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/subscriptions/` |
 
 A mockup maps to a package: `screens/<screen>.html` is implemented by `internal/ui/<screen>/`. The text and states in
 the mockup are the strings in that package's `copy.json` (English and Simplified Chinese) and the states its `Screen`
