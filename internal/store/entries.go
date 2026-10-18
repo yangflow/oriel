@@ -3,10 +3,13 @@ package store
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"strings"
 	"time"
+
+	"modernc.org/sqlite"
 )
 
 // Entry is a timeline item as clients see it. Zero values mean absent; the HTML bodies are only read for one entry.
@@ -61,9 +64,36 @@ const entryColumns = `
 	e.title, e.url, e.author, e.published_at, e.rss_summary, e.thumbnail_url, e.duration_sec, e.platform, e.images,
 	e.extract_status, e.is_read, e.read_at, e.starred, e.created_at`
 
-// where turns a filter into conditions on entries e joined with sources s.
+// shown keeps the entries of s that none of its mute keywords hides. Starred entries are never hidden.
+const shown = "(e.starred = 1 OR NOT muted(s.mute_keywords, e.title, e.rss_summary))"
+
+func init() {
+	sqlite.MustRegisterDeterministicScalarFunction("muted", 3, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+		keywords, _ := args[0].(string)
+		title, _ := args[1].(string)
+		summary, _ := args[2].(string)
+		return muted(keywords, title, summary), nil
+	})
+}
+
+// muted reports whether the title or the summary contains one of the keywords, one per line, ignoring case.
+func muted(keywords, title, summary string) bool {
+	if keywords == "" {
+		return false
+	}
+	title, summary = strings.ToLower(title), strings.ToLower(summary)
+	for keyword := range strings.Lines(keywords) {
+		keyword = strings.ToLower(strings.TrimSpace(keyword))
+		if keyword != "" && (strings.Contains(title, keyword) || strings.Contains(summary, keyword)) {
+			return true
+		}
+	}
+	return false
+}
+
+// where turns a filter into conditions on entries e joined with sources s. Muted entries never match.
 func (f EntryFilter) where() (string, []any) {
-	conditions := []string{"1"}
+	conditions := []string{shown}
 	var args []any
 	add := func(condition string, values ...any) {
 		conditions = append(conditions, condition)

@@ -35,7 +35,8 @@ Working now, on the server side:
 - **Subscription API.** Add, list, edit, pause, delete and refresh subscriptions over HTTP, with validation
   and duplicate detection; the screen for it is still to come.
 - **Timeline API.** Page through all entries newest first, filter by source, kind, unread or starred, search
-  the full text, and mark entries read or starred; the timeline screen is still to come.
+  the full text, and mark entries read or starred. Per-source mute keywords hide matching entries without
+  deleting them. The timeline screen is still to come.
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
   with password sign-in and per-device sessions.
 - **One storage file.** SQLite with full-text search through a pure Go driver; no cgo in production code. The

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -147,5 +148,85 @@ func TestTimeline(t *testing.T) {
 		if w := do(s, r.method, r.target, r.body, bearer(token)); w.Code != http.StatusNotFound {
 			t.Errorf("%s %s: %d", r.method, r.target, w.Code)
 		}
+	}
+}
+
+func TestMuteKeywords(t *testing.T) {
+	s, c := newServer(t, "")
+	ctx := context.Background()
+	src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "", c.t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []store.FeedEntry{
+		{GUID: "1", Title: "Go release notes"},
+		{GUID: "2", Title: "Weekly digest", Summary: "Sponsored by ACME"},
+		{GUID: "3", Title: "Rust news"},
+		{GUID: "4", Title: "Weekly sponsored post", Summary: "Thanks to Acme"},
+	}
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "article"}, "", "", items, time.Time{}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	source := "/api/sources/" + strconv.FormatInt(src.ID, 10)
+	shown := func(target string) []string {
+		t.Helper()
+		got := titles(t, decode(t, do(s, "GET", target, "", nil)))
+		slices.Sort(got)
+		return got
+	}
+	unread := func() float64 {
+		t.Helper()
+		return decode(t, do(s, "GET", source, "", nil))["unreadCount"].(float64)
+	}
+	idOf := func(title string) string {
+		t.Helper()
+		for _, item := range decode(t, do(s, "GET", "/api/entries", "", nil))["entries"].([]any) {
+			if entry := item.(map[string]any); entry["title"] == title {
+				return strconv.Itoa(int(entry["id"].(float64)))
+			}
+		}
+		t.Fatalf("no entry %q", title)
+		return ""
+	}
+	digest, rust := idOf("Weekly digest"), idOf("Rust news")
+	if w := do(s, "PATCH", "/api/entries/"+digest, `{"starred":true}`, nil); w.Code != http.StatusOK {
+		t.Fatalf("star: %d", w.Code)
+	}
+
+	// Keywords match the title or the summary, any case, one per line; starred entries stay.
+	if w := do(s, "PATCH", source, `{"muteKeywords":" acme \n\n RUST "}`, nil); w.Code != http.StatusOK || decode(t, w)["muteKeywords"] != "acme\nRUST" {
+		t.Fatalf("mute: %d %s", w.Code, w.Body)
+	}
+	if got := shown("/api/entries"); fmt.Sprint(got) != "[Go release notes Weekly digest]" {
+		t.Fatalf("muted timeline: %v", got)
+	}
+	if got := shown("/api/entries?q=news"); len(got) != 0 {
+		t.Fatalf("muted search: %v", got)
+	}
+	if got := decode(t, do(s, "GET", "/api/entries/"+rust, "", nil)); got["title"] != "Rust news" {
+		t.Fatalf("muted entry by id: %v", got)
+	}
+	if n := unread(); n != 2 {
+		t.Fatalf("muted unreadCount = %v", n)
+	}
+	if w := do(s, "POST", "/api/entries/read", "", nil); decode(t, w)["marked"] != 2.0 {
+		t.Fatalf("mark read: %s", w.Body)
+	}
+
+	// A keyword that matches nothing hides nothing.
+	if w := do(s, "PATCH", source, `{"muteKeywords":"python"}`, nil); w.Code != http.StatusOK {
+		t.Fatalf("change: %d", w.Code)
+	}
+	if got := shown("/api/entries?unread=1"); fmt.Sprint(got) != "[Rust news Weekly sponsored post]" {
+		t.Fatalf("not marked while muted: %v", got)
+	}
+	if n := unread(); n != 2 {
+		t.Fatalf("unreadCount = %v", n)
+	}
+
+	// Clearing the keywords brings every entry back; muting deleted none.
+	do(s, "PATCH", source, `{"muteKeywords":""}`, nil)
+	if got := shown("/api/entries"); len(got) != 4 {
+		t.Fatalf("cleared: %v", got)
 	}
 }
