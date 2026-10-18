@@ -33,6 +33,7 @@ type fake struct {
 	patches  map[int64][]client.EntryPatch
 	marked   []client.ReadScope
 	pictures []string
+	articles []int64 // the entries asked for in full
 
 	entriesErr, setErr, markErr error
 	connects, expired           int
@@ -88,6 +89,17 @@ func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) (int, error) 
 		f.sources[i].UnreadCount = 0
 	}
 	return n, nil
+}
+
+func (f *fake) Entry(_ context.Context, id int64) (client.Article, error) {
+	f.articles = append(f.articles, id)
+	for _, e := range f.entries {
+		if e.ID == id {
+			e.ExtractStatus = "ok"
+			return client.Article{Entry: e, ExtractedHTML: "<p>The text of " + e.Title + ".</p>"}, nil
+		}
+	}
+	return client.Article{}, &client.APIError{Status: 404, Code: "not_found"}
 }
 
 func (f *fake) Image(_ context.Context, address string) ([]byte, error) {
@@ -385,11 +397,15 @@ func TestKeyboard(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
-	if opened := tt.OpenedURLs(); !slices.Equal(opened, []string{"https://go.dev/blog/go1.27"}) {
-		t.Fatalf("opened %v", opened)
+	if s.reading != 8 || len(tt.OpenedURLs()) != 0 {
+		t.Fatalf("reading %d, opened %v", s.reading, tt.OpenedURLs())
 	}
 	if !s.entries[0].IsRead || len(f.patches[8]) != 1 || !*f.patches[8][0].IsRead {
 		t.Fatalf("not marked read: %v", f.patches)
+	}
+	tt.Key(0, ui.KeyEscape)
+	if s.reading != 0 || !tt.Focused("Go Blog, Go 1.27 is released, 5 min, Read") {
+		t.Fatalf("Escape does not return to the entry: reading %d", s.reading)
 	}
 	tt.Move(0, 0)
 	tt.Key(0, ui.KeyJ)
@@ -415,16 +431,113 @@ func TestKeyboard(t *testing.T) {
 		t.Fatalf("selected %d", s.selected)
 	}
 	tt.Key(0, ui.KeyO)
-	if len(tt.OpenedURLs()) != 2 {
-		t.Fatalf("opened %v", tt.OpenedURLs())
+	if s.reading != 8 {
+		t.Fatalf("O reads %d", s.reading)
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Key(0, ui.KeyJ)
+	tt.Key(0, ui.KeyEnter)
+	if s.reading != 0 || len(tt.OpenedURLs()) != 1 {
+		t.Fatalf("a video opens %v, reading %d", tt.OpenedURLs(), s.reading)
 	}
 	tt.Key(0, ui.KeySlash)
 	if !tt.Focused("Search entries") {
 		t.Fatal("/ does not focus the search")
 	}
 	tt.Type("jk")
-	if s.selected != 0 || s.query != "jk" {
+	if s.selected != 1 || s.query != "jk" {
 		t.Fatalf("the keys moved the list while typing: selected %d, query %q", s.selected, s.query)
+	}
+}
+
+func TestReader(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	for _, text := range []string{"Go Blog", "Go 1.27 is released", "The text of Go 1.27 is released.", "Oct 18, 11:55"} {
+		if !tt.HasText(text) {
+			t.Fatalf("no %q in %v", text, tt.Texts())
+		}
+	}
+	if !tt.Focused("Go 1.27 is released") {
+		t.Fatal("the article does not take the focus")
+	}
+	if _, ok := tt.Find("Back to All"); !ok {
+		t.Fatal("no Back to All")
+	}
+	if _, ok := tt.Find("Search entries"); ok {
+		t.Fatal("the list's toolbar shows over the reader")
+	}
+	// Opening marked it read; the reader's toggle undoes that.
+	if err := tt.Click("Mark as unread"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if s.entries[0].IsRead || len(f.patches[8]) != 2 || *f.patches[8][1].IsRead {
+		t.Fatalf("not marked unread: %v", f.patches[8])
+	}
+	tt.Key(0, ui.KeyS)
+	f.settle(t, tt)
+	if !s.entries[0].Starred {
+		t.Fatal("S does not star the article")
+	}
+	if _, ok := tt.Find("Remove star"); !ok {
+		t.Fatal("the star does not show")
+	}
+	if _, ok := tt.Find("Previous entry"); !ok || s.article(-1) >= 0 {
+		t.Fatal("the first article has one before it")
+	}
+	// J skips the video, the post and the picture to the next article, which is read already.
+	tt.Key(0, ui.KeyJ)
+	f.settle(t, tt)
+	if s.reading != 4 || !tt.HasText("The text of Range over func.") || len(f.patches[4]) != 0 {
+		t.Fatalf("reading %d, patches %v", s.reading, f.patches[4])
+	}
+	tt.Key(0, ui.KeyJ)
+	f.settle(t, tt)
+	tt.Key(0, ui.KeyJ)
+	if s.reading != 3 {
+		t.Fatalf("J past the last article reads %d", s.reading)
+	}
+	tt.Key(0, ui.KeyK)
+	f.settle(t, tt)
+	if s.reading != 4 {
+		t.Fatalf("K reads %d", s.reading)
+	}
+	tt.Key(0, ui.KeyO)
+	if opened := tt.OpenedURLs(); !slices.Equal(opened, []string{"https://go.dev/blog/range"}) {
+		t.Fatalf("opened %v", opened)
+	}
+	if err := tt.Click("Back to All"); err != nil {
+		t.Fatal(err)
+	}
+	if s.reading != 0 || s.selected != 4 || !tt.Focused("Go Blog, Range over func, Sep 8, Read, Starred") {
+		t.Fatalf("back to %d", s.selected)
+	}
+	// A click in the sidebar, on the scope shown too, closes the reader.
+	tt.Key(0, ui.KeyEnter)
+	f.settle(t, tt)
+	if err := tt.Click("Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	if s.reading != 0 || s.scope.source != 1 {
+		t.Fatalf("reading %d in %v", s.reading, s.scope)
+	}
+	f.settle(t, tt)
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if s.reading != 8 {
+		t.Fatalf("reading %d in the source", s.reading)
+	}
+	if err := tt.Click("Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	if s.reading != 0 {
+		t.Fatal("the scope shown does not close the reader")
 	}
 }
 

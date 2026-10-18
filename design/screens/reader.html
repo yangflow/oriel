@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reader screen</title>
+<!-- The reader: an article opened from the timeline takes the place of the list; the sidebar stays. It shows the
+     extracted full text, or the feed's own content with a note when there is no full text. The back button, Escape
+     and the sidebar return to the list where it was. Colors are the Oriel palette of design/tokens.md; icons are
+     Lucide (ISC License). Pictures are drawn as gradients here; in the app they load in the background through the
+     image proxy and show the Surface color, at their own aspect ratio when the page gives it, until then.
+     States: full (extracted text), feed (no full text, the feed's content), extracting (full text not tried yet,
+     the feed's content meanwhile), extracting-empty, failed (no full text and no feed content), loading, error.
+     The bar above the window only switches the mockup.
+     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
+<style>
+:root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
+:root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
+:root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --surface-pressed:#dfdbd2; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5); --star:#a16207 }
+:root[data-scheme=dark] { --background:#1b1a18; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55); --star:#facc15 }
+* { box-sizing:border-box }
+body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
+svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
+svg.icon.filled { fill:currentColor }
+button { font:inherit; color:inherit; border:0; background:none; padding:0; cursor:default }
+button:focus-visible { outline:3px solid var(--focus); outline-offset:1px }
+
+.switcher { display:flex; flex-wrap:wrap; gap:8px 16px; margin:0 0 16px; font-size:12px; color:var(--stage-text) }
+.switcher select { font:inherit }
+
+.window { position:relative; width:960px; height:640px; border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; background:var(--background) }
+.window.min { width:640px; height:480px }
+.titlebar { height:28px; flex:none; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); background:var(--surface); border-bottom:1px solid var(--border) }
+.body { flex:1; min-height:0; display:flex }
+
+/* Sidebar */
+aside { width:212px; flex:none; display:flex; flex-direction:column; background:var(--surface); border-right:1px solid var(--border) }
+.min aside { width:184px }
+.nav { flex:1; overflow-y:auto; padding:8px }
+.section { margin:12px 8px 4px; font-size:11px; font-weight:600; color:var(--muted) }
+.item { width:100%; height:28px; display:flex; align-items:center; gap:8px; padding:0 8px; border-radius:6px; color:var(--text); text-align:left }
+.item:hover { background:var(--surface-hover) }
+.item.chosen { background:var(--surface-pressed) }
+.item .name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.item .count { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums }
+.item .warn { color:var(--warning) }
+.mono { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:4px; font-size:10px; font-weight:600; background:var(--accent-soft); color:var(--accent) }
+.mono.k-video { background:var(--danger-soft); color:var(--danger) }
+.mono.k-social { background:var(--warning-soft); color:var(--warning) }
+.mono.k-image { background:color-mix(in srgb, var(--success) 14%, var(--background)); color:var(--success) }
+.server { flex:none; width:100%; text-align:left; display:flex; align-items:center; gap:8px; height:40px; padding:0 16px; border-top:1px solid var(--border); color:var(--muted); font-size:12px }
+.server .name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.server .dot { width:6px; height:6px; border-radius:50%; background:var(--success) }
+
+/* Toolbar */
+.main { flex:1; min-width:0; display:flex; flex-direction:column; position:relative }
+.toolbar { flex:none; height:48px; display:flex; align-items:center; gap:8px; padding:0 12px 0 20px; border-bottom:1px solid var(--border) }
+.toolbar h1 { margin:0; font-size:15px; font-weight:600; white-space:nowrap }
+.toolbar .sub { color:var(--muted); font-size:12px; white-space:nowrap; font-variant-numeric:tabular-nums }
+.spacer { flex:1 }
+.segmented { display:flex; padding:2px; gap:2px; border-radius:8px; background:var(--surface) }
+.segmented button { height:24px; display:flex; align-items:center; gap:4px; padding:0 8px; border-radius:6px; color:var(--muted) }
+.segmented button.on { background:var(--background); color:var(--text); box-shadow:0 0 0 1px var(--border) }
+.segmented button svg.icon { width:14px; height:14px }
+.min .segmented button span { display:none }
+.search { width:200px; height:28px; display:flex; align-items:center; gap:6px; padding:0 4px 0 8px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--muted) }
+.min .search { width:136px }
+.search.focused { border-color:var(--accent); background:var(--background); box-shadow:0 0 0 3px var(--focus) }
+.search.invalid { border-color:var(--warning) }
+.search input { flex:1; min-width:0; border:0; outline:0; background:none; font:inherit; color:var(--text) }
+.search input::placeholder { color:var(--muted) }
+.search .clear { width:20px; height:20px; display:grid; place-items:center; border-radius:5px }
+.search .clear svg.icon { width:14px; height:14px }
+.tool { width:28px; height:28px; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
+.tool:hover { background:var(--surface-hover); color:var(--text) }
+.tool:disabled { opacity:.45; background:none; color:var(--muted); cursor:default }
+.hint { flex:none; display:flex; align-items:center; gap:6px; padding:6px 20px; font-size:12px; color:var(--warning); background:var(--warning-soft); border-bottom:1px solid var(--border) }
+.hint svg.icon { width:14px; height:14px }
+
+/* Reader */
+.toolbar { padding:0 12px 0 8px; gap:2px }
+.back { height:28px; display:flex; align-items:center; gap:2px; padding:0 8px 0 4px; border-radius:6px; color:var(--muted); min-width:0 }
+.back span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.back:hover { background:var(--surface-hover); color:var(--text) }
+.tool.on { color:var(--star) }
+.divider { width:1px; height:16px; margin:0 6px; background:var(--border) }
+.scroll { flex:1; overflow-y:auto }
+.page { max-width:680px; margin:0 auto; padding:28px 32px 48px }
+.min .page { padding:20px 20px 40px }
+.meta { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); min-width:0; flex-wrap:wrap }
+.meta .src { color:var(--text); font-weight:500 }
+.meta .sep::before { content:"·" }
+.page h1 { margin:10px 0 0; font-size:24px; line-height:1.25; font-weight:650; text-wrap:pretty }
+.min .page h1 { font-size:20px }
+.note { display:flex; gap:8px; align-items:flex-start; margin:18px 0 0; padding:10px 12px; border-radius:8px; font-size:12.5px; background:var(--surface); color:var(--muted) }
+.note.warn { background:var(--warning-soft); color:var(--warning) }
+.note svg.icon { width:14px; height:14px; margin-top:2px }
+.note .link { color:inherit; text-decoration:underline; font-weight:500 }
+.prose { margin-top:22px; font-size:15px; line-height:1.65; color:var(--text) }
+.prose > * { margin:0 0 14px }
+.prose h2 { margin:26px 0 10px; font-size:18px; line-height:1.3; font-weight:600 }
+.prose h3 { margin:22px 0 8px; font-size:15.5px; font-weight:600 }
+.prose a { color:var(--accent); text-decoration:underline; text-underline-offset:2px }
+.prose ul, .prose ol { padding-left:22px }
+.prose li { margin:4px 0 }
+.prose blockquote { padding:2px 0 2px 14px; border-left:3px solid var(--border); color:var(--muted) }
+.prose code { font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; padding:1px 4px; border-radius:4px; background:var(--surface) }
+.prose pre { padding:12px 14px; border-radius:8px; background:var(--surface); overflow-x:auto }
+.prose pre code { padding:0; background:none }
+.prose figure { margin:20px 0 }
+.prose .pic { width:100%; border-radius:8px; background:var(--surface) }
+.prose figcaption { margin-top:6px; font-size:12px; color:var(--muted) }
+.prose hr { border:0; border-top:1px solid var(--border); margin:24px 0 }
+.end { display:flex; justify-content:center; margin-top:28px }
+.skeleton .bar { height:12px; border-radius:6px; background:var(--surface); margin:10px 0 }
+.skeleton .bar.h { height:22px; width:80%; margin:14px 0 22px }
+.skeleton .bar.m { width:30% }
+.skeleton .bar.s { width:96% }
+.skeleton .bar.e { width:64% }
+.empty { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; text-align:center }
+.tile { width:48px; height:48px; border-radius:12px; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent) }
+.tile.danger { background:var(--danger-soft); color:var(--danger) }
+.tile svg.icon { width:24px; height:24px; stroke-width:1.5 }
+.empty h2 { margin:0; font-size:15px; font-weight:600 }
+.empty p { margin:-4px 0 0; max-width:320px; color:var(--muted) }
+.buttons { display:flex; gap:8px }
+.button { height:32px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 14px; white-space:nowrap; border:1px solid var(--border); border-radius:8px; background:var(--background); color:var(--text) }
+.button:hover { background:var(--surface-hover) }
+.button.primary { border-color:var(--accent); background:var(--accent); color:var(--accent-text); font-weight:500 }
+.spin { animation:spin .9s linear infinite }
+@keyframes spin { to { transform:rotate(360deg) } }
+.g1 { background:linear-gradient(135deg,#d6c7a8,#7b8f86) }
+.tabs { flex:none; display:grid; grid-template-columns:repeat(5,1fr); gap:2px; padding:8px 8px 6px; border-bottom:1px solid var(--border) }
+.tab { height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-radius:8px; color:var(--muted) }
+.tab.on { background:var(--accent-soft); color:var(--accent) }
+.tab svg.icon { width:18px; height:18px }
+.tab span { min-height:10px; font-size:10px; line-height:1; font-variant-numeric:tabular-nums }
+</style>
+<div class="switcher" aria-hidden="true">
+  <label>state <select id="state"></select></label>
+  <label>scheme <select id="scheme"></select></label>
+  <label>lang <select id="lang"></select></label>
+  <label>size <select id="size"></select></label>
+</div>
+<div class="window" id="window"><div class="titlebar">Oriel</div><div class="body" id="app"></div></div>
+<script>
+const states=['full','feed','extracting','extracting-empty','failed','loading','error'];
+const query=new URLSearchParams(location.search);
+const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
+const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
+const state=pick('state',states,'full');
+const scheme=pick('scheme',options.scheme,'light');
+const lang=pick('lang',options.lang,'en');
+const size=pick('size',options.size,'default');
+document.documentElement.dataset.scheme=scheme;
+document.documentElement.lang=lang;
+document.getElementById('window').classList.toggle('min',size==='min');
+for(const [id,list] of Object.entries(options)){
+  const select=document.getElementById(id);
+  select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
+  select.value={state,scheme,lang,size}[id];
+  select.onchange=()=>{query.set(id,select.value);location.search=query};
+}
+
+const icons={
+  inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  article:'<path d="M15 18h-5"/><path d="M18 14h-8"/><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="10" y="6" rx="1"/>',
+  video:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
+  social:'<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
+  image:'<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  star:'<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  dot:'<circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/>',
+  circle:'<circle cx="12" cy="12" r="10"/>',
+  checkCheck:'<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
+  circleCheck:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
+  search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+  external:'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+  arrowUp:'<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  alert:'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  wifiOff:'<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
+  loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  server:'<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
+  laptop:'<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
+  chevronLeft:'<path d="m15 18-6-6 6-6"/>',
+  chevronUp:'<path d="m18 15-6-6-6 6"/>',
+  chevronDown:'<path d="m6 9 6 6 6-6"/>',
+  triangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  fileText:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+};
+
+const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
+
+const copy={
+  en:{
+    all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
+    back:'Back to {scope}', previous:'Previous entry', next:'Next entry',
+    star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser',
+    feedNote:'This isn’t the full text: the page could not be extracted, so this is what the feed carries.',
+    extractingNote:'Getting the full text. Until then, this is what the feed carries.',
+    openOriginal:'Open the original',
+    extracting:'Getting the full text', extractingHint:'The article will show here once the page has been read.',
+    failed:'No text to show', failedHint:'The page could not be extracted, and the feed carries no text for this entry.',
+    error:'Can’t load this entry', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
+    thisComputer:'This computer', failing:'Last fetch failed',
+  },
+  'zh-Hans':{
+    all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
+    back:'回到{scope}', previous:'上一篇', next:'下一篇',
+    star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开',
+    feedNote:'这不是全文：网页抽不出正文，下面是订阅里带的内容。',
+    extractingNote:'正在取全文，先显示订阅里带的内容。',
+    openOriginal:'打开原文',
+    extracting:'正在取全文', extractingHint:'读完网页后，文章会显示在这里。',
+    failed:'没有可显示的正文', failedHint:'网页抽不出正文，订阅里也没有这篇的内容。',
+    error:'这篇加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
+    thisComputer:'本机', failing:'上次抓取失败',
+  },
+}[lang];
+const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
+const zh=lang==='zh-Hans';
+
+const sources=[
+  {kind:'article',name:'Simon Willison',mono:'S',unread:3,chosen:true},
+  {kind:'article',name:zh?'少数派':'Sspai',mono:zh?'少':'S',unread:12},
+  {kind:'article',name:'The Go Blog',mono:'G',unread:0,failing:true},
+];
+const sidebar=`<aside><div class="tabs" role="tablist" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g])=>`<button class="tab${k==='article'?' on':''}" role="tab" aria-selected="${k==='article'}" aria-label="${copy[k]}">${icon(g)}<span>${k==='article'?15:''}</span></button>`).join('')}</div>
+<nav class="nav" aria-label="${copy.sources}"><div class="section">${copy.article}</div>${sources.map(s=>`<button class="item${s.chosen?' chosen':''}"><span class="mono">${s.mono}</span><span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failing}">${icon('alert')}</span>`:''}${s.unread?`<span class="count">${s.unread}</span>`:''}</button>`).join('')}</nav>
+<button class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></button></aside>`;
+
+const starred=state==='full', read=true, off=state==='error'||state==='loading'?' disabled':'';
+const tools=`<button class="back" aria-label="${t('back',{scope:'Simon Willison'})}" title="${t('back',{scope:'Simon Willison'})} (Esc)">${icon('chevronLeft')}<span>Simon Willison</span></button><span class="spacer"></span>
+<button class="tool" aria-label="${copy.previous}" title="${copy.previous} (K)">${icon('chevronUp')}</button>
+<button class="tool" aria-label="${copy.next}" title="${copy.next} (J)">${icon('chevronDown')}</button><span class="divider"></span>
+<button class="tool${starred?' on':''}"${off} aria-pressed="${starred}" aria-label="${starred?copy.unstar:copy.star}" title="${starred?copy.unstar:copy.star} (S)">${icon('star',starred?'filled':'')}</button>
+<button class="tool"${off} aria-label="${read?copy.markUnread:copy.markRead}" title="${read?copy.markUnread:copy.markRead} (M)">${icon(read?'dot':'circleCheck')}</button>
+<button class="tool"${off} aria-label="${copy.open}" title="${copy.open} (O)">${icon('external')}</button>`;
+
+const title=zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer';
+const meta=`<div class="meta"><span class="mono">S</span><span class="src">Simon Willison</span><span class="sep"></span><span>${zh?'10月18日 11:34':'Oct 18, 11:34'}</span></div>`;
+const full=zh?`
+<p>SQLite 的 FTS5 自带三种分词器。<code>unicode61</code> 按空白和标点切词，对英文够用，对中文就不行了：一整句话会被当成一个词。<a href="#">trigram 分词器</a>换了个思路，把文本切成所有连续的三个字符。</p>
+<h2>它换来了什么</h2>
+<p>任意子串都能命中，不需要词典，也不关心语言：</p>
+<ul><li>中文、日文和英文混在一起也能搜；</li><li><code>LIKE</code> 和 <code>GLOB</code> 查询可以走索引；</li><li>不用维护停用词表。</li></ul>
+<figure><div class="pic g1" style="aspect-ratio:16/9" role="img" aria-label="索引大小对比图"></div><figcaption>同一份语料在三种分词器下的索引大小。</figcaption></figure>
+<h2>它的代价</h2>
+<blockquote>短于三个字符的查询用不上索引——这是 trigram 的定义决定的，不是实现的缺陷。</blockquote>
+<pre><code>CREATE VIRTUAL TABLE entries_fts USING fts5(
+  title, body, tokenize = 'trigram'
+);</code></pre>
+<p>索引大约是原文的三倍。对一个个人阅读器来说，这通常可以接受。</p>`:`
+<p>SQLite’s FTS5 ships with three tokenizers. <code>unicode61</code> splits on whitespace and punctuation, which is fine for English and useless for Chinese, where a whole sentence becomes one token. The <a href="#">trigram tokenizer</a> takes another route: it indexes every run of three characters.</p>
+<h2>What it buys you</h2>
+<p>Any substring matches, with no dictionary and no idea of language:</p>
+<ul><li>Chinese, Japanese and English can be searched together;</li><li><code>LIKE</code> and <code>GLOB</code> queries can use the index;</li><li>there is no stop-word list to maintain.</li></ul>
+<figure><div class="pic g1" style="aspect-ratio:16/9" role="img" aria-label="Chart of index sizes"></div><figcaption>The same corpus under the three tokenizers.</figcaption></figure>
+<h2>What it costs</h2>
+<blockquote>Queries shorter than three characters cannot use the index. That follows from what a trigram is; it is not a flaw in the implementation.</blockquote>
+<pre><code>CREATE VIRTUAL TABLE entries_fts USING fts5(
+  title, body, tokenize = 'trigram'
+);</code></pre>
+<p>The index ends up about three times the size of the text. For a personal reader that is usually fine.</p>`;
+const feed=zh?`<p>trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。</p><p><a href="#">继续阅读 →</a></p>`:`<p>The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.</p><p><a href="#">Continue reading →</a></p>`;
+const note=(cls,glyph,text)=>`<div class="note ${cls}" role="note">${icon(glyph,glyph==='loader'?'spin':'')}<span>${text} ${cls?`<a class="link" href="#">${copy.openOriginal}</a>`:''}</span></div>`;
+const article=(extra,html)=>`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1>${extra}<div class="prose">${html}</div></article>`;
+const empty=(tile,heading,hint,buttons,cls='')=>`<div class="empty" role="status"><div class="tile ${cls}">${icon(tile,tile==='loader'?'spin':'')}</div><h2>${heading}</h2><p>${hint}</p><div class="buttons">${buttons}</div></div>`;
+const openButton=(cls='')=>`<button class="button ${cls}">${icon('external')}${copy.openOriginal}</button>`;
+
+let page;
+switch(state){
+  case 'full':page=article('',full);break;
+  case 'feed':page=article(note('warn','triangle',copy.feedNote),feed);break;
+  case 'extracting':page=article(note('','loader',copy.extractingNote),feed);break;
+  case 'extracting-empty':page=`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1></article>`+empty('loader',copy.extracting,copy.extractingHint,openButton()).replace('class="empty"','class="empty" style="min-height:0;padding-top:24px"');break;
+  case 'failed':page=`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1></article>`+empty('fileText',copy.failed,copy.failedHint,openButton('primary')).replace('class="empty"','class="empty" style="min-height:0;padding-top:24px"');break;
+  case 'loading':page=`<div class="page skeleton" aria-busy="true"><div class="bar m"></div><div class="bar h"></div>${'<div class="bar s"></div>'.repeat(3)}<div class="bar e"></div><br>${'<div class="bar s"></div>'.repeat(2)}<div class="bar e"></div></div>`;break;
+  case 'error':page=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');break;
+}
+document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div></section>`;
+</script>
+</html>

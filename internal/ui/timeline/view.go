@@ -18,6 +18,7 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
+	"github.com/yangflow/oriel/internal/ui/reader"
 	"github.com/yangflow/oriel/internal/ui/subscriptions"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
@@ -61,11 +62,11 @@ var kinds = []string{"", "article", "video", "social", "image"}
 // API is what the screen reads and writes on the server; client.Session is one.
 type API interface {
 	subscriptions.API
+	reader.API
 	Entries(ctx context.Context, q client.Query) (client.Page, error)
 	Sources(ctx context.Context) ([]client.Source, error)
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
 	MarkRead(ctx context.Context, scope client.ReadScope) (int, error)
-	Image(ctx context.Context, address string) ([]byte, error)
 }
 
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it
@@ -157,6 +158,8 @@ type Screen struct {
 
 	confirm  asking
 	subs     *subscriptions.Screen // the dialogs that add and edit subscriptions
+	reader   *reader.Screen        // in the place of the list while an article is read
+	reading  int64                 // the entry read, 0 for none
 	announce string
 	toast    string
 }
@@ -185,6 +188,16 @@ func New(systemLocale string, deps Deps) *Screen {
 			s.deps.Expired()
 		},
 	})
+	s.reader = reader.New(systemLocale, reader.Deps{
+		Go:         deps.Go,
+		Now:        deps.Now,
+		Decode:     deps.Decode,
+		Expired:    s.expired,
+		Back:       s.back,
+		Move:       s.step,
+		Star:       func() { s.toggleStar(s.index(s.reading)) },
+		ToggleRead: func() { s.toggleRead(s.index(s.reading)) },
+	})
 	return s
 }
 
@@ -198,6 +211,7 @@ func (s *Screen) Use(api API, server string) {
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
 	s.confirm = asking{}
 	s.subs.Use(api)
+	s.reader.Use(api)
 	s.loadSources()
 	s.reload()
 }
@@ -209,6 +223,8 @@ func (s *Screen) expired(err error) bool {
 	s.gen++
 	s.api = nil
 	s.subs.Use(nil)
+	s.reader.Use(nil)
+	s.reading = 0
 	s.deps.Expired()
 	return true
 }
@@ -291,7 +307,7 @@ func (s *Screen) reload() {
 	s.run++
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
 	s.entries, s.next, s.loading, s.loadErr, s.more, s.moreErr, s.fresh = nil, "", true, false, false, false, 0
-	s.selected, s.focusRow, s.hovered, s.toTop = -1, -1, -1, true
+	s.selected, s.focusRow, s.hovered, s.toTop, s.reading = -1, -1, -1, true, 0
 	for address, p := range s.pictures {
 		if p.failed {
 			delete(s.pictures, address)
@@ -392,6 +408,7 @@ func (s *Screen) poll(c *ui.Context) {
 }
 
 func (s *Screen) choose(next scope) {
+	s.back()
 	if next == s.scope {
 		return
 	}
@@ -513,8 +530,20 @@ func (s *Screen) toggleRead(i int) {
 	}
 }
 
-// open opens the entry in the browser, until the reader comes, and marks it read.
+// open opens the entry and marks it read: an article in the reader, the other kinds in the browser.
 func (s *Screen) open(c *ui.Context, i int) {
+	if i < 0 || i >= len(s.entries) {
+		return
+	}
+	if s.entries[i].Kind == "article" {
+		s.read(i)
+		return
+	}
+	s.browse(c, i)
+}
+
+// browse opens the entry in the browser and marks it read.
+func (s *Screen) browse(c *ui.Context, i int) {
 	if i < 0 || i >= len(s.entries) {
 		return
 	}
@@ -528,10 +557,59 @@ func (s *Screen) open(c *ui.Context, i int) {
 			}
 		})
 	}
+	s.markRead(e)
+}
+
+func (s *Screen) markRead(e client.Entry) {
 	if !e.IsRead {
 		on := true
 		s.change(e.ID, client.EntryPatch{IsRead: &on})
 	}
+}
+
+// read shows the article at i in the reader and marks it read; the reader's toggle marks it unread again.
+func (s *Screen) read(i int) {
+	e := s.entries[i]
+	s.selected, s.reading = i, e.ID
+	s.reader.Open(e)
+	s.markRead(e)
+	if i >= len(s.entries)-nearEnd {
+		s.loadMore()
+	}
+}
+
+// article returns the article by entries from the one read, -1 when there is none loaded.
+func (s *Screen) article(by int) int {
+	for i := s.index(s.reading) + by; i >= 0 && i < len(s.entries); i += by {
+		if s.entries[i].Kind == "article" {
+			return i
+		}
+	}
+	return -1
+}
+
+// step reads the article by entries from the one read, asking for the next page when there is none loaded after it.
+func (s *Screen) step(by int) {
+	if i := s.article(by); i >= 0 {
+		s.read(i)
+	} else if by > 0 {
+		s.loadMore()
+	}
+}
+
+// back closes the reader, giving the entry read the focus in the list.
+func (s *Screen) back() {
+	if s.reading == 0 {
+		return
+	}
+	i := s.index(s.reading)
+	s.reading = 0
+	if i < 0 {
+		return
+	}
+	s.selected, s.focusRow = i, i
+	s.list.ScrollIntoView(i)
+	s.grid.ScrollIntoView(i)
 }
 
 // move chooses the entry by entries from the one chosen and gives it the focus.
@@ -791,14 +869,23 @@ func (s *Screen) View(c *ui.Context) {
 		}
 	}
 	s.poll(c)
+	if s.reading != 0 && s.index(s.reading) < 0 {
+		s.reading = 0
+	}
+	if s.reading != 0 {
+		s.typing = false
+	}
 	open := s.confirm.open || s.subs.Open()
 	if !open {
-		c.OnShortcut(ui.Cmd, ui.KeyF, func() { s.searchBox = true })
+		c.OnShortcut(ui.Cmd, ui.KeyF, func() {
+			s.back()
+			s.searchBox = true
+		})
 		c.OnShortcut(ui.Cmd, ui.KeyN, s.subs.Add)
 	}
-	// The keys of the list work wherever the focus is, but not while the search takes the letters typed or a
-	// dialog shows.
-	if !s.typing && !open {
+	// The keys of the list work wherever the focus is, but not while the search takes the letters typed, a dialog
+	// shows or the reader, which has its own, is open.
+	if !s.typing && !open && s.reading == 0 {
 		for _, k := range []struct {
 			key ui.Key
 			do  func()
@@ -818,6 +905,11 @@ func (s *Screen) View(c *ui.Context) {
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
 		s.sidebar(c, compact)
 		ui.Box(c).Width(1).Background(t.Border)
+		if s.reading != 0 {
+			s.reader.View(c, reader.Nav{Entry: s.entries[s.index(s.reading)], Scope: s.scopeName(),
+				Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "", Keys: !open})
+			return
+		}
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 			s.toolbar(c, compact)
 			ui.Box(c).FillWidth().Height(1).Background(t.Border)
@@ -909,6 +1001,7 @@ func (s *Screen) tabs(c *ui.Context) {
 				})
 				if tab.Clicked() {
 					s.tab = i
+					s.back()
 				}
 			}
 		})
@@ -1392,7 +1485,7 @@ func (s *Screen) actions(c *ui.Context, i int, inset float32) {
 			s.toggleRead(i)
 		}
 		if s.action(c, s.text.Open, icons.ExternalLink, t.TextMuted) {
-			s.open(c, i)
+			s.browse(c, i)
 		}
 	})
 }

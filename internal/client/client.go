@@ -232,9 +232,20 @@ type Entry struct {
 	DurationSec  int     `json:"durationSec"`
 	Platform     string  `json:"platform"`
 	Images       []Image `json:"images"`
-	IsRead       bool    `json:"isRead"`
-	Starred      bool    `json:"starred"`
-	CreatedAt    int64   `json:"createdAt"`
+	// ExtractStatus is how getting the full text of an article went: "pending", "ok", "failed", or "skipped" for
+	// the other kinds.
+	ExtractStatus string `json:"extractStatus"`
+	IsRead        bool   `json:"isRead"`
+	Starred       bool   `json:"starred"`
+	CreatedAt     int64  `json:"createdAt"`
+}
+
+// Article is an entry with its text: ContentHTML is what the feed carries and ExtractedHTML the text taken from
+// the page, "" when there is none.
+type Article struct {
+	Entry
+	ContentHTML   string `json:"contentHtml"`
+	ExtractedHTML string `json:"extractedHtml"`
 }
 
 // Source is a subscription. Times are Unix milliseconds, 0 when it has not been fetched.
@@ -396,6 +407,13 @@ func (s Session) SetSettings(ctx context.Context, patch SettingsPatch) (Settings
 	var settings Settings
 	err := s.call(ctx, http.MethodPatch, "/api/settings", patch, &settings)
 	return settings, err
+}
+
+// Entry returns an entry with its text.
+func (s Session) Entry(ctx context.Context, id int64) (Article, error) {
+	var article Article
+	err := s.call(ctx, http.MethodGet, "/api/entries/"+strconv.FormatInt(id, 10), nil, &article)
+	return article, err
 }
 
 // SetEntry changes whether an entry is read or starred and returns it as changed.

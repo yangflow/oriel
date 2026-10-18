@@ -40,8 +40,12 @@ Working now:
 - **Timeline screen.** All subscriptions in one list, newest first, each kind in its own layout: article rows
   with a thumbnail, video covers with their duration, social posts with up to four pictures, and a masonry wall
   for images. Kind tabs and a subscription list narrow it; Unread, Starred and search narrow it further. Keys
-  move, open, star and mark entries; new entries wait behind a "N new" button instead of moving the list. An
-  entry opens in the browser until the reader lands.
+  move, open, star and mark entries; new entries wait behind a "N new" button instead of moving the list. Videos,
+  social posts and pictures open in the browser.
+- **Article reader.** An article opens in place of the list, drawn natively: headings, paragraphs, lists,
+  quotes, code, links and pictures. It shows the full text when it was extracted, and otherwise what the feed
+  carries, with a note saying so and a link to the original. Keys go to the next article, star, mark read and
+  return to the list.
 - **Subscription screen.** Add a subscription from a feed address, an RSSHub route, or a YouTube, Bilibili, X,
   GitHub, Telegram or Weibo link, which is turned into its feed or route; the kind and the check interval are
   chosen in the same dialog. Edit, pause, refresh and delete a subscription from the sidebar's right-click menu
@@ -60,11 +64,11 @@ Working now:
 - **Two languages.** The interface is in English and Simplified Chinese.
 
 Planned, in the order of the [milestones](https://github.com/yangflow/oriel/milestones) (rules in the
-[roadmap](docs/roadmap.md), in Chinese): the article reader, on-demand AI summaries and translation through your
-own OpenAI-compatible endpoint, settings and OPML import and export.
+[roadmap](docs/roadmap.md), in Chinese): on-demand AI summaries and translation through your own
+OpenAI-compatible endpoint, settings and OPML import and export.
 
-Status: early development, version 0.1.0, no release yet. The window has the connect screen, the timeline and
-the subscription dialogs; settings have an API but no screen yet. Targets: macOS 12+, Windows 10/11 and Linux
+Status: early development, version 0.1.0, no release yet. The window has the connect screen, the timeline, the
+subscription dialogs and the article reader; settings have an API but no screen yet. Targets: macOS 12+, Windows 10/11 and Linux
 with GTK 3, on amd64 and arm64. Linux builds need glibc, also when running headless.
 
 ## Quick start

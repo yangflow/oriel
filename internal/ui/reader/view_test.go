@@ -1,0 +1,452 @@
+package reader
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"image"
+	"image/png"
+	"net/url"
+	"reflect"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/egoist/mygo/ui"
+	"github.com/yangflow/oriel/internal/client"
+)
+
+var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+
+var errExpired = errors.New("session expired")
+
+// fake stands in for the server, the background and the timeline: work waits in a queue until settle runs it.
+type fake struct {
+	queue    []func() func()
+	now      time.Time
+	article  client.Article
+	err      error
+	asked    int
+	pictures []string
+	nav      Nav
+	calls    []string // what the reader asked the timeline to do
+}
+
+func (f *fake) Entry(_ context.Context, id int64) (client.Article, error) {
+	f.asked++
+	if f.err != nil {
+		return client.Article{}, f.err
+	}
+	return f.article, nil
+}
+
+func (f *fake) Image(_ context.Context, address string) ([]byte, error) {
+	f.pictures = append(f.pictures, address)
+	var b bytes.Buffer
+	png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 4, 3)))
+	return b.Bytes(), nil
+}
+
+func (f *fake) deps() Deps {
+	return Deps{
+		Go:         func(work func() func()) { f.queue = append(f.queue, work) },
+		Now:        func() time.Time { return f.now },
+		Expired:    func(err error) bool { return errors.Is(err, errExpired) },
+		Back:       func() { f.calls = append(f.calls, "back") },
+		Move:       func(by int) { f.calls = append(f.calls, map[int]string{-1: "previous", 1: "next"}[by]) },
+		Star:       func() { f.calls = append(f.calls, "star") },
+		ToggleRead: func() { f.calls = append(f.calls, "read") },
+	}
+}
+
+// settle runs the queued work until there is none, applying each result as the window does on the UI thread.
+func (f *fake) settle(tt *ui.Tester) {
+	for len(f.queue) > 0 {
+		work := f.queue[0]
+		f.queue = f.queue[1:]
+		work()()
+		tt.Frame()
+	}
+}
+
+func entry() client.Entry {
+	return client.Entry{ID: 8, SourceID: 1, SourceTitle: "Go Blog", Kind: "article", Title: "Go 1.27 is released",
+		URL: "https://go.dev/blog/go1.27", Summary: "The latest Go release.", IsRead: true,
+		PublishedAt: now.Add(-5 * time.Minute).UnixMilli()}
+}
+
+// setup opens article in a reader of language, without settling, so the loading state shows.
+func setup(t *testing.T, language string, article client.Article) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	f := &fake{now: now, article: article,
+		nav: Nav{Entry: article.Entry, Scope: "All", Previous: true, Next: true, Keys: true}}
+	s := New(language, f.deps())
+	s.Use(f)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1100, 800)
+	s.Open(article.Entry)
+	tt.Frame()
+	return s, f, tt
+}
+
+func full() client.Article {
+	a := client.Article{Entry: entry(), ExtractedHTML: `<h1>Go 1.27 is released</h1>
+<p>Today the Go team is happy to release <a href="/doc/go1.27">Go 1.27</a>.</p>
+<figure><img src="/images/gopher.png" alt="A gopher" width="600" height="400"><figcaption>The gopher</figcaption></figure>
+<h2>Tools</h2><ul><li>Faster builds</li><li>Smaller binaries</li></ul>`}
+	a.ExtractStatus = "ok"
+	return a
+}
+
+func expect(t *testing.T, tt *ui.Tester, texts ...string) {
+	t.Helper()
+	for _, text := range texts {
+		if !tt.HasText(text) {
+			t.Fatalf("no %q in %v", text, tt.Texts())
+		}
+	}
+}
+
+func absent(t *testing.T, tt *ui.Tester, texts ...string) {
+	t.Helper()
+	for _, text := range texts {
+		if tt.HasText(text) {
+			t.Fatalf("%q shows in %v", text, tt.Texts())
+		}
+	}
+}
+
+func TestCatalogsMatch(t *testing.T) {
+	var raw map[string]map[string]string
+	if err := json.Unmarshal(catalog, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != 2 {
+		t.Fatalf("languages %v", reflect.ValueOf(raw).MapKeys())
+	}
+	fields := reflect.TypeFor[copy]().NumField()
+	for language, values := range raw {
+		if len(values) != fields {
+			t.Errorf("%s has %d strings, want %d", language, len(values), fields)
+		}
+		for key, value := range values {
+			if _, ok := raw["en"][key]; !ok {
+				t.Errorf("%s has %s, en does not", language, key)
+			}
+			if value == "" {
+				t.Errorf("%s.%s is empty", language, key)
+			}
+		}
+	}
+}
+
+func TestFullText(t *testing.T) {
+	_, f, tt := setup(t, "en", full())
+	if _, ok := tt.Find("Loading"); !ok {
+		t.Fatal("no loading state")
+	}
+	if _, ok := tt.Find("Remove star"); ok {
+		t.Fatal("the star shows before the article loads")
+	}
+	f.settle(tt)
+	expect(t, tt, "Go Blog", "Oct 18, 11:55", "Go 1.27 is released", "Today the Go team is happy to release ",
+		"Go 1.27", "The gopher", "Tools", "Faster builds", "Smaller binaries", "•")
+	absent(t, tt, "This isn’t the full text: the page could not be extracted, so this is what the feed carries. ",
+		"Loading")
+	if !tt.Focused("Go 1.27 is released") {
+		t.Fatal("the article does not take the focus")
+	}
+	if !slices.Equal(f.pictures, []string{"https://go.dev/images/gopher.png"}) {
+		t.Fatalf("pictures %v", f.pictures)
+	}
+	if _, ok := tt.Find("A gopher"); !ok {
+		t.Fatal("the picture is not named")
+	}
+	if err := tt.Click("Go 1.27"); err != nil {
+		t.Fatal(err)
+	}
+	if opened := tt.OpenedURLs(); !slices.Equal(opened, []string{"https://go.dev/doc/go1.27"}) {
+		t.Fatalf("opened %v", opened)
+	}
+	if err := tt.Click("Open in browser"); err != nil {
+		t.Fatal(err)
+	}
+	if opened := tt.OpenedURLs(); len(opened) != 2 || opened[1] != "https://go.dev/blog/go1.27" {
+		t.Fatalf("opened %v", opened)
+	}
+}
+
+func TestFeedOnly(t *testing.T) {
+	a := client.Article{Entry: entry(), ContentHTML: "<p>What the feed <em>carries</em>.</p>"}
+	a.ExtractStatus = "failed"
+	_, f, tt := setup(t, "en", a)
+	f.settle(tt)
+	expect(t, tt, "This isn’t the full text: the page could not be extracted, so this is what the feed carries. ",
+		"What the feed ", "carries")
+	if err := tt.Click("Open the original"); err != nil {
+		t.Fatal(err)
+	}
+	if opened := tt.OpenedURLs(); !slices.Equal(opened, []string{"https://go.dev/blog/go1.27"}) {
+		t.Fatalf("opened %v", opened)
+	}
+	// Without content, the summary stands in.
+	a.ContentHTML = ""
+	_, f, tt = setup(t, "en", a)
+	f.settle(tt)
+	expect(t, tt, "The latest Go release.")
+}
+
+func TestExtracting(t *testing.T) {
+	a := client.Article{Entry: entry(), ContentHTML: "<p>The summary of the feed.</p>"}
+	a.ExtractStatus = "pending"
+	_, f, tt := setup(t, "en", a)
+	f.settle(tt)
+	expect(t, tt, "Getting the full text. Until then, this is what the feed carries. ", "The summary of the feed.")
+	f.now = f.now.Add(4 * time.Second)
+	tt.Frame()
+	if len(f.queue) != 0 {
+		t.Fatal("asked again before five seconds")
+	}
+	// A poll that fails keeps what shows.
+	f.err = errors.New("status 502")
+	f.now = f.now.Add(time.Second)
+	tt.Frame()
+	f.settle(tt)
+	if f.asked != 2 {
+		t.Fatalf("asked %d times", f.asked)
+	}
+	expect(t, tt, "The summary of the feed.")
+	absent(t, tt, "Can’t load this entry")
+	f.err = nil
+	f.article.ExtractStatus, f.article.ExtractedHTML = "ok", "<p>The whole article.</p>"
+	f.now = f.now.Add(5 * time.Second)
+	tt.Frame()
+	f.settle(tt)
+	expect(t, tt, "The whole article.")
+	absent(t, tt, "The summary of the feed.", "Getting the full text. Until then, this is what the feed carries. ")
+	if !slices.Contains(tt.Announcements(), "Full text loaded") {
+		t.Fatal("the full text is not announced")
+	}
+	f.now = f.now.Add(time.Minute)
+	tt.Frame()
+	if len(f.queue) != 0 {
+		t.Fatal("asks again once the text is in")
+	}
+}
+
+func TestWaiting(t *testing.T) {
+	a := client.Article{Entry: entry()}
+	a.Summary, a.ExtractStatus = "", "pending"
+	_, f, tt := setup(t, "zh-Hans", a)
+	f.settle(tt)
+	expect(t, tt, "正在取全文", "读完网页后，文章会显示在这里。")
+	if err := tt.Click("打开原文"); err != nil {
+		t.Fatal(err)
+	}
+	if len(tt.OpenedURLs()) != 1 {
+		t.Fatalf("opened %v", tt.OpenedURLs())
+	}
+	f.article.ExtractStatus = "failed"
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	f.settle(tt)
+	expect(t, tt, "没有可显示的正文", "网页抽不出正文，订阅里也没有这篇的内容。")
+	absent(t, tt, "正在取全文")
+}
+
+func TestNothing(t *testing.T) {
+	a := client.Article{Entry: entry()}
+	a.Summary, a.ExtractStatus = "", "failed"
+	_, f, tt := setup(t, "en", a)
+	f.settle(tt)
+	expect(t, tt, "No text to show", "Go 1.27 is released")
+	tt.FailOpenURL(errors.New("no browser"))
+	if err := tt.Click("Open the original"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	expect(t, tt, "Couldn’t open the link")
+}
+
+func TestError(t *testing.T) {
+	a := full()
+	s, f, tt := setup(t, "en", a)
+	f.err = errors.New("status 502")
+	f.settle(tt)
+	expect(t, tt, "Can’t load this entry", "The server didn’t answer. Check the connection and try again.")
+	if !slices.Contains(tt.Announcements(), "Can’t load this entry") {
+		t.Fatal("the error is not announced")
+	}
+	if _, ok := tt.Find("Next entry"); !ok {
+		t.Fatal("the toolbar does not show")
+	}
+	tt.Key(0, ui.KeyS)
+	tt.Key(0, ui.KeyM)
+	if len(f.calls) != 0 {
+		t.Fatalf("calls %v on an entry not loaded", f.calls)
+	}
+	f.err = nil
+	if err := tt.Click("Try again"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.loading {
+		t.Fatal("Try again does not load")
+	}
+	f.settle(tt)
+	expect(t, tt, "Faster builds")
+	// A session the server no longer takes is the timeline's to handle; the reader shows no error for it.
+	f.err = errExpired
+	s.Open(a.Entry)
+	tt.Frame()
+	f.settle(tt)
+	absent(t, tt, "Can’t load this entry")
+}
+
+func TestKeys(t *testing.T) {
+	s, f, tt := setup(t, "en", full())
+	f.settle(tt)
+	for _, k := range []ui.Key{ui.KeyJ, ui.KeyK, ui.KeyS, ui.KeyM, ui.KeyEscape} {
+		tt.Key(0, k)
+	}
+	if want := []string{"next", "previous", "star", "read", "back"}; !slices.Equal(f.calls, want) {
+		t.Fatalf("calls %v", f.calls)
+	}
+	tt.Key(0, ui.KeyO)
+	if len(tt.OpenedURLs()) != 1 {
+		t.Fatalf("opened %v", tt.OpenedURLs())
+	}
+	f.calls = nil
+	f.nav.Previous, f.nav.Next = false, false
+	tt.Frame()
+	tt.Key(0, ui.KeyJ)
+	tt.Key(0, ui.KeyK)
+	if len(f.calls) != 0 {
+		t.Fatalf("calls %v with nothing before or after", f.calls)
+	}
+	f.nav.Keys = false
+	tt.Frame()
+	tt.Key(0, ui.KeyEscape)
+	if len(f.calls) != 0 {
+		t.Fatalf("calls %v while a dialog shows", f.calls)
+	}
+	f.nav.Keys, f.nav.Next = true, true
+	f.nav.Entry.Starred, f.nav.Entry.IsRead = true, false
+	tt.Frame()
+	for _, label := range []string{"Back to All", "Remove star", "Mark as read"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tt.Click("Next entry"); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"back", "star", "read", "next"}; !slices.Equal(f.calls, want) {
+		t.Fatalf("calls %v", f.calls)
+	}
+	// The read and star state come from the timeline, the extraction from the article.
+	if s.article.ExtractStatus != "ok" || !s.article.Starred {
+		t.Fatalf("article %+v", s.article.Entry)
+	}
+}
+
+// A result for the article before is dropped when another opens.
+func TestStale(t *testing.T) {
+	s, f, tt := setup(t, "en", full())
+	other := entry()
+	other.ID, other.Title = 9, "Another post"
+	f.nav.Entry = other
+	s.Open(other)
+	f.article = client.Article{Entry: other, ContentHTML: "<p>Another text.</p>"}
+	f.settle(tt)
+	expect(t, tt, "Another text.")
+	absent(t, tt, "Faster builds")
+}
+
+func TestDates(t *testing.T) {
+	s, _, _ := setup(t, "zh-Hans", full())
+	e := entry()
+	if got := s.when(e); got != "10月18日 11:55" {
+		t.Fatalf("this year %q", got)
+	}
+	e.PublishedAt, e.CreatedAt = 0, time.Date(2025, 3, 4, 9, 30, 0, 0, time.UTC).UnixMilli()
+	if got := s.when(e); got != "2025年3月4日 09:30" {
+		t.Fatalf("another year %q", got)
+	}
+}
+
+func TestParse(t *testing.T) {
+	base, _ := url.Parse("https://example.com/posts/1")
+	type want struct {
+		kind          int
+		text          string
+		marker        string
+		quote, depth  int
+		level         int
+		link, src     string
+		bold, italic  bool
+		mono, gone    bool
+		width, height int
+	}
+	shape := func(blocks []block) []want {
+		var got []want
+		for _, b := range blocks {
+			w := want{kind: b.kind, marker: b.marker, quote: b.quote, depth: b.depth, level: b.level, src: b.src,
+				width: b.width, height: b.height}
+			switch b.kind {
+			case code:
+				w.text = b.text
+			case picture:
+				w.text = b.alt
+			default:
+				w.text = plain(b.spans)
+				if len(b.spans) == 1 {
+					sp := b.spans[0]
+					w.link, w.bold, w.italic, w.mono, w.gone = sp.link, sp.bold, sp.italic, sp.mono, sp.gone
+				}
+			}
+			got = append(got, w)
+		}
+		return got
+	}
+	for _, c := range []struct {
+		name, html string
+		want       []want
+	}{
+		{"title dropped", "<h1>Hello</h1><h2>Part</h2><h4>Small</h4>",
+			[]want{{kind: heading, text: "Part", level: 2, bold: true}, {kind: heading, text: "Small", level: 3,
+				bold: true}}},
+		{"white space collapses, br breaks", "<p>  one\n  two<br>three </p>\n<p>four</p>",
+			[]want{{text: "one two\nthree"}, {text: "four"}}},
+		{"ordered list with start", `<ol start="3"><li>c</li><li>d</li></ol>`,
+			[]want{{text: "c", marker: "3.", depth: 1}, {text: "d", marker: "4.", depth: 1}}},
+		{"nested list", "<ul><li>a<ul><li>b</li></ul></li></ul>",
+			[]want{{text: "a", marker: "•", depth: 1}, {text: "b", marker: "◦", depth: 2}}},
+		{"quote", "<blockquote><p>said</p><p>more</p></blockquote><p>after</p>",
+			[]want{{text: "said", quote: 1}, {text: "more", quote: 1}, {text: "after"}}},
+		{"code keeps its lines", "<pre><code>a := 1\n\tb := 2\n</code></pre>",
+			[]want{{kind: code, text: "a := 1\n\tb := 2"}}},
+		{"figure", `<figure><img src="p.png" alt="A view"><figcaption>Caption</figcaption></figure>`,
+			[]want{{kind: picture, text: "A view", src: "https://example.com/posts/p.png"},
+				{kind: caption, text: "Caption"}}},
+		{"lazy picture", `<img src="data:image/gif;base64,R0lGOD" data-src="//cdn.example.com/x.jpg" width="800" height="600">`,
+			[]want{{kind: picture, src: "https://cdn.example.com/x.jpg", width: 800, height: 600}}},
+		{"tracking pixel", `<p>text<img src="/t.gif" width="1" height="1"></p>`, []want{{text: "text"}}},
+		{"dropped elements", `<script>x()</script><style>p{}</style><iframe src="/v"></iframe><form><input></form>` +
+			`<video src="v.mp4">no video</video><p>kept</p>`, []want{{text: "kept"}}},
+		{"links", `<p><a href="javascript:alert(1)">script</a></p><p><a href="#top">top</a></p>` +
+			`<p><a href="../about">about</a></p><p><a href="mailto:a@example.com">mail</a></p>`,
+			[]want{{text: "script"}, {text: "top"}, {text: "about", link: "https://example.com/about"},
+				{text: "mail", link: "mailto:a@example.com"}}},
+		{"inline styles", "<p><strong>b</strong></p><p><em>i</em></p><p><code>m</code></p><p><del>g</del></p>",
+			[]want{{text: "b", bold: true}, {text: "i", italic: true}, {text: "m", mono: true}, {text: "g", gone: true}}},
+		{"table rows", "<table><tr><th>Name</th><th>Size</th></tr><tr><td>a</td><td>1</td></tr></table>",
+			[]want{{text: "Name · Size"}, {text: "a · 1"}}},
+		{"rule", "<p>a</p><hr><p>b</p>", []want{{text: "a"}, {kind: rule}, {text: "b"}}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := shape(parse(c.html, base, "Hello")); !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("got  %+v\nwant %+v", got, c.want)
+			}
+		})
+	}
+}
