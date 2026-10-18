@@ -31,7 +31,7 @@
 - **一个存储文件**：带全文检索的 SQLite，驱动是纯 Go 的，生产代码不用 cgo。窗口只通过 HTTP API 读写数据，所以桌面应用和无界面服务器的行为一致。
 - **两种语言**：界面提供英文和简体中文。
 
-按[路线图](docs/roadmap.md)的顺序计划中的：添加和编辑订阅的界面、按四种形态排版的时间线、文章阅读器、通过你自己的 OpenAI 兼容接口按需生成摘要和翻译、设置、OPML 导入导出。
+按 [milestone](https://github.com/yangflow/oriel/milestones) 的顺序计划中的（规则见[路线图](docs/roadmap.md)）：添加和编辑订阅的界面、按四种形态排版的时间线、文章阅读器、通过你自己的 OpenAI 兼容接口按需生成摘要和翻译、设置、OPML 导入导出。
 
 项目状态：早期开发中，版本 0.1.0，还没有发布。窗口里仍是一个计数示例；订阅和时间线有了接口但还没有界面，设置两者都还没有。目标平台：macOS 12+、Windows 10/11、带 GTK 3 的 Linux，amd64 和 arm64。Linux 版本需要 glibc，无界面运行也一样。
 
@@ -68,7 +68,7 @@ go test -race ./...
 | 产品行为、数据模型、抓取、HTTP 和登录 | [docs/product.md](docs/product.md) |
 | 设计语言：布局、颜色、字体、组件、无障碍（英文） | [docs/design.md](docs/design.md) |
 | 界面画板 | [design/README.md](design/README.md) |
-| 开发顺序 | [docs/roadmap.md](docs/roadmap.md) |
+| 路线图规则和 milestone | [docs/roadmap.md](docs/roadmap.md) |
 | 架构决定（英文） | [docs/adr/](docs/adr/README.md) |
 | 人和代理修改仓库的规则（英文） | [AGENTS.md](AGENTS.md) |
 

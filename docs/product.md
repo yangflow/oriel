@@ -6,7 +6,7 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 
 ## 范围
 
-计划的范围，按 [roadmap](roadmap.md) 的顺序逐项落地：
+计划的范围，按 [milestone](https://github.com/yangflow/oriel/milestones) 的顺序逐项落地（规则见 [roadmap](roadmap.md)）：
 
 - 时间线混排四种形态：`article`、`video`、`social`、`image`。形态按源决定，条目跟随源。
 - 添加订阅：博客 RSS、YouTube / B 站 / X / GitHub / Telegram / 微博链接，或 RSSHub 路径。

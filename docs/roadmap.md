@@ -1,44 +1,26 @@
 # 路线图
 
-按顺序做，一次一个主题。新想法先开 issue，不插进正在做的主题。
+规划和进度都在 GitHub：
 
-## 0.1 仓库基线（已完成）
+- 一个 [milestone](https://github.com/yangflow/oriel/milestones) 是一个主题，按版本号顺序做，一次一个。
+- 每项工作是一个 issue，归到所属 milestone。
+- 新想法先开 issue，不插进正在做的 milestone。
+- 服务端和对应的 HTTP API 先于界面。
+- milestone 里的 issue 全部关闭，这个主题就算完成。
 
-MyGo 项目初始化、MIT 许可、开源社区文件、CI。窗口里是计数示例。
+## 已完成
 
-## 0.2 定架构（已完成）
+- 0.1 仓库基线：MyGo 项目初始化、MIT 许可、开源社区文件、CI。
+- 0.2 定架构：独立应用，同一个程序既是服务端又是客户端，见 [ADR 0002](adr/0002-standalone-client-and-server.md)。
+- 0.3 服务端基线：SQLite 存储和数据模型、带鉴权的 HTTP API 骨架；桌面模式和无窗口模式的启动。
+- 0.4 抓取：订阅抓取、正文抽取和 SSRF 防护、按保留期限清理。
+- 0.5 订阅接口：添加、列出、修改、删除订阅和「更新」的 HTTP API，见 [product.md](product.md)「订阅接口」。
+- 0.6 时间线接口：按游标分页的时间线、按源 / 形态 / 未读 / 收藏筛选、全文检索、标记已读和收藏的 HTTP API，见 [product.md](product.md)「时间线接口」。
 
-独立应用，同一个程序既是服务端又是客户端，见 [ADR 0002](adr/0002-standalone-client-and-server.md)。
+## 进行中和之后
 
-## 0.3 服务端基线（已完成）
-
-SQLite 存储和数据模型、带鉴权的 HTTP API 骨架；桌面模式和无窗口模式的启动。
-
-## 0.4 抓取（已完成）
-
-订阅抓取、正文抽取和 SSRF 防护、按保留期限清理。
-
-## 0.5 订阅接口（已完成）
-
-添加、列出、修改、删除订阅和「更新」的 HTTP API，见 [product.md](product.md)「订阅接口」。界面另做。
-
-## 0.6 时间线接口（已完成）
-
-按游标分页的时间线、按源 / 形态 / 未读 / 收藏筛选、全文检索、标记已读和收藏的 HTTP API，见 [product.md](product.md)「时间线接口」。界面另做。
-
-## 之后
-
-候选，开工前再排顺序。服务端和对应的 HTTP API 先于界面：
-
-- 登录或首次设置
-- 时间线上的屏蔽词
-- 时间线和四种形态的卡片
-- 文章阅读器
-- 添加和编辑订阅
-- AI 摘要和翻译
-- 设置、OPML 导入导出
-- 签名、公证、自动更新和发布
-
-## 发布前
-
-产品图标、签名证书、更新源和公钥都配好，并在三个平台的真机上验收安装和更新。
+- [0.7 服务端补全](https://github.com/yangflow/oriel/milestone/3)
+- [0.8 第一批界面](https://github.com/yangflow/oriel/milestone/4)
+- [0.9 设置与导入导出界面](https://github.com/yangflow/oriel/milestone/5)
+- [0.10 AI 摘要和翻译](https://github.com/yangflow/oriel/milestone/6)
+- [1.0 发布](https://github.com/yangflow/oriel/milestone/7)
