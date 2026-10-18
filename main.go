@@ -19,6 +19,7 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/store"
 	"github.com/yangflow/oriel/internal/ui/connect"
+	"github.com/yangflow/oriel/internal/ui/settings"
 	"github.com/yangflow/oriel/internal/ui/startup"
 )
 
@@ -93,6 +94,7 @@ func desktop() {
 		return
 	}
 	mygo.Use(native.Plugin)
+	client.SetVersion(version)
 	var b *backend
 	dataDir, err := mygo.App.Path(mygo.PathUserData)
 	if err == nil {
@@ -117,8 +119,31 @@ func desktop() {
 				window.Update(apply)
 			}()
 		}
+		opml := func(name string) []mygo.FileFilter {
+			return []mygo.FileFilter{{Name: name, Extensions: []string{"opml", "xml"}}}
+		}
+		files := settings.Deps{
+			Open: func(filter string) (string, error) {
+				paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: window, Filters: opml(filter)})
+				if err != nil {
+					slog.Error("Cannot show the open dialog", "error", err)
+				}
+				if err != nil || len(paths) == 0 {
+					return "", err
+				}
+				return paths[0], nil
+			},
+			Save: func(name, filter string) (string, error) {
+				path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: window, DefaultPath: name,
+					Filters: opml(filter), CreateDirectories: true})
+				if err != nil {
+					slog.Error("Cannot show the save dialog", "error", err)
+				}
+				return path, err
+			},
+		}
 		root := newShell(systemLocale, filepath.Join(dataDir, sessionFile), client.Session{Server: "http://" + b.addr},
-			goAsync)
+			goAsync, files)
 		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 			{Label: "Oriel", Submenu: []*mygo.MenuItem{
 				{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
@@ -127,6 +152,12 @@ func desktop() {
 					window.Restore()
 					window.Focus()
 				}},
+				{Label: settings.MenuLabel(systemLocale), Accelerator: "CmdOrCtrl+,",
+					Click: func(*mygo.MenuItem, *mygo.Window) {
+						window.Update(root.openSettings)
+						window.Restore()
+						window.Focus()
+					}},
 				mygo.Separator(), {Role: mygo.RoleQuit},
 			}},
 			{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},

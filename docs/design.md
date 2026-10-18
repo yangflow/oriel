@@ -11,12 +11,12 @@ of its [UI guides](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/README.md)
 stay the authority on API details. Links point to MyGo v0.3.6, the version pinned in `go.mod`. When the pin moves,
 check the pages again and update the links and this document together.
 
-Four screens are built: the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`), which
+Five screens are built: the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`), which
 connects the desktop app to a remote server, the timeline in `internal/ui/timeline/` (mockup
 `design/screens/timeline.html`), which is home, the subscription dialogs over it in `internal/ui/subscriptions/`
-(mockup `design/screens/subscriptions.html`), and the reader in `internal/ui/reader/` (mockup
-`design/screens/reader.html`), which takes the list's place for an article. The settings screen described here is a
-plan until its mockup and code are merged.
+(mockup `design/screens/subscriptions.html`), the reader in `internal/ui/reader/` (mockup
+`design/screens/reader.html`), which takes the list's place for an article, and the settings in
+`internal/ui/settings/` (mockup `design/screens/settings.html`), which take the whole window.
 
 Related files: [design/README.md](../design/README.md) (mockups and how a UI change is made) and
 [design/tokens.md](../design/tokens.md) (spacing, size and color values in one table).
@@ -318,7 +318,7 @@ Overlays share focus and Escape behavior; see
   sidebar only, over opaque content. Oriel uses opaque theme surfaces and no custom glass.
 - **Menus.** The macOS menu bar belongs to the app. Oriel's menu has an app menu (About, check for updates, Quit),
   the Edit menu (`RoleEditMenu`, so copy and paste work) and the Window menu (`RoleWindowMenu`); "Connect to
-  Server…" in the app menu opens the connect screen. Use roles
+  Server…" in the app menu opens the connect screen and "Settings…" (Cmd/Ctrl+,) the settings. Use roles
   (`RoleAbout`, `RoleQuit` and the others) for standard items: they carry the right label and shortcut, and items
   that only macOS has are left out elsewhere. Give custom items an accelerator with `CmdOrCtrl`. Every command
   reachable by a toolbar button should also be in a menu. See
@@ -342,6 +342,16 @@ Overlays share focus and Escape behavior; see
   opens the original in the browser and Escape goes back to the list, the entry it opened from focused. The article
   takes the focus when it opens, so the arrows, Space, Page Up/Down and Home/End scroll it, and Tab goes through its
   links. Every toolbar button names its key in the tooltip.
+- **Settings.** The settings take the whole window, in place of the timeline: their own sidebar has "Back to the
+  timeline" on top, one item per group (Fetching, Import and export, Devices) and the server bar, which says whose
+  settings these are and does not open the connect screen. They open from the gear beside the timeline's server bar
+  or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. A setting is saved
+  where it is changed: the RSSHub instance with its Save button or Enter, the retention as soon as another is
+  chosen; the line under it says it was saved, or why not, and a refused value keeps the focus in its field. OPML
+  files are chosen and saved with the system's file dialogs, read and sent in the background; the result stays
+  under the button, with the subscriptions that could not be added and why, until dismissed. Revoking a device asks
+  first; the current device is marked and cannot be revoked. Language and theme follow the system and are not
+  settings.
 
 ## Accessibility checklist
 

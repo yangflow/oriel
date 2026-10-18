@@ -12,7 +12,9 @@ what counts.
 | `tokens.md` | Spacing, size, color and motion values, mapped to MyGo theme roles |
 
 The connect screen (`screens/connect.html`), the timeline (`screens/timeline.html`, home), the subscription dialogs
-over it (`screens/subscriptions.html`) and the reader (`screens/reader.html`) are the product screens so far. The startup failure message has no mockup; it is a native system error dialog (`internal/ui/startup/`).
+over it (`screens/subscriptions.html`), the reader (`screens/reader.html`) and the settings (`screens/settings.html`)
+are the product screens so far. The startup failure message has no mockup; it is a native system error dialog
+(`internal/ui/startup/`).
 
 ## Preview
 
@@ -28,6 +30,7 @@ state can be seen.
 | Timeline | `screens/timeline.html` (`?state=…&scope=all|article|video|social|image|source&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/timeline/` |
 | Subscriptions | `screens/subscriptions.html` (`?state=…&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/subscriptions/` |
 | Reader | `screens/reader.html` (`?state=full|feed|extracting|extracting-empty|failed|loading|error&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/reader/` |
+| Settings | `screens/settings.html` (`?state=fetching|edited|invalid|saved|opml|importing|imported|import-error|exported|devices|devices-local|revoke|loading|error&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/settings/` |
 
 A mockup maps to a package: `screens/<screen>.html` is implemented by `internal/ui/<screen>/`. The text and states in
 the mockup are the strings in that package's `copy.json` (English and Simplified Chinese) and the states its `Screen`

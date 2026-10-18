@@ -3,6 +3,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -45,7 +47,34 @@ type Session struct {
 	Token  string `json:"token,omitempty"`
 }
 
-var httpClient = &http.Client{Timeout: 15 * time.Second}
+var httpClient = &http.Client{Timeout: 15 * time.Second, Transport: agent{}}
+
+// userAgent names the app to the server, which lists each signed-in device by it; SetVersion adds the version.
+var userAgent = "Oriel (" + platform() + ")"
+
+// SetVersion puts the app's version in the User-Agent of every request; call it before the first one.
+func SetVersion(version string) { userAgent = "Oriel/" + version + " (" + platform() + ")" }
+
+func platform() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "macOS"
+	case "windows":
+		return "Windows"
+	case "linux":
+		return "Linux"
+	}
+	return runtime.GOOS
+}
+
+// agent sends every request with the app's User-Agent.
+type agent struct{}
+
+func (agent) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("User-Agent", userAgent)
+	return http.DefaultTransport.RoundTrip(req)
+}
 
 // Address turns what the user typed into a base URL: "home.lan" becomes "http://home.lan:7470", while an address
 // with a scheme keeps its default port.
@@ -297,6 +326,34 @@ type SettingsPatch struct {
 	RetentionDays *int    `json:"retentionDays,omitempty"`
 }
 
+// Device is a session signed in to the server, named by the User-Agent it signed in with. Times are Unix
+// milliseconds; Current marks the session of this app.
+type Device struct {
+	ID         int64  `json:"id"`
+	UserAgent  string `json:"userAgent"`
+	CreatedAt  int64  `json:"createdAt"`
+	LastSeenAt int64  `json:"lastSeenAt"`
+	Current    bool   `json:"current"`
+}
+
+// Imported is what an OPML import did: the subscriptions added, those already followed, and those refused.
+type Imported struct {
+	Added    int          `json:"added"`
+	Existing int          `json:"existing"`
+	Failed   []ImportFail `json:"failed"`
+}
+
+// ImportFail is a subscription of an OPML file the server refused, with the code of its reason, such as
+// "invalid_url".
+type ImportFail struct {
+	Title   string `json:"title"`
+	Address string `json:"address"`
+	Error   string `json:"error"`
+}
+
+// MaxOPML is the largest OPML file the server imports.
+const MaxOPML = 1 << 20
+
 // Query selects a page of the timeline; the zero value is the first page of everything.
 type Query struct {
 	Source  int64
@@ -331,7 +388,7 @@ type ReadScope struct {
 const maxImage = 8 << 20
 
 // imageClient waits longer than httpClient: the server itself may take 25 seconds to get a picture.
-var imageClient = &http.Client{Timeout: 40 * time.Second}
+var imageClient = &http.Client{Timeout: 40 * time.Second, Transport: agent{}}
 
 // Entries returns a page of the timeline.
 func (s Session) Entries(ctx context.Context, q Query) (Page, error) {
@@ -409,6 +466,48 @@ func (s Session) SetSettings(ctx context.Context, patch SettingsPatch) (Settings
 	return settings, err
 }
 
+// Devices lists the sessions signed in to the server; a server without a password has none.
+func (s Session) Devices(ctx context.Context) ([]Device, error) {
+	var reply struct {
+		Sessions []Device `json:"sessions"`
+	}
+	err := s.call(ctx, http.MethodGet, "/api/sessions", nil, &reply)
+	return reply.Sessions, err
+}
+
+// RevokeDevice signs a session out of the server.
+func (s Session) RevokeDevice(ctx context.Context, id int64) error {
+	return s.call(ctx, http.MethodDelete, "/api/sessions/"+strconv.FormatInt(id, 10), nil, nil)
+}
+
+// ImportOPML adds the subscriptions of an OPML file, at most MaxOPML bytes.
+func (s Session) ImportOPML(ctx context.Context, opml []byte) (Imported, error) {
+	resp, err := s.send(ctx, httpClient, http.MethodPost, "/api/opml/import", "text/x-opml", bytes.NewReader(opml))
+	if err != nil {
+		return Imported{}, err
+	}
+	defer resp.Body.Close()
+	var imported Imported
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(&imported); err != nil {
+		return Imported{}, fmt.Errorf("import: %w", err)
+	}
+	return imported, nil
+}
+
+// ExportOPML returns every subscription as an OPML file.
+func (s Session) ExportOPML(ctx context.Context) ([]byte, error) {
+	resp, err := s.send(ctx, httpClient, http.MethodGet, "/api/opml/export", "", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrUnreachable, err)
+	}
+	return body, nil
+}
+
 // Entry returns an entry with its text.
 func (s Session) Entry(ctx context.Context, id int64) (Article, error) {
 	var article Article
@@ -434,7 +533,7 @@ func (s Session) MarkRead(ctx context.Context, scope ReadScope) (int, error) {
 
 // Image gets a picture found inside a feed through the server's image relay.
 func (s Session) Image(ctx context.Context, address string) ([]byte, error) {
-	resp, err := s.send(ctx, imageClient, http.MethodGet, "/api/image?url="+url.QueryEscape(address), nil)
+	resp, err := s.send(ctx, imageClient, http.MethodGet, "/api/image?url="+url.QueryEscape(address), "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -451,7 +550,16 @@ func (s Session) Image(ctx context.Context, address string) ([]byte, error) {
 
 // call sends a JSON request and decodes the JSON reply into out, or drops the reply for a nil out.
 func (s Session) call(ctx context.Context, method, path string, in, out any) error {
-	resp, err := s.send(ctx, httpClient, method, path, in)
+	var body io.Reader
+	contentType := ""
+	if in != nil {
+		data, err := json.Marshal(in)
+		if err != nil {
+			return err
+		}
+		body, contentType = strings.NewReader(string(data)), "application/json"
+	}
+	resp, err := s.send(ctx, httpClient, method, path, contentType, body)
 	if err != nil {
 		return err
 	}
@@ -467,21 +575,14 @@ func (s Session) call(ctx context.Context, method, path string, in, out any) err
 }
 
 // send makes a request with the session's token and turns an error status into an error.
-func (s Session) send(ctx context.Context, client *http.Client, method, path string, in any) (*http.Response, error) {
-	var body io.Reader
-	if in != nil {
-		data, err := json.Marshal(in)
-		if err != nil {
-			return nil, err
-		}
-		body = strings.NewReader(string(data))
-	}
+func (s Session) send(ctx context.Context, client *http.Client, method, path, contentType string,
+	body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, s.Server+path, body)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnreachable, err)
 	}
-	if in != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 	if s.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+s.Token)

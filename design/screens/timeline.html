@@ -9,7 +9,8 @@
      drawn as gradients here; in the app they load in the background and show the Surface color until then.
      Row 2 shows the pointer resting on it (its actions show), row 3 the keyboard choice (focus ring).
      All, Articles and Social are one column; Videos become a cover grid and Images a masonry wall. The kinds are
-     a row of icon tabs on top of the sidebar, which then lists only that kind's subscriptions.
+     a row of icon tabs on top of the sidebar, which then lists only that kind's subscriptions. The server bar at the
+     bottom opens the connect screen; the gear beside it opens the settings.
      The bar above the window only switches the mockup.
      URL parameters: state, scope=all|article|video|social|image|source, scheme=light|dark, lang=en|zh-Hans,
      size=default|min. -->
@@ -48,7 +49,10 @@ aside { width:212px; flex:none; display:flex; flex-direction:column; background:
 .mono.k-video { background:var(--danger-soft); color:var(--danger) }
 .mono.k-social { background:var(--warning-soft); color:var(--warning) }
 .mono.k-image { background:color-mix(in srgb, var(--success) 14%, var(--background)); color:var(--success) }
-.server { flex:none; width:100%; text-align:left; display:flex; align-items:center; gap:8px; height:40px; padding:0 16px; border-top:1px solid var(--border); color:var(--muted); font-size:12px }
+.server-bar { flex:none; display:flex; align-items:center; border-top:1px solid var(--border); padding-right:6px }
+.server { flex:1; min-width:0; text-align:left; display:flex; align-items:center; gap:8px; height:40px; padding:0 10px 0 16px; color:var(--muted); font-size:12px }
+.gear { flex:none; width:28px; height:28px; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
+.gear:hover { background:var(--surface-hover); color:var(--text) }
 .server .name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .server .dot { width:6px; height:6px; border-radius:50%; background:var(--success) }
 
@@ -243,6 +247,7 @@ const icons={
   wifiOff:'<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
   loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
   server:'<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
+  settings:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
   laptop:'<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
 };
 const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -264,7 +269,7 @@ const copy={
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first.',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
     confirmTitle:'Mark {n} entries in “{scope}” as read?', confirmBody:'Entries that arrive after you opened this list stay unread.', cancel:'Cancel', confirm:'Mark as read',
-    thisComputer:'This computer', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures',
+    thisComputer:'This computer', settings:'Settings', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures',
     ago:{m:'{n} min',h:'{n} h',d:'Yesterday',days:'{n} days'},
   },
   'zh-Hans':{
@@ -283,7 +288,7 @@ const copy={
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
     confirmTitle:'把“{scope}”里的 {n} 条标为已读？', confirmBody:'打开列表之后新到的条目仍是未读。', cancel:'取消', confirm:'标为已读',
-    thisComputer:'本机', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图',
+    thisComputer:'本机', settings:'设置', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图',
     ago:{m:'{n} 分钟前',h:'{n} 小时前',d:'昨天',days:'{n} 天前'},
   },
 }[lang];
@@ -344,7 +349,7 @@ function sidebar(){
   const list=tabKind==='all'?sources:sources.filter(s=>s.kind===tabKind);
   return `<aside>${tabs(true)}<nav class="nav" aria-label="${copy.sources}"><div class="section">${tabKind==='all'?copy.sources:copy[tabKind]}</div>${list.map(sourceItem).join('')}</nav>${serverBar()}</aside>`;
 }
-function serverBar(){return `<button class="server" aria-label="${copy.thisComputer}">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></button>`}
+function serverBar(){return `<div class="server-bar"><button class="server" aria-label="${copy.thisComputer}">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></button><button class="gear" aria-label="${copy.settings}" title="${copy.settings} (Ctrl+,)">${icon('settings')}</button></div>`}
 
 const highlight=s=>q&&state==='search'?s.replace(new RegExp(q,'ig'),m=>`<mark>${m}</mark>`):s;
 const actionButtons=(e,cls='')=>`<button class="${cls}${e.starred?' starred':''}" aria-label="${e.starred?copy.unstar:copy.star}" title="${e.starred?copy.unstar:copy.star}">${icon('star',e.starred?'filled':'')}</button>

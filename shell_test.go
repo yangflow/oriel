@@ -12,6 +12,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/ui/settings"
 	"github.com/yangflow/oriel/internal/ui/timeline"
 )
 
@@ -30,7 +31,10 @@ func remote(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		w.Write([]byte(`{}`))
+		w.Write([]byte(`{"rsshubBaseUrl":"https://rsshub.example.com","retentionDays":30}`))
+	})
+	mux.HandleFunc("GET /api/sessions", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"sessions":[{"id":1,"userAgent":"Oriel/0.9.0 (macOS)","current":true}]}`))
 	})
 	s := httptest.NewServer(mux)
 	t.Cleanup(s.Close)
@@ -38,18 +42,24 @@ func remote(t *testing.T) *httptest.Server {
 }
 
 // fakeHome stands in for the timeline and keeps the servers it was told to use.
-type fakeHome struct{ used []string }
+type fakeHome struct {
+	used      []string
+	refreshed int
+}
 
 func (h *fakeHome) Use(api timeline.API, server string) {
 	h.used = append(h.used, api.(client.Session).Server+" "+server)
 }
+
+func (h *fakeHome) Refresh() { h.refreshed++ }
 
 func (h *fakeHome) View(c *ui.Context) { ui.Text(c, "Home") }
 
 func newTestShell(t *testing.T) (*shell, *ui.Tester, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), sessionFile)
-	s := newShell("en", path, client.Session{Server: "http://127.0.0.1:7470"}, func(work func() func()) { work()() })
+	s := newShell("en", path, client.Session{Server: "http://127.0.0.1:7470"}, func(work func() func()) { work()() },
+		settings.Deps{})
 	s.home = &fakeHome{}
 	return s, ui.NewTester(s.View, 960, 640), path
 }
@@ -174,5 +184,43 @@ func TestShellConnectFromMenu(t *testing.T) {
 	tt.Frame()
 	if !s.showing || !tt.Focused("Server address") {
 		t.Fatal("the connect screen did not open again")
+	}
+}
+
+func TestShellSettings(t *testing.T) {
+	server := remote(t)
+	s, tt, _ := newTestShell(t)
+	s.connected(client.Session{Server: server.URL, Token: "t1"})
+	s.openSettings()
+	tt.Frame()
+	if !tt.HasText("Keep entries") || !tt.HasText(strings.TrimPrefix(server.URL, "http://")) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if err := tt.Click("Devices"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Oriel · macOS") || !tt.HasText("This device") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	if !tt.HasText("Home") || s.setting {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	s.openConnect()
+	s.openSettings()
+	tt.Frame()
+	if s.setting || !tt.HasText("Connect to a server") {
+		t.Fatal("the settings opened over the connect screen")
+	}
+}
+
+func TestShellSettingsExpire(t *testing.T) {
+	server := remote(t)
+	s, tt, _ := newTestShell(t)
+	s.connected(client.Session{Server: server.URL, Token: "old"})
+	s.openSettings()
+	tt.Frame()
+	if s.setting || !s.showing || !tt.HasText("Connect to a server") {
+		t.Fatalf("texts %v", tt.Texts())
 	}
 }

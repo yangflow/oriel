@@ -36,7 +36,7 @@ type fake struct {
 	articles []int64 // the entries asked for in full
 
 	entriesErr, setErr, markErr error
-	connects, expired           int
+	connects, settings, expired int
 }
 
 func (f *fake) Entries(_ context.Context, q client.Query) (client.Page, error) {
@@ -148,10 +148,11 @@ func (f *fake) SetSettings(context.Context, client.SettingsPatch) (client.Settin
 
 func (f *fake) deps() Deps {
 	return Deps{
-		Go:          func(work func() func()) { f.queue = append(f.queue, work) },
-		Now:         func() time.Time { return f.now },
-		OpenConnect: func() { f.connects++ },
-		Expired:     func() { f.expired++ },
+		Go:           func(work func() func()) { f.queue = append(f.queue, work) },
+		Now:          func() time.Time { return f.now },
+		OpenConnect:  func() { f.connects++ },
+		OpenSettings: func() { f.settings++ },
+		Expired:      func() { f.expired++ },
 	}
 }
 
@@ -275,6 +276,14 @@ func TestTimeline(t *testing.T) {
 	if err := tt.Click("Server: This computer"); err != nil || f.connects != 1 {
 		t.Fatalf("connect screen opened %d times, %v", f.connects, err)
 	}
+	if err := tt.Click("Settings"); err != nil || f.settings != 1 {
+		t.Fatalf("settings opened %d times, %v", f.settings, err)
+	}
+	s.Refresh()
+	if len(f.queue) != 2 {
+		t.Fatalf("refreshing queued %d loads", len(f.queue))
+	}
+	f.queue = nil
 	if s.selected != -1 {
 		t.Fatalf("selected %d before any key", s.selected)
 	}

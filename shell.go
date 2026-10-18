@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/connect"
+	"github.com/yangflow/oriel/internal/ui/settings"
 	"github.com/yangflow/oriel/internal/ui/theme"
 	"github.com/yangflow/oriel/internal/ui/timeline"
 )
@@ -20,28 +21,42 @@ const sessionFile = "remote.json"
 // home is the screen under the connect screen: the timeline of the server used.
 type home interface {
 	Use(api timeline.API, server string)
+	Refresh()
 	View(c *ui.Context)
 }
 
-// shell is the content of the window: Oriel's palette over the connect screen or home. Disk and network work runs
-// through goAsync, which runs work away from the UI thread and the function it returns on the UI thread.
+// shell is the content of the window: Oriel's palette over the connect screen, the settings or home. Disk and
+// network work runs through goAsync, which runs work away from the UI thread and the function it returns on the UI
+// thread.
 type shell struct {
-	path    string // of the session file
-	goAsync func(work func() (apply func()))
-	connect *connect.Screen
-	home    home
-	local   client.Session  // the server of this computer
-	session *client.Session // the remote server signed in to, nil for this computer
-	showing bool            // whether the connect screen shows
+	path     string // of the session file
+	goAsync  func(work func() (apply func()))
+	connect  *connect.Screen
+	settings *settings.Screen
+	home     home
+	local    client.Session  // the server of this computer
+	session  *client.Session // the remote server signed in to, nil for this computer
+	showing  bool            // whether the connect screen shows
+	setting  bool            // whether the settings show, under the connect screen
 
 	writes  int        // counts changes of the session file, on the UI thread
 	file    sync.Mutex // guards written and the file
 	written int        // the latest change written, so an older one finishing late does not undo it
 }
 
-func newShell(systemLocale, path string, local client.Session, goAsync func(func() func())) *shell {
+// newShell makes the content of the window; files has the dialogs that choose the OPML files of the settings.
+func newShell(systemLocale, path string, local client.Session, goAsync func(func() func()), files settings.Deps) *shell {
 	s := &shell{path: path, goAsync: goAsync, local: local}
-	s.home = timeline.New(systemLocale, timeline.Deps{Go: goAsync, OpenConnect: s.openConnect, Expired: s.expired})
+	s.home = timeline.New(systemLocale, timeline.Deps{Go: goAsync, OpenConnect: s.openConnect,
+		OpenSettings: s.openSettings, Expired: s.expired})
+	s.settings = settings.New(systemLocale, settings.Deps{
+		Go:       goAsync,
+		Open:     files.Open,
+		Save:     files.Save,
+		Back:     func() { s.setting = false },
+		Imported: func() { s.home.Refresh() },
+		Expired:  s.expired,
+	})
 	s.connect = connect.New(systemLocale, connect.Deps{
 		Probe:     client.Probe,
 		Login:     client.Login,
@@ -54,8 +69,10 @@ func newShell(systemLocale, path string, local client.Session, goAsync func(func
 
 // use shows home with the data of the remote server signed in to, or of this computer.
 func (s *shell) use() {
+	s.setting = false
 	if s.session == nil {
 		s.home.Use(s.local, "")
+		s.settings.Use(s.local, "", s.local.Token != "")
 		return
 	}
 	host := s.session.Server
@@ -63,6 +80,7 @@ func (s *shell) use() {
 		host = u.Host
 	}
 	s.home.Use(*s.session, host)
+	s.settings.Use(*s.session, host, s.session.Token != "")
 }
 
 // restore reads the saved session and checks it with its server, then shows the connect screen if it can no longer
@@ -107,13 +125,22 @@ func (s *shell) openConnect() {
 	s.showing = true
 }
 
+// openSettings shows the settings, from the menu or the timeline, unless the connect screen shows.
+func (s *shell) openSettings() {
+	if s.showing || s.setting {
+		return
+	}
+	s.setting = true
+	s.settings.Open()
+}
+
 // expired shows the connect screen because the remote server no longer takes the session.
 func (s *shell) expired() {
 	if s.session == nil {
 		return
 	}
 	s.connect.Open(s.session.Server, client.ErrUnauthorized)
-	s.showing = true
+	s.showing, s.setting = true, false
 }
 
 func (s *shell) connected(session client.Session) {
@@ -152,9 +179,12 @@ func (s *shell) write(session *client.Session) {
 
 func (s *shell) View(c *ui.Context) {
 	theme.Apply(c)
-	if s.showing {
+	switch {
+	case s.showing:
 		s.connect.View(c)
-		return
+	case s.setting:
+		s.settings.View(c)
+	default:
+		s.home.View(c)
 	}
-	s.home.View(c)
 }
