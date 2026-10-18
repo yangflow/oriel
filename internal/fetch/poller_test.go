@@ -56,11 +56,11 @@ func (f *fixture) add(src store.NewSource) int64 {
 	if src.FetchInterval == 0 {
 		src.FetchInterval = 15 * time.Minute
 	}
-	id, err := f.store.AddSource(context.Background(), src, f.now)
+	created, err := f.store.CreateSource(context.Background(), src, "", f.now)
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	return id
+	return created.ID
 }
 
 func (f *fixture) int(query string, args ...any) int64 {

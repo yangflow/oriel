@@ -152,7 +152,39 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 - 只用标准库 `net/http`。JSON 字段用 camelCase。
 - 出错时返回 `{ "error": "<代码>" }`，代码是稳定的小写英文，界面据此显示本地化文案。
 - `GET /health` 不要鉴权，返回版本、是否要求口令、数据库是否可写。数据库不可写时 503。
-- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`。其余路由随各自的功能加进来，并写进这一节。
+- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」一节的路由。其余路由随各自的功能加进来，并写进这一节。
+- 请求体是 JSON，最大 64 KiB；坏 JSON、多出未知字段或类型不对返回 400 `invalid_body`。
+
+## 订阅接口
+
+都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
+
+| 路由 | 作用 |
+|---|---|
+| `GET /api/sources` | 列出所有源，按标题（空标题用地址）排序，返回 `{ "sources": [...] }`。 |
+| `POST /api/sources` | 添加，返回 201 和新源。新源马上到期，由抓取循环去抓，请求里不抓。 |
+| `GET /api/sources/{id}` | 一个源。 |
+| `PATCH /api/sources/{id}` | 改字段，只改请求里带的，返回改后的源。 |
+| `DELETE /api/sources/{id}` | 删源和它的全部条目，含收藏的，返回 204。 |
+| `POST /api/sources/{id}/refresh` | 「更新」：把 `next_fetch_at` 改成现在，返回 204。 |
+
+添加时的字段：`url` 和 `rsshubPath` 恰好给一个，`kind` 必填，`title` 和 `fetchIntervalSec` 可选。标题去掉首尾空白。
+
+- `url` 去掉首尾空白后必须是带主机名的 http 或 https 绝对地址，否则 `invalid_url`。可以指向本机或内网（见「抓取」）。
+- `rsshubPath` 去掉首尾空白后必须以 `/` 开头、不以 `//` 开头，否则 `invalid_rsshub_path`。
+- `url` 和 `rsshubPath` 都给或都不给时 `invalid_source`。
+- `kind` 不是四种形态之一时 `invalid_kind`。
+- `fetchIntervalSec` 是 60 到 604800（7 天）的整数，默认 900，否则 `invalid_interval`。
+- 同一订阅已经有了，返回 409 `source_exists`。
+
+能改的字段：`title`、`kind`、`fetchIntervalSec`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`。订阅地址不能改，要换就删了重加。
+
+- 标题改成空串时，下次抓取用订阅里的标题补上。
+- 改 `kind` 后条目的形态跟着变（见「数据模型」）；改成别的形态的源不再抽取正文。
+- 改 `fetchIntervalSec` 从下一次抓取之后生效；想马上抓就「更新」。
+- `muteKeywords` 按行保存，每行去掉首尾空白，丢掉空行。
+- 暂停的源「更新」返回 409 `source_paused`。恢复后按原来的 `next_fetch_at` 抓，已经过了就马上抓。
+- 源不存在时 404 `not_found`，`id` 不是整数时 400 `invalid_id`。用户改字段时更新源的 `updated_at`；抓取记账不改。
 
 ## 当前界面
 

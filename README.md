@@ -32,18 +32,20 @@ Working now, on the server side:
 - **Full text for articles.** Article pages are reduced to their main content with Readability, including the
   linked post of a Discourse topic. Links found in feeds cannot reach loopback or private addresses.
 - **Retention.** Unstarred entries older than a chosen number of days are pruned hourly; 0 keeps everything.
+- **Subscription API.** Add, list, edit, pause, delete and refresh subscriptions over HTTP, with validation
+  and duplicate detection; the screen for it is still to come.
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
   with password sign-in and per-device sessions.
 - **One storage file.** SQLite with full-text search through a pure Go driver; no cgo in production code. The
   window reads and writes only through the HTTP API, so desktop and headless behave the same.
 - **Two languages.** The interface is in English and Simplified Chinese.
 
-Planned, in the order of the [roadmap](docs/roadmap.md) (in Chinese): adding and editing subscriptions, the
-timeline with one layout per kind, the article reader, on-demand AI summaries and translation through your own
+Planned, in the order of the [roadmap](docs/roadmap.md) (in Chinese): the screen for adding and editing
+subscriptions, the timeline with one layout per kind, the article reader, on-demand AI summaries and translation through your own
 OpenAI-compatible endpoint, settings and OPML import and export.
 
 Status: early development, version 0.1.0, no release yet. The window still shows a counter example;
-subscriptions and settings have no API or screen yet. Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on
+subscriptions have an API but no screen yet, and settings have neither. Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on
 amd64 and arm64. Linux builds need glibc, also when running headless.
 
 ## Quick start

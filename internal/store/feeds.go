@@ -28,18 +28,6 @@ type NewSource struct {
 	FetchInterval time.Duration
 }
 
-// AddSource stores a subscription that is due right away.
-func (s *Store) AddSource(ctx context.Context, src NewSource, now time.Time) (int64, error) {
-	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO sources (url, rsshub_path, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		src.URL, src.RSSHubPath, src.Kind, int64(src.FetchInterval/time.Second), now.UnixMilli(), now.UnixMilli(), now.UnixMilli())
-	if err != nil {
-		return 0, err
-	}
-	return result.LastInsertId()
-}
-
 // DueSources lists unpaused sources whose next fetch time has come, the longest waiting first.
 func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]FeedSource, error) {
 	rows, err := s.db.QueryContext(ctx, `
