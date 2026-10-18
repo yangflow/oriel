@@ -1,0 +1,57 @@
+package theme
+
+import (
+	"testing"
+
+	"github.com/egoist/mygo/ui"
+)
+
+func applied(t *testing.T, dark bool, prefs ui.Preferences) ui.Theme {
+	t.Helper()
+	var got ui.Theme
+	tt := ui.NewTester(func(c *ui.Context) {
+		Apply(c)
+		got = *c.Theme()
+		ui.Text(c, "x")
+	}, 200, 100)
+	tt.SetDark(dark)
+	tt.SetPreferences(prefs)
+	tt.Frame()
+	return got
+}
+
+func TestPalette(t *testing.T) {
+	light := applied(t, false, ui.Preferences{})
+	if light.Dark || light.Accent != ui.Hex("#0f766e") || light.Background != ui.Hex("#fbfaf7") || light.Radius != 8 {
+		t.Errorf("light: %+v", light)
+	}
+	dark := applied(t, true, ui.Preferences{})
+	if !dark.Dark || dark.Accent != ui.Hex("#2dd4bf") || dark.Background != ui.Hex("#1b1a18") {
+		t.Errorf("dark: %+v", dark)
+	}
+}
+
+func TestKeepsTextScale(t *testing.T) {
+	normal := applied(t, false, ui.Preferences{})
+	large := applied(t, false, ui.Preferences{TextScale: 2})
+	if large.FontSize <= normal.FontSize {
+		t.Errorf("text scale lost: %v, %v", normal.FontSize, large.FontSize)
+	}
+}
+
+func TestHighContrast(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		normal := applied(t, dark, ui.Preferences{})
+		strong := applied(t, dark, ui.Preferences{HighContrast: true})
+		if strong.Border == normal.Border || strong.TextMuted == normal.TextMuted || strong.Focus.A != 255 {
+			t.Errorf("dark %v: high contrast changed nothing", dark)
+		}
+	}
+}
+
+func TestSoft(t *testing.T) {
+	th := applied(t, false, ui.Preferences{})
+	if s := Soft(&th, th.Accent); s == th.Accent || s == th.Background {
+		t.Errorf("soft accent %v", s)
+	}
+}

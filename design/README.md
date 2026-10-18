@@ -12,8 +12,8 @@ what counts.
 | `screens/example-appearance.html` | The example screen side by side in light and dark, with focus rings |
 | `tokens.md` | Spacing, size, color and motion values, mapped to MyGo theme roles |
 
-Today the only screen is the counter example (`screens/example.html`), which goes away when the first product screen
-lands. The startup failure message has no mockup; it is a native system error dialog (`internal/ui/startup/`).
+The connect screen (`screens/connect.html`) is the first product screen; the counter example (`screens/example.html`)
+stays as home until the timeline replaces it. The startup failure message has no mockup; it is a native system error dialog (`internal/ui/startup/`).
 
 ## Preview
 
@@ -25,6 +25,7 @@ so every state can be seen. `screens/example-appearance.html` needs no parameter
 
 | Screen | Design file | Code |
 |---|---|---|
+| Connect | `screens/connect.html` (`?state=…&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/connect/` |
 | Example | `screens/example.html`, `screens/example-appearance.html` | `internal/ui/example/` |
 
 A mockup maps to a package: `screens/<screen>.html` is implemented by `internal/ui/<screen>/`. The text and states in
@@ -48,7 +49,7 @@ Mockup, design notes and code go in the same pull request.
 
 ## Icons
 
-There are no icon sources yet; the product icon is still to be designed. When it lands, its source and the script
-that exports it will live here.
+Interface icons are Lucide, kept in `internal/ui/icons/lucide/`; mockups inline the same SVG paths. The product icon
+is still to be designed. When it lands, its source and the script that exports it will live here.
 
 Screenshots go in the pull request body, not into the repository; `design/screenshots/` is ignored by git.
