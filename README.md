@@ -42,9 +42,10 @@ Working now, on the server side:
   window reads and writes only through the HTTP API, so desktop and headless behave the same.
 - **Two languages.** The interface is in English and Simplified Chinese.
 
-Planned, in the order of the [roadmap](docs/roadmap.md) (in Chinese): the screen for adding and editing
-subscriptions, the timeline with one layout per kind, the article reader, on-demand AI summaries and translation through your own
-OpenAI-compatible endpoint, settings and OPML import and export.
+Planned, in the order of the [milestones](https://github.com/yangflow/oriel/milestones) (rules in the
+[roadmap](docs/roadmap.md), in Chinese): the screen for adding and editing subscriptions, the timeline with one
+layout per kind, the article reader, on-demand AI summaries and translation through your own OpenAI-compatible
+endpoint, settings and OPML import and export.
 
 Status: early development, version 0.1.0, no release yet. The window still shows a counter example;
 subscriptions and the timeline have an API but no screen yet, and settings have neither. Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on
@@ -84,7 +85,7 @@ go test -race ./...
 | Behavior, data model, fetching, HTTP and sign-in (in Chinese) | [docs/product.md](docs/product.md) |
 | Design language: layout, color, type, components, accessibility | [docs/design.md](docs/design.md) |
 | Screen mockups | [design/README.md](design/README.md) |
-| Order of work (in Chinese) | [docs/roadmap.md](docs/roadmap.md) |
+| Roadmap rules and milestones (in Chinese) | [docs/roadmap.md](docs/roadmap.md) |
 | Architecture decisions | [docs/adr/](docs/adr/README.md) |
 | Repository rules for people and agents | [AGENTS.md](AGENTS.md) |
 

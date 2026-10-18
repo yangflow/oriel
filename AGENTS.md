@@ -12,6 +12,7 @@ Sources of truth:
 - `docs/design.md`: the design language: layout, color, type, components, accessibility, localization.
 - `design/tokens.md`: spacing, size and color values, mapped to MyGo theme roles.
 - `design/`: the mockup of each screen and its states.
+- GitHub milestones and issues: the plan and its order. `docs/roadmap.md` holds only the rules and finished history.
 - `docs/adr/0002-standalone-client-and-server.md`: the client reads and writes only through the HTTP API and never
   touches storage directly; without authentication configured the server listens on `127.0.0.1` only.
 
@@ -80,6 +81,8 @@ python3 scripts/bump.py <version>   # the only way to change the version; dates 
 
 `gh issue create` and `gh pr create --body` skip the issue forms and the pull request template, so write their
 structure yourself. Search open issues first; one issue is one problem.
+Work starts from an issue in a milestone; a new idea gets an issue first and does not join the milestone in progress
+unless the maintainer moves it there.
 
 - Issue title: one short sentence that says the problem or the outcome, in English or Simplified Chinese. No type
   prefix such as `[feat]`; the label carries the type.
