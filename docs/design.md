@@ -11,11 +11,12 @@ of its [UI guides](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/README.md)
 stay the authority on API details. Links point to MyGo v0.3.6, the version pinned in `go.mod`. When the pin moves,
 check the pages again and update the links and this document together.
 
-Three screens are built: the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`), which
+Four screens are built: the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`), which
 connects the desktop app to a remote server, the timeline in `internal/ui/timeline/` (mockup
-`design/screens/timeline.html`), which is home, and the subscription dialogs over it in `internal/ui/subscriptions/`
-(mockup `design/screens/subscriptions.html`). The reader and settings screens described here are plans until their
-mockup and code are merged.
+`design/screens/timeline.html`), which is home, the subscription dialogs over it in `internal/ui/subscriptions/`
+(mockup `design/screens/subscriptions.html`), and the reader in `internal/ui/reader/` (mockup
+`design/screens/reader.html`), which takes the list's place for an article. The settings screen described here is a
+plan until its mockup and code are merged.
 
 Related files: [design/README.md](../design/README.md) (mockups and how a UI change is made) and
 [design/tokens.md](../design/tokens.md) (spacing, size and color values in one table).
@@ -102,6 +103,18 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` tint) or what
   the address was recognized as (`Accent` tint, the address in monospace). The edit dialog starts with a health line
   (`Surface`, or the `Warning` tint while fetches fail) with a small Refresh button.
+- **The reader.** It takes the main column's place; the sidebar stays. A 48 high toolbar: "Back to {scope}" (a
+  chevron and the scope's name) at the left; previous, next, a 1 DIP separator, star (`Warning` when starred), read
+  toggle and open in browser at the right, 28 square buttons. Under the divider the article scrolls, a column at most
+  680 wide, centered, padded 28/32/48 (20 below a 760 wide window): the source's monogram, name and full date at 12;
+  the title at 24 (20 when narrow) weight 650; the note on where the text comes from (`Warning` tint when it is the
+  feed's, `Surface` with a spinner while the full text is being got), 12.5, its "Open the original" link underlined;
+  then the text 22 below. Body text is 15 at line height 1.65; h2 18 and h3 15.5 semibold, 26 and 22 above;
+  14 between paragraphs, 4 between list items, a 22 wide marker column; quotes behind a 3 DIP `Border` line in
+  `TextMuted`; code on `Surface` at 13 monospace, scrolling sideways; links in `Accent`, underlined; pictures at their
+  own aspect ratio (16:9 until known), at most their own width, captions 12 in `TextMuted`. Loading is a skeleton;
+  the empty states (getting the text, no text, can't load) are a 48 tile, a 15 semibold heading, a hint at most 320
+  wide and a button. The whole text is one selection.
 
 ## Color and dark mode
 
@@ -320,11 +333,15 @@ Overlays share focus and Escape behavior; see
   browser. Say so in the control ("Open in browser"), not only with an icon.
 - **Toolbar.** Frequent window-level commands, in order of importance; controls that do not fit overflow into a menu.
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.
-- **Timeline keys.** J or Down and K or Up move between entries, O or Enter opens the chosen one in the browser and
-  marks it read, S stars it, M toggles read, `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
+- **Timeline keys.** J or Down and K or Up move between entries, O or Enter opens the chosen one (an article in the
+  reader, anything else in the browser) and marks it read, S stars it, M toggles read, `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
   window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
   Cmd/Ctrl+N adds a subscription.
   Every entry is also a focusable element with its own name, so Tab reaches it.
+- **Reader keys.** While the reader shows, J and K go to the next and previous article, S stars, M toggles read, O
+  opens the original in the browser and Escape goes back to the list, the entry it opened from focused. The article
+  takes the focus when it opens, so the arrows, Space, Page Up/Down and Home/End scroll it, and Tab goes through its
+  links. Every toolbar button names its key in the tooltip.
 
 ## Accessibility checklist
 

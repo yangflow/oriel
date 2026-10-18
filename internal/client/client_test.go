@@ -171,7 +171,7 @@ func TestTimelineAPI(t *testing.T) {
 		case "/api/sources":
 			w.Write([]byte(`{"sources":[{"id":1,"title":"Feed","kind":"article","unreadCount":3,"lastError":"boom","fetchIntervalSec":900}]}`))
 		case "/api/entries/7":
-			w.Write([]byte(`{"id":7,"starred":true,"contentHtml":"<p>x</p>"}`))
+			w.Write([]byte(`{"id":7,"starred":true,"extractStatus":"ok","contentHtml":"<p>x</p>","extractedHtml":"<p>y</p>"}`))
 		case "/api/entries/read":
 			w.Write([]byte(`{"marked":4}`))
 		case "/api/image":
@@ -207,6 +207,10 @@ func TestTimelineAPI(t *testing.T) {
 	if err != nil || len(sources) != 1 || sources[0].UnreadCount != 3 || sources[0].LastError != "boom" ||
 		sources[0].FetchIntervalSec != 900 {
 		t.Errorf("Sources = %+v, %v", sources, err)
+	}
+	if article, err := session.Entry(ctx, 7); err != nil || article.ID != 7 || article.ExtractStatus != "ok" ||
+		article.ContentHTML != "<p>x</p>" || article.ExtractedHTML != "<p>y</p>" {
+		t.Errorf("Entry = %+v, %v", article, err)
 	}
 	starred := true
 	if entry, err := session.SetEntry(ctx, 7, EntryPatch{Starred: &starred}); err != nil || !entry.Starred {
@@ -247,6 +251,7 @@ func TestTimelineAPI(t *testing.T) {
 		"GET /api/entries?cursor=1.2&kind=video&limit=50&q=go+fmt&unread=1 ",
 		"GET /api/entries?q=ab ",
 		"GET /api/sources ",
+		"GET /api/entries/7 ",
 		`PATCH /api/entries/7 {"starred":true}`,
 		`POST /api/entries/read {"kind":"video","upTo":7}`,
 		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",
