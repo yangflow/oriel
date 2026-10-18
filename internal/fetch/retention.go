@@ -10,7 +10,8 @@ import (
 const (
 	// RetentionSetting holds how many days entries are kept; 0 or unset keeps them forever.
 	RetentionSetting = "retention_days"
-	maxRetentionDays = 3650
+	// MaxRetentionDays caps the retention setting at about ten years.
+	MaxRetentionDays = 3650
 	pruneEvery       = time.Hour
 )
 
@@ -27,7 +28,7 @@ func (p *Poller) retention(ctx context.Context) time.Duration {
 	if err != nil || days <= 0 {
 		return 0
 	}
-	return time.Duration(min(days, maxRetentionDays)) * 24 * time.Hour
+	return time.Duration(min(days, MaxRetentionDays)) * 24 * time.Hour
 }
 
 // prune deletes expired, unstarred entries at most once an hour.

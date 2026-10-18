@@ -37,6 +37,8 @@ Working now, on the server side:
 - **Timeline API.** Page through all entries newest first, filter by source, kind, unread or starred, search
   the full text, and mark entries read or starred. Per-source mute keywords hide matching entries without
   deleting them. The timeline screen is still to come.
+- **Settings API.** Read and change the RSSHub address and the retention period over HTTP; secrets are never
+  sent back. The settings screen is still to come.
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
   with password sign-in and per-device sessions.
 - **One storage file.** SQLite with full-text search through a pure Go driver; no cgo in production code. The
