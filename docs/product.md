@@ -93,6 +93,23 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 
 时间线按 `created_at, id` 排序和分页，不用 `published_at`。
 
+### AI 结果
+
+一个条目的一种 AI 结果一行，任务是 `summary`（摘要）或 `translation`（翻译），按 `(entry_id, task)` 唯一。删条目时一起删。
+
+| 字段 | 说明 |
+|---|---|
+| `status` | `pending`（排队或进行中）→ `ok` / `failed`。 |
+| `text` | 结果，纯文本，段落之间空一行。失败时保留上一次成功的结果。 |
+| `error` | 失败的错误码，见「AI 接口」。 |
+| `attempts` | 自动处理试过几次，满 3 次不再自动重试。 |
+| `requested` | 是用户要的（`1`）还是自动排的（`0`）；用户要的先处理。 |
+| `fingerprint` | 输入的指纹：模型、生效的 prompt、目标语言和送去的原文的 SHA-256。 |
+| `model` | 生成结果的模型。 |
+| `updated_at` | 最近一次排队或处理的时间。 |
+
+结果是派生内容，不改条目的 `updated_at`，不进全文索引。
+
 ### 设置和会话
 
 设置是键值表。API key 存在这里，接口不下发，只回「已配置 / 未配置」。
@@ -164,7 +181,7 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 - 只用标准库 `net/http`。JSON 字段用 camelCase。
 - 出错时返回 `{ "error": "<代码>" }`，代码是稳定的小写英文，界面据此显示本地化文案。
 - `GET /health` 不要鉴权，返回版本、是否要求口令、数据库是否可写。数据库不可写时 503。
-- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「设置接口」「OPML 接口」「图片代理」五节的路由。其余路由随各自的功能加进来，并写进这一节。
+- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「设置接口」「OPML 接口」「AI 摘要和翻译」「图片代理」六节的路由。其余路由随各自的功能加进来，并写进这一节。
 - 请求体是 JSON，最大 64 KiB；坏 JSON、多出未知字段或类型不对返回 400 `invalid_body`。
 
 ## 订阅接口
@@ -240,7 +257,15 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 
 ## 设置接口
 
-都要会话（设了口令时）。设置在 JSON 里是一个对象：`rsshubBaseUrl`（RSSHub 根地址，没设为空串）、`retentionDays`（保留期限的天数，`0` 是永久）。
+都要会话（设了口令时）。设置在 JSON 里是一个对象：
+
+- `rsshubBaseUrl`：RSSHub 根地址，没设为空串。
+- `retentionDays`：保留期限的天数，`0` 是永久。
+- `aiBaseUrl`：OpenAI 兼容接口的根地址，例如 `https://api.openai.com/v1`，没设为空串。
+- `aiModel`：模型名，没设为空串。
+- `aiApiKeySet`：是否存了 API key。key 本身只能写（`PATCH` 的 `aiApiKey`），不下发。
+- `aiLanguage`：摘要和翻译的目标语言，`zh-Hans` 或 `en`，默认 `zh-Hans`。
+- `promptSummary`、`promptTranslate`：全局 prompt。没改过时是内置的默认 prompt。
 
 | 路由 | 作用 |
 |---|---|
@@ -249,9 +274,14 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 
 - `rsshubBaseUrl` 去掉首尾空白，空串表示不设；否则必须是带主机名的 http 或 https 绝对地址，可以指向本机或内网，不然 `invalid_rsshub_base_url`。
 - `retentionDays` 是 0 到 3650 的整数，否则 `invalid_retention_days`；不是整数时 `invalid_body`。库里存的值读不成天数时按永久处理，返回 `0`（见「保留期限」）。
+- `aiBaseUrl` 去掉首尾空白，空串表示不设；否则必须是带主机名的 http 或 https 绝对地址，可以指向本机或内网（例如本机的 Ollama），不然 `invalid_ai_base_url`。末尾的 `/` 去掉。
+- `aiModel` 去掉首尾空白，最多 200 个字符，否则 `invalid_ai_model`。
+- `aiApiKey` 去掉首尾空白后存下，空串表示删掉；最多 4096 个字符，否则 `invalid_ai_api_key`。本机的模型可以不要 key。
+- `aiLanguage` 不是 `zh-Hans` 或 `en` 时 `invalid_ai_language`。
+- `promptSummary`、`promptTranslate` 最多 4000 个字符，否则 `invalid_prompt`；空串（去掉首尾空白后）恢复内置的默认 prompt。
 - 有一个字段不对就整个请求不生效。
 - 抓取循环每次抓取和清理都重新读设置，改了从下一次抓取和清理起生效，不用重启。
-- 只下发上面列出的字段。API key 一类的密钥不进任何响应、日志和错误，只回是否已配置；AI 的设置由 AI 接口加进来。
+- 只下发上面列出的字段。API key 一类的密钥不进任何响应、日志和错误，只回是否已配置。
 
 ## OPML 接口
 
@@ -278,6 +308,63 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - 每个源一个 `outline`，不分组，带 `text`、`title`、`type="rss"`、`xmlUrl`、`htmlUrl` 和 `orielKind`。标题为空时 `text` 用地址。
 - RSSHub 源另带 `orielRsshubPath`。设了 RSSHub 根地址时，`xmlUrl` 是根地址加路径，别的阅读器能直接用；没设时没有 `xmlUrl`。
 - 导出的文件再导入，得到同样的订阅：地址、RSSHub 路径、形态和标题都一样。别的字段（抓取间隔、prompt、屏蔽词、暂停）不导出。
+
+## AI 摘要和翻译
+
+摘要和翻译走用户自己的 OpenAI 兼容接口（`aiBaseUrl` 和 `aiModel` 都设了才算配置好）。都要会话（设了口令时）。
+
+| 路由 | 作用 |
+|---|---|
+| `GET /api/entries/{id}/ai` | 条目的两种结果：`{ "summary": ..., "translation": ... }`，没有的为 `null`。 |
+| `POST /api/entries/{id}/summary` | 要摘要，返回这一种结果。 |
+| `POST /api/entries/{id}/translation` | 要翻译，返回这一种结果。 |
+| `POST /api/ai/test` | 用当前设置发一个很短的请求，成功返回 `{ "model": "..." }`；没配置好时 409，上游失败时 502，带下面的错误码。 |
+
+一种结果是 `{ "status", "text", "error", "model", "updatedAt" }`，`status` 是 `pending`、`ok`、`failed`，`error` 只在 `failed` 时有值。
+
+要结果（`POST`）：
+
+- 没配置好时 409 `ai_not_configured`，条目不存在时 `not_found`。
+- 已有 `ok` 的结果且指纹没变（模型、prompt、目标语言和原文都一样），直接返回，不调接口。
+- 已经 `pending` 时直接返回，不重复排队。
+- 其他情况（没有、失败过、指纹变了）排进队列，返回 202 和 `pending` 的结果；上一次成功的 `text` 留着，换成新结果前照样返回。客户端用 `GET /api/entries/{id}/ai` 轮询，建议每 2 秒一次。
+- 用户要的不受自动重试的次数限制，每次 `POST` 都再试一次。
+
+送去的原文：
+
+- 第一行是条目标题，空一行，后面是正文的纯文本，段落之间空一行。正文依次取抽取的正文、订阅里的正文、订阅里的摘要，取第一个不为空的；都为空且没有标题时直接失败，`ai_empty`。
+- 文章形态的条目还在等待抽取（`pending`）时先等抽取结束，再送。
+- 摘要最多送 24 000 个字符，翻译最多 60 000 个字符，多出的截掉。
+- 翻译按段落切成每块不超过 6000 个字符，一块一个请求，按顺序翻完再拼起来；有一块失败就整条失败。
+
+调用：
+
+- `POST {aiBaseUrl}/chat/completions`，`stream: false`。system 消息是生效的 prompt，user 消息是原文；设了 key 时带 `Authorization: Bearer <key>`。
+- 生效的 prompt：源的 `promptSummary` / `promptTranslate` 不为空就用源的，否则用全局的。prompt 里的 `{language}` 换成目标语言的名字（`简体中文`、`English`）。
+- 内置的摘要 prompt：`Summarize the article in {language} in three to five sentences. Reply with the summary only.`；翻译 prompt：`Translate the text into {language}. Keep the paragraphs and their order, and the title on the first line. Reply with the translation only.`
+- 每个请求超时 120 秒，响应最大 1 MiB。认 `HTTP_PROXY` / `HTTPS_PROXY`。接口地址是用户自己填的，可以指向本机或内网，不走正文抽取的公网检查。
+- 结果取第一个 `choices[].message.content`，去掉首尾空白；为空算失败。
+
+失败的错误码（写进结果的 `error`，`POST /api/ai/test` 直接返回）：
+
+| 代码 | 原因 |
+|---|---|
+| `ai_not_configured` | 没设接口地址或模型。 |
+| `ai_unreachable` | 连不上（DNS、拒绝连接、TLS）。 |
+| `ai_timeout` | 超时。 |
+| `ai_unauthorized` | 上游 401 或 403，多半是 key 不对。 |
+| `ai_rate_limited` | 上游 429。 |
+| `ai_upstream` | 上游其他非 2xx，或返回的不是预期的 JSON，或结果为空。 |
+| `ai_empty` | 条目没有可送的文字。 |
+
+自动处理：
+
+- 源开了 `autoSummary` / `autoTranslate` 时，抓取写入的新条目自动排队（`requested` 为 `0`）。只管打开开关之后新到的条目，不补旧条目。没配置好时不排。
+- 后台一个处理器，同时最多 2 个请求。先做用户要的（新的在前），再做自动的（新的在前）。`POST` 排队后马上唤醒它，此外每 15 秒看一次队列。
+- 自动的失败了按「满 3 次不再自动重试」处理，每次之间至少隔 5 分钟；不影响抓取和抽取。
+- 设置改了之后，已有的结果不重做；下次用户要时指纹变了才重做。
+
+日志只记条目 id、任务、模型、错误码和耗时，不记 key、prompt、原文和结果。
 
 ## 图片代理
 

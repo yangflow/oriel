@@ -18,6 +18,9 @@ type FeedSource struct {
 	LastModified        string
 	FetchInterval       time.Duration
 	ConsecutiveFailures int
+	// AITasks are the AI tasks queued for each new entry, from the source's automatic switches.
+	// The fetcher clears them while AI is not configured.
+	AITasks []string
 }
 
 // NewSource describes a subscription to add. Exactly one of URL and RSSHubPath is set.
@@ -31,7 +34,8 @@ type NewSource struct {
 // DueSources lists unpaused sources whose next fetch time has come, the longest waiting first.
 func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]FeedSource, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, consecutive_failures
+		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, consecutive_failures,
+			auto_summary, auto_translate
 		FROM sources WHERE paused = 0 AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
@@ -42,11 +46,18 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 	for rows.Next() {
 		var src FeedSource
 		var interval int64
+		var summary, translate bool
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
-			&interval, &src.ConsecutiveFailures); err != nil {
+			&interval, &src.ConsecutiveFailures, &summary, &translate); err != nil {
 			return nil, err
 		}
 		src.FetchInterval = time.Duration(interval) * time.Second
+		if summary {
+			src.AITasks = append(src.AITasks, TaskSummary)
+		}
+		if translate {
+			src.AITasks = append(src.AITasks, TaskTranslation)
+		}
 		sources = append(sources, src)
 	}
 	return sources, rows.Err()
@@ -100,6 +111,7 @@ type FeedEntry struct {
 // Items are inserted from last to first, so with equal created_at the newest item gets the highest ID.
 // An existing entry keeps its read and starred state, and its updated_at changes only when its content did.
 // A new item published before expired would be pruned again at once, so it is not added; zero keeps all.
+// Each new entry gets a pending result for every task in src.AITasks.
 // It returns how many entries are new.
 func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL string, entries []FeedEntry, expired, now time.Time) (int, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -115,12 +127,14 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
 		var exists int
+		isNew := false
 		switch err := tx.QueryRowContext(ctx, "SELECT 1 FROM entries WHERE source_id = ? AND guid = ?", src.ID, e.GUID).Scan(&exists); {
 		case errors.Is(err, sql.ErrNoRows):
 			if !expired.IsZero() && !e.PublishedAt.IsZero() && e.PublishedAt.Before(expired) {
 				continue
 			}
 			created++
+			isNew = true
 		case err != nil:
 			return 0, err
 		}
@@ -150,6 +164,17 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 			extract, e.ThumbnailURL, nullInt(e.DurationSec), e.Platform, string(imagesJSON), now.UnixMilli(), now.UnixMilli(),
 		); err != nil {
 			return 0, err
+		}
+		if !isNew {
+			continue
+		}
+		for _, task := range src.AITasks {
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO entry_ai (entry_id, task, status, updated_at)
+				SELECT id, ?, 'pending', ? FROM entries WHERE source_id = ? AND guid = ?`,
+				task, now.UnixMilli(), src.ID, e.GUID); err != nil {
+				return 0, err
+			}
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `
