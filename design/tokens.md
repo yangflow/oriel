@@ -23,7 +23,6 @@ Mockups show the 4 DIP unit and 13 px text.
 | radius | `Theme.Radius` | 8 | corners of controls |
 | icon | `t.Rem(1.25)` | about 16 / 18 | icons in fields and buttons; 1.05 rem in error lines |
 | title | `t.Rem(1.8)` bold | about 23 / 25 | screen title, a level 1 heading |
-| display | `t.Rem(3.6)` bold | about 47 / 50 | the example's count |
 | secondary | `t.Rem(0.9)` | about 12 / 13 | hints, in `TextMuted` |
 | body | theme `FontSize` | 13 / 14 | everything else, and all widget text |
 | window | `Width`, `Height` | 960 x 640 | main window |

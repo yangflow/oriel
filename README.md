@@ -25,7 +25,7 @@ features.
 
 ## Features
 
-Working now, on the server side:
+Working now:
 
 - **Scheduled fetching.** Due subscriptions are fetched every 15 seconds with conditional requests (ETag and
   Last-Modified) and backoff after failures. RSS, Atom and JSON Feed are supported, as well as RSSHub routes.
@@ -36,7 +36,12 @@ Working now, on the server side:
   and duplicate detection; the screen for it is still to come.
 - **Timeline API.** Page through all entries newest first, filter by source, kind, unread or starred, search
   the full text, and mark entries read or starred. Per-source mute keywords hide matching entries without
-  deleting them. The timeline screen is still to come.
+  deleting them.
+- **Timeline screen.** All subscriptions in one list, newest first, each kind in its own layout: article rows
+  with a thumbnail, video covers with their duration, social posts with up to four pictures, and a masonry wall
+  for images. Kind tabs and a subscription list narrow it; Unread, Starred and search narrow it further. Keys
+  move, open, star and mark entries; new entries wait behind a "N new" button instead of moving the list. An
+  entry opens in the browser until the reader lands.
 - **Settings API.** Read and change the RSSHub address and the retention period over HTTP; secrets are never
   sent back. The settings screen is still to come.
 - **OPML API.** Import subscriptions from another reader, nested groups included, and export them all; the
@@ -51,13 +56,11 @@ Working now, on the server side:
 - **Two languages.** The interface is in English and Simplified Chinese.
 
 Planned, in the order of the [milestones](https://github.com/yangflow/oriel/milestones) (rules in the
-[roadmap](docs/roadmap.md), in Chinese): the screen for adding and editing subscriptions, the timeline with one
-layout per kind, the article reader, on-demand AI summaries and translation through your own OpenAI-compatible
+[roadmap](docs/roadmap.md), in Chinese): the screen for adding and editing subscriptions, the article reader, on-demand AI summaries and translation through your own OpenAI-compatible
 endpoint, settings and OPML import and export.
 
-Status: early development, version 0.1.0, no release yet. Apart from the connect screen, the window still shows a
-counter example;
-subscriptions and the timeline have an API but no screen yet, and settings have neither. Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on
+Status: early development, version 0.1.0, no release yet. The window has the connect screen and the timeline;
+subscriptions and settings have an API but no screen yet. Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on
 amd64 and arm64. Linux builds need glibc, also when running headless.
 
 ## Quick start

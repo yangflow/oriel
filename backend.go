@@ -47,7 +47,7 @@ func start(ctx context.Context, dataDir, password string, port int) (*backend, e
 	if err != nil {
 		return nil, err
 	}
-	api, err := server.New(st, server.Config{Password: password, Version: version})
+	api, err := server.New(st, server.Config{Password: password, Version: version, Images: fetch.NewImages(version)})
 	if err != nil {
 		st.Close()
 		return nil, err

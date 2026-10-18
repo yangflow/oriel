@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Timeline screen</title>
+<!-- The timeline: every subscription's entries in one list, newest first, each kind with its own row. The sidebar
+     chooses the scope (everything, one kind or one source); the bar above the list narrows it to unread or starred
+     and searches it. Colors are the Oriel palette of design/tokens.md; icons are Lucide (ISC License). Pictures are
+     drawn as gradients here; in the app they load in the background and show the Surface color until then.
+     Row 2 shows the pointer resting on it (its actions show), row 3 the keyboard choice (focus ring).
+     All, Articles and Social are one column; Videos become a cover grid and Images a masonry wall. The kinds are
+     a row of icon tabs on top of the sidebar, which then lists only that kind's subscriptions.
+     The bar above the window only switches the mockup.
+     URL parameters: state, scope=all|article|video|social|image|source, scheme=light|dark, lang=en|zh-Hans,
+     size=default|min. -->
+<style>
+:root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
+:root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
+:root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --surface-pressed:#dfdbd2; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5); --star:#a16207 }
+:root[data-scheme=dark] { --background:#1b1a18; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55); --star:#facc15 }
+* { box-sizing:border-box }
+body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
+svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
+svg.icon.filled { fill:currentColor }
+button { font:inherit; color:inherit; border:0; background:none; padding:0; cursor:default }
+button:focus-visible { outline:3px solid var(--focus); outline-offset:1px }
+
+.switcher { display:flex; flex-wrap:wrap; gap:8px 16px; margin:0 0 16px; font-size:12px; color:var(--stage-text) }
+.switcher select { font:inherit }
+
+.window { position:relative; width:960px; height:640px; border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; background:var(--background) }
+.window.min { width:640px; height:480px }
+.titlebar { height:28px; flex:none; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); background:var(--surface); border-bottom:1px solid var(--border) }
+.body { flex:1; min-height:0; display:flex }
+
+/* Sidebar */
+aside { width:212px; flex:none; display:flex; flex-direction:column; background:var(--surface); border-right:1px solid var(--border) }
+.min aside { width:184px }
+.nav { flex:1; overflow-y:auto; padding:8px }
+.section { margin:12px 8px 4px; font-size:11px; font-weight:600; color:var(--muted) }
+.item { width:100%; height:28px; display:flex; align-items:center; gap:8px; padding:0 8px; border-radius:6px; color:var(--text); text-align:left }
+.item:hover { background:var(--surface-hover) }
+.item.chosen { background:var(--surface-pressed) }
+.item .name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.item .count { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums }
+.item .warn { color:var(--warning) }
+.mono { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:4px; font-size:10px; font-weight:600; background:var(--accent-soft); color:var(--accent) }
+.mono.k-video { background:var(--danger-soft); color:var(--danger) }
+.mono.k-social { background:var(--warning-soft); color:var(--warning) }
+.mono.k-image { background:color-mix(in srgb, var(--success) 14%, var(--background)); color:var(--success) }
+.server { flex:none; width:100%; text-align:left; display:flex; align-items:center; gap:8px; height:40px; padding:0 16px; border-top:1px solid var(--border); color:var(--muted); font-size:12px }
+.server .name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.server .dot { width:6px; height:6px; border-radius:50%; background:var(--success) }
+
+/* Toolbar */
+.main { flex:1; min-width:0; display:flex; flex-direction:column; position:relative }
+.toolbar { flex:none; height:48px; display:flex; align-items:center; gap:8px; padding:0 12px 0 20px; border-bottom:1px solid var(--border) }
+.toolbar h1 { margin:0; font-size:15px; font-weight:600; white-space:nowrap }
+.toolbar .sub { color:var(--muted); font-size:12px; white-space:nowrap; font-variant-numeric:tabular-nums }
+.spacer { flex:1 }
+.segmented { display:flex; padding:2px; gap:2px; border-radius:8px; background:var(--surface) }
+.segmented button { height:24px; display:flex; align-items:center; gap:4px; padding:0 8px; border-radius:6px; color:var(--muted) }
+.segmented button.on { background:var(--background); color:var(--text); box-shadow:0 0 0 1px var(--border) }
+.segmented button svg.icon { width:14px; height:14px }
+.min .segmented button span { display:none }
+.search { width:200px; height:28px; display:flex; align-items:center; gap:6px; padding:0 4px 0 8px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--muted) }
+.min .search { width:136px }
+.search.focused { border-color:var(--accent); background:var(--background); box-shadow:0 0 0 3px var(--focus) }
+.search.invalid { border-color:var(--warning) }
+.search input { flex:1; min-width:0; border:0; outline:0; background:none; font:inherit; color:var(--text) }
+.search input::placeholder { color:var(--muted) }
+.search .clear { width:20px; height:20px; display:grid; place-items:center; border-radius:5px }
+.search .clear svg.icon { width:14px; height:14px }
+.tool { width:28px; height:28px; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
+.tool:hover { background:var(--surface-hover); color:var(--text) }
+.hint { flex:none; display:flex; align-items:center; gap:6px; padding:6px 20px; font-size:12px; color:var(--warning); background:var(--warning-soft); border-bottom:1px solid var(--border) }
+.hint svg.icon { width:14px; height:14px }
+
+/* Timeline */
+.scroll { flex:1; overflow-y:auto }
+.column { max-width:680px; margin:0 auto; padding:4px 20px 24px }
+.row { position:relative; display:flex; gap:12px; padding:14px 12px 14px 20px; margin:0 -12px 0 -20px; border-radius:10px }
+.row + .row::before { content:""; position:absolute; top:0; left:20px; right:12px; border-top:1px solid var(--border) }
+.row:hover, .row.hover { background:var(--surface) }
+.row.hover::before, .row.hover + .row::before, .row.chosen::before, .row.chosen + .row::before { border-color:transparent }
+.row.chosen { box-shadow:inset 0 0 0 2px var(--focus) }
+.unread-dot { position:absolute; left:7px; top:21px; width:6px; height:6px; border-radius:50%; background:var(--accent) }
+.content { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px }
+.meta { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); min-width:0 }
+.meta .src { color:var(--text); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.meta .sep::before { content:"·" }
+.meta .when { white-space:nowrap; font-variant-numeric:tabular-nums }
+.meta svg.icon { width:13px; height:13px }
+.title { margin:0; font-size:14.5px; font-weight:600; line-height:1.35; text-wrap:pretty }
+.read .title { font-weight:500; color:var(--muted) }
+.read .summary, .read .text { color:var(--muted) }
+.summary { margin:0; color:var(--muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
+.text { margin:0; white-space:pre-line; display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden }
+.author { font-weight:600; color:var(--text) }
+.handle { color:var(--muted) }
+mark { background:var(--warning-soft); color:inherit; border-radius:3px; padding:0 1px }
+
+.pic { border-radius:8px; background:var(--surface); flex:none; overflow:hidden; position:relative }
+.thumb { width:96px; height:64px; margin-top:20px }
+.video-thumb { width:184px; aspect-ratio:16/9 }
+.min .video-thumb { width:136px }
+.duration { position:absolute; right:6px; bottom:6px; padding:1px 5px; border-radius:4px; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; background:rgba(0,0,0,.72); color:#fff }
+.play { position:absolute; inset:0; display:grid; place-items:center; color:#fff }
+.play span { width:36px; height:36px; display:grid; place-items:center; border-radius:50%; background:rgba(0,0,0,.45) }
+.play svg.icon { width:16px; height:16px; fill:currentColor; margin-left:2px }
+.grid { display:grid; gap:4px; margin-top:6px; border-radius:10px; overflow:hidden; max-width:440px }
+.grid.n1 { grid-template-columns:1fr }
+.grid.n2 { grid-template-columns:1fr 1fr }
+.grid.n4 { grid-template-columns:1fr 1fr }
+.grid .pic { border-radius:0; aspect-ratio:4/3 }
+.grid.n1 .pic { aspect-ratio:16/10 }
+.gallery { display:grid; grid-template-columns:2fr 1fr; gap:4px; margin-top:6px; border-radius:10px; overflow:hidden }
+.gallery .pic { border-radius:0 }
+.gallery .big { grid-row:span 2; aspect-ratio:4/3.1 }
+.gallery .more { position:relative }
+.gallery .more b { position:absolute; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.45); color:#fff; font-size:15px; font-weight:600 }
+.single { margin-top:6px; aspect-ratio:3/2; max-height:340px; border-radius:10px }
+
+.actions { position:absolute; right:10px; top:10px; display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--background); box-shadow:0 0 0 1px var(--border), 0 2px 8px rgba(0,0,0,.08); visibility:hidden }
+.row.hover .actions, .row.chosen .actions { visibility:visible }
+.actions button { width:26px; height:26px; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
+.actions button:hover { background:var(--surface-hover); color:var(--text) }
+.actions button.starred { color:var(--star) }
+.star-mark { color:var(--star) }
+.star-mark svg.icon { width:13px; height:13px }
+
+.g1 { background:linear-gradient(135deg,#d6c7a8,#7b8f86) }
+.g2 { background:linear-gradient(160deg,#283a4e,#7a5c86 60%,#e2a46d) }
+.g3 { background:linear-gradient(120deg,#1c1c1c,#3c5e8a) }
+.g4 { background:linear-gradient(200deg,#e9d8c4,#b98b6b) }
+.g5 { background:linear-gradient(140deg,#0e1b2e,#223f6d 50%,#c9a35b) }
+.g6 { background:linear-gradient(170deg,#7aa38a,#2f4f3f) }
+.g7 { background:linear-gradient(110deg,#c56b4a,#f1c27d) }
+.g8 { background:linear-gradient(150deg,#384b57,#99b1b8) }
+.g9 { background:linear-gradient(130deg,#5a3d6b,#d08a92) }
+
+.footer { display:flex; justify-content:center; align-items:center; gap:8px; padding:16px; color:var(--muted); font-size:12px }
+.spin { animation:spin .9s linear infinite }
+@keyframes spin { to { transform:rotate(360deg) } }
+.pill { position:absolute; top:60px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:6px; height:28px; padding:0 12px 0 10px; border-radius:14px; background:var(--accent); color:var(--accent-text); font-weight:500; font-size:12px; box-shadow:0 4px 14px rgba(0,0,0,.18); z-index:2 }
+.pill svg.icon { width:14px; height:14px }
+
+.skeleton .bar { height:10px; border-radius:5px; background:var(--surface) }
+.skeleton .bar.t { height:14px; width:70% }
+.skeleton .bar.s { width:92% }
+.skeleton .bar.m { width:36% }
+
+.empty { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; text-align:center }
+.tile { width:48px; height:48px; border-radius:12px; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent) }
+.tile.danger { background:var(--danger-soft); color:var(--danger) }
+.tile svg.icon { width:24px; height:24px; stroke-width:1.5 }
+.empty h2 { margin:0; font-size:15px; font-weight:600 }
+.empty p { margin:-4px 0 0; max-width:300px; color:var(--muted) }
+.button { height:32px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 14px; white-space:nowrap; border:1px solid var(--border); border-radius:8px; background:var(--background); color:var(--text) }
+.button:hover { background:var(--surface-hover) }
+.button.primary { border-color:var(--accent); background:var(--accent); color:var(--accent-text); font-weight:500 }
+.button.primary:hover { background:var(--accent-hover); border-color:var(--accent-hover) }
+
+.scrim { position:absolute; inset:0; background:rgba(0,0,0,.28); display:grid; place-items:center; z-index:3 }
+.alert { width:300px; padding:20px; border-radius:12px; background:var(--background); box-shadow:0 0 0 1px var(--border), 0 16px 40px rgba(0,0,0,.25); display:flex; flex-direction:column; gap:8px; text-align:center; align-items:center }
+.alert h2 { margin:4px 0 0; font-size:14px; font-weight:600 }
+.alert p { margin:0; color:var(--muted); font-size:12px }
+.alert .buttons { display:flex; gap:8px; margin-top:8px; width:100% }
+.alert .buttons .button { flex:1 }
+.dot-inline { width:6px; height:6px; flex:none; border-radius:50%; background:var(--accent) }
+
+/* Kind tabs, video grid, masonry */
+.tabs { flex:none; display:grid; grid-template-columns:repeat(5,1fr); gap:2px; padding:8px 8px 6px; border-bottom:1px solid var(--border) }
+.tab { height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-radius:8px; color:var(--muted) }
+.tab:hover { background:var(--surface-hover) }
+.tab.on { background:var(--accent-soft); color:var(--accent) }
+.tab svg.icon { width:18px; height:18px }
+.tab span { min-height:10px; font-size:10px; line-height:1; font-variant-numeric:tabular-nums }
+.column.wide { max-width:720px }
+.column.wide .grid { max-width:520px }
+.vgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:20px 14px; padding:16px 20px 24px }
+.vcard { position:relative; display:flex; flex-direction:column; gap:6px }
+.vcard .video-thumb { width:100% }
+.vcard .play { opacity:0 }
+.vcard.hover .play { opacity:1 }
+.vcard .title { font-size:13.5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
+.masonry { columns:3 170px; column-gap:12px; padding:16px 20px 24px }
+.mtile { position:relative; break-inside:avoid; margin:0 0 16px; display:flex; flex-direction:column; gap:4px }
+.mtile .pic { width:100% }
+.mtile figcaption { font-size:12.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.mtile.read figcaption { color:var(--muted) }
+.vcard .actions, .mtile .actions { top:8px; right:8px }
+.vcard.hover .actions, .mtile.hover .actions { visibility:visible }
+
+</style>
+<div class="switcher" aria-hidden="true">
+  <label>state <select id="state"></select></label>
+  <label>scope <select id="scope"></select></label>
+  <label>scheme <select id="scheme"></select></label>
+  <label>lang <select id="lang"></select></label>
+  <label>size <select id="size"></select></label>
+</div>
+<div class="window" id="window"><div class="titlebar">Oriel</div><div class="body" id="app"></div></div>
+<script>
+const states=['list','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','mark-all-read'];
+const query=new URLSearchParams(location.search);
+const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
+const kinds=['article','video','social','image'];
+const options={state:states,scope:['all',...kinds,'source'],scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
+const state=pick('state',states,'list');
+const scope=pick('scope',options.scope,'all');
+const scheme=pick('scheme',options.scheme,'light');
+const lang=pick('lang',options.lang,'en');
+const size=pick('size',options.size,'default');
+document.documentElement.dataset.scheme=scheme;
+document.documentElement.lang=lang;
+document.getElementById('window').classList.toggle('min',size==='min');
+for(const [id,list] of Object.entries(options)){
+  const select=document.getElementById(id);
+  select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
+  select.value={state,scope,scheme,lang,size}[id];
+  select.onchange=()=>{query.set(id,select.value);location.search=query};
+}
+
+const icons={
+  inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  article:'<path d="M15 18h-5"/><path d="M18 14h-8"/><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="10" y="6" rx="1"/>',
+  video:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
+  social:'<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
+  image:'<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  star:'<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  dot:'<circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/>',
+  circle:'<circle cx="12" cy="12" r="10"/>',
+  checkCheck:'<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
+  circleCheck:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
+  search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+  external:'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+  arrowUp:'<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  alert:'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  wifiOff:'<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
+  loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  server:'<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
+  laptop:'<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
+};
+const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
+
+const copy={
+  en:{
+    all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
+    everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
+    search:'Search', searchLabel:'Search entries', clear:'Clear search',
+    unreadCount:'{n} unread', results:'{n} found',
+    markAllRead:'Mark all as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser',
+    failing:'Last fetch failed',
+    newEntries:'{n} new', loadingMore:'Loading more',
+    tooShort:'Type at least 3 characters to search',
+    noResults:'Nothing matches “{q}”', noResultsHint:'Search looks at titles, summaries and full text.',
+    unreadDone:'All caught up', unreadDoneHint:'No unread entries here.',
+    noStarred:'No starred entries', noStarredHint:'Star an entry to keep it here.',
+    empty:'Nothing here yet', emptyHint:'New entries show up after the next fetch.',
+    noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first.',
+    error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
+    confirmTitle:'Mark {n} entries in “{scope}” as read?', confirmBody:'Entries that arrive after you opened this list stay unread.', cancel:'Cancel', confirm:'Mark as read',
+    thisComputer:'This computer', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures',
+    ago:{m:'{n} min',h:'{n} h',d:'Yesterday',days:'{n} days'},
+  },
+  'zh-Hans':{
+    all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
+    everything:'全部', unread:'未读', starred:'收藏', show:'显示',
+    search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
+    unreadCount:'{n} 条未读', results:'找到 {n} 条',
+    markAllRead:'全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开',
+    failing:'上次抓取失败',
+    newEntries:'{n} 条新内容', loadingMore:'正在加载',
+    tooShort:'至少输入 3 个字才能搜索',
+    noResults:'没有找到“{q}”', noResultsHint:'搜索范围包括标题、摘要和全文。',
+    unreadDone:'都读完了', unreadDoneHint:'这里没有未读条目。',
+    noStarred:'还没有收藏', noStarredHint:'收藏的条目会留在这里。',
+    empty:'这里还没有条目', emptyHint:'下次抓取之后，新条目会出现在这里。',
+    noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。',
+    error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
+    confirmTitle:'把“{scope}”里的 {n} 条标为已读？', confirmBody:'打开列表之后新到的条目仍是未读。', cancel:'取消', confirm:'标为已读',
+    thisComputer:'本机', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图',
+    ago:{m:'{n} 分钟前',h:'{n} 小时前',d:'昨天',days:'{n} 天前'},
+  },
+}[lang];
+const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
+const ago=(unit,n)=>copy.ago[unit].replace('{n}',n);
+const zh=lang==='zh-Hans';
+
+const sources=[
+  {id:1,kind:'article',name:'Simon Willison',mono:'S',unread:4},
+  {id:2,kind:'article',name:zh?'少数派':'Sspai',mono:zh?'少':'S',unread:12},
+  {id:3,kind:'article',name:'The Go Blog',mono:'G',unread:0,failing:true},
+  {id:4,kind:'video',name:'3Blue1Brown',mono:'3',unread:2},
+  {id:5,kind:'video',name:zh?'影视飓风':'MediaStorm',mono:zh?'影':'M',unread:5},
+  {id:6,kind:'social',name:'@rauchg',mono:'R',unread:9},
+  {id:7,kind:'social',name:zh?'微博 · 中国国家地理':'Weibo · China National Geography',mono:zh?'地':'C',unread:3},
+  {id:8,kind:'image',name:'NASA APOD',mono:'N',unread:1},
+  {id:9,kind:'image',name:'Unsplash Editorial',mono:'U',unread:4},
+];
+const byId=Object.fromEntries(sources.map(s=>[s.id,s]));
+const kindUnread=k=>sources.filter(s=>s.kind===k).reduce((a,s)=>a+s.unread,0);
+const total=sources.reduce((a,s)=>a+s.unread,0);
+
+const entries=[
+  {source:6,kind:'social',when:ago('m',4),author:'Guillermo Rauch',handle:'@rauchg',text:zh?'把构建时间从 4 分钟压到 38 秒。秘诀不是更快的机器，而是不再重复做同一件事：缓存每一步的输入，只重算变了的部分。':'Took our build from 4 minutes to 38 seconds. The trick wasn’t a faster machine, it was not doing the same work twice: hash every step’s inputs, rebuild only what changed.',images:['g3','g8']},
+  {source:1,kind:'article',when:ago('m',26),title:zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer',summary:zh?'trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。':'The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.',thumb:'g1'},
+  {source:4,kind:'video',when:ago('h',1),title:zh?'卷积到底是什么？从概率到图像处理':'But what is a convolution? From probability to image processing',duration:'23:01',platform:'YouTube',thumb:'g5',starred:true},
+  {source:8,kind:'image',when:ago('h',3),title:zh?'猎户座大星云的尘埃柱':'Dust pillars of the Orion Nebula',images:['g2'],r:'4/5'},
+  {source:2,kind:'article',when:ago('h',5),title:zh?'我的 2026 桌面工作流：少即是多':'My 2026 desktop workflow: less is more',summary:zh?'这一年我删掉了一半的应用，留下的每一个都必须回答一个问题：它让我更专注了吗？':'This year I removed half of my apps. Every one that stayed had to answer one question: does it help me focus?',read:true},
+  {source:7,kind:'social',when:ago('h',7),author:zh?'中国国家地理':'China National Geography',handle:'Weibo',text:zh?'【秋日的喀纳斯】十月初，喀纳斯湖畔的白桦和落叶松陆续变黄，晨雾散开时，整片山谷像被点亮。':'Autumn at Kanas: in early October the birches and larches along the lake turn gold, and when the morning fog lifts the whole valley lights up.',images:['g6','g7','g4','g9'],read:true},
+  {source:5,kind:'video',when:ago('d'),title:zh?'我们用三个月拍了一条只有 60 秒的片子':'Three months of shooting for a 60-second film',duration:'14:37',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g7',read:true},
+  {source:4,kind:'video',when:ago('days',2),title:zh?'行列式的几何意义':'The determinant, visualized',duration:'11:20',platform:'YouTube',thumb:'g3'},
+  {source:9,kind:'image',when:ago('days',2),title:zh?'晨雾中的喀纳斯':'Morning fog over Kanas',images:['g6'],r:'3/2'},
+  {source:5,kind:'video',when:ago('days',2),title:zh?'零下 30 度拍摄：器材实测':'Shooting at −30°C: a gear test',duration:'18:05',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g6',read:true},
+  {source:9,kind:'image',when:ago('days',3),title:zh?'沙丘的线条':'Lines in the dunes',images:['g7'],r:'4/5'},
+  {source:8,kind:'image',when:ago('days',3),title:zh?'卡西尼号眼中的土星环':'Saturn’s rings, seen by Cassini',images:['g5'],r:'1/1',read:true},
+  {source:4,kind:'video',when:ago('days',3),title:zh?'群论与魔群':'Group theory and the Monster',duration:'20:42',platform:'YouTube',thumb:'g9'},
+  {source:9,kind:'image',when:ago('days',4),title:zh?'黄昏的港口':'Harbor at dusk',images:['g9'],r:'3/4'},
+  {source:5,kind:'video',when:ago('days',4),title:zh?'一盏灯拍完一整天':'A whole day on set with one light',duration:'9:58',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g8',read:true},
+  {source:9,kind:'image',when:ago('days',5),title:zh?'老城的屋顶':'Old town roofs',images:['g4'],r:'3/2',read:true},
+  {source:8,kind:'image',when:ago('days',5),title:zh?'特罗姆瑟上空的极光':'Aurora over Tromsø',images:['g8'],r:'4/3'},
+];
+const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[1].name:copy.all;
+const visible=kinds.includes(scope)?entries.filter(e=>e.kind===scope):scope==='source'?entries.filter(e=>e.source===1):entries.slice(0,7);
+const filter=state==='unread-done'?1:state==='starred-none'?2:0;
+const q=state==='search'?'sqlite':state==='search-none'?'kubernetes':state==='search-short'?'go':'';
+const searching=q!=='';
+const shown=state==='search'?entries.filter(e=>e.kind==='article'&&e.source===1):visible;
+
+const navItem=(glyph,name,count,chosen,extra='')=>`<button class="item${chosen?' chosen':''}" aria-current="${chosen}">${glyph}<span class="name">${name}</span>${extra}${count?`<span class="count">${count}</span>`:''}</button>`;
+const sourceItem=s=>navItem(`<span class="mono k-${s.kind}">${s.mono}</span>`,s.name,s.unread,scope==='source'&&s.id===1,s.failing?`<span class="warn" role="img" aria-label="${copy.failing}" title="${copy.failing}">${icon('alert')}</span>`:'');
+const tabKind=scope==='source'?'article':scope;
+const tabs=counts=>`<div class="tabs" role="tablist" aria-label="${copy.kinds}">${[['all','inbox'],...kinds.map(k=>[k,k])].map(([k,g])=>{
+  const on=k===tabKind, name=k==='all'?copy.all:copy[k], n=counts?(k==='all'?total:kindUnread(k)):0;
+  return `<button class="tab${on?' on':''}" role="tab" aria-selected="${on}" aria-label="${name}" title="${name}">${icon(g)}<span>${n||''}</span></button>`;
+}).join('')}</div>`;
+function sidebar(){
+  if(state==='no-subscriptions')return `<aside>${tabs(false)}<nav class="nav"></nav>${serverBar()}</aside>`;
+  const list=tabKind==='all'?sources:sources.filter(s=>s.kind===tabKind);
+  return `<aside>${tabs(true)}<nav class="nav" aria-label="${copy.sources}"><div class="section">${tabKind==='all'?copy.sources:copy[tabKind]}</div>${list.map(sourceItem).join('')}</nav>${serverBar()}</aside>`;
+}
+function serverBar(){return `<button class="server" aria-label="${copy.thisComputer}">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></button>`}
+
+const highlight=s=>q&&state==='search'?s.replace(new RegExp(q,'ig'),m=>`<mark>${m}</mark>`):s;
+const actionButtons=(e,cls='')=>`<button class="${cls}${e.starred?' starred':''}" aria-label="${e.starred?copy.unstar:copy.star}" title="${e.starred?copy.unstar:copy.star}">${icon('star',e.starred?'filled':'')}</button>
+  <button class="${cls}" aria-label="${e.read?copy.markUnread:copy.markRead}" title="${e.read?copy.markUnread:copy.markRead}">${icon(e.read?'dot':'circleCheck')}</button>
+  <button class="${cls}" aria-label="${copy.open}" title="${copy.open}">${icon('external')}</button>`;
+const actions=e=>`<div class="actions">${actionButtons(e)}</div>`;
+const unreadDot=e=>e.read?'':`<span class="dot-inline" role="img" aria-label="${copy.unread}"></span>`;
+const meta=(e,prefix='')=>{const s=byId[e.source];return `<div class="meta">${prefix}<span class="mono k-${s.kind}">${s.mono}</span><span class="src">${s.name}</span><span class="sep"></span><span class="when">${e.when}</span>${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}</div>`};
+const pictures=list=>{
+  if(list.length===1)return `<div class="grid n1"><div class="pic ${list[0]}"></div></div>`;
+  if(list.length===2)return `<div class="grid n2">${list.map(g=>`<div class="pic ${g}"></div>`).join('')}</div>`;
+  return `<div class="grid n4">${list.slice(0,4).map(g=>`<div class="pic ${g}"></div>`).join('')}</div>`;
+};
+const videoCover=(e,cls)=>`<div class="pic ${cls} ${e.thumb}" role="img" aria-label="${t('duration',{d:e.duration})}"><div class="play"><span>${icon('video')}</span></div><span class="duration">${e.duration}</span></div>`;
+
+// All, Articles, Social: one column of rows
+const row=(e,i)=>{
+  const cls=`row${e.read?' read':''}${i===1&&state==='list'?' hover':''}${i===2&&state==='list'?' chosen':''}`;
+  const dot=e.read?'':`<span class="unread-dot" role="img" aria-label="${copy.unread}"></span>`;
+  switch(e.kind){
+    case 'article':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3><p class="summary">${highlight(e.summary)}</p></div>${e.thumb?`<div class="pic thumb ${e.thumb}"></div>`:''}${actions(e)}</article>`;
+    case 'video':return `<article class="${cls}">${dot}${videoCover(e,'video-thumb')}<div class="content">${meta(e)}<h3 class="title">${e.title}</h3><div class="meta">${icon('video')}<span>${e.platform}</span></div></div>${actions(e)}</article>`;
+    case 'social':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<p class="text"><span class="author">${e.author}</span> <span class="handle">${e.handle}</span><br>${e.text}</p>${pictures(e.images)}</div>${actions(e)}</article>`;
+    case 'image':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${e.title}</h3><div class="pic single ${e.images[0]}"></div></div>${actions(e)}</article>`;
+  }
+};
+// Videos and Images
+const videoCard=(e,i)=>`<article class="vcard${e.read?' read':''}${i===0&&state==='list'?' hover':''}">${videoCover(e,'video-thumb')}<h3 class="title">${e.title}</h3>${meta(e,unreadDot(e))}${actions(e)}</article>`;
+const masonryTile=(e,i)=>`<figure class="mtile${e.read?' read':''}${i===0&&state==='list'?' hover':''}"><div class="pic ${e.images[0]}" style="aspect-ratio:${e.r}" role="img" aria-label="${e.title}"></div><figcaption>${e.title}</figcaption>${meta(e,unreadDot(e))}${actions(e)}</figure>`;
+const skeleton=()=>Array.from({length:4},(_,i)=>`<div class="row skeleton" aria-hidden="true"><div class="content" style="gap:8px"><div class="bar m"></div><div class="bar t"></div><div class="bar s"></div></div>${i%2?'':'<div class="pic thumb"></div>'}</div>`).join('');
+const empty=(tile,title,hint,button='',cls='')=>`<div class="empty" role="status"><div class="tile ${cls}">${icon(tile)}</div><h2>${title}</h2><p>${hint}</p>${button}</div>`;
+const more=state==='more'?`<div class="footer" role="status">${icon('loader','spin')}${copy.loadingMore}</div>`:'';
+
+let list;
+if(state==='loading')list=`<div class="column" aria-busy="true">${skeleton()}</div>`;
+else if(state==='no-subscriptions')list=empty('rss',copy.noSubscriptions,copy.noSubscriptionsHint);
+else if(state==='error')list=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');
+else if(state==='unread-done')list=empty('circleCheck',copy.unreadDone,copy.unreadDoneHint);
+else if(state==='starred-none')list=empty('star',copy.noStarred,copy.noStarredHint);
+else if(state==='empty')list=empty('inbox',copy.empty,copy.emptyHint);
+else if(state==='search-none')list=empty('search',t('noResults',{q}),copy.noResultsHint);
+else if(scope==='video'&&state!=='search')list=`<div class="vgrid" role="feed" aria-label="${scopeName}">${shown.map(videoCard).join('')}</div>${more}`;
+else if(scope==='image'&&state!=='search')list=`<div class="masonry" role="feed" aria-label="${scopeName}">${shown.map(masonryTile).join('')}</div>${more}`;
+else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map(row).join('')}${more}</div>`;
+
+const unreadInScope=kinds.includes(scope)?kindUnread(scope):scope==='source'?byId[1].unread:total;
+const sub=state==='no-subscriptions'||state==='error'?'':state==='search'?t('results',{n:1}):state==='unread-done'||state==='starred-none'||state==='empty'?'':t('unreadCount',{n:unreadInScope});
+const segments=[['inbox','everything'],['dot','unread'],['star','starred']].map(([g,k],i)=>`<button role="radio" aria-checked="${i===filter}" class="${i===filter?'on':''}" aria-label="${copy[k]}" title="${copy[k]}">${icon(g)}<span>${copy[k]}</span></button>`).join('');
+const searchField=`<div class="search${searching?' focused':''}${state==='search-short'?' invalid':''}">${icon('search')}<input aria-label="${copy.searchLabel}" placeholder="${copy.search}" value="${q}" ${state==='search-short'?'aria-invalid="true" aria-describedby="hint"':''}>${searching?`<button class="clear" aria-label="${copy.clear}">${icon('x')}</button>`:''}</div>`;
+const markAll=`<button class="tool" aria-label="${copy.markAllRead}" title="${copy.markAllRead}">${icon('checkCheck')}</button>`;
+const toolbar=`<div class="toolbar"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${searchField}${markAll}</div>`;
+const hint=state==='search-short'?`<div class="hint" id="hint" role="status">${icon('alert')}${copy.tooShort}</div>`:'';
+const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries',{n:3})}</button>`:'';
+const dialog=state==='mark-all-read'?`<div class="scrim"><div class="alert" role="alertdialog" aria-labelledby="ct" aria-describedby="cb"><div class="tile">${icon('checkCheck')}</div><h2 id="ct">${t('confirmTitle',{n:unreadInScope,scope:scopeName})}</h2><p id="cb">${copy.confirmBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button primary" autofocus>${copy.confirm}</button></div></div></div>`:'';
+
+document.getElementById('app').innerHTML=`${sidebar()}<section class="main">${toolbar}${hint}${pill}<div class="scroll">${list}</div></section>${dialog}`;
+</script>
+</html>

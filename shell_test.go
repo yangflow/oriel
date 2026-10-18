@@ -6,11 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/ui/timeline"
 )
 
 // remote answers as `oriel serve` with the password "secret", for which it hands out the token "t1".
@@ -35,13 +37,24 @@ func remote(t *testing.T) *httptest.Server {
 	return s
 }
 
+// fakeHome stands in for the timeline and keeps the servers it was told to use.
+type fakeHome struct{ used []string }
+
+func (h *fakeHome) Use(api timeline.API, server string) {
+	h.used = append(h.used, api.(client.Session).Server+" "+server)
+}
+
+func (h *fakeHome) View(c *ui.Context) { ui.Text(c, "Home") }
+
 func newTestShell(t *testing.T) (*shell, *ui.Tester, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), sessionFile)
-	home := func(c *ui.Context) { ui.Text(c, "Home") }
-	s := newShell("en", path, home, func(work func() func()) { work()() })
+	s := newShell("en", path, client.Session{Server: "http://127.0.0.1:7470"}, func(work func() func()) { work()() })
+	s.home = &fakeHome{}
 	return s, ui.NewTester(s.View, 960, 640), path
 }
+
+func used(s *shell) []string { return s.home.(*fakeHome).used }
 
 func TestShellWithoutSession(t *testing.T) {
 	s, tt, _ := newTestShell(t)
@@ -49,6 +62,9 @@ func TestShellWithoutSession(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("Home") || s.session != nil {
 		t.Fatalf("texts %v", tt.Texts())
+	}
+	if want := []string{"http://127.0.0.1:7470 "}; !slices.Equal(used(s), want) {
+		t.Fatalf("used %v", used(s))
 	}
 }
 
@@ -60,6 +76,22 @@ func TestShellRestoresSession(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("Home") || s.session == nil || s.session.Server != server.URL {
 		t.Fatalf("session %v, texts %v", s.session, tt.Texts())
+	}
+	if want := []string{server.URL + " " + strings.TrimPrefix(server.URL, "http://")}; !slices.Equal(used(s), want) {
+		t.Fatalf("used %v", used(s))
+	}
+}
+
+func TestShellSessionExpiresInUse(t *testing.T) {
+	server := remote(t)
+	s, tt, path := newTestShell(t)
+	client.SaveSession(path, client.Session{Server: server.URL, Token: "t1"})
+	s.restore()
+	tt.Frame()
+	s.expired()
+	tt.Frame()
+	if !s.showing || !tt.HasText("Signed out of "+strings.TrimPrefix(server.URL, "http://")) {
+		t.Fatalf("texts %v", tt.Texts())
 	}
 }
 
@@ -109,6 +141,9 @@ func TestShellUnreachableSession(t *testing.T) {
 	}
 	if !tt.HasText("Home") || s.session != nil {
 		t.Fatalf("texts %v", tt.Texts())
+	}
+	if want := []string{"http://127.0.0.1:7470 "}; !slices.Equal(used(s), want) {
+		t.Fatalf("used %v", used(s))
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("the session file stays: %v", err)

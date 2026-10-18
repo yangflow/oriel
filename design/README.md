@@ -9,24 +9,23 @@ what counts.
 | Path | Purpose |
 |---|---|
 | `screens/<screen>.html` | One self-contained mockup per screen: static HTML and CSS, no external resources |
-| `screens/example-appearance.html` | The example screen side by side in light and dark, with focus rings |
 | `tokens.md` | Spacing, size, color and motion values, mapped to MyGo theme roles |
 
-The connect screen (`screens/connect.html`) is the first product screen; the counter example (`screens/example.html`)
-stays as home until the timeline replaces it. The startup failure message has no mockup; it is a native system error dialog (`internal/ui/startup/`).
+The connect screen (`screens/connect.html`) and the timeline (`screens/timeline.html`, home) are the product screens
+so far. The startup failure message has no mockup; it is a native system error dialog (`internal/ui/startup/`).
 
 ## Preview
 
 Open a file in `screens/` in a browser. States and color schemes are switched with URL parameters, for example
-`screens/example.html?state=zero|positive|negative&scheme=light|dark`. New mockups use URL parameters the same way,
-so every state can be seen. `screens/example-appearance.html` needs no parameters.
+`screens/timeline.html?state=list&scope=video&scheme=dark`. New mockups use URL parameters the same way, so every
+state can be seen.
 
 ## Screens
 
 | Screen | Design file | Code |
 |---|---|---|
 | Connect | `screens/connect.html` (`?state=…&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/connect/` |
-| Example | `screens/example.html`, `screens/example-appearance.html` | `internal/ui/example/` |
+| Timeline | `screens/timeline.html` (`?state=…&scope=all|article|video|social|image|source&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/timeline/` |
 
 A mockup maps to a package: `screens/<screen>.html` is implemented by `internal/ui/<screen>/`. The text and states in
 the mockup are the strings in that package's `copy.json` (English and Simplified Chinese) and the states its `Screen`
