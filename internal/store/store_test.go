@@ -328,3 +328,21 @@ func TestEntries(t *testing.T) {
 		t.Fatalf("position of missing entry: %v", err)
 	}
 }
+
+func TestMuted(t *testing.T) {
+	for _, c := range []struct {
+		keywords, title, summary string
+		want                     bool
+	}{
+		{"", "anything", "", false},
+		{"rust", "Rust news", "", true},
+		{"ÄRGER", "Viel ärger", "", true},
+		{"go\nacme", "Weekly", "Sponsored by ACME", true},
+		{"广告", "今日推广", "软文广告", true},
+		{"python", "Rust news", "", false},
+	} {
+		if got := muted(c.keywords, c.title, c.summary); got != c.want {
+			t.Errorf("muted(%q, %q, %q) = %v", c.keywords, c.title, c.summary, got)
+		}
+	}
+}

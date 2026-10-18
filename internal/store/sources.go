@@ -60,7 +60,7 @@ const sourceColumns = `
 	s.id, s.url, s.rsshub_path, s.title, s.site_url, s.icon_url, s.kind, s.fetch_interval_sec, s.next_fetch_at,
 	s.last_fetched_at, s.last_success_at, s.last_error, s.consecutive_failures, s.prompt_summary, s.prompt_translate,
 	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused,
-	(SELECT count(*) FROM entries e WHERE e.source_id = s.id AND e.is_read = 0), s.created_at, s.updated_at`
+	(SELECT count(*) FROM entries e WHERE e.source_id = s.id AND e.is_read = 0 AND ` + shown + `), s.created_at, s.updated_at`
 
 // CreateSource adds a subscription with a title, which may be empty, and returns it.
 // It returns ErrExists when the same feed is already subscribed.
