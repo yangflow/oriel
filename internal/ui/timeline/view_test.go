@@ -97,6 +97,43 @@ func (f *fake) Image(_ context.Context, address string) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+func (f *fake) AddSource(_ context.Context, src client.NewSource) (client.Source, error) {
+	added := client.Source{ID: 10, URL: src.URL, RSSHubPath: src.RSSHubPath, Kind: src.Kind}
+	f.sources = append(f.sources, added)
+	return added, nil
+}
+
+func (f *fake) UpdateSource(_ context.Context, id int64, patch client.SourcePatch) (client.Source, error) {
+	for i, src := range f.sources {
+		if src.ID == id {
+			if patch.Paused != nil {
+				f.sources[i].Paused = *patch.Paused
+			}
+			if patch.Kind != nil {
+				f.sources[i].Kind = *patch.Kind
+			}
+			return f.sources[i], nil
+		}
+	}
+	return client.Source{}, &client.APIError{Status: 404, Code: "not_found"}
+}
+
+func (f *fake) DeleteSource(_ context.Context, id int64) error {
+	f.sources = slices.DeleteFunc(f.sources, func(src client.Source) bool { return src.ID == id })
+	f.entries = slices.DeleteFunc(f.entries, func(e client.Entry) bool { return e.SourceID == id })
+	return nil
+}
+
+func (f *fake) RefreshSource(context.Context, int64) error { return nil }
+
+func (f *fake) Settings(context.Context) (client.Settings, error) {
+	return client.Settings{RSSHubBaseURL: "https://rsshub.example.com"}, nil
+}
+
+func (f *fake) SetSettings(context.Context, client.SettingsPatch) (client.Settings, error) {
+	return client.Settings{}, nil
+}
+
 func (f *fake) deps() Deps {
 	return Deps{
 		Go:          func(work func() func()) { f.queue = append(f.queue, work) },
@@ -613,5 +650,81 @@ func TestUseDropsTheServerBefore(t *testing.T) {
 	f.settle(t, tt)
 	if len(s.entries) != 0 || !tt.HasText("No subscriptions yet") {
 		t.Fatalf("%d entries from the server before", len(s.entries))
+	}
+}
+
+func TestSubscriptions(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.Click("Add subscription"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !s.subs.Open() || !tt.Focused("Address") {
+		t.Fatal("the + button does not open the add dialog")
+	}
+	tt.Key(0, ui.KeyJ)
+	if s.selected != -1 {
+		t.Fatal("the keys of the list work behind the dialog")
+	}
+	tt.Type("https://go.dev/feed.atom")
+	tt.Key(0, ui.KeyEnter)
+	f.settle(t, tt)
+	if s.subs.Open() || len(s.sources) != 5 || !tt.HasText("go.dev") {
+		t.Fatalf("sources %v, texts %v", s.sources, tt.Texts())
+	}
+
+	if err := tt.RightClick("Talks"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Pause"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if _, ok := tt.Find("Paused"); !ok || !s.sources[1].Paused {
+		t.Fatalf("not paused: %v", s.sources[1])
+	}
+
+	if err := tt.Click("Talks"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.Click("Edit subscription"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.subs.Open() || !tt.HasText("Paused. Nothing is fetched until you resume.") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if err := tt.Click("Delete…"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Delete"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if _, ok := tt.Find("Talks"); ok || s.scope != (scope{}) || len(s.sources) != 4 {
+		t.Fatalf("scope %v, sources %v", s.scope, s.sources)
+	}
+}
+
+func TestAddFirst(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.sources, f.entries = nil, nil
+	s.Use(f, "")
+	f.settle(t, tt)
+	if err := tt.Click("Add your first subscription"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !s.subs.Open() {
+		t.Fatal("the empty state does not open the add dialog")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if s.subs.Open() {
+		t.Fatal("Escape does not close the dialog")
+	}
+	tt.Key(ui.Cmd, ui.KeyN)
+	f.settle(t, tt)
+	if !s.subs.Open() {
+		t.Fatal("Cmd+N does not open the add dialog")
 	}
 }

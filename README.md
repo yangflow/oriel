@@ -33,7 +33,7 @@ Working now:
   linked post of a Discourse topic. Links found in feeds cannot reach loopback or private addresses.
 - **Retention.** Unstarred entries older than a chosen number of days are pruned hourly; 0 keeps everything.
 - **Subscription API.** Add, list, edit, pause, delete and refresh subscriptions over HTTP, with validation
-  and duplicate detection; the screen for it is still to come.
+  and duplicate detection.
 - **Timeline API.** Page through all entries newest first, filter by source, kind, unread or starred, search
   the full text, and mark entries read or starred. Per-source mute keywords hide matching entries without
   deleting them.
@@ -42,6 +42,10 @@ Working now:
   for images. Kind tabs and a subscription list narrow it; Unread, Starred and search narrow it further. Keys
   move, open, star and mark entries; new entries wait behind a "N new" button instead of moving the list. An
   entry opens in the browser until the reader lands.
+- **Subscription screen.** Add a subscription from a feed address, an RSSHub route, or a YouTube, Bilibili, X,
+  GitHub, Telegram or Weibo link, which is turned into its feed or route; the kind and the check interval are
+  chosen in the same dialog. Edit, pause, refresh and delete a subscription from the sidebar's right-click menu
+  or the pencil in the toolbar; deleting asks first, since its entries go too.
 - **Settings API.** Read and change the RSSHub address and the retention period over HTTP; secrets are never
   sent back. The settings screen is still to come.
 - **OPML API.** Import subscriptions from another reader, nested groups included, and export them all; the
@@ -56,12 +60,12 @@ Working now:
 - **Two languages.** The interface is in English and Simplified Chinese.
 
 Planned, in the order of the [milestones](https://github.com/yangflow/oriel/milestones) (rules in the
-[roadmap](docs/roadmap.md), in Chinese): the screen for adding and editing subscriptions, the article reader, on-demand AI summaries and translation through your own OpenAI-compatible
-endpoint, settings and OPML import and export.
+[roadmap](docs/roadmap.md), in Chinese): the article reader, on-demand AI summaries and translation through your
+own OpenAI-compatible endpoint, settings and OPML import and export.
 
-Status: early development, version 0.1.0, no release yet. The window has the connect screen and the timeline;
-subscriptions and settings have an API but no screen yet. Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on
-amd64 and arm64. Linux builds need glibc, also when running headless.
+Status: early development, version 0.1.0, no release yet. The window has the connect screen, the timeline and
+the subscription dialogs; settings have an API but no screen yet. Targets: macOS 12+, Windows 10/11 and Linux
+with GTK 3, on amd64 and arm64. Linux builds need glibc, also when running headless.
 
 ## Quick start
 

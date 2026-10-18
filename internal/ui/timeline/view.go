@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
+	"github.com/yangflow/oriel/internal/ui/subscriptions"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
@@ -31,7 +33,7 @@ type copy struct {
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, ConfirmTitle      string
 	ConfirmBody, Cancel, Confirm, Marked, Starring, Unstarring, ActionFailed, OpenFailed               string
 	ThisComputer, Server, Duration, MorePictures, Pictures, Now, Minutes, Hours, Yesterday, Days       string
-	DateLayout, YearLayout, Separator                                                                  string
+	DateLayout, YearLayout, Separator, AddSource, EditSource, AddFirst, PausedMark                     string
 }
 
 var translations = func() map[string]copy {
@@ -58,6 +60,7 @@ var kinds = []string{"", "article", "video", "social", "image"}
 
 // API is what the screen reads and writes on the server; client.Session is one.
 type API interface {
+	subscriptions.API
 	Entries(ctx context.Context, q client.Query) (client.Page, error)
 	Sources(ctx context.Context) ([]client.Source, error)
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
@@ -153,6 +156,7 @@ type Screen struct {
 	drawn     int
 
 	confirm  asking
+	subs     *subscriptions.Screen // the dialogs that add and edit subscriptions
 	announce string
 	toast    string
 }
@@ -165,8 +169,23 @@ func New(systemLocale string, deps Deps) *Screen {
 	if deps.Decode == nil {
 		deps.Decode = ui.DecodeBitmap
 	}
-	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)], selected: -1, focusRow: -1,
+	s := &Screen{deps: deps, text: translations[locale.Language(systemLocale)], selected: -1, focusRow: -1,
 		hovered: -1, pictures: map[string]*picture{}}
+	s.subs = subscriptions.New(systemLocale, subscriptions.Deps{
+		Go:      deps.Go,
+		Now:     deps.Now,
+		Sources: func() []client.Source { return s.sources },
+		Added:   s.added,
+		Changed: s.changed,
+		Removed: s.removed,
+		Show:    func(id int64) { s.choose(scope{kind: s.kindOf(id), source: id}) },
+		Expired: func() {
+			s.gen++
+			s.api = nil
+			s.deps.Expired()
+		},
+	})
+	return s
 }
 
 // Use shows the timeline of api, whose host is server ("" for this computer), from the start.
@@ -178,6 +197,7 @@ func (s *Screen) Use(api API, server string) {
 	s.query, s.searched, s.editing = "", "", false
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
 	s.confirm = asking{}
+	s.subs.Use(api)
 	s.loadSources()
 	s.reload()
 }
@@ -188,8 +208,54 @@ func (s *Screen) expired(err error) bool {
 	}
 	s.gen++
 	s.api = nil
+	s.subs.Use(nil)
 	s.deps.Expired()
 	return true
+}
+
+func (s *Screen) kindOf(id int64) string {
+	for _, src := range s.sources {
+		if src.ID == id {
+			return src.Kind
+		}
+	}
+	return ""
+}
+
+// added shows a subscription the server took, until the sources load again with it.
+func (s *Screen) added(src client.Source) {
+	s.sources = append(s.sources, src)
+	s.loadSources()
+}
+
+// changed shows the change of a subscription, and the entries again when it changes which ones show.
+func (s *Screen) changed(src client.Source) {
+	i := slices.IndexFunc(s.sources, func(old client.Source) bool { return old.ID == src.ID })
+	if i < 0 {
+		s.loadSources()
+		return
+	}
+	old := s.sources[i]
+	s.sources[i] = src
+	s.loadSources()
+	if s.scope.source == src.ID && src.Kind != old.Kind {
+		s.scope.kind = src.Kind
+		s.tab = max(0, indexOf(kinds, src.Kind))
+	}
+	if src.Title != old.Title || src.Kind != old.Kind || src.MuteKeywords != old.MuteKeywords {
+		s.reload()
+	}
+}
+
+// removed drops a subscription the server no longer has, with its entries.
+func (s *Screen) removed(id int64) {
+	s.sources = slices.DeleteFunc(s.sources, func(src client.Source) bool { return src.ID == id })
+	s.loadSources()
+	if s.scope.source == id {
+		s.choose(scope{})
+		return
+	}
+	s.reload()
 }
 
 func (s *Screen) loadSources() {
@@ -498,7 +564,7 @@ func (s *Screen) scopeName() string {
 	if s.scope.source != 0 {
 		for _, src := range s.sources {
 			if src.ID == s.scope.source {
-				return src.Title
+				return subscriptions.Name(src)
 			}
 		}
 	}
@@ -725,9 +791,14 @@ func (s *Screen) View(c *ui.Context) {
 		}
 	}
 	s.poll(c)
-	c.OnShortcut(ui.Cmd, ui.KeyF, func() { s.searchBox = true })
-	// The keys of the list work wherever the focus is, but not while the search takes the letters typed.
-	if !s.typing && !s.confirm.open {
+	open := s.confirm.open || s.subs.Open()
+	if !open {
+		c.OnShortcut(ui.Cmd, ui.KeyF, func() { s.searchBox = true })
+		c.OnShortcut(ui.Cmd, ui.KeyN, s.subs.Add)
+	}
+	// The keys of the list work wherever the focus is, but not while the search takes the letters typed or a
+	// dialog shows.
+	if !s.typing && !open {
 		for _, k := range []struct {
 			key ui.Key
 			do  func()
@@ -764,6 +835,7 @@ func (s *Screen) View(c *ui.Context) {
 			s.markAll()
 		}
 	}
+	s.subs.View(c)
 	s.download()
 	if s.announce != "" {
 		c.Announce(s.announce)
@@ -795,15 +867,7 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 		}
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			ui.Column(c).FillWidth().Padding(t.Space(2)).Label(s.text.Sources).Children(func() {
-				if len(list) == 0 {
-					return
-				}
-				section := s.text.Sources
-				if s.scope.kind != "" {
-					section = s.kindName(s.scope.kind)
-				}
-				ui.Text(c, section).FontSize(px(t, 11)).FontWeight(600).TextColor(t.TextMuted).
-					Margin(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
+				s.section(c)
 				for _, src := range list {
 					s.sourceItem(c, src)
 				}
@@ -853,11 +917,37 @@ func (s *Screen) tabs(c *ui.Context) {
 	}
 }
 
+// section is the header of the subscriptions in the sidebar, with the button adding one.
+func (s *Screen) section(c *ui.Context) {
+	t := c.Theme()
+	name := s.text.Sources
+	if s.scope.kind != "" {
+		name = s.kindName(s.scope.kind)
+	}
+	ui.Row(c).FillWidth().Height(px(t, 22)).AlignItems(ui.Center).Margin(t.Space(1.5), 0, t.Space(1), t.Space(2)).
+		Children(func() {
+			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(px(t, 11)).FontWeight(600).
+				TextColor(t.TextMuted)
+			b := ui.ButtonBase(c).Size(px(t, 22), px(t, 22)).Radius(t.Space(1.5)).Label(s.text.AddSource).
+				Tooltip(s.text.AddSource)
+			color := t.TextMuted
+			if b.Hovered() {
+				b.Background(t.SurfaceHover)
+				color = t.Text
+			}
+			b.Children(func() { ui.Icon(c, icons.Plus).FontSize(px(t, 14)).TextColor(color) })
+			if b.Clicked() {
+				s.subs.Add()
+			}
+		})
+}
+
 func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 	t := c.Theme()
 	chosen := s.scope.source == src.ID
+	name := subscriptions.Name(src)
 	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).
-		Radius(t.Space(1.5)).Label(src.Title)
+		Radius(t.Space(1.5)).Label(name).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
 	switch {
 	case chosen:
 		item.Background(t.SurfacePressed)
@@ -865,14 +955,22 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 		item.Background(t.SurfaceHover)
 	}
 	item.Children(func() {
-		monogram(c, src.Kind, src.Title)
-		ui.Text(c, src.Title).Grow(1).MinWidth(0).SingleLine().TextColor(t.Text)
-		if src.LastError != "" {
+		monogram(c, src.Kind, name)
+		color := t.Text
+		if src.Paused {
+			color = t.TextMuted
+		}
+		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(color)
+		if src.Paused {
+			ui.Box(c).Label(s.text.PausedMark).Tooltip(s.text.PausedMark).Role(ui.RoleImage).Children(func() {
+				ui.Icon(c, icons.Pause).FontSize(px(t, 14)).TextColor(t.TextMuted)
+			})
+		} else if src.LastError != "" {
 			ui.Box(c).Label(s.text.Failing).Tooltip(s.text.Failing).Role(ui.RoleImage).Children(func() {
 				ui.Icon(c, icons.CircleAlert).FontSize(px(t, 14)).TextColor(t.Warning)
 			})
 		}
-		if src.UnreadCount > 0 {
+		if src.UnreadCount > 0 && !src.Paused {
 			ui.Text(c, strconv.Itoa(src.UnreadCount)).FontSize(px(t, 11)).TextColor(t.TextMuted)
 		}
 	})
@@ -936,6 +1034,7 @@ func (s *Screen) toolbar(c *ui.Context, compact bool) {
 		if sub != "" {
 			ui.Text(c, sub).FontSize(px(t, 12)).TextColor(t.TextMuted).NoWrap()
 		}
+		s.editButton(c)
 		ui.Box(c).Grow(1)
 		s.filters(c, compact)
 		s.searchField(c, compact)
@@ -1034,6 +1133,26 @@ func (s *Screen) searchField(c *ui.Context, compact bool) {
 	}
 	if input.Submitted() {
 		s.search()
+	}
+}
+
+// editButton edits the subscription chosen in the sidebar.
+func (s *Screen) editButton(c *ui.Context) {
+	i := slices.IndexFunc(s.sources, func(src client.Source) bool { return src.ID == s.scope.source })
+	if s.scope.source == 0 || i < 0 {
+		return
+	}
+	t := c.Theme()
+	b := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(s.text.EditSource).
+		Tooltip(s.text.EditSource)
+	color := t.TextMuted
+	if b.Hovered() {
+		b.Background(t.SurfaceHover)
+		color = t.Text
+	}
+	b.Children(func() { ui.Icon(c, icons.Pencil).FontSize(px(t, 16)).TextColor(color) })
+	if b.Clicked() {
+		s.subs.Edit(s.sources[i])
 	}
 }
 
@@ -1170,6 +1289,22 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed b
 					s.loadSources()
 				}
 				s.reload()
+			}
+		}
+		if title == s.text.NoSubscriptions {
+			b := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(t.Radius).
+				Background(t.Accent)
+			if b.Pressed() {
+				b.Background(t.AccentPressed)
+			} else if b.Hovered() {
+				b.Background(t.AccentHover)
+			}
+			b.Children(func() {
+				ui.Icon(c, icons.Plus).FontSize(px(t, 16)).TextColor(t.AccentText)
+				ui.Text(c, s.text.AddFirst).NoWrap().FontWeight(500).TextColor(t.AccentText)
+			})
+			if b.Clicked() {
+				s.subs.Add()
 			}
 		}
 	})

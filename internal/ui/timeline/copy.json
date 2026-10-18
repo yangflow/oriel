@@ -65,7 +65,11 @@
     "Days": "{n} days",
     "DateLayout": "Jan 2",
     "YearLayout": "Jan 2, 2006",
-    "Separator": ", "
+    "Separator": ", ",
+    "AddSource": "Add subscription",
+    "EditSource": "Edit subscription",
+    "AddFirst": "Add your first subscription",
+    "PausedMark": "Paused"
   },
   "zh-Hans": {
     "All": "全部",
@@ -133,6 +137,10 @@
     "Days": "{n} 天前",
     "DateLayout": "1月2日",
     "YearLayout": "2006年1月2日",
-    "Separator": "，"
+    "Separator": "，",
+    "AddSource": "添加订阅",
+    "EditSource": "编辑订阅",
+    "AddFirst": "添加第一个订阅",
+    "PausedMark": "已暂停"
   }
 }
