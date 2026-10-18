@@ -128,18 +128,8 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 		URL: strings.TrimSpace(body.URL), RSSHubPath: strings.TrimSpace(body.RSSHubPath), Kind: body.Kind,
 		FetchInterval: defaultInterval,
 	}
-	switch {
-	case (src.URL == "") == (src.RSSHubPath == ""):
-		fail(w, http.StatusBadRequest, "invalid_source")
-		return
-	case src.URL != "" && !feedURL(src.URL):
-		fail(w, http.StatusBadRequest, "invalid_url")
-		return
-	case src.RSSHubPath != "" && (!strings.HasPrefix(src.RSSHubPath, "/") || strings.HasPrefix(src.RSSHubPath, "//")):
-		fail(w, http.StatusBadRequest, "invalid_rsshub_path")
-		return
-	case !kinds[src.Kind]:
-		fail(w, http.StatusBadRequest, "invalid_kind")
+	if code := checkSource(src); code != "" {
+		fail(w, http.StatusBadRequest, code)
 		return
 	}
 	if body.FetchIntervalSec != nil {
@@ -158,6 +148,21 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 	default:
 		reply(w, http.StatusCreated, toJSON(created))
 	}
+}
+
+// checkSource returns the error code for a new subscription with trimmed addresses, or "" when it is valid.
+func checkSource(src store.NewSource) string {
+	switch {
+	case (src.URL == "") == (src.RSSHubPath == ""):
+		return "invalid_source"
+	case src.URL != "" && !feedURL(src.URL):
+		return "invalid_url"
+	case src.RSSHubPath != "" && (!strings.HasPrefix(src.RSSHubPath, "/") || strings.HasPrefix(src.RSSHubPath, "//")):
+		return "invalid_rsshub_path"
+	case !kinds[src.Kind]:
+		return "invalid_kind"
+	}
+	return ""
 }
 
 // feedURL accepts an absolute http or https address with a host name.

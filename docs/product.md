@@ -152,7 +152,7 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 - 只用标准库 `net/http`。JSON 字段用 camelCase。
 - 出错时返回 `{ "error": "<代码>" }`，代码是稳定的小写英文，界面据此显示本地化文案。
 - `GET /health` 不要鉴权，返回版本、是否要求口令、数据库是否可写。数据库不可写时 503。
-- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「设置接口」三节的路由。其余路由随各自的功能加进来，并写进这一节。
+- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「设置接口」「OPML 接口」四节的路由。其余路由随各自的功能加进来，并写进这一节。
 - 请求体是 JSON，最大 64 KiB；坏 JSON、多出未知字段或类型不对返回 400 `invalid_body`。
 
 ## 订阅接口
@@ -240,6 +240,32 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 - 有一个字段不对就整个请求不生效。
 - 抓取循环每次抓取和清理都重新读设置，改了从下一次抓取和清理起生效，不用重启。
 - 只下发上面列出的字段。API key 一类的密钥不进任何响应、日志和错误，只回是否已配置；AI 的设置由 AI 接口加进来。
+
+## OPML 接口
+
+都要会话（设了口令时）。
+
+| 路由 | 作用 |
+|---|---|
+| `POST /api/opml/import` | 请求体是 OPML 文本，逐条添加订阅，返回 `{ "added": n, "existing": n, "failed": [...] }`。 |
+| `GET /api/opml/export` | 所有源导出成一个 OPML 2.0 文件，`Content-Type: text/x-opml`，文件名 `oriel.opml`。 |
+
+OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义属性保留它们：`orielKind`（四种形态之一）和 `orielRsshubPath`。别的阅读器不认这两个属性，照常读 `xmlUrl`。
+
+导入：
+
+- 有 `xmlUrl` 或 `orielRsshubPath` 的 `outline` 是订阅，其余是分组。分组可以嵌套，逐层往下找；分组本身不导入。
+- 有 `orielRsshubPath` 时按 RSSHub 源加，不看 `xmlUrl`；否则按 `xmlUrl` 加。没有 `orielKind` 时形态是 `article`。
+- 标题取 `title`，没有就取 `text`，去掉首尾空白；和订阅地址一样时当没给，留给抓取补上。
+- 每条按「订阅接口」添加的规则校验，抓取间隔用默认值。已经订阅了的（包括同一文件里重复出现的）计入 `existing`，不算失败。
+- 不合规则的条目不影响别的条目，放进 `failed`，每项是 `{ "title", "address", "error" }`，`error` 是添加时的错误码，比如 `invalid_url`、`invalid_kind`。
+- 文件最大 1 MiB，超了返回 413 `opml_too_large`；不是 XML、根元素不是 `opml` 时返回 400 `invalid_opml`，什么都不加。
+
+导出：
+
+- 每个源一个 `outline`，不分组，带 `text`、`title`、`type="rss"`、`xmlUrl`、`htmlUrl` 和 `orielKind`。标题为空时 `text` 用地址。
+- RSSHub 源另带 `orielRsshubPath`。设了 RSSHub 根地址时，`xmlUrl` 是根地址加路径，别的阅读器能直接用；没设时没有 `xmlUrl`。
+- 导出的文件再导入，得到同样的订阅：地址、RSSHub 路径、形态和标题都一样。别的字段（抓取间隔、prompt、屏蔽词、暂停）不导出。
 
 ## 当前界面
 
