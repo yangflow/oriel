@@ -37,7 +37,7 @@ func TestMigrationsAreRepeatable(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 1 {
+	if version != 2 {
 		t.Fatalf("user_version = %d", version)
 	}
 	var mode string
@@ -344,5 +344,51 @@ func TestMuted(t *testing.T) {
 		if got := muted(c.keywords, c.title, c.summary); got != c.want {
 			t.Errorf("muted(%q, %q, %q) = %v", c.keywords, c.title, c.summary, got)
 		}
+	}
+}
+
+func TestAIResults(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	ctx := context.Background()
+	at := time.UnixMilli(1_700_000_000_000)
+	src, err := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "social", FetchInterval: time.Hour}, "", at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: "social", AITasks: []string{TaskSummary}}, "", "",
+		[]FeedEntry{{GUID: "a", Title: "A"}}, time.Time{}, at); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := s.Entries(ctx, EntryFilter{}, 1)
+	id := entries[0].ID
+	if _, err := s.AIResults(ctx, id+1); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing entry: %v", err)
+	}
+	results, err := s.AIResults(ctx, id)
+	if err != nil || len(results) != 1 || results[TaskSummary].Status != "pending" || results[TaskSummary].Requested {
+		t.Fatalf("automatic task: %+v %v", results, err)
+	}
+
+	s.SaveAI(ctx, id, TaskSummary, "first", "m", "fp", "", at)
+	s.SaveAI(ctx, id, TaskSummary, "", "", "", "ai_timeout", at)
+	got, err := s.RequestAI(ctx, id, TaskSummary, at)
+	if err != nil || got.Status != "pending" || got.Text != "first" || got.Error != "" || !got.Requested || got.Attempts != 2 || got.Fingerprint != "fp" {
+		t.Fatalf("a new request keeps the last success: %+v %v", got, err)
+	}
+	// A result's entry is the owner: content changes leave it alone and deleting the entry removes it.
+	if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: "social", AITasks: []string{TaskTranslation}}, "", "",
+		[]FeedEntry{{GUID: "a", Title: "A2"}}, time.Time{}, at); err != nil {
+		t.Fatal(err)
+	}
+	if results, _ := s.AIResults(ctx, id); len(results) != 1 {
+		t.Fatal("an existing entry was queued again")
+	}
+	if err := s.DeleteSource(ctx, src.ID); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	s.db.QueryRow("SELECT count(*) FROM entry_ai").Scan(&n)
+	if n != 0 {
+		t.Fatal("results outlived their entry")
 	}
 }

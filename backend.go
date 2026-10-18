@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
+	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/server"
 	"github.com/yangflow/oriel/internal/store"
@@ -29,13 +31,13 @@ var version = func() string {
 	return config.Version
 }()
 
-// backend is a running server with its store and the poller that fills it.
+// backend is a running server with its store, the poller that fills it and the AI worker.
 type backend struct {
-	store      *store.Store
-	http       *http.Server
-	addr       string
-	stopPoller context.CancelFunc
-	pollerDone chan struct{}
+	store          *store.Store
+	http           *http.Server
+	addr           string
+	stopBackground context.CancelFunc
+	background     sync.WaitGroup
 }
 
 // start opens the database in dataDir and serves the API until close. Port 0 picks a free port.
@@ -47,7 +49,8 @@ func start(ctx context.Context, dataDir, password string, port int) (*backend, e
 	if err != nil {
 		return nil, err
 	}
-	api, err := server.New(st, server.Config{Password: password, Version: version, Images: fetch.NewImages(version)})
+	worker := ai.New(st, version)
+	api, err := server.New(st, server.Config{Password: password, Version: version, Images: fetch.NewImages(version), AI: worker})
 	if err != nil {
 		st.Close()
 		return nil, err
@@ -57,27 +60,26 @@ func start(ctx context.Context, dataDir, password string, port int) (*backend, e
 		st.Close()
 		return nil, err
 	}
-	pollCtx, stopPoller := context.WithCancel(context.Background())
+	backgroundCtx, stopBackground := context.WithCancel(context.Background())
 	b := &backend{
 		store: st, http: &http.Server{Handler: api, ReadHeaderTimeout: 10 * time.Second}, addr: listener.Addr().String(),
-		stopPoller: stopPoller, pollerDone: make(chan struct{}),
+		stopBackground: stopBackground,
 	}
 	go func() {
 		if err := b.http.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("Server stopped", "error", err)
 		}
 	}()
-	go func() {
-		fetch.New(st, version).Run(pollCtx)
-		close(b.pollerDone)
-	}()
+	b.background.Go(func() { fetch.New(st, version).Run(backgroundCtx) })
+	b.background.Go(func() { worker.Run(backgroundCtx) })
 	return b, nil
 }
 
-// close waits for requests in flight, up to the context deadline, stops the poller, then closes the database.
+// close waits for requests in flight, up to the context deadline, stops the poller and the AI worker, then
+// closes the database.
 func (b *backend) close(ctx context.Context) error {
 	err := b.http.Shutdown(ctx)
-	b.stopPoller()
-	<-b.pollerDone
+	b.stopBackground()
+	b.background.Wait()
 	return errors.Join(err, b.store.Close())
 }

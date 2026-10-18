@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -144,6 +145,37 @@ func TestPollStoresAndRefetches(t *testing.T) {
 	if f.int("SELECT last_fetched_at FROM sources WHERE id = ?", id) != f.now.UnixMilli() ||
 		f.int("SELECT next_fetch_at FROM sources WHERE id = ?", id) != f.now.Add(15*time.Minute).UnixMilli() {
 		t.Fatal("304 was not recorded as a success")
+	}
+}
+
+func TestPollQueuesAI(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	feed := rssFeed
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(feed)) }))
+	defer srv.Close()
+	id := f.add(store.NewSource{URL: srv.URL})
+	on := true
+	if _, err := f.store.UpdateSource(ctx, id, store.SourcePatch{AutoSummary: &on, AutoTranslate: &on}, f.now); err != nil {
+		t.Fatal(err)
+	}
+	// Without an endpoint and a model nothing is queued.
+	f.poller.fetchDue(ctx)
+	if f.int("SELECT count(*) FROM entry_ai") != 0 {
+		t.Fatal("queued AI tasks while AI is not configured")
+	}
+
+	f.store.SetSetting(ctx, ai.BaseURLSetting, "http://localhost:11434/v1")
+	f.store.SetSetting(ctx, ai.ModelSetting, "local")
+	feed = strings.Replace(rssFeed, "post-1", "post-3", 1)
+	f.now = f.now.Add(15 * time.Minute)
+	if n := f.poller.fetchDue(ctx); n != 1 {
+		t.Fatalf("second poll created %d entries", n)
+	}
+	// Only the new entry gets both tasks; entries that came before the switch are not filled in.
+	if f.int("SELECT count(*) FROM entry_ai WHERE status = 'pending' AND requested = 0") != 2 ||
+		f.int("SELECT count(DISTINCT e.guid) FROM entry_ai a JOIN entries e ON e.id = a.entry_id WHERE e.guid = 'post-3'") != 1 {
+		t.Fatal("new entry not queued for summary and translation")
 	}
 }
 

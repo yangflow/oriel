@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -172,6 +173,15 @@ func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource) (int, e
 	var expired time.Time
 	if keep := p.retention(ctx); keep > 0 {
 		expired = now.Add(-keep)
+	}
+	if len(src.AITasks) > 0 {
+		configured, err := ai.Configured(ctx, p.store)
+		if err != nil {
+			return 0, err
+		}
+		if !configured {
+			src.AITasks = nil
+		}
 	}
 	created, err := p.store.SaveFeed(ctx, src, feed.title, feed.siteURL, feed.entries, expired, now)
 	if err != nil {

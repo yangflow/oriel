@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -39,6 +40,9 @@ type Config struct {
 	Version  string
 	// Images downloads pictures for GET /api/image; nil answers every request with image_unavailable.
 	Images Images
+	// AI works through the queue of summaries and translations. Nil makes one that is never run, so
+	// requests stay queued.
+	AI *ai.Worker
 }
 
 // Images downloads a picture found inside a feed and returns its content type and bytes.
@@ -50,6 +54,7 @@ type Images interface {
 type Server struct {
 	store   *store.Store
 	images  Images
+	ai      *ai.Worker
 	version string
 	salt    []byte
 	derived []byte // nil when no password is set
@@ -59,7 +64,10 @@ type Server struct {
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, version: cfg.Version, now: time.Now}
+	s := &Server{store: st, images: cfg.Images, ai: cfg.AI, version: cfg.Version, now: time.Now}
+	if s.ai == nil {
+		s.ai = ai.New(st, cfg.Version)
+	}
 	if cfg.Password != "" {
 		s.salt = make([]byte, 16)
 		rand.Read(s.salt)
@@ -85,6 +93,10 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("GET /api/entries/{id}", s.authed(s.getEntry))
 	mux.HandleFunc("PATCH /api/entries/{id}", s.authed(s.updateEntry))
 	mux.HandleFunc("POST /api/entries/read", s.authed(s.markRead))
+	mux.HandleFunc("GET /api/entries/{id}/ai", s.authed(s.getAI))
+	mux.HandleFunc("POST /api/entries/{id}/summary", s.authed(s.requestSummary))
+	mux.HandleFunc("POST /api/entries/{id}/translation", s.authed(s.requestTranslation))
+	mux.HandleFunc("POST /api/ai/test", s.authed(s.testAI))
 	mux.HandleFunc("GET /api/settings", s.authed(s.getSettings))
 	mux.HandleFunc("PATCH /api/settings", s.authed(s.updateSettings))
 	mux.HandleFunc("POST /api/opml/import", s.authed(s.importOPML))
