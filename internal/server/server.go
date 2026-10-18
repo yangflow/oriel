@@ -67,6 +67,12 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("POST /auth/logout", s.authed(s.logout))
 	mux.HandleFunc("GET /api/sessions", s.authed(s.sessions))
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.authed(s.revoke))
+	mux.HandleFunc("GET /api/sources", s.authed(s.listSources))
+	mux.HandleFunc("POST /api/sources", s.authed(s.createSource))
+	mux.HandleFunc("GET /api/sources/{id}", s.authed(s.getSource))
+	mux.HandleFunc("PATCH /api/sources/{id}", s.authed(s.updateSource))
+	mux.HandleFunc("DELETE /api/sources/{id}", s.authed(s.deleteSource))
+	mux.HandleFunc("POST /api/sources/{id}/refresh", s.authed(s.refreshSource))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "not_found") })
 	s.handler = mux
 	return s, nil
@@ -171,9 +177,8 @@ func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		fail(w, http.StatusBadRequest, "invalid_id")
+	id, ok := pathID(w, r)
+	if !ok {
 		return
 	}
 	switch err := s.store.DeleteSession(r.Context(), id); {

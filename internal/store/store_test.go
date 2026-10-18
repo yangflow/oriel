@@ -170,3 +170,77 @@ func TestOneProcessPerDatabase(t *testing.T) {
 	s.Close()
 	open(t, file)
 }
+
+func TestSources(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	start := time.UnixMilli(1_000_000)
+	blog, err := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "", start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blog.FetchInterval != time.Hour || !blog.NextFetchAt.Equal(start) || !blog.LastFetchedAt.IsZero() || blog.UnreadCount != 0 {
+		t.Fatalf("created %+v", blog)
+	}
+	if _, err := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "video", FetchInterval: time.Hour}, "", start); !errors.Is(err, ErrExists) {
+		t.Fatalf("duplicate: %v", err)
+	}
+	hub, err := s.CreateSource(ctx, NewSource{RSSHubPath: "/github/issue/x", Kind: "social", FetchInterval: time.Hour}, "Alpha", start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, guid := range []string{"a", "b"} {
+		if _, err := s.db.Exec("INSERT INTO entries (source_id, guid, created_at, updated_at) VALUES (?, ?, 1, 1)", hub.ID, guid); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.db.Exec("UPDATE entries SET is_read = 1 WHERE guid = 'a'")
+
+	list, err := s.Sources(ctx)
+	if err != nil || len(list) != 2 || list[0].ID != hub.ID || list[0].UnreadCount != 1 || list[1].ID != blog.ID {
+		t.Fatalf("Sources = %+v, %v", list, err)
+	}
+
+	later := start.Add(time.Minute)
+	title, kind, paused := "Renamed", "image", true
+	updated, err := s.UpdateSource(ctx, blog.ID, SourcePatch{Title: &title, Kind: &kind, Paused: &paused}, later)
+	if err != nil || updated.Title != title || updated.Kind != kind || !updated.Paused || !updated.UpdatedAt.Equal(later) || updated.FetchInterval != time.Hour {
+		t.Fatalf("UpdateSource = %+v, %v", updated, err)
+	}
+	if same, err := s.UpdateSource(ctx, blog.ID, SourcePatch{}, later.Add(time.Hour)); err != nil || !same.UpdatedAt.Equal(later) {
+		t.Fatalf("empty patch = %+v, %v", same, err)
+	}
+	if _, err := s.UpdateSource(ctx, 99, SourcePatch{Title: &title}, later); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("update missing: %v", err)
+	}
+
+	if err := s.MarkSourceDue(ctx, blog.ID, later); !errors.Is(err, ErrPaused) {
+		t.Fatalf("due while paused: %v", err)
+	}
+	due := later.Add(time.Hour)
+	if err := s.MarkSourceDue(ctx, hub.ID, due); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Source(ctx, hub.ID); !got.NextFetchAt.Equal(due) || !got.UpdatedAt.Equal(start) {
+		t.Fatalf("after MarkSourceDue: %+v", got)
+	}
+	if err := s.MarkSourceDue(ctx, 99, due); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("due missing: %v", err)
+	}
+
+	s.db.Exec("UPDATE entries SET starred = 1")
+	if err := s.DeleteSource(ctx, hub.ID); err != nil {
+		t.Fatal(err)
+	}
+	var entries int
+	s.db.QueryRow("SELECT count(*) FROM entries").Scan(&entries)
+	if entries != 0 {
+		t.Fatalf("%d entries survived their source", entries)
+	}
+	if err := s.DeleteSource(ctx, hub.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("second delete: %v", err)
+	}
+	if _, err := s.Source(ctx, hub.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleted source: %v", err)
+	}
+}
