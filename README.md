@@ -43,6 +43,9 @@ Working now, on the server side:
   export keeps each source's kind and RSSHub path. The import and export buttons are still to come.
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
   with password sign-in and per-device sessions.
+- **Connect to a remote server.** The desktop app can switch to an `oriel serve` on another machine from
+  "Connect to Server…" in the app menu. Only the session token is kept, readable by you alone; the password is
+  never saved.
 - **One storage file.** SQLite with full-text search through a pure Go driver; no cgo in production code. The
   window reads and writes only through the HTTP API, so desktop and headless behave the same.
 - **Two languages.** The interface is in English and Simplified Chinese.
@@ -52,7 +55,8 @@ Planned, in the order of the [milestones](https://github.com/yangflow/oriel/mile
 layout per kind, the article reader, on-demand AI summaries and translation through your own OpenAI-compatible
 endpoint, settings and OPML import and export.
 
-Status: early development, version 0.1.0, no release yet. The window still shows a counter example;
+Status: early development, version 0.1.0, no release yet. Apart from the connect screen, the window still shows a
+counter example;
 subscriptions and the timeline have an API but no screen yet, and settings have neither. Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on
 amd64 and arm64. Linux builds need glibc, also when running headless.
 

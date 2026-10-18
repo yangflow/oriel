@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connect screen</title>
+<!-- Connecting the desktop app to an Oriel server started with `oriel serve`, and signing in again when its session
+     ends. Colors are the Oriel palette of design/tokens.md. Icons are Lucide (ISC License). Fields have no
+     visible label: the icon and the placeholder show what they are, and each control's accessible name is its
+     Label. The bar above the window only switches the mockup.
+     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
+<style>
+:root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
+:root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
+:root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5) }
+:root[data-scheme=dark] { --background:#1b1a18; --surface:#25231f; --surface-hover:#2f2c28; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55) }
+* { box-sizing:border-box }
+body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
+svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
+
+.switcher { display:flex; flex-wrap:wrap; gap:8px 16px; margin:0 0 16px; font-size:12px; color:var(--stage-text) }
+.switcher select { font:inherit }
+
+.window { width:960px; height:640px; border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; background:var(--background) }
+.window.min { width:640px; height:480px }
+.titlebar { height:28px; flex:none; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); background:var(--surface); border-bottom:1px solid var(--border) }
+
+main { flex:1; overflow-y:auto; display:flex; justify-content:center; align-items:safe center; padding:24px }
+.sheet { width:100%; max-width:320px; display:flex; flex-direction:column; gap:24px }
+header { display:flex; flex-direction:column; align-items:center; gap:12px }
+.tile { width:48px; height:48px; border-radius:12px; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent) }
+.tile svg.icon { width:24px; height:24px; stroke-width:1.5 }
+h1 { margin:0; font-size:17px; font-weight:600 }
+
+form { display:flex; flex-direction:column; gap:8px; margin:0 }
+.box { display:flex; align-items:center; gap:8px; height:32px; padding:0 4px 0 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--muted) }
+.box:focus-within { border-color:var(--accent); background:var(--background); box-shadow:0 0 0 3px var(--focus) }
+.box.invalid, .box.invalid:focus-within { border-color:var(--danger); color:var(--danger) }
+.box.invalid:focus-within { box-shadow:0 0 0 3px var(--danger-soft) }
+.box.ok > svg:first-child { color:var(--success) }
+.box input { flex:1; min-width:0; height:100%; border:0; outline:0; background:none; font:inherit; color:var(--text) }
+.box input::placeholder { color:var(--muted) }
+.box input:disabled { color:var(--muted) }
+.trail { width:24px; height:24px; display:grid; place-items:center; border:0; border-radius:6px; background:none; color:var(--muted) }
+button.trail:hover { background:var(--surface-hover); color:var(--text) }
+.trail.ok { color:var(--success) }
+
+.field { display:flex; flex-direction:column; gap:6px }
+.error { display:flex; align-items:center; gap:6px; padding-left:2px; font-size:12px; color:var(--danger) }
+.error svg.icon { width:14px; height:14px }
+.lead { margin:-4px 0 0; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted) }
+.lead svg.icon { width:14px; height:14px }
+.lead strong { font-weight:500; color:var(--text) }
+
+.actions { display:flex; gap:8px }
+button { font:inherit; color:var(--text) }
+button:focus-visible { outline:3px solid var(--focus); outline-offset:1px }
+.button { flex:1; height:32px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 12px; white-space:nowrap; border:1px solid var(--border); border-radius:8px; background:var(--background) }
+.button:hover:not(:disabled) { background:var(--surface-hover) }
+.button.primary { border-color:var(--accent); background:var(--accent); color:var(--accent-text); font-weight:500 }
+.button.primary:hover:not(:disabled) { background:var(--accent-hover); border-color:var(--accent-hover) }
+.button:disabled { opacity:.55 }
+.spin { animation:spin .9s linear infinite }
+@keyframes spin { to { transform:rotate(360deg) } }
+</style>
+<div class="switcher" aria-hidden="true">
+  <label>state <select id="state"></select></label>
+  <label>scheme <select id="scheme"><option>light</option><option>dark</option></select></label>
+  <label>lang <select id="lang"><option>en</option><option>zh-Hans</option></select></label>
+  <label>size <select id="size"><option>default</option><option>min</option></select></label>
+</div>
+<div class="window" id="window"><div class="titlebar">Oriel</div><main id="app"></main></div>
+<script>
+const states=['connect','connecting','unreachable','not-oriel','password-required','wrong-password','server-error','expired'];
+const query=new URLSearchParams(location.search);
+const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
+const state=pick('state',states,'connect');
+const scheme=pick('scheme',['light','dark'],'light');
+const lang=pick('lang',['en','zh-Hans'],'en');
+const size=pick('size',['default','min'],'default');
+document.documentElement.dataset.scheme=scheme;
+document.documentElement.lang=lang;
+document.getElementById('window').classList.toggle('min',size==='min');
+for(const [id,value,list] of [['state',state,states],['scheme',scheme],['lang',lang],['size',size]]){
+  const select=document.getElementById(id);
+  if(list)select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
+  select.value=value;
+  select.onchange=()=>{query.set(id,select.value);location.search=query};
+}
+
+const icons={
+  server:'<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
+  globe:'<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/>',
+  key:'<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
+  eye:'<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+  arrowRight:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  laptop:'<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
+  alert:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+  wifiOff:'<path d="M12 20h.01M8.5 16.429a5 5 0 0 1 7 0M5 12.859a10 10 0 0 1 5.17-2.69M19 12.859a10 10 0 0 0-2.007-1.523M2 8.82a15 15 0 0 1 4.177-2.643M22 8.82a15 15 0 0 0-11.288-3.764M2 2l20 20"/>',
+  lockKeyhole:'<circle cx="12" cy="16" r="1"/><rect x="3" y="10" width="18" height="12" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/>',
+  database:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+};
+const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
+
+const copy={
+  en:{
+    title:'Connect to a server',
+    address:'Server address',
+    password:'Password, if any',
+    passwordLabel:'Password',
+    show:'Show password',
+    reachable:'Server found',
+    useLocal:'This computer',
+    connect:'Connect',
+    connecting:'Connecting',
+    unreachable:'Can’t reach this address',
+    notOriel:'Not an Oriel server',
+    passwordRequired:'Password required',
+    wrongPassword:'Wrong password',
+    serverError:'The server can’t open its data',
+    expired:'Signed out of <strong>{server}</strong>',
+  },
+  'zh-Hans':{
+    title:'连接服务端',
+    address:'服务端地址',
+    password:'口令（没有可留空）',
+    passwordLabel:'口令',
+    show:'显示口令',
+    reachable:'已找到服务端',
+    useLocal:'本机',
+    connect:'连接',
+    connecting:'正在连接',
+    unreachable:'连不上这个地址',
+    notOriel:'这里不是 Oriel',
+    passwordRequired:'需要口令',
+    wrongPassword:'口令不对',
+    serverError:'服务端打不开它的数据',
+    expired:'<strong>{server}</strong> 的登录已失效',
+  },
+}[lang];
+const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
+
+const server='home.example:7470';
+const busy=state==='connecting';
+const address={connect:'',unreachable:'https://oriel.example:7470','not-oriel':'https://home.example:8080'}[state]??`https://${server}`;
+const addressInvalid=['unreachable','not-oriel'].includes(state);
+const passwordInvalid=['password-required','wrong-password'].includes(state);
+const password=['wrong-password','connecting','server-error'].includes(state)?'correct-horse':'';
+const error={
+  unreachable:['address','wifiOff',t('unreachable')],
+  'not-oriel':['address','server',t('notOriel')],
+  'password-required':['password','lockKeyhole',t('passwordRequired')],
+  'wrong-password':['password','alert',t('wrongPassword')],
+  'server-error':['form','database',t('serverError')],
+}[state];
+const errorLine=field=>error?.[0]===field?`<div class="error" id="${field}-error" role="alert">${icon(error[1])}${error[2]}</div>`:'';
+const described=field=>error?.[0]===field?`aria-invalid="true" aria-describedby="${field}-error"`:'';
+
+document.getElementById('app').innerHTML=`<div class="sheet">
+  <header><div class="tile">${icon('server')}</div><h1>${t('title')}</h1>
+    ${state==='expired'?`<p class="lead" role="status">${icon('clock')}<span>${t('expired',{server})}</span></p>`:''}</header>
+  <form onsubmit="return false">
+    <div class="field"><div class="box${addressInvalid?' invalid':busy?' ok':''}">${icon('globe')}
+      <input id="address" aria-label="${t('address')}" placeholder="${t('address')}" value="${address}" ${busy?'disabled':''} ${described('address')}>
+      ${busy?`<span class="trail ok" role="img" aria-label="${t('reachable')}">${icon('check')}</span>`:''}</div>
+      ${errorLine('address')}</div>
+    <div class="field"><div class="box${passwordInvalid?' invalid':''}">${icon('key')}
+      <input id="password" type="password" aria-label="${t('passwordLabel')}" placeholder="${t('password')}" value="${password}" ${busy?'disabled':''} ${described('password')}>
+      <button type="button" class="trail" aria-label="${t('show')}" title="${t('show')}" ${busy?'disabled':''}>${icon('eye')}</button></div>
+      ${errorLine('password')}</div>
+    ${errorLine('form')}
+  </form>
+  <div class="actions">
+    <button class="button" ${busy?'disabled':''}>${icon('laptop')}${t('useLocal')}</button>
+    <button class="button primary" ${busy?'disabled':''}>${busy?icon('loader','spin')+t('connecting'):t('connect')+icon('arrowRight')}</button>
+  </div>
+</div>`;
+const focus=addressInvalid?'address':passwordInvalid||state==='expired'?'password':busy?null:'address';
+if(focus)document.getElementById(focus).focus();
+</script>
+</html>

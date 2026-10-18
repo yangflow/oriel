@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/store"
+	"github.com/yangflow/oriel/internal/ui/connect"
 	"github.com/yangflow/oriel/internal/ui/example"
 	"github.com/yangflow/oriel/internal/ui/startup"
 )
@@ -84,7 +86,8 @@ func serve(args []string) int {
 	return 0
 }
 
-// desktop serves on a free loopback port without a password and opens the window.
+// desktop serves on a free loopback port without a password and opens the window. Signed in to a remote server, it
+// shows that server's data instead.
 func desktop() {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
@@ -107,17 +110,32 @@ func desktop() {
 			mygo.App.Quit()
 			return
 		}
-		screen := example.New(mygo.App.Locale())
+		systemLocale := mygo.App.Locale()
+		home := example.New(systemLocale)
+		goAsync := func(work func() func()) {
+			go func() {
+				apply := work()
+				window.Update(apply)
+			}()
+		}
+		root := newShell(systemLocale, filepath.Join(dataDir, sessionFile), home.View, goAsync)
 		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 			{Label: "Oriel", Submenu: []*mygo.MenuItem{
-				{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(), {Role: mygo.RoleQuit},
+				{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
+				{Label: connect.MenuLabel(systemLocale), Click: func(*mygo.MenuItem, *mygo.Window) {
+					window.Update(root.openConnect)
+					window.Restore()
+					window.Focus()
+				}},
+				mygo.Separator(), {Role: mygo.RoleQuit},
 			}},
 			{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
 		}))
 		window = mygo.NewWindow(mygo.WindowOptions{
-			Title: "Oriel", Width: 480, Height: 320, MinWidth: 360, MinHeight: 280,
-			Content: ui.View(screen.View),
+			Title: "Oriel", Width: 960, Height: 640, MinWidth: 640, MinHeight: 480,
+			Content: ui.View(root.View),
 		})
+		root.restore()
 	})
 	mygo.App.OnSecondInstance(func([]string, string) {
 		if window != nil {

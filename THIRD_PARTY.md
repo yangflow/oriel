@@ -25,6 +25,7 @@
 | github.com/go-shiori/dom | v0.0.0-20230515143342-73569d674e1c | MIT | yes | `resources/ThirdPartyLicenses/dom/LICENSE` | no |
 | github.com/gogs/chardet | v0.0.0-20211120154057-b7413eaefb8f | MIT, with ICU notice | yes | `resources/ThirdPartyLicenses/chardet/` | no |
 | github.com/itlightning/dateparse | v0.2.1 | MIT | yes | `resources/ThirdPartyLicenses/dateparse/LICENSE` | no |
+| Lucide icons (lucide-static, copied into `internal/ui/icons/lucide/`) | 1.59.0 | ISC; icons from Feather are MIT | yes | `resources/ThirdPartyLicenses/lucide/LICENSE` | no |
 
 ## Notes
 

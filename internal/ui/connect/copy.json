@@ -1,0 +1,42 @@
+{
+  "en": {
+    "Title": "Connect to a server",
+    "Address": "Server address",
+    "Password": "Password, if any",
+    "PasswordLabel": "Password",
+    "Show": "Show password",
+    "Hide": "Hide password",
+    "Reachable": "Server found",
+    "UseLocal": "This computer",
+    "Connect": "Connect",
+    "Connecting": "Connecting",
+    "Unreachable": "Can’t reach this address",
+    "NotOriel": "Not an Oriel server",
+    "PasswordRequired": "Password required",
+    "WrongPassword": "Wrong password",
+    "ServerError": "The server can’t open its data",
+    "Failed": "Couldn’t sign in",
+    "Expired": "Signed out of {server}",
+    "Menu": "Connect to Server…"
+  },
+  "zh-Hans": {
+    "Title": "连接服务端",
+    "Address": "服务端地址",
+    "Password": "口令（没有可留空）",
+    "PasswordLabel": "口令",
+    "Show": "显示口令",
+    "Hide": "隐藏口令",
+    "Reachable": "已找到服务端",
+    "UseLocal": "本机",
+    "Connect": "连接",
+    "Connecting": "正在连接",
+    "Unreachable": "连不上这个地址",
+    "NotOriel": "这里不是 Oriel",
+    "PasswordRequired": "需要口令",
+    "WrongPassword": "口令不对",
+    "ServerError": "服务端打不开它的数据",
+    "Failed": "没能登录",
+    "Expired": "{server} 的登录已失效",
+    "Menu": "连接服务端…"
+  }
+}

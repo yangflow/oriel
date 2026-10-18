@@ -11,10 +11,10 @@ of its [UI guides](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/README.md)
 stay the authority on API details. Links point to MyGo v0.3.6, the version pinned in `go.mod`. When the pin moves,
 check the pages again and update the links and this document together.
 
-Today the window still shows the counter example in `internal/ui/example/`, kept to exercise the toolchain,
-localization and headless tests. It follows these rules and is the reference values below call "the example". It is
-removed when the first product screen lands; the timeline, reader, subscription and settings screens described here
-are plans until their mockup and code are merged.
+The first product screen is the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`),
+which connects the desktop app to a remote server. Home still shows the counter example in `internal/ui/example/`
+until the timeline replaces it; the values below call it "the example". The timeline, reader, subscription and
+settings screens described here are plans until their mockup and code are merged.
 
 Related files: [design/README.md](../design/README.md) (mockups and how a UI change is made) and
 [design/tokens.md](../design/tokens.md) (spacing, size and color values in one table).
@@ -77,18 +77,24 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   [scroll view](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/scroll.md). The timeline is a
   [list](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/list.md), which builds only the rows in view and lets rows
   of different kinds have different heights.
-- **The example.** Default window 480×320, minimum 360×280; outer padding `Space(6)` (24); vertical gap `Space(4)`
-  (16); button gap `Space(2)` (8); symbol buttons `Space(11)` (44) wide. The reset button grows to fit its localized
-  label.
+- **The example.** Outer padding `Space(6)` (24); vertical gap `Space(4)` (16); button gap `Space(2)` (8); symbol
+  buttons `Space(11)` (44) wide. The reset button grows to fit its localized label.
+- **The connect screen.** A sheet at most `Space(80)` (320) wide, centered in a scroll view with outer padding
+  `Space(6)`; `Space(6)` between the header, the form and the buttons, `Space(2)` between fields, `Space(1.5)` (6)
+  between a field and its error. Fields and buttons are `Space(8)` (32) high; the two buttons share the width
+  equally.
 
 ## Color and dark mode
 
-Colors come from the theme, `c.Theme()`: it is the light or dark theme, switches when the system appearance changes,
-and carries the user's accent color and contrast settings. See
+Colors come from the theme, `c.Theme()`. Oriel puts its own palette, warm neutrals and a teal accent, on the theme
+roles: the root view calls `theme.Apply` (in `internal/ui/theme/`) first in every frame, which picks the light or
+dark palette for the system appearance and keeps the theme's metrics, so the desktop's text size still applies. The
+values are in [design/tokens.md](../design/tokens.md). See
 [Styling and themes](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/styling.md).
 
-- **Always use theme roles, never literals.** Use only MyGo theme colors; for example, secondary text uses
-  `TextMuted`. Hard-coded colors do not follow dark mode, accent or high contrast.
+- **Always use theme roles, never literals.** Screens use only theme colors; for example, secondary text uses
+  `TextMuted`. Color literals live only in `internal/ui/theme/`. A faint fill behind an icon or a status is
+  `theme.Soft` of a role.
 
   | Role | Use |
   |---|---|
@@ -105,15 +111,16 @@ and carries the user's accent color and contrast settings. See
 - **Appearance.** Do not implement your own dark mode switch; the theme follows the system. If a screen draws custom
   elements, use only theme colors, or read `c.Theme().Dark` where a choice cannot be expressed with them. For derived
   colors use `Mix` and `Alpha` on theme colors rather than new constants.
-- **Accent.** One primary action per group uses `PrimaryButton`. Oriel has no brand color and does not recolor the
-  accent; it is the user's system accent.
+- **Accent.** Oriel's accent is teal, in both appearances; it does not follow the system accent. One primary action
+  per group gets the accent.
 - **Contrast.** Text and meaningful graphics should meet WCAG 2.1 AA: 4.5:1 for body text, 3:1 for large text and
-  control boundaries. Test with the desktop's high contrast setting on (`c.Preferences().HighContrast`).
+  control boundaries. With the desktop's high contrast setting on (`c.Preferences().HighContrast`), `theme.Apply`
+  moves `Border` and `TextMuted` toward `Text` and makes `Focus` opaque; test with it on.
 - **Status.** Color supplements a message; the message states the status in words. A read entry, a failing
   subscription or a missing full text is said in text, not only shown as a dimmed or red row.
 - **Content colors.** Images and video thumbnails from feeds keep their own colors; everything Oriel draws around
   them uses theme roles.
-- **Mockups.** Colors in `design/screens/` approximate the default theme; the app running on a real device is what
+- **Mockups.** Mockups use the Oriel palette of `design/tokens.md`; the app running on a real device is what
   counts.
 
 ## Typography
@@ -137,20 +144,21 @@ and carries the user's accent color and contrast settings. See
 ## Icons and images
 
 - **Icons are SVG** shown with `ui.Icon`, which takes the text color and the font size: an icon follows theme colors
-  and the text size automatically. Any set that uses plain SVG (Lucide, Heroicons, Tabler, Material Symbols) works;
-  pick one set for the whole app, and record it and its license in `THIRD_PARTY.md` when it ships. Embed icons with
-  `go:embed` and parse them once at package level. See
-  [Icon](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/icon.md).
+  and the text size automatically. See [Icon](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/icon.md).
+- **One set: [Lucide](https://lucide.dev)** (ISC License), recorded in `THIRD_PARTY.md`. The files of lucide-static
+  are copied unchanged into `internal/ui/icons/lucide/` and parsed once in `internal/ui/icons`; add an icon there
+  before using it. Prefer an icon to a word where the icon is clearer, and keep the word where it is not.
 - **An icon needs a name when it is alone.** Icons are decoration for assistive technology unless given a `Label`.
   A button that shows only an icon or a symbol must get a readable name with `.Label()`; an icon next to a visible
   text label needs none.
-- **Icon before label** in buttons, one icon style for the product, sized with `FontSize`.
+- **Icon before label** in buttons, except a forward arrow, which follows its label ("Connect →"). Icons in fields
+  and buttons are 1.25 rem, in error lines 1.05 rem, sized with `FontSize`.
 - **Feed images** (thumbnails, image entries, site icons) use
   [Image](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/image.md). Download and decode them in the background and
   make each bitmap once, never in the view; until it is ready, keep the image's box at its final size so the timeline
   does not jump. Images that carry meaning get a `Label`; decorative ones do not.
-- **The example.** The counter uses the text symbols `+` and `−` with localized accessible labels. There is no icon
-  set yet, and the product icon is still to be designed (see [design/README.md](../design/README.md)).
+- **The example.** The counter uses the text symbols `+` and `−` with localized accessible labels. The product icon
+  is still to be designed (see [design/README.md](../design/README.md)).
 
 ## Component guide
 
@@ -164,7 +172,10 @@ What Oriel uses today:
 |---|---|
 | `ui.Button` | Secondary actions. A button that shows only a symbol must give a readable name with `.Label()`. |
 | `ui.PrimaryButton` | The main action of a group of buttons; at most one. |
-| `ui.Text` | Text. Secondary explanations use `TextMuted`. |
+| `ui.Text`, `ui.RichText` | Text; `RichText` where one word of a sentence is set apart. Secondary explanations use `TextMuted`. |
+| `ui.TextInputBase` | A text field drawn by the screen, inside a box with its icon; `Error` names what is wrong for assistive technology, and the screen shows it under the field. |
+| `ui.ButtonBase` | Buttons drawn by the screen in the Oriel look: an icon and a label, or an icon alone with a `Label`. |
+| `ui.Icon` | Lucide icons from `internal/ui/icons`. |
 
 The tables below say what to reach for as screens are added.
 
@@ -249,8 +260,7 @@ Overlays share focus and Escape behavior; see
 ## Windows, menus and navigation
 
 - **Windows.** One main window; set `Title`, `Width`, `Height`, and `MinWidth`/`MinHeight` so content never clips.
-  Oriel's window is 480×320 with a minimum of 360×280, sized for the example; the first product screen sets the real
-  sizes. `StateKey` remembers size and position between runs and is not used yet. A second launch brings the existing
+  Oriel's window is 960×640 with a minimum of 640×480. `StateKey` remembers size and position between runs and is not used yet. A second launch brings the existing
   window to the front. See
   [Windows with native UI](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/windows.md) and the
   [window options](https://github.com/egoist/mygo/blob/v0.3.6/docs/windows.md).
@@ -260,7 +270,8 @@ Overlays share focus and Escape behavior; see
 - **Vibrancy and materials.** macOS vibrancy shows where the view draws no background; if used at all, use it for a
   sidebar only, over opaque content. Oriel uses opaque theme surfaces and no custom glass.
 - **Menus.** The macOS menu bar belongs to the app. Oriel's menu has an app menu (About, check for updates, Quit),
-  the Edit menu (`RoleEditMenu`, so copy and paste work) and the Window menu (`RoleWindowMenu`). Use roles
+  the Edit menu (`RoleEditMenu`, so copy and paste work) and the Window menu (`RoleWindowMenu`); "Connect to
+  Server…" in the app menu opens the connect screen. Use roles
   (`RoleAbout`, `RoleQuit` and the others) for standard items: they carry the right label and shortcut, and items
   that only macOS has are left out elsewhere. Give custom items an accelerator with `CmdOrCtrl`. Every command
   reachable by a toolbar button should also be in a menu. See
@@ -316,7 +327,8 @@ Oriel has no custom animation: state changes take effect immediately. See
   for less motion (`c.Preferences().ReduceMotion`). Any motion you compute yourself must read the preference.
   Spinners may keep turning: they show that work is going on.
 - **Never animate to hide latency**, and do not loop decoration.
-- **The example.** None; the count changes at once.
+- **The example.** None; the count changes at once. The connect screen's only motion is its button's spinner icon
+  while it connects.
 
 ## Localization
 
@@ -340,7 +352,7 @@ Oriel has no custom animation: state changes take effect immediately. See
 
 Run before a UI pull request is merged, and on each target platform before a release:
 
-- [ ] Every state in the mockup is reached in the app (for the example: zero, positive and negative counts).
+- [ ] Every state in the mockup is reached in the app (for the connect screen: each state of the mockup's switcher).
 - [ ] Both languages, light and dark, the default and the minimum window size checked.
 - [ ] Keyboard-only run-through, and a screen reader pass on each target platform.
 - [ ] High contrast and larger text size checked.

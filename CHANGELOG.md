@@ -6,10 +6,12 @@ All notable user-facing changes are recorded here, following [Keep a Changelog](
 
 ### Changed
 
+- The window uses Oriel's own palette, warm neutrals with a teal accent, in light and dark, and Lucide icons. It opens at 960×640 and can shrink to 640×480.
 - The interface is available in English and Simplified Chinese only; Chinese systems, Traditional included, show Simplified Chinese.
 
 ### Added
 
+- The desktop app can connect to a remote `oriel serve` from "Connect to Server…" in the app menu, and sign in with its password. The session token is kept in the data directory, readable by the user only; the password is never saved. When the session ends, the app asks for the password again; "This computer" switches back to local data.
 - OPML import and export over HTTP. Import walks nested groups and counts duplicates apart from failures. Export keeps each source's kind and RSSHub path, so the file imports back into the same subscriptions.
 - An HTTP API for settings: read and change the RSSHub address and the retention period, with validation; secrets are never sent back.
 - Mute keywords hide matching entries from the timeline, search, unread counts and mark-all-read; starred entries stay, and nothing is deleted.
