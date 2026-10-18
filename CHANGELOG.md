@@ -10,6 +10,7 @@ All notable user-facing changes are recorded here, following [Keep a Changelog](
 
 ### Added
 
+- OPML import and export over HTTP. Import walks nested groups and counts duplicates apart from failures. Export keeps each source's kind and RSSHub path, so the file imports back into the same subscriptions.
 - An HTTP API for settings: read and change the RSSHub address and the retention period, with validation; secrets are never sent back.
 - Mute keywords hide matching entries from the timeline, search, unread counts and mark-all-read; starred entries stay, and nothing is deleted.
 - An HTTP API for the timeline: pages by cursor, filters by source, kind, unread and starred, full-text search, and marking entries read or starred.

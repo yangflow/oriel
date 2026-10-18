@@ -39,6 +39,8 @@ Working now, on the server side:
   deleting them. The timeline screen is still to come.
 - **Settings API.** Read and change the RSSHub address and the retention period over HTTP; secrets are never
   sent back. The settings screen is still to come.
+- **OPML API.** Import subscriptions from another reader, nested groups included, and export them all; the
+  export keeps each source's kind and RSSHub path. The import and export buttons are still to come.
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
   with password sign-in and per-device sessions.
 - **One storage file.** SQLite with full-text search through a pure Go driver; no cgo in production code. The
