@@ -33,8 +33,8 @@ type copy struct {
 	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint           string
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, ConfirmTitle      string
 	ConfirmBody, Cancel, Confirm, Marked, Starring, Unstarring, ActionFailed, OpenFailed               string
-	ThisComputer, Server, Duration, MorePictures, Pictures, Now, Minutes, Hours, Yesterday, Days       string
-	DateLayout, YearLayout, Separator, AddSource, EditSource, AddFirst, PausedMark                     string
+	ThisComputer, Server, Settings, Duration, MorePictures, Pictures, Now, Minutes, Hours, Yesterday   string
+	Days, DateLayout, YearLayout, Separator, AddSource, EditSource, AddFirst, PausedMark               string
 }
 
 var translations = func() map[string]copy {
@@ -71,14 +71,16 @@ type API interface {
 
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it
 // returns on the UI thread. Now is the clock and Decode turns the bytes of a picture into a bitmap, off the UI thread;
-// they default to time.Now and ui.DecodeBitmap. OpenConnect shows the connect screen, from the server bar, and
-// Expired shows it because the server no longer takes the session.
+// they default to time.Now and ui.DecodeBitmap. OpenConnect shows the connect screen, from the server bar,
+// OpenSettings the settings, from the gear beside it, and Expired the connect screen because the server no longer
+// takes the session.
 type Deps struct {
-	Go          func(work func() (apply func()))
-	Now         func() time.Time
-	Decode      func([]byte) (*ui.Bitmap, error)
-	OpenConnect func()
-	Expired     func()
+	Go           func(work func() (apply func()))
+	Now          func() time.Time
+	Decode       func([]byte) (*ui.Bitmap, error)
+	OpenConnect  func()
+	OpenSettings func()
+	Expired      func()
 }
 
 // scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
@@ -212,6 +214,12 @@ func (s *Screen) Use(api API, server string) {
 	s.confirm = asking{}
 	s.subs.Use(api)
 	s.reader.Use(api)
+	s.loadSources()
+	s.reload()
+}
+
+// Refresh loads the subscriptions and the entries again, as after an import added subscriptions.
+func (s *Screen) Refresh() {
 	s.loadSources()
 	s.reload()
 }
@@ -1091,19 +1099,32 @@ func (s *Screen) serverBar(c *ui.Context) {
 		name, icon = s.server, icons.Server
 	}
 	ui.Box(c).FillWidth().Height(1).Background(t.Border)
-	bar := ui.ButtonBase(c).FillWidth().Height(px(t, 40)).Gap(t.Space(2)).PaddingX(t.Space(4)).
-		Label(strings.ReplaceAll(s.text.Server, "{server}", name))
-	if bar.Hovered() {
-		bar.Background(t.SurfaceHover)
-	}
-	bar.Children(func() {
-		ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(t.TextMuted)
-		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(px(t, 12)).TextColor(t.TextMuted)
-		ui.Box(c).Size(6, 6).Radius(3).Background(t.Success)
+	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Padding(0, px(t, 6), 0, 0).Children(func() {
+		bar := ui.ButtonBase(c).Grow(1).MinWidth(0).FillHeight().Gap(t.Space(2)).Padding(0, px(t, 10), 0, t.Space(4)).
+			Label(strings.ReplaceAll(s.text.Server, "{server}", name))
+		if bar.Hovered() {
+			bar.Background(t.SurfaceHover)
+		}
+		bar.Children(func() {
+			ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(t.TextMuted)
+			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(px(t, 12)).TextColor(t.TextMuted)
+			ui.Box(c).Size(6, 6).Radius(3).Background(t.Success)
+		})
+		if bar.Clicked() {
+			s.deps.OpenConnect()
+		}
+		gear := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(s.text.Settings).
+			Tooltip(s.text.Settings)
+		color := t.TextMuted
+		if gear.Hovered() {
+			gear.Background(t.SurfaceHover)
+			color = t.Text
+		}
+		gear.Children(func() { ui.Icon(c, icons.Settings).FontSize(px(t, 16)).TextColor(color) })
+		if gear.Clicked() {
+			s.deps.OpenSettings()
+		}
 	})
-	if bar.Clicked() {
-		s.deps.OpenConnect()
-	}
 }
 
 func (s *Screen) toolbar(c *ui.Context, compact bool) {

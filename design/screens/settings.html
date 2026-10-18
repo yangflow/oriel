@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings screen</title>
+<!-- Settings: they take the whole window. The timeline's sidebar gives way to the settings' own: "Back to the
+     timeline" on top, then one item per group, and the server bar, which says whose settings these are. Opened from the
+     gear button in the timeline's server bar or the app menu's "Settings…" (CmdOrCtrl+,); the back button and Escape
+     return to the timeline where it was. Groups: Fetching (the RSSHub instance and how long entries are kept), Import
+     and export (OPML), Devices (the sessions signed in to the server); the AI settings join as a group of their own.
+     Language and appearance follow the system and are not settings. Colors are the Oriel palette of
+     design/tokens.md; icons are Lucide (ISC License).
+     States: fetching, edited (the instance changed, not saved), invalid (the server refused it), saved, opml,
+     importing, imported (with failures), import-error, exported, devices (a remote server and its sessions),
+     devices-local (this computer's server, no sessions), revoke (confirming a revocation), loading, error.
+     The bar above the window only switches the mockup.
+     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
+<style>
+
+:root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
+:root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
+:root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --surface-pressed:#dfdbd2; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5); --star:#a16207 }
+:root[data-scheme=dark] { --background:#1b1a18; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55); --star:#facc15 }
+* { box-sizing:border-box }
+body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
+svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
+svg.icon.filled { fill:currentColor }
+button { font:inherit; color:inherit; border:0; background:none; padding:0; cursor:default }
+button:focus-visible { outline:3px solid var(--focus); outline-offset:1px }
+
+.switcher { display:flex; flex-wrap:wrap; gap:8px 16px; margin:0 0 16px; font-size:12px; color:var(--stage-text) }
+.switcher select { font:inherit }
+
+.window { position:relative; width:960px; height:640px; border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; background:var(--background) }
+.window.min { width:640px; height:480px }
+.titlebar { height:28px; flex:none; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); background:var(--surface); border-bottom:1px solid var(--border) }
+.body { flex:1; min-height:0; display:flex }
+
+/* Sidebar */
+aside { width:212px; flex:none; display:flex; flex-direction:column; background:var(--surface); border-right:1px solid var(--border) }
+.min aside { width:184px }
+.nav { flex:1; overflow-y:auto; padding:8px }
+.section { margin:12px 8px 4px; font-size:11px; font-weight:600; color:var(--muted) }
+.item { width:100%; height:28px; display:flex; align-items:center; gap:8px; padding:0 8px; border-radius:6px; color:var(--text); text-align:left }
+.item:hover { background:var(--surface-hover) }
+.item.chosen { background:var(--surface-pressed) }
+.item .name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.server { flex:none; width:100%; text-align:left; display:flex; align-items:center; gap:8px; height:40px; padding:0 16px; border-top:1px solid var(--border); color:var(--muted); font-size:12px }
+.server .name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.server .dot { width:6px; height:6px; border-radius:50%; background:var(--success) }
+
+/* Toolbar */
+.main { flex:1; min-width:0; display:flex; flex-direction:column; position:relative }
+.toolbar { flex:none; height:48px; display:flex; align-items:center; gap:8px; padding:0 12px 0 20px; border-bottom:1px solid var(--border) }
+.toolbar h1 { margin:0; font-size:15px; font-weight:600; white-space:nowrap }
+.spacer { flex:1 }
+
+/* Settings */
+aside .top { height:48px; flex:none; display:flex; align-items:center; padding:0 8px; border-bottom:1px solid var(--border) }
+.item svg.icon { color:var(--muted) }
+.item.chosen svg.icon { color:var(--text) }
+div.server { cursor:default }
+.back { height:28px; display:flex; align-items:center; gap:2px; padding:0 8px 0 4px; border-radius:6px; color:var(--muted); min-width:0 }
+.back span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.back:hover { background:var(--surface-hover); color:var(--text) }
+.scroll { flex:1; overflow-y:auto }
+.page { max-width:600px; margin:0 auto; padding:24px 32px 48px }
+.min .page { padding:20px 20px 40px }
+.lead { margin:0 0 16px; color:var(--muted) }
+.card { border:1px solid var(--border); border-radius:10px; background:var(--background) }
+.row { padding:14px 16px }
+.row + .row { border-top:1px solid var(--border) }
+.label { display:block; font-weight:500 }
+.help { margin:2px 0 0; font-size:12px; color:var(--muted) }
+.help code, .mono-text { font:12px ui-monospace,Menlo,Consolas,monospace }
+.control { display:flex; gap:8px; margin-top:10px; align-items:center }
+.field { flex:1; min-width:0; height:32px; display:flex; align-items:center; padding:0 10px; border:1px solid var(--border); border-radius:8px; background:var(--background); font:13px ui-monospace,Menlo,Consolas,monospace; color:var(--text) }
+.field.focused { border-color:var(--accent); box-shadow:0 0 0 3px var(--focus) }
+.field.invalid { border-color:var(--danger) }
+.field .placeholder { color:var(--muted) }
+.select { height:32px; display:flex; align-items:center; gap:8px; padding:0 8px 0 10px; border:1px solid var(--border); border-radius:8px; background:var(--background); min-width:160px }
+.select span { flex:1; text-align:left }
+.select svg.icon { width:14px; height:14px; color:var(--muted) }
+.status { display:flex; align-items:center; gap:6px; margin-top:6px; font-size:12px }
+.status svg.icon { width:14px; height:14px }
+.status.error { color:var(--danger) }
+.status.ok { color:var(--success) }
+.status.busy { color:var(--muted) }
+.button { height:32px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 14px; white-space:nowrap; border:1px solid var(--border); border-radius:8px; background:var(--background); color:var(--text) }
+.button:hover { background:var(--surface-hover) }
+.button:disabled { opacity:.45; background:var(--background) }
+.button.primary { border-color:var(--accent); background:var(--accent); color:var(--accent-text); font-weight:500 }
+.button.danger { color:var(--danger) }
+.button.small { height:26px; padding:0 10px; font-size:12px }
+.button svg.icon { width:15px; height:15px }
+.result { margin-top:12px; padding:10px 12px; border-radius:8px; background:var(--surface); font-size:12.5px }
+.result.warn { background:var(--warning-soft) }
+.result.error { background:var(--danger-soft); color:var(--danger) }
+.result .head { display:flex; gap:8px; align-items:flex-start }
+.result .head svg.icon { width:14px; height:14px; margin-top:2px; flex:none }
+.result.warn .head svg.icon { color:var(--warning) }
+.result .head .grow { flex:1 }
+.result ul { margin:8px 0 0; padding:0 0 0 22px; list-style:none }
+.result li { display:flex; gap:8px; padding:3px 0; min-width:0 }
+.result li .what { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.result li .why { color:var(--muted); white-space:nowrap }
+.result .close { width:20px; height:20px; display:grid; place-items:center; border-radius:5px; color:var(--muted) }
+.result .close svg.icon { width:13px; height:13px; margin:0 }
+.device { display:flex; align-items:center; gap:12px }
+.device .glyph { width:32px; height:32px; flex:none; display:grid; place-items:center; border-radius:8px; background:var(--surface); color:var(--muted) }
+.device .text { flex:1; min-width:0 }
+.device .name { display:flex; align-items:center; gap:6px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.device .when { font-size:12px; color:var(--muted) }
+.badge { height:18px; display:inline-flex; align-items:center; padding:0 6px; border-radius:9px; font-size:11px; font-weight:500; background:var(--accent-soft); color:var(--accent) }
+.note { display:flex; gap:10px; align-items:flex-start; color:var(--muted) }
+.note svg.icon { margin-top:1px }
+.skeleton .bar { height:12px; border-radius:6px; background:var(--surface); margin:10px 0 }
+.skeleton .block { height:160px; border-radius:10px; background:var(--surface); margin-top:16px }
+.empty { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; text-align:center }
+.tile { width:48px; height:48px; border-radius:12px; display:grid; place-items:center; background:var(--danger-soft); color:var(--danger) }
+.tile svg.icon { width:24px; height:24px; stroke-width:1.5 }
+.empty h2 { margin:0; font-size:15px; font-weight:600 }
+.empty p { margin:-4px 0 0; max-width:320px; color:var(--muted) }
+.spin { animation:spin .9s linear infinite }
+@keyframes spin { to { transform:rotate(360deg) } }
+.backdrop { position:absolute; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.28) }
+.alert { width:360px; padding:20px; border:1px solid var(--border); border-radius:12px; background:var(--background); box-shadow:0 12px 32px rgba(0,0,0,.18) }
+.alert h2 { margin:0; font-size:15px; font-weight:600 }
+.alert p { margin:8px 0 0; color:var(--muted) }
+.alert .buttons { display:flex; justify-content:flex-end; gap:8px; margin-top:20px }
+.alert .button.default { border-color:var(--accent); background:var(--accent); color:var(--accent-text); font-weight:500 }
+</style>
+<div class="switcher" aria-hidden="true">
+  <label>state <select id="state"></select></label>
+  <label>scheme <select id="scheme"></select></label>
+  <label>lang <select id="lang"></select></label>
+  <label>size <select id="size"></select></label>
+</div>
+<div class="window" id="window"><div class="titlebar">Oriel</div><div class="body" id="app"></div></div>
+<script>
+const states=['fetching','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
+const query=new URLSearchParams(location.search);
+const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
+const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
+const state=pick('state',states,'fetching');
+const scheme=pick('scheme',options.scheme,'light');
+const lang=pick('lang',options.lang,'en');
+const size=pick('size',options.size,'default');
+document.documentElement.dataset.scheme=scheme;
+document.documentElement.lang=lang;
+document.getElementById('window').classList.toggle('min',size==='min');
+for(const [id,list] of Object.entries(options)){
+  const select=document.getElementById(id);
+  select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
+  select.value={state,scheme,lang,size}[id];
+  select.onchange=()=>{query.set(id,select.value);location.search=query};
+}
+
+const icons={
+  inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  article:'<path d="M15 18h-5"/><path d="M18 14h-8"/><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="10" y="6" rx="1"/>',
+  video:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
+  social:'<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
+  image:'<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  star:'<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  dot:'<circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/>',
+  circle:'<circle cx="12" cy="12" r="10"/>',
+  checkCheck:'<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
+  circleCheck:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
+  search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+  external:'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+  arrowUp:'<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  alert:'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  wifiOff:'<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
+  loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  server:'<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
+  laptop:'<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
+  chevronLeft:'<path d="m15 18-6-6 6-6"/>',
+  chevronUp:'<path d="m18 15-6-6-6 6"/>',
+  chevronDown:'<path d="m6 9 6 6 6-6"/>',
+  triangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  fileText:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  settings:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+  upload:'<path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>',
+  download:'<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
+  smartphone:'<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+  monitor:'<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  arrowUpDown:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
+};
+
+const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
+
+const copy={
+  en:{
+    thisComputer:'This computer', settings:'Settings', backTimeline:'Back to the timeline', serverNote:'These settings belong to this server',
+    lead:'Settings are kept on the server, for every device connected to it.',
+    fetching:'Fetching', opml:'Import and export', devices:'Devices',
+    rsshub:'RSSHub instance', rsshubHelp:'Subscriptions given as an RSSHub route, such as <code>/github/issue/golang/go</code>, are fetched from this address. Leave it empty if you use none.',
+    rsshubPlaceholder:'https://rsshub.app', save:'Save', saved:'Saved. The next fetch uses it.',
+    invalidBase:'Enter a full http or https address with a host name, such as https://rsshub.app.',
+    retention:'Keep entries', retentionHelp:'Older entries are removed once an hour, read or not. Starred entries are always kept.',
+    forever:'Forever', days:'{n} days', week:'1 week', month:'1 month', months3:'3 months', months6:'6 months', year:'1 year',
+    opmlHelp:'OPML files move subscriptions between Oriel and other readers.',
+    importLabel:'Import', importHelp:'Adds the subscriptions in an OPML file. Ones you already have are skipped.', exportLabel:'Export', exportHelp:'Saves every subscription to one OPML file that Oriel and other readers can import.', notAdded:'Subscriptions not added',
+    import:'Choose File…', export:'Save As…', importing:'Importing {file}…',
+    imported:'Imported {file}: {added} added, {existing} already subscribed, {failed} could not be added.',
+    importedOk:'Imported {file}: {added} added, {existing} already subscribed.',
+    invalidOpml:'{file} is not an OPML file. Nothing was added.', tooLarge:'{file} is larger than 1 MB.',
+    exported:'Exported {n} subscriptions to {file}.', dismiss:'Dismiss',
+    invalidUrl:'Not an http or https address', invalidKind:'Unknown kind',
+    devicesHelp:'Every sign-in is a device. Revoke one to sign it out; it needs the password to connect again.',
+    localDevices:'This computer’s server has no password, so no device signs in to it. Devices show up here when you connect to a server that has one.',
+    thisDevice:'This device', revoke:'Revoke…', signedIn:'Signed in {date} · last used {seen}',
+    revokeTitle:'Revoke “{name}”?', revokeBody:'It is signed out at once and needs the password to connect again.', cancel:'Cancel', revokeConfirm:'Revoke',
+    error:'Can’t load settings', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
+    now:'just now', hours:'{n} hours ago', yesterday:'yesterday',
+  },
+  'zh-Hans':{
+    thisComputer:'本机', settings:'设置', backTimeline:'回到时间线', serverNote:'这些设置属于这个服务端',
+    lead:'设置保存在服务端，连到它的每台设备都一样。',
+    fetching:'抓取', opml:'导入和导出', devices:'设备',
+    rsshub:'RSSHub 实例', rsshubHelp:'只填 RSSHub 路由的订阅（例如 <code>/github/issue/golang/go</code>）从这个地址抓取。不用 RSSHub 就留空。',
+    rsshubPlaceholder:'https://rsshub.app', save:'保存', saved:'已保存，下次抓取起生效。',
+    invalidBase:'填带主机名的完整 http 或 https 地址，例如 https://rsshub.app。',
+    retention:'条目保留', retentionHelp:'过期的条目每小时清理一次，已读未读都删。收藏的条目一直保留。',
+    forever:'永久', days:'{n} 天', week:'1 周', month:'1 个月', months3:'3 个月', months6:'半年', year:'1 年',
+    opmlHelp:'用 OPML 文件在 Oriel 和别的阅读器之间搬订阅。',
+    importLabel:'导入', importHelp:'添加 OPML 文件里的订阅，已经订阅的跳过。', exportLabel:'导出', exportHelp:'把所有订阅存成一个 OPML 文件，Oriel 和别的阅读器都能导入。', notAdded:'没能添加的订阅',
+    import:'选择文件…', export:'存储为…', importing:'正在导入 {file}…',
+    imported:'已导入 {file}：新增 {added} 个，{existing} 个已经订阅，{failed} 个没能添加。',
+    importedOk:'已导入 {file}：新增 {added} 个，{existing} 个已经订阅。',
+    invalidOpml:'{file} 不是 OPML 文件，什么都没有添加。', tooLarge:'{file} 超过 1 MB。',
+    exported:'已把 {n} 个订阅导出到 {file}。', dismiss:'关闭',
+    invalidUrl:'不是 http 或 https 地址', invalidKind:'不认识的形态',
+    devicesHelp:'每次登录是一台设备。吊销后它立即退出，要重新输入口令才能连上。',
+    localDevices:'本机的服务端没有设口令，没有设备需要登录。连到设了口令的服务端后，登录过的设备会列在这里。',
+    thisDevice:'本设备', revoke:'吊销…', signedIn:'{date}登录 · 最近使用：{seen}',
+    revokeTitle:'吊销「{name}」？', revokeBody:'它会立即退出，要重新输入口令才能连上。', cancel:'取消', revokeConfirm:'吊销',
+    error:'设置加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
+    now:'刚刚', hours:'{n} 小时前', yesterday:'昨天',
+  },
+}[lang];
+const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
+const zh=lang==='zh-Hans';
+const host='reader.example.net';
+const remote=state!=='devices-local';
+const group=['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
+
+const groups=[['fetching','rss'],['opml','arrowUpDown'],['devices','laptop']];
+const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
+<nav class="nav" aria-label="${copy.settings}"><div class="section">${copy.settings}</div>${groups.map(([k,g])=>`<button class="item${k===group?' chosen':''}"${k===group?' aria-current="page"':''}>${icon(g)}<span class="name">${copy[k]}</span></button>`).join('')}</nav>
+<div class="server" title="${copy.serverNote}">${icon(remote?'server':'laptop')}<span class="name">${remote?host:copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></div></aside>`;
+
+const base=state==='edited'||state==='invalid'?(state==='invalid'?'rsshub.example':'https://rsshub.example.net'):'https://rsshub.app';
+const field=`<div class="field${state==='edited'?' focused':''}${state==='invalid'?' invalid':''}" role="textbox" aria-label="${copy.rsshub}"${state==='invalid'?' aria-invalid="true"':''}>${base}</div>`;
+const dirty=state==='edited'||state==='invalid';
+let status='';
+if(state==='invalid')status=`<div class="status error" role="alert">${icon('alert')}${copy.invalidBase}</div>`;
+if(state==='saved')status=`<div class="status ok" role="status">${icon('check')}${copy.saved}</div>`;
+const fetching=`<p class="lead">${copy.lead}</p><div class="card">
+<div class="row"><span class="label">${copy.rsshub}</span><p class="help">${copy.rsshubHelp}</p>
+<div class="control">${field}<button class="button${dirty?' primary':''}"${dirty?'':' disabled'}>${copy.save}</button></div>${status}</div>
+<div class="row"><div class="device"><div class="text"><span class="label">${copy.retention}</span><p class="help">${copy.retentionHelp}</p></div>
+<button class="select" aria-haspopup="listbox" aria-label="${copy.retention}"><span>${copy.months3}</span>${icon('chevronDown')}</button></div></div>
+</div>`;
+
+const file='feeds.opml';
+const busy=state==='importing';
+let result='';
+if(state==='importing')result=`<div class="status busy" role="status">${icon('loader','spin')}${t('importing',{file})}</div>`;
+if(state==='imported')result=`<div class="result warn" role="status"><div class="head">${icon('triangle')}<span class="grow">${t('imported',{file,added:12,existing:3,failed:2})}</span><button class="close" aria-label="${copy.dismiss}">${icon('x')}</button></div>
+<ul aria-label="${copy.notAdded}"><li><span class="what">Gopher Weekly · <span class="mono-text">ftp://example.org/feed</span></span><span class="why">${copy.invalidUrl}</span></li>
+<li><span class="what">${zh?'播客合集':'Podcasts'} · <span class="mono-text">https://example.com/podcast.xml</span></span><span class="why">${copy.invalidKind}</span></li></ul></div>`;
+if(state==='import-error')result=`<div class="result error" role="alert"><div class="head">${icon('alert')}<span class="grow">${t('invalidOpml',{file:'notes.txt'})}</span><button class="close" aria-label="${copy.dismiss}">${icon('x')}</button></div></div>`;
+if(state==='exported')result=`<div class="result" role="status"><div class="head" style="color:var(--success)">${icon('check')}<span class="grow" style="color:var(--text)">${t('exported',{n:18,file:'oriel.opml'})}</span><button class="close" aria-label="${copy.dismiss}">${icon('x')}</button></div></div>`;
+const opml=`<p class="lead">${copy.opmlHelp}</p><div class="card">
+<div class="row"><div class="device"><div class="text"><span class="label">${copy.importLabel}</span><p class="help">${copy.importHelp}</p></div><button class="button"${busy?' disabled':''}>${icon('upload')}${copy.import}</button></div>${result}</div>
+<div class="row"><div class="device"><div class="text"><span class="label">${copy.exportLabel}</span><p class="help">${copy.exportHelp}</p></div><button class="button"${busy?' disabled':''}>${icon('download')}${copy.export}</button></div></div>
+</div>`;
+
+const sessions=[
+  {name:'Oriel · macOS',glyph:'laptop',date:zh?'10月3日':'Oct 3',seen:copy.now,current:true},
+  {name:'Oriel · Windows',glyph:'monitor',date:zh?'9月21日':'Sep 21',seen:t('hours',{n:3})},
+  {name:'Safari · iPhone',glyph:'smartphone',date:zh?'8月30日':'Aug 30',seen:copy.yesterday},
+];
+const devices=remote?`<p class="lead">${copy.devicesHelp}</p><div class="card">`+sessions.map(s=>`<div class="row"><div class="device"><div class="glyph">${icon(s.glyph)}</div><div class="text"><div class="name">${s.name}${s.current?`<span class="badge">${copy.thisDevice}</span>`:''}</div><div class="when">${t('signedIn',{date:s.date,seen:s.seen})}</div></div>${s.current?'':`<button class="button small danger">${copy.revoke}</button>`}</div></div>`).join('')+'</div>':
+`<div class="card"><div class="row note">${icon('laptop')}<span>${copy.localDevices}</span></div></div>`;
+
+let page;
+if(state==='loading')page=`<div class="page skeleton" aria-busy="true"><div class="bar" style="width:60%"></div><div class="block"></div></div>`;
+else if(state==='error')page=`<div class="empty" role="status"><div class="tile">${icon('wifiOff')}</div><h2>${copy.error}</h2><p>${copy.errorHint}</p><button class="button">${icon('refresh')}${copy.retry}</button></div>`;
+else page=`<div class="page">${{fetching,opml,devices}[group]}</div>`;
+
+let overlay='';
+if(state==='revoke')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${t('revokeTitle',{name:'Safari · iPhone'})}</h2><p id="ab">${copy.revokeBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.revokeConfirm}</button></div></div></div>`;
+document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar"><h1>${copy[group]}</h1></div><div class="scroll">${page}</div></section>${overlay}`;
+</script>
+</html>

@@ -273,3 +273,55 @@ func TestTimelineAPI(t *testing.T) {
 		t.Errorf("no server: %v", err)
 	}
 }
+
+func TestSettingsAPI(t *testing.T) {
+	ctx := context.Background()
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		seen = append(seen, r.Method+" "+r.URL.Path+" "+r.Header.Get("Content-Type")+" "+r.UserAgent()+" "+string(body))
+		switch r.URL.Path {
+		case "/api/sessions":
+			w.Write([]byte(`{"sessions":[{"id":2,"userAgent":"Oriel/1.0 (macOS)","createdAt":1,"lastSeenAt":2,"current":true}]}`))
+		case "/api/sessions/3":
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"error":"not_found"}`))
+		case "/api/opml/import":
+			w.Write([]byte(`{"added":2,"existing":1,"failed":[{"title":"G","address":"ftp://x","error":"invalid_url"}]}`))
+		case "/api/opml/export":
+			w.Header().Set("Content-Type", "text/x-opml")
+			w.Write([]byte("<opml/>"))
+		}
+	}))
+	defer srv.Close()
+	SetVersion("1.0")
+	session := Session{Server: srv.URL}
+
+	devices, err := session.Devices(ctx)
+	if err != nil || len(devices) != 1 || devices[0] != (Device{ID: 2, UserAgent: "Oriel/1.0 (macOS)", CreatedAt: 1,
+		LastSeenAt: 2, Current: true}) {
+		t.Errorf("Devices = %+v, %v", devices, err)
+	}
+	var apiErr *APIError
+	if err := session.RevokeDevice(ctx, 3); !errors.As(err, &apiErr) || apiErr.Code != "not_found" {
+		t.Errorf("RevokeDevice: %v", err)
+	}
+	imported, err := session.ImportOPML(ctx, []byte("<opml/>"))
+	if err != nil || imported.Added != 2 || imported.Existing != 1 ||
+		imported.Failed[0] != (ImportFail{Title: "G", Address: "ftp://x", Error: "invalid_url"}) {
+		t.Errorf("ImportOPML = %+v, %v", imported, err)
+	}
+	if opml, err := session.ExportOPML(ctx); err != nil || string(opml) != "<opml/>" {
+		t.Errorf("ExportOPML = %q, %v", opml, err)
+	}
+	agent := "Oriel/1.0 (" + platform() + ")"
+	want := []string{
+		"GET /api/sessions  " + agent + " ",
+		"DELETE /api/sessions/3  " + agent + " ",
+		"POST /api/opml/import text/x-opml " + agent + " <opml/>",
+		"GET /api/opml/export  " + agent + " ",
+	}
+	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
+		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))
+	}
+}

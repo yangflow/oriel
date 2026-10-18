@@ -50,10 +50,11 @@ Working now:
   GitHub, Telegram or Weibo link, which is turned into its feed or route; the kind and the check interval are
   chosen in the same dialog. Edit, pause, refresh and delete a subscription from the sidebar's right-click menu
   or the pencil in the toolbar; deleting asks first, since its entries go too.
-- **Settings API.** Read and change the RSSHub address and the retention period over HTTP; secrets are never
-  sent back. The settings screen is still to come.
-- **OPML API.** Import subscriptions from another reader, nested groups included, and export them all; the
-  export keeps each source's kind and RSSHub path. The import and export buttons are still to come.
+- **Settings.** Change the RSSHub instance and how long entries are kept from the gear beside the server bar or
+  "Settings…" (Cmd/Ctrl+,); they are kept on the server, so every device connected to it shares them. Signed in to
+  a server with a password, see each device signed in and revoke the ones you no longer use.
+- **OPML import and export.** Import subscriptions from another reader, nested groups included, and see which
+  could not be added and why; export them all to a file that keeps each source's kind and RSSHub path.
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
   with password sign-in and per-device sessions.
 - **Connect to a remote server.** The desktop app can switch to an `oriel serve` on another machine from
@@ -65,10 +66,10 @@ Working now:
 
 Planned, in the order of the [milestones](https://github.com/yangflow/oriel/milestones) (rules in the
 [roadmap](docs/roadmap.md), in Chinese): on-demand AI summaries and translation through your own
-OpenAI-compatible endpoint, settings and OPML import and export.
+OpenAI-compatible endpoint.
 
 Status: early development, version 0.1.0, no release yet. The window has the connect screen, the timeline, the
-subscription dialogs and the article reader; settings have an API but no screen yet. Targets: macOS 12+, Windows 10/11 and Linux
+subscription dialogs, the article reader and the settings. Targets: macOS 12+, Windows 10/11 and Linux
 with GTK 3, on amd64 and arm64. Linux builds need glibc, also when running headless.
 
 ## Quick start
