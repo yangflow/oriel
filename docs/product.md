@@ -152,7 +152,7 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 - 只用标准库 `net/http`。JSON 字段用 camelCase。
 - 出错时返回 `{ "error": "<代码>" }`，代码是稳定的小写英文，界面据此显示本地化文案。
 - `GET /health` 不要鉴权，返回版本、是否要求口令、数据库是否可写。数据库不可写时 503。
-- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」一节的路由。其余路由随各自的功能加进来，并写进这一节。
+- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」和「时间线接口」两节的路由。其余路由随各自的功能加进来，并写进这一节。
 - 请求体是 JSON，最大 64 KiB；坏 JSON、多出未知字段或类型不对返回 400 `invalid_body`。
 
 ## 订阅接口
@@ -185,6 +185,39 @@ Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，�
 - `muteKeywords` 按行保存，每行去掉首尾空白，丢掉空行。
 - 暂停的源「更新」返回 409 `source_paused`。恢复后按原来的 `next_fetch_at` 抓，已经过了就马上抓。
 - 源不存在时 404 `not_found`，`id` 不是整数时 400 `invalid_id`。用户改字段时更新源的 `updated_at`；抓取记账不改。
+
+## 时间线接口
+
+都要会话（设了口令时）。条目按 `created_at, id` 从新到旧排，不用 `published_at`（见「数据模型」）。
+
+| 路由 | 作用 |
+|---|---|
+| `GET /api/entries` | 一页条目，返回 `{ "entries": [...], "nextCursor": "..." }`；没有下一页时 `nextCursor` 为 `null`。 |
+| `GET /api/entries/{id}` | 一个条目，多带正文。 |
+| `PATCH /api/entries/{id}` | 改 `isRead`、`starred`，只改请求里带的，返回改后的条目。 |
+| `POST /api/entries/read` | 「全部已读」，返回 `{ "marked": n }`。 |
+
+列表里的条目：`id`、`sourceId`、`sourceTitle`（源的标题，空就用地址）、`kind`（源的形态）、`title`、`url`、`author`、`publishedAt`、`summary`（订阅里的摘要）、`thumbnailUrl`、`durationSec`、`platform`、`images`、`extractStatus`、`isRead`、`readAt`、`starred`、`createdAt`。没有的时间和时长为 `null`。单个条目再多带 `contentHtml`（订阅里的正文）和 `extractedHtml`（抽取的正文，没有为空串）。
+
+`GET /api/entries` 的查询参数，都可选，可以组合：
+
+- `source`：只看这个源；`kind`：只看这种形态的源。值不对时 `invalid_source`、`invalid_kind`。
+- `unread=1`：只看未读；`starred=1`：只看收藏。其他值当没给。
+- `q`：全文检索标题、订阅摘要和抽取的正文。去掉首尾空白后按整段文字匹配，不认检索语法，不分大小写。trigram 分词要求至少 3 个字符，短了返回 `query_too_short`。
+- `limit`：一页几条，1 到 100，默认 50，否则 `invalid_limit`。
+- `cursor`：上一页的 `nextCursor`，取它之后更旧的一页。是不透明的字符串，客户端不要拼；不对时 `invalid_cursor`。
+
+新条目写在最上面，按游标翻页不会重复也不会漏，翻页时新到的条目要从头再取。
+
+`PATCH /api/entries/{id}`：
+
+- `isRead` 改成 `true` 时记下 `read_at`，已经是已读就不变；改成 `false` 时清空 `read_at`。
+- `starred` 改成 `false` 后，过了保留期限的条目在下次清理时删掉。
+- 不改条目的 `updated_at`：它只记订阅内容的变化。
+
+`POST /api/entries/read` 的请求体可以为空，字段都可选：`sourceId`、`kind`、`upTo`。`upTo` 是条目 `id`，只标时间线上它和比它旧的条目，免得把用户还没看到的新条目一起标掉；条目不存在时 `not_found`。
+
+屏蔽词（`mute_keywords`）还没有在时间线上生效。
 
 ## 当前界面
 

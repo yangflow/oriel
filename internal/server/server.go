@@ -73,6 +73,10 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("PATCH /api/sources/{id}", s.authed(s.updateSource))
 	mux.HandleFunc("DELETE /api/sources/{id}", s.authed(s.deleteSource))
 	mux.HandleFunc("POST /api/sources/{id}/refresh", s.authed(s.refreshSource))
+	mux.HandleFunc("GET /api/entries", s.authed(s.listEntries))
+	mux.HandleFunc("GET /api/entries/{id}", s.authed(s.getEntry))
+	mux.HandleFunc("PATCH /api/entries/{id}", s.authed(s.updateEntry))
+	mux.HandleFunc("POST /api/entries/read", s.authed(s.markRead))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "not_found") })
 	s.handler = mux
 	return s, nil

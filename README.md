@@ -34,6 +34,8 @@ Working now, on the server side:
 - **Retention.** Unstarred entries older than a chosen number of days are pruned hourly; 0 keeps everything.
 - **Subscription API.** Add, list, edit, pause, delete and refresh subscriptions over HTTP, with validation
   and duplicate detection; the screen for it is still to come.
+- **Timeline API.** Page through all entries newest first, filter by source, kind, unread or starred, search
+  the full text, and mark entries read or starred; the timeline screen is still to come.
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
   with password sign-in and per-device sessions.
 - **One storage file.** SQLite with full-text search through a pure Go driver; no cgo in production code. The
@@ -45,7 +47,7 @@ subscriptions, the timeline with one layout per kind, the article reader, on-dem
 OpenAI-compatible endpoint, settings and OPML import and export.
 
 Status: early development, version 0.1.0, no release yet. The window still shows a counter example;
-subscriptions have an API but no screen yet, and settings have neither. Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on
+subscriptions and the timeline have an API but no screen yet, and settings have neither. Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on
 amd64 and arm64. Linux builds need glibc, also when running headless.
 
 ## Quick start
