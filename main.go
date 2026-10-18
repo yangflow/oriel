@@ -16,9 +16,9 @@ import (
 	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
+	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/store"
 	"github.com/yangflow/oriel/internal/ui/connect"
-	"github.com/yangflow/oriel/internal/ui/example"
 	"github.com/yangflow/oriel/internal/ui/startup"
 )
 
@@ -111,14 +111,14 @@ func desktop() {
 			return
 		}
 		systemLocale := mygo.App.Locale()
-		home := example.New(systemLocale)
 		goAsync := func(work func() func()) {
 			go func() {
 				apply := work()
 				window.Update(apply)
 			}()
 		}
-		root := newShell(systemLocale, filepath.Join(dataDir, sessionFile), home.View, goAsync)
+		root := newShell(systemLocale, filepath.Join(dataDir, sessionFile), client.Session{Server: "http://" + b.addr},
+			goAsync)
 		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 			{Label: "Oriel", Submenu: []*mygo.MenuItem{
 				{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),

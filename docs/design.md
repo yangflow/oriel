@@ -11,10 +11,10 @@ of its [UI guides](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/README.md)
 stay the authority on API details. Links point to MyGo v0.3.6, the version pinned in `go.mod`. When the pin moves,
 check the pages again and update the links and this document together.
 
-The first product screen is the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`),
-which connects the desktop app to a remote server. Home still shows the counter example in `internal/ui/example/`
-until the timeline replaces it; the values below call it "the example". The timeline, reader, subscription and
-settings screens described here are plans until their mockup and code are merged.
+Two screens are built: the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`), which
+connects the desktop app to a remote server, and the timeline in `internal/ui/timeline/` (mockup
+`design/screens/timeline.html`), which is home. The reader, subscription and settings screens described here are
+plans until their mockup and code are merged.
 
 Related files: [design/README.md](../design/README.md) (mockups and how a UI change is made) and
 [design/tokens.md](../design/tokens.md) (spacing, size and color values in one table).
@@ -71,18 +71,25 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `Grid` for forms and aligned tables of controls. Prefer `Gap` to margins on individual children.
 - **Sizes are bounds.** Give windows a minimum size and let content reflow; do not fix a width a translation can
   overflow. Use `MinWidth`, `MaxWidth` and `Grow` instead of fixed widths, except for square symbol buttons.
-- **Alignment.** Left-align text and labels; center only isolated focal content, as the example's counter. Reading
+- **Alignment.** Left-align text and labels; center only isolated focal content, as an empty state. Reading
   text in the article reader gets a comfortable maximum line length (`MaxWidth`) instead of spanning a wide window.
 - **Scrolling.** Content that can exceed the window goes in a
   [scroll view](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/scroll.md). The timeline is a
   [list](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/list.md), which builds only the rows in view and lets rows
   of different kinds have different heights.
-- **The example.** Outer padding `Space(6)` (24); vertical gap `Space(4)` (16); button gap `Space(2)` (8); symbol
-  buttons `Space(11)` (44) wide. The reset button grows to fit its localized label.
 - **The connect screen.** A sheet at most `Space(80)` (320) wide, centered in a scroll view with outer padding
   `Space(6)`; `Space(6)` between the header, the form and the buttons, `Space(2)` between fields, `Space(1.5)` (6)
   between a field and its error. Fields and buttons are `Space(8)` (32) high; the two buttons share the width
   equally.
+- **The timeline.** A sidebar, a 1 DIP divider and the main column. The sidebar is 212 wide (184 below a 760 wide
+  window) on `Surface`: five kind tabs on top, 44 high, each an icon over its unread count; then the subscriptions
+  of the chosen kind, 28 high rows; at the bottom the server bar, 40 high. The main column has a 48 high toolbar
+  (title, count, the Everything/Unread/Starred segments, search, mark all as read), a divider, and the entries.
+  Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered; images in a social
+  post share a grid at most 440 wide (520 in Social). Videos are a grid of cards at least 200 wide, 16:9 covers;
+  Images are a masonry wall of up to three columns at least 170 wide, each picture at its own aspect ratio.
+  Below a 760 wide window the segments show icons only. Sizes taken from the mockup are written `px(t, n)`, which is
+  `t.Rem(n / 13)`, so they follow the text size.
 
 ## Color and dark mode
 
@@ -130,8 +137,11 @@ values are in [design/tokens.md](../design/tokens.md). See
   [Text](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/text.md).
 - **Size relative to the theme.** Use `t.Rem(n)` for sizes (`n` times the theme font size) rather than fixed numbers,
   so custom text follows the user's text scale. Widgets use the theme size.
-- **The example.** Title 1.8 rem bold, the count 3.6 rem bold, hint 0.9 rem in `TextMuted`. At the macOS default
-  of 13 these are about 23, 47 and 12; they replace the fixed 24, 48 and 12 used before sizes followed the theme.
+- **The connect screen.** Title 1.8 rem bold, hint 0.9 rem in `TextMuted`.
+- **The timeline.** Screen title 15 bold, entry titles 13.5 semibold (read entries in `TextMuted`), source and time
+  12 in `TextMuted`, counts 10 to 11. Titles in rows and video cards wrap; summaries show at most two lines and
+  social text six; a picture's caption in the wall is one line. The full title is always the entry's accessible
+  name.
 - **Hierarchy with few steps.** Body, secondary (`TextMuted`, about 0.9 rem), section heading (bold) and at most one
   display size per screen. Weight and color before size.
 - **Headings are real headings.** Give the title of a screen or section `Role(ui.RoleHeading)` and a `Level` so
@@ -157,8 +167,13 @@ values are in [design/tokens.md](../design/tokens.md). See
   [Image](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/image.md). Download and decode them in the background and
   make each bitmap once, never in the view; until it is ready, keep the image's box at its final size so the timeline
   does not jump. Images that carry meaning get a `Label`; decorative ones do not.
-- **The example.** The counter uses the text symbols `+` and `−` with localized accessible labels. The product icon
-  is still to be designed (see [design/README.md](../design/README.md)).
+- **The timeline.** Each kind has an icon (newspaper, play, message circle, image; inbox for All) and a color:
+  `Accent` for articles, `Danger` for videos, `Warning` for social, `Success` for images, used as a soft fill behind a
+  subscription's monogram and on the chosen tab. Row actions are icons only (star, mark read, open in browser) with
+  labels and tooltips, shown on hover and on the focused row. Pictures are downloaded through the server
+  (`/api/image`), at most four at a time, and the 300 most recent bitmaps are kept; a missing picture keeps its box
+  with an image icon. A video cover carries a play mark and the duration, labelled "Duration 12:34".
+- The product icon is still to be designed (see [design/README.md](../design/README.md)).
 
 ## Component guide
 
@@ -173,9 +188,13 @@ What Oriel uses today:
 | `ui.Button` | Secondary actions. A button that shows only a symbol must give a readable name with `.Label()`. |
 | `ui.PrimaryButton` | The main action of a group of buttons; at most one. |
 | `ui.Text`, `ui.RichText` | Text; `RichText` where one word of a sentence is set apart. Secondary explanations use `TextMuted`. |
-| `ui.TextInputBase` | A text field drawn by the screen, inside a box with its icon; `Error` names what is wrong for assistive technology, and the screen shows it under the field. |
+| `ui.TextInputBase` | A text field drawn by the screen, inside a box with its icon; `Error` names what is wrong for assistive technology, and the screen shows it under the field. The timeline's search is one too, since `SearchField` moves the focus to its box instead of the text. |
 | `ui.ButtonBase` | Buttons drawn by the screen in the Oriel look: an icon and a label, or an icon alone with a `Label`. |
 | `ui.Icon` | Lucide icons from `internal/ui/icons`. |
+| `ui.SegmentedBase` | The timeline's kind tabs and its Everything/Unread/Starred filter, drawn in the Oriel look. |
+| `ui.List`, `ui.GridView` | The timeline's rows and its video cards; both build only what is in view. |
+| `ui.AlertDialog` | Confirming "Mark all as read". |
+| `c.Toast`, `c.Announce` | Feedback after starring, marking and failures; counts announced without moving the focus. |
 
 The tables below say what to reach for as screens are added.
 
@@ -286,6 +305,10 @@ Overlays share focus and Escape behavior; see
   browser. Say so in the control ("Open in browser"), not only with an icon.
 - **Toolbar.** Frequent window-level commands, in order of importance; controls that do not fit overflow into a menu.
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.
+- **Timeline keys.** J or Down and K or Up move between entries, O or Enter opens the chosen one in the browser and
+  marks it read, S stars it, M toggles read, `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
+  window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
+  Every entry is also a focusable element with its own name, so Tab reaches it.
 
 ## Accessibility checklist
 
@@ -327,8 +350,9 @@ Oriel has no custom animation: state changes take effect immediately. See
   for less motion (`c.Preferences().ReduceMotion`). Any motion you compute yourself must read the preference.
   Spinners may keep turning: they show that work is going on.
 - **Never animate to hide latency**, and do not loop decoration.
-- **The example.** None; the count changes at once. The connect screen's only motion is its button's spinner icon
-  while it connects.
+- The connect screen's only motion is its button's spinner icon while it connects. The timeline has none: new
+  entries do not move the list; a "N new" pill appears at the top instead, and choosing it reloads and scrolls to
+  the top.
 
 ## Localization
 

@@ -3,11 +3,13 @@ package client
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -144,5 +146,81 @@ func TestSessionFile(t *testing.T) {
 	os.WriteFile(path, []byte("{"), 0o600)
 	if _, ok, err := LoadSession(path); ok || err == nil {
 		t.Errorf("broken file: ok %v, %v", ok, err)
+	}
+}
+
+func TestTimelineAPI(t *testing.T) {
+	ctx := context.Background()
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer t1" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		seen = append(seen, r.Method+" "+r.URL.RequestURI()+" "+string(body))
+		switch r.URL.Path {
+		case "/api/entries":
+			if r.URL.Query().Get("q") == "ab" {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(`{"error":"query_too_short"}`))
+				return
+			}
+			w.Write([]byte(`{"entries":[{"id":7,"kind":"video","title":"T","publishedAt":null,"durationSec":95,
+				"images":[{"url":"https://i/1.jpg","width":4,"height":3}],"createdAt":1700000000000}],"nextCursor":null}`))
+		case "/api/sources":
+			w.Write([]byte(`{"sources":[{"id":1,"title":"Feed","kind":"article","unreadCount":3,"lastError":"boom","fetchIntervalSec":900}]}`))
+		case "/api/entries/7":
+			w.Write([]byte(`{"id":7,"starred":true,"contentHtml":"<p>x</p>"}`))
+		case "/api/entries/read":
+			w.Write([]byte(`{"marked":4}`))
+		case "/api/image":
+			w.Write([]byte("PNG"))
+		}
+	}))
+	defer srv.Close()
+	session := Session{Server: srv.URL, Token: "t1"}
+
+	page, err := session.Entries(ctx, Query{Kind: "video", Unread: true, Search: "go fmt", Limit: 50, Cursor: "1.2"})
+	if err != nil || len(page.Entries) != 1 || page.Next != "" {
+		t.Fatalf("Entries = %+v, %v", page, err)
+	}
+	if e := page.Entries[0]; e.DurationSec != 95 || e.PublishedAt != 0 || e.Images[0].Width != 4 || e.CreatedAt != 1700000000000 {
+		t.Errorf("entry = %+v", e)
+	}
+	var apiErr *APIError
+	if _, err := session.Entries(ctx, Query{Search: "ab"}); !errors.As(err, &apiErr) || apiErr.Code != "query_too_short" {
+		t.Errorf("short query: %v", err)
+	}
+	sources, err := session.Sources(ctx)
+	if err != nil || len(sources) != 1 || sources[0].UnreadCount != 3 || sources[0].LastError != "boom" {
+		t.Errorf("Sources = %+v, %v", sources, err)
+	}
+	starred := true
+	if entry, err := session.SetEntry(ctx, 7, EntryPatch{Starred: &starred}); err != nil || !entry.Starred {
+		t.Errorf("SetEntry = %+v, %v", entry, err)
+	}
+	if marked, err := session.MarkRead(ctx, ReadScope{Kind: "video", UpTo: 7}); err != nil || marked != 4 {
+		t.Errorf("MarkRead = %d, %v", marked, err)
+	}
+	if body, err := session.Image(ctx, "https://i/1.jpg?w=2&h=1"); err != nil || string(body) != "PNG" {
+		t.Errorf("Image = %q, %v", body, err)
+	}
+	want := []string{
+		"GET /api/entries?cursor=1.2&kind=video&limit=50&q=go+fmt&unread=1 ",
+		"GET /api/entries?q=ab ",
+		"GET /api/sources ",
+		`PATCH /api/entries/7 {"starred":true}`,
+		`POST /api/entries/read {"kind":"video","upTo":7}`,
+		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",
+	}
+	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
+		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))
+	}
+	if _, err := (Session{Server: srv.URL, Token: "old"}).Sources(ctx); !errors.Is(err, ErrUnauthorized) {
+		t.Errorf("expired session: %v", err)
+	}
+	if _, err := (Session{Server: "http://127.0.0.1:1"}).Sources(ctx); !errors.Is(err, ErrUnreachable) {
+		t.Errorf("no server: %v", err)
 	}
 }

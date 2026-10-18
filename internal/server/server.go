@@ -37,11 +37,19 @@ type Config struct {
 	// Password enables authentication and listening on every interface. Empty means local-only, no sign-in.
 	Password string
 	Version  string
+	// Images downloads pictures for GET /api/image; nil answers every request with image_unavailable.
+	Images Images
+}
+
+// Images downloads a picture found inside a feed and returns its content type and bytes.
+type Images interface {
+	Get(ctx context.Context, address string) (string, []byte, error)
 }
 
 // Server serves the HTTP API on top of a store.
 type Server struct {
 	store   *store.Store
+	images  Images
 	version string
 	salt    []byte
 	derived []byte // nil when no password is set
@@ -51,7 +59,7 @@ type Server struct {
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, version: cfg.Version, now: time.Now}
+	s := &Server{store: st, images: cfg.Images, version: cfg.Version, now: time.Now}
 	if cfg.Password != "" {
 		s.salt = make([]byte, 16)
 		rand.Read(s.salt)
@@ -81,6 +89,7 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("PATCH /api/settings", s.authed(s.updateSettings))
 	mux.HandleFunc("POST /api/opml/import", s.authed(s.importOPML))
 	mux.HandleFunc("GET /api/opml/export", s.authed(s.exportOPML))
+	mux.HandleFunc("GET /api/image", s.authed(s.image))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "not_found") })
 	s.handler = mux
 	return s, nil
