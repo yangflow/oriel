@@ -1,0 +1,38 @@
+# Keeps a release pull request open with the next version and its changelog, made from the Conventional Commit
+# titles merged into main (release-please-config.json). Merging it, which only the maintainer does, creates a draft
+# release and its tag vX.Y.Z; the tag starts release.yml, which builds, signs and publishes (docs/release.md).
+#
+# release-please acts with a token of the repository's release GitHub App (secrets RELEASE_APP_CLIENT_ID and
+# RELEASE_APP_PRIVATE_KEY), minted for this run and limited to this repository's contents and pull requests. A tag
+# or pull request made with the workflow's own token starts no workflows; one made by the App starts release.yml
+# and CI like any other.
+name: Release PR
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          repositories: oriel
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

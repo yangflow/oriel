@@ -1,4 +1,6 @@
 # A tag vX.Y.Z builds, signs and uploads every platform to a draft release, then publishes it once all uploaded.
+# Merging the release pull request (release-please.yml) creates the tag and the draft with its notes; a tag pushed
+# by hand gets a draft here.
 # The secrets belong to the environment release, which only tags v* may use (docs/release.md); a missing one stops
 # the run before anything is uploaded.
 name: Release
@@ -27,7 +29,8 @@ jobs:
         run: |
           version="$(jq -r .version mygo.json)"
           test "$GITHUB_REF_NAME" = "v$version"
-          grep -q "^## \[$version\] - " CHANGELOG.md
+          # "## [X.Y.Z](compare link) (date)" from release-please, "## [X.Y.Z] - date" before it
+          awk -v heading="## [$version]" 'index($0, heading) == 1 { found = 1 } END { exit !found }' CHANGELOG.md
           jq -e '.updates.publicKey and .updates.github' mygo.json > /dev/null
       - run: scripts/check.sh --cross
       - run: python3 scripts/scan_secrets.py

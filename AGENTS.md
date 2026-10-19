@@ -34,8 +34,9 @@ internal/ui/<screen>/    one package per screen: state, copy.json catalog, headl
 internal/ui/locale/      system language to UI language (Simplified Chinese, English), shared by all catalogs
 internal/ui/startup/     copy for the native error dialog when desktop startup fails
 resources/               shipped licenses and product assets
-scripts/                 checks, version bump, packaging, secret scan
+scripts/                 checks, packaging, secret scan
 mygo.json                name, identifier, version, packaging
+release-please-*.json    the release pull request: version and changelog from the merged titles
 docs/, design/           product spec, design language, ADRs, mockups, tokens
 ```
 
@@ -47,7 +48,6 @@ go test -race ./...
 go tool mygo dev
 go tool mygo build
 ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
-python3 scripts/bump.py <version>   # the only way to change the version; dates the changelog; see docs/release.md
 ```
 
 ## Conventions
@@ -63,7 +63,10 @@ python3 scripts/bump.py <version>   # the only way to change the version; dates 
 - Migrations: only add new files under `internal/store/migrations/`; never edit a released one.
 - Entry links are always fetched through `guardedClient` in `internal/fetch/`; never replace it with a plain
   `http.Client`.
-- The version lives only in `mygo.json`; change it with `python3 scripts/bump.py <version>`.
+- Releases: release-please keeps a release pull request open on `main` and computes the version from the merged
+  titles, writing `mygo.json`, where the version lives only, and `CHANGELOG.md`; the `feat`, `fix` and `perf`
+  titles become the release notes, so write them for users. Do not edit `CHANGELOG.md` or the version by hand; only
+  the maintainer merges the release pull request, which tags the release (docs/release.md).
 - The MyGo library and CLI are one module; update them together in `go.mod`. When dependencies change, update
   `THIRD_PARTY.md` and `resources/ThirdPartyLicenses/`.
 - When behavior changes, update the existing tests for that area. Passing headless tests is not on-device
@@ -72,8 +75,7 @@ python3 scripts/bump.py <version>   # the only way to change the version; dates 
 - A UI change starts from the mockup in design/; the maintainer confirms the visual direction before UI code is
   written. Mockup, `docs/design.md` and code go in the same pull request; screenshots go in the pull request
   body, not into the repository.
-- User-visible changes go under `## [Unreleased]` in `CHANGELOG.md`. Keep `README.md` and `README.zh-CN.md` in
-  sync; list only merged features, and mark plans as plans.
+- Keep `README.md` and `README.zh-CN.md` in sync; list only merged features, and mark plans as plans.
 - Commit messages and PR titles use Conventional Commits:
   `feat|fix|docs|refactor|perf|test|build|ci|chore|revert(scope)!: subject`. Branches are `<type>/<issue>-<slug>`;
   pull requests are squash-merged. Commit with the GitHub noreply address
