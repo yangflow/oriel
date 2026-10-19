@@ -1,7 +1,7 @@
 {
   "name": "Oriel",
   "identifier": "app.oriel.app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "copyright": "© 2026 yangflow",
   "main": ".",
   "out": "build",

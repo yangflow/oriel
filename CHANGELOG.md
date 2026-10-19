@@ -23,6 +23,14 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.2.0](https://github.com/yangflow/oriel/compare/v0.1.0...v0.2.0) (2026-10-19)
+
+
+### Added
+
+* **ui:** kinds list, scoped mark all, one selection look and calmer spacing ([#51](https://github.com/yangflow/oriel/issues/51)) ([25690b7](https://github.com/yangflow/oriel/commit/25690b783c7b9b99a389583c992609951fee9817))
+* **ui:** undo mark all read, key sheet, next unread and site icons ([#42](https://github.com/yangflow/oriel/issues/42)) ([1182668](https://github.com/yangflow/oriel/commit/1182668cf5c6c1e043acd782ffd3446ca6a85829))
+
 ## [0.1.0] - 2026-10-19
 
 ### Changed
