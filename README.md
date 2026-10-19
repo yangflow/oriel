@@ -75,6 +75,10 @@ Status: early development, version 0.1.0, no release yet. The window has the con
 subscription dialogs, the article reader and the settings. Targets: macOS 12+, Windows 10/11 and Linux
 with GTK 3, on amd64 and arm64. Linux builds need glibc, also when running headless.
 
+Releases are built and published from a version tag ([docs/release.md](docs/release.md)); none is published yet.
+Installed copies will update themselves from them after you confirm in the update window. The macOS app is signed
+and notarized. The Windows installers are not signed yet, so SmartScreen warns on first launch.
+
 ## Quick start
 
 Build from source with the Go version in `.go-version` and Python 3:

@@ -13,6 +13,7 @@ Sources of truth:
 - `design/tokens.md`: spacing, size and color values, mapped to MyGo theme roles.
 - `design/`: the mockup of each screen and its states.
 - GitHub milestones and issues: the plan and its order. `docs/roadmap.md` holds only the rules and finished history.
+- `docs/release.md`: the release workflow, its secrets and the steps of a release.
 - `docs/adr/0002-standalone-client-and-server.md`: the client reads and writes only through the HTTP API and never
   touches storage directly; without authentication configured the server listens on `127.0.0.1` only.
 
@@ -46,7 +47,7 @@ go test -race ./...
 go tool mygo dev
 go tool mygo build
 ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
-python3 scripts/bump.py <version>   # the only way to change the version; dates the changelog
+python3 scripts/bump.py <version>   # the only way to change the version; dates the changelog; see docs/release.md
 ```
 
 ## Conventions

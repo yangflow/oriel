@@ -19,6 +19,7 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/store"
 	"github.com/yangflow/oriel/internal/ui/connect"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/settings"
 	"github.com/yangflow/oriel/internal/ui/startup"
 )
@@ -93,7 +94,8 @@ func desktop() {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
 	}
-	mygo.Use(native.Plugin)
+	// The update window speaks the UI's language, so a Traditional Chinese system reads Simplified there too.
+	mygo.Use(native.New(updater.Options{Language: locale.Language(mygo.App.Locale())}))
 	client.SetVersion(version)
 	var b *backend
 	dataDir, err := mygo.App.Path(mygo.PathUserData)

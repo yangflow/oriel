@@ -35,10 +35,19 @@ class BumpTest(unittest.TestCase):
     def test_invalid_or_lower_versions_leave_files_unchanged(self):
         paths = [self.root / name for name in ("mygo.json", "CHANGELOG.md")]
         before = [p.read_bytes() for p in paths]
-        for version in ("0.0.9", "0.1.0", "01.0.0", "1.0", "v1.0.0"):
+        for version in ("0.0.9", "01.0.0", "1.0", "v1.0.0"):
             r = subprocess.run(["python3", "scripts/bump.py", version], cwd=self.root, capture_output=True)
             self.assertNotEqual(r.returncode, 0)
             self.assertEqual([p.read_bytes() for p in paths], before)
+
+    def test_first_release_dates_the_current_version_once(self):
+        r = subprocess.run(["python3", "scripts/bump.py", "0.1.0"], cwd=self.root, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("## [Unreleased]\n\n## [0.1.0] - ", (self.root / "CHANGELOG.md").read_text())
+        before = (self.root / "CHANGELOG.md").read_bytes()
+        r = subprocess.run(["python3", "scripts/bump.py", "0.1.0"], cwd=self.root, capture_output=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual((self.root / "CHANGELOG.md").read_bytes(), before)
 
     def test_missing_unreleased_is_rejected(self):
         (self.root / "CHANGELOG.md").write_text("# Changes\n")
