@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Product icon</title>
+<style>
+/* The product icon, icon.svg, at the sizes the platforms show it, on light and dark, and in a Dock and a taskbar. */
+:root { font:13px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; color:#1f1d1a }
+body { margin:0; padding:32px; background:#f2f0eb; display:grid; gap:24px }
+h1 { margin:0; font-size:18px; font-weight:600 }
+h2 { margin:0 0 12px; font-size:13px; font-weight:600; color:#6f6a64 }
+.board { display:flex; flex-wrap:wrap; align-items:flex-end; gap:28px; padding:28px; border-radius:12px }
+.light { background:#fff; border:1px solid #dcd7cd }
+.dark { background:#1b1a18 }
+figure { margin:0; display:grid; justify-items:center; gap:8px }
+figcaption { font-size:11px; color:#8e8a84 }
+img { display:block }
+.dock { display:flex; align-items:flex-end; gap:6px; padding:6px 10px; border-radius:18px; width:max-content;
+  background:rgba(246,246,248,.7); border:1px solid rgba(0,0,0,.08); box-shadow:0 8px 30px rgba(0,0,0,.15) }
+.dock .app { width:52px; height:52px; margin:6px; border-radius:12px; background:#d1d1d6 }
+.taskbar { display:flex; align-items:center; gap:4px; height:48px; padding:0 12px; border-radius:8px; width:max-content; background:#202020 }
+.taskbar .app { width:24px; height:24px; border-radius:4px; background:#3a3a3a; margin:0 8px }
+.taskbar .on { padding:4px; border-radius:4px; background:#2d2d2d }
+</style>
+<h1>Product icon</h1>
+<section>
+  <h2>Light</h2>
+  <div class="board light" id="light"></div>
+</section>
+<section>
+  <h2>Dark</h2>
+  <div class="board dark" id="dark"></div>
+</section>
+<section>
+  <h2>macOS Dock</h2>
+  <div class="dock"><div class="app"></div><div class="app"></div><img src="icon.svg" width="64" height="64" alt="Oriel"><div class="app"></div></div>
+</section>
+<section>
+  <h2>Windows taskbar</h2>
+  <div class="taskbar"><div class="app"></div><div class="app"></div><div class="on"><img src="icon.svg" width="40" height="40" alt="Oriel"></div><div class="app"></div></div>
+</section>
+<script>
+// 512 and 256 for the Finder and installers, 128 to 32 for lists and docks, 16 for menus and title bars.
+for (const id of ['light', 'dark']) {
+  document.getElementById(id).innerHTML = [512, 256, 128, 64, 32, 16].map(n =>
+    `<figure><img src="icon.svg" width="${n}" height="${n}" alt="Oriel at ${n}"><figcaption>${n}</figcaption></figure>`).join('');
+}
+</script>
