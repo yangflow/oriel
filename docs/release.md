@@ -1,14 +1,35 @@
 # Releasing
 
-Pushing a tag `vX.Y.Z` runs `.github/workflows/release.yml`: the checks, then a draft release, then one build per
-platform that signs and uploads its installers and updates to the draft, then publishing the release once every
-platform uploaded. Installed copies check the latest published release of `yangflow/oriel` once a day and from
-"Check for Updates…" in the app menu, and install nothing before the user confirms in the update window. Only the
-maintainer pushes release tags. The update mechanism is MyGo's
+`.github/workflows/release-please.yml` runs release-please on every push to `main`. It keeps one pull request,
+`chore(release): X.Y.Z`, open with the next version in `mygo.json` and its section in `CHANGELOG.md`, both made from
+the Conventional Commit titles merged since the last release (`release-please-config.json`): before 1.0, `feat`
+raises the minor version and `fix` and `perf` the patch; `feat` lists under Added, `fix` under Fixed, `perf` under
+Performance, and the other types are left out. Do not edit `CHANGELOG.md` or the version by hand on `main`; only
+the maintainer merges the release pull request.
+
+Merging it creates a draft release with that section as its notes and the tag `vX.Y.Z`. The tag runs
+`.github/workflows/release.yml`: the checks, then one build per platform that signs and uploads its installers and
+updates to the draft, then publishing the release once every platform uploaded. Installed copies check the latest
+published release of `yangflow/oriel` once a day and from "Check for Updates…" in the app menu, and install nothing
+before the user confirms in the update window, which shows the version's section of `CHANGELOG.md`. The update mechanism is MyGo's
 ([auto-updates](https://github.com/egoist/mygo/blob/v0.4.1/docs/updates.md),
 [GitHub Actions](https://github.com/egoist/mygo/blob/v0.4.1/docs/github-actions.md)).
 
 ## One-time setup
+
+**Release App.** release-please acts as a GitHub App, because a tag or pull request made with the workflow's own
+`GITHUB_TOKEN` starts no workflows: the tag would not start `release.yml`, and CI would not run on the release pull
+request. Create a GitHub App owned by the maintainer, with no webhook, repository permissions Contents and Pull
+requests set to Read and write and nothing else, installed on `yangflow/oriel` only (the App made for idset can be
+installed here too). Then store its client ID and a private key generated on the App's page as repository secrets
+(not in the environment `release`, which only tags may use):
+
+```sh
+gh secret set RELEASE_APP_CLIENT_ID --repo yangflow/oriel
+gh secret set RELEASE_APP_PRIVATE_KEY --repo yangflow/oriel < <the downloaded .pem>
+```
+
+Delete the `.pem` afterwards; a new key can be generated on the App's page.
 
 Credentials go only into the secrets of the environment `release`, never into files, logs, issues or pull requests.
 The environment lets only tags `v*` deploy, so a workflow on a branch or a pull request never sees them. Set each
@@ -43,17 +64,17 @@ added to the configuration only in the workflow; local builds are signed ad hoc 
 
 ## Each release
 
-1. Run `python3 scripts/bump.py X.Y.Z`. It sets the version in `mygo.json` and turns `[Unreleased]` into
-   `## [X.Y.Z] - <date>` in `CHANGELOG.md`; the update window shows that section. For the first release, give the
-   current version: it dates the notes without skipping a version.
-2. Open a pull request with the two files (`chore(release): X.Y.Z`) and squash-merge it.
-3. Tag the merge commit and push the tag:
-
-   ```sh
-   git tag vX.Y.Z <commit>
-   git push origin vX.Y.Z
-   ```
+1. Make sure the titles merged since the last release say what changed for users: the `feat`, `fix` and `perf`
+   titles become the release notes and the text of the update window. To change the wording, edit `CHANGELOG.md` on
+   the release pull request's branch before merging; release-please keeps the edit until a new commit reaches
+   `main`, and then writes the section again.
+2. Squash-merge the release pull request once CI passes. The tag and the draft release follow; watch `release.yml`
+   on the Actions page.
 
 The workflow stops before building when the tag, the version in `mygo.json` and the changelog section disagree, or
 when `updates` is not configured, and before uploading when a secret is missing. A failed platform can be re-run
 from the Actions page; it uploads to the same draft, and the release is published only when all three succeed.
+
+If release-please cannot run, a release can still be made by hand: set the version in `mygo.json` and
+`.release-please-manifest.json`, add its section to `CHANGELOG.md`, merge that, then tag the merge commit and push
+the tag (`git tag vX.Y.Z <commit>`, `git push origin vX.Y.Z`); `release.yml` creates the draft itself.

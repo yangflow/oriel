@@ -1,8 +1,7 @@
 # Changelog
 
-All notable user-facing changes are recorded here, following [Keep a Changelog](https://keepachangelog.com/).
-
-## [Unreleased]
+release-please writes each release's section from the titles of the pull requests merged since the last one
+(docs/release.md); do not edit it by hand.
 
 ## [0.1.0] - 2026-10-19
 
