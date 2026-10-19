@@ -1,5 +1,6 @@
 // Package settings is the settings screen, in the place of the timeline: the RSSHub instance and how long entries are
-// kept, OPML import and export, and the devices signed in to the server; see design/screens/settings.html. Everything
+// kept, OPML import and export, the AI endpoint and prompts, and the devices signed in to the server; see
+// design/screens/settings.html. Everything
 // goes through the HTTP API; the settings belong to the server, so every device connected to it shares them.
 package settings
 
@@ -37,6 +38,10 @@ type copy struct {
 	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle             string
 	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry, Now, Minutes       string
 	Hours, Yesterday, DaysAgo, DateLayout, YearLayout                                                              string
+	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset     string
+	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested      string
+	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase         string
+	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, InvalidPrompt                                      string
 }
 
 var translations = func() map[string]copy {
@@ -53,10 +58,14 @@ func MenuLabel(systemLocale string) string { return translations[locale.Language
 // retentions are the days entries are kept that the picker offers, 0 for forever.
 var retentions = []int{0, 7, 30, 90, 180, 365}
 
+// languages are the languages summaries and translations can be written in, each named in itself.
+var languages = []struct{ code, name string }{{"zh-Hans", "简体中文"}, {"en", "English"}}
+
 // The groups of the sidebar.
 const (
 	fetching = iota
 	opml
+	ai
 	devices
 )
 
@@ -68,6 +77,7 @@ type API interface {
 	RevokeDevice(ctx context.Context, id int64) error
 	ImportOPML(ctx context.Context, opml []byte) (client.Imported, error)
 	ExportOPML(ctx context.Context) ([]byte, error)
+	TestAI(ctx context.Context) (string, error)
 }
 
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it
@@ -92,10 +102,11 @@ const (
 	failed
 )
 
-// status is the line under a setting after it was saved, or why it was not.
+// status is the line under a setting after it was saved, or why it was not; muted for a note, spinning while
+// something is under way.
 type status struct {
-	ok   bool
-	text string
+	ok, muted, spin bool
+	text            string
 }
 
 // The tones of the result of an import or export.
@@ -136,6 +147,17 @@ type Screen struct {
 	devices     []client.Device
 	deviceState int
 
+	aiBase, aiModel, aiKey string // as typed; the key saved is never sent back
+	aiLanguage             string
+	aiSaving               bool
+	aiInvalid              bool // the server refused the endpoint
+	focusAIBase            bool
+	aiStatus               status
+	testing                bool
+	prompts                [2]string // the summary and translation prompts as typed
+	promptSaving           bool
+	promptStatus           status
+
 	busy      bool   // a file is being chosen, imported or exported
 	importing string // the name of the file being imported
 	result    result
@@ -160,13 +182,20 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.api, s.server, s.signedIn = api, server, signedIn
 	s.gen++
 	s.group, s.busy, s.importing, s.result, s.revoking = fetching, false, "", result{}, false
-	s.saving, s.keeping = false, false
+	s.saving, s.keeping, s.aiSaving, s.testing, s.promptSaving = false, false, false, false, false
 	s.state, s.deviceState = loading, loading
+}
+
+// OpenAI opens the screen on the AI group, from an entry point of summaries and translations.
+func (s *Screen) OpenAI() {
+	s.group = ai
+	s.Open()
 }
 
 // Open loads the settings and the devices again, as the screen is shown.
 func (s *Screen) Open() {
 	s.baseStatus, s.keepStatus, s.invalid, s.revoking = status{}, status{}, false, false
+	s.aiStatus, s.promptStatus, s.aiInvalid = status{}, status{}, false
 	if !s.busy {
 		s.result = result{}
 	}
@@ -181,6 +210,7 @@ func (s *Screen) expired(err error) bool {
 	s.gen++
 	s.api = nil
 	s.busy, s.saving, s.keeping, s.revoking = false, false, false, false
+	s.aiSaving, s.testing, s.promptSaving = false, false, false
 	s.deps.Expired()
 	return true
 }
@@ -213,6 +243,8 @@ func (s *Screen) loadSettings() {
 			}
 			s.state, s.settings = loaded, settings
 			s.base, s.retention = settings.RSSHubBaseURL, settings.RetentionDays
+			s.aiBase, s.aiModel, s.aiKey, s.aiLanguage = settings.AIBaseURL, settings.AIModel, "", settings.AILanguage
+			s.prompts = [2]string{settings.PromptSummary, settings.PromptTranslate}
 		}
 	})
 }
@@ -308,6 +340,166 @@ func (s *Screen) saveRetention() {
 				s.keepStatus = status{ok: true, text: s.text.RetentionSaved}
 			}
 			s.announce = s.keepStatus.text
+		}
+	})
+}
+
+// aiDirty reports whether the AI endpoint as typed is not the one saved; a key typed is always a change.
+func (s *Screen) aiDirty() bool {
+	return strings.TrimSpace(s.aiBase) != s.settings.AIBaseURL || strings.TrimSpace(s.aiModel) != s.settings.AIModel ||
+		strings.TrimSpace(s.aiKey) != "" || s.aiLanguage != s.settings.AILanguage
+}
+
+// saveAI saves the changes to the AI endpoint, or removes the key; only what changed is sent.
+func (s *Screen) saveAI(removeKey bool) {
+	if s.aiSaving || s.api == nil || s.state != loaded || !removeKey && !s.aiDirty() {
+		return
+	}
+	var patch client.SettingsPatch
+	if removeKey {
+		patch.AIAPIKey = new(string)
+	} else {
+		if base := strings.TrimSpace(s.aiBase); base != s.settings.AIBaseURL {
+			patch.AIBaseURL = &base
+		}
+		if model := strings.TrimSpace(s.aiModel); model != s.settings.AIModel {
+			patch.AIModel = &model
+		}
+		if key := strings.TrimSpace(s.aiKey); key != "" {
+			patch.AIAPIKey = &key
+		}
+		if s.aiLanguage != s.settings.AILanguage {
+			language := s.aiLanguage
+			patch.AILanguage = &language
+		}
+	}
+	s.aiSaving, s.aiStatus, s.aiInvalid = true, status{}, false
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		settings, err := api.SetSettings(context.Background(), patch)
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			s.aiSaving = false
+			switch {
+			case err == nil:
+				s.settings.AIBaseURL, s.settings.AIModel = settings.AIBaseURL, settings.AIModel
+				s.settings.AIAPIKeySet, s.settings.AILanguage = settings.AIAPIKeySet, settings.AILanguage
+				if removeKey {
+					s.aiStatus = status{ok: true, text: s.text.KeyRemoved}
+				} else {
+					s.aiBase, s.aiModel, s.aiKey, s.aiLanguage = settings.AIBaseURL, settings.AIModel, "", settings.AILanguage
+					s.aiStatus = status{ok: true, text: s.text.AISaved}
+				}
+				s.announce = s.aiStatus.text
+			case code(err) == "invalid_ai_base_url":
+				s.aiInvalid, s.focusAIBase = true, true
+				s.announce = s.text.InvalidAIBase
+			default:
+				s.aiStatus = status{text: s.text.SaveFailed}
+				s.announce = s.aiStatus.text
+			}
+		}
+	})
+}
+
+// test sends a short request to the AI endpoint saved.
+func (s *Screen) test() {
+	if s.testing || s.api == nil || !s.settings.AIConfigured() || s.aiDirty() {
+		return
+	}
+	s.testing, s.aiStatus = true, status{}
+	s.announce = s.text.Testing
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		model, err := api.TestAI(context.Background())
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			s.testing = false
+			if err == nil {
+				s.aiStatus = status{ok: true, text: s.fill(s.text.Tested, "{model}", model)}
+			} else {
+				s.aiStatus = status{text: s.reason(code(err))}
+			}
+			s.announce = s.aiStatus.text
+		}
+	})
+}
+
+// reason says why the AI endpoint failed a test, from the code the server gave.
+func (s *Screen) reason(code string) string {
+	switch code {
+	case "":
+		return s.text.ErrorHint
+	case "ai_unauthorized":
+		return s.text.AIUnauthorized
+	case "ai_unreachable":
+		return s.text.AIUnreachable
+	case "ai_timeout":
+		return s.text.AITimeout
+	case "ai_rate_limited":
+		return s.text.AIRateLimited
+	}
+	return s.text.AIUpstream
+}
+
+// defaults are the prompts the server uses until they are changed.
+func (s *Screen) defaults() [2]string {
+	return [2]string{s.settings.DefaultPromptSummary, s.settings.DefaultPromptTranslate}
+}
+
+// promptsDirty reports whether a prompt as typed is not the one saved.
+func (s *Screen) promptsDirty() bool {
+	saved := [2]string{s.settings.PromptSummary, s.settings.PromptTranslate}
+	for i, p := range s.prompts {
+		if strings.TrimSpace(p) != saved[i] {
+			return true
+		}
+	}
+	return false
+}
+
+// savePrompts saves the prompts changed; one that is the default, or empty, is saved as "" to follow the default.
+func (s *Screen) savePrompts() {
+	if s.promptSaving || s.api == nil || s.state != loaded || !s.promptsDirty() {
+		return
+	}
+	var patch client.SettingsPatch
+	saved := [2]string{s.settings.PromptSummary, s.settings.PromptTranslate}
+	fields := [2]**string{&patch.PromptSummary, &patch.PromptTranslate}
+	for i, p := range s.prompts {
+		p = strings.TrimSpace(p)
+		if p == saved[i] {
+			continue
+		}
+		if p == s.defaults()[i] {
+			p = ""
+		}
+		*fields[i] = &p
+	}
+	s.promptSaving, s.promptStatus = true, status{}
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		settings, err := api.SetSettings(context.Background(), patch)
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			s.promptSaving = false
+			switch {
+			case err == nil:
+				s.settings.PromptSummary, s.settings.PromptTranslate = settings.PromptSummary, settings.PromptTranslate
+				s.prompts = [2]string{settings.PromptSummary, settings.PromptTranslate}
+				s.promptStatus = status{ok: true, text: s.text.AISaved}
+			case code(err) == "invalid_prompt":
+				s.promptStatus = status{text: s.text.InvalidPrompt}
+			default:
+				s.promptStatus = status{text: s.text.SaveFailed}
+			}
+			s.announce = s.promptStatus.text
 		}
 	})
 }
@@ -569,6 +761,8 @@ func (s *Screen) groupName(g int) string {
 	switch g {
 	case opml:
 		return s.text.OPML
+	case ai:
+		return s.text.AI
 	case devices:
 		return s.text.Devices
 	}
@@ -665,7 +859,7 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 			ui.Column(c).FillWidth().Padding(t.Space(2)).Label(s.text.Settings).Children(func() {
 				ui.Text(c, s.text.Settings).SingleLine().FontSize(px(t, 11)).FontWeight(600).TextColor(t.TextMuted).
 					Margin(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
-				for g, icon := range []*ui.SVG{icons.Rss, icons.ArrowUpDown, icons.Laptop} {
+				for g, icon := range []*ui.SVG{icons.Rss, icons.ArrowUpDown, icons.Sparkles, icons.Laptop} {
 					s.navItem(c, g, icon)
 				}
 			})
@@ -732,6 +926,8 @@ func (s *Screen) content(c *ui.Context, compact bool) {
 		switch s.group {
 		case opml:
 			s.opmlPage(c)
+		case ai:
+			s.aiPage(c)
 		case devices:
 			s.devicesPage(c)
 		default:
@@ -817,15 +1013,40 @@ func statusLine(c *ui.Context, st status) {
 		return
 	}
 	t := c.Theme()
+	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(px(t, 6)).Margin(px(t, 6), 0, 0, 0).Role(ui.RoleStatus).
+		Children(func() { statusText(c, st) })
+}
+
+// statusText is the icon and text of a status.
+func statusText(c *ui.Context, st status) {
+	t := c.Theme()
 	icon, color := icons.CircleAlert, t.Danger
-	if st.ok {
+	switch {
+	case st.spin:
+		icon, color = icons.LoaderCircle, t.TextMuted
+	case st.muted:
+		icon, color = nil, t.TextMuted
+	case st.ok:
 		icon, color = icons.Check, t.Success
 	}
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(px(t, 6)).Margin(px(t, 6), 0, 0, 0).Role(ui.RoleStatus).
-		Children(func() {
-			ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(color).Margin(1, 0, 0, 0)
-			ui.Text(c, st.text).FontSize(px(t, 12)).TextColor(color).Shrink(1).Wrap()
-		})
+	if icon != nil {
+		i := ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(color).Margin(1, 0, 0, 0)
+		if st.spin {
+			i.Rotate(i.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+		}
+	}
+	ui.Text(c, st.text).FontSize(px(t, 12)).TextColor(color).Shrink(1).Wrap()
+}
+
+// coded is help text with one placeholder drawn as code, such as an address or a route.
+func coded(c *ui.Context, text, placeholder, code string) ui.Element {
+	t := c.Theme()
+	before, after, _ := strings.Cut(text, placeholder)
+	return ui.RichText(c,
+		ui.Span{Text: before, Color: t.TextMuted},
+		ui.Span{Text: code, Font: "monospace", Color: t.TextMuted},
+		ui.Span{Text: after, Color: t.TextMuted},
+	).FontSize(px(t, 12)).Wrap()
 }
 
 func (s *Screen) fetchingPage(c *ui.Context) {
@@ -833,12 +1054,7 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 	lead(c, s.text.Lead)
 	card(c, func() {
 		ui.Text(c, s.text.RSSHub).FontWeight(500)
-		before, after, _ := strings.Cut(s.text.RSSHubHelp, "{route}")
-		ui.RichText(c,
-			ui.Span{Text: before, Color: t.TextMuted},
-			ui.Span{Text: "/github/issue/golang/go", Font: "monospace", Color: t.TextMuted},
-			ui.Span{Text: after, Color: t.TextMuted},
-		).FontSize(px(t, 12)).Wrap().Margin(2, 0, 0, 0)
+		coded(c, s.text.RSSHubHelp, "{route}", "/github/issue/golang/go").Margin(2, 0, 0, 0)
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(px(t, 10), 0, 0, 0).Children(func() {
 			s.baseField(c)
 			dirty := s.dirty()
@@ -859,13 +1075,19 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 	})
 }
 
-func (s *Screen) baseField(c *ui.Context) {
+// field draws a text input editing value, width wide or growing for 0, its border in the danger color while invalid;
+// input names and handles the input.
+func field(c *ui.Context, key string, value *string, width float32, invalid bool, input func(in ui.Element)) {
 	t := c.Theme()
-	before := s.base
-	b := ui.Row(c).Key("base").Grow(1).MinWidth(0).Height(px(t, 32)).AlignItems(ui.Center).PaddingX(px(t, 10)).
+	b := ui.Row(c).Key(key).MinWidth(0).Height(px(t, 32)).AlignItems(ui.Center).PaddingX(px(t, 10)).
 		Radius(t.Radius).Border(1, t.Border).Background(t.Background)
+	if width > 0 {
+		b.Width(width).Shrink(1)
+	} else {
+		b.Grow(1)
+	}
 	switch focused := b.FocusWithin(); {
-	case s.invalid:
+	case invalid:
 		b.BorderColor(t.Danger)
 		if focused {
 			b.Shadow(0, 0, 0, 3, theme.Soft(t, t.Danger))
@@ -873,9 +1095,13 @@ func (s *Screen) baseField(c *ui.Context) {
 	case focused:
 		b.BorderColor(t.Accent).Shadow(0, 0, 0, 3, t.Focus)
 	}
-	b.Children(func() {
-		in := ui.TextInputBase(c, &s.base).Grow(1).MinWidth(0).FocusRing(false).Font("monospace").
-			Label(s.text.RSSHub).Placeholder(s.text.RSSHubPlaceholder).Disabled(s.saving)
+	b.Children(func() { input(ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false)) })
+}
+
+func (s *Screen) baseField(c *ui.Context) {
+	before := s.base
+	field(c, "base", &s.base, 0, s.invalid, func(in ui.Element) {
+		in.Font("monospace").Label(s.text.RSSHub).Placeholder(s.text.RSSHubPlaceholder).Disabled(s.saving)
 		if s.invalid {
 			in.Error(s.text.InvalidBase)
 		}
@@ -932,6 +1158,191 @@ func (s *Screen) retentionSelect(c *ui.Context) {
 	if sel.Trigger.Changed() {
 		s.saveRetention()
 	}
+}
+
+func (s *Screen) aiPage(c *ui.Context) {
+	t := c.Theme()
+	lead(c, s.text.AILead)
+	before := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage}
+	submit := func(in ui.Element) {
+		if in.Submitted() {
+			s.saveAI(false)
+		}
+	}
+	card(c, func() {
+		ui.Text(c, s.text.Endpoint).FontWeight(500)
+		coded(c, s.text.EndpointHelp, "{address}", s.text.EndpointPlaceholder).Margin(2, 0, 0, 0)
+		ui.Row(c).FillWidth().Margin(px(t, 10), 0, 0, 0).Children(func() {
+			field(c, "endpoint", &s.aiBase, 0, s.aiInvalid, func(in ui.Element) {
+				in.Font("monospace").Label(s.text.Endpoint).Placeholder(s.text.EndpointPlaceholder).Disabled(s.aiSaving)
+				if s.aiInvalid {
+					in.Error(s.text.InvalidAIBase)
+				}
+				if s.focusAIBase {
+					in.Focus()
+					s.focusAIBase = false
+				}
+				submit(in)
+			})
+		})
+		if s.aiInvalid {
+			statusLine(c, status{text: s.text.InvalidAIBase})
+		}
+	}, func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
+			ui.Text(c, s.text.Model).FontWeight(500).Grow(1).MinWidth(0)
+			field(c, "model", &s.aiModel, px(t, 260), false, func(in ui.Element) {
+				in.Font("monospace").Label(s.text.Model).Placeholder(s.text.ModelPlaceholder).Disabled(s.aiSaving)
+				submit(in)
+			})
+		})
+	}, func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+			ui.Text(c, s.text.APIKey).FontWeight(500).Shrink(1).MinWidth(0)
+			badge, fill, color := s.text.KeyUnset, t.Surface, t.TextMuted
+			if s.settings.AIAPIKeySet {
+				badge, fill, color = s.text.KeySet, theme.Soft(t, t.Accent), t.Accent
+			}
+			ui.Box(c).Height(px(t, 18)).PaddingX(px(t, 6)).Radius(px(t, 9)).Center().Background(fill).Children(func() {
+				ui.Text(c, badge).FontSize(px(t, 11)).FontWeight(500).TextColor(color).NoWrap()
+			})
+		})
+		ui.Text(c, s.text.KeyHelp).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(2, 0, 0, 0)
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(px(t, 10), 0, 0, 0).Children(func() {
+			placeholder := s.text.KeyPlaceholder
+			if s.settings.AIAPIKeySet {
+				placeholder = s.text.KeyReplace
+			}
+			field(c, "key", &s.aiKey, 0, false, func(in ui.Element) {
+				in.Password().Label(s.text.APIKey).Placeholder(placeholder).Description(s.text.KeyHelp).
+					Disabled(s.aiSaving)
+				submit(in)
+			})
+			if s.settings.AIAPIKeySet {
+				remove := button(c, secondary, s.aiSaving)
+				textButton(c, remove, secondary, nil, s.text.RemoveKey, false)
+				if remove.Clicked() {
+					s.saveAI(true)
+				}
+			}
+		})
+	}, func() {
+		labeled(c, s.text.Language, s.text.LanguageHelp, func() { s.languageSelect(c) })
+	}, func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+			dirty := s.aiDirty()
+			st := s.aiStatus
+			switch {
+			case s.testing:
+				st = status{spin: true, text: s.text.Testing}
+			case st.text == "" && dirty && !s.aiInvalid && s.settings.AIConfigured():
+				st = status{muted: true, text: s.text.TestFirst}
+			}
+			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(px(t, 6)).Role(ui.RoleStatus).Children(func() {
+				if st.text != "" {
+					statusText(c, st)
+				}
+			})
+			test := button(c, secondary, !s.settings.AIConfigured() || dirty || s.testing || s.aiSaving)
+			textButton(c, test, secondary, icons.Plug, s.text.Test, false)
+			if test.Clicked() {
+				s.test()
+			}
+			style := secondary
+			if dirty {
+				style = primary
+			}
+			save := button(c, style, !dirty || s.aiSaving)
+			textButton(c, save, style, nil, s.text.Save, s.aiSaving)
+			if save.Clicked() {
+				s.saveAI(false)
+			}
+		})
+	})
+	if after := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage}; after != before {
+		s.aiInvalid, s.aiStatus = s.aiInvalid && after[0] == before[0], status{}
+	}
+	ui.Text(c, s.text.Prompts).FontSize(px(t, 12)).FontWeight(600).TextColor(t.TextMuted).
+		Margin(px(t, 20), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+	typed := s.prompts
+	card(c, func() { s.promptField(c, 0, s.text.PromptSummary) }, func() { s.promptField(c, 1, s.text.PromptTranslate) },
+		func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+				coded(c, s.text.PromptHelp, "{language}", "{language}").Grow(1).MinWidth(0)
+				dirty := s.promptsDirty()
+				style := secondary
+				if dirty {
+					style = primary
+				}
+				save := button(c, style, !dirty || s.promptSaving).Label(s.text.Prompts + " · " + s.text.Save)
+				textButton(c, save, style, nil, s.text.Save, s.promptSaving)
+				if save.Clicked() {
+					s.savePrompts()
+				}
+			})
+			statusLine(c, s.promptStatus)
+		})
+	if s.prompts != typed {
+		s.promptStatus = status{}
+	}
+}
+
+// promptField is a prompt, with Restore default while it is not the default.
+func (s *Screen) promptField(c *ui.Context, i int, label string) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+		ui.Text(c, label).FontWeight(500).Grow(1).MinWidth(0)
+		reset := button(c, small, s.promptSaving || strings.TrimSpace(s.prompts[i]) == s.defaults()[i]).
+			Label(label + " · " + s.text.Reset)
+		textButton(c, reset, small, icons.RotateCcw, s.text.Reset, false)
+		if reset.Clicked() {
+			s.prompts[i] = s.defaults()[i]
+		}
+	})
+	ui.TextArea(c.Key(i), &s.prompts[i]).FillWidth().Lines(3, 10).Margin(px(t, 10), 0, 0, 0).Font("monospace").
+		FontSize(px(t, 12.5)).Label(label).Disabled(s.promptSaving)
+}
+
+func (s *Screen) languageSelect(c *ui.Context) {
+	t := c.Theme()
+	name := func(code string) string {
+		for _, l := range languages {
+			if l.code == code {
+				return l.name
+			}
+		}
+		return code
+	}
+	sel := ui.SelectBase(c, &s.aiLanguage)
+	sel.Trigger.MinWidth(px(t, 160)).Height(px(t, 32)).Gap(t.Space(2)).Padding(0, t.Space(2), 0, px(t, 10)).
+		Radius(t.Radius).Border(1, t.Border).Background(t.Background).Label(s.text.Language).Disabled(s.aiSaving)
+	if sel.Trigger.Focused() {
+		sel.Trigger.BorderColor(t.Accent).Shadow(0, 0, 0, 3, t.Focus)
+	} else if sel.Trigger.Hovered() {
+		sel.Trigger.Background(t.SurfaceHover)
+	}
+	sel.Trigger.Children(func() {
+		ui.Text(c, name(s.aiLanguage)).Grow(1).MinWidth(0).SingleLine()
+		ui.Icon(c, icons.ChevronDown).FontSize(px(t, 14)).TextColor(t.TextMuted)
+	})
+	sel.Popup(func(panel ui.Element) {
+		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(px(t, 160)).Radius(t.Radius).Background(t.Background).
+			Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.18))
+		for _, l := range languages {
+			item := sel.Item(l.code).FillWidth().Height(px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(5)
+			color := t.Text
+			if item.Highlighted() {
+				item.Background(t.Accent)
+				color = t.AccentText
+			}
+			item.Children(func() {
+				ui.Text(c, l.name).Grow(1).NoWrap().TextColor(color)
+				if l.code == s.aiLanguage {
+					ui.Icon(c, icons.Check).FontSize(px(t, 14)).TextColor(color)
+				}
+			})
+		}
+	})
 }
 
 func (s *Screen) opmlPage(c *ui.Context) {
@@ -1084,6 +1495,7 @@ const (
 	secondary = iota
 	primary
 	danger // small, in the danger color
+	small
 )
 
 func button(c *ui.Context, style int, disabled bool) ui.Element {
@@ -1093,7 +1505,7 @@ func button(c *ui.Context, style int, disabled bool) ui.Element {
 	switch style {
 	case primary:
 		fill, border = t.Accent, t.Accent
-	case danger:
+	case danger, small:
 		b.Height(px(t, 26)).PaddingX(px(t, 10))
 	}
 	switch {
@@ -1132,7 +1544,7 @@ func textButton(c *ui.Context, b ui.Element, style int, icon *ui.SVG, text strin
 		switch style {
 		case primary:
 			label.FontWeight(500)
-		case danger:
+		case danger, small:
 			label.FontSize(px(t, 12))
 		}
 	})

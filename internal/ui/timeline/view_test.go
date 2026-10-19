@@ -35,8 +35,8 @@ type fake struct {
 	pictures []string
 	articles []int64 // the entries asked for in full
 
-	entriesErr, setErr, markErr error
-	connects, settings, expired int
+	entriesErr, setErr, markErr             error
+	connects, settings, aiSettings, expired int
 }
 
 func (f *fake) Entries(_ context.Context, q client.Query) (client.Page, error) {
@@ -146,13 +146,21 @@ func (f *fake) SetSettings(context.Context, client.SettingsPatch) (client.Settin
 	return client.Settings{}, nil
 }
 
+func (f *fake) AI(context.Context, int64) (client.AIResults, error) { return client.AIResults{}, nil }
+
+// RequestAI answers as a server without AI set up.
+func (f *fake) RequestAI(context.Context, int64, string) (client.AIResult, error) {
+	return client.AIResult{}, &client.APIError{Status: 409, Code: "ai_not_configured"}
+}
+
 func (f *fake) deps() Deps {
 	return Deps{
-		Go:           func(work func() func()) { f.queue = append(f.queue, work) },
-		Now:          func() time.Time { return f.now },
-		OpenConnect:  func() { f.connects++ },
-		OpenSettings: func() { f.settings++ },
-		Expired:      func() { f.expired++ },
+		Go:             func(work func() func()) { f.queue = append(f.queue, work) },
+		Now:            func() time.Time { return f.now },
+		OpenConnect:    func() { f.connects++ },
+		OpenSettings:   func() { f.settings++ },
+		OpenAISettings: func() { f.aiSettings++ },
+		Expired:        func() { f.expired++ },
 	}
 }
 
@@ -456,6 +464,25 @@ func TestKeyboard(t *testing.T) {
 	tt.Type("jk")
 	if s.selected != 1 || s.query != "jk" {
 		t.Fatalf("the keys moved the list while typing: selected %d, query %q", s.selected, s.query)
+	}
+}
+
+// TestReaderAIOff follows the reader's way to the settings while AI is not set up.
+func TestReaderAIOff(t *testing.T) {
+	_, f, tt := setup(t, "en")
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.Click("Summarize"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.Click("Open Settings…"); err != nil {
+		t.Fatalf("%v in %v", err, tt.Texts())
+	}
+	if f.aiSettings != 1 || f.settings != 0 {
+		t.Fatalf("AI settings %d, settings %d", f.aiSettings, f.settings)
 	}
 }
 

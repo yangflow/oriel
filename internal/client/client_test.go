@@ -325,3 +325,62 @@ func TestSettingsAPI(t *testing.T) {
 		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+func TestAIAPI(t *testing.T) {
+	ctx := context.Background()
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		seen = append(seen, r.Method+" "+r.URL.Path+" "+string(body))
+		switch r.URL.Path {
+		case "/api/entries/7/ai":
+			w.Write([]byte(`{"summary":{"status":"ok","text":"Short.","error":"","model":"m","updatedAt":1},"translation":null}`))
+		case "/api/entries/7/translation":
+			w.WriteHeader(http.StatusAccepted)
+			w.Write([]byte(`{"status":"pending","text":"","error":"","model":"","updatedAt":null}`))
+		case "/api/entries/8/summary":
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(`{"error":"ai_not_configured"}`))
+		case "/api/ai/test":
+			w.Write([]byte(`{"model":"m-1"}`))
+		case "/api/settings":
+			w.Write([]byte(`{"aiBaseUrl":"http://x/v1","aiModel":"m","aiApiKeySet":true,"aiLanguage":"en"}`))
+		}
+	}))
+	defer srv.Close()
+	session := Session{Server: srv.URL}
+
+	results, err := session.AI(ctx, 7)
+	if err != nil || results.Summary == nil || *results.Summary != (AIResult{Status: "ok", Text: "Short.", Model: "m"}) ||
+		results.Translation != nil {
+		t.Errorf("AI = %+v, %v", results, err)
+	}
+	if result, err := session.RequestAI(ctx, 7, "translation"); err != nil || result.Status != "pending" {
+		t.Errorf("RequestAI = %+v, %v", result, err)
+	}
+	var apiErr *APIError
+	if _, err := session.RequestAI(ctx, 8, "summary"); !errors.As(err, &apiErr) || apiErr.Code != "ai_not_configured" {
+		t.Errorf("RequestAI not configured: %v", err)
+	}
+	if model, err := session.TestAI(ctx); err != nil || model != "m-1" {
+		t.Errorf("TestAI = %q, %v", model, err)
+	}
+	key := ""
+	settings, err := session.SetSettings(ctx, SettingsPatch{AIAPIKey: &key})
+	if err != nil || !settings.AIConfigured() || !settings.AIAPIKeySet || settings.AILanguage != "en" {
+		t.Errorf("SetSettings = %+v, %v", settings, err)
+	}
+	on := true
+	session.UpdateSource(ctx, 5, SourcePatch{AutoSummary: &on, PromptSummary: &key})
+	want := []string{
+		"GET /api/entries/7/ai ",
+		"POST /api/entries/7/translation ",
+		"POST /api/entries/8/summary ",
+		"POST /api/ai/test ",
+		`PATCH /api/settings {"aiApiKey":""}`,
+		`PATCH /api/sources/5 {"promptSummary":"","autoSummary":true}`,
+	}
+	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
+		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))
+	}
+}

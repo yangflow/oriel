@@ -73,7 +73,16 @@
     "ResumeFirst": "Resume “{name}” to fetch it",
     "Gone": "This subscription no longer exists.",
     "ActionFailed": "Couldn’t save the change",
-    "Separator": " · "
+    "Separator": " · ",
+    "AIGroup": "Summaries and translations",
+    "AutoSummary": "Summarize new entries",
+    "AutoTranslate": "Translate new entries",
+    "AutoHelp": "Only entries that arrive after you turn it on.",
+    "PromptSummary": "Summary prompt",
+    "PromptTranslate": "Translation prompt",
+    "PromptPlaceholder": "Empty uses the prompt in Settings",
+    "AIOff": "AI isn’t set up, so nothing is summarized or translated yet.",
+    "OpenSettings": "Open Settings…"
   },
   "zh-Hans": {
     "Add": "添加订阅",
@@ -149,6 +158,15 @@
     "ResumeFirst": "先恢复「{name}」再更新",
     "Gone": "这个订阅已经不在了。",
     "ActionFailed": "改动没能保存",
-    "Separator": " · "
+    "Separator": " · ",
+    "AIGroup": "摘要和翻译",
+    "AutoSummary": "新条目自动摘要",
+    "AutoTranslate": "新条目自动翻译",
+    "AutoHelp": "只管打开之后新到的条目。",
+    "PromptSummary": "摘要 prompt",
+    "PromptTranslate": "翻译 prompt",
+    "PromptPlaceholder": "留空就用设置里的 prompt",
+    "AIOff": "还没配置 AI，暂时不会摘要或翻译。",
+    "OpenSettings": "打开设置…"
   }
 }

@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,11 @@ import (
 
 var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 
+const (
+	summaryPrompt   = "Summarize in {language}."
+	translatePrompt = "Translate into {language}."
+)
+
 // fake stands in for the server, the file dialogs and the background: work waits in a queue until settle runs it.
 type fake struct {
 	queue    []func() func()
@@ -30,7 +36,10 @@ type fake struct {
 	revoked []int64
 	sent    [][]byte
 
-	settingsErr, setErr, devicesErr, revokeErr, importErr, exportErr error
+	settingsErr, setErr, devicesErr, revokeErr, importErr, exportErr, testErr error
+
+	model string // the model that answers a test
+	tests int
 
 	open, save string // the paths the dialogs answer, "" for cancelled
 	filters    []string
@@ -52,6 +61,24 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	if patch.RetentionDays != nil {
 		f.settings.RetentionDays = *patch.RetentionDays
 	}
+	if patch.AIBaseURL != nil {
+		f.settings.AIBaseURL = strings.TrimSuffix(*patch.AIBaseURL, "/")
+	}
+	if patch.AIModel != nil {
+		f.settings.AIModel = *patch.AIModel
+	}
+	if patch.AIAPIKey != nil {
+		f.settings.AIAPIKeySet = *patch.AIAPIKey != ""
+	}
+	if patch.AILanguage != nil {
+		f.settings.AILanguage = *patch.AILanguage
+	}
+	if patch.PromptSummary != nil {
+		f.settings.PromptSummary = cmp.Or(*patch.PromptSummary, f.settings.DefaultPromptSummary)
+	}
+	if patch.PromptTranslate != nil {
+		f.settings.PromptTranslate = cmp.Or(*patch.PromptTranslate, f.settings.DefaultPromptTranslate)
+	}
 	return f.settings, nil
 }
 
@@ -68,6 +95,11 @@ func (f *fake) ImportOPML(_ context.Context, opml []byte) (client.Imported, erro
 }
 
 func (f *fake) ExportOPML(context.Context) ([]byte, error) { return f.opml, f.exportErr }
+
+func (f *fake) TestAI(context.Context) (string, error) {
+	f.tests++
+	return f.model, f.testErr
+}
 
 func (f *fake) deps() Deps {
 	return Deps{
@@ -100,7 +132,9 @@ func (f *fake) settle(tt *ui.Tester) {
 func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
 	f := &fake{
-		settings: client.Settings{RSSHubBaseURL: "https://rsshub.example.com", RetentionDays: 30},
+		settings: client.Settings{RSSHubBaseURL: "https://rsshub.example.com", RetentionDays: 30, AILanguage: "zh-Hans",
+			PromptSummary: summaryPrompt, PromptTranslate: translatePrompt,
+			DefaultPromptSummary: summaryPrompt, DefaultPromptTranslate: translatePrompt},
 		devices: []client.Device{
 			{ID: 4, UserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 " +
 				"(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
@@ -157,8 +191,8 @@ func TestShows(t *testing.T) {
 	}
 }
 
-// field clicks the RSSHub instance field, left of its Save button; its label is also the setting's heading.
-func field(t *testing.T, s *Screen, tt *ui.Tester) {
+// clickBase clicks the RSSHub instance field, left of its Save button; its label is also the setting's heading.
+func clickBase(t *testing.T, s *Screen, tt *ui.Tester) {
 	t.Helper()
 	r, ok := tt.Find(s.text.Save)
 	if !ok {
@@ -201,7 +235,7 @@ func TestSaveBase(t *testing.T) {
 	if len(f.set) != 0 {
 		t.Fatalf("saved an unchanged instance: %v", f.set)
 	}
-	field(t, s, tt)
+	clickBase(t, s, tt)
 	tt.Type("/")
 	tt.Key(0, ui.KeyEnter)
 	f.settle(tt)
@@ -216,7 +250,7 @@ func TestSaveBase(t *testing.T) {
 func TestInvalidBase(t *testing.T) {
 	s, f, tt := setup(t, "zh-Hans", true)
 	f.setErr = &client.APIError{Status: 400, Code: "invalid_rsshub_base_url"}
-	field(t, s, tt)
+	clickBase(t, s, tt)
 	tt.Type("x")
 	if err := tt.Click(s.text.Save); err != nil {
 		t.Fatal(err)
@@ -555,5 +589,202 @@ func TestNarrow(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText(s.text.RSSHub) || !tt.HasText(s.text.BackTimeline) {
 		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+// openAI shows the AI group, with the endpoint saved when configured.
+func openAI(t *testing.T, language string, configured bool) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	s, f, tt := setup(t, language, true)
+	if configured {
+		f.settings.AIBaseURL, f.settings.AIModel, f.settings.AIAPIKeySet = "https://api.example.com/v1", "small", true
+	}
+	f.model = "small"
+	s.OpenAI()
+	f.settle(tt)
+	return s, f, tt
+}
+
+// press clicks the element showing or labeled label.
+func press(t *testing.T, tt *ui.Tester, label string) {
+	t.Helper()
+	if err := tt.Click(label); err != nil {
+		t.Fatalf("%v in %v", err, tt.Texts())
+	}
+}
+
+// edit changes the AI settings as typed, as the fields do between frames.
+func edit(tt *ui.Tester, change func()) {
+	change()
+	tt.Frame()
+}
+
+func TestAIShows(t *testing.T) {
+	s, f, tt := openAI(t, "en", false)
+	if s.group != ai {
+		t.Fatalf("group %d", s.group)
+	}
+	for _, text := range []string{s.text.AILead, s.text.Endpoint, s.text.Model, s.text.KeyUnset, "简体中文",
+		s.text.PromptSummary, s.text.Reset} {
+		if !tt.HasText(text) {
+			t.Errorf("no %q in %v", text, tt.Texts())
+		}
+	}
+	if tt.HasText(s.text.RemoveKey) || s.prompts != [2]string{summaryPrompt, translatePrompt} {
+		t.Fatalf("texts %v, prompts %q", tt.Texts(), s.prompts)
+	}
+	press(t, tt, s.text.Test)
+	f.settle(tt)
+	if f.tests != 0 {
+		t.Fatal("tested an endpoint not set up")
+	}
+}
+
+func TestSaveAI(t *testing.T) {
+	s, f, tt := openAI(t, "en", false)
+	edit(tt, func() { s.aiBase, s.aiModel, s.aiKey = "https://api.example.com/v1/", " small ", "sk-test" })
+	press(t, tt, "简体中文")
+	press(t, tt, "English")
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 1 {
+		t.Fatalf("set %v", f.set)
+	}
+	p := f.set[0]
+	if *p.AIBaseURL != "https://api.example.com/v1/" || *p.AIModel != "small" || *p.AIAPIKey != "sk-test" ||
+		*p.AILanguage != "en" || p.RSSHubBaseURL != nil || p.PromptSummary != nil {
+		t.Fatalf("patch %+v", p)
+	}
+	if !tt.HasText(s.text.AISaved) || !tt.HasText(s.text.KeySet) || !tt.HasText(s.text.RemoveKey) || s.aiKey != "" ||
+		s.aiBase != "https://api.example.com/v1" || !slices.Contains(tt.Announcements(), s.text.AISaved) {
+		t.Fatalf("texts %v, base %q", tt.Texts(), s.aiBase)
+	}
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 1 {
+		t.Fatalf("saved without a change: %v", f.set)
+	}
+}
+
+func TestInvalidAIBase(t *testing.T) {
+	s, f, tt := openAI(t, "zh-Hans", true)
+	f.setErr = &client.APIError{Status: 400, Code: "invalid_ai_base_url"}
+	edit(tt, func() { s.aiBase = "x" })
+	if !tt.HasText(s.text.TestFirst) {
+		t.Fatalf("no save-first note in %v", tt.Texts())
+	}
+	press(t, tt, s.text.Test)
+	f.settle(tt)
+	if f.tests != 0 {
+		t.Fatal("tested with unsaved changes")
+	}
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	tt.Frame()
+	if !tt.HasText(s.text.InvalidAIBase) || !tt.Focused(s.text.Endpoint) || tt.HasText(s.text.TestFirst) ||
+		!slices.Contains(tt.Announcements(), s.text.InvalidAIBase) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	tt.Type("y")
+	if tt.HasText(s.text.InvalidAIBase) || s.aiBase != "xy" {
+		t.Fatalf("the error stays after typing %q", s.aiBase)
+	}
+	f.setErr = errors.New("offline")
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if !tt.HasText(s.text.SaveFailed) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestRemoveKey(t *testing.T) {
+	s, f, tt := openAI(t, "en", true)
+	press(t, tt, s.text.RemoveKey)
+	f.settle(tt)
+	if len(f.set) != 1 || f.set[0].AIAPIKey == nil || *f.set[0].AIAPIKey != "" || f.set[0].AIModel != nil {
+		t.Fatalf("set %+v", f.set)
+	}
+	if !tt.HasText(s.text.KeyRemoved) || !tt.HasText(s.text.KeyUnset) || tt.HasText(s.text.RemoveKey) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestTestAI(t *testing.T) {
+	s, f, tt := openAI(t, "en", true)
+	press(t, tt, s.text.Test)
+	if !tt.HasText(s.text.Testing) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	press(t, tt, s.text.Test)
+	f.settle(tt)
+	if f.tests != 1 || !tt.HasText("Connected. small answered.") {
+		t.Fatalf("tests %d, texts %v", f.tests, tt.Texts())
+	}
+	for code, want := range map[string]string{
+		"ai_unauthorized": s.text.AIUnauthorized, "ai_unreachable": s.text.AIUnreachable,
+		"ai_timeout": s.text.AITimeout, "ai_rate_limited": s.text.AIRateLimited, "ai_upstream": s.text.AIUpstream,
+		"ai_empty": s.text.AIUpstream, "": s.text.ErrorHint,
+	} {
+		f.testErr = &client.APIError{Status: 502, Code: code}
+		if code == "" {
+			f.testErr = errors.New("offline")
+		}
+		press(t, tt, s.text.Test)
+		f.settle(tt)
+		if !tt.HasText(want) || !slices.Contains(tt.Announcements(), want) {
+			t.Errorf("%q: no %q in %v", code, want, tt.Texts())
+		}
+	}
+	// The model field sits right of its heading.
+	r, _ := tt.Find(s.text.Model)
+	tt.ClickAt(r.X+r.W+40, r.Y+r.H/2)
+	tt.Type("-2")
+	if !strings.Contains(s.aiModel, "-2") || tt.HasText(s.text.ErrorHint) || !tt.HasText(s.text.TestFirst) {
+		t.Fatalf("model %q, texts %v", s.aiModel, tt.Texts())
+	}
+}
+
+func TestPrompts(t *testing.T) {
+	s, f, tt := openAI(t, "en", true)
+	tt.SetSize(1000, 1200)
+	tt.Frame()
+	save, reset := s.text.Prompts+" · "+s.text.Save, s.text.PromptSummary+" · "+s.text.Reset
+	edit(tt, func() { s.prompts[0] += " Be brief." })
+	press(t, tt, save)
+	f.settle(tt)
+	if len(f.set) != 1 || *f.set[0].PromptSummary != summaryPrompt+" Be brief." || f.set[0].PromptTranslate != nil ||
+		f.set[0].AIBaseURL != nil || !tt.HasText(s.text.AISaved) {
+		t.Fatalf("set %+v, texts %v", f.set, tt.Texts())
+	}
+	press(t, tt, reset)
+	if s.prompts[0] != summaryPrompt || tt.HasText(s.text.AISaved) {
+		t.Fatalf("prompt %q, texts %v", s.prompts[0], tt.Texts())
+	}
+	f.setErr = &client.APIError{Status: 400, Code: "invalid_prompt"}
+	press(t, tt, save)
+	f.settle(tt)
+	if len(f.set) != 2 || *f.set[1].PromptSummary != "" || !tt.HasText(s.text.InvalidPrompt) {
+		t.Fatalf("set %+v, texts %v", f.set, tt.Texts())
+	}
+	f.setErr = nil
+	press(t, tt, save)
+	f.settle(tt)
+	if s.settings.PromptSummary != summaryPrompt || s.promptsDirty() {
+		t.Fatalf("settings %+v", s.settings)
+	}
+	press(t, tt, save)
+	f.settle(tt)
+	if len(f.set) != 3 {
+		t.Fatalf("saved unchanged prompts: %v", f.set)
+	}
+}
+
+func TestAIExpired(t *testing.T) {
+	s, f, tt := openAI(t, "en", true)
+	f.testErr = client.ErrUnauthorized
+	press(t, tt, s.text.Test)
+	f.settle(tt)
+	if f.expired != 1 || s.testing || s.api != nil {
+		t.Fatalf("expired %d, testing %v", f.expired, s.testing)
 	}
 }

@@ -25,7 +25,8 @@ func TestSettings(t *testing.T) {
 	if body := decode(t, w); w.Code != http.StatusOK || strings.Contains(w.Body.String(), "stored-secret-value") ||
 		body["rsshubBaseUrl"] != "" || body["retentionDays"] != 0.0 || body["aiBaseUrl"] != "" || body["aiModel"] != "" ||
 		body["aiApiKeySet"] != true || body["aiLanguage"] != "zh-Hans" || body["promptSummary"] != ai.DefaultPromptSummary ||
-		body["promptTranslate"] != ai.DefaultPromptTranslate || len(body) != 8 {
+		body["promptTranslate"] != ai.DefaultPromptTranslate || body["defaultPromptSummary"] != ai.DefaultPromptSummary ||
+		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 10 {
 		t.Fatalf("defaults: %d %s", w.Code, w.Body)
 	}
 

@@ -72,15 +72,17 @@ type API interface {
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it
 // returns on the UI thread. Now is the clock and Decode turns the bytes of a picture into a bitmap, off the UI thread;
 // they default to time.Now and ui.DecodeBitmap. OpenConnect shows the connect screen, from the server bar,
-// OpenSettings the settings, from the gear beside it, and Expired the connect screen because the server no longer
-// takes the session.
+// OpenSettings the settings, from the gear beside it, OpenAISettings the settings on the AI group, from the entry
+// points of summaries and translations while AI is not set up, and Expired the connect screen because the server no
+// longer takes the session.
 type Deps struct {
-	Go           func(work func() (apply func()))
-	Now          func() time.Time
-	Decode       func([]byte) (*ui.Bitmap, error)
-	OpenConnect  func()
-	OpenSettings func()
-	Expired      func()
+	Go             func(work func() (apply func()))
+	Now            func() time.Time
+	Decode         func([]byte) (*ui.Bitmap, error)
+	OpenConnect    func()
+	OpenSettings   func()
+	OpenAISettings func()
+	Expired        func()
 }
 
 // scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
@@ -177,13 +179,14 @@ func New(systemLocale string, deps Deps) *Screen {
 	s := &Screen{deps: deps, text: translations[locale.Language(systemLocale)], selected: -1, focusRow: -1,
 		hovered: -1, pictures: map[string]*picture{}}
 	s.subs = subscriptions.New(systemLocale, subscriptions.Deps{
-		Go:      deps.Go,
-		Now:     deps.Now,
-		Sources: func() []client.Source { return s.sources },
-		Added:   s.added,
-		Changed: s.changed,
-		Removed: s.removed,
-		Show:    func(id int64) { s.choose(scope{kind: s.kindOf(id), source: id}) },
+		Go:           deps.Go,
+		Now:          deps.Now,
+		Sources:      func() []client.Source { return s.sources },
+		Added:        s.added,
+		Changed:      s.changed,
+		Removed:      s.removed,
+		Show:         func(id int64) { s.choose(scope{kind: s.kindOf(id), source: id}) },
+		OpenSettings: deps.OpenAISettings,
 		Expired: func() {
 			s.gen++
 			s.api = nil
@@ -191,14 +194,15 @@ func New(systemLocale string, deps Deps) *Screen {
 		},
 	})
 	s.reader = reader.New(systemLocale, reader.Deps{
-		Go:         deps.Go,
-		Now:        deps.Now,
-		Decode:     deps.Decode,
-		Expired:    s.expired,
-		Back:       s.back,
-		Move:       s.step,
-		Star:       func() { s.toggleStar(s.index(s.reading)) },
-		ToggleRead: func() { s.toggleRead(s.index(s.reading)) },
+		Go:           deps.Go,
+		Now:          deps.Now,
+		Decode:       deps.Decode,
+		Expired:      s.expired,
+		OpenSettings: deps.OpenAISettings,
+		Back:         s.back,
+		Move:         s.step,
+		Star:         func() { s.toggleStar(s.index(s.reading)) },
+		ToggleRead:   func() { s.toggleRead(s.index(s.reading)) },
 	})
 	return s
 }

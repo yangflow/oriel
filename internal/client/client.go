@@ -293,6 +293,10 @@ type Source struct {
 	MuteKeywords        string `json:"muteKeywords"`
 	Paused              bool   `json:"paused"`
 	UnreadCount         int    `json:"unreadCount"`
+	PromptSummary       string `json:"promptSummary"`
+	PromptTranslate     string `json:"promptTranslate"`
+	AutoSummary         bool   `json:"autoSummary"`
+	AutoTranslate       bool   `json:"autoTranslate"`
 }
 
 // NewSource is a subscription to add: exactly one of URL and RSSHubPath. An empty Title takes the feed's, and a zero
@@ -312,18 +316,56 @@ type SourcePatch struct {
 	FetchIntervalSec *int64  `json:"fetchIntervalSec,omitempty"`
 	MuteKeywords     *string `json:"muteKeywords,omitempty"`
 	Paused           *bool   `json:"paused,omitempty"`
+	PromptSummary    *string `json:"promptSummary,omitempty"`
+	PromptTranslate  *string `json:"promptTranslate,omitempty"`
+	AutoSummary      *bool   `json:"autoSummary,omitempty"`
+	AutoTranslate    *bool   `json:"autoTranslate,omitempty"`
 }
 
-// Settings are the server's settings; RetentionDays is 0 to keep entries forever.
+// Settings are the server's settings; RetentionDays is 0 to keep entries forever. The API key is never sent, only
+// whether one is set; the prompts are the defaults until changed, which the Default fields hold.
 type Settings struct {
-	RSSHubBaseURL string `json:"rsshubBaseUrl"`
-	RetentionDays int    `json:"retentionDays"`
+	RSSHubBaseURL          string `json:"rsshubBaseUrl"`
+	RetentionDays          int    `json:"retentionDays"`
+	AIBaseURL              string `json:"aiBaseUrl"`
+	AIModel                string `json:"aiModel"`
+	AIAPIKeySet            bool   `json:"aiApiKeySet"`
+	AILanguage             string `json:"aiLanguage"`
+	PromptSummary          string `json:"promptSummary"`
+	PromptTranslate        string `json:"promptTranslate"`
+	DefaultPromptSummary   string `json:"defaultPromptSummary"`
+	DefaultPromptTranslate string `json:"defaultPromptTranslate"`
 }
 
-// SettingsPatch changes the settings that are not nil.
+// AIConfigured reports whether the settings name an AI endpoint and a model.
+func (s Settings) AIConfigured() bool { return s.AIBaseURL != "" && s.AIModel != "" }
+
+// SettingsPatch changes the settings that are not nil. AIAPIKey replaces the key, and "" removes it; an empty
+// prompt restores the default.
 type SettingsPatch struct {
-	RSSHubBaseURL *string `json:"rsshubBaseUrl,omitempty"`
-	RetentionDays *int    `json:"retentionDays,omitempty"`
+	RSSHubBaseURL   *string `json:"rsshubBaseUrl,omitempty"`
+	RetentionDays   *int    `json:"retentionDays,omitempty"`
+	AIBaseURL       *string `json:"aiBaseUrl,omitempty"`
+	AIModel         *string `json:"aiModel,omitempty"`
+	AIAPIKey        *string `json:"aiApiKey,omitempty"`
+	AILanguage      *string `json:"aiLanguage,omitempty"`
+	PromptSummary   *string `json:"promptSummary,omitempty"`
+	PromptTranslate *string `json:"promptTranslate,omitempty"`
+}
+
+// AIResult is a summary or translation of an entry: Status is "pending", "ok" or "failed", Error the code of a
+// failure. A pending result keeps the text of the one before.
+type AIResult struct {
+	Status string `json:"status"`
+	Text   string `json:"text"`
+	Error  string `json:"error"`
+	Model  string `json:"model"`
+}
+
+// AIResults are the results of an entry, nil when there is none.
+type AIResults struct {
+	Summary     *AIResult `json:"summary"`
+	Translation *AIResult `json:"translation"`
 }
 
 // Device is a session signed in to the server, named by the User-Agent it signed in with. Times are Unix
@@ -386,6 +428,9 @@ type ReadScope struct {
 
 // maxImage is the largest picture the server relays.
 const maxImage = 8 << 20
+
+// aiClient waits for the server's own AI call, which may take 120 seconds.
+var aiClient = &http.Client{Timeout: 130 * time.Second, Transport: agent{}}
 
 // imageClient waits longer than httpClient: the server itself may take 25 seconds to get a picture.
 var imageClient = &http.Client{Timeout: 40 * time.Second, Transport: agent{}}
@@ -529,6 +574,37 @@ func (s Session) MarkRead(ctx context.Context, scope ReadScope) (int, error) {
 	}
 	err := s.call(ctx, http.MethodPost, "/api/entries/read", scope, &reply)
 	return reply.Marked, err
+}
+
+// AI returns the summary and the translation of an entry.
+func (s Session) AI(ctx context.Context, id int64) (AIResults, error) {
+	var results AIResults
+	err := s.call(ctx, http.MethodGet, "/api/entries/"+strconv.FormatInt(id, 10)+"/ai", nil, &results)
+	return results, err
+}
+
+// RequestAI asks for the summary of an entry, task "summary", or its translation, task "translation", and returns
+// the result as it is: pending while it is made. An unconfigured endpoint is the APIError "ai_not_configured".
+func (s Session) RequestAI(ctx context.Context, id int64, task string) (AIResult, error) {
+	var result AIResult
+	err := s.call(ctx, http.MethodPost, "/api/entries/"+strconv.FormatInt(id, 10)+"/"+task, nil, &result)
+	return result, err
+}
+
+// TestAI sends a short request to the AI endpoint with the saved settings and returns the model that answered.
+func (s Session) TestAI(ctx context.Context) (string, error) {
+	resp, err := s.send(ctx, aiClient, http.MethodPost, "/api/ai/test", "", nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var reply struct {
+		Model string `json:"model"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&reply); err != nil {
+		return "", fmt.Errorf("test AI: %w", err)
+	}
+	return reply.Model, nil
 }
 
 // Image gets a picture found inside a feed through the server's image relay.
