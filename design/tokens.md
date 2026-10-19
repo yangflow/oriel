@@ -31,7 +31,7 @@ Mockups show the 4 DIP unit and 13 px text.
 ## Color roles
 
 Oriel's palette: warm neutrals and a teal accent, set by `theme.Apply` in `internal/ui/theme/theme.go`. The other
-roles keep the MyGo v0.3.6 defaults. With high contrast on, `Border` is mixed 45% and `TextMuted` 40% toward `Text`,
+roles keep the MyGo v0.4.1 defaults. With high contrast on, `Border` is mixed 45% and `TextMuted` 40% toward `Text`,
 and `Focus` is opaque. A soft fill (`theme.Soft`) is the role mixed toward `Background`, 88% in light, 84% in dark.
 
 | Role | Light | Dark | Used for |
