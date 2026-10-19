@@ -884,6 +884,7 @@ func (s *Screen) navItem(c *ui.Context, g int, icon *ui.SVG) {
 	case item.Hovered():
 		item.Background(t.SurfaceHover)
 	}
+	theme.Fade(item)
 	item.Children(func() {
 		ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(color)
 		label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine()

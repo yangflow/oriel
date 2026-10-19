@@ -12,8 +12,8 @@
 <style>
 :root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
-:root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5) }
-:root[data-scheme=dark] { --background:#161513; --surface:#25231f; --surface-hover:#2f2c28; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#4fbfad; --accent-hover:#6dd0c0; --accent-text:#0b2522; --accent-soft:#1f302c; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(79,191,173,.5) }
+:root { --background:#f8f6f1; --surface:#efebe3; --surface-hover:#e7e2d8; --border:#e3ddd2; --text:#2b2824; --muted:#68625a; --accent:#2b6f66; --accent-hover:#245e57; --accent-text:#ffffff; --accent-soft:#dfe6e0; --danger:#c2410c; --danger-soft:#f2e0d6; --warning:#a16207; --warning-soft:#eee4d5; --success:#15803d; --focus:rgba(43,111,102,.5) }
+:root[data-scheme=dark] { --background:#1d1c1a; --surface:#262422; --surface-hover:#302d2a; --border:#36332f; --text:#e4ded5; --muted:#a09a91; --accent:#6cbcae; --accent-hover:#86cbbf; --accent-text:#10241f; --accent-soft:#2a3632; --danger:#fb923c; --danger-soft:#412f1f; --warning:#facc15; --warning-soft:#403819; --success:#4ade80; --focus:rgba(108,188,174,.5) }
 * { box-sizing:border-box }
 body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
 svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
@@ -96,11 +96,11 @@ aside .top { height:36px; border-bottom:0 }
 .toolbar .back { height:32px; padding:0 12px 0 6px; border-radius:16px; color:var(--text) }
 .toolbar .ghost { height:32px; border-radius:16px }
 /* One look for each state (docs/design.md, States). Chosen in navigation (a kind, a subscription, a settings
-   group): the soft accent fill, the icon in Accent, the name in Text at 500. Chosen in a control (a segment): a
+   group): a neutral ink fill (Text at 7%, 9% in dark), the icon in Accent, the name in Text at 500. Chosen in a control (a segment): a
    raised face. The keyboard's place: the focus ring. Counts: 11, 500, tabular. Disabled: a neutral face with
    TextMuted, never faded. Chinese text runs taller: 1.6 for body text instead of 1.45. */
-:root { --chosen:rgba(15,118,110,.12) }
-:root[data-scheme=dark] { --chosen:rgba(79,191,173,.2) }
+:root { --chosen:rgba(43,40,36,.07) }
+:root[data-scheme=dark] { --chosen:rgba(228,222,213,.09) }
 .item.chosen { background:var(--chosen); color:var(--text) }
 .item.chosen .name { font-weight:500 }
 .item.chosen svg.icon { color:var(--accent) }

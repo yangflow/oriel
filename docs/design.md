@@ -50,7 +50,7 @@ Related files: [design/README.md](../design/README.md) (mockups and how a UI cha
   controls stay quiet and secondary until they are needed.
 - **Accessible by default.** Every element can be reached with the keyboard, named for a screen reader, read in both
   appearances, and still works at larger text sizes. See the [checklist](#accessibility-checklist).
-- **No custom motion.** State changes take effect at once. See [Motion](#motion).
+- **Almost no custom motion.** State changes take effect at once; only hover and chosen fills fade. See [Motion](#motion).
 - **Meaning is never carried by color alone.** Say it in words; pair color with text, a symbol or a shape.
 - **The UI thread draws.** A frame is built from in-memory state. No disk, network or other blocking work in a view,
   including calls to Oriel's own HTTP API and decoding images; start that work in the background and change the state
@@ -146,7 +146,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
 
 ## Color and dark mode
 
-Colors come from the theme, `c.Theme()`. Oriel puts its own palette, warm neutrals and a teal accent, on the theme
+Colors come from the theme, `c.Theme()`. Oriel puts its own palette, paper and ink, on the theme
 roles: the root view calls `theme.Apply` (in `internal/ui/theme/`) first in every frame, which picks the light or
 dark palette for the system appearance and keeps the theme's metrics, so the desktop's text size still applies. The
 values are in [design/tokens.md](../design/tokens.md). See
@@ -173,11 +173,17 @@ values are in [design/tokens.md](../design/tokens.md). See
   colors use `Mix` and `Alpha` on theme colors rather than new constants.
 - **Accent.** Oriel's accent is teal, in both appearances; it does not follow the system accent. One primary action
   per group gets the accent.
+- **Paper and ink.** Oriel is read for long stretches, so the palette is paper, not a screen: warm off-white and
+  warm charcoal instead of white and black, body text near 13:1 instead of 16:1 (the edges of light text on near
+  black glare in the dark), and hairline dividers that group a list without cutting it up. The surfaces step evenly
+  from `Background` to `SurfacePressed`, so a hover and a press are the same size of change everywhere.
 - **Contrast.** Text and meaningful graphics should meet WCAG 2.1 AA: 4.5:1 for body text, 3:1 for large text and
   control boundaries. With the desktop's high contrast setting on (`c.Preferences().HighContrast`), `theme.Apply`
   moves `Border` and `TextMuted` toward `Text` and makes `Focus` opaque; test with it on.
 - **States.** One look per state, the same on every screen. Chosen in navigation (a kind, a subscription, a
-  settings group): `Accent` at 12% alpha (20% in dark, so it shows on glass), the icon and count in `Accent`, the name in `Text` at weight 500. Chosen in a
+  settings group): a neutral fill, `Text` at 7% alpha (9% in dark, so it shows on glass) through `theme.Chosen`, the
+  icon and count in `Accent`, the name in `Text` at weight 500; the accent never tints a fill on warm gray, where it
+  turns muddy. Chosen in a
   control (a segment, the kind of a subscription, original or translation): a raised face, `Background` with a
   hairline shadow (`SurfacePressed` in dark). The keyboard's place: the `Focus` ring. Hovered: `SurfaceHover`.
   Disabled: `Surface` with a `Border` outline and `TextMuted` text, the primary button too, never a faded accent, so
@@ -445,19 +451,24 @@ the element tree, roles and accessible names of a running window, which helps fi
 
 ## Motion
 
-Oriel has no custom animation: state changes take effect immediately. See
+Oriel has almost no custom animation: state changes take effect immediately, except that state fills fade. See
 [Transitions](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/transitions.md) and
 [Drawing and animation](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/drawing.md) for what the toolkit offers.
 
 - **Default is none.** Do not add `Transition`, `Animate` or page transitions without a mockup that shows the change
   they explain and the maintainer's agreement; record the exception here.
+- **State fills fade.** The agreed exception: the hover and chosen fills of rows (navigation rows, entry rows, the
+  server bar, settings groups) fade over 140 ms, ease-out, colors only, through `theme.Fade`, so the pointer
+  moving down a list leaves a soft trail instead of a flicker. A faded row needs a stable `Key`. Nothing moves or
+  resizes; controls drawn by MyGo keep their own behavior.
 - **If an exception is agreed,** use the built-ins with their defaults (element transitions are 200 ms, ease-out)
   and nothing longer than 300 ms for interface feedback. Avoid frame-by-frame custom animation.
-- **Reduced motion.** `Animate` and element and page transitions already jump to the target when the desktop asks
-  for less motion (`c.Preferences().ReduceMotion`). Any motion you compute yourself must read the preference.
+- **Reduced motion.** `Animate`, page transitions and the moving parts of element transitions already jump to the
+  target when the desktop asks for less motion (`c.Preferences().ReduceMotion`); color fades still play, since
+  nothing moves. Any motion you compute yourself must read the preference.
   Spinners may keep turning: they show that work is going on.
 - **Never animate to hide latency**, and do not loop decoration.
-- The connect screen's only motion is its button's spinner icon while it connects. The timeline has none: new
+- The connect screen's only motion is its button's spinner icon while it connects. Apart from the state fills, the timeline has none: new
   entries do not move the list; a "N new" pill appears at the top instead, and choosing it reloads and scrolls to
   the top.
 

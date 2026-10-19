@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"math"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -22,11 +23,11 @@ func applied(t *testing.T, dark bool, prefs ui.Preferences) ui.Theme {
 
 func TestPalette(t *testing.T) {
 	light := applied(t, false, ui.Preferences{})
-	if light.Dark || light.Accent != ui.Hex("#0f766e") || light.Background != ui.Hex("#fbfaf7") || light.Radius != 8 {
+	if light.Dark || light.Accent != ui.Hex("#2b6f66") || light.Background != ui.Hex("#f8f6f1") || light.Radius != 8 {
 		t.Errorf("light: %+v", light)
 	}
 	dark := applied(t, true, ui.Preferences{})
-	if !dark.Dark || dark.Accent != ui.Hex("#4fbfad") || dark.Background != ui.Hex("#161513") {
+	if !dark.Dark || dark.Accent != ui.Hex("#6cbcae") || dark.Background != ui.Hex("#1d1c1a") {
 		t.Errorf("dark: %+v", dark)
 	}
 }
@@ -59,8 +60,54 @@ func TestSoft(t *testing.T) {
 func TestChosen(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		th := applied(t, dark, ui.Preferences{})
-		if c := Chosen(&th); c.A == 0 || c.A == 255 {
-			t.Errorf("dark %v: chosen fill %v is not a tint", dark, c)
+		if c := Chosen(&th); c.A == 0 || c.A == 255 || [3]uint8{c.R, c.G, c.B} != [3]uint8{th.Text.R, th.Text.G, th.Text.B} {
+			t.Errorf("dark %v: chosen fill %v is not a tint of the ink", dark, c)
+		}
+	}
+}
+
+// contrast is the WCAG 2.1 contrast ratio of two opaque colors.
+func contrast(a, b ui.Color) float64 {
+	lum := func(c ui.Color) float64 {
+		var sum float64
+		for i, v := range []uint8{c.R, c.G, c.B} {
+			x := float64(v) / 255
+			if x <= 0.04045 {
+				x /= 12.92
+			} else {
+				x = math.Pow((x+0.055)/1.055, 2.4)
+			}
+			sum += []float64{0.2126, 0.7152, 0.0722}[i] * x
+		}
+		return sum
+	}
+	x, y := lum(a)+0.05, lum(b)+0.05
+	return math.Max(x, y) / math.Min(x, y)
+}
+
+func TestContrast(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		th := applied(t, dark, ui.Preferences{})
+		for _, ground := range []ui.Color{th.Background, th.Surface, th.SurfaceHover} {
+			for _, text := range []ui.Color{th.Text, th.TextMuted, th.Accent} {
+				if r := contrast(text, ground); r < 4.5 {
+					t.Errorf("dark %v: %v on %v is %.2f:1", dark, text, ground, r)
+				}
+			}
+		}
+		for _, face := range []ui.Color{th.Accent, th.AccentHover, th.AccentPressed} {
+			if r := contrast(th.AccentText, face); r < 4.5 {
+				t.Errorf("dark %v: accent text on %v is %.2f:1", dark, face, r)
+			}
+		}
+		for _, status := range []ui.Color{th.Danger, th.Warning, th.Success} {
+			if r := contrast(status, th.Background); r < 4.5 {
+				t.Errorf("dark %v: status %v is %.2f:1", dark, status, r)
+			}
+		}
+		// Ink on paper, not black on white: long reading wants body text near 13:1.
+		if r := contrast(th.Text, th.Background); r > 14 {
+			t.Errorf("dark %v: body text is %.2f:1, harsher than paper and ink", dark, r)
 		}
 	}
 }
