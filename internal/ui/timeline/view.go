@@ -1367,9 +1367,10 @@ func (s *Screen) serverBar(c *ui.Context) {
 	if s.server != "" {
 		name, icon = s.server, icons.Server
 	}
-	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Padding(0, px(t, 6), 0, 0).Children(func() {
-		bar := ui.ButtonBase(c).Grow(1).MinWidth(0).FillHeight().Gap(t.Space(2)).Padding(0, px(t, 10), 0, t.Space(4)).
-			Label(strings.ReplaceAll(s.text.Server, "{server}", name))
+	// Inset like the rows above it, so its hover fill is a rounded row inside the pane, clear of its corner.
+	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Padding(0, px(t, 6), 0, t.Space(2)).Children(func() {
+		bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(px(t, 28)).Gap(t.Space(2)).Padding(0, px(t, 10), 0, t.Space(2)).
+			Radius(t.Space(1.5)).Label(strings.ReplaceAll(s.text.Server, "{server}", name))
 		if bar.Hovered() {
 			bar.Background(t.SurfaceHover)
 		}
