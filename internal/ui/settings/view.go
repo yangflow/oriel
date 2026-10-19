@@ -876,14 +876,17 @@ func (s *Screen) navItem(c *ui.Context, g int, icon *ui.SVG) {
 	color := t.TextMuted
 	switch {
 	case g == s.group:
-		item.Background(t.SurfacePressed)
-		color = t.Text
+		item.Background(theme.Chosen(t))
+		color = t.Accent
 	case item.Hovered():
 		item.Background(t.SurfaceHover)
 	}
 	item.Children(func() {
 		ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(color)
-		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine()
+		label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine()
+		if g == s.group {
+			label.FontWeight(500)
+		}
 	})
 	if item.Clicked() {
 		s.group = g
@@ -943,7 +946,7 @@ func (s *Screen) page(c *ui.Context, compact bool, children func()) {
 		if compact {
 			p.Padding(px(t, 20), px(t, 20), px(t, 40), px(t, 20))
 		} else {
-			p.Padding(px(t, 24), px(t, 32), px(t, 48), px(t, 32))
+			p.Padding(px(t, 32), px(t, 32), px(t, 48), px(t, 32))
 		}
 		p.Children(children)
 	})
@@ -980,7 +983,7 @@ func (s *Screen) failure(c *ui.Context) {
 
 func lead(c *ui.Context, text string) {
 	t := c.Theme()
-	ui.Text(c, text).TextColor(t.TextMuted).Wrap().Margin(0, 0, t.Space(4), 0)
+	ui.Text(c, text).TextColor(t.TextMuted).Wrap().Margin(0, 0, px(t, 20), 0)
 }
 
 // card draws rows in a bordered card, a line between each.
@@ -991,7 +994,7 @@ func card(c *ui.Context, rows ...func()) {
 			if i > 0 {
 				ui.Box(c).FillWidth().Height(1).Background(t.Border)
 			}
-			ui.Column(c).Key(i).FillWidth().Padding(px(t, 14), t.Space(4)).Children(row)
+			ui.Column(c).Key(i).FillWidth().Padding(px(t, 16), px(t, 20)).Children(row)
 		}
 	})
 }
@@ -1002,7 +1005,7 @@ func labeled(c *ui.Context, label, help string, control func()) {
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 			ui.Text(c, label).FontWeight(500)
-			ui.Text(c, help).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(2, 0, 0, 0)
+			ui.Text(c, help).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(px(t, 4), 0, 0, 0)
 		})
 		control()
 	})
@@ -1054,8 +1057,8 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 	lead(c, s.text.Lead)
 	card(c, func() {
 		ui.Text(c, s.text.RSSHub).FontWeight(500)
-		coded(c, s.text.RSSHubHelp, "{route}", "/github/issue/golang/go").Margin(2, 0, 0, 0)
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(px(t, 10), 0, 0, 0).Children(func() {
+		coded(c, s.text.RSSHubHelp, "{route}", "/github/issue/golang/go").Margin(px(t, 4), 0, 0, 0)
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(px(t, 12), 0, 0, 0).Children(func() {
 			s.baseField(c)
 			dirty := s.dirty()
 			style := secondary
@@ -1080,13 +1083,17 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 func field(c *ui.Context, key string, value *string, width float32, invalid bool, input func(in ui.Element)) {
 	t := c.Theme()
 	b := ui.Row(c).Key(key).MinWidth(0).Height(px(t, 32)).AlignItems(ui.Center).PaddingX(px(t, 10)).
-		Radius(t.Radius).Border(1, t.Border).Background(t.Background)
+		Radius(t.Radius).Border(1, t.Border).Background(t.Surface)
 	if width > 0 {
 		b.Width(width).Shrink(1)
 	} else {
 		b.Grow(1)
 	}
-	switch focused := b.FocusWithin(); {
+	focused := b.FocusWithin()
+	if focused {
+		b.Background(t.Background)
+	}
+	switch {
 	case invalid:
 		b.BorderColor(t.Danger)
 		if focused {
@@ -1171,8 +1178,8 @@ func (s *Screen) aiPage(c *ui.Context) {
 	}
 	card(c, func() {
 		ui.Text(c, s.text.Endpoint).FontWeight(500)
-		coded(c, s.text.EndpointHelp, "{address}", s.text.EndpointPlaceholder).Margin(2, 0, 0, 0)
-		ui.Row(c).FillWidth().Margin(px(t, 10), 0, 0, 0).Children(func() {
+		coded(c, s.text.EndpointHelp, "{address}", s.text.EndpointPlaceholder).Margin(px(t, 4), 0, 0, 0)
+		ui.Row(c).FillWidth().Margin(px(t, 12), 0, 0, 0).Children(func() {
 			field(c, "endpoint", &s.aiBase, 0, s.aiInvalid, func(in ui.Element) {
 				in.Font("monospace").Label(s.text.Endpoint).Placeholder(s.text.EndpointPlaceholder).Disabled(s.aiSaving)
 				if s.aiInvalid {
@@ -1189,9 +1196,9 @@ func (s *Screen) aiPage(c *ui.Context) {
 			statusLine(c, status{text: s.text.InvalidAIBase})
 		}
 	}, func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
-			ui.Text(c, s.text.Model).FontWeight(500).Grow(1).MinWidth(0)
-			field(c, "model", &s.aiModel, px(t, 260), false, func(in ui.Element) {
+		ui.Text(c, s.text.Model).FontWeight(500)
+		ui.Row(c).FillWidth().Margin(px(t, 12), 0, 0, 0).Children(func() {
+			field(c, "model", &s.aiModel, 0, false, func(in ui.Element) {
 				in.Font("monospace").Label(s.text.Model).Placeholder(s.text.ModelPlaceholder).Disabled(s.aiSaving)
 				submit(in)
 			})
@@ -1207,8 +1214,8 @@ func (s *Screen) aiPage(c *ui.Context) {
 				ui.Text(c, badge).FontSize(px(t, 11)).FontWeight(500).TextColor(color).NoWrap()
 			})
 		})
-		ui.Text(c, s.text.KeyHelp).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(2, 0, 0, 0)
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(px(t, 10), 0, 0, 0).Children(func() {
+		ui.Text(c, s.text.KeyHelp).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(px(t, 4), 0, 0, 0)
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(px(t, 12), 0, 0, 0).Children(func() {
 			placeholder := s.text.KeyPlaceholder
 			if s.settings.AIAPIKeySet {
 				placeholder = s.text.KeyReplace
@@ -1263,7 +1270,7 @@ func (s *Screen) aiPage(c *ui.Context) {
 		s.aiInvalid, s.aiStatus = s.aiInvalid && after[0] == before[0], status{}
 	}
 	ui.Text(c, s.text.Prompts).FontSize(px(t, 12)).FontWeight(600).TextColor(t.TextMuted).
-		Margin(px(t, 20), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+		Margin(px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
 	typed := s.prompts
 	card(c, func() { s.promptField(c, 0, s.text.PromptSummary) }, func() { s.promptField(c, 1, s.text.PromptTranslate) },
 		func() {
@@ -1299,8 +1306,11 @@ func (s *Screen) promptField(c *ui.Context, i int, label string) {
 			s.prompts[i] = s.defaults()[i]
 		}
 	})
-	ui.TextArea(c.Key(i), &s.prompts[i]).FillWidth().Lines(3, 10).Margin(px(t, 10), 0, 0, 0).Font("monospace").
+	area := ui.TextArea(c.Key(i), &s.prompts[i]).FillWidth().Lines(3, 10).Margin(px(t, 12), 0, 0, 0).Font("monospace").
 		FontSize(px(t, 12.5)).Label(label).Disabled(s.promptSaving)
+	if area.Focused() {
+		area.Background(t.Background)
+	}
 }
 
 func (s *Screen) languageSelect(c *ui.Context) {
@@ -1501,16 +1511,19 @@ const (
 func button(c *ui.Context, style int, disabled bool) ui.Element {
 	t := c.Theme()
 	b := ui.ButtonBase(c).Height(px(t, 32)).Gap(t.Space(1.5)).PaddingX(px(t, 14)).Radius(t.Radius).Disabled(disabled)
-	fill, border := t.Background, t.Border
+	fill, border, color := t.Background, t.Border, t.Text
 	switch style {
 	case primary:
-		fill, border = t.Accent, t.Accent
-	case danger, small:
+		fill, border, color = t.Accent, t.Accent, t.AccentText
+	case danger:
+		color = t.Danger
+		fallthrough
+	case small:
 		b.Height(px(t, 26)).PaddingX(px(t, 10))
 	}
 	switch {
 	case disabled:
-		b.Opacity(0.45)
+		fill, border, color = t.Surface, t.Border, t.TextMuted
 	case b.Pressed() && style == primary:
 		fill, border = t.AccentPressed, t.AccentPressed
 	case b.Hovered() && style == primary:
@@ -1520,27 +1533,21 @@ func button(c *ui.Context, style int, disabled bool) ui.Element {
 	case b.Hovered():
 		fill = t.SurfaceHover
 	}
-	return b.Background(fill).Border(1, border)
+	return b.Background(fill).Border(1, border).TextColor(color)
 }
 
-// textButton fills a button with an optional icon and its text, a spinner for the icon while busy.
+// textButton fills a button with an optional icon and its text, a spinner for the icon while busy, in the color
+// button gave it.
 func textButton(c *ui.Context, b ui.Element, style int, icon *ui.SVG, text string, busy bool) {
 	t := c.Theme()
-	color := t.Text
-	switch style {
-	case primary:
-		color = t.AccentText
-	case danger:
-		color = t.Danger
-	}
 	b.Children(func() {
 		if busy {
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 15)).TextColor(color)
+			spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 15))
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 		} else if icon != nil {
-			ui.Icon(c, icon).FontSize(px(t, 15)).TextColor(color)
+			ui.Icon(c, icon).FontSize(px(t, 15))
 		}
-		label := ui.Text(c, text).NoWrap().TextColor(color)
+		label := ui.Text(c, text).NoWrap()
 		switch style {
 		case primary:
 			label.FontWeight(500)

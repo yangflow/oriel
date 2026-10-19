@@ -9,7 +9,9 @@
      says what it will subscribe to before anything is sent; the server checks again. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License). The edit dialog ends with the subscription's summaries and
      translations: switches that queue new entries, and prompts that replace the global ones in Settings; edit-ai
-     shows that part scrolled into view, edit-ai-off the same while AI is not set up.
+     shows that part scrolled into view, edit-ai-off the same while AI is not set up. A dialog taller than the window
+     keeps its header and buttons in place and scrolls only the form, with a divider under the header once scrolled
+     and above the buttons while more is below.
      The window has no title bar: the window buttons sit over the sidebar's top, the sidebar is a floating pane of
      Liquid Glass and the toolbar's controls are glass capsules over the content (docs/design.md, Title bar).
      Subscriptions show their site icon (generic stand-ins here); The Go Blog has none, so it keeps its monogram,
@@ -20,7 +22,7 @@
 :root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
 :root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --surface-pressed:#dfdbd2; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5) }
-:root[data-scheme=dark] { --background:#161513; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55) }
+:root[data-scheme=dark] { --background:#161513; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#4fbfad; --accent-hover:#6dd0c0; --accent-text:#0b2522; --accent-soft:#1f302c; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(79,191,173,.5) }
 * { box-sizing:border-box }
 body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
 svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
@@ -35,11 +37,6 @@ button { border:0; background:none; padding:0; cursor:default }
 /* The timeline behind, as built in #14 */
 aside { width:212px; flex:none; display:flex; flex-direction:column; background:var(--surface); border-right:1px solid var(--border) }
 .min aside { width:184px }
-.tabs { flex:none; display:grid; grid-template-columns:repeat(5,1fr); gap:2px; padding:8px 8px 6px; border-bottom:1px solid var(--border) }
-.tab { height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-radius:8px; color:var(--muted) }
-.tab.on { background:var(--accent-soft); color:var(--accent) }
-.tab svg.icon { width:18px; height:18px }
-.tab span { min-height:10px; font-size:10px; line-height:1 }
 .nav { flex:1; overflow:hidden; padding:8px; position:relative }
 .section { display:flex; align-items:center; margin:6px 0 4px 8px; height:22px; font-size:11px; font-weight:600; color:var(--muted) }
 .section span { flex:1 }
@@ -177,7 +174,6 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,SFMono-Regular,M
 .lights i:nth-child(3) { background:#28c840 }
 aside, .toolbar .segmented, .toolbar .search, .toolbar > .tool, .toolbar .group, .toolbar .back, .toolbar .ghost { background:var(--glass); -webkit-backdrop-filter:blur(24px) saturate(1.6); backdrop-filter:blur(24px) saturate(1.6); box-shadow:var(--glass-rim) }
 aside { margin:8px 0 8px 8px; padding-top:40px; border:0; border-radius:16px }
-.tabs { border-bottom:0; padding-top:0 }
 .server-bar { border-top:0 }
 aside .top { height:36px; border-bottom:0 }
 .main::after { content:""; position:absolute; top:0; left:0; right:0; height:62px; background:linear-gradient(var(--edge),transparent); pointer-events:none; z-index:1 }
@@ -198,6 +194,34 @@ aside .top { height:36px; border-bottom:0 }
 .toolbar .group + .group { margin-left:8px }
 .toolbar .back { height:32px; padding:0 12px 0 6px; border-radius:16px; color:var(--text) }
 .toolbar .ghost { height:32px; border-radius:16px }
+/* One look for each state (docs/design.md, States). Chosen in navigation (a kind, a subscription, a settings
+   group): the soft accent fill, the icon in Accent, the name in Text at 500. Chosen in a control (a segment): a
+   raised face. The keyboard's place: the focus ring. Counts: 11, 500, tabular. Disabled: a neutral face with
+   TextMuted, never faded. Chinese text runs taller: 1.6 for body text instead of 1.45. */
+:root { --chosen:rgba(15,118,110,.12) }
+:root[data-scheme=dark] { --chosen:rgba(79,191,173,.2) }
+.item.chosen { background:var(--chosen); color:var(--text) }
+.item.chosen .name { font-weight:500 }
+.item.chosen svg.icon { color:var(--accent) }
+.item .count, .count { font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; color:var(--muted) }
+.item.chosen .count { color:var(--accent) }
+.button:disabled, .button[disabled] { opacity:1; border-color:var(--border); background:var(--surface); color:var(--muted); font-weight:inherit; box-shadow:none }
+:root:lang(zh-Hans) body { line-height:1.6 }
+.segmented button.on, .kinds button.on, .note .segmented button.on { background:var(--background); color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.12), 0 0 0 .5px var(--border) }
+:root[data-scheme=dark] .segmented button.on, :root[data-scheme=dark] .kinds button.on, :root[data-scheme=dark] .note .segmented button.on { background:var(--surface-pressed); box-shadow:none }
+.note .segmented { background:var(--surface) }
+/* A tall dialog scrolls only its form; dividers mark the edges where content hides. */
+.dialog { overflow:hidden }
+.dialog .form { flex:1 1 auto; min-height:0; overflow:auto; padding-bottom:14px }
+.dialog header, .dialog footer { flex:none; border-color:transparent; border-style:solid; border-width:0 }
+.dialog header { padding-bottom:12px; border-bottom-width:1px }
+.dialog footer { padding-top:14px; border-top-width:1px }
+.dialog.scrolled header, .dialog.more footer { border-color:var(--border) }
+/* Kinds: the first items of the sidebar, a name and count each, above the subscriptions. */
+.kind-list { flex:none; padding:0 8px 6px; display:flex; flex-direction:column; gap:1px }
+.kind-list .item svg.icon { width:16px; height:16px; color:var(--muted) }
+.kind-list .item.chosen svg.icon { color:var(--accent) }
+.kind-list ~ .nav { padding-top:4px }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>
@@ -318,7 +342,7 @@ const sources=[
 ];
 const empty=state==='empty';
 const editing=['menu','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','delete'].includes(state);
-const tabs=`<div class="tabs" role="tablist" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="tab${i===0?' on':''}" role="tab" aria-label="${copy[k]}">${icon(g)}<span>${empty?'':[30,18,2,9,1][i]}</span></button>`).join('')}</div>`;
+const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
 const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state==='menu'&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
 const rows=Array.from({length:5},(_,i)=>`<div class="bars"><div class="bar" style="width:${30+i%3*6}%"></div><div class="bar" style="width:${74-i*5}%;height:14px"></div><div class="bar" style="width:${90-i*3}%"></div></div>`).join('');
@@ -386,6 +410,12 @@ if(state==='menu')overlay=`<div class="menu" role="menu" style="left:150px;top:1
 if(state==='delete')overlay=`<div class="scrim"><div class="alert" role="alertdialog" aria-labelledby="ct" aria-describedby="cb"><div class="tile danger">${icon('trash')}</div><h2 id="ct">${copy.deleteTitle}</h2><p id="cb">${copy.deleteBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button danger">${copy.confirmDelete}</button></div></div></div>`;
 
 document.getElementById('app').innerHTML=`${sidebar}${main}${overlay}`;
-if(state.startsWith('edit-ai'))document.querySelector('.dialog').scrollTop=1e4;
+const form=document.querySelector('.dialog .form');
+if(form){
+  const edges=()=>{const d=form.closest('.dialog');d.classList.toggle('scrolled',form.scrollTop>0);d.classList.toggle('more',form.scrollTop+form.clientHeight<form.scrollHeight-1)};
+  form.addEventListener('scroll',edges);
+  if(state.startsWith('edit-ai'))form.scrollTop=1e4;
+  edges();
+}
 </script>
 </html>

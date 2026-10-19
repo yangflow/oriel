@@ -29,7 +29,7 @@ var catalog []byte
 
 type copy struct {
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show             string
-	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllRead, Star, Unstar, MarkRead      string
+	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead        string
 	MarkUnread, Open, Failing, NewEntries, Loading, LoadingMore, LoadMoreFailed, AllLoaded                  string
 	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                string
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                 string
@@ -1208,35 +1208,41 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 	})
 }
 
+// tabs are the kinds at the top of the sidebar, a list of an icon, a name and the unread count each; the arrow keys
+// move between them.
 func (s *Screen) tabs(c *ui.Context) {
 	t := c.Theme()
 	before := s.tab
 	seg := ui.SegmentedBase(c, &s.tab, len(kinds))
-	seg.Track.FillWidth().Gap(2).Padding(t.Space(2), t.Space(2), t.Space(1.5), t.Space(2)).Label(s.text.Kinds).
+	seg.Track.Column().FillWidth().Gap(1).Padding(t.Space(2), t.Space(2), t.Space(1.5), t.Space(2)).Label(s.text.Kinds).
 		Children(func() {
 			for i, kind := range kinds {
 				name := s.kindName(kind)
 				on := i == s.tab
-				tab := seg.Segment(i).Grow(1).Basis(0).Height(px(t, 44)).Radius(t.Radius).Label(name).Tooltip(name).
-					Column().Center().Gap(3)
-				color := t.TextMuted
+				tab := seg.Segment(i).FillWidth().Height(px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).
+					Radius(t.Space(1.5)).Label(name)
+				icon, count := t.TextMuted, t.TextMuted
 				switch {
 				case on:
-					tab.Background(theme.Soft(t, t.Accent))
-					color = t.Accent
+					tab.Background(theme.Chosen(t))
+					icon, count = t.Accent, t.Accent
 				case tab.Hovered():
 					tab.Background(t.SurfaceHover)
 				}
 				n := s.unreadIn(scope{kind: kind})
+				if n > 0 {
+					tab.Description(s.format(s.text.UnreadCount, n))
+				}
 				tab.Children(func() {
-					ui.Icon(c, kindIcon(kind)).FontSize(px(t, 18)).TextColor(color)
-					count := ""
-					if n > 999 {
-						count = "999+"
-					} else if n > 0 {
-						count = strconv.Itoa(n)
+					ui.Icon(c, kindIcon(kind)).FontSize(px(t, 16)).TextColor(icon)
+					label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(t.Text)
+					if on {
+						label.FontWeight(500)
 					}
-					ui.Text(c, count).FontSize(px(t, 10)).MinHeight(px(t, 10)).TextColor(color)
+					if n > 0 {
+						ui.Text(c, strconv.Itoa(n)).FontSize(px(t, 11)).FontWeight(500).FontFeatures("tnum").
+							TextColor(count)
+					}
 				})
 				if tab.Clicked() {
 					s.tab = i
@@ -1280,9 +1286,11 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 	name := subscriptions.Name(src)
 	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).
 		Radius(t.Space(1.5)).Label(name).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
+	count := t.TextMuted
 	switch {
 	case chosen:
-		item.Background(t.SurfacePressed)
+		item.Background(theme.Chosen(t))
+		count = t.Accent
 	case item.Hovered():
 		item.Background(t.SurfaceHover)
 	}
@@ -1292,7 +1300,10 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 		if src.Paused {
 			color = t.TextMuted
 		}
-		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(color)
+		label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(color)
+		if chosen {
+			label.FontWeight(500)
+		}
 		if src.Paused {
 			ui.Box(c).Label(s.text.PausedMark).Tooltip(s.text.PausedMark).Role(ui.RoleImage).Children(func() {
 				ui.Icon(c, icons.Pause).FontSize(px(t, 14)).TextColor(t.TextMuted)
@@ -1303,7 +1314,8 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 			})
 		}
 		if src.UnreadCount > 0 && !src.Paused {
-			ui.Text(c, strconv.Itoa(src.UnreadCount)).FontSize(px(t, 11)).TextColor(t.TextMuted)
+			ui.Text(c, strconv.Itoa(src.UnreadCount)).FontSize(px(t, 11)).FontWeight(500).FontFeatures("tnum").
+				TextColor(count)
 		}
 	})
 	if item.Clicked() {
@@ -1426,7 +1438,7 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 			color := t.TextMuted
 			switch {
 			case on:
-				b.Background(t.Background).Shadow(0, 0, 0, 1, t.Border)
+				theme.Raised(t, b)
 				color = t.Text
 			case b.Hovered():
 				color = t.Text
@@ -1525,11 +1537,16 @@ func (s *Screen) editButton(c *ui.Context) {
 	}
 }
 
+// markAllLabel names the button by what it would mark: "Mark all in “Videos” as read".
+func (s *Screen) markAllLabel() string {
+	return strings.ReplaceAll(s.text.MarkAllIn, "{scope}", s.scopeName())
+}
+
 func (s *Screen) markAllButton(c *ui.Context) {
 	t := c.Theme()
 	can := s.canMarkAll()
-	b := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(s.text.MarkAllRead).
-		Tooltip(s.text.MarkAllRead).Disabled(!can)
+	label := s.markAllLabel()
+	b := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(label).Tooltip(label).Disabled(!can)
 	color := t.TextMuted
 	if !can {
 		color = t.TextMuted.Alpha(0.45)
@@ -1893,7 +1910,11 @@ func (s *Screen) titleText(c *ui.Context, e client.Entry, size float32) ui.Eleme
 	if e.IsRead {
 		color, weight = t.TextMuted, 500
 	}
-	return ui.RichText(c, s.marked(c, title(e), color)...).FontSize(px(t, size)).FontWeight(weight).Wrap()
+	text := ui.RichText(c, s.marked(c, title(e), color)...).FontSize(px(t, size)).FontWeight(weight).Wrap()
+	if theme.Han(title(e)) {
+		text.LineHeight(1.45)
+	}
+	return text
 }
 
 func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time) {
@@ -1902,11 +1923,16 @@ func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time) {
 		s.meta(c, e, now, false)
 		s.titleText(c, e, 14.5)
 		if summary := strings.Join(strings.Fields(e.Summary), " "); summary != "" {
-			ui.RichText(c, s.marked(c, summary, t.TextMuted)...).MaxLines(2)
+			text := ui.RichText(c, s.marked(c, summary, t.TextMuted)...).MaxLines(2)
+			if theme.Han(summary) {
+				text.LineHeight(1.6)
+			}
 		}
 	})
 	if e.ThumbnailURL != "" {
-		s.picture(c, e.ThumbnailURL, true, nil).Size(px(t, 96), px(t, 64)).Radius(8).Margin(px(t, 20), 0, 0, 0)
+		// As high as the text beside it, at most 64, so a short row stays short.
+		s.picture(c, e.ThumbnailURL, true, nil).Width(px(t, 96)).AlignSelf(ui.Stretch).MinHeight(px(t, 48)).
+			MaxHeight(px(t, 64)).Radius(8)
 	}
 }
 

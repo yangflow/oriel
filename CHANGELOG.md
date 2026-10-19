@@ -13,6 +13,15 @@ release-please writes each release's section from the titles of the pull request
 ### Changed
 
 - "Mark all as read" no longer asks for confirmation, since it can be undone.
+- The kinds at the top of the sidebar are a list, each with its icon, name and unread count, instead of a row of tabs.
+- "Mark all as read" says what it covers, such as "Mark all in “Video” as read".
+- Entry rows are as tall as their text; the thumbnail follows the row, up to 64 points.
+- One look per selection: the place you are in the sidebar or Settings is tinted in the accent with its icon and count in the accent; the chosen segment of a control is a raised face, the translation switch in the reader too.
+- Chinese titles, summaries and articles get a taller line height, and unread counts line up with tabular figures.
+- The dark accent is softer, and Settings has more room between groups, rows and their help.
+- Disabled buttons keep a readable label on a plain fill instead of a faded accent.
+- In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
+- The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
 ## [0.1.0] - 2026-10-19
 

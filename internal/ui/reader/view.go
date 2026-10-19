@@ -124,6 +124,7 @@ type Screen struct {
 
 	scroll ui.ScrollState
 	focus  bool // give the page the focus in the next frame
+	han    bool // the article's title is Chinese, so its text runs taller
 
 	pictures  map[string]*loaded
 	wanted    []string
@@ -710,7 +711,8 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 				if narrow {
 					size = px(t, 20)
 				}
-				ui.Text(c, title).FontSize(size).FontWeight(650).LineHeight(1.25).Wrap().Margin(px(t, 10), 0, 0, 0).
+				s.han = theme.Han(title)
+				ui.Text(c, title).FontSize(size).FontWeight(650).LineHeight(s.leading(1.25, 1.4)).Wrap().Margin(px(t, 10), 0, 0, 0).
 					Role(ui.RoleHeading).Level(1)
 				if s.jobs[translation].on {
 					s.translationNote(c)
@@ -936,7 +938,12 @@ func (s *Screen) summaryCard(c *ui.Context) {
 					s.cancel(summary)
 				}
 			})
-			ui.Text(c, strings.TrimSpace(j.text)).Margin(px(t, 6), 0, 0, 0).FontSize(px(t, 14)).LineHeight(1.6).Wrap()
+			text := strings.TrimSpace(j.text)
+			line := float32(1.6)
+			if theme.Han(text) {
+				line = 1.75
+			}
+			ui.Text(c, text).Margin(px(t, 6), 0, 0, 0).FontSize(px(t, 14)).LineHeight(line).Wrap()
 		})
 	}
 }
@@ -992,15 +999,15 @@ func (s *Screen) translationNote(c *ui.Context) {
 			by := strings.ReplaceAll(s.text.Translated, "{model}", j.model)
 			ui.Text(c, by).Grow(1).MinWidth(0).FontSize(px(t, 12.5)).TextColor(t.Accent).Wrap()
 			seg := ui.SegmentedBase(c, &s.shown, 2)
-			seg.Track.Margin(-4, -6, -4, 0).Padding(2).Gap(2).Radius(t.Radius).Background(t.Background).
+			seg.Track.Margin(-4, -6, -4, 0).Padding(2).Gap(2).Radius(t.Radius).Background(t.Surface).
 				Label(s.text.Translate).Children(func() {
 				for i, name := range []string{s.text.Translation, s.text.Original} {
 					b := seg.Segment(i).Height(px(t, 24)).PaddingX(t.Space(2.5)).Radius(t.Space(1.5)).Label(name)
 					color := t.TextMuted
 					switch {
 					case i == s.shown:
-						b.Background(t.Accent)
-						color = t.AccentText
+						theme.Raised(t, b)
+						color = t.Text
 					case b.Hovered():
 						color = t.Text
 					}
@@ -1133,22 +1140,30 @@ func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 			if b.level == 3 {
 				size = px(t, 15.5)
 			}
-			s.inline(c, b.spans, color).FontSize(size).FontWeight(600).LineHeight(1.3).Role(ui.RoleHeading).
+			s.inline(c, b.spans, color).FontSize(size).FontWeight(600).LineHeight(s.leading(1.3, 1.4)).Role(ui.RoleHeading).
 				Level(b.level)
 		case caption:
 			s.inline(c, b.spans, t.TextMuted).FontSize(px(t, 12))
 		default:
 			if b.depth == 0 {
-				s.inline(c, b.spans, color).FontSize(px(t, 15)).LineHeight(1.65)
+				s.inline(c, b.spans, color).FontSize(px(t, 15)).LineHeight(s.leading(1.65, 1.85))
 				return
 			}
 			ui.Row(c).FillWidth().AlignItems(ui.Start).Children(func() {
-				ui.Text(c, b.marker).Width(px(t, 22)).Shrink(0).FontSize(px(t, 15)).LineHeight(1.65).
+				ui.Text(c, b.marker).Width(px(t, 22)).Shrink(0).FontSize(px(t, 15)).LineHeight(s.leading(1.65, 1.85)).
 					TextColor(t.TextMuted)
-				s.inline(c, b.spans, color).Grow(1).MinWidth(0).FontSize(px(t, 15)).LineHeight(1.65)
+				s.inline(c, b.spans, color).Grow(1).MinWidth(0).FontSize(px(t, 15)).LineHeight(s.leading(1.65, 1.85))
 			})
 		}
 	})
+}
+
+// leading is the line height of the article's text, the second when its title is Chinese.
+func (s *Screen) leading(latin, han float32) float32 {
+	if s.han {
+		return han
+	}
+	return latin
 }
 
 // inline is a paragraph of spans, their links opening in the browser.

@@ -2,7 +2,11 @@
 // are the color table in design/tokens.md.
 package theme
 
-import "github.com/egoist/mygo/ui"
+import (
+	"unicode"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // Apply replaces the frame's theme with Oriel's palette for the system appearance. Call it first in the root view of
 // every window, each frame. Metrics stay the theme's, so the desktop's text size still applies, and the colors are
@@ -29,6 +33,35 @@ func Soft(t *ui.Theme, color ui.Color) ui.Color {
 		return color.Mix(t.Background, 0.84)
 	}
 	return color.Mix(t.Background, 0.88)
+}
+
+// Chosen is the fill of the place you are in a navigation list, the accent at 12% (20% in dark); its icon and count
+// are in the accent.
+func Chosen(t *ui.Theme) ui.Color {
+	if t.Dark {
+		return t.Accent.Alpha(0.2)
+	}
+	return t.Accent.Alpha(0.12)
+}
+
+// Raised draws the chosen segment of a control: a face raised off the track, Background with a hairline in light,
+// SurfacePressed in dark.
+func Raised(t *ui.Theme, b ui.Element) {
+	if t.Dark {
+		b.Background(t.SurfacePressed)
+		return
+	}
+	b.Background(t.Background).Shadow(0, 0, 0, 1, t.Border)
+}
+
+// Han reports whether a text has Chinese characters; Chinese runs taller, so such text gets a larger line height.
+func Han(text string) bool {
+	for _, r := range text {
+		if unicode.Is(unicode.Han, r) {
+			return true
+		}
+	}
+	return false
 }
 
 func light(t *ui.Theme) {
@@ -58,13 +91,13 @@ func dark(t *ui.Theme) {
 	t.Border = ui.Hex("#3d3933")
 	t.Text = ui.Hex("#ede9e3")
 	t.TextMuted = ui.Hex("#a8a29e")
-	t.Accent = ui.Hex("#2dd4bf")
-	t.AccentHover = ui.Hex("#5eead4")
-	t.AccentPressed = ui.Hex("#14b8a6")
+	t.Accent = ui.Hex("#4fbfad")
+	t.AccentHover = ui.Hex("#6dd0c0")
+	t.AccentPressed = ui.Hex("#3aa596")
 	t.AccentText = ui.Hex("#0b2522")
 	t.Danger = ui.Hex("#fb923c")
 	t.Warning = ui.Hex("#facc15")
 	t.Success = ui.Hex("#4ade80")
-	t.Selection = ui.RGBA(45, 212, 191, 0.32)
-	t.Focus = ui.RGBA(45, 212, 191, 0.55)
+	t.Selection = ui.RGBA(79, 191, 173, 0.3)
+	t.Focus = ui.RGBA(79, 191, 173, 0.5)
 }

@@ -39,9 +39,9 @@ Working now:
   deleting them.
 - **Timeline screen.** All subscriptions in one list, newest first, each kind in its own layout: article rows
   with a thumbnail, video covers with their duration, social posts with up to four pictures, and a masonry wall
-  for images. Kind tabs and a subscription list narrow it; Unread, Starred and search narrow it further. Keys
-  move, open, star and mark entries, N jumps to the next unread one, and ? lists every key; marking all read can
-  be undone. New entries wait behind a "N new" button instead of moving the list. Each subscription shows its
+  for images. A list of kinds and a list of subscriptions narrow it; Unread, Starred and search narrow it
+  further. Keys move, open, star and mark entries, N jumps to the next unread one, and ? lists every key; marking
+  all read can be undone. New entries wait behind a "N new" button instead of moving the list. Each subscription shows its
   site's icon. Videos, social posts and pictures open in the browser.
 - **Article reader.** An article opens in place of the list, drawn natively: headings, paragraphs, lists,
   quotes, code, links and pictures. It shows the full text when it was extracted, and otherwise what the feed
