@@ -3,6 +3,7 @@ package subscriptions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -32,6 +33,7 @@ type fake struct {
 	changed []client.Source
 	removed []int64
 	shown   []int64
+	opened  int // the AI settings
 	expired int
 }
 
@@ -88,14 +90,15 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 
 func (f *fake) deps() Deps {
 	return Deps{
-		Go:      func(work func() func()) { f.queue = append(f.queue, work) },
-		Now:     func() time.Time { return now },
-		Sources: func() []client.Source { return f.sources },
-		Added:   func(src client.Source) { f.sources = append(f.sources, src) },
-		Changed: func(src client.Source) { f.changed = append(f.changed, src) },
-		Removed: func(id int64) { f.removed = append(f.removed, id) },
-		Show:    func(id int64) { f.shown = append(f.shown, id) },
-		Expired: func() { f.expired++ },
+		Go:           func(work func() func()) { f.queue = append(f.queue, work) },
+		Now:          func() time.Time { return now },
+		Sources:      func() []client.Source { return f.sources },
+		Added:        func(src client.Source) { f.sources = append(f.sources, src) },
+		Changed:      func(src client.Source) { f.changed = append(f.changed, src) },
+		Removed:      func(id int64) { f.removed = append(f.removed, id) },
+		Show:         func(id int64) { f.shown = append(f.shown, id) },
+		OpenSettings: func() { f.opened++ },
+		Expired:      func() { f.expired++ },
 	}
 }
 
@@ -437,6 +440,66 @@ func TestEdit(t *testing.T) {
 	}
 	if s.Open() || len(f.changed) != 1 || f.changed[0].Title != "Go Blog weekly" {
 		t.Fatalf("changed %v", f.changed)
+	}
+}
+
+func TestEditAI(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.settings.AIBaseURL, f.settings.AIModel = "https://api.example.com/v1", "small"
+	f.sources[0].PromptTranslate, f.sources[0].AutoTranslate = "Translate plainly.", true
+	tt.SetSize(1000, 1100)
+	s.Edit(f.sources[0])
+	tt.Frame()
+	f.settle(tt)
+	for _, text := range []string{s.text.AIGroup, s.text.AutoSummary, s.text.AutoHelp, s.text.AutoTranslate,
+		s.text.PromptSummary, s.text.PromptTranslate} {
+		if !tt.HasText(text) {
+			t.Errorf("no %q in %v", text, tt.Texts())
+		}
+	}
+	if tt.HasText(s.text.AIOff) || s.edit.prompts != [2]string{"", "Translate plainly."} || !s.edit.auto[1] {
+		t.Fatalf("texts %v, edit %+v", tt.Texts(), s.edit)
+	}
+	if err := tt.Click(s.text.AutoHelp); err != nil {
+		t.Fatal(err)
+	}
+	s.edit.prompts = [2]string{"  Summarize in one line.  ", ""}
+	if err := tt.Click(s.text.Save); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	p := f.patches[1]
+	if len(p) != 1 || p[0].AutoSummary == nil || !*p[0].AutoSummary || p[0].AutoTranslate != nil ||
+		p[0].PromptSummary == nil || *p[0].PromptSummary != "Summarize in one line." ||
+		p[0].PromptTranslate == nil || *p[0].PromptTranslate != "" || p[0].Title != nil {
+		t.Fatalf("patches %+v", p)
+	}
+}
+
+func TestEditAIOff(t *testing.T) {
+	s, f, tt := setup(t, "zh-Hans")
+	s.Edit(f.sources[0])
+	tt.Frame()
+	if tt.HasText(s.text.AIOff) {
+		t.Fatal("the warning shows before the settings load")
+	}
+	f.settle(tt)
+	if !tt.HasText(s.text.AIOff) {
+		t.Fatalf("no warning in %v", tt.Texts())
+	}
+	if err := tt.Click(s.text.OpenSettings); err != nil {
+		t.Fatal(err)
+	}
+	if f.opened != 1 || s.Open() || len(f.patches[1]) != 0 {
+		t.Fatalf("opened %d, open %v", f.opened, s.Open())
+	}
+
+	// Settings that do not load say nothing of AI; the server queues nothing without it all the same.
+	f.settingsErr = errors.New("offline")
+	s.Edit(f.sources[0])
+	f.settle(tt)
+	if tt.HasText(s.text.AIOff) {
+		t.Fatal("the warning shows without the settings")
 	}
 }
 

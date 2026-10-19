@@ -7,12 +7,15 @@
      timeline" on top, then one item per group, and the server bar, which says whose settings these are. Opened from the
      gear button in the timeline's server bar or the app menu's "Settings…" (CmdOrCtrl+,); the back button and Escape
      return to the timeline where it was. Groups: Fetching (the RSSHub instance and how long entries are kept), Import
-     and export (OPML), Devices (the sessions signed in to the server); the AI settings join as a group of their own.
+     and export (OPML), AI (the endpoint for summaries and translations, and the global prompts), Devices (the
+     sessions signed in to the server).
      Language and appearance follow the system and are not settings. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License).
      States: fetching, edited (the instance changed, not saved), invalid (the server refused it), saved, opml,
      importing, imported (with failures), import-error, exported, devices (a remote server and its sessions),
-     devices-local (this computer's server, no sessions), revoke (confirming a revocation), loading, error.
+     devices-local (this computer's server, no sessions), revoke (confirming a revocation), loading, error;
+     ai (not set up), ai-configured (saved, the key only shown as set), ai-edited (changed, not saved; testing waits
+     for the save), ai-invalid (the server refused the address), ai-testing, ai-tested, ai-test-failed.
      The bar above the window only switches the mockup.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
 <style>
@@ -128,6 +131,15 @@ div.server { cursor:default }
 .alert h2 { margin:0; font-size:15px; font-weight:600 }
 .alert p { margin:8px 0 0; color:var(--muted) }
 .alert .buttons { display:flex; justify-content:flex-end; gap:8px; margin-top:20px }
+.badge.off { background:var(--surface); color:var(--muted) }
+.textarea { display:block; margin-top:10px; min-height:76px; padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--background); font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace; color:var(--text) }
+.textarea.focused { border-color:var(--accent); box-shadow:0 0 0 3px var(--focus) }
+.label-row { display:flex; align-items:center; gap:8px }
+.label-row .label { flex:1 }
+.actions { display:flex; align-items:center; gap:8px }
+.actions .status { flex:1; margin:0; min-width:0 }
+.card + .card, .card + .section-title { margin-top:20px }
+.section-title { margin:0 0 8px; font-size:12px; font-weight:600; color:var(--muted) }
 .alert .button.default { border-color:var(--accent); background:var(--accent); color:var(--accent-text); font-weight:500 }
 </style>
 <div class="switcher" aria-hidden="true">
@@ -138,11 +150,11 @@ div.server { cursor:default }
 </div>
 <div class="window" id="window"><div class="titlebar">Oriel</div><div class="body" id="app"></div></div>
 <script>
-const states=['fetching','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
+const states=['ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','fetching','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
-const state=pick('state',states,'fetching');
+const state=pick('state',states,'ai');
 const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
 const size=pick('size',options.size,'default');
@@ -188,6 +200,9 @@ const icons={
   download:'<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
   smartphone:'<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
   monitor:'<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
+  sparkles:'<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
+  plug:'<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+  rotateCcw:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   check:'<path d="M20 6 9 17l-5-5"/>',
   arrowUpDown:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
 };
@@ -198,7 +213,18 @@ const copy={
   en:{
     thisComputer:'This computer', settings:'Settings', backTimeline:'Back to the timeline', serverNote:'These settings belong to this server',
     lead:'Settings are kept on the server, for every device connected to it.',
-    fetching:'Fetching', opml:'Import and export', devices:'Devices',
+    fetching:'Fetching', opml:'Import and export', devices:'Devices', ai:'AI',
+    aiLead:'Summaries and translations go through an OpenAI-compatible endpoint of your choosing: OpenAI, another provider, or a model on this computer such as Ollama.',
+    endpoint:'Endpoint', endpointHelp:'The base address of the API, such as <code>https://api.openai.com/v1</code>.', endpointPlaceholder:'https://api.openai.com/v1',
+    model:'Model', modelPlaceholder:'gpt-4o-mini',
+    apiKey:'API key', keySet:'Configured', keyUnset:'Not configured', keyHelp:'Kept on the server and never shown again. A model on this computer may need none.',
+    keyPlaceholder:'Paste the key', keyReplace:'Enter a new key to replace it', removeKey:'Remove key',
+    language:'Write in', languageHelp:'Summaries and translations are written in this language.', zhHans:'Simplified Chinese', english:'English',
+    test:'Test', testing:'Sending a short request…', tested:'Connected. {model} answered.', testFirst:'Save first, then test.',
+    aiUnauthorized:'The endpoint turned down the API key.', aiSaved:'Saved.',
+    invalidAiBase:'Enter a full http or https address with a host name, such as https://api.openai.com/v1.',
+    prompts:'Prompts', promptSummary:'Summary prompt', promptTranslate:'Translation prompt',
+    promptHelp:'<code>{language}</code> becomes the language above. Each subscription can use its own in Edit subscription.', reset:'Restore default',
     rsshub:'RSSHub instance', rsshubHelp:'Subscriptions given as an RSSHub route, such as <code>/github/issue/golang/go</code>, are fetched from this address. Leave it empty if you use none.',
     rsshubPlaceholder:'https://rsshub.app', save:'Save', saved:'Saved. The next fetch uses it.',
     invalidBase:'Enter a full http or https address with a host name, such as https://rsshub.app.',
@@ -222,7 +248,18 @@ const copy={
   'zh-Hans':{
     thisComputer:'本机', settings:'设置', backTimeline:'回到时间线', serverNote:'这些设置属于这个服务端',
     lead:'设置保存在服务端，连到它的每台设备都一样。',
-    fetching:'抓取', opml:'导入和导出', devices:'设备',
+    fetching:'抓取', opml:'导入和导出', devices:'设备', ai:'AI',
+    aiLead:'摘要和翻译走你自己选的 OpenAI 兼容接口：OpenAI、别的服务商，或者本机的模型（例如 Ollama）。',
+    endpoint:'接口地址', endpointHelp:'API 的根地址，例如 <code>https://api.openai.com/v1</code>。', endpointPlaceholder:'https://api.openai.com/v1',
+    model:'模型', modelPlaceholder:'gpt-4o-mini',
+    apiKey:'API key', keySet:'已配置', keyUnset:'未配置', keyHelp:'存在服务端，存好后不再显示。本机的模型可以不填。',
+    keyPlaceholder:'粘贴 key', keyReplace:'填新的 key 替换它', removeKey:'删除 key',
+    language:'输出语言', languageHelp:'摘要和译文用这种语言写。', zhHans:'简体中文', english:'English',
+    test:'测试', testing:'正在发一个很短的请求…', tested:'连上了，{model} 有回应。', testFirst:'先保存再测试。',
+    aiUnauthorized:'接口不接受这个 API key。', aiSaved:'已保存。',
+    invalidAiBase:'填带主机名的完整 http 或 https 地址，例如 https://api.openai.com/v1。',
+    prompts:'Prompt', promptSummary:'摘要 prompt', promptTranslate:'翻译 prompt',
+    promptHelp:'<code>{language}</code> 会换成上面的输出语言。每个订阅可以在「编辑订阅」里用自己的。', reset:'恢复默认',
     rsshub:'RSSHub 实例', rsshubHelp:'只填 RSSHub 路由的订阅（例如 <code>/github/issue/golang/go</code>）从这个地址抓取。不用 RSSHub 就留空。',
     rsshubPlaceholder:'https://rsshub.app', save:'保存', saved:'已保存，下次抓取起生效。',
     invalidBase:'填带主机名的完整 http 或 https 地址，例如 https://rsshub.app。',
@@ -248,9 +285,9 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
+const group=state.startsWith('ai')?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
 
-const groups=[['fetching','rss'],['opml','arrowUpDown'],['devices','laptop']];
+const groups=[['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
 <nav class="nav" aria-label="${copy.settings}"><div class="section">${copy.settings}</div>${groups.map(([k,g])=>`<button class="item${k===group?' chosen':''}"${k===group?' aria-current="page"':''}>${icon(g)}<span class="name">${copy[k]}</span></button>`).join('')}</nav>
 <div class="server" title="${copy.serverNote}">${icon(remote?'server':'laptop')}<span class="name">${remote?host:copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></div></aside>`;
@@ -290,10 +327,35 @@ const sessions=[
 const devices=remote?`<p class="lead">${copy.devicesHelp}</p><div class="card">`+sessions.map(s=>`<div class="row"><div class="device"><div class="glyph">${icon(s.glyph)}</div><div class="text"><div class="name">${s.name}${s.current?`<span class="badge">${copy.thisDevice}</span>`:''}</div><div class="when">${t('signedIn',{date:s.date,seen:s.seen})}</div></div>${s.current?'':`<button class="button small danger">${copy.revoke}</button>`}</div></div>`).join('')+'</div>':
 `<div class="card"><div class="row note">${icon('laptop')}<span>${copy.localDevices}</span></div></div>`;
 
+const aiSet=state!=='ai', aiDirty=state==='ai-edited'||state==='ai-invalid';
+const aiField=(label,value,placeholder,cls='')=>`<div class="field${cls}" role="textbox" aria-label="${label}"${cls.includes('invalid')?' aria-invalid="true"':''}>${value||`<span class="placeholder">${placeholder}</span>`}</div>`;
+const endpoint=state==='ai-invalid'?'api.openai.com/v1':state==='ai-edited'?'http://localhost:11434/v1':aiSet?'https://api.openai.com/v1':'';
+const modelName=state==='ai-edited'?'qwen3:8b':aiSet?'gpt-4o-mini':'';
+let aiStatus='';
+if(state==='ai-edited')aiStatus=`<div class="status busy">${copy.testFirst}</div>`;
+if(state==='ai-testing')aiStatus=`<div class="status busy" role="status">${icon('loader','spin')}${copy.testing}</div>`;
+if(state==='ai-tested')aiStatus=`<div class="status ok" role="status">${icon('check')}${t('tested',{model:'gpt-4o-mini-2024-07-18'})}</div>`;
+if(state==='ai-test-failed')aiStatus=`<div class="status error" role="alert">${icon('alert')}${copy.aiUnauthorized}</div>`;
+const prompt=(label,text)=>`<div class="row"><div class="label-row"><span class="label">${label}</span><button class="button small" disabled>${icon('rotateCcw')}${copy.reset}</button></div><div class="textarea" role="textbox" aria-multiline="true" aria-label="${label}">${text}</div></div>`;
+const ai=`<p class="lead">${copy.aiLead}</p><div class="card">
+<div class="row"><span class="label">${copy.endpoint}</span><p class="help">${copy.endpointHelp}</p><div class="control">${aiField(copy.endpoint,endpoint,copy.endpointPlaceholder,state==='ai-invalid'?' invalid':state==='ai'||state==='ai-edited'?' focused':'')}</div>${state==='ai-invalid'?`<div class="status error" role="alert">${icon('alert')}${copy.invalidAiBase}</div>`:''}</div>
+<div class="row"><div class="device"><div class="text"><span class="label">${copy.model}</span></div><div style="width:260px">${aiField(copy.model,modelName,copy.modelPlaceholder)}</div></div></div>
+<div class="row"><div class="label-row"><span class="label">${copy.apiKey}</span><span class="badge${aiSet?'':' off'}">${aiSet?copy.keySet:copy.keyUnset}</span></div><p class="help">${copy.keyHelp}</p>
+<div class="control">${aiField(copy.apiKey,'',aiSet?copy.keyReplace:copy.keyPlaceholder)}${aiSet?`<button class="button">${copy.removeKey}</button>`:''}</div></div>
+<div class="row"><div class="device"><div class="text"><span class="label">${copy.language}</span><p class="help">${copy.languageHelp}</p></div>
+<button class="select" aria-haspopup="listbox" aria-label="${copy.language}"><span>${copy.zhHans}</span>${icon('chevronDown')}</button></div></div>
+<div class="row"><div class="actions">${aiStatus||'<span class="status"></span>'}<button class="button"${aiSet&&!aiDirty&&state!=='ai-testing'?'':' disabled'}>${icon('plug')}${copy.test}</button><button class="button${aiDirty?' primary':''}"${aiDirty?'':' disabled'}>${copy.save}</button></div></div>
+</div>
+<h2 class="section-title">${copy.prompts}</h2><div class="card">
+${prompt(copy.promptSummary,'Summarize the article in {language} in three to five sentences. Reply with the summary only.')}
+${prompt(copy.promptTranslate,'Translate the text into {language}. Keep the paragraphs and their order, and the title on the first line. Reply with the translation only.')}
+<div class="row"><div class="actions"><p class="help status" style="display:block">${copy.promptHelp}</p><button class="button" disabled>${copy.save}</button></div></div>
+</div>`;
+
 let page;
 if(state==='loading')page=`<div class="page skeleton" aria-busy="true"><div class="bar" style="width:60%"></div><div class="block"></div></div>`;
 else if(state==='error')page=`<div class="empty" role="status"><div class="tile">${icon('wifiOff')}</div><h2>${copy.error}</h2><p>${copy.errorHint}</p><button class="button">${icon('refresh')}${copy.retry}</button></div>`;
-else page=`<div class="page">${{fetching,opml,devices}[group]}</div>`;
+else page=`<div class="page">${{fetching,opml,ai,devices}[group]}</div>`;
 
 let overlay='';
 if(state==='revoke')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${t('revokeTitle',{name:'Safari · iPhone'})}</h2><p id="ab">${copy.revokeBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.revokeConfirm}</button></div></div></div>`;

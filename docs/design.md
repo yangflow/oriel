@@ -102,19 +102,34 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; title and interval share a
   row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` tint) or what
   the address was recognized as (`Accent` tint, the address in monospace). The edit dialog starts with a health line
-  (`Surface`, or the `Warning` tint while fetches fail) with a small Refresh button.
-- **The reader.** It takes the main column's place; the sidebar stays. A 48 high toolbar: "Back to {scope}" (a
-  chevron and the scope's name) at the left; previous, next, a 1 DIP separator, star (`Warning` when starred), read
-  toggle and open in browser at the right, 28 square buttons. Under the divider the article scrolls, a column at most
-  680 wide, centered, padded 28/32/48 (20 below a 760 wide window): the source's monogram, name and full date at 12;
-  the title at 24 (20 when narrow) weight 650; the note on where the text comes from (`Warning` tint when it is the
-  feed's, `Surface` with a spinner while the full text is being got), 12.5, its "Open the original" link underlined;
-  then the text 22 below. Body text is 15 at line height 1.65; h2 18 and h3 15.5 semibold, 26 and 22 above;
-  14 between paragraphs, 4 between list items, a 22 wide marker column; quotes behind a 3 DIP `Border` line in
-  `TextMuted`; code on `Surface` at 13 monospace, scrolling sideways; links in `Accent`, underlined; pictures at their
-  own aspect ratio (16:9 until known), at most their own width, captions 12 in `TextMuted`. Loading is a skeleton;
-  the empty states (getting the text, no text, can't load) are a 48 tile, a 15 semibold heading, a hint at most 320
-  wide and a button. The whole text is one selection.
+  (`Surface`, or the `Warning` tint while fetches fail) with a small Refresh button. It ends with "Summaries and
+  translations", a 12 semibold muted group title with the sparkles icon: two switches that queue new entries, and two
+  monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
+  Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".
+- **The reader.** It takes the main column's place; the sidebar stays. A 48 high toolbar: "Back to {scope}" (a chevron
+  and the scope's name) at the left; previous, next, a separator, Summarize (sparkles) and Translate (languages), a
+  separator, star (`Warning` when starred), read toggle and open in browser at the right, 28 square buttons,
+  separators 1 DIP. Summarize and Translate are toggles: pressed, they sit on `AccentSoft` in `Accent` and their names
+  become "Hide the summary" and "Show the original". Under the divider the article scrolls, a column at most 680 wide,
+  centered, padded 28/32/48 (20 below a 760 wide window): the source's monogram, name and full date at 12; the title
+  at 24 (20 when narrow) weight 650; the note on where the text comes from (`Warning` tint when it is the feed's,
+  `Surface` with a spinner while the full text is being got), 12.5, its "Open the original" link underlined; then the
+  text 22 below. Body text is 15 at line height 1.65; h2 18 and h3 15.5 semibold, 26 and 22 above; 14 between
+  paragraphs, 4 between list items, a 22 wide marker column; quotes behind a 3 DIP `Border` line in `TextMuted`; code
+  on `Surface` at 13 monospace, scrolling sideways; links in `Accent`, underlined; pictures at their own aspect ratio
+  (16:9 until known), at most their own width, captions 12 in `TextMuted`. Loading is a skeleton; the empty states
+  (getting the text, no text, can't load) are a 48 tile, a 15 semibold heading, a hint at most 320 wide and a button.
+  The whole text is one selection.
+- **Summary and translation in the reader.** The summary is a card under the title, radius 10, padded 12/14, text 14
+  at line height 1.6, its head 12 semibold: while it is made, `AccentSoft` with a spinner, "Summarizing…", a Cancel
+  text button and three skeleton lines; done, `AccentSoft` with "Summary · by {model}", the model in `TextMuted`, and
+  a close button; failed, the `Danger` tint with what went wrong and a small "Try again"; while AI is not set up,
+  `Surface` with "AI isn't set up", one line on where to set it and a small primary "Open Settings…". The translation
+  replaces the title and text in place; the note under the title says what is shown. While it is made, the original
+  stays with a note (`Surface`, a spinner, Cancel); done, the note is `AccentSoft`, "Translated by {model}" and a
+  segmented Translation | Original switch, and the translated text is plain paragraphs, pictures and links staying in
+  the original; failed, the original stays with the note in the `Danger` tint, the reason and "Try again". Cancel only
+  stops waiting; leaving the article does the same.
 
 ## Color and dark mode
 
@@ -343,15 +358,19 @@ Overlays share focus and Escape behavior; see
   takes the focus when it opens, so the arrows, Space, Page Up/Down and Home/End scroll it, and Tab goes through its
   links. Every toolbar button names its key in the tooltip.
 - **Settings.** The settings take the whole window, in place of the timeline: their own sidebar has "Back to the
-  timeline" on top, one item per group (Fetching, Import and export, Devices) and the server bar, which says whose
+  timeline" on top, one item per group (Fetching, Import and export, AI, Devices) and the server bar, which says whose
   settings these are and does not open the connect screen. They open from the gear beside the timeline's server bar
   or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. A setting is saved
   where it is changed: the RSSHub instance with its Save button or Enter, the retention as soon as another is
   chosen; the line under it says it was saved, or why not, and a refused value keeps the focus in its field. OPML
   files are chosen and saved with the system's file dialogs, read and sent in the background; the result stays
   under the button, with the subscriptions that could not be added and why, until dismissed. Revoking a device asks
-  first; the current device is marked and cannot be revoked. Language and theme follow the system and are not
-  settings.
+  first; the current device is marked and cannot be revoked. The AI group has the endpoint, model, API key and
+  output language in one card with its own Save, and the two prompts in a second card. The key field is always
+  empty; a badge says "Configured" or "Not configured", a new key replaces the old one and "Remove key" deletes it.
+  Test sends a short request with the saved settings, so it is disabled while there are unsaved edits; its result
+  stays beside the buttons. Each prompt has "Restore default", disabled while it is the default. Language and
+  theme follow the system and are not settings.
 
 ## Accessibility checklist
 

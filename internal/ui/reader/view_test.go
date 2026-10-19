@@ -31,6 +31,13 @@ type fake struct {
 	pictures []string
 	nav      Nav
 	calls    []string // what the reader asked the timeline to do
+
+	ai       client.AIResults
+	aiErr    error
+	reply    client.AIResult // the answer to a request
+	replyErr error
+	requests []string
+	polls    int
 }
 
 func (f *fake) Entry(_ context.Context, id int64) (client.Article, error) {
@@ -48,15 +55,26 @@ func (f *fake) Image(_ context.Context, address string) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+func (f *fake) AI(_ context.Context, id int64) (client.AIResults, error) {
+	f.polls++
+	return f.ai, f.aiErr
+}
+
+func (f *fake) RequestAI(_ context.Context, id int64, task string) (client.AIResult, error) {
+	f.requests = append(f.requests, task)
+	return f.reply, f.replyErr
+}
+
 func (f *fake) deps() Deps {
 	return Deps{
-		Go:         func(work func() func()) { f.queue = append(f.queue, work) },
-		Now:        func() time.Time { return f.now },
-		Expired:    func(err error) bool { return errors.Is(err, errExpired) },
-		Back:       func() { f.calls = append(f.calls, "back") },
-		Move:       func(by int) { f.calls = append(f.calls, map[int]string{-1: "previous", 1: "next"}[by]) },
-		Star:       func() { f.calls = append(f.calls, "star") },
-		ToggleRead: func() { f.calls = append(f.calls, "read") },
+		Go:           func(work func() func()) { f.queue = append(f.queue, work) },
+		Now:          func() time.Time { return f.now },
+		Expired:      func(err error) bool { return errors.Is(err, errExpired) },
+		Back:         func() { f.calls = append(f.calls, "back") },
+		Move:         func(by int) { f.calls = append(f.calls, map[int]string{-1: "previous", 1: "next"}[by]) },
+		Star:         func() { f.calls = append(f.calls, "star") },
+		ToggleRead:   func() { f.calls = append(f.calls, "read") },
+		OpenSettings: func() { f.calls = append(f.calls, "settings") },
 	}
 }
 
@@ -448,5 +466,292 @@ func TestParse(t *testing.T) {
 				t.Fatalf("got  %+v\nwant %+v", got, c.want)
 			}
 		})
+	}
+}
+
+func click(t *testing.T, tt *ui.Tester, label string) {
+	t.Helper()
+	if err := tt.Click(label); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// wait moves the clock by d and draws a frame, so a poll due by then is asked for.
+func (f *fake) wait(tt *ui.Tester, d time.Duration) {
+	f.now = f.now.Add(d)
+	tt.Frame()
+}
+
+func TestSummary(t *testing.T) {
+	_, f, tt := setup(t, "en", full())
+	f.settle(tt)
+	absent(t, tt, "Summary", "Summarizing…")
+	f.reply = client.AIResult{Status: "pending"}
+	click(t, tt, "Summarize")
+	expect(t, tt, "Summarizing…", "Cancel")
+	f.settle(tt)
+	if !slices.Equal(f.requests, []string{"summary"}) {
+		t.Fatalf("requests %v", f.requests)
+	}
+	polls := f.polls
+	f.wait(tt, time.Second)
+	if len(f.queue) != 0 {
+		t.Fatal("polls before two seconds")
+	}
+	f.ai.Summary = &client.AIResult{Status: "ok", Text: "Go 1.27 is faster.", Model: "gpt-4o-mini"}
+	f.wait(tt, time.Second)
+	f.settle(tt)
+	if f.polls != polls+1 {
+		t.Fatalf("polled %d times", f.polls-polls)
+	}
+	expect(t, tt, "Summary", "· by gpt-4o-mini", "Go 1.27 is faster.", "Faster builds")
+	absent(t, tt, "Summarizing…")
+	if !slices.Contains(tt.Announcements(), "Summary ready") {
+		t.Fatal("the summary is not announced")
+	}
+	f.wait(tt, time.Minute)
+	if len(f.queue) != 0 {
+		t.Fatal("polls once the summary is ready")
+	}
+	// The toolbar button and the card's close button both hide it.
+	click(t, tt, "Hide the summary")
+	absent(t, tt, "Go 1.27 is faster.")
+	if _, ok := tt.Find("Summarize"); !ok {
+		t.Fatal("the button is not named Summarize again")
+	}
+	// A summary the server has is answered at once.
+	f.reply = *f.ai.Summary
+	click(t, tt, "Summarize")
+	f.settle(tt)
+	expect(t, tt, "Go 1.27 is faster.")
+}
+
+func TestSummaryCancel(t *testing.T) {
+	_, f, tt := setup(t, "en", full())
+	f.settle(tt)
+	f.reply = client.AIResult{Status: "pending"}
+	click(t, tt, "Summarize")
+	f.settle(tt)
+	click(t, tt, "Cancel")
+	absent(t, tt, "Summarizing…")
+	f.wait(tt, time.Minute)
+	if len(f.queue) != 0 {
+		t.Fatal("polls after Cancel")
+	}
+	// The answer to a request cancelled before it comes is dropped.
+	click(t, tt, "Summarize")
+	click(t, tt, "Hide the summary")
+	f.reply = client.AIResult{Status: "ok", Text: "Late.", Model: "m"}
+	f.settle(tt)
+	absent(t, tt, "Late.", "Summarizing…")
+}
+
+func TestSummaryFailed(t *testing.T) {
+	_, f, tt := setup(t, "en", full())
+	f.settle(tt)
+	f.reply = client.AIResult{Status: "failed", Error: "ai_timeout"}
+	click(t, tt, "Summarize")
+	f.settle(tt)
+	expect(t, tt, "Couldn’t summarize", "The AI endpoint took too long to answer.", "Try again")
+	if !slices.Contains(tt.Announcements(), "Couldn’t summarize") {
+		t.Fatal("the failure is not announced")
+	}
+	// A failure made while polling shows the same.
+	f.reply = client.AIResult{Status: "pending"}
+	click(t, tt, "Try again")
+	f.settle(tt)
+	expect(t, tt, "Summarizing…")
+	f.ai.Summary = &client.AIResult{Status: "failed", Error: "ai_rate_limited"}
+	f.wait(tt, aiPollEvery)
+	f.settle(tt)
+	expect(t, tt, "The AI endpoint is taking too many requests. Try again in a moment.")
+	// The server not answering is said the same way.
+	f.replyErr = errors.New("status 502")
+	click(t, tt, "Try again")
+	f.settle(tt)
+	expect(t, tt, "Couldn’t summarize", "The server didn’t answer. Check the connection and try again.")
+	if len(f.requests) != 3 {
+		t.Fatalf("requests %v", f.requests)
+	}
+}
+
+func TestReasons(t *testing.T) {
+	s := New("en", (&fake{}).deps())
+	for code, want := range map[string]string{
+		"ai_unreachable":  "Couldn’t reach the AI endpoint.",
+		"ai_timeout":      "The AI endpoint took too long to answer.",
+		"ai_unauthorized": "The AI endpoint turned down the API key. Check it in Settings.",
+		"ai_rate_limited": "The AI endpoint is taking too many requests. Try again in a moment.",
+		"ai_upstream":     "The AI endpoint answered with an error.",
+		"ai_unknown":      "The AI endpoint answered with an error.",
+		"ai_empty":        "This entry has no text to send.",
+		"":                "The server didn’t answer. Check the connection and try again.",
+	} {
+		if got := s.reason(code); got != want {
+			t.Errorf("%q: %q", code, got)
+		}
+	}
+}
+
+// What the server already has shows as the article opens: the summary, made or being made, and not the
+// translation.
+func TestOpenWithResults(t *testing.T) {
+	a := full()
+	f := &fake{now: now, article: a, nav: Nav{Entry: a.Entry, Scope: "All", Keys: true}}
+	f.ai = client.AIResults{
+		Summary:     &client.AIResult{Status: "ok", Text: "Made before.", Model: "m"},
+		Translation: &client.AIResult{Status: "ok", Text: "Titel\n\nAbsatz.", Model: "m"},
+	}
+	s := New("en", f.deps())
+	s.Use(f)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1100, 800)
+	s.Open(a.Entry)
+	f.settle(tt)
+	expect(t, tt, "Made before.", "Go 1.27 is released", "Faster builds")
+	absent(t, tt, "Titel", "Absatz.")
+	if slices.Contains(tt.Announcements(), "Summary ready") {
+		t.Fatal("a summary made before is announced")
+	}
+	if len(f.requests) != 0 {
+		t.Fatalf("requests %v", f.requests)
+	}
+	// One being made shows as such, and is polled for.
+	f.ai.Summary = &client.AIResult{Status: "pending", Text: "Made before."}
+	s.Open(a.Entry)
+	f.settle(tt)
+	expect(t, tt, "Summarizing…")
+	f.ai.Summary = &client.AIResult{Status: "ok", Text: "Made again.", Model: "m"}
+	f.wait(tt, aiPollEvery)
+	f.settle(tt)
+	expect(t, tt, "Made again.")
+	// One that failed before does not show.
+	f.ai.Summary = &client.AIResult{Status: "failed", Error: "ai_timeout"}
+	s.Open(a.Entry)
+	f.settle(tt)
+	absent(t, tt, "Couldn’t summarize", "Summary")
+}
+
+func TestAIOff(t *testing.T) {
+	_, f, tt := setup(t, "en", full())
+	f.settle(tt)
+	f.replyErr = &client.APIError{Status: 409, Code: "ai_not_configured"}
+	click(t, tt, "Translate")
+	f.settle(tt)
+	expect(t, tt, "AI isn’t set up", "Open Settings…",
+		"Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.")
+	absent(t, tt, "Translating. The original stays here until it’s done.")
+	click(t, tt, "Open Settings…")
+	if !slices.Equal(f.calls, []string{"settings"}) {
+		t.Fatalf("calls %v", f.calls)
+	}
+	click(t, tt, "Close")
+	absent(t, tt, "AI isn’t set up")
+	click(t, tt, "Summarize")
+	f.settle(tt)
+	expect(t, tt, "AI isn’t set up")
+	absent(t, tt, "Summarizing…")
+	if _, ok := tt.Find("Summarize"); !ok {
+		t.Fatal("the summary button stays pressed")
+	}
+	// Once AI is set up, asking again takes the card's place.
+	f.replyErr, f.reply = nil, client.AIResult{Status: "pending"}
+	click(t, tt, "Summarize")
+	absent(t, tt, "AI isn’t set up")
+	expect(t, tt, "Summarizing…")
+}
+
+func TestTranslation(t *testing.T) {
+	_, f, tt := setup(t, "en", full())
+	f.settle(tt)
+	f.reply = client.AIResult{Status: "pending"}
+	click(t, tt, "Translate")
+	f.settle(tt)
+	// The original stays while the translation is made.
+	expect(t, tt, "Translating. The original stays here until it’s done.", "Go 1.27 is released", "Faster builds")
+	f.ai.Translation = &client.AIResult{Status: "ok", Text: "Go 1.27 ist da\n\nHeute erscheint Go 1.27.\nSchneller.\n",
+		Model: "gpt-4o-mini"}
+	f.wait(tt, aiPollEvery)
+	f.settle(tt)
+	expect(t, tt, "Translated by gpt-4o-mini", "Translation", "Original", "Go 1.27 ist da", "Heute erscheint Go 1.27.",
+		"Schneller.")
+	absent(t, tt, "Go 1.27 is released", "Faster builds", "Translating. The original stays here until it’s done.")
+	if !slices.Contains(tt.Announcements(), "Translation ready") {
+		t.Fatal("the translation is not announced")
+	}
+	// The switch and the toolbar button go back to the original and forth.
+	click(t, tt, "Original")
+	expect(t, tt, "Go 1.27 is released", "Faster builds", "Translated by gpt-4o-mini")
+	absent(t, tt, "Schneller.")
+	click(t, tt, "Translation")
+	expect(t, tt, "Schneller.")
+	click(t, tt, "Show the original")
+	expect(t, tt, "Faster builds")
+	click(t, tt, "Translate")
+	expect(t, tt, "Schneller.")
+	if len(f.requests) != 1 {
+		t.Fatalf("requests %v", f.requests)
+	}
+}
+
+func TestTranslationCancel(t *testing.T) {
+	_, f, tt := setup(t, "en", full())
+	f.settle(tt)
+	f.reply = client.AIResult{Status: "pending"}
+	click(t, tt, "Translate")
+	f.settle(tt)
+	click(t, tt, "Cancel")
+	absent(t, tt, "Translating. The original stays here until it’s done.")
+	f.wait(tt, time.Minute)
+	if len(f.queue) != 0 {
+		t.Fatal("polls after Cancel")
+	}
+	// The toolbar button cancels too.
+	click(t, tt, "Translate")
+	f.settle(tt)
+	click(t, tt, "Translate")
+	absent(t, tt, "Translating. The original stays here until it’s done.")
+}
+
+func TestTranslationFailed(t *testing.T) {
+	_, f, tt := setup(t, "zh-Hans", full())
+	f.settle(tt)
+	f.reply = client.AIResult{Status: "failed", Error: "ai_unauthorized"}
+	click(t, tt, "翻译")
+	f.settle(tt)
+	expect(t, tt, "没能翻译。AI 接口不接受这个 API key，去设置里检查一下。", "重试", "Faster builds")
+	f.reply = client.AIResult{Status: "ok", Text: "标题\n正文。", Model: "m"}
+	click(t, tt, "重试")
+	f.settle(tt)
+	expect(t, tt, "由 m 翻译", "译文", "原文", "标题", "正文。")
+	if len(f.requests) != 2 {
+		t.Fatalf("requests %v", f.requests)
+	}
+}
+
+// Leaving the article stops waiting for its results, and the answers for it are dropped.
+func TestAILeave(t *testing.T) {
+	s, f, tt := setup(t, "en", full())
+	f.settle(tt)
+	f.reply = client.AIResult{Status: "ok", Text: "For the article before.", Model: "m"}
+	click(t, tt, "Summarize")
+	other := entry()
+	other.ID, other.Title = 9, "Another post"
+	f.nav.Entry = other
+	s.Open(other)
+	f.article = client.Article{Entry: other, ContentHTML: "<p>Another text.</p>"}
+	f.settle(tt)
+	expect(t, tt, "Another text.")
+	absent(t, tt, "For the article before.", "Summarizing…")
+	// A session the server no longer takes shows no card.
+	f.replyErr = errExpired
+	click(t, tt, "Summarize")
+	f.settle(tt)
+	absent(t, tt, "Summarizing…", "Couldn’t summarize")
+}
+
+func TestTranslated(t *testing.T) {
+	title, blocks := translated("\n  Title  \n\nOne.\r\n  \nTwo.")
+	if title != "Title" || len(blocks) != 2 || blocks[0].spans[0].text != "One." || blocks[1].spans[0].text != "Two." {
+		t.Fatalf("%q %+v", title, blocks)
 	}
 }

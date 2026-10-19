@@ -33,6 +33,8 @@ type copy struct {
 	EditTitle, Refresh, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn    string
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody  string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                            string
+	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff    string
+	OpenSettings                                                                                               string
 }
 
 var translations = func() map[string]copy {
@@ -62,17 +64,18 @@ type API interface {
 // Deps is what the dialogs do outside themselves. Go runs work away from the UI thread and then the function it
 // returns on the UI thread; Now is the clock, time.Now by default. Sources are the subscriptions the timeline has,
 // to name the one an address is already followed as. Added, Changed and Removed tell the timeline what the server
-// took, Show chooses a subscription in it, and Expired shows the connect screen because the server no longer takes
-// the session.
+// took, Show chooses a subscription in it, OpenSettings opens the AI group of the settings, and Expired shows the
+// connect screen because the server no longer takes the session.
 type Deps struct {
-	Go      func(work func() (apply func()))
-	Now     func() time.Time
-	Sources func() []client.Source
-	Added   func(client.Source)
-	Changed func(client.Source)
-	Removed func(id int64)
-	Show    func(id int64)
-	Expired func()
+	Go           func(work func() (apply func()))
+	Now          func() time.Time
+	Sources      func() []client.Source
+	Added        func(client.Source)
+	Changed      func(client.Source)
+	Removed      func(id int64)
+	Show         func(id int64)
+	OpenSettings func()
+	Expired      func()
 }
 
 // The settings of the add dialog, which say whether a route needs an RSSHub instance first.
@@ -119,6 +122,9 @@ type editing struct {
 	interval int64
 	paused   bool
 	mute     string
+	auto     [2]bool   // summarize and translate new entries
+	prompts  [2]string // the summary and translation prompts of the subscription, "" for the ones in the settings
+	aiOff    bool      // the settings have no AI endpoint, so the switches do nothing yet
 	formErr  string
 	busy     bool
 	focus    bool
@@ -320,10 +326,22 @@ func (s *Screen) Edit(src client.Source) {
 		return
 	}
 	s.edit = editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
-		interval: src.FetchIntervalSec, paused: src.Paused, mute: src.MuteKeywords, focus: true}
+		interval: src.FetchIntervalSec, paused: src.Paused, mute: src.MuteKeywords,
+		auto:    [2]bool{src.AutoSummary, src.AutoTranslate},
+		prompts: [2]string{src.PromptSummary, src.PromptTranslate}, focus: true}
 	if s.edit.interval == 0 {
 		s.edit.interval = intervals[0]
 	}
+	gen, api, id := s.gen, s.api, src.ID
+	s.deps.Go(func() func() {
+		settings, err := api.Settings(context.Background())
+		return func() {
+			if gen != s.gen || s.expired(err) || err != nil || !s.edit.open || s.edit.src.ID != id {
+				return
+			}
+			s.edit.aiOff = !settings.AIConfigured()
+		}
+	})
 }
 
 func (s *Screen) save() {
@@ -347,6 +365,18 @@ func (s *Screen) save() {
 	}
 	if mute := e.mute; mute != e.src.MuteKeywords {
 		patch.MuteKeywords, changed = &mute, true
+	}
+	if auto := e.auto[0]; auto != e.src.AutoSummary {
+		patch.AutoSummary, changed = &auto, true
+	}
+	if auto := e.auto[1]; auto != e.src.AutoTranslate {
+		patch.AutoTranslate, changed = &auto, true
+	}
+	if prompt := strings.TrimSpace(e.prompts[0]); prompt != e.src.PromptSummary {
+		patch.PromptSummary, changed = &prompt, true
+	}
+	if prompt := strings.TrimSpace(e.prompts[1]); prompt != e.src.PromptTranslate {
+		patch.PromptTranslate, changed = &prompt, true
 	}
 	if !changed {
 		e.open = false
@@ -1022,8 +1052,9 @@ func (s *Screen) editDialog(c *ui.Context) {
 			s.intervalSelect(c, &e.interval, e.busy)
 		})
 		s.kindPicker(c, &e.kind)
-		s.pauseSwitch(c)
+		s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, s.text.PauseHelp)
 		s.muteField(c)
+		s.aiGroup(c)
 		if e.formErr != "" {
 			errorLine(c, e.formErr, "")
 		}
@@ -1102,18 +1133,62 @@ func (s *Screen) health(c *ui.Context) {
 	})
 }
 
-func (s *Screen) pauseSwitch(c *ui.Context) {
+// switchRow is a switch with its label and help, which turn it too; help may be empty.
+func (s *Screen) switchRow(c *ui.Context, key string, value *bool, text, helpText string) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(px(t, 10)).Children(func() {
-		text := ui.Column(c).Key("pause").Grow(1).MinWidth(0).Children(func() {
-			label(c, s.text.PauseLabel)
-			help(c, s.text.PauseHelp)
+		column := ui.Column(c).Key(key).Grow(1).MinWidth(0).Children(func() {
+			label(c, text)
+			if helpText != "" {
+				help(c, helpText)
+			}
 		})
-		if text.Clicked() && !s.edit.busy {
-			s.edit.paused = !s.edit.paused
+		if column.Clicked() && !s.edit.busy {
+			*value = !*value
 		}
-		ui.Switch(c, &s.edit.paused).Label(s.text.PauseLabel).Description(s.text.PauseHelp).Disabled(s.edit.busy)
+		sw := ui.Switch(c, value).Label(text).Disabled(s.edit.busy)
+		if helpText != "" {
+			sw.Description(helpText)
+		}
 	})
+}
+
+// aiGroup is the subscription's summaries and translations: switches that queue new entries, and prompts that
+// replace the ones in the settings; while AI is not set up it says so and leads to the settings.
+func (s *Screen) aiGroup(c *ui.Context) {
+	t := c.Theme()
+	e := &s.edit
+	ui.Box(c).FillWidth().Height(1).Margin(t.Space(1.5), 0, 0, 0).Background(t.Border)
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
+		ui.Icon(c, icons.Sparkles).FontSize(px(t, 14)).TextColor(t.TextMuted)
+		ui.Text(c, s.text.AIGroup).FontSize(px(t, 12)).FontWeight(600).TextColor(t.TextMuted).
+			Role(ui.RoleHeading).Level(3)
+	})
+	if e.aiOff {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(2), px(t, 10)).Radius(t.Radius).
+			Background(t.Surface).Children(func() {
+			ui.Icon(c, icons.CircleAlert).FontSize(px(t, 14)).TextColor(t.TextMuted)
+			ui.Text(c, s.text.AIOff).Grow(1).Shrink(1).MinWidth(0).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().
+				Role(ui.RoleStatus)
+			open := button(c, small, false)
+			textButton(c, open, small, nil, s.text.OpenSettings, false)
+			if open.Clicked() {
+				e.open = false
+				if s.deps.OpenSettings != nil {
+					s.deps.OpenSettings()
+				}
+			}
+		})
+	}
+	s.switchRow(c, "summary", &e.auto[0], s.text.AutoSummary, s.text.AutoHelp)
+	s.switchRow(c, "translate", &e.auto[1], s.text.AutoTranslate, "")
+	for i, text := range [2]string{s.text.PromptSummary, s.text.PromptTranslate} {
+		ui.Column(c.Key(text)).FillWidth().Gap(t.Space(1)).Children(func() {
+			label(c, text)
+			ui.TextArea(c, &e.prompts[i]).FillWidth().Lines(3, 8).Font("monospace").FontSize(px(t, 12.5)).
+				Label(text).Placeholder(s.text.PromptPlaceholder).Disabled(e.busy)
+		})
+	}
 }
 
 func (s *Screen) muteField(c *ui.Context) {

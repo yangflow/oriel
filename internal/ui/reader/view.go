@@ -7,6 +7,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"strings"
 	"time"
@@ -26,6 +27,10 @@ type copy struct {
 	Back, Previous, Next, Star, Unstar, MarkRead, MarkUnread, Open, FeedNote, ExtractingNote, OpenOriginal string
 	Extracting, ExtractingHint, Failed, FailedHint, Error, ErrorHint, Retry, Loading, FullText, OpenFailed string
 	DateLayout, YearLayout, Shortcut                                                                       string
+	Summarize, HideSummary, Translate, ShowOriginal, Summary, By, Summarizing, Cancel, SummaryFailed       string
+	Translating, Translated, Translation, Original, TranslationFailed, SummaryReady, TranslationReady      string
+	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AIUpstream, AIEmpty, AIOff, AIOffTitle        string
+	OpenSettings, Close                                                                                    string
 }
 
 var translations = func() map[string]copy {
@@ -38,6 +43,7 @@ var translations = func() map[string]copy {
 
 const (
 	pollEvery    = 5 * time.Second // how often an article whose text is being got is asked for again
+	aiPollEvery  = 2 * time.Second // how often a summary or translation being made is asked for again
 	maxDownloads = 4
 )
 
@@ -45,22 +51,25 @@ const (
 type API interface {
 	Entry(ctx context.Context, id int64) (client.Article, error)
 	Image(ctx context.Context, address string) ([]byte, error)
+	AI(ctx context.Context, id int64) (client.AIResults, error)
+	RequestAI(ctx context.Context, id int64, task string) (client.AIResult, error)
 }
 
 // Deps is what the reader does outside itself. Go runs work away from the UI thread and then the function it returns
 // on the UI thread. Now is the clock and Decode turns the bytes of a picture into a bitmap, off the UI thread; they
 // default to time.Now and ui.DecodeBitmap. Expired reports whether err means the server no longer takes the session,
 // and then shows the connect screen. Back returns to the list, Move goes to the article by entries away, and Star and
-// ToggleRead change the entry read.
+// ToggleRead change the entry read. OpenSettings opens the AI group of the settings.
 type Deps struct {
-	Go         func(work func() (apply func()))
-	Now        func() time.Time
-	Decode     func([]byte) (*ui.Bitmap, error)
-	Expired    func(err error) bool
-	Back       func()
-	Move       func(by int)
-	Star       func()
-	ToggleRead func()
+	Go           func(work func() (apply func()))
+	Now          func() time.Time
+	Decode       func([]byte) (*ui.Bitmap, error)
+	Expired      func(err error) bool
+	Back         func()
+	Move         func(by int)
+	Star         func()
+	ToggleRead   func()
+	OpenSettings func()
 }
 
 // Nav is what the timeline tells the reader each frame: the entry as the list has it, with its read and starred
@@ -71,6 +80,21 @@ type Nav struct {
 	Scope          string
 	Previous, Next bool
 	Keys           bool
+}
+
+const (
+	summary = iota // the jobs, in the order of the server's tasks
+	translation
+)
+
+var tasks = [...]string{"summary", "translation"}
+
+// job is the summary or the translation of the article: on while its card or note shows; working from the request
+// until the result is ready, polled for once the request is answered; failed with the error code.
+type job struct {
+	on, working, asking, failed bool
+	ticket                      int // counts requests and cancels, so the answer to one cancelled is dropped
+	text, model, code           string
 }
 
 // loaded is a picture of the article, once it loads: bitmap, or failed, which leaves it out.
@@ -102,6 +126,14 @@ type Screen struct {
 	wanted    []string
 	downloads int
 
+	jobs       [2]job
+	aiOff      bool // AI is not set up: the card says where to set it
+	shown      int  // with the translation ready, 0 shows it and 1 the original
+	title      string
+	translated []block
+	aiPolledAt time.Time
+	aiPolling  bool
+
 	announce string
 	toast    string
 }
@@ -132,7 +164,9 @@ func (s *Screen) Open(e client.Entry) {
 	s.scroll.X, s.scroll.Y = 0, 0
 	s.focus = true
 	s.pictures, s.wanted, s.downloads = map[string]*loaded{}, nil, 0
+	s.jobs, s.aiOff, s.shown, s.title, s.translated, s.aiPolling = [2]job{}, false, 0, "", nil, false
 	s.load(false)
+	s.loadAI(true)
 }
 
 // load asks for the article; poll asks again while its text is being got, keeping what shows when that fails.
@@ -185,6 +219,171 @@ func (s *Screen) poll(c *ui.Context) {
 		return
 	}
 	s.load(true)
+}
+
+// loadAI asks for the summary and the translation: first, as the article opens, to show a summary already made or
+// being made; then while one is being made, to see whether it is ready.
+func (s *Screen) loadAI(first bool) {
+	if s.api == nil || s.id == 0 {
+		return
+	}
+	gen, api, id := s.gen, s.api, s.id
+	s.aiPolling = true
+	s.deps.Go(func() func() {
+		r, err := api.AI(context.Background(), id)
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			s.aiPolling, s.aiPolledAt = false, s.deps.Now()
+			if err != nil {
+				if !first {
+					s.deps.Expired(err)
+				}
+				return
+			}
+			if first {
+				if r.Summary != nil && r.Summary.Status != "failed" && !s.jobs[summary].on {
+					s.jobs[summary].on = true
+					s.apply(summary, *r.Summary, false)
+				}
+				return
+			}
+			for i, result := range []*client.AIResult{r.Summary, r.Translation} {
+				if j := s.jobs[i]; result != nil && j.working && !j.asking {
+					s.apply(i, *result, true)
+				}
+			}
+		}
+	})
+}
+
+// request asks the server for job i, which answers with the result when it is ready and unchanged, and otherwise
+// makes it.
+func (s *Screen) request(i int) {
+	if s.api == nil || s.id == 0 {
+		return
+	}
+	j := &s.jobs[i]
+	j.ticket++
+	j.on, j.working, j.asking, j.failed = true, true, true, false
+	s.aiOff = false
+	if i == translation {
+		s.shown = 0
+	}
+	gen, ticket, api, id := s.gen, j.ticket, s.api, s.id
+	s.deps.Go(func() func() {
+		r, err := api.RequestAI(context.Background(), id, tasks[i])
+		return func() {
+			if gen != s.gen || ticket != j.ticket {
+				return
+			}
+			j.asking, s.aiPolledAt = false, s.deps.Now()
+			switch {
+			case s.deps.Expired(err):
+				j.on, j.working = false, false
+			case errorCode(err) == "ai_not_configured":
+				j.on, j.working, s.aiOff = false, false, true
+				s.announce = s.text.AIOffTitle
+			case err != nil:
+				s.apply(i, client.AIResult{Status: "failed"}, true)
+			default:
+				s.apply(i, r, true)
+			}
+		}
+	})
+}
+
+// apply shows result for job i, and says so when announce.
+func (s *Screen) apply(i int, result client.AIResult, announce bool) {
+	j := &s.jobs[i]
+	j.working, j.failed, j.code = result.Status == "pending", result.Status == "failed", result.Error
+	switch {
+	case result.Status == "ok":
+		j.text, j.model = result.Text, result.Model
+		if i == translation {
+			s.title, s.translated = translated(result.Text)
+		}
+		if announce {
+			s.announce = []string{s.text.SummaryReady, s.text.TranslationReady}[i]
+		}
+	case j.failed && announce && i == summary:
+		s.announce = s.text.SummaryFailed
+	case j.failed && announce:
+		s.announce = s.reason(j.code)
+	}
+}
+
+// cancel stops waiting for job i and hides it; the server makes it all the same.
+func (s *Screen) cancel(i int) {
+	j := &s.jobs[i]
+	j.ticket++
+	j.on, j.working, j.asking = false, false, false
+}
+
+// pollAI asks for the results every aiPollEvery while one is being made.
+func (s *Screen) pollAI(c *ui.Context) {
+	waiting := false
+	for _, j := range s.jobs {
+		waiting = waiting || j.working && !j.asking
+	}
+	if !waiting || s.aiPolling {
+		return
+	}
+	if wait := aiPollEvery - s.deps.Now().Sub(s.aiPolledAt); wait > 0 {
+		c.After(wait)
+		return
+	}
+	s.loadAI(false)
+}
+
+// translating reports whether the translation shows in place of the original.
+func (s *Screen) translating() bool {
+	j := s.jobs[translation]
+	return j.on && !j.working && !j.failed && s.shown == 0
+}
+
+// reason says why a summary or translation failed, by its error code.
+func (s *Screen) reason(code string) string {
+	switch code {
+	case "ai_unreachable":
+		return s.text.AIUnreachable
+	case "ai_timeout":
+		return s.text.AITimeout
+	case "ai_unauthorized":
+		return s.text.AIUnauthorized
+	case "ai_rate_limited":
+		return s.text.AIRateLimited
+	case "ai_empty":
+		return s.text.AIEmpty
+	case "":
+		return s.text.ErrorHint
+	}
+	return s.text.AIUpstream
+}
+
+func errorCode(err error) string {
+	var apiErr *client.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Code
+	}
+	return ""
+}
+
+// translated splits a translation, plain text, into its title, the first line, and its paragraphs, one a line.
+func translated(text string) (string, []block) {
+	var title string
+	var blocks []block
+	for line := range strings.Lines(text) {
+		switch line = strings.TrimSpace(line); {
+		case line == "":
+		case title == "":
+			title = line
+		default:
+			blocks = append(blocks, block{kind: paragraph, spans: []span{{text: line}}})
+		}
+	}
+	return title, blocks
 }
 
 const (
@@ -288,6 +487,7 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	s.article.Entry = nav.Entry
 	s.article.ExtractStatus = status
 	s.poll(c)
+	s.pollAI(c)
 	ready := !s.loading && !s.failed
 	if nav.Keys {
 		for _, k := range []struct {
@@ -380,6 +580,33 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready bool) {
 				s.deps.Move(1)
 			}
 			ui.Box(c).Size(1, px(t, 16)).Margin(0, t.Space(1.5)).Background(t.Border)
+			on, label := s.jobs[summary].on, s.text.Summarize
+			if on {
+				label = s.text.HideSummary
+			}
+			if s.toggle(c, icons.Sparkles, label, on, !ready).Clicked() {
+				if on {
+					s.cancel(summary)
+				} else {
+					s.request(summary)
+				}
+			}
+			on, label = s.translating(), s.text.Translate
+			if on {
+				label = s.text.ShowOriginal
+			}
+			if s.toggle(c, icons.Languages, label, on, !ready).Clicked() {
+				j := s.jobs[translation]
+				switch {
+				case j.on && j.working:
+					s.cancel(translation)
+				case j.on && !j.failed:
+					s.shown = 1 - s.shown
+				default:
+					s.request(translation)
+				}
+			}
+			ui.Box(c).Size(1, px(t, 16)).Margin(0, t.Space(1.5)).Background(t.Border)
 			star, starColor := s.text.Star, t.TextMuted
 			if e.Starred {
 				star, starColor = s.text.Unstar, t.Warning
@@ -401,11 +628,14 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready bool) {
 		})
 }
 
-// tool is a button of the toolbar: an icon, named by label, its key in the tooltip.
+// tool is a button of the toolbar: an icon, named by label, its key, if any, in the tooltip.
 func (s *Screen) tool(c *ui.Context, icon *ui.SVG, label, key string, color ui.Color, disabled bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(label).
-		Tooltip(s.shortcut(label, key)).Disabled(disabled)
+	tip := label
+	if key != "" {
+		tip = s.shortcut(label, key)
+	}
+	b := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(label).Tooltip(tip).Disabled(disabled)
 	switch {
 	case disabled:
 		color = color.Alpha(0.45)
@@ -419,6 +649,20 @@ func (s *Screen) tool(c *ui.Context, icon *ui.SVG, label, key string, color ui.C
 	return b
 }
 
+// toggle is a tool that stays pressed while on, in the accent color on its soft tint.
+func (s *Screen) toggle(c *ui.Context, icon *ui.SVG, label string, on, disabled bool) ui.Element {
+	t := c.Theme()
+	color := t.TextMuted
+	if on {
+		color = t.Accent
+	}
+	b := s.tool(c, icon, label, "", color, disabled).Role(ui.RoleToggleButton).Checked(on)
+	if on && !disabled {
+		b.Background(theme.Soft(t, t.Accent))
+	}
+	return b
+}
+
 // page is the scrolling article: its source and time, its title, a note on where its text comes from, and the text.
 func (s *Screen) page(c *ui.Context, narrow bool) {
 	t := c.Theme()
@@ -428,6 +672,9 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 		pad = []float32{px(t, 20), px(t, 20), px(t, 40), px(t, 20)}
 	}
 	title := strings.TrimSpace(e.Title)
+	if s.translating() && s.title != "" {
+		title = s.title
+	}
 	area := ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).FillWidth().Focusable().FocusRing(false).Label(title)
 	if s.focus {
 		area.Focus()
@@ -439,6 +686,9 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 			return
 		}
 		blocks, how := s.body()
+		if s.translating() {
+			blocks, how = s.translated, whole
+		}
 		ui.Column(c).FillWidth().MaxWidth(px(t, 680)).Margin(0, ui.Auto).Padding(pad...).Selectable().
 			Children(func() {
 				ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
@@ -453,6 +703,14 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 				}
 				ui.Text(c, title).FontSize(size).FontWeight(650).LineHeight(1.25).Wrap().Margin(px(t, 10), 0, 0, 0).
 					Role(ui.RoleHeading).Level(1)
+				if s.jobs[translation].on {
+					s.translationNote(c)
+				}
+				if s.aiOff {
+					s.aiOffCard(c)
+				} else if s.jobs[summary].on {
+					s.summaryCard(c)
+				}
 				switch how {
 				case getting:
 					s.note(c, false, s.text.ExtractingNote)
@@ -535,6 +793,200 @@ func (s *Screen) note(c *ui.Context, warn bool, text string) {
 				}
 			})
 	})
+}
+
+// card is the box under the title holding the summary, or saying AI is not set up: a head line, then the rest.
+func (s *Screen) card(c *ui.Context, background ui.Color, label string, children func()) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Margin(px(t, 18), 0, 0, 0).Padding(px(t, 12), px(t, 14), px(t, 14), px(t, 14)).
+		Radius(px(t, 10)).Background(background).Role(ui.RoleGroup).Label(label).Children(children)
+}
+
+// head is the first line of a card: an icon, the title in color, what follows it, and a button at the end.
+func (s *Screen) head(c *ui.Context, icon *ui.SVG, color ui.Color, title string, children func()) ui.Element {
+	t := c.Theme()
+	return ui.Row(c).FillWidth().Height(px(t, 22)).AlignItems(ui.Center).Gap(px(t, 6)).Children(func() {
+		i := ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(color)
+		if icon == icons.LoaderCircle {
+			i.Rotate(i.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+		}
+		ui.Text(c, title).FontSize(px(t, 12)).FontWeight(600).TextColor(color).SingleLine().MinWidth(0).Shrink(1)
+		children()
+	})
+}
+
+// mini is the close button at the end of a card's head.
+func (s *Screen) mini(c *ui.Context, label string) bool {
+	t := c.Theme()
+	b := ui.ButtonBase(c).Size(px(t, 22), px(t, 22)).Margin(0, 0, 0, ui.Auto).Radius(px(t, 5)).Label(label).
+		Tooltip(label)
+	color := t.TextMuted
+	if b.Hovered() {
+		b.Background(t.SurfaceHover)
+		color = t.Text
+	}
+	b.Children(func() { ui.Icon(c, icons.X).FontSize(px(t, 13)).TextColor(color) })
+	return b.Clicked()
+}
+
+// textButton is a button of a card's head or a note that is only its text, in color.
+func (s *Screen) textButton(c *ui.Context, label string, color ui.Color) bool {
+	t := c.Theme()
+	b := ui.ButtonBase(c).Height(px(t, 22)).Margin(0, 0, 0, ui.Auto).PaddingX(px(t, 6)).Radius(px(t, 5)).Label(label)
+	if b.Hovered() {
+		b.Background(t.Background.Alpha(0.6))
+	}
+	b.Children(func() { ui.Text(c, label).FontSize(px(t, 12)).FontWeight(500).NoWrap().TextColor(color) })
+	return b.Clicked()
+}
+
+// small is the small button of a card: an icon and a label, primary in the accent color.
+func (s *Screen) small(c *ui.Context, icon *ui.SVG, label string, primary bool) bool {
+	t := c.Theme()
+	b := ui.ButtonBase(c).Height(px(t, 26)).Margin(px(t, 10), 0, 0, 0).Gap(t.Space(1.5)).PaddingX(px(t, 10)).
+		Radius(t.Radius).Label(label)
+	color := t.Text
+	switch {
+	case primary && b.Pressed():
+		b.Background(t.AccentPressed)
+	case primary && b.Hovered():
+		b.Background(t.AccentHover)
+	case primary:
+		b.Background(t.Accent)
+	case b.Hovered():
+		b.Border(1, t.Border).Background(t.SurfaceHover)
+	default:
+		b.Border(1, t.Border).Background(t.Background)
+	}
+	if primary {
+		color = t.AccentText
+	}
+	b.Children(func() {
+		ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(color)
+		ui.Text(c, label).FontSize(px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
+	})
+	return b.Clicked()
+}
+
+// summaryCard is the summary under the title: being made, with its Cancel and skeleton lines; made, with the model
+// that made it; or failed, with why and Try again.
+func (s *Screen) summaryCard(c *ui.Context) {
+	t := c.Theme()
+	j := s.jobs[summary]
+	switch {
+	case j.working:
+		s.card(c, theme.Soft(t, t.Accent), s.text.Summary, func() {
+			s.head(c, icons.LoaderCircle, t.Accent, s.text.Summarizing, func() {
+				if s.textButton(c, s.text.Cancel, t.TextMuted) {
+					s.cancel(summary)
+				}
+			}).Role(ui.RoleStatus)
+			for _, width := range []float32{96, 90, 58} {
+				ui.Row(c).FillWidth().Margin(px(t, 9), 0, 0, 0).Children(func() {
+					ui.Box(c).Grow(width).Basis(0).Height(px(t, 10)).Radius(px(t, 5)).
+						Background(t.Accent.Mix(t.Background, 0.86))
+					ui.Box(c).Grow(100 - width).Basis(0)
+				})
+			}
+		})
+	case j.failed:
+		s.card(c, theme.Soft(t, t.Danger), s.text.Summary, func() {
+			s.head(c, icons.TriangleAlert, t.Danger, s.text.SummaryFailed, func() {
+				if s.mini(c, s.text.HideSummary) {
+					s.cancel(summary)
+				}
+			}).Role(ui.RoleStatus)
+			ui.Text(c, s.reason(j.code)).Margin(px(t, 6), 0, 0, 0).FontSize(px(t, 14)).LineHeight(1.6).Wrap()
+			ui.Row(c).Children(func() {
+				if s.small(c, icons.RefreshCw, s.text.Retry, false) {
+					s.request(summary)
+				}
+			})
+		})
+	default:
+		s.card(c, theme.Soft(t, t.Accent), s.text.Summary, func() {
+			s.head(c, icons.Sparkles, t.Accent, s.text.Summary, func() {
+				if j.model != "" {
+					by := strings.ReplaceAll(s.text.By, "{model}", j.model)
+					ui.Text(c, "· "+by).FontSize(px(t, 12)).TextColor(t.TextMuted).SingleLine().MinWidth(0).Shrink(1)
+				}
+				if s.mini(c, s.text.HideSummary) {
+					s.cancel(summary)
+				}
+			})
+			ui.Text(c, strings.TrimSpace(j.text)).Margin(px(t, 6), 0, 0, 0).FontSize(px(t, 14)).LineHeight(1.6).Wrap()
+		})
+	}
+}
+
+// aiOffCard stands in for a summary or translation while AI is not set up, and leads to the settings.
+func (s *Screen) aiOffCard(c *ui.Context) {
+	t := c.Theme()
+	s.card(c, t.Surface, s.text.AIOffTitle, func() {
+		s.head(c, icons.Sparkles, t.Text, s.text.AIOffTitle, func() {
+			if s.mini(c, s.text.Close) {
+				s.aiOff = false
+			}
+		}).Role(ui.RoleStatus)
+		ui.Text(c, s.text.AIOff).Margin(px(t, 6), 0, 0, 0).FontSize(px(t, 13)).LineHeight(1.6).TextColor(t.TextMuted).
+			Wrap()
+		ui.Row(c).Children(func() {
+			if s.small(c, icons.Settings, s.text.OpenSettings, true) && s.deps.OpenSettings != nil {
+				s.deps.OpenSettings()
+			}
+		})
+	})
+}
+
+// translationNote says what the translation is doing under the title: being made, with Cancel, the original
+// meanwhile; failed, with why and Try again; made, with the model and the Translation | Original switch.
+func (s *Screen) translationNote(c *ui.Context) {
+	t := c.Theme()
+	j := s.jobs[translation]
+	row := ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(px(t, 18), 0, 0, 0).
+		Padding(px(t, 10), px(t, 12)).Radius(t.Radius)
+	switch {
+	case j.working:
+		row.Background(t.Surface).Role(ui.RoleStatus).Children(func() {
+			spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 14)).TextColor(t.TextMuted)
+			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+			ui.Text(c, s.text.Translating).Grow(1).MinWidth(0).FontSize(px(t, 12.5)).TextColor(t.TextMuted).Wrap()
+			if s.textButton(c, s.text.Cancel, t.TextMuted) {
+				s.cancel(translation)
+			}
+		})
+	case j.failed:
+		reason := strings.ReplaceAll(s.text.TranslationFailed, "{reason}", s.reason(j.code))
+		row.Background(theme.Soft(t, t.Danger)).Role(ui.RoleStatus).Children(func() {
+			ui.Icon(c, icons.TriangleAlert).FontSize(px(t, 14)).TextColor(t.Danger)
+			ui.Text(c, reason).Grow(1).MinWidth(0).FontSize(px(t, 12.5)).TextColor(t.Danger).Wrap()
+			if s.textButton(c, s.text.Retry, t.Danger) {
+				s.request(translation)
+			}
+		})
+	default:
+		row.Background(theme.Soft(t, t.Accent)).Children(func() {
+			ui.Icon(c, icons.Languages).FontSize(px(t, 14)).TextColor(t.Accent)
+			by := strings.ReplaceAll(s.text.Translated, "{model}", j.model)
+			ui.Text(c, by).Grow(1).MinWidth(0).FontSize(px(t, 12.5)).TextColor(t.Accent).Wrap()
+			seg := ui.SegmentedBase(c, &s.shown, 2)
+			seg.Track.Margin(-4, -6, -4, 0).Padding(2).Gap(2).Radius(t.Radius).Background(t.Background).
+				Label(s.text.Translate).Children(func() {
+				for i, name := range []string{s.text.Translation, s.text.Original} {
+					b := seg.Segment(i).Height(px(t, 24)).PaddingX(t.Space(2.5)).Radius(t.Space(1.5)).Label(name)
+					color := t.TextMuted
+					switch {
+					case i == s.shown:
+						b.Background(t.Accent)
+						color = t.AccentText
+					case b.Hovered():
+						color = t.Text
+					}
+					b.Children(func() { ui.Text(c, name).FontSize(px(t, 12)).NoWrap().TextColor(color) })
+				}
+			})
+		})
+	}
 }
 
 // empty is a state standing in for the text: a tile, a heading, a hint, and the buttons.

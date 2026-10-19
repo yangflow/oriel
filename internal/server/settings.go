@@ -26,6 +26,9 @@ type settingsJSON struct {
 	AILanguage      string `json:"aiLanguage"`
 	PromptSummary   string `json:"promptSummary"`
 	PromptTranslate string `json:"promptTranslate"`
+	// The built-in prompts, so a client can tell a changed prompt and restore it.
+	DefaultPromptSummary   string `json:"defaultPromptSummary"`
+	DefaultPromptTranslate string `json:"defaultPromptTranslate"`
 }
 
 func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +55,8 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, settingsJSON{
 		RSSHubBaseURL: root, RetentionDays: days, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
 		AIAPIKeySet: cfg.APIKey != "", AILanguage: cfg.Language, PromptSummary: cfg.PromptSummary,
-		PromptTranslate: cfg.PromptTranslate,
+		PromptTranslate: cfg.PromptTranslate, DefaultPromptSummary: ai.DefaultPromptSummary,
+		DefaultPromptTranslate: ai.DefaultPromptTranslate,
 	})
 }
 

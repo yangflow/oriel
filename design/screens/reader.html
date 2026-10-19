@@ -10,6 +10,10 @@
      image proxy and show the Surface color, at their own aspect ratio when the page gives it, until then.
      States: full (extracted text), feed (no full text, the feed's content), extracting (full text not tried yet,
      the feed's content meanwhile), extracting-empty, failed (no full text and no feed content), loading, error.
+     AI states: summarizing, summary, summary-failed, translating (the original stays readable), translation (the
+     translated text, with a switch back to the original), translation-failed, ai-off (AI is not set up: the
+     summary or translate button leads to Settings instead of failing). Summary and translation sit between
+     previous/next and star in the toolbar; translation is plain text, so pictures and links are in the original.
      The bar above the window only switches the mockup.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
 <style>
@@ -134,6 +138,33 @@ aside { width:212px; flex:none; display:flex; flex-direction:column; background:
 .tab.on { background:var(--accent-soft); color:var(--accent) }
 .tab svg.icon { width:18px; height:18px }
 .tab span { min-height:10px; font-size:10px; line-height:1; font-variant-numeric:tabular-nums }
+
+/* AI */
+.tool.pressed { background:var(--accent-soft); color:var(--accent) }
+.ai { margin:18px 0 0; padding:12px 14px 14px; border-radius:10px; background:var(--accent-soft); font-size:14px; line-height:1.6 }
+.ai.plain { background:var(--surface) }
+.ai.error { background:var(--danger-soft) }
+.ai .head { display:flex; align-items:center; gap:6px; height:22px; font-size:12px; color:var(--accent); font-weight:600 }
+.ai.plain .head { color:var(--text) }
+.ai.error .head { color:var(--danger) }
+.ai .head svg.icon { width:14px; height:14px }
+.ai .head .by { font-weight:400; color:var(--muted) }
+.ai .head .mini { margin-left:auto; width:22px; height:22px; display:grid; place-items:center; border-radius:5px; color:var(--muted) }
+.ai .head .mini svg.icon { width:13px; height:13px }
+.ai .head .textbutton { margin-left:auto; height:22px; padding:0 6px; border-radius:5px; font-weight:500; color:var(--muted) }
+.ai p { margin:6px 0 0 }
+.ai .muted { color:var(--muted); font-size:13px }
+.ai .bars .bar { height:10px; border-radius:5px; background:color-mix(in srgb, var(--accent) 14%, var(--background)); margin:9px 0 0 }
+.ai .buttons { margin-top:10px }
+.button.small { height:26px; padding:0 10px; font-size:12px }
+.button.small svg.icon { width:14px; height:14px }
+.note .grow { flex:1 }
+.note .textlink { color:inherit; text-decoration:underline; font-weight:500; white-space:nowrap }
+.note.lens { align-items:center; background:var(--accent-soft); color:var(--accent) }
+.note.lens svg.icon { margin-top:0 }
+.note.error { background:var(--danger-soft); color:var(--danger) }
+.note .segmented { margin:-4px -6px -4px 0; background:var(--background) }
+.note .segmented button.on { background:var(--accent); color:var(--accent-text); box-shadow:none }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>
@@ -143,7 +174,7 @@ aside { width:212px; flex:none; display:flex; flex-direction:column; background:
 </div>
 <div class="window" id="window"><div class="titlebar">Oriel</div><div class="body" id="app"></div></div>
 <script>
-const states=['full','feed','extracting','extracting-empty','failed','loading','error'];
+const states=['full','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -187,6 +218,9 @@ const icons={
   chevronUp:'<path d="m18 15-6-6-6 6"/>',
   chevronDown:'<path d="m6 9 6 6 6-6"/>',
   triangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  sparkles:'<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
+  languages:'<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
+  settings:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
   fileText:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
 };
 
@@ -204,6 +238,14 @@ const copy={
     failed:'No text to show', failedHint:'The page could not be extracted, and the feed carries no text for this entry.',
     error:'Can’t load this entry', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
     thisComputer:'This computer', failing:'Last fetch failed',
+    summarize:'Summarize', hideSummary:'Hide the summary', translate:'Translate', showOriginal:'Show the original',
+    summary:'Summary', by:'by {model}', summarizing:'Summarizing…', cancel:'Cancel',
+    summaryFailed:'Couldn’t summarize', translating:'Translating. The original stays here until it’s done.',
+    translated:'Translated by {model}', translation:'Translation', original:'Original',
+    translationFailed:'Couldn’t translate. {reason}',
+    aiTimeout:'The AI endpoint took too long to answer.', aiUnauthorized:'The AI endpoint turned down the API key. Check it in Settings.',
+    aiOff:'Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.',
+    aiOffTitle:'AI isn’t set up', openSettings:'Open Settings…', close:'Close',
   },
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
@@ -216,6 +258,14 @@ const copy={
     failed:'没有可显示的正文', failedHint:'网页抽不出正文，订阅里也没有这篇的内容。',
     error:'这篇加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
     thisComputer:'本机', failing:'上次抓取失败',
+    summarize:'摘要', hideSummary:'收起摘要', translate:'翻译', showOriginal:'显示原文',
+    summary:'摘要', by:'由 {model} 生成', summarizing:'正在生成摘要…', cancel:'取消',
+    summaryFailed:'摘要没能生成', translating:'正在翻译，完成前先看原文。',
+    translated:'由 {model} 翻译', translation:'译文', original:'原文',
+    translationFailed:'没能翻译。{reason}',
+    aiTimeout:'AI 接口太久没有响应。', aiUnauthorized:'AI 接口不接受这个 API key，去设置里检查一下。',
+    aiOff:'摘要和翻译走你自己选的 AI 接口，例如 OpenAI 或本机的模型。先在设置里配好。',
+    aiOffTitle:'还没配置 AI', openSettings:'打开设置…', close:'关闭',
   },
 }[lang];
 const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
@@ -230,17 +280,20 @@ const sidebar=`<aside><div class="tabs" role="tablist" aria-label="${copy.kinds}
 <nav class="nav" aria-label="${copy.sources}"><div class="section">${copy.article}</div>${sources.map(s=>`<button class="item${s.chosen?' chosen':''}"><span class="mono">${s.mono}</span><span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failing}">${icon('alert')}</span>`:''}${s.unread?`<span class="count">${s.unread}</span>`:''}</button>`).join('')}</nav>
 <button class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></button></aside>`;
 
+const summaryOn=['summarizing','summary','summary-failed'].includes(state), translated=state==='translation';
 const starred=state==='full', read=true, off=state==='error'||state==='loading'?' disabled':'';
 const tools=`<button class="back" aria-label="${t('back',{scope:'Simon Willison'})}" title="${t('back',{scope:'Simon Willison'})} (Esc)">${icon('chevronLeft')}<span>Simon Willison</span></button><span class="spacer"></span>
 <button class="tool" aria-label="${copy.previous}" title="${copy.previous} (K)">${icon('chevronUp')}</button>
 <button class="tool" aria-label="${copy.next}" title="${copy.next} (J)">${icon('chevronDown')}</button><span class="divider"></span>
+<button class="tool${summaryOn?' pressed':''}"${off} aria-pressed="${summaryOn}" aria-label="${summaryOn?copy.hideSummary:copy.summarize}" title="${summaryOn?copy.hideSummary:copy.summarize}">${icon('sparkles')}</button>
+<button class="tool${translated?' pressed':''}"${off} aria-pressed="${translated}" aria-label="${translated?copy.showOriginal:copy.translate}" title="${translated?copy.showOriginal:copy.translate}">${icon('languages')}</button><span class="divider"></span>
 <button class="tool${starred?' on':''}"${off} aria-pressed="${starred}" aria-label="${starred?copy.unstar:copy.star}" title="${starred?copy.unstar:copy.star} (S)">${icon('star',starred?'filled':'')}</button>
 <button class="tool"${off} aria-label="${read?copy.markUnread:copy.markRead}" title="${read?copy.markUnread:copy.markRead} (M)">${icon(read?'dot':'circleCheck')}</button>
 <button class="tool"${off} aria-label="${copy.open}" title="${copy.open} (O)">${icon('external')}</button>`;
 
-const title=zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer';
+const titleOf=zh=>zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer';
 const meta=`<div class="meta"><span class="mono">S</span><span class="src">Simon Willison</span><span class="sep"></span><span>${zh?'10月18日 11:34':'Oct 18, 11:34'}</span></div>`;
-const full=zh?`
+const fullOf=zh=>zh?`
 <p>SQLite 的 FTS5 自带三种分词器。<code>unicode61</code> 按空白和标点切词，对英文够用，对中文就不行了：一整句话会被当成一个词。<a href="#">trigram 分词器</a>换了个思路，把文本切成所有连续的三个字符。</p>
 <h2>它换来了什么</h2>
 <p>任意子串都能命中，不需要词典，也不关心语言：</p>
@@ -263,14 +316,33 @@ const full=zh?`
   title, body, tokenize = 'trigram'
 );</code></pre>
 <p>The index ends up about three times the size of the text. For a personal reader that is usually fine.</p>`;
+const title=titleOf(zh), full=fullOf(zh);
 const feed=zh?`<p>trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。</p><p><a href="#">继续阅读 →</a></p>`:`<p>The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.</p><p><a href="#">Continue reading →</a></p>`;
 const note=(cls,glyph,text)=>`<div class="note ${cls}" role="note">${icon(glyph,glyph==='loader'?'spin':'')}<span>${text} ${cls?`<a class="link" href="#">${copy.openOriginal}</a>`:''}</span></div>`;
 const article=(extra,html)=>`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1>${extra}<div class="prose">${html}</div></article>`;
 const empty=(tile,heading,hint,buttons,cls='')=>`<div class="empty" role="status"><div class="tile ${cls}">${icon(tile,tile==='loader'?'spin':'')}</div><h2>${heading}</h2><p>${hint}</p><div class="buttons">${buttons}</div></div>`;
 const openButton=(cls='')=>`<button class="button ${cls}">${icon('external')}${copy.openOriginal}</button>`;
 
+const model='gpt-4o-mini';
+const summaryText=zh?'SQLite FTS5 的 trigram 分词器把文本切成所有连续的三个字符，任意子串都能命中，不需要词典，中英文混排也能搜，LIKE 和 GLOB 查询还能走索引。代价是索引约为原文的三倍，短于三个字符的查询用不上索引。作者认为对个人阅读器来说，这个取舍值得。'
+  :'The trigram tokenizer in SQLite’s FTS5 indexes every run of three characters, so any substring matches without a dictionary, Chinese and English alike, and LIKE and GLOB queries can use the index. The price is an index about three times the size of the text, and no index for queries shorter than three characters. For a personal reader, the author finds the trade worth it.';
+const close=`<button class="mini" aria-label="${copy.hideSummary}" title="${copy.hideSummary}">${icon('x')}</button>`;
+const card={
+  summarizing:`<section class="ai" aria-label="${copy.summary}" aria-busy="true"><div class="head" role="status">${icon('loader','spin')}<span>${copy.summarizing}</span><button class="textbutton">${copy.cancel}</button></div><div class="bars" aria-hidden="true"><div class="bar" style="width:96%"></div><div class="bar" style="width:90%"></div><div class="bar" style="width:58%"></div></div></section>`,
+  summary:`<section class="ai" aria-label="${copy.summary}"><div class="head">${icon('sparkles')}<span>${copy.summary}</span><span class="by">· ${t('by',{model})}</span>${close}</div><p>${summaryText}</p></section>`,
+  'summary-failed':`<section class="ai error" aria-label="${copy.summary}"><div class="head" role="alert">${icon('alert')}<span>${copy.summaryFailed}</span>${close}</div><p>${copy.aiTimeout}</p><div class="buttons"><button class="button small">${icon('refresh')}${copy.retry}</button></div></section>`,
+  'ai-off':`<section class="ai plain" aria-label="${copy.aiOffTitle}"><div class="head" role="status">${icon('sparkles')}<span>${copy.aiOffTitle}</span><button class="mini" aria-label="${copy.close}" title="${copy.close}">${icon('x')}</button></div><p class="muted">${copy.aiOff}</p><div class="buttons"><button class="button small primary">${icon('settings')}${copy.openSettings}</button></div></section>`,
+};
+const plain=html=>html.replace(/<figure[\s\S]*?<\/figure>|<pre[\s\S]*?<\/pre>/g,'').replace(/<li>/g,' ').split(/<\/(?:p|h2|ul|blockquote)>/).map(x=>x.replace(/<[^>]+>/g,'').trim()).filter(Boolean).map(x=>`<p>${x}</p>`).join('');
+const lens=`<div class="note lens" role="note">${icon('languages')}<span class="grow">${t('translated',{model})}</span><div class="segmented" role="radiogroup" aria-label="${copy.translate}"><button role="radio" aria-checked="true" class="on">${copy.translation}</button><button role="radio" aria-checked="false">${copy.original}</button></div></div>`;
+const original=(extra)=>`<article class="page" aria-labelledby="title" lang="${zh?'en':'zh-Hans'}">${meta}<h1 id="title">${titleOf(!zh)}</h1>${extra}<div class="prose">${fullOf(!zh)}</div></article>`;
+
 let page;
 switch(state){
+  case 'summarizing':case 'summary':case 'summary-failed':case 'ai-off':page=article(card[state],full);break;
+  case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
+  case 'translation':page=article(lens,plain(full));break;
+  case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
   case 'full':page=article('',full);break;
   case 'feed':page=article(note('warn','triangle',copy.feedNote),feed);break;
   case 'extracting':page=article(note('','loader',copy.extractingNote),feed);break;

@@ -53,6 +53,10 @@ Working now:
 - **Settings.** Change the RSSHub instance and how long entries are kept from the gear beside the server bar or
   "Settings…" (Cmd/Ctrl+,); they are kept on the server, so every device connected to it shares them. Signed in to
   a server with a password, see each device signed in and revoke the ones you no longer use.
+- **AI summaries and translation.** Through your own OpenAI-compatible endpoint, such as OpenAI or a local
+  Ollama, set up in Settings with a connection test; the API key is kept on the server and never shown again. The
+  reader summarizes or translates the open article on demand, cancellable, and keeps the result for next time; a
+  subscription can summarize or translate its new entries by itself and use its own prompts.
 - **OPML import and export.** Import subscriptions from another reader, nested groups included, and see which
   could not be added and why; export them all to a file that keeps each source's kind and RSSHub path.
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
@@ -65,8 +69,7 @@ Working now:
 - **Two languages.** The interface is in English and Simplified Chinese.
 
 Planned, in the order of the [milestones](https://github.com/yangflow/oriel/milestones) (rules in the
-[roadmap](docs/roadmap.md), in Chinese): on-demand AI summaries and translation through your own
-OpenAI-compatible endpoint.
+[roadmap](docs/roadmap.md), in Chinese): the first release, 1.0.
 
 Status: early development, version 0.1.0, no release yet. The window has the connect screen, the timeline, the
 subscription dialogs, the article reader and the settings. Targets: macOS 12+, Windows 10/11 and Linux

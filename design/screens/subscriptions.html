@@ -7,7 +7,10 @@
      button of the empty timeline, and Cmd/Ctrl+N open the add dialog; right click on a subscription, or the pencil
      in the toolbar while one subscription is chosen, edits it. The address field recognizes platform links and
      says what it will subscribe to before anything is sent; the server checks again. Colors are the Oriel palette of
-     design/tokens.md; icons are Lucide (ISC License). The bar above the window only switches the mockup.
+     design/tokens.md; icons are Lucide (ISC License). The edit dialog ends with the subscription's summaries and
+     translations: switches that queue new entries, and prompts that replace the global ones in Settings; edit-ai
+     shows that part scrolled into view, edit-ai-off the same while AI is not set up.
+     The bar above the window only switches the mockup.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
 <style>
 :root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
@@ -121,6 +124,10 @@ textarea { width:100%; min-height:72px; resize:none; padding:7px 10px; border:1p
 .switch::after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2) }
 .switch.on { background:var(--accent) }
 .switch.on::after { left:16px }
+.group-title { display:flex; align-items:center; gap:6px; margin:6px 0 0; padding-top:14px; border-top:1px solid var(--border); font-size:12px; font-weight:600; color:var(--muted) }
+.group-title svg.icon { width:14px; height:14px }
+textarea::placeholder { color:var(--muted) }
+textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace }
 
 /* Dialogs and the menu */
 .scrim { position:absolute; inset:0; background:rgba(0,0,0,.28); display:grid; place-items:center; z-index:3; padding:16px }
@@ -159,7 +166,7 @@ textarea { width:100%; min-height:72px; resize:none; padding:7px 10px; border:1p
 </div>
 <div class="window" id="window"><div class="titlebar">Oriel</div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','edit','edit-failing','edit-paused','delete'];
+const states=['add','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','delete'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -196,6 +203,7 @@ const icons={
   triangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   check:'<path d="M20 6 9 17l-5-5"/>',
   loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  sparkles:'<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
   laptop:'<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
 };
 const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -221,6 +229,9 @@ const copy={
     pauseLabel:'Pause fetching', pauseHelp:'Entries already fetched stay.',
     mute:'Mute keywords', muteHelp:'One per line. Entries whose title or summary contains one are hidden; starred ones stay.',
     deleteTitle:'Delete “The Go Blog”?', deleteBody:'All its entries go too, starred ones included. This can’t be undone.', confirmDelete:'Delete',
+    aiGroup:'Summaries and translations', autoSummary:'Summarize new entries', autoTranslate:'Translate new entries',
+    autoHelp:'Only entries that arrive after you turn it on.', promptSummary:'Summary prompt', promptTranslate:'Translation prompt',
+    promptPlaceholder:'Empty uses the prompt in Settings', aiOff:'AI isn’t set up, so nothing is summarized or translated yet.', openSettings:'Open Settings…',
     thisComputer:'This computer', unread:'14 unread', editSource:'Edit subscription', failingMark:'Last fetch failed', pausedMark:'Paused',
   },
   'zh-Hans':{
@@ -243,6 +254,9 @@ const copy={
     pauseLabel:'暂停抓取', pauseHelp:'已经抓到的条目保留。',
     mute:'屏蔽词', muteHelp:'每行一个。标题或摘要里有的条目会隐藏，收藏的除外。',
     deleteTitle:'删除「The Go Blog」？', deleteBody:'它的条目会一起删掉，收藏的也是。删了不能恢复。', confirmDelete:'删除',
+    aiGroup:'摘要和翻译', autoSummary:'新条目自动摘要', autoTranslate:'新条目自动翻译',
+    autoHelp:'只管打开之后新到的条目。', promptSummary:'摘要 prompt', promptTranslate:'翻译 prompt',
+    promptPlaceholder:'留空就用设置里的 prompt', aiOff:'还没配置 AI，暂时不会摘要或翻译。', openSettings:'打开设置…',
     thisComputer:'本机', unread:'14 条未读', editSource:'编辑订阅', failingMark:'上次抓取失败', pausedMark:'已暂停',
   },
 }[lang];
@@ -255,7 +269,7 @@ const sources=[
   {kind:'image',name:'NASA APOD',mono:'N',unread:1},
 ];
 const empty=state==='empty';
-const editing=['menu','edit','edit-failing','edit-paused','delete'].includes(state);
+const editing=['menu','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','delete'].includes(state);
 const tabs=`<div class="tabs" role="tablist" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="tab${i===0?' on':''}" role="tab" aria-label="${copy[k]}">${icon(g)}<span>${empty?'':[30,18,2,9,1][i]}</span></button>`).join('')}</div>`;
 const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state==='menu'&&i===1?' menued':''}${s.paused?' is-paused':''}"><span class="mono k-${s.kind}">${s.mono}</span><span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
@@ -293,7 +307,7 @@ function addDialog(){
 }
 
 function editDialog(){
-  const failing=state==='edit-failing', paused=state==='edit-paused';
+  const failing=state==='edit-failing', paused=state==='edit-paused', ai=state==='edit-ai';
   const health=failing
     ?`<div class="health bad" role="status">${icon('alert')}<span>${copy.failing}</span><button class="button small">${icon('refresh')}${copy.refresh}</button></div>`
     :paused?`<div class="health" role="status">${icon('pause')}<span>${copy.paused}</span></div>`
@@ -306,6 +320,12 @@ function editDialog(){
       ${kindPicker('article')}
       <div class="switch-row"><div class="text"><span class="label">${copy.pauseLabel}</span><span class="help">${copy.pauseHelp}</span></div><span class="switch${paused?' on':''}" role="switch" aria-checked="${paused}" aria-label="${copy.pauseLabel}"></span></div>
       <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" aria-describedby="mh">${lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span></div>
+      <h3 class="group-title">${icon('sparkles')}${copy.aiGroup}</h3>
+      ${state==='edit-ai-off'?`<div class="health" role="status">${icon('alert')}<span>${copy.aiOff}</span><button class="button small">${copy.openSettings}</button></div>`:''}
+      <div class="switch-row"><div class="text"><span class="label">${copy.autoSummary}</span><span class="help">${copy.autoHelp}</span></div><span class="switch${ai?' on':''}" role="switch" aria-checked="${ai}" aria-label="${copy.autoSummary}"></span></div>
+      <div class="switch-row"><div class="text"><span class="label">${copy.autoTranslate}</span></div><span class="switch" role="switch" aria-checked="false" aria-label="${copy.autoTranslate}"></span></div>
+      <div class="field"><label for="ps">${copy.promptSummary}</label><textarea id="ps" class="prompt" placeholder="${copy.promptPlaceholder}">${ai?(lang==='en'?'Summarize the post in {language} in one sentence, then list the Go versions it mentions.':'用{language}一句话概括这篇文章，再列出提到的 Go 版本。'):''}</textarea></div>
+      <div class="field"><label for="pt">${copy.promptTranslate}</label><textarea id="pt" class="prompt" placeholder="${copy.promptPlaceholder}"></textarea></div>
     </div>
     <footer><button class="button quiet">${icon('trash')}${copy.remove}</button><span class="spacer"></span><button class="button">${copy.cancel}</button><button class="button primary">${copy.save}</button></footer>
   </div></div>`;
@@ -318,5 +338,6 @@ if(state==='menu')overlay=`<div class="menu" role="menu" style="left:150px;top:1
 if(state==='delete')overlay=`<div class="scrim"><div class="alert" role="alertdialog" aria-labelledby="ct" aria-describedby="cb"><div class="tile danger">${icon('trash')}</div><h2 id="ct">${copy.deleteTitle}</h2><p id="cb">${copy.deleteBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button danger">${copy.confirmDelete}</button></div></div></div>`;
 
 document.getElementById('app').innerHTML=`${sidebar}${main}${overlay}`;
+if(state.startsWith('edit-ai'))document.querySelector('.dialog').scrollTop=1e4;
 </script>
 </html>

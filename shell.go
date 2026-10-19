@@ -48,7 +48,7 @@ type shell struct {
 func newShell(systemLocale, path string, local client.Session, goAsync func(func() func()), files settings.Deps) *shell {
 	s := &shell{path: path, goAsync: goAsync, local: local}
 	s.home = timeline.New(systemLocale, timeline.Deps{Go: goAsync, OpenConnect: s.openConnect,
-		OpenSettings: s.openSettings, Expired: s.expired})
+		OpenSettings: s.openSettings, OpenAISettings: s.openAISettings, Expired: s.expired})
 	s.settings = settings.New(systemLocale, settings.Deps{
 		Go:       goAsync,
 		Open:     files.Open,
@@ -132,6 +132,15 @@ func (s *shell) openSettings() {
 	}
 	s.setting = true
 	s.settings.Open()
+}
+
+// openAISettings shows the settings on the AI group, from an entry point of summaries and translations.
+func (s *shell) openAISettings() {
+	if s.showing || s.setting {
+		return
+	}
+	s.setting = true
+	s.settings.OpenAI()
 }
 
 // expired shows the connect screen because the remote server no longer takes the session.
