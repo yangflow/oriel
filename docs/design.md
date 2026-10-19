@@ -85,12 +85,14 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   equally.
 - **The timeline.** A sidebar and the main column. The sidebar is 212 wide (184 below a 760 wide window), a pane of
   glass tinted `Surface` floating 8 from the window's top, bottom and left edges, radius 16, with no divider; its first
-  40 are left to the window buttons. Then five kind tabs, 44 high, each an icon over its unread count; then the
-  subscriptions of the chosen kind, 28 high rows; at the bottom the server bar, 40 high. The main column has a 52 high
-  toolbar row (title, count, the Everything/Unread/Starred segments, search, mark all as read) with no bar and no
+  40 are left to the window buttons. Then the five kinds (All, Articles, Videos, Social, Images) as 28 high rows, each
+  an icon, its name and its unread count; then the subscriptions of the chosen kind, 28 high rows; at the bottom the server bar, 40 high. The main column has a 52 high
+  toolbar row (title, count, the Everything/Unread/Starred segments, search, mark all as read, whose name and tooltip
+  say its scope: "Mark all in “Videos” as read") with no bar and no
   divider: the segments, search and buttons are 32 high capsules of glass floating over the entries, which fade under
   the row (the soft scroll edge). Article, social and mixed rows sit in one column at most 680 wide (720 for Social),
-  centered; the toolbar's title and buttons line up with that column's edges in a wide window (Videos and Images, which
+  centered; a row is as high as its text, and an article's thumbnail, at most 96 by 64, starts at the top of the
+  text and never makes the row taller; the toolbar's title and buttons line up with that column's edges in a wide window (Videos and Images, which
   fill the width, keep the 20 inset). Pictures in a social post share a grid at most 440 wide (520 in Social): one
   picture keeps its aspect ratio, at most 384 wide and 240 high; two sit side by side at 4:3; three or more show the
   first three as squares in one row, the third covered by "+N" for the rest (labelled "N more pictures"), so a post is
@@ -102,7 +104,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   and no count. With one subscription chosen, a pencil button after the count edits it.
 - **The subscription dialogs.** Dialogs over the timeline on a `RGBA(0,0,0,.28)` backdrop: 440 wide to add, 480 to
   edit, radius 12, `Border` and a soft shadow, at most the window's height less `Space(8)`. A header (a 32 square
-  tile or monogram, the title 15 semibold, a 28 square close button), a form that scrolls when the window is too low,
+  tile or monogram, the title 15 semibold, a 28 square close button), a form that scrolls when the window is too low while the header and the buttons stay (a `Border` line appears under
+  the header once the form is scrolled and above the buttons while more is below),
   with `Space(3.5)` between fields and 20 to the sides, and a footer with the buttons at the right; in the edit
   dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; title and interval share a
   row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` tint) or what
@@ -124,7 +127,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   centered, padded 28/32/48 (20 below a 760 wide window): the source's monogram, name and full date at 12; the title
   at 24 (20 when narrow) weight 650; the note on where the text comes from (`Warning` tint when it is the feed's,
   `Surface` with a spinner while the full text is being got), 12.5, its "Open the original" link underlined; then the
-  text 22 below. Body text is 15 at line height 1.65; h2 18 and h3 15.5 semibold, 26 and 22 above; 14 between
+  text 22 below. Body text is 15 at line height 1.65 (1.85 in Chinese); h2 18 and h3 15.5 semibold, 26 and 22 above; 14 between
   paragraphs, 4 between list items, a 22 wide marker column; quotes behind a 3 DIP `Border` line in `TextMuted`; code
   on `Surface` at 13 monospace, scrolling sideways; links in `Accent`, underlined; pictures at their own aspect ratio
   (16:9 until known), at most their own width, captions 12 in `TextMuted`. Loading is a skeleton; the empty states
@@ -173,6 +176,12 @@ values are in [design/tokens.md](../design/tokens.md). See
 - **Contrast.** Text and meaningful graphics should meet WCAG 2.1 AA: 4.5:1 for body text, 3:1 for large text and
   control boundaries. With the desktop's high contrast setting on (`c.Preferences().HighContrast`), `theme.Apply`
   moves `Border` and `TextMuted` toward `Text` and makes `Focus` opaque; test with it on.
+- **States.** One look per state, the same on every screen. Chosen in navigation (a kind, a subscription, a
+  settings group): `Accent` at 12% alpha (20% in dark, so it shows on glass), the icon and count in `Accent`, the name in `Text` at weight 500. Chosen in a
+  control (a segment, the kind of a subscription, original or translation): a raised face, `Background` with a
+  hairline shadow (`SurfacePressed` in dark). The keyboard's place: the `Focus` ring. Hovered: `SurfaceHover`.
+  Disabled: `Surface` with a `Border` outline and `TextMuted` text, the primary button too, never a faded accent, so
+  its label stays readable (at least 3:1). Fields and text areas share one fill: `Surface`, `Background` when focused.
 - **Status.** Color supplements a message; the message states the status in words. A read entry, a failing
   subscription or a missing full text is said in text, not only shown as a dimmed or red row.
 - **Content colors.** Images and video thumbnails from feeds keep their own colors; everything Oriel draws around
@@ -189,9 +198,11 @@ values are in [design/tokens.md](../design/tokens.md). See
   so custom text follows the user's text scale. Widgets use the theme size.
 - **The connect screen.** Title 1.8 rem bold, hint 0.9 rem in `TextMuted`.
 - **The timeline.** Screen title 15 bold, entry titles 13.5 semibold (read entries in `TextMuted`), source and time
-  12 in `TextMuted`, counts 10 to 11. Titles in rows and video cards wrap; summaries show at most two lines and
+  12 in `TextMuted`, counts 11 medium with tabular figures. Titles in rows and video cards wrap; summaries show at most two lines and
   social text six; a picture's caption in the wall is one line. The full title is always the entry's accessible
   name.
+- **Chinese runs taller.** Simplified Chinese body text uses line height 1.6 instead of 1.45, entry titles 1.45,
+  the reader's text 1.85; the sizes stay the same.
 - **Hierarchy with few steps.** Body, secondary (`TextMuted`, about 0.9 rem), section heading (bold) and at most one
   display size per screen. Weight and color before size.
 - **Headings are real headings.** Give the title of a screen or section `Role(ui.RoleHeading)` and a `Level` so
@@ -250,7 +261,7 @@ What Oriel uses today:
 | `ui.TextInputBase` | A text field drawn by the screen, inside a box with its icon; `Error` names what is wrong for assistive technology, and the screen shows it under the field. The timeline's search is one too, since `SearchField` moves the focus to its box instead of the text. |
 | `ui.ButtonBase` | Buttons drawn by the screen in the Oriel look: an icon and a label, or an icon alone with a `Label`. |
 | `ui.Icon` | Lucide icons from `internal/ui/icons`. |
-| `ui.SegmentedBase` | The timeline's kind tabs and its Everything/Unread/Starred filter, and the kind of a subscription, drawn in the Oriel look. |
+| `ui.SegmentedBase` | The timeline's list of kinds and its Everything/Unread/Starred filter, the kind of a subscription, and the reader's Translation/Original switch, drawn in the Oriel look. |
 | `ui.DialogBase` | The add and edit subscription dialogs: Escape and a click outside close them, the window's keys stop behind them, and the focus goes back where it was. |
 | `ui.SelectBase`, `ui.Switch`, `ui.TextArea` | A subscription's fetch interval, its pause switch and its mute keywords. |
 | `Element.ContextMenu` | Right click on a subscription: Refresh, Edit…, Pause or Resume, Delete…. |
@@ -398,11 +409,13 @@ Overlays share focus and Escape behavior; see
   files are chosen and saved with the system's file dialogs, read and sent in the background; the result stays
   under the button, with the subscriptions that could not be added and why, until dismissed. Revoking a device asks
   first; the current device is marked and cannot be revoked. The AI group has the endpoint, model, API key and
-  output language in one card with its own Save, and the two prompts in a second card. The key field is always
+  output language in one card with its own Save; each field, the model's too, has its label above and takes the
+  card's width; and the two prompts in a second card. The key field is always
   empty; a badge says "Configured" or "Not configured", a new key replaces the old one and "Remove key" deletes it.
   Test sends a short request with the saved settings, so it is disabled while there are unsaved edits; its result
   stays beside the buttons. Each prompt has "Restore default", disabled while it is the default. Language and
-  theme follow the system and are not settings.
+  theme follow the system and are not settings. The page starts 32 below the toolbar; rows are padded 16 by 20, help
+  sits 4 under its label and the control 12 under that; cards and section titles are 28 apart.
 
 ## Accessibility checklist
 

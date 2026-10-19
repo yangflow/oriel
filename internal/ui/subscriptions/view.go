@@ -99,6 +99,7 @@ const (
 // adding is the add dialog.
 type adding struct {
 	open       bool
+	form       ui.ScrollState
 	address    string
 	base       string // the RSSHub instance typed when the settings have none
 	title      string
@@ -118,6 +119,7 @@ type adding struct {
 // editing is the edit dialog of src.
 type editing struct {
 	open     bool
+	form     ui.ScrollState
 	src      client.Source
 	title    string
 	kind     int
@@ -588,19 +590,30 @@ func (s *Screen) kindName(kind string) string {
 	return s.text.Article
 }
 
-// dialog draws a dialog of the mockup: a header, a form that scrolls when the window is too low, and a footer.
-func (s *Screen) dialog(c *ui.Context, open *bool, width float32, title string, header, form, footer func()) {
+// dialog draws a dialog of the mockup: a header, a form that scrolls when the window is too low, and a footer. A line
+// under the header shows once the form is scrolled, and one above the footer while more of it is below.
+func (s *Screen) dialog(c *ui.Context, open *bool, scroll *ui.ScrollState, width float32, title string, header, form,
+	footer func()) {
 	t := c.Theme()
 	_, height := c.Size()
 	ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Padding(t.Space(4))
 		panel.Column().Width(px(t, width)).MaxHeight(height-t.Space(8)).Radius(12).Background(t.Background).
 			Border(1, t.Border).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.25)).Label(title)
+		edge := func(shown bool) {
+			color := t.Border
+			if !shown {
+				color = color.Alpha(0)
+			}
+			ui.Box(c).FillWidth().Height(1).Background(color)
+		}
 		header()
-		ui.Scroll(c).FillWidth().Shrink(1).MinHeight(0).Children(func() {
+		edge(scroll.Y > 0)
+		ui.Scroll(c).TrackScroll(scroll).FillWidth().Shrink(1).MinHeight(0).Children(func() {
 			ui.Column(c).FillWidth().Gap(t.Space(3.5)).Padding(t.Space(3.5), t.Space(5), t.Space(1), t.Space(5)).
 				Children(form)
 		})
+		edge(scroll.Y < scroll.MaxY)
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(4), t.Space(5), t.Space(4.5),
 			t.Space(5)).Children(footer)
 	})
@@ -688,19 +701,21 @@ const (
 func button(c *ui.Context, style int, disabled bool) ui.Element {
 	t := c.Theme()
 	b := ui.ButtonBase(c).Height(px(t, 32)).Gap(t.Space(1.5)).PaddingX(px(t, 14)).Radius(t.Radius).Disabled(disabled)
-	fill, border := t.Background, t.Border
+	fill, border, color := t.Background, t.Border, t.Text
 	switch style {
 	case primary:
-		fill, border = t.Accent, t.Accent
+		fill, border, color = t.Accent, t.Accent, t.AccentText
 	case quiet:
-		fill, border = ui.Color{}, ui.Color{}
+		fill, border, color = ui.Color{}, ui.Color{}, t.Danger
 		b.PaddingX(t.Space(2))
 	case small:
 		b.Height(px(t, 26)).PaddingX(px(t, 10))
 	}
 	switch {
+	case disabled && style == quiet:
+		color = t.TextMuted
 	case disabled:
-		b.Opacity(0.5)
+		fill, border, color = t.Surface, t.Border, t.TextMuted
 	case b.Pressed() && style == primary:
 		fill, border = t.AccentPressed, t.AccentPressed
 	case b.Hovered() && style == primary:
@@ -710,28 +725,22 @@ func button(c *ui.Context, style int, disabled bool) ui.Element {
 	case b.Hovered():
 		fill = t.SurfaceHover
 	}
-	return b.Background(fill).Border(1, border)
+	return b.Background(fill).Border(1, border).TextColor(color)
 }
 
-// textButton fills a button with an optional icon and its text, a spinner for the icon while busy.
+// textButton fills a button with an optional icon and its text, a spinner for the icon while busy, in the color
+// button gave it.
 func textButton(c *ui.Context, b ui.Element, style int, icon *ui.SVG, text string, busy bool) {
 	t := c.Theme()
-	color := t.Text
-	switch style {
-	case primary:
-		color = t.AccentText
-	case quiet:
-		color = t.Danger
-	}
 	size := px(t, 14)
 	b.Children(func() {
 		if busy {
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(size).TextColor(color)
+			spin := ui.Icon(c, icons.LoaderCircle).FontSize(size)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 		} else if icon != nil {
-			ui.Icon(c, icon).FontSize(size).TextColor(color)
+			ui.Icon(c, icon).FontSize(size)
 		}
-		text := ui.Text(c, text).NoWrap().TextColor(color)
+		text := ui.Text(c, text).NoWrap()
 		if style == small {
 			text.FontSize(px(t, 12))
 		}
@@ -784,7 +793,7 @@ func (s *Screen) addDialog(c *ui.Context) {
 	if suggested := max(0, slices.Index(kinds, t.Kind)); a.kind == a.suggested {
 		a.kind, a.suggested = suggested, suggested
 	}
-	s.dialog(c, &a.open, 440, s.text.Add, func() {
+	s.dialog(c, &a.open, &a.form, 440, s.text.Add, func() {
 		s.header(c, &a.open, func() { tile(c, icons.Rss) }, s.text.Add, "")
 	}, func() {
 		s.addressField(c, t, valid)
@@ -955,7 +964,7 @@ func (s *Screen) kindPicker(c *ui.Context, value *int) {
 					color, iconColor := t.TextMuted, t.TextMuted
 					switch {
 					case i == *value:
-						b.Background(t.Background).Shadow(0, 0, 0, 1, t.Border)
+						theme.Raised(t, b)
 						color, iconColor = t.Text, t.Accent
 					case b.Hovered():
 						color, iconColor = t.Text, t.Text
@@ -1060,7 +1069,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 	if where == "" {
 		where = e.src.RSSHubPath
 	}
-	s.dialog(c, &e.open, 480, s.text.EditTitle, func() {
+	s.dialog(c, &e.open, &e.form, 480, s.text.EditTitle, func() {
 		s.header(c, &e.open, func() { s.glyph(c, kinds[e.kind], e.src) }, s.text.EditTitle, where)
 	}, func() {
 		s.health(c)
@@ -1205,8 +1214,11 @@ func (s *Screen) aiGroup(c *ui.Context) {
 	for i, text := range [2]string{s.text.PromptSummary, s.text.PromptTranslate} {
 		ui.Column(c.Key(text)).FillWidth().Gap(t.Space(1)).Children(func() {
 			label(c, text)
-			ui.TextArea(c, &e.prompts[i]).FillWidth().Lines(3, 8).Font("monospace").FontSize(px(t, 12.5)).
+			area := ui.TextArea(c, &e.prompts[i]).FillWidth().Lines(3, 8).Font("monospace").FontSize(px(t, 12.5)).
 				Label(text).Placeholder(s.text.PromptPlaceholder).Disabled(e.busy)
+			if area.Focused() {
+				area.Background(t.Background)
+			}
 		})
 	}
 }
@@ -1215,8 +1227,11 @@ func (s *Screen) muteField(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
 		label(c, s.text.Mute)
-		ui.TextArea(c, &s.edit.mute).FillWidth().Lines(3, 6).Label(s.text.Mute).Description(s.text.MuteHelp).
+		area := ui.TextArea(c, &s.edit.mute).FillWidth().Lines(3, 6).Label(s.text.Mute).Description(s.text.MuteHelp).
 			Disabled(s.edit.busy)
+		if area.Focused() {
+			area.Background(t.Background)
+		}
 		help(c, s.text.MuteHelp)
 	})
 }

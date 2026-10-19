@@ -26,7 +26,7 @@
 :root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
 :root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --surface-pressed:#dfdbd2; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5); --star:#a16207 }
-:root[data-scheme=dark] { --background:#161513; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55); --star:#facc15 }
+:root[data-scheme=dark] { --background:#161513; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#4fbfad; --accent-hover:#6dd0c0; --accent-text:#0b2522; --accent-soft:#1f302c; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(79,191,173,.5); --star:#facc15 }
 * { box-sizing:border-box }
 body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
 svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
@@ -158,7 +158,6 @@ div.server { cursor:default }
 .lights i:nth-child(3) { background:#28c840 }
 aside, .toolbar .segmented, .toolbar .search, .toolbar > .tool, .toolbar .group, .toolbar .back, .toolbar .ghost { background:var(--glass); -webkit-backdrop-filter:blur(24px) saturate(1.6); backdrop-filter:blur(24px) saturate(1.6); box-shadow:var(--glass-rim) }
 aside { margin:8px 0 8px 8px; padding-top:40px; border:0; border-radius:16px }
-.tabs { border-bottom:0; padding-top:0 }
 .server-bar { border-top:0 }
 aside .top { height:36px; border-bottom:0 }
 .main::after { content:""; position:absolute; top:0; left:0; right:0; height:62px; background:linear-gradient(var(--edge),transparent); pointer-events:none; z-index:1 }
@@ -179,6 +178,33 @@ aside .top { height:36px; border-bottom:0 }
 .toolbar .group + .group { margin-left:8px }
 .toolbar .back { height:32px; padding:0 12px 0 6px; border-radius:16px; color:var(--text) }
 .toolbar .ghost { height:32px; border-radius:16px }
+/* One look for each state (docs/design.md, States). Chosen in navigation (a kind, a subscription, a settings
+   group): the soft accent fill, the icon in Accent, the name in Text at 500. Chosen in a control (a segment): a
+   raised face. The keyboard's place: the focus ring. Counts: 11, 500, tabular. Disabled: a neutral face with
+   TextMuted, never faded. Chinese text runs taller: 1.6 for body text instead of 1.45. */
+:root { --chosen:rgba(15,118,110,.12) }
+:root[data-scheme=dark] { --chosen:rgba(79,191,173,.2) }
+.item.chosen { background:var(--chosen); color:var(--text) }
+.item.chosen .name { font-weight:500 }
+.item.chosen svg.icon { color:var(--accent) }
+.item .count, .count { font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; color:var(--muted) }
+.item.chosen .count { color:var(--accent) }
+.button:disabled, .button[disabled] { opacity:1; border-color:var(--border); background:var(--surface); color:var(--muted); font-weight:inherit; box-shadow:none }
+:root:lang(zh-Hans) body { line-height:1.6 }
+.segmented button.on, .kinds button.on, .note .segmented button.on { background:var(--background); color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.12), 0 0 0 .5px var(--border) }
+:root[data-scheme=dark] .segmented button.on, :root[data-scheme=dark] .kinds button.on, :root[data-scheme=dark] .note .segmented button.on { background:var(--surface-pressed); box-shadow:none }
+.note .segmented { background:var(--surface) }
+/* Settings spacing: the page starts at 32, rows breathe at 16 by 20, help sits 4 below its label and the control
+   12 below, cards and section titles are 28 apart. Fields and text areas share one fill, Surface, Background when
+   focused. */
+.page { padding-top:32px }
+.row { padding:16px 20px }
+.lead { margin-bottom:20px }
+.help { margin-top:4px }
+.control, .textarea { margin-top:12px }
+.card + .card, .card + .section-title { margin-top:28px }
+.field, .textarea { background:var(--surface) }
+.field.focused, .textarea.focused { background:var(--background) }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>
@@ -378,7 +404,7 @@ if(state==='ai-test-failed')aiStatus=`<div class="status error" role="alert">${i
 const prompt=(label,text)=>`<div class="row"><div class="label-row"><span class="label">${label}</span><button class="button small" disabled>${icon('rotateCcw')}${copy.reset}</button></div><div class="textarea" role="textbox" aria-multiline="true" aria-label="${label}">${text}</div></div>`;
 const ai=`<p class="lead">${copy.aiLead}</p><div class="card">
 <div class="row"><span class="label">${copy.endpoint}</span><p class="help">${copy.endpointHelp}</p><div class="control">${aiField(copy.endpoint,endpoint,copy.endpointPlaceholder,state==='ai-invalid'?' invalid':state==='ai'||state==='ai-edited'?' focused':'')}</div>${state==='ai-invalid'?`<div class="status error" role="alert">${icon('alert')}${copy.invalidAiBase}</div>`:''}</div>
-<div class="row"><div class="device"><div class="text"><span class="label">${copy.model}</span></div><div style="width:260px">${aiField(copy.model,modelName,copy.modelPlaceholder)}</div></div></div>
+<div class="row"><span class="label">${copy.model}</span><div class="control">${aiField(copy.model,modelName,copy.modelPlaceholder)}</div></div>
 <div class="row"><div class="label-row"><span class="label">${copy.apiKey}</span><span class="badge${aiSet?'':' off'}">${aiSet?copy.keySet:copy.keyUnset}</span></div><p class="help">${copy.keyHelp}</p>
 <div class="control">${aiField(copy.apiKey,'',aiSet?copy.keyReplace:copy.keyPlaceholder)}${aiSet?`<button class="button">${copy.removeKey}</button>`:''}</div></div>
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.language}</span><p class="help">${copy.languageHelp}</p></div>

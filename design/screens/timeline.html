@@ -8,15 +8,15 @@
      and searches it. Colors are the Oriel palette of design/tokens.md; icons are Lucide (ISC License). Pictures are
      drawn as gradients here; in the app they load in the background and show the Surface color until then.
      Row 2 shows the pointer resting on it (its actions show), row 3 the keyboard choice (focus ring).
-     All, Articles and Social are one column; Videos become a cover grid and Images a masonry wall. The kinds are
-     a row of icon tabs on top of the sidebar, which then lists only that kind's subscriptions. The server bar at the
+     All, Articles and Social are one column; Videos become a cover grid and Images a masonry wall. The kinds sit on
+     top of the sidebar as named items with counts; the sidebar then lists only that kind's subscriptions. The server bar at the
      bottom opens the connect screen; the gear beside it opens the settings.
      A social post's pictures stay low: one keeps its own ratio up to 240 high, two sit side by side, three or more
      are one row of three squares, the third covered with +N for the rest. Over a column, the toolbar lines its title
      and controls up with the column's edges, so a wide window keeps them together (size=wide).
      The window has no title bar: the window buttons sit over the sidebar's top, the sidebar is a floating pane of
      Liquid Glass and the toolbar's controls are glass capsules over the content (docs/design.md, Title bar).
-     Mark all as read acts at once and offers Undo in a toast (marked-read), never a confirmation. N goes to the next
+     Mark all as read names its scope in its tooltip, acts at once and offers Undo in a toast (marked-read), never a confirmation. N goes to the next
      unread entry; no-more-unread is what it says when there is none below. ? opens the keyboard shortcuts (keys).
      Site icons replace the monogram where a subscription has one; the ones here are generic stand-ins, not the
      sites' real icons, and The Go Blog shows the monogram a subscription without an icon keeps.
@@ -27,7 +27,7 @@
 :root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
 :root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --surface-pressed:#dfdbd2; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5); --star:#a16207 }
-:root[data-scheme=dark] { --background:#161513; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55); --star:#facc15 }
+:root[data-scheme=dark] { --background:#161513; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#4fbfad; --accent-hover:#6dd0c0; --accent-text:#0b2522; --accent-soft:#1f302c; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(79,191,173,.5); --star:#facc15 }
 * { box-sizing:border-box }
 body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
 svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
@@ -209,12 +209,6 @@ mark { background:var(--warning-soft); color:inherit; border-radius:3px; padding
 .dot-inline { width:6px; height:6px; flex:none; border-radius:50%; background:var(--accent) }
 
 /* Kind tabs, video grid, masonry */
-.tabs { flex:none; display:grid; grid-template-columns:repeat(5,1fr); gap:2px; padding:8px 8px 6px; border-bottom:1px solid var(--border) }
-.tab { height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-radius:8px; color:var(--muted) }
-.tab:hover { background:var(--surface-hover) }
-.tab.on { background:var(--accent-soft); color:var(--accent) }
-.tab svg.icon { width:18px; height:18px }
-.tab span { min-height:10px; font-size:10px; line-height:1; font-variant-numeric:tabular-nums }
 .column.wide { max-width:720px }
 .column.wide .grid { max-width:520px }
 .vgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:20px 14px; padding:16px 20px 24px }
@@ -245,7 +239,6 @@ mark { background:var(--warning-soft); color:inherit; border-radius:3px; padding
 .lights i:nth-child(3) { background:#28c840 }
 aside, .toolbar .segmented, .toolbar .search, .toolbar > .tool, .toolbar .group, .toolbar .back, .toolbar .ghost { background:var(--glass); -webkit-backdrop-filter:blur(24px) saturate(1.6); backdrop-filter:blur(24px) saturate(1.6); box-shadow:var(--glass-rim) }
 aside { margin:8px 0 8px 8px; padding-top:40px; border:0; border-radius:16px }
-.tabs { border-bottom:0; padding-top:0 }
 .server-bar { border-top:0 }
 aside .top { height:36px; border-bottom:0 }
 .main::after { content:""; position:absolute; top:0; left:0; right:0; height:62px; background:linear-gradient(var(--edge),transparent); pointer-events:none; z-index:1 }
@@ -266,6 +259,30 @@ aside .top { height:36px; border-bottom:0 }
 .toolbar .group + .group { margin-left:8px }
 .toolbar .back { height:32px; padding:0 12px 0 6px; border-radius:16px; color:var(--text) }
 .toolbar .ghost { height:32px; border-radius:16px }
+/* One look for each state (docs/design.md, States). Chosen in navigation (a kind, a subscription, a settings
+   group): the soft accent fill, the icon in Accent, the name in Text at 500. Chosen in a control (a segment): a
+   raised face. The keyboard's place: the focus ring. Counts: 11, 500, tabular. Disabled: a neutral face with
+   TextMuted, never faded. Chinese text runs taller: 1.6 for body text instead of 1.45. */
+:root { --chosen:rgba(15,118,110,.12) }
+:root[data-scheme=dark] { --chosen:rgba(79,191,173,.2) }
+.item.chosen { background:var(--chosen); color:var(--text) }
+.item.chosen .name { font-weight:500 }
+.item.chosen svg.icon { color:var(--accent) }
+.item .count, .count { font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; color:var(--muted) }
+.item.chosen .count { color:var(--accent) }
+.button:disabled, .button[disabled] { opacity:1; border-color:var(--border); background:var(--surface); color:var(--muted); font-weight:inherit; box-shadow:none }
+:root:lang(zh-Hans) body { line-height:1.6 }
+.segmented button.on, .kinds button.on, .note .segmented button.on { background:var(--background); color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.12), 0 0 0 .5px var(--border) }
+:root[data-scheme=dark] .segmented button.on, :root[data-scheme=dark] .kinds button.on, :root[data-scheme=dark] .note .segmented button.on { background:var(--surface-pressed); box-shadow:none }
+.note .segmented { background:var(--surface) }
+/* Kinds: the first items of the sidebar, a name and count each, above the subscriptions. A row's height follows its text; a thumbnail is at most 96 by 64 and never makes the row
+   taller, it starts at the top of the text. */
+.kind-list { flex:none; padding:0 8px 6px; display:flex; flex-direction:column; gap:1px }
+.kind-list .item svg.icon { width:16px; height:16px; color:var(--muted) }
+.kind-list .item.chosen svg.icon { color:var(--accent) }
+.thumb { margin-top:0; align-self:stretch; height:auto; max-height:64px; min-height:48px }
+:root:lang(zh-Hans) .title { line-height:1.45 }
+.kind-list ~ .nav { padding-top:4px }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>
@@ -333,7 +350,7 @@ const copy={
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
     unreadCount:'{n} unread', results:'{n} found',
-    markAllRead:'Mark all as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser',
+    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser',
     failing:'Last fetch failed',
     newEntries:'{n} new', loadingMore:'Loading more',
     tooShort:'Type at least 3 characters to search',
@@ -356,7 +373,7 @@ const copy={
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
     unreadCount:'{n} 条未读', results:'找到 {n} 条',
-    markAllRead:'全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开',
+    markAllRead:'全部标为已读', markAllIn:'将“{scope}”全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开',
     failing:'上次抓取失败',
     newEntries:'{n} 条新内容', loadingMore:'正在加载',
     tooShort:'至少输入 3 个字才能搜索',
@@ -440,10 +457,9 @@ const shown=state==='search'?entries.filter(e=>e.kind==='article'&&e.source===1)
 const navItem=(glyph,name,count,chosen,extra='')=>`<button class="item${chosen?' chosen':''}" aria-current="${chosen}">${glyph}<span class="name">${name}</span>${extra}${count?`<span class="count">${count}</span>`:''}</button>`;
 const sourceItem=s=>navItem(glyph(s),s.name,s.unread,scope==='source'&&s.id===1,s.failing?`<span class="warn" role="img" aria-label="${copy.failing}" title="${copy.failing}">${icon('alert')}</span>`:'');
 const tabKind=scope==='source'?'article':scope;
-const tabs=counts=>`<div class="tabs" role="tablist" aria-label="${copy.kinds}">${[['all','inbox'],...kinds.map(k=>[k,k])].map(([k,g])=>{
-  const on=k===tabKind, name=k==='all'?copy.all:copy[k], n=counts?(k==='all'?total:kindUnread(k)):0;
-  return `<button class="tab${on?' on':''}" role="tab" aria-selected="${on}" aria-label="${name}" title="${name}">${icon(g)}<span>${n||''}</span></button>`;
-}).join('')}</div>`;
+const kindList=[['all','inbox'],...kinds.map(k=>[k,k])];
+const kindCount=(k,counts)=>counts?(k==='all'?total:kindUnread(k)):0;
+const tabs=counts=>`<nav class="kind-list" aria-label="${copy.kinds}">${kindList.map(([k,g])=>navItem(icon(g),k==='all'?copy.all:copy[k],kindCount(k,counts),k===tabKind)).join('')}</nav>`;
 function sidebar(){
   if(state==='no-subscriptions')return `<aside>${tabs(false)}<nav class="nav"></nav>${serverBar()}</aside>`;
   const list=tabKind==='all'?sources:sources.filter(s=>s.kind===tabKind);
@@ -500,7 +516,8 @@ const unreadInScope=kinds.includes(scope)?kindUnread(scope):scope==='source'?byI
 const sub=state==='no-subscriptions'||state==='error'?'':state==='search'?t('results',{n:1}):state==='unread-done'||state==='starred-none'||state==='empty'||state==='marked-read'?'':t('unreadCount',{n:unreadInScope});
 const segments=[['inbox','everything'],['dot','unread'],['star','starred']].map(([g,k],i)=>`<button role="radio" aria-checked="${i===filter}" class="${i===filter?'on':''}" aria-label="${copy[k]}" title="${copy[k]}">${icon(g)}<span>${copy[k]}</span></button>`).join('');
 const searchField=`<div class="search${searching?' focused':''}${state==='search-short'?' invalid':''}">${icon('search')}<input aria-label="${copy.searchLabel}" placeholder="${copy.search}" value="${q}" ${state==='search-short'?'aria-invalid="true" aria-describedby="hint"':''}>${searching?`<button class="clear" aria-label="${copy.clear}">${icon('x')}</button>`:''}</div>`;
-const markAll=`<button class="tool" aria-label="${copy.markAllRead}" title="${copy.markAllRead}">${icon('checkCheck')}</button>`;
+const markAllName=t('markAllIn',{scope:scopeName});
+const markAll=`<button class="tool" aria-label="${markAllName}" title="${markAllName}">${icon('checkCheck')}</button>`;
 const columned=!((scope==='video'||scope==='image')&&state!=='search');
 const toolbar=`<div class="toolbar${columned?' aligned':''}${scope==='social'?' wide':''}"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${searchField}${markAll}</div>`;
 const hint=state==='search-short'?`<div class="hint" id="hint" role="status">${icon('alert')}${copy.tooShort}</div>`:'';

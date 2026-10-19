@@ -298,7 +298,7 @@ func TestTimeline(t *testing.T) {
 		}
 	}
 	for _, label := range []string{"Last fetch failed", "Duration 12:34", "5 pictures", "1 more pictures",
-		"Server: This computer", "Mark all as read"} {
+		"Server: This computer", "Mark all in “All” as read"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Errorf("no %q", label)
 		}
@@ -752,7 +752,7 @@ func TestLoadMore(t *testing.T) {
 
 func TestMarkAllRead(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	if err := tt.Click("Mark all as read"); err != nil {
+	if err := tt.Click("Mark all in “All” as read"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -786,7 +786,7 @@ func TestUndoWithKey(t *testing.T) {
 	if len(f.unmarked) != 0 {
 		t.Fatalf("undid nothing: %v", f.unmarked)
 	}
-	if err := tt.Click("Mark all as read"); err != nil {
+	if err := tt.Click("Mark all in “All” as read"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -804,7 +804,7 @@ func TestUndoWithKey(t *testing.T) {
 
 func TestUndoDismissed(t *testing.T) {
 	_, f, tt := setup(t, "en")
-	if err := tt.Click("Mark all as read"); err != nil {
+	if err := tt.Click("Mark all in “All” as read"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -821,7 +821,7 @@ func TestUndoDismissed(t *testing.T) {
 
 func TestUndoFails(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	if err := tt.Click("Mark all as read"); err != nil {
+	if err := tt.Click("Mark all in “All” as read"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)

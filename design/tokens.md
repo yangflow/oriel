@@ -47,13 +47,13 @@ and `Focus` is opaque. A soft fill (`theme.Soft`) is the role mixed toward `Back
 | `Border` | `#dcd7cd` | `#3d3933` | outlines, dividers |
 | `Text` | `#1f1d1a` | `#ede9e3` | primary text |
 | `TextMuted` | `#6f6a64` | `#a8a29e` | hints, placeholders, secondary text, field icons |
-| `Accent` | `#0f766e` | `#2dd4bf` | primary button, focused field border, checked controls |
-| `AccentHover` | `#115e59` | `#5eead4` | hovered primary button |
-| `AccentPressed` | `#134e4a` | `#14b8a6` | pressed primary button |
+| `Accent` | `#0f766e` | `#4fbfad` | primary button, focused field border, checked controls |
+| `AccentHover` | `#115e59` | `#6dd0c0` | hovered primary button |
+| `AccentPressed` | `#134e4a` | `#3aa596` | pressed primary button |
 | `AccentText` | `#ffffff` | `#0b2522` | text on the accent |
 | `Danger` / `Warning` / `Success` | `#c2410c` / `#a16207` / `#15803d` | `#fb923c` / `#facc15` / `#4ade80` | status, always with text |
-| `Selection` | `rgba(15, 118, 110, 0.22)` | `rgba(45, 212, 191, 0.32)` | selected text |
-| `Focus` | `rgba(15, 118, 110, 0.5)` | `rgba(45, 212, 191, 0.55)` | keyboard focus ring, 3 DIPs |
+| `Selection` | `rgba(15, 118, 110, 0.22)` | `rgba(79, 191, 173, 0.3)` | selected text |
+| `Focus` | `rgba(15, 118, 110, 0.5)` | `rgba(79, 191, 173, 0.5)` | keyboard focus ring, 3 DIPs |
 | `Inverse` / `InverseText` | zero: `Text` / `Background` | zero: `Text` / `Background` | tooltips and toasts |
 | `Scrollbar` | `rgba(0, 0, 0, 0.32)` | `rgba(255, 255, 255, 0.35)` | scroll bar thumbs, 6 DIPs wide |
 

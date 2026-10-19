@@ -735,9 +735,9 @@ func TestTestAI(t *testing.T) {
 			t.Errorf("%q: no %q in %v", code, want, tt.Texts())
 		}
 	}
-	// The model field sits right of its heading.
+	// The model field sits under its heading, across the card.
 	r, _ := tt.Find(s.text.Model)
-	tt.ClickAt(r.X+r.W+40, r.Y+r.H/2)
+	tt.ClickAt(r.X+20, r.Y+r.H+28)
 	tt.Type("-2")
 	if !strings.Contains(s.aiModel, "-2") || tt.HasText(s.text.ErrorHint) || !tt.HasText(s.text.TestFirst) {
 		t.Fatalf("model %q, texts %v", s.aiModel, tt.Texts())

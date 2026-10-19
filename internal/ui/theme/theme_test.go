@@ -26,7 +26,7 @@ func TestPalette(t *testing.T) {
 		t.Errorf("light: %+v", light)
 	}
 	dark := applied(t, true, ui.Preferences{})
-	if !dark.Dark || dark.Accent != ui.Hex("#2dd4bf") || dark.Background != ui.Hex("#1b1a18") {
+	if !dark.Dark || dark.Accent != ui.Hex("#4fbfad") || dark.Background != ui.Hex("#161513") {
 		t.Errorf("dark: %+v", dark)
 	}
 }
@@ -53,5 +53,22 @@ func TestSoft(t *testing.T) {
 	th := applied(t, false, ui.Preferences{})
 	if s := Soft(&th, th.Accent); s == th.Accent || s == th.Background {
 		t.Errorf("soft accent %v", s)
+	}
+}
+
+func TestChosen(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		th := applied(t, dark, ui.Preferences{})
+		if c := Chosen(&th); c.A == 0 || c.A == 255 {
+			t.Errorf("dark %v: chosen fill %v is not a tint", dark, c)
+		}
+	}
+}
+
+func TestHan(t *testing.T) {
+	for text, want := range map[string]bool{"Oriel 发布": true, "Hello, world": false, "": false, "かな": false} {
+		if Han(text) != want {
+			t.Errorf("Han(%q) = %v", text, !want)
+		}
 	}
 }
