@@ -26,7 +26,7 @@ func TestPalette(t *testing.T) {
 		t.Errorf("light: %+v", light)
 	}
 	dark := applied(t, true, ui.Preferences{})
-	if !dark.Dark || dark.Accent != ui.Hex("#4fbfad") || dark.Background != ui.Hex("#1b1a18") {
+	if !dark.Dark || dark.Accent != ui.Hex("#4fbfad") || dark.Background != ui.Hex("#161513") {
 		t.Errorf("dark: %+v", dark)
 	}
 }

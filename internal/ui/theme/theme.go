@@ -84,7 +84,7 @@ func light(t *ui.Theme) {
 }
 
 func dark(t *ui.Theme) {
-	t.Background = ui.Hex("#1b1a18")
+	t.Background = ui.Hex("#161513")
 	t.Surface = ui.Hex("#25231f")
 	t.SurfaceHover = ui.Hex("#2f2c28")
 	t.SurfacePressed = ui.Hex("#3a3732")
