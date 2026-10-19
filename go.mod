@@ -5,7 +5,7 @@ go 1.27.1
 require (
 	codeberg.org/readeck/go-readability/v2 v2.1.3
 	github.com/andybalholm/cascadia v1.3.5
-	github.com/egoist/mygo v0.3.6
+	github.com/egoist/mygo v0.4.1
 	github.com/mmcdole/gofeed v1.5.0
 	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.49.0

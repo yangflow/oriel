@@ -5,8 +5,8 @@ platform that signs and uploads its installers and updates to the draft, then pu
 platform uploaded. Installed copies check the latest published release of `yangflow/oriel` once a day and from
 "Check for Updates…" in the app menu, and install nothing before the user confirms in the update window. Only the
 maintainer pushes release tags. The update mechanism is MyGo's
-([auto-updates](https://github.com/egoist/mygo/blob/v0.3.6/docs/updates.md),
-[GitHub Actions](https://github.com/egoist/mygo/blob/v0.3.6/docs/github-actions.md)).
+([auto-updates](https://github.com/egoist/mygo/blob/v0.4.1/docs/updates.md),
+[GitHub Actions](https://github.com/egoist/mygo/blob/v0.4.1/docs/github-actions.md)).
 
 ## One-time setup
 

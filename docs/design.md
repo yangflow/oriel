@@ -7,8 +7,8 @@ desktop app and, with `oriel serve`, a headless server; only the desktop app has
 through the HTTP API.
 
 The UI is built on the native toolkit of [MyGo](https://github.com/egoist/mygo). This document summarizes the parts
-of its [UI guides](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/README.md) that matter for design; the guides
-stay the authority on API details. Links point to MyGo v0.3.6, the version pinned in `go.mod`. When the pin moves,
+of its [UI guides](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/README.md) that matter for design; the guides
+stay the authority on API details. Links point to MyGo v0.4.1, the version pinned in `go.mod`. When the pin moves,
 check the pages again and update the links and this document together.
 
 Five screens are built: the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`), which
@@ -41,7 +41,7 @@ Related files: [design/README.md](../design/README.md) (mockups and how a UI cha
 - **Native first.** Use MyGo's native widgets and the theme defaults as they are, and follow the system's light and
   dark appearance and accent color. A control that looks and behaves like the platform's is learned already. Style
   an element yourself only when no widget does the job, and build it on the
-  [custom widget](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/custom-widgets.md) bases so focus, keyboard and
+  [custom widget](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/custom-widgets.md) bases so focus, keyboard and
   accessibility stay intact. No WebView and no HTML frontend.
 - **Consistent across platforms, respectful of each.** One view serves macOS, Windows and Linux. Follow each
   platform's conventions where MyGo exposes them: menu roles, the accent color, the system font, shortcuts that use
@@ -54,14 +54,14 @@ Related files: [design/README.md](../design/README.md) (mockups and how a UI cha
 - **Meaning is never carried by color alone.** Say it in words; pair color with text, a symbol or a shape.
 - **The UI thread draws.** A frame is built from in-memory state. No disk, network or other blocking work in a view,
   including calls to Oriel's own HTTP API and decoding images; start that work in the background and change the state
-  back on the UI thread (see [Views](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/views.md)).
+  back on the UI thread (see [Views](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/views.md)).
 - **Spec before code.** Every screen is specified in its mockup in `design/` and in this document before it is
   written. Only `design/` and this document count as the design reference for Oriel.
 
 ## Layout and spacing
 
 Layout uses flexbox in device-independent pixels (DIPs); see
-[Layout](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/layout.md).
+[Layout](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/layout.md).
 
 - **One spacing unit.** The theme's `Spacing` (4 DIPs by default; 3 is compact, 5 roomy) is the unit of every widget's
   padding and gap. Size your own elements with `t.Space(n)` so they follow it. Do not write raw pixel numbers for
@@ -76,8 +76,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
 - **Alignment.** Left-align text and labels; center only isolated focal content, as an empty state. Reading
   text in the article reader gets a comfortable maximum line length (`MaxWidth`) instead of spanning a wide window.
 - **Scrolling.** Content that can exceed the window goes in a
-  [scroll view](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/scroll.md). The timeline is a
-  [list](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/list.md), which builds only the rows in view and lets rows
+  [scroll view](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/scroll.md). The timeline is a
+  [list](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/list.md), which builds only the rows in view and lets rows
   of different kinds have different heights.
 - **The connect screen.** A sheet at most `Space(80)` (320) wide, centered in a scroll view with outer padding
   `Space(6)`; `Space(6)` between the header, the form and the buttons, `Space(2)` between fields, `Space(1.5)` (6)
@@ -137,7 +137,7 @@ Colors come from the theme, `c.Theme()`. Oriel puts its own palette, warm neutra
 roles: the root view calls `theme.Apply` (in `internal/ui/theme/`) first in every frame, which picks the light or
 dark palette for the system appearance and keeps the theme's metrics, so the desktop's text size still applies. The
 values are in [design/tokens.md](../design/tokens.md). See
-[Styling and themes](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/styling.md).
+[Styling and themes](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/styling.md).
 
 - **Always use theme roles, never literals.** Screens use only theme colors; for example, secondary text uses
   `TextMuted`. Color literals live only in `internal/ui/theme/`. A faint fill behind an icon or a status is
@@ -174,7 +174,7 @@ values are in [design/tokens.md](../design/tokens.md). See
 
 - **System font.** Leave `Font` empty so text uses the platform's UI font. The default text size is 13 on macOS and
   14 elsewhere, and scales with the desktop's text size (`Preferences().TextScale`) when you rely on the theme. See
-  [Text](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/text.md).
+  [Text](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/text.md).
 - **Size relative to the theme.** Use `t.Rem(n)` for sizes (`n` times the theme font size) rather than fixed numbers,
   so custom text follows the user's text scale. Widgets use the theme size.
 - **The connect screen.** Title 1.8 rem bold, hint 0.9 rem in `TextMuted`.
@@ -194,7 +194,7 @@ values are in [design/tokens.md](../design/tokens.md). See
 ## Icons and images
 
 - **Icons are SVG** shown with `ui.Icon`, which takes the text color and the font size: an icon follows theme colors
-  and the text size automatically. See [Icon](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/icon.md).
+  and the text size automatically. See [Icon](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/icon.md).
 - **One set: [Lucide](https://lucide.dev)** (ISC License), recorded in `THIRD_PARTY.md`. The files of lucide-static
   are copied unchanged into `internal/ui/icons/lucide/` and parsed once in `internal/ui/icons`; add an icon there
   before using it. Prefer an icon to a word where the icon is clearer, and keep the word where it is not.
@@ -204,7 +204,7 @@ values are in [design/tokens.md](../design/tokens.md). See
 - **Icon before label** in buttons, except a forward arrow, which follows its label ("Connect →"). Icons in fields
   and buttons are 1.25 rem, in error lines 1.05 rem, sized with `FontSize`.
 - **Feed images** (thumbnails, image entries, site icons) use
-  [Image](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/image.md). Download and decode them in the background and
+  [Image](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/image.md). Download and decode them in the background and
   make each bitmap once, never in the view; until it is ready, keep the image's box at its final size so the timeline
   does not jump. Images that carry meaning get a `Label`; decorative ones do not.
 - **The timeline.** Each kind has an icon (newspaper, play, message circle, image; inbox for All) and a color:
@@ -224,7 +224,7 @@ values are in [design/tokens.md](../design/tokens.md). See
 
 Pick the widget by the job. Each name links to the upstream page, which also says what assistive technology sees of
 the widget. The complete list is the
-[UI index](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/README.md).
+[UI index](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/README.md).
 
 What Oriel uses today:
 
@@ -250,76 +250,76 @@ The tables below say what to reach for as screens are added.
 
 | Need | Use |
 |---|---|
-| The main action of a group, once | [Button](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/button.md) (`PrimaryButton`) |
-| Other actions | [Button](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/button.md) |
-| Open an entry's original page in the system browser | [Link](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/link.md) |
-| Several related actions in one place | [Menu button](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/menu-button.md) |
-| Actions on a specific entry or subscription, on right click | [Context menu](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/context-menu.md) |
-| An on/off command that stays pressed | [Toggle](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/toggle.md) |
-| Choose one of a few views or modes | [Segmented control](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/segmented.md) |
-| Window-level commands | [Toolbar](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/toolbar.md) |
+| The main action of a group, once | [Button](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/button.md) (`PrimaryButton`) |
+| Other actions | [Button](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/button.md) |
+| Open an entry's original page in the system browser | [Link](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/link.md) |
+| Several related actions in one place | [Menu button](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/menu-button.md) |
+| Actions on a specific entry or subscription, on right click | [Context menu](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/context-menu.md) |
+| An on/off command that stays pressed | [Toggle](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/toggle.md) |
+| Choose one of a few views or modes | [Segmented control](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/segmented.md) |
+| Window-level commands | [Toolbar](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/toolbar.md) |
 
 ### Choices
 
 | Need | Use |
 |---|---|
-| A setting applied immediately (for example a per-subscription switch) | [Switch](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/switch.md) |
-| A yes/no value submitted with a form, or several independent options | [Checkbox](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/checkbox.md) |
-| One of two to five visible options (for example a subscription's kind) | [Radio](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/radio.md) |
-| One of many options | [Select](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/select.md); with typing to filter, [Combobox](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/combobox.md) |
-| A value in a range | [Slider](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/slider.md); an exact number, [Number input](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/number-input.md) or [Stepper](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/stepper.md) |
+| A setting applied immediately (for example a per-subscription switch) | [Switch](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/switch.md) |
+| A yes/no value submitted with a form, or several independent options | [Checkbox](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/checkbox.md) |
+| One of two to five visible options (for example a subscription's kind) | [Radio](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/radio.md) |
+| One of many options | [Select](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/select.md); with typing to filter, [Combobox](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/combobox.md) |
+| A value in a range | [Slider](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/slider.md); an exact number, [Number input](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/number-input.md) or [Stepper](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/stepper.md) |
 
 ### Text
 
 | Need | Use |
 |---|---|
-| Free text, one or many lines (a feed URL, an RSSHub path, a prompt) | [Text input](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/text-input.md) |
-| Searching the timeline | [Search field](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/search-field.md), or [Find bar](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/find-bar.md) for text in the reader |
-| Mute keywords | [Token field](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/token-field.md) |
-| Rename a subscription in place | [Editable text](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/editable-text.md) |
-| Labeled controls with help and errors | [Form](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/form.md) |
+| Free text, one or many lines (a feed URL, an RSSHub path, a prompt) | [Text input](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/text-input.md) |
+| Searching the timeline | [Search field](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/search-field.md), or [Find bar](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/find-bar.md) for text in the reader |
+| Mute keywords | [Token field](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/token-field.md) |
+| Rename a subscription in place | [Editable text](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/editable-text.md) |
+| Labeled controls with help and errors | [Form](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/form.md) |
 
 ### Collections
 
 | Need | Use |
 |---|---|
-| The timeline, and other long lists of one kind | [List](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/list.md) |
-| Rows with sortable, resizable columns (for example subscription health) | [Table](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/table.md) |
-| Hierarchy | [Tree](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/tree.md), or [Outline](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/outline.md) when large |
-| Thumbnails | [Grid view](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/grid-view.md) |
+| The timeline, and other long lists of one kind | [List](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/list.md) |
+| Rows with sortable, resizable columns (for example subscription health) | [Table](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/table.md) |
+| Hierarchy | [Tree](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/tree.md), or [Outline](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/outline.md) when large |
+| Thumbnails | [Grid view](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/grid-view.md) |
 
 ### Containers and navigation
 
 | Need | Use |
 |---|---|
-| Scrolling content, such as the reader | [Scroll view](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/scroll.md) |
-| Columns and rows of controls | [Grid](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/grid.md) |
-| Two resizable panes (timeline and reader) | [Split view](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/split.md) |
-| Optional detail | [Collapsible](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/collapsible.md), [Accordion](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/accordion.md) |
-| Top-level sections of the app | [Sidebar](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/sidebar.md) |
-| A few peer pages inside a screen | [Tabs](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/tabs.md) |
-| Pages with a history | [Router](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/navigation.md), with [Back and forward buttons](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/history-buttons.md) |
+| Scrolling content, such as the reader | [Scroll view](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/scroll.md) |
+| Columns and rows of controls | [Grid](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/grid.md) |
+| Two resizable panes (timeline and reader) | [Split view](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/split.md) |
+| Optional detail | [Collapsible](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/collapsible.md), [Accordion](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/accordion.md) |
+| Top-level sections of the app | [Sidebar](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/sidebar.md) |
+| A few peer pages inside a screen | [Tabs](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/tabs.md) |
+| Pages with a history | [Router](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/navigation.md), with [Back and forward buttons](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/history-buttons.md) |
 
 ### Dialogs, messages and status
 
 | Need | Use |
 |---|---|
-| A task that needs the user's full attention | [Dialog](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/dialog.md) |
-| Confirm something important or destructive (deleting a subscription and its entries) | [Alert dialog](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/alert-dialog.md); for system file and message dialogs (OPML import and export, the startup error), `mygo.Dialog` ([desktop APIs](https://github.com/egoist/mygo/blob/v0.3.6/docs/native.md)) |
-| A small panel tied to an element | [Popover](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/popover.md) |
-| A short label or hint for a control | [Tooltip](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/tooltip.md) (never the only place for essential information) |
-| Feedback that needs no decision | [Toast](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/toast.md) |
-| Known progress / unknown duration (a fetch, an AI summary) | [Progress bar](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/progress.md) / [Spinner](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/spinner.md) |
-| A count or short status (unread entries) | [Badge](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/badge.md) |
+| A task that needs the user's full attention | [Dialog](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/dialog.md) |
+| Confirm something important or destructive (deleting a subscription and its entries) | [Alert dialog](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/alert-dialog.md); for system file and message dialogs (OPML import and export, the startup error), `mygo.Dialog` ([desktop APIs](https://github.com/egoist/mygo/blob/v0.4.1/docs/native.md)) |
+| A small panel tied to an element | [Popover](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/popover.md) |
+| A short label or hint for a control | [Tooltip](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/tooltip.md) (never the only place for essential information) |
+| Feedback that needs no decision | [Toast](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/toast.md) |
+| Known progress / unknown duration (a fetch, an AI summary) | [Progress bar](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/progress.md) / [Spinner](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/spinner.md) |
+| A count or short status (unread entries) | [Badge](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/badge.md) |
 
 Overlays share focus and Escape behavior; see
-[Overlays](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/overlays.md). Rules of thumb:
+[Overlays](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/overlays.md). Rules of thumb:
 
 - Prefer undo over confirmation. Confirm only what cannot be undone, with a button named for the action ("Delete"),
   not "OK", and Cancel as the Escape action.
 - Do not stack dialogs. Use a toast for news that needs no answer.
 - Errors say what happened and what to do, next to the control that caused them (`Error`, or a
-  [form](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/form.md) field). The server returns stable error codes;
+  [form](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/form.md) field). The server returns stable error codes;
   the UI maps each to localized copy and never shows the raw code alone.
 - AI summaries and translations are on demand and can be slow or fail: show that the work is going on, keep the
   original text readable meanwhile, and say plainly when it failed.
@@ -329,8 +329,8 @@ Overlays share focus and Escape behavior; see
 - **Windows.** One main window; set `Title`, `Width`, `Height`, and `MinWidth`/`MinHeight` so content never clips.
   Oriel's window is 960×640 with a minimum of 640×480. `StateKey` remembers size and position between runs and is not used yet. A second launch brings the existing
   window to the front. See
-  [Windows with native UI](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/windows.md) and the
-  [window options](https://github.com/egoist/mygo/blob/v0.3.6/docs/windows.md).
+  [Windows with native UI](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/windows.md) and the
+  [window options](https://github.com/egoist/mygo/blob/v0.4.1/docs/windows.md).
 - **Title bar.** Keep the system title bar. A hidden title bar (`TitleBarStyle: mygo.TitleBarHidden`) makes the view
   responsible for the room the window controls take (`c.TitleBar()`) and for a draggable area (`DragWindow`); use it
   only with a mockup that shows why.
@@ -342,11 +342,11 @@ Overlays share focus and Escape behavior; see
   (`RoleAbout`, `RoleQuit` and the others) for standard items: they carry the right label and shortcut, and items
   that only macOS has are left out elsewhere. Give custom items an accelerator with `CmdOrCtrl`. Every command
   reachable by a toolbar button should also be in a menu. See
-  [Menus](https://github.com/egoist/mygo/blob/v0.3.6/docs/menus.md).
+  [Menus](https://github.com/egoist/mygo/blob/v0.4.1/docs/menus.md).
 - **Navigation.** Choose the lightest structure that fits: a single screen;
-  [tabs](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/tabs.md) for a few peer views; a
-  [sidebar](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/sidebar.md) with a
-  [router](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/navigation.md) for several top-level sections (timeline,
+  [tabs](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/tabs.md) for a few peer views; a
+  [sidebar](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/sidebar.md) with a
+  [router](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/navigation.md) for several top-level sections (timeline,
   subscriptions, settings). A router gives back/forward keys, state restored per page and focus handling. Give every
   page a `Title`.
 - **Leaving the app.** Video and social entries have no embedded player; opening them hands the link to the system
@@ -380,7 +380,7 @@ Overlays share focus and Escape behavior; see
 ## Accessibility checklist
 
 MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
-[Accessibility](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/accessibility.md).
+[Accessibility](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/accessibility.md).
 
 - [ ] Every interactive element has an accessible name: its text, or `Label` when it shows only an icon, a symbol or
       a drawing.
@@ -396,18 +396,18 @@ MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
 - [ ] Nothing depends on color, sound or motion alone.
 - [ ] Pointer targets are at least about 24×24 DIPs, and 32 or more for primary controls.
 - [ ] `ui.NewTester` tests click controls by their accessible names, so a missing name fails the test (see
-      [Testing](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/testing.md)).
+      [Testing](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/testing.md)).
 
 Contrast, scaling, keyboard use and screen readers are verified on real devices; a passing headless test does not
 count as accessibility acceptance.
-The [Inspector](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/inspector.md) (F12 in development builds) shows
+The [Inspector](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/inspector.md) (F12 in development builds) shows
 the element tree, roles and accessible names of a running window, which helps find a missing name before that check.
 
 ## Motion
 
 Oriel has no custom animation: state changes take effect immediately. See
-[Transitions](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/transitions.md) and
-[Drawing and animation](https://github.com/egoist/mygo/blob/v0.3.6/docs/ui/drawing.md) for what the toolkit offers.
+[Transitions](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/transitions.md) and
+[Drawing and animation](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/drawing.md) for what the toolkit offers.
 
 - **Default is none.** Do not add `Transition`, `Animate` or page transitions without a mockup that shows the change
   they explain and the maintainer's agreement; record the exception here.
@@ -452,6 +452,6 @@ Run before a UI pull request is merged, and on each target platform before a rel
 ## References
 
 This design language draws on the UI documentation of MyGo (MIT License, Copyright (c) egoist):
-<https://github.com/egoist/mygo/tree/v0.3.6/docs/ui>, together with `docs/native.md`, `docs/menus.md` and
+<https://github.com/egoist/mygo/tree/v0.4.1/docs/ui>, together with `docs/native.md`, `docs/menus.md` and
 `docs/windows.md` from the same version. The text here is a summary in our own words; the upstream pages are the
 source for APIs and behavior. See also [THIRD_PARTY.md](../THIRD_PARTY.md).

@@ -8,7 +8,7 @@
 
 A desktop app built with Electron around a web page is heavy in size and startup. Oriel wants a single language,
 reproducible builds and a truly native window. References: [MyGo native UI docs](https://mygo.egoist.dev/docs/ui)
-and [the source at the pinned version](https://github.com/egoist/mygo/tree/v0.3.6).
+and [the source at the pinned version](https://github.com/egoist/mygo/tree/v0.4.1).
 
 ## Decision
 
