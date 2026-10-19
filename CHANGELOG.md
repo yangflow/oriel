@@ -23,6 +23,18 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.3.0](https://github.com/yangflow/oriel/compare/v0.2.0...v0.3.0) (2026-10-19)
+
+
+### Added
+
+* **ui:** paper-and-ink palette with fading row fills ([#60](https://github.com/yangflow/oriel/issues/60)) ([b52cdb5](https://github.com/yangflow/oriel/commit/b52cdb53a38e4888ee9c8d9c963d654393be1985))
+
+
+### Fixed
+
+* **ui:** hide the title bar and draw the chrome in Liquid Glass ([#59](https://github.com/yangflow/oriel/issues/59)) ([597a046](https://github.com/yangflow/oriel/commit/597a0462b4886c3312cb6920063cf9761d40e30b))
+
 ## [0.2.0](https://github.com/yangflow/oriel/compare/v0.1.0...v0.2.0) (2026-10-19)
 
 
