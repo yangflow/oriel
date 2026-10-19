@@ -801,15 +801,16 @@ func (s *Screen) View(c *ui.Context) {
 	compact := width < 760
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
 		s.sidebar(c, compact)
-		ui.Box(c).Width(1).Background(t.Border)
+		// The title row floats over the page, which scrolls under it and fades under the scroll edge.
+		bar := c.TitleBar()
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			ui.Row(c).FillWidth().Height(px(t, 48)).AlignItems(ui.Center).Padding(0, t.Space(3), 0, t.Space(5)).
-				Children(func() {
-					ui.Text(c, s.groupName(s.group)).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(0).
-						Shrink(1).Role(ui.RoleHeading).Level(1)
-				})
-			ui.Box(c).FillWidth().Height(1).Background(t.Border)
 			s.content(c, compact)
+			theme.Edge(c)
+			ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).
+				Padding(0, t.Space(3)+bar.Right, 0, t.Space(5)).DragWindow().Children(func() {
+				ui.Text(c, s.groupName(s.group)).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(0).
+					Shrink(1).Role(ui.RoleHeading).Level(1)
+			})
 		})
 	})
 	if s.revoking {
@@ -835,8 +836,11 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 	if compact {
 		width = px(t, 184)
 	}
-	ui.Column(c).Width(width).Background(t.Surface).Children(func() {
-		ui.Row(c).FillWidth().Height(px(t, 48)).AlignItems(ui.Center).PaddingX(t.Space(2)).Children(func() {
+	pane := ui.Column(c).Width(width).Margin(8, 0, 8, 8).Radius(16)
+	theme.Pane(c, pane).Children(func() {
+		// The first 40 are the window buttons' and drag the window.
+		ui.Box(c).FillWidth().Height(40).DragWindow()
+		ui.Row(c).FillWidth().Height(px(t, 36)).AlignItems(ui.Center).PaddingX(t.Space(2)).Children(func() {
 			label := s.text.BackTimeline
 			tip := strings.NewReplacer("{action}", label, "{key}", "Esc").Replace(s.text.Shortcut)
 			b := ui.ButtonBase(c).Height(px(t, 28)).MinWidth(0).Shrink(1).Gap(2).Padding(0, t.Space(2), 0, t.Space(1)).
@@ -854,7 +858,6 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 				s.deps.Back()
 			}
 		})
-		ui.Box(c).FillWidth().Height(1).Background(t.Border)
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			ui.Column(c).FillWidth().Padding(t.Space(2)).Label(s.text.Settings).Children(func() {
 				ui.Text(c, s.text.Settings).SingleLine().FontSize(px(t, 11)).FontWeight(600).TextColor(t.TextMuted).
@@ -900,7 +903,6 @@ func (s *Screen) serverBar(c *ui.Context) {
 	if s.server != "" {
 		name, icon = s.server, icons.Server
 	}
-	ui.Box(c).FillWidth().Height(1).Background(t.Border)
 	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Gap(t.Space(2)).PaddingX(t.Space(4)).
 		Tooltip(s.text.ServerNote).Children(func() {
 		ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(t.TextMuted)
@@ -941,12 +943,12 @@ func (s *Screen) content(c *ui.Context, compact bool) {
 
 func (s *Screen) page(c *ui.Context, compact bool, children func()) {
 	t := c.Theme()
-	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+	ui.Scroll(c).Grow(1).FillWidth().ScrollbarInsets(theme.Bar, 0, 0, 0).Children(func() {
 		p := ui.Column(c).FillWidth().MaxWidth(px(t, 600)).Margin(0, ui.Auto)
 		if compact {
-			p.Padding(px(t, 20), px(t, 20), px(t, 40), px(t, 20))
+			p.Padding(theme.Bar+px(t, 20), px(t, 20), px(t, 40), px(t, 20))
 		} else {
-			p.Padding(px(t, 32), px(t, 32), px(t, 48), px(t, 32))
+			p.Padding(theme.Bar+px(t, 32), px(t, 32), px(t, 48), px(t, 32))
 		}
 		p.Children(children)
 	})
@@ -963,7 +965,8 @@ func (s *Screen) skeleton(c *ui.Context) {
 
 func (s *Screen) failure(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Grow(1).FillWidth().Center().Gap(t.Space(3)).Padding(t.Space(6)).Role(ui.RoleStatus).
+	ui.Column(c).Grow(1).FillWidth().Center().Gap(t.Space(3)).Padding(theme.Bar+t.Space(6), t.Space(6), t.Space(6)).
+		Role(ui.RoleStatus).
 		Children(func() {
 			ui.Box(c).Size(t.Space(12), t.Space(12)).Radius(t.Space(3)).Center().Background(theme.Soft(t, t.Danger)).
 				Children(func() { ui.Icon(c, icons.WifiOff).FontSize(t.Space(6)).TextColor(t.Danger) })

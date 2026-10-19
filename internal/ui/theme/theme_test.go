@@ -72,3 +72,38 @@ func TestHan(t *testing.T) {
 		}
 	}
 }
+
+// fill renders a 100 square with the given fill over a red backdrop and returns the color at its center.
+func fill(t *testing.T, prefs ui.Preferences, paint func(c *ui.Context, e ui.Element)) (ui.Theme, [4]uint8) {
+	t.Helper()
+	var got ui.Theme
+	tt := ui.NewTester(func(c *ui.Context) {
+		Apply(c)
+		got = *c.Theme()
+		ui.Box(c).Fill().Background(ui.Hex("#ff0000")).Children(func() {
+			paint(c, ui.Box(c).Width(100).Height(100))
+		})
+	}, 200, 200)
+	tt.SetPreferences(prefs)
+	tt.Frame()
+	p := tt.Image().RGBAAt(50, 50)
+	return got, [4]uint8{p.R, p.G, p.B, p.A}
+}
+
+func rgba(c ui.Color) [4]uint8 { return [4]uint8{c.R, c.G, c.B, c.A} }
+
+func TestGlassOpaqueInHighContrast(t *testing.T) {
+	for name, paint := range map[string]func(c *ui.Context, e ui.Element){
+		"pane":    func(c *ui.Context, e ui.Element) { Pane(c, e) },
+		"capsule": func(c *ui.Context, e ui.Element) { Capsule(c, e, false) },
+	} {
+		th, glass := fill(t, ui.Preferences{}, paint)
+		if glass == rgba(th.Surface) {
+			t.Errorf("%s: glass is opaque Surface without high contrast", name)
+		}
+		th, solid := fill(t, ui.Preferences{HighContrast: true}, paint)
+		if solid != rgba(th.Surface) {
+			t.Errorf("%s: high contrast fill %v, want Surface %v", name, solid, rgba(th.Surface))
+		}
+	}
+}

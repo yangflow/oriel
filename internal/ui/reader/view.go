@@ -536,9 +536,8 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	}
 	width, _ := c.Size()
 	narrow := width < 760
+	// The toolbar row floats over the article, which scrolls under it and fades under the scroll edge.
 	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-		s.toolbar(c, nav, ready)
-		ui.Box(c).FillWidth().Height(1).Background(t.Border)
 		switch {
 		case s.failed:
 			s.empty(c, icons.WifiOff, t.Danger, s.text.Error, s.text.ErrorHint, func() {
@@ -546,10 +545,12 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 					s.loading, s.failed = true, false
 					s.load(false)
 				}
-			}).Grow(1).FillWidth()
+			}).Grow(1).FillWidth().Margin(theme.Bar, 0, 0, 0)
 		default:
 			s.page(c, narrow)
 		}
+		theme.Edge(c)
+		s.toolbar(c, nav, ready)
 	})
 	s.download()
 	if s.announce != "" {
@@ -565,31 +566,35 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 func (s *Screen) toolbar(c *ui.Context, nav Nav, ready bool) {
 	t := c.Theme()
 	e := nav.Entry
-	ui.Row(c).FillWidth().Height(px(t, 48)).AlignItems(ui.Center).Gap(2).Padding(0, t.Space(3), 0, t.Space(2)).
-		Children(func() {
-			back := strings.ReplaceAll(s.text.Back, "{scope}", nav.Scope)
-			b := ui.ButtonBase(c).Height(px(t, 28)).MinWidth(0).Shrink(1).Gap(2).Padding(0, t.Space(2), 0, t.Space(1)).
-				Radius(t.Space(1.5)).Label(back).Tooltip(s.shortcut(back, "Esc"))
-			color := t.TextMuted
-			if b.Hovered() {
-				b.Background(t.SurfaceHover)
-				color = t.Text
-			}
-			b.Children(func() {
-				ui.Icon(c, icons.ChevronLeft).FontSize(px(t, 16)).TextColor(color)
-				ui.Text(c, nav.Scope).SingleLine().MinWidth(0).Shrink(1).TextColor(color)
-			})
-			if b.Clicked() {
-				s.deps.Back()
-			}
-			ui.Box(c).Grow(1)
+	bar := c.TitleBar()
+	// group is a capsule of glass holding tools that belong together, in place of separators.
+	group := func(tools func()) {
+		g := ui.Row(c).Height(px(t, 32)).AlignItems(ui.Center).PaddingX(2).Radius(px(t, 16))
+		theme.Capsule(c, g, false).Children(tools)
+	}
+	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(t.Space(2)).
+		Padding(0, t.Space(3)+bar.Right, 0, t.Space(3)).DragWindow().Children(func() {
+		back := strings.ReplaceAll(s.text.Back, "{scope}", nav.Scope)
+		b := ui.ButtonBase(c).Height(px(t, 32)).MinWidth(0).Shrink(1).Gap(2).Padding(0, px(t, 12), 0, px(t, 6)).
+			Radius(px(t, 16)).Label(back).Tooltip(s.shortcut(back, "Esc"))
+		theme.Capsule(c, b, b.Hovered())
+		b.Children(func() {
+			ui.Icon(c, icons.ChevronLeft).FontSize(px(t, 16)).TextColor(t.Text)
+			ui.Text(c, nav.Scope).SingleLine().MinWidth(0).Shrink(1).TextColor(t.Text)
+		})
+		if b.Clicked() {
+			s.deps.Back()
+		}
+		ui.Box(c).Grow(1)
+		group(func() {
 			if s.tool(c, icons.ChevronUp, s.text.Previous, "K", t.TextMuted, !nav.Previous).Clicked() {
 				s.deps.Move(-1)
 			}
 			if s.tool(c, icons.ChevronDown, s.text.Next, "J", t.TextMuted, !nav.Next).Clicked() {
 				s.deps.Move(1)
 			}
-			ui.Box(c).Size(1, px(t, 16)).Margin(0, t.Space(1.5)).Background(t.Border)
+		})
+		group(func() {
 			on, label := s.jobs[summary].on, s.text.Summarize
 			if on {
 				label = s.text.HideSummary
@@ -616,7 +621,8 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready bool) {
 					s.request(translation)
 				}
 			}
-			ui.Box(c).Size(1, px(t, 16)).Margin(0, t.Space(1.5)).Background(t.Border)
+		})
+		group(func() {
 			star, starColor := s.text.Star, t.TextMuted
 			if e.Starred {
 				star, starColor = s.text.Unstar, t.Warning
@@ -636,6 +642,7 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready bool) {
 				s.openOriginal(c)
 			}
 		})
+	})
 }
 
 // tool is a button of the toolbar: an icon, named by label, its key, if any, in the tooltip.
@@ -645,12 +652,12 @@ func (s *Screen) tool(c *ui.Context, icon *ui.SVG, label, key string, color ui.C
 	if key != "" {
 		tip = s.shortcut(label, key)
 	}
-	b := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(label).Tooltip(tip).Disabled(disabled)
+	b := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(px(t, 14)).Label(label).Tooltip(tip).Disabled(disabled)
 	switch {
 	case disabled:
 		color = color.Alpha(0.45)
 	case b.Hovered():
-		b.Background(t.SurfaceHover)
+		b.Background(t.Text.Alpha(0.08))
 		if color == t.TextMuted {
 			color = t.Text
 		}
@@ -677,15 +684,16 @@ func (s *Screen) toggle(c *ui.Context, icon *ui.SVG, label string, on, disabled 
 func (s *Screen) page(c *ui.Context, narrow bool) {
 	t := c.Theme()
 	e := s.article.Entry
-	pad := []float32{px(t, 28), px(t, 32), px(t, 48), px(t, 32)}
+	pad := []float32{theme.Bar + px(t, 28), px(t, 32), px(t, 48), px(t, 32)}
 	if narrow {
-		pad = []float32{px(t, 20), px(t, 20), px(t, 40), px(t, 20)}
+		pad = []float32{theme.Bar + px(t, 20), px(t, 20), px(t, 40), px(t, 20)}
 	}
 	title := strings.TrimSpace(e.Title)
 	if s.translating() && s.title != "" {
 		title = s.title
 	}
-	area := ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).FillWidth().Focusable().FocusRing(false).Label(title)
+	area := ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).FillWidth().ScrollbarInsets(theme.Bar, 0, 0, 0).Focusable().
+		FocusRing(false).Label(title)
 	if s.focus {
 		area.Focus()
 		s.focus = false

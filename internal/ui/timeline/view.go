@@ -1011,18 +1011,18 @@ func (s *Screen) View(c *ui.Context) {
 	s.wantMore = false
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
 		s.sidebar(c, compact)
-		ui.Box(c).Width(1).Background(t.Border)
 		if s.reading != 0 {
 			e := s.entries[s.index(s.reading)]
 			s.reader.View(c, reader.Nav{Entry: e, Icon: s.bitmap(s.iconOf(e.SourceID)), Scope: s.scopeName(),
 				Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "", Keys: !open})
 			return
 		}
+		// The toolbar row floats over the content, which scrolls under it and fades under the scroll edge.
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			s.toolbar(c, compact)
-			ui.Box(c).FillWidth().Height(1).Background(t.Border)
 			s.hint(c)
 			s.content(c, now, compact)
+			theme.Edge(c)
+			s.toolbar(c, compact)
 			s.pill(c)
 		})
 	})
@@ -1184,9 +1184,11 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 	if compact {
 		width = px(t, 184)
 	}
-	ui.Column(c).Width(width).Background(t.Surface).Children(func() {
+	pane := ui.Column(c).Width(width).Margin(8, 0, 8, 8).Radius(16)
+	theme.Pane(c, pane).Children(func() {
+		// The first 40 are the window buttons' and drag the window.
+		ui.Box(c).FillWidth().Height(40).DragWindow()
 		s.tabs(c)
-		ui.Box(c).FillWidth().Height(1).Background(t.Border)
 		list := s.sources
 		if s.scope.kind != "" {
 			list = nil
@@ -1365,10 +1367,10 @@ func (s *Screen) serverBar(c *ui.Context) {
 	if s.server != "" {
 		name, icon = s.server, icons.Server
 	}
-	ui.Box(c).FillWidth().Height(1).Background(t.Border)
-	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Padding(0, px(t, 6), 0, 0).Children(func() {
-		bar := ui.ButtonBase(c).Grow(1).MinWidth(0).FillHeight().Gap(t.Space(2)).Padding(0, px(t, 10), 0, t.Space(4)).
-			Label(strings.ReplaceAll(s.text.Server, "{server}", name))
+	// Inset like the rows above it, so its hover fill is a rounded row inside the pane, clear of its corner.
+	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Padding(0, px(t, 6), 0, t.Space(2)).Children(func() {
+		bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(px(t, 28)).Gap(t.Space(2)).Padding(0, px(t, 10), 0, t.Space(2)).
+			Radius(t.Space(1.5)).Label(strings.ReplaceAll(s.text.Server, "{server}", name))
 		if bar.Hovered() {
 			bar.Background(t.SurfaceHover)
 		}
@@ -1396,8 +1398,10 @@ func (s *Screen) serverBar(c *ui.Context) {
 
 func (s *Screen) toolbar(c *ui.Context, compact bool) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().Height(px(t, 48)).AlignItems(ui.Center).Gap(t.Space(2)).
-		Padding(0, t.Space(3), 0, t.Space(5)).Children(func() {
+	bar := c.TitleBar()
+	// Keyed, so the search field keeps its focus when the hint above it in the column comes and goes.
+	ui.Row(c).Key("toolbar").Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(t.Space(2)).
+		Padding(0, t.Space(3)+bar.Right, 0, t.Space(5)).DragWindow().Children(func() {
 		ui.Text(c, s.scopeName()).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(0).Shrink(1).
 			Role(ui.RoleHeading).Level(1)
 		sub := ""
@@ -1427,30 +1431,31 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 	t := c.Theme()
 	before := s.filter
 	seg := ui.SegmentedBase(c, &s.filter, 3)
-	seg.Track.Padding(2).Gap(2).Radius(t.Radius).Background(t.Surface).Label(s.text.Show).Children(func() {
-		for i, item := range []struct {
-			icon *ui.SVG
-			name string
-		}{{icons.Inbox, s.text.Everything}, {icons.CircleDot, s.text.Unread}, {icons.Star, s.text.Starred}} {
-			on := i == s.filter
-			b := seg.Segment(i).Height(px(t, 24)).Gap(t.Space(1)).PaddingX(t.Space(2)).Radius(t.Space(1.5)).
-				Label(item.name).Tooltip(item.name)
-			color := t.TextMuted
-			switch {
-			case on:
-				theme.Raised(t, b)
-				color = t.Text
-			case b.Hovered():
-				color = t.Text
-			}
-			b.Children(func() {
-				ui.Icon(c, item.icon).FontSize(px(t, 14)).TextColor(color)
-				if !compact {
-					ui.Text(c, item.name).NoWrap().TextColor(color)
+	theme.Capsule(c, seg.Track.Height(px(t, 32)).Padding(px(t, 3)).Gap(2).Radius(px(t, 16)), false).Label(s.text.Show).
+		Children(func() {
+			for i, item := range []struct {
+				icon *ui.SVG
+				name string
+			}{{icons.Inbox, s.text.Everything}, {icons.CircleDot, s.text.Unread}, {icons.Star, s.text.Starred}} {
+				on := i == s.filter
+				b := seg.Segment(i).Height(px(t, 26)).Gap(t.Space(1)).PaddingX(px(t, 10)).Radius(px(t, 13)).
+					Label(item.name).Tooltip(item.name)
+				color := t.TextMuted
+				switch {
+				case on:
+					theme.Lifted(t, b)
+					color = t.Text
+				case b.Hovered():
+					color = t.Text
 				}
-			})
-		}
-	})
+				b.Children(func() {
+					ui.Icon(c, item.icon).FontSize(px(t, 14)).TextColor(color)
+					if !compact {
+						ui.Text(c, item.name).NoWrap().TextColor(color)
+					}
+				})
+			}
+		})
 	if s.filter != before {
 		s.reload()
 	}
@@ -1465,8 +1470,9 @@ func (s *Screen) searchField(c *ui.Context, compact bool) {
 		width = px(t, 136)
 	}
 	_, short := s.trimmed()
-	box := ui.Row(c).Width(width).Height(px(t, 28)).Gap(t.Space(1.5)).PaddingX(t.Space(2)).Radius(t.Radius).
-		Background(t.Surface).Border(1, t.Border)
+	box := ui.Row(c).Width(width).Height(px(t, 32)).Gap(t.Space(1.5)).Padding(0, px(t, 6), 0, px(t, 12)).
+		Radius(px(t, 16))
+	theme.Capsule(c, box, false)
 	var input ui.Element
 	cleared := s.clearing
 	s.clearing = false
@@ -1496,9 +1502,9 @@ func (s *Screen) searchField(c *ui.Context, compact bool) {
 	s.typing = input.Focused()
 	switch {
 	case short:
-		box.Border(1, t.Warning)
+		box.Border(1.5, t.Warning)
 	case s.typing:
-		box.Border(1, t.Focus)
+		box.Shadow(0, 0, 0, 3, t.Focus)
 	}
 	if cleared {
 		s.query = ""
@@ -1524,11 +1530,11 @@ func (s *Screen) editButton(c *ui.Context) {
 		return
 	}
 	t := c.Theme()
-	b := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(s.text.EditSource).
+	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Radius(px(t, 16)).Label(s.text.EditSource).
 		Tooltip(s.text.EditSource)
+	theme.Capsule(c, b, b.Hovered())
 	color := t.TextMuted
 	if b.Hovered() {
-		b.Background(t.SurfaceHover)
 		color = t.Text
 	}
 	b.Children(func() { ui.Icon(c, icons.Pencil).FontSize(px(t, 16)).TextColor(color) })
@@ -1546,12 +1552,12 @@ func (s *Screen) markAllButton(c *ui.Context) {
 	t := c.Theme()
 	can := s.canMarkAll()
 	label := s.markAllLabel()
-	b := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(label).Tooltip(label).Disabled(!can)
+	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Radius(px(t, 16)).Label(label).Tooltip(label).Disabled(!can)
+	theme.Capsule(c, b, can && b.Hovered())
 	color := t.TextMuted
 	if !can {
 		color = t.TextMuted.Alpha(0.45)
 	} else if b.Hovered() {
-		b.Background(t.SurfaceHover)
 		color = t.Text
 	}
 	b.Children(func() { ui.Icon(c, icons.CheckCheck).FontSize(px(t, 16)).TextColor(color) })
@@ -1565,12 +1571,13 @@ func (s *Screen) hint(c *ui.Context) {
 		return
 	}
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(1.5)).Padding(t.Space(1.5), t.Space(5)).
-		Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).Children(func() {
-		ui.Icon(c, icons.CircleAlert).FontSize(px(t, 14)).TextColor(t.Warning)
-		ui.Text(c, s.text.TooShort).FontSize(px(t, 12)).TextColor(t.Warning)
-	})
-	ui.Box(c).FillWidth().Height(1).Background(t.Border)
+	// Under the toolbar row, the content starting below it.
+	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(t.Space(1.5)).Margin(theme.Bar+4, px(t, 12), 4).
+		Padding(px(t, 7), px(t, 14)).Radius(10).Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).
+		Children(func() {
+			ui.Icon(c, icons.CircleAlert).FontSize(px(t, 14)).TextColor(t.Warning)
+			ui.Text(c, s.text.TooShort).FontSize(px(t, 12)).TextColor(t.Warning)
+		})
 }
 
 func (s *Screen) pill(c *ui.Context) {
@@ -1629,9 +1636,19 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 	s.toTop = false
 }
 
+// top is how far down the content starts: below the toolbar row, which it scrolls under, or below the hint, which
+// already sits below the row.
+func (s *Screen) top() float32 {
+	if _, short := s.trimmed(); short {
+		return 0
+	}
+	return theme.Bar
+}
+
 func (s *Screen) skeleton(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().MaxWidth(px(t, 680)).Margin(0, ui.Auto).Padding(t.Space(1), t.Space(5)).
+	ui.Column(c).FillWidth().MaxWidth(px(t, 680)).Margin(0, ui.Auto).
+		Padding(s.top()+t.Space(1), t.Space(5), t.Space(1)).
 		Label(s.text.Loading).Role(ui.RoleProgress).Children(func() {
 		for i := range 4 {
 			ui.Row(c).Key(i).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).Padding(t.Space(3.5), t.Space(3), t.Space(3.5), t.Space(5)).
@@ -1651,7 +1668,8 @@ func (s *Screen) skeleton(c *ui.Context) {
 
 func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed bool) {
 	t := c.Theme()
-	ui.Column(c).Fill().Center().Gap(t.Space(3)).Padding(t.Space(6)).Role(ui.RoleStatus).Children(func() {
+	ui.Column(c).Fill().Center().Gap(t.Space(3)).Padding(s.top()+t.Space(6), t.Space(6), t.Space(6)).
+		Role(ui.RoleStatus).Children(func() {
 		color := t.Accent
 		if failed {
 			color = t.Danger
@@ -1868,7 +1886,8 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 			}
 			s.row(c, i, now, compact)
 		})
-	}).Grow(1).FillWidth().Padding(t.Space(1), 0, t.Space(6), 0).Label(s.scopeName())
+	}).Grow(1).FillWidth().Padding(s.top()+t.Space(1), 0, t.Space(6), 0).ScrollbarInsets(s.top(), 0, 0, 0).
+		Label(s.scopeName())
 }
 
 func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
@@ -2124,7 +2143,8 @@ func (s *Screen) videoGrid(c *ui.Context, now time.Time, compact bool) {
 				s.actions(c, i, t.Space(2))
 			}
 		})
-	}).Grow(1).FillWidth().Gap(gap).Padding(t.Space(4), t.Space(5), t.Space(6), t.Space(5)).Label(s.scopeName())
+	}).Grow(1).FillWidth().Gap(gap).Padding(s.top()+t.Space(4), t.Space(5), t.Space(6), t.Space(5)).
+		ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName())
 	if s.hasFooter() {
 		s.footer(c)
 	}
@@ -2154,22 +2174,25 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 		tops[k] = append(tops[k], heights[k])
 		heights[k] += width/aspect(e) + caption
 	}
-	ui.Scroll(c).TrackScroll(&s.wall).Grow(1).FillWidth().Label(s.scopeName()).Children(func() {
-		ui.Row(c).FillWidth().Gap(gap).Padding(t.Space(4), t.Space(5), t.Space(6), t.Space(5)).
-			AlignItems(ui.Start).Children(func() {
-			for k := range cols {
-				ui.Column(c).Key(k).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(4)).Children(func() {
-					for j, i := range cols[k] {
-						near := tops[k][j]+width > s.wall.Y-wallAhead && tops[k][j] < s.wall.Y+viewHeight+wallAhead
-						s.tile(c, i, now, near)
-					}
-				})
+	top := s.top() + t.Space(4)
+	ui.Scroll(c).TrackScroll(&s.wall).Grow(1).FillWidth().ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName()).
+		Children(func() {
+			ui.Row(c).FillWidth().Gap(gap).Padding(top, t.Space(5), t.Space(6), t.Space(5)).
+				AlignItems(ui.Start).Children(func() {
+				for k := range cols {
+					ui.Column(c).Key(k).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(4)).Children(func() {
+						for j, i := range cols[k] {
+							at := top + tops[k][j]
+							near := at+width > s.wall.Y-wallAhead && at < s.wall.Y+viewHeight+wallAhead
+							s.tile(c, i, now, near)
+						}
+					})
+				}
+			})
+			if s.hasFooter() {
+				s.footer(c)
 			}
 		})
-		if s.hasFooter() {
-			s.footer(c)
-		}
-	})
 	// The wall draws every tile, so the next page loads by how far it is scrolled, not by the tiles drawn.
 	s.wantMore = s.wall.Y >= s.wall.MaxY-wallAhead
 }
