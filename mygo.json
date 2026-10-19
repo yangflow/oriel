@@ -2,7 +2,17 @@
   "name": "Oriel",
   "identifier": "app.oriel.app",
   "version": "0.1.0",
+  "copyright": "© 2026 yangflow",
   "main": ".",
   "out": "build",
-  "macos": {"minimumSystemVersion": "12.0"}
+  "macos": {"minimumSystemVersion": "12.0"},
+  "linux": {
+    "maintainer": "yangflow <269347247+yangflow@users.noreply.github.com>",
+    "comment": "Read RSS and RSSHub feeds in one timeline",
+    "categories": ["Network", "News"]
+  },
+  "updates": {
+    "publicKey": "oNaKx/zzE+9DGJFVWJy7Xhrnf/4EjLr1XcVVgzZZxGs=",
+    "github": "yangflow/oriel"
+  }
 }

@@ -13,6 +13,9 @@ diff -u "$work/go.sum" go.sum
 [[ "$(cat .go-version)" == "$(awk '/^go / { print $2 }' go.mod)" ]]
 go vet ./...
 go test ./...
+# Installed copies refuse a tampered update, one signed with another key and plain HTTP: MyGo's own tests, run
+# against the version in go.mod.
+go test -run '^(TestSignatures|TestUpdater)$' github.com/egoist/mygo github.com/egoist/mygo/internal/update
 python3 -m unittest discover -s scripts -p 'test_*.py'
 if [[ "${1:-}" == --cross ]]; then
   for target in darwin/arm64 darwin/amd64 windows/amd64 windows/arm64 linux/amd64 linux/arm64; do

@@ -42,6 +42,8 @@
 
 项目状态：早期开发中，版本 0.1.0，还没有发布。窗口里有连接界面、时间线、订阅对话框、文章阅读器和设置。目标平台：macOS 12+、Windows 10/11、带 GTK 3 的 Linux，amd64 和 arm64。Linux 版本需要 glibc，无界面运行也一样。
 
+发布版从版本 tag 构建并发布（见 [docs/release.md](docs/release.md)），目前还没有发布过。装好的应用会从发布版自动更新，安装前先在更新窗口里确认。macOS 应用经过签名和公证；Windows 安装包暂时没有签名，第一次运行时 SmartScreen 会提示。
+
 ## 快速开始
 
 从源码构建，需要 `.go-version` 里的 Go 版本和 Python 3：
