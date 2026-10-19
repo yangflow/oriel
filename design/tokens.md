@@ -34,26 +34,29 @@ Mockups show the 4 DIP unit and 13 px text.
 
 ## Color roles
 
-Oriel's palette: warm neutrals and a teal accent, set by `theme.Apply` in `internal/ui/theme/theme.go`. The other
-roles keep the MyGo v0.4.1 defaults. With high contrast on, `Border` is mixed 45% and `TextMuted` 40% toward `Text`,
+Oriel's palette, paper and ink: warm paper neutrals, a softened ink and a muted teal accent, set by `theme.Apply`
+in `internal/ui/theme/theme.go`. Body text stays near 13:1 rather than black on white, the surface ladder steps
+evenly, and every text role holds 4.5:1 on `Background`, `Surface` and `SurfaceHover`. The other roles keep the
+MyGo defaults. With high contrast on, `Border` is mixed 45% and `TextMuted` 40% toward `Text`,
 and `Focus` is opaque. A soft fill (`theme.Soft`) is the role mixed toward `Background`, 88% in light, 84% in dark.
+The chosen fill in navigation (`theme.Chosen`) is neutral: `Text` at 7% alpha in light, 9% in dark.
 
 | Role | Light | Dark | Used for |
 |---|---|---|---|
-| `Background` | `#fbfaf7` | `#161513` | window fill, focused field |
-| `Surface` | `#f2f0eb` | `#25231f` | control faces, fields |
-| `SurfaceHover` | `#e9e6df` | `#2f2c28` | hovered control |
-| `SurfacePressed` | `#dfdbd2` | `#3a3732` | pressed control |
-| `Border` | `#dcd7cd` | `#3d3933` | outlines, dividers |
-| `Text` | `#1f1d1a` | `#ede9e3` | primary text |
-| `TextMuted` | `#6f6a64` | `#a8a29e` | hints, placeholders, secondary text, field icons |
-| `Accent` | `#0f766e` | `#4fbfad` | primary button, focused field border, checked controls |
-| `AccentHover` | `#115e59` | `#6dd0c0` | hovered primary button |
-| `AccentPressed` | `#134e4a` | `#3aa596` | pressed primary button |
-| `AccentText` | `#ffffff` | `#0b2522` | text on the accent |
+| `Background` | `#f8f6f1` | `#1d1c1a` | window fill, focused field |
+| `Surface` | `#efebe3` | `#262422` | control faces, fields |
+| `SurfaceHover` | `#e7e2d8` | `#302d2a` | hovered control |
+| `SurfacePressed` | `#ded8cc` | `#3a3733` | pressed control |
+| `Border` | `#e3ddd2` | `#36332f` | outlines, dividers |
+| `Text` | `#2b2824` | `#e4ded5` | primary text |
+| `TextMuted` | `#68625a` | `#a09a91` | hints, placeholders, secondary text, field icons |
+| `Accent` | `#2b6f66` | `#6cbcae` | primary button, focused field border, checked controls |
+| `AccentHover` | `#245e57` | `#86cbbf` | hovered primary button |
+| `AccentPressed` | `#1f4f49` | `#58a597` | pressed primary button |
+| `AccentText` | `#ffffff` | `#10241f` | text on the accent |
 | `Danger` / `Warning` / `Success` | `#c2410c` / `#a16207` / `#15803d` | `#fb923c` / `#facc15` / `#4ade80` | status, always with text |
-| `Selection` | `rgba(15, 118, 110, 0.22)` | `rgba(79, 191, 173, 0.3)` | selected text |
-| `Focus` | `rgba(15, 118, 110, 0.5)` | `rgba(79, 191, 173, 0.5)` | keyboard focus ring, 3 DIPs |
+| `Selection` | `rgba(43, 111, 102, 0.22)` | `rgba(108, 188, 174, 0.3)` | selected text |
+| `Focus` | `rgba(43, 111, 102, 0.5)` | `rgba(108, 188, 174, 0.5)` | keyboard focus ring, 3 DIPs |
 | `Inverse` / `InverseText` | zero: `Text` / `Background` | zero: `Text` / `Background` | tooltips and toasts |
 | `Scrollbar` | `rgba(0, 0, 0, 0.32)` | `rgba(255, 255, 255, 0.35)` | scroll bar thumbs, 6 DIPs wide |
 
@@ -62,9 +65,10 @@ and `Focus` is opaque. A soft fill (`theme.Soft`) is the role mixed toward `Back
 | Token | Value |
 |---|---|
 | default | none: state changes take effect immediately |
+| state fill | 140 ms, ease-out, colors only: the hover and chosen fills of rows (`theme.Fade`) |
 | spinner | one turn in 900 ms, linear: the busy icon of a button |
 | element transition | 200 ms, ease-out (MyGo default); only as an agreed exception, see docs/design.md |
-| reduced motion | jump to the target (`Preferences().ReduceMotion`) |
+| reduced motion | nothing moves (`Preferences().ReduceMotion`); color fades still play |
 
 ## Keeping this file true
 

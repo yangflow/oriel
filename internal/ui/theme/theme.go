@@ -1,8 +1,9 @@
-// Package theme sets Oriel's palette on the MyGo theme: warm neutrals and a teal accent, light and dark. The values
-// are the color table in design/tokens.md.
+// Package theme sets Oriel's palette on the MyGo theme: paper and ink, warm paper neutrals, a softened ink and a muted
+// teal accent, light and dark. The values are the color table in design/tokens.md.
 package theme
 
 import (
+	"time"
 	"unicode"
 
 	"github.com/egoist/mygo/plugins/glass"
@@ -40,13 +41,21 @@ func Soft(t *ui.Theme, color ui.Color) ui.Color {
 	return color.Mix(t.Background, 0.88)
 }
 
-// Chosen is the fill of the place you are in a navigation list, the accent at 12% (20% in dark); its icon and count
-// are in the accent.
+// Chosen is the fill of the place you are in a navigation list, a neutral ink: Text at 7% (9% in dark); its icon and
+// count are in the accent.
 func Chosen(t *ui.Theme) ui.Color {
 	if t.Dark {
-		return t.Accent.Alpha(0.2)
+		return t.Text.Alpha(0.09)
 	}
-	return t.Accent.Alpha(0.12)
+	return t.Text.Alpha(0.07)
+}
+
+var fillFade = ui.ElementTransition{Duration: 140 * time.Millisecond, Colors: true}
+
+// Fade lets a row's hover and chosen fills fade in and out, colors only, so nothing moves even with reduced motion.
+// The row needs a stable ID: a Key, or the same place among its siblings each frame.
+func Fade(e ui.Element) ui.Element {
+	return e.Transition(fillFade)
 }
 
 // Raised draws the chosen segment of a control: a face raised off the track, Background with a hairline in light,
@@ -112,39 +121,39 @@ func Han(text string) bool {
 }
 
 func light(t *ui.Theme) {
-	t.Background = ui.Hex("#fbfaf7")
-	t.Surface = ui.Hex("#f2f0eb")
-	t.SurfaceHover = ui.Hex("#e9e6df")
-	t.SurfacePressed = ui.Hex("#dfdbd2")
-	t.Border = ui.Hex("#dcd7cd")
-	t.Text = ui.Hex("#1f1d1a")
-	t.TextMuted = ui.Hex("#6f6a64")
-	t.Accent = ui.Hex("#0f766e")
-	t.AccentHover = ui.Hex("#115e59")
-	t.AccentPressed = ui.Hex("#134e4a")
+	t.Background = ui.Hex("#f8f6f1")
+	t.Surface = ui.Hex("#efebe3")
+	t.SurfaceHover = ui.Hex("#e7e2d8")
+	t.SurfacePressed = ui.Hex("#ded8cc")
+	t.Border = ui.Hex("#e3ddd2")
+	t.Text = ui.Hex("#2b2824")
+	t.TextMuted = ui.Hex("#68625a")
+	t.Accent = ui.Hex("#2b6f66")
+	t.AccentHover = ui.Hex("#245e57")
+	t.AccentPressed = ui.Hex("#1f4f49")
 	t.AccentText = ui.Hex("#ffffff")
 	t.Danger = ui.Hex("#c2410c")
 	t.Warning = ui.Hex("#a16207")
 	t.Success = ui.Hex("#15803d")
-	t.Selection = ui.RGBA(15, 118, 110, 0.22)
-	t.Focus = ui.RGBA(15, 118, 110, 0.5)
+	t.Selection = ui.RGBA(43, 111, 102, 0.22)
+	t.Focus = ui.RGBA(43, 111, 102, 0.5)
 }
 
 func dark(t *ui.Theme) {
-	t.Background = ui.Hex("#161513")
-	t.Surface = ui.Hex("#25231f")
-	t.SurfaceHover = ui.Hex("#2f2c28")
-	t.SurfacePressed = ui.Hex("#3a3732")
-	t.Border = ui.Hex("#3d3933")
-	t.Text = ui.Hex("#ede9e3")
-	t.TextMuted = ui.Hex("#a8a29e")
-	t.Accent = ui.Hex("#4fbfad")
-	t.AccentHover = ui.Hex("#6dd0c0")
-	t.AccentPressed = ui.Hex("#3aa596")
-	t.AccentText = ui.Hex("#0b2522")
+	t.Background = ui.Hex("#1d1c1a")
+	t.Surface = ui.Hex("#262422")
+	t.SurfaceHover = ui.Hex("#302d2a")
+	t.SurfacePressed = ui.Hex("#3a3733")
+	t.Border = ui.Hex("#36332f")
+	t.Text = ui.Hex("#e4ded5")
+	t.TextMuted = ui.Hex("#a09a91")
+	t.Accent = ui.Hex("#6cbcae")
+	t.AccentHover = ui.Hex("#86cbbf")
+	t.AccentPressed = ui.Hex("#58a597")
+	t.AccentText = ui.Hex("#10241f")
 	t.Danger = ui.Hex("#fb923c")
 	t.Warning = ui.Hex("#facc15")
 	t.Success = ui.Hex("#4ade80")
-	t.Selection = ui.RGBA(79, 191, 173, 0.3)
-	t.Focus = ui.RGBA(79, 191, 173, 0.5)
+	t.Selection = ui.RGBA(108, 188, 174, 0.3)
+	t.Focus = ui.RGBA(108, 188, 174, 0.5)
 }

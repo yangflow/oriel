@@ -1231,6 +1231,7 @@ func (s *Screen) tabs(c *ui.Context) {
 				case tab.Hovered():
 					tab.Background(t.SurfaceHover)
 				}
+				theme.Fade(tab)
 				n := s.unreadIn(scope{kind: kind})
 				if n > 0 {
 					tab.Description(s.format(s.text.UnreadCount, n))
@@ -1296,6 +1297,7 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 	case item.Hovered():
 		item.Background(t.SurfaceHover)
 	}
+	theme.Fade(item)
 	item.Children(func() {
 		s.glyph(c, src.Kind, name, src.IconURL)
 		color := t.Text
@@ -1374,6 +1376,7 @@ func (s *Screen) serverBar(c *ui.Context) {
 		if bar.Hovered() {
 			bar.Background(t.SurfaceHover)
 		}
+		theme.Fade(bar)
 		bar.Children(func() {
 			ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(t.TextMuted)
 			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(px(t, 12)).TextColor(t.TextMuted)
@@ -1893,12 +1896,13 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	t := c.Theme()
 	e := s.entries[i]
-	r := ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).Padding(t.Space(3.5), t.Space(3), t.Space(3.5), t.Space(5)).
-		Radius(px(t, 10))
+	r := ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).
+		Padding(t.Space(3.5), t.Space(3), t.Space(3.5), t.Space(5)).Radius(px(t, 10))
 	hovered, chosen := s.item(c, r, i, now)
 	if hovered {
 		r.Background(t.Surface)
 	}
+	theme.Fade(r)
 	quiet := hovered || chosen || i > 0 && (s.hovered == i-1 || s.selected == i-1)
 	r.Children(func() {
 		if i > 0 && !quiet {
