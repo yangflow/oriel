@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,14 +28,17 @@ import (
 var catalog []byte
 
 type copy struct {
-	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show        string
-	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllRead, Star, Unstar, MarkRead string
-	MarkUnread, Open, Failing, NewEntries, Loading, LoadingMore, LoadMoreFailed, AllLoaded             string
-	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint           string
-	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, ConfirmTitle      string
-	ConfirmBody, Cancel, Confirm, Marked, Starring, Unstarring, ActionFailed, OpenFailed               string
-	ThisComputer, Server, Settings, Duration, MorePictures, Pictures, Now, Minutes, Hours, Yesterday   string
-	Days, DateLayout, YearLayout, Separator, AddSource, EditSource, AddFirst, PausedMark               string
+	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show             string
+	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllRead, Star, Unstar, MarkRead      string
+	MarkUnread, Open, Failing, NewEntries, Loading, LoadingMore, LoadMoreFailed, AllLoaded                  string
+	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                string
+	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                 string
+	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                string
+	MorePictures, Pictures, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator         string
+	AddSource, EditSource, AddFirst, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu string
+	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar        string
+	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle              string
+	KeyBack, KeyAdd, KeySettings, KeyKeys                                                                   string
 }
 
 var translations = func() map[string]copy {
@@ -66,7 +70,8 @@ type API interface {
 	Entries(ctx context.Context, q client.Query) (client.Page, error)
 	Sources(ctx context.Context) ([]client.Source, error)
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
-	MarkRead(ctx context.Context, scope client.ReadScope) (int, error)
+	MarkRead(ctx context.Context, scope client.ReadScope) ([]int64, error)
+	MarkUnread(ctx context.Context, ids []int64) (int, error)
 }
 
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it
@@ -104,14 +109,18 @@ type picture struct {
 	used   int // when it was last drawn, to drop the least recently drawn
 }
 
-// asking is the "mark all as read" being confirmed.
-type asking struct {
-	open      bool
-	count     int
-	name      string
-	scope     client.ReadScope
-	entryRuns int
+// marking is a "mark all as read" that can be undone: the entries it marked, and the text of its toast, once shown.
+type marking struct {
+	ids   []int64
+	text  string
+	shown bool
 }
+
+// The IDs of the toasts the screen replaces rather than stacks.
+const (
+	markedToast = "timeline.marked"
+	noMoreToast = "timeline.no-more-unread"
+)
 
 // Screen keeps the timeline: the scope, the entries loaded, and the work under way.
 type Screen struct {
@@ -160,7 +169,10 @@ type Screen struct {
 	downloads int
 	drawn     int
 
-	confirm  asking
+	undoable *marking              // the last "mark all as read", until its toast closes
+	seeking  bool                  // N found no unread entry loaded and waits for the next page
+	noMore   bool                  // show that no unread entry is below
+	keys     bool                  // the key sheet shows
 	subs     *subscriptions.Screen // the dialogs that add and edit subscriptions
 	reader   *reader.Screen        // in the place of the list while an article is read
 	reading  int64                 // the entry read, 0 for none
@@ -182,6 +194,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		Go:           deps.Go,
 		Now:          deps.Now,
 		Sources:      func() []client.Source { return s.sources },
+		Icon:         s.bitmap,
 		Added:        s.added,
 		Changed:      s.changed,
 		Removed:      s.removed,
@@ -201,6 +214,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		OpenSettings: deps.OpenAISettings,
 		Back:         s.back,
 		Move:         s.step,
+		NextUnread:   s.nextUnread,
 		Star:         func() { s.toggleStar(s.index(s.reading)) },
 		ToggleRead:   func() { s.toggleRead(s.index(s.reading)) },
 	})
@@ -215,7 +229,7 @@ func (s *Screen) Use(api API, server string) {
 	s.scope, s.tab, s.filter = scope{}, 0, everything
 	s.query, s.searched, s.editing = "", "", false
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
-	s.confirm = asking{}
+	s.undoable, s.seeking, s.keys = nil, false, false
 	s.subs.Use(api)
 	s.reader.Use(api)
 	s.loadSources()
@@ -319,7 +333,7 @@ func (s *Screen) reload() {
 	s.run++
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
 	s.entries, s.next, s.loading, s.loadErr, s.more, s.moreErr, s.fresh = nil, "", true, false, false, false, 0
-	s.selected, s.focusRow, s.hovered, s.toTop, s.reading = -1, -1, -1, true, 0
+	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = -1, -1, -1, true, 0, false
 	for address, p := range s.pictures {
 		if p.failed {
 			delete(s.pictures, address)
@@ -615,7 +629,7 @@ func (s *Screen) back() {
 		return
 	}
 	i := s.index(s.reading)
-	s.reading = 0
+	s.reading, s.seeking = 0, false
 	if i < 0 {
 		return
 	}
@@ -629,6 +643,7 @@ func (s *Screen) move(by int) {
 	if len(s.entries) == 0 {
 		return
 	}
+	s.seeking = false
 	i := s.selected + by
 	if s.selected < 0 {
 		i = 0
@@ -679,24 +694,18 @@ func (s *Screen) canMarkAll() bool {
 	return s.filter != starred && s.searched == "" && len(s.entries) > 0 && s.unreadIn(s.scope) > 0
 }
 
-func (s *Screen) askMarkAll() {
-	if !s.canMarkAll() {
+// markAll marks the entries of the scope read, up to the newest loaded, and offers to undo it.
+func (s *Screen) markAll() {
+	if !s.canMarkAll() || s.api == nil {
 		return
 	}
 	scope := client.ReadScope{SourceID: s.scope.source, UpTo: s.entries[0].ID}
 	if s.scope.source == 0 {
 		scope.Kind = s.scope.kind
 	}
-	s.confirm = asking{open: true, count: s.unreadIn(s.scope), name: s.scopeName(), scope: scope, entryRuns: s.run}
-}
-
-func (s *Screen) markAll() {
-	if s.api == nil {
-		return
-	}
-	gen, run, api, scope := s.gen, s.confirm.entryRuns, s.api, s.confirm.scope
+	name, gen, api := s.scopeName(), s.gen, s.api
 	s.deps.Go(func() func() {
-		n, err := api.MarkRead(context.Background(), scope)
+		ids, err := api.MarkRead(context.Background(), scope)
 		return func() {
 			if gen != s.gen || s.expired(err) {
 				return
@@ -705,15 +714,88 @@ func (s *Screen) markAll() {
 				s.toast = s.text.ActionFailed
 				return
 			}
-			if run == s.run {
-				for i := range s.entries {
-					s.entries[i].IsRead = true
-				}
+			s.setRead(ids, true)
+			s.loadSources()
+			text := strings.ReplaceAll(s.format(s.text.Marked, len(ids)), "{scope}", name)
+			s.undoable = &marking{ids: ids, text: text}
+		}
+	})
+}
+
+// undo marks the entries of m unread again.
+func (s *Screen) undo(m *marking) {
+	if s.undoable == m {
+		s.undoable = nil
+	}
+	if s.api == nil || len(m.ids) == 0 {
+		return
+	}
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		_, err := api.MarkUnread(context.Background(), m.ids)
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
 			}
-			s.announce = s.format(s.text.Marked, n)
+			if err != nil {
+				s.toast = s.text.ActionFailed
+				return
+			}
+			s.setRead(m.ids, false)
 			s.loadSources()
 		}
 	})
+}
+
+// setRead shows the loaded entries among ids read or unread; the sources load again for the counts.
+func (s *Screen) setRead(ids []int64, read bool) {
+	for i := range s.entries {
+		if slices.Contains(ids, s.entries[i].ID) {
+			s.entries[i].IsRead = read
+		}
+	}
+}
+
+// unreadBelow returns the first unread entry after i, only articles when articles, -1 when none is loaded.
+func (s *Screen) unreadBelow(i int, articles bool) int {
+	for i++; i < len(s.entries); i++ {
+		if e := s.entries[i]; !e.IsRead && (!articles || e.Kind == "article") {
+			return i
+		}
+	}
+	return -1
+}
+
+// nextUnread goes to the next unread entry: in the reader the next unread article, in the list the next unread entry.
+// When none is loaded it loads the next page and looks again, and says so when there is none.
+func (s *Screen) nextUnread() {
+	if s.loading {
+		return
+	}
+	from := s.selected
+	if s.reading != 0 {
+		from = s.index(s.reading)
+	}
+	if i := s.unreadBelow(from, s.reading != 0); i >= 0 {
+		s.seeking = false
+		if s.reading != 0 {
+			s.read(i)
+			return
+		}
+		s.selected, s.focusRow = i, i
+		s.list.ScrollIntoView(i)
+		s.grid.ScrollIntoView(i)
+		return
+	}
+	if s.next != "" && !s.moreErr {
+		s.seeking = true
+		s.loadMore()
+		return
+	}
+	s.seeking = false
+	if !s.moreErr {
+		s.noMore = true
+	}
 }
 
 func (s *Screen) format(text string, n int) string {
@@ -887,13 +969,26 @@ func (s *Screen) View(c *ui.Context) {
 	if s.reading != 0 {
 		s.typing = false
 	}
-	open := s.confirm.open || s.subs.Open()
+	if s.seeking && !s.more {
+		s.nextUnread()
+	}
+	open := s.keys || s.subs.Open()
 	if !open {
 		c.OnShortcut(ui.Cmd, ui.KeyF, func() {
 			s.back()
 			s.searchBox = true
 		})
 		c.OnShortcut(ui.Cmd, ui.KeyN, s.subs.Add)
+		c.OnShortcut(ui.Cmd, ui.KeySlash, s.ShowKeys)
+		if m := s.undoable; m != nil && !s.typing {
+			c.OnShortcut(ui.Cmd, ui.KeyZ, func() {
+				c.CloseToast(markedToast)
+				s.undo(m)
+			})
+		}
+	}
+	if !open && !s.typing {
+		c.OnShortcut(ui.Shift, ui.KeySlash, s.ShowKeys)
 	}
 	// The keys of the list work wherever the focus is, but not while the search takes the letters typed, a dialog
 	// shows or the reader, which has its own, is open.
@@ -906,7 +1001,7 @@ func (s *Screen) View(c *ui.Context) {
 			{ui.KeyK, func() { s.move(-1) }}, {ui.KeyUp, func() { s.move(-1) }},
 			{ui.KeyO, func() { s.open(c, s.selected) }}, {ui.KeyEnter, func() { s.open(c, s.selected) }},
 			{ui.KeyS, func() { s.toggleStar(s.selected) }}, {ui.KeyM, func() { s.toggleRead(s.selected) }},
-			{ui.KeySlash, func() { s.searchBox = true }},
+			{ui.KeyN, s.nextUnread}, {ui.KeySlash, func() { s.searchBox = true }},
 		} {
 			c.OnShortcut(0, k.key, k.do)
 		}
@@ -918,7 +1013,8 @@ func (s *Screen) View(c *ui.Context) {
 		s.sidebar(c, compact)
 		ui.Box(c).Width(1).Background(t.Border)
 		if s.reading != 0 {
-			s.reader.View(c, reader.Nav{Entry: s.entries[s.index(s.reading)], Scope: s.scopeName(),
+			e := s.entries[s.index(s.reading)]
+			s.reader.View(c, reader.Nav{Entry: e, Icon: s.bitmap(s.iconOf(e.SourceID)), Scope: s.scopeName(),
 				Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "", Keys: !open})
 			return
 		}
@@ -933,12 +1029,7 @@ func (s *Screen) View(c *ui.Context) {
 	if s.wantMore {
 		s.loadMore()
 	}
-	if s.confirm.open {
-		title := strings.ReplaceAll(s.format(s.text.ConfirmTitle, s.confirm.count), "{scope}", s.confirm.name)
-		if ui.AlertDialog(c, &s.confirm.open, title, s.text.ConfirmBody, s.text.Cancel, s.text.Confirm) == 1 {
-			s.markAll()
-		}
-	}
+	s.keySheet(c)
 	s.subs.View(c)
 	s.download()
 	if s.announce != "" {
@@ -948,6 +1039,142 @@ func (s *Screen) View(c *ui.Context) {
 	if s.toast != "" {
 		c.Toast(s.toast)
 		s.toast = ""
+	}
+	s.toasts(c)
+}
+
+// toasts shows the toasts of "mark all as read", with its undo, and of N finding no unread entry.
+func (s *Screen) toasts(c *ui.Context) {
+	if m := s.undoable; m != nil && !m.shown {
+		m.shown = true
+		c.AddToast(ui.Toast{ID: markedToast, Title: m.text, Timeout: 8 * time.Second, Action: s.text.Undo,
+			OnAction: func() { s.undo(m) },
+			OnClose: func() {
+				if s.undoable == m {
+					s.undoable = nil
+				}
+			},
+			Data: theme.ToastLook{Icon: icons.CheckCheck, Keys: modifier() + "Z", Close: s.text.Dismiss}})
+	}
+	if s.noMore {
+		s.noMore = false
+		c.AddToast(ui.Toast{ID: noMoreToast, Title: s.text.NoMoreUnread,
+			Data: theme.ToastLook{Icon: icons.CircleCheckBig}})
+	}
+}
+
+// modifier is how the key sheet and the toasts write the Cmd of ui.Cmd: ⌘ on macOS, Ctrl+ elsewhere.
+func modifier() string {
+	if runtime.GOOS == "darwin" {
+		return "⌘"
+	}
+	return "Ctrl+"
+}
+
+// ShowKeys shows the key sheet, from the menu or ?.
+func (s *Screen) ShowKeys() {
+	if s.subs.Open() {
+		return
+	}
+	s.keys = true
+}
+
+// MenuLabels are the Help menu and its item that shows the key sheet, in the language of the system locale.
+func MenuLabels(systemLocale string) (help, keys string) {
+	text := translations[locale.Language(systemLocale)]
+	return text.HelpMenu, text.KeysMenu
+}
+
+// key is a row of the key sheet: what it does, and the keys that do it, each a list pressed together.
+type key struct {
+	name string
+	keys [][]string
+}
+
+// keySheet is the dialog listing the keys of the timeline, the reader and the whole window.
+func (s *Screen) keySheet(c *ui.Context) {
+	if !s.keys {
+		return
+	}
+	t := c.Theme()
+	width, height := c.Size()
+	cmd := modifier()
+	one := func(k ...string) [][]string {
+		out := make([][]string, len(k))
+		for i, v := range k {
+			out[i] = []string{v}
+		}
+		return out
+	}
+	timeline := []key{{s.text.KeyNext, one("J", "↓")}, {s.text.KeyPrevious, one("K", "↑")},
+		{s.text.KeyNextUnread, one("N")}, {s.text.KeyOpen, one("O", "↩")}, {s.text.KeyStar, one("S")},
+		{s.text.KeyRead, one("M")}, {s.text.KeySearch, [][]string{{"/"}, {cmd, "F"}}},
+		{s.text.KeyEscape, one("Esc")}, {s.text.KeyUndo, [][]string{{cmd, "Z"}}}}
+	reading := []key{{s.text.KeyNextArticle, one("J")}, {s.text.KeyPreviousArticle, one("K")},
+		{s.text.KeyNextUnread, one("N")}, {s.text.KeyStar, one("S")}, {s.text.KeyRead, one("M")},
+		{s.text.KeyOpenBrowser, one("O")}, {s.text.KeyBack, one("Esc")}}
+	anywhere := []key{{s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
+		{s.text.KeyKeys, one("?")}}
+	ui.DialogBase(c, &s.keys, func(backdrop, panel ui.Element) {
+		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Padding(t.Space(4))
+		panel.Column().Width(min(px(t, 560), width-t.Space(8))).MaxHeight(height-t.Space(8)).Radius(12).
+			Background(t.Background).Border(1, t.Border).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.25)).
+			Label(s.text.KeysTitle)
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Padding(t.Space(4), t.Space(4), t.Space(2), t.Space(5)).
+			Children(func() {
+				ui.Text(c, s.text.KeysTitle).Grow(1).FontSize(px(t, 15)).FontWeight(600).Role(ui.RoleHeading).
+					Level(2)
+				x := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(s.text.Close).
+					Tooltip(s.text.Close)
+				color := t.TextMuted
+				if x.Hovered() {
+					x.Background(t.SurfaceHover)
+					color = t.Text
+				}
+				x.Children(func() { ui.Icon(c, icons.X).FontSize(px(t, 16)).TextColor(color) })
+				if x.Clicked() {
+					s.keys = false
+				}
+			})
+		ui.Scroll(c).FillWidth().Shrink(1).MinHeight(0).Children(func() {
+			cols := ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(px(t, 24)).Padding(px(t, 4), t.Space(5), t.Space(5))
+			if width < 760 {
+				cols.Column().Gap(0)
+			}
+			cols.Children(func() {
+				ui.Column(c).Grow(1).Basis(0).FillWidth().Children(func() {
+					s.keyGroup(c, s.text.InTimeline, timeline)
+				})
+				ui.Column(c).Grow(1).Basis(0).FillWidth().Children(func() {
+					s.keyGroup(c, s.text.InReader, reading)
+					s.keyGroup(c, s.text.Anywhere, anywhere)
+				})
+			})
+		})
+	})
+}
+
+func (s *Screen) keyGroup(c *ui.Context, name string, rows []key) {
+	t := c.Theme()
+	ui.Text(c, strings.ToUpper(name)).FontSize(px(t, 11)).FontWeight(600).TextColor(t.TextMuted).
+		Margin(px(t, 12), 0, px(t, 4), 0).Role(ui.RoleHeading).Level(3)
+	for _, row := range rows {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).PaddingY(px(t, 5)).Children(func() {
+			ui.Text(c, row.name).Grow(1).MinWidth(0).FontSize(px(t, 12.5))
+			ui.Row(c).AlignItems(ui.Center).Gap(px(t, 4)).Children(func() {
+				for i, keys := range row.keys {
+					if i > 0 {
+						ui.Text(c, s.text.Or).FontSize(px(t, 11)).TextColor(t.TextMuted)
+					}
+					for _, k := range keys {
+						ui.Box(c).MinWidth(px(t, 22)).Height(px(t, 22)).PaddingX(px(t, 6)).Center().Radius(6).
+							Background(t.Surface).Border(1, t.Border).Children(func() {
+							ui.Text(c, k).FontSize(px(t, 11.5)).NoWrap()
+						})
+					}
+				}
+			})
+		})
 	}
 }
 
@@ -1060,7 +1287,7 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 		item.Background(t.SurfaceHover)
 	}
 	item.Children(func() {
-		monogram(c, src.Kind, name)
+		s.glyph(c, src.Kind, name, src.IconURL)
 		color := t.Text
 		if src.Paused {
 			color = t.TextMuted
@@ -1082,6 +1309,30 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 	if item.Clicked() {
 		s.choose(scope{kind: src.Kind, source: src.ID})
 	}
+}
+
+// glyph is a subscription's site icon, or its monogram while the icon is not decoded and when it has none.
+func (s *Screen) glyph(c *ui.Context, kind, name, icon string) {
+	t := c.Theme()
+	bitmap := s.bitmap(icon)
+	if bitmap == nil {
+		monogram(c, kind, name)
+		return
+	}
+	ui.Box(c).Size(px(t, 16), px(t, 16)).Radius(4).Clip().Children(func() {
+		ui.Image(c, bitmap).Fit(ui.Cover).Fill()
+		ui.Box(c).Absolute().Fill().Radius(4).Border(1, t.Border)
+	})
+}
+
+// iconOf returns the site icon of the subscription id, "" when it has none.
+func (s *Screen) iconOf(id int64) string {
+	for _, src := range s.sources {
+		if src.ID == id {
+			return src.IconURL
+		}
+	}
+	return ""
 }
 
 func monogram(c *ui.Context, kind, name string) {
@@ -1288,7 +1539,7 @@ func (s *Screen) markAllButton(c *ui.Context) {
 	}
 	b.Children(func() { ui.Icon(c, icons.CheckCheck).FontSize(px(t, 16)).TextColor(color) })
 	if b.Clicked() {
-		s.askMarkAll()
+		s.markAll()
 	}
 }
 
@@ -1535,7 +1786,7 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool) {
 		if lead && !e.IsRead {
 			ui.Box(c).Size(6, 6).Radius(3).Background(t.Accent)
 		}
-		monogram(c, e.Kind, e.SourceTitle)
+		s.glyph(c, e.Kind, e.SourceTitle, s.iconOf(e.SourceID))
 		ui.Text(c, e.SourceTitle).FontSize(px(t, 12)).FontWeight(500).SingleLine().MinWidth(0).Shrink(1)
 		ui.Text(c, "·").FontSize(px(t, 12)).TextColor(t.TextMuted)
 		ui.Text(c, s.when(e, now)).FontSize(px(t, 12)).TextColor(t.TextMuted).NoWrap()

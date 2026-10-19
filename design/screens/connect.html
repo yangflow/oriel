@@ -6,13 +6,14 @@
 <!-- Connecting the desktop app to an Oriel server started with `oriel serve`, and signing in again when its session
      ends. Colors are the Oriel palette of design/tokens.md. Icons are Lucide (ISC License). Fields have no
      visible label: the icon and the placeholder show what they are, and each control's accessible name is its
-     Label. The bar above the window only switches the mockup.
+     Label. The window has no title bar; the window buttons sit at its top left (docs/design.md, Title bar).
+     The bar above the window only switches the mockup.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
 <style>
 :root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
 :root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5) }
-:root[data-scheme=dark] { --background:#1b1a18; --surface:#25231f; --surface-hover:#2f2c28; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55) }
+:root[data-scheme=dark] { --background:#161513; --surface:#25231f; --surface-hover:#2f2c28; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55) }
 * { box-sizing:border-box }
 body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
 svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
@@ -22,7 +23,6 @@ svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; s
 
 .window { width:960px; height:640px; border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; background:var(--background) }
 .window.min { width:640px; height:480px }
-.titlebar { height:28px; flex:none; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); background:var(--surface); border-bottom:1px solid var(--border) }
 
 main { flex:1; overflow-y:auto; display:flex; justify-content:center; align-items:safe center; padding:24px }
 .sheet { width:100%; max-width:320px; display:flex; flex-direction:column; gap:24px }
@@ -61,6 +61,41 @@ button:focus-visible { outline:3px solid var(--focus); outline-offset:1px }
 .button:disabled { opacity:.55 }
 .spin { animation:spin .9s linear infinite }
 @keyframes spin { to { transform:rotate(360deg) } }
+/* Window chrome, as macOS 26 draws it: no title bar, the window buttons over the sidebar's top; the sidebar a pane
+   of Liquid Glass floating 8 from the window's edges; the toolbar no bar, its controls capsules of glass floating
+   over the content, which fades under them (the soft scroll edge). */
+:root { --glass:color-mix(in srgb,var(--surface) 72%,transparent); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.8), inset 0 1px 0 rgba(255,255,255,.9), 0 0 0 .5px rgba(0,0,0,.13); --edge:color-mix(in srgb,var(--background) 85%,transparent) }
+:root[data-scheme=dark] { --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.13), inset 0 1px 0 rgba(255,255,255,.11), 0 0 0 .5px rgba(0,0,0,.6) }
+.window { position:relative; border:0; border-radius:16px; box-shadow:0 0 0 .5px rgba(0,0,0,.22), 0 24px 64px rgba(0,0,0,.22) }
+:root[data-scheme=dark] .window { box-shadow:0 0 0 1px rgba(255,255,255,.1), 0 24px 64px rgba(0,0,0,.6) }
+.lights { position:absolute; top:20px; left:20px; z-index:6; display:flex; gap:8px }
+.lights i { width:12px; height:12px; border-radius:50%; box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18) }
+.lights i:nth-child(1) { background:#ff5f57 }
+.lights i:nth-child(2) { background:#febc2e }
+.lights i:nth-child(3) { background:#28c840 }
+aside, .toolbar .segmented, .toolbar .search, .toolbar > .tool, .toolbar .group, .toolbar .back, .toolbar .ghost { background:var(--glass); -webkit-backdrop-filter:blur(24px) saturate(1.6); backdrop-filter:blur(24px) saturate(1.6); box-shadow:var(--glass-rim) }
+aside { margin:8px 0 8px 8px; padding-top:40px; border:0; border-radius:16px }
+.tabs { border-bottom:0; padding-top:0 }
+.server-bar { border-top:0 }
+aside .top { height:36px; border-bottom:0 }
+.main::after { content:""; position:absolute; top:0; left:0; right:0; height:62px; background:linear-gradient(var(--edge),transparent); pointer-events:none; z-index:1 }
+.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; border-bottom:0 }
+.toolbar ~ .scroll { padding-top:52px }
+.toolbar ~ .hint ~ .scroll { padding-top:0 }
+.toolbar + .hint { margin:56px 12px 4px; padding:7px 14px; border:0; border-radius:10px }
+.toolbar .segmented { height:32px; padding:3px; border-radius:16px }
+.toolbar .segmented button { height:26px; padding:0 10px; border-radius:13px }
+.toolbar .segmented button.on { background:var(--background); box-shadow:0 1px 3px rgba(0,0,0,.14) }
+:root[data-scheme=dark] .toolbar .segmented button.on { background:var(--surface-pressed); box-shadow:none }
+.toolbar .search { height:32px; padding:0 6px 0 12px; border:0; border-radius:16px }
+.toolbar .search.focused { box-shadow:var(--glass-rim), 0 0 0 3px var(--focus) }
+.toolbar .search.invalid { box-shadow:var(--glass-rim), inset 0 0 0 1.5px var(--warning) }
+.toolbar > .tool { width:32px; height:32px; border-radius:16px }
+.toolbar .group { flex:none; display:flex; align-items:center; height:32px; padding:0 2px; border-radius:16px }
+.toolbar .group .tool { height:28px; border-radius:14px }
+.toolbar .group + .group { margin-left:8px }
+.toolbar .back { height:32px; padding:0 12px 0 6px; border-radius:16px; color:var(--text) }
+.toolbar .ghost { height:32px; border-radius:16px }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>
@@ -68,7 +103,7 @@ button:focus-visible { outline:3px solid var(--focus); outline-offset:1px }
   <label>lang <select id="lang"><option>en</option><option>zh-Hans</option></select></label>
   <label>size <select id="size"><option>default</option><option>min</option></select></label>
 </div>
-<div class="window" id="window"><div class="titlebar">Oriel</div><main id="app"></main></div>
+<div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><main id="app"></main></div>
 <script>
 const states=['connect','connecting','unreachable','not-oriel','password-required','wrong-password','server-error','expired'];
 const query=new URLSearchParams(location.search);

@@ -52,40 +52,11 @@ func (p *Poller) extractAll(ctx context.Context) {
 
 // extract downloads an article page through the guarded client and returns its main content as HTML.
 func (p *Poller) extract(ctx context.Context, address string) (string, error) {
-	page, err := url.Parse(address)
-	if err != nil || (page.Scheme != "http" && page.Scheme != "https") {
-		return "", fmt.Errorf("not a web address: %q", address)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
+	doc, page, err := p.page(ctx, address)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", p.userAgent)
-	resp, err := p.guarded.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("status %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
-	if err != nil {
-		return "", err
-	}
-	if len(body) > maxBytes {
-		return "", errTooLarge
-	}
-	decoded, err := charset.NewReader(bytes.NewReader(body), resp.Header.Get("Content-Type"))
-	if err != nil {
-		return "", err
-	}
-	doc, err := html.Parse(decoded)
-	if err != nil {
-		return "", err
-	}
-	// Redirects change the page address that relative links resolve against.
-	content, err := articleHTML(doc, resp.Request.URL)
+	content, err := articleHTML(doc, page)
 	if err != nil {
 		return "", err
 	}
@@ -93,6 +64,44 @@ func (p *Poller) extract(ctx context.Context, address string) (string, error) {
 		return "", fmt.Errorf("no readable content")
 	}
 	return content, nil
+}
+
+// page downloads a web page through the guarded client and parses it. The returned address is the one
+// reached after redirects, which relative links resolve against.
+func (p *Poller) page(ctx context.Context, address string) (*html.Node, *url.URL, error) {
+	page, err := url.Parse(address)
+	if err != nil || (page.Scheme != "http" && page.Scheme != "https") {
+		return nil, nil, fmt.Errorf("not a web address: %q", address)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	req.Header.Set("User-Agent", p.userAgent)
+	resp, err := p.guarded.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, fmt.Errorf("status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(body) > maxBytes {
+		return nil, nil, errTooLarge
+	}
+	decoded, err := charset.NewReader(bytes.NewReader(body), resp.Header.Get("Content-Type"))
+	if err != nil {
+		return nil, nil, err
+	}
+	doc, err := html.Parse(decoded)
+	if err != nil {
+		return nil, nil, err
+	}
+	return doc, resp.Request.URL, nil
 }
 
 // articleHTML picks the post a Discourse link points to, and runs Readability on any other page.

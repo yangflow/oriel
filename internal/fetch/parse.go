@@ -18,7 +18,9 @@ const maxImages = 20
 // parsed is a feed reduced to what the store keeps.
 type parsed struct {
 	title, siteURL string
-	entries        []store.FeedEntry
+	// iconURL is the feed's own image, empty when it has none the image proxy can show.
+	iconURL string
+	entries []store.FeedEntry
 }
 
 // parse reads RSS, Atom or JSON Feed. base resolves relative links.
@@ -28,6 +30,11 @@ func parse(body []byte, base *url.URL) (parsed, error) {
 		return parsed{}, err
 	}
 	out := parsed{title: strings.TrimSpace(feed.Title), siteURL: absolute(base, feed.Link)}
+	if feed.Image != nil {
+		if icon := absolute(base, feed.Image.URL); usableIcon(icon, "") {
+			out.iconURL = icon
+		}
+	}
 	for _, item := range feed.Items {
 		link := absolute(base, item.Link)
 		guid := strings.TrimSpace(item.GUID)

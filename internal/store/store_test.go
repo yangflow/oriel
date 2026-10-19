@@ -37,7 +37,7 @@ func TestMigrationsAreRepeatable(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 2 {
+	if version != 3 {
 		t.Fatalf("user_version = %d", version)
 	}
 	var mode string
@@ -318,11 +318,18 @@ func TestEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, err := s.MarkRead(ctx, EntryFilter{UpTo: &upTo}, first); err != nil || n != 2 {
-		t.Fatalf("MarkRead = %d, %v", n, err)
+	marked, err := s.MarkRead(ctx, EntryFilter{UpTo: &upTo}, first)
+	if err != nil || len(marked) != 2 {
+		t.Fatalf("MarkRead = %v, %v", marked, err)
 	}
 	if unread, _ := s.Entries(ctx, EntryFilter{Unread: true}, 10); len(unread) != 1 || unread[0].ID != all[0].ID {
 		t.Fatalf("unread after MarkRead: %v", ids(unread))
+	}
+	if n, err := s.MarkUnread(ctx, append(marked, 99)); err != nil || n != 2 {
+		t.Fatalf("MarkUnread = %d, %v", n, err)
+	}
+	if unread, _ := s.Entries(ctx, EntryFilter{Unread: true}, 10); len(unread) != 3 || !unread[1].ReadAt.IsZero() {
+		t.Fatalf("unread after MarkUnread: %v", ids(unread))
 	}
 	if _, err := s.EntryPosition(ctx, 99); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("position of missing entry: %v", err)

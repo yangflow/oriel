@@ -45,6 +45,7 @@ func remote(t *testing.T) *httptest.Server {
 type fakeHome struct {
 	used      []string
 	refreshed int
+	keys      int
 }
 
 func (h *fakeHome) Use(api timeline.API, server string) {
@@ -52,6 +53,8 @@ func (h *fakeHome) Use(api timeline.API, server string) {
 }
 
 func (h *fakeHome) Refresh() { h.refreshed++ }
+
+func (h *fakeHome) ShowKeys() { h.keys++ }
 
 func (h *fakeHome) View(c *ui.Context) { ui.Text(c, "Home") }
 
@@ -211,6 +214,20 @@ func TestShellSettings(t *testing.T) {
 	tt.Frame()
 	if s.setting || !tt.HasText("Connect to a server") {
 		t.Fatal("the settings opened over the connect screen")
+	}
+}
+
+func TestShellShowKeys(t *testing.T) {
+	s, _, _ := newTestShell(t)
+	home := s.home.(*fakeHome)
+	s.showKeys()
+	if home.keys != 1 {
+		t.Fatalf("keys %d", home.keys)
+	}
+	s.openConnect()
+	s.showKeys()
+	if home.keys != 1 {
+		t.Fatal("the key sheet opened over the connect screen")
 	}
 }
 

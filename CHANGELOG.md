@@ -3,6 +3,17 @@
 release-please writes each release's section from the titles of the pull requests merged since the last one
 (docs/release.md); do not edit it by hand.
 
+### Added
+
+- "Mark all as read" acts at once and shows a toast with Undo for 8 seconds; Undo or Cmd/Ctrl+Z marks those entries unread again. `POST /api/entries/unread` marks entries unread by id.
+- N goes to the next unread entry below the selected one, loading the next page when needed and saying "No unread entries below" when there is none; in the reader it opens the next unread article.
+- A keyboard shortcuts sheet, from `?`, Cmd/Ctrl+/ or "Keyboard Shortcuts" in the new Help menu, lists the keys of the timeline, the reader and the whole window.
+- Subscriptions show their site's icon in the sidebar, the entry rows, the reader and the edit dialog, fetched in the background when a feed is checked; the monogram stays where there is none.
+
+### Changed
+
+- "Mark all as read" no longer asks for confirmation, since it can be undone.
+
 ## [0.1.0] - 2026-10-19
 
 ### Changed

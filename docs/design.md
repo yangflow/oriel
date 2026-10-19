@@ -83,18 +83,23 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `Space(6)`; `Space(6)` between the header, the form and the buttons, `Space(2)` between fields, `Space(1.5)` (6)
   between a field and its error. Fields and buttons are `Space(8)` (32) high; the two buttons share the width
   equally.
-- **The timeline.** A sidebar, a 1 DIP divider and the main column. The sidebar is 212 wide (184 below a 760 wide
-  window) on `Surface`: five kind tabs on top, 44 high, each an icon over its unread count; then the subscriptions
-  of the chosen kind, 28 high rows; at the bottom the server bar, 40 high. The main column has a 48 high toolbar
-  (title, count, the Everything/Unread/Starred segments, search, mark all as read), a divider, and the entries.
-  Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered; images in a social
-  post share a grid at most 440 wide (520 in Social). Videos are a grid of cards at least 200 wide, 16:9 covers;
-  Images are a masonry wall of up to three columns at least 170 wide, each picture at its own aspect ratio.
-  Below a 760 wide window the segments show icons only. Sizes taken from the mockup are written `px(t, n)`, which is
-  `t.Rem(n / 13)`, so they follow the text size. The sidebar's section header, 22 high, ends in a 22 square + button
-  that adds a subscription; it shows even when there are none. A paused subscription has its name in `TextMuted`, a
-  pause mark instead of the failure mark, and no count. With one subscription chosen, a pencil button after the
-  count edits it.
+- **The timeline.** A sidebar and the main column. The sidebar is 212 wide (184 below a 760 wide window), a pane of
+  glass tinted `Surface` floating 8 from the window's top, bottom and left edges, radius 16, with no divider; its first
+  40 are left to the window buttons. Then five kind tabs, 44 high, each an icon over its unread count; then the
+  subscriptions of the chosen kind, 28 high rows; at the bottom the server bar, 40 high. The main column has a 52 high
+  toolbar row (title, count, the Everything/Unread/Starred segments, search, mark all as read) with no bar and no
+  divider: the segments, search and buttons are 32 high capsules of glass floating over the entries, which fade under
+  the row (the soft scroll edge). Article, social and mixed rows sit in one column at most 680 wide (720 for Social),
+  centered; the toolbar's title and buttons line up with that column's edges in a wide window (Videos and Images, which
+  fill the width, keep the 20 inset). Pictures in a social post share a grid at most 440 wide (520 in Social): one
+  picture keeps its aspect ratio, at most 384 wide and 240 high; two sit side by side at 4:3; three or more show the
+  first three as squares in one row, the third covered by "+N" for the rest (labelled "N more pictures"), so a post is
+  never taller than one row of pictures. Videos are a grid of cards at least 200 wide, 16:9 covers; Images are a masonry
+  wall of up to three columns at least 170 wide, each picture at its own aspect ratio. Below a 760 wide window the
+  segments show icons only. Sizes taken from the mockup are written `px(t, n)`, which is `t.Rem(n / 13)`, so they follow
+  the text size. The sidebar's section header, 22 high, ends in a 22 square + button that adds a subscription; it shows
+  even when there are none. A paused subscription has its name in `TextMuted`, a pause mark instead of the failure mark,
+  and no count. With one subscription chosen, a pencil button after the count edits it.
 - **The subscription dialogs.** Dialogs over the timeline on a `RGBA(0,0,0,.28)` backdrop: 440 wide to add, 480 to
   edit, radius 12, `Border` and a soft shadow, at most the window's height less `Space(8)`. A header (a 32 square
   tile or monogram, the title 15 semibold, a 28 square close button), a form that scrolls when the window is too low,
@@ -106,11 +111,16 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   translations", a 12 semibold muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
   Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".
-- **The reader.** It takes the main column's place; the sidebar stays. A 48 high toolbar: "Back to {scope}" (a chevron
-  and the scope's name) at the left; previous, next, a separator, Summarize (sparkles) and Translate (languages), a
-  separator, star (`Warning` when starred), read toggle and open in browser at the right, 28 square buttons,
-  separators 1 DIP. Summarize and Translate are toggles: pressed, they sit on `AccentSoft` in `Accent` and their names
-  become "Hide the summary" and "Show the original". Under the divider the article scrolls, a column at most 680 wide,
+- **The reader.** It takes the main column's place; the sidebar stays. A 52 high toolbar row of glass capsules over the
+  article, as in the timeline: "Back to {scope}" (a chevron and the scope's name) at the left; three capsules at the
+  right, [previous, next], [Summarize (sparkles), Translate (languages)] and [star (`Warning` when starred), read
+  toggle, open in browser], 8 apart, in place of separators;
+  Summarize and Translate carry their names beside the icon (12.5 medium, icon only below a 760
+  wide window), the others are 28 square. The read toggle is an envelope: closed (mail) to mark unread, open
+  (mail-open) to mark read, the same icons as the timeline's row action. Summarize and Translate are toggles: pressed,
+  they sit on `AccentSoft` in `Accent` and their names become "Hide the summary" and "Show the original". In a wide
+  window the toolbar lines up with the article column: the back button's text starts at the column's left edge and
+  the last button ends at its right edge. Under the divider the article scrolls, a column at most 680 wide,
   centered, padded 28/32/48 (20 below a 760 wide window): the source's monogram, name and full date at 12; the title
   at 24 (20 when narrow) weight 650; the note on where the text comes from (`Warning` tint when it is the feed's,
   `Surface` with a spinner while the full text is being got), 12.5, its "Open the original" link underlined; then the
@@ -145,7 +155,7 @@ values are in [design/tokens.md](../design/tokens.md). See
 
   | Role | Use |
   |---|---|
-  | `Background` | window and page fill |
+  | `Background` | window and page fill; in dark mode a step darker than `Surface`, so the sidebars stand apart from the main column |
   | `Surface`, `SurfaceHover`, `SurfacePressed` | faces of controls and cards, and their states |
   | `Border` | outlines and dividers |
   | `Text`, `TextMuted` | primary text; secondary text, hints and placeholders |
@@ -207,12 +217,16 @@ values are in [design/tokens.md](../design/tokens.md). See
   [Image](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/image.md). Download and decode them in the background and
   make each bitmap once, never in the view; until it is ready, keep the image's box at its final size so the timeline
   does not jump. Images that carry meaning get a `Label`; decorative ones do not.
-- **The timeline.** Each kind has an icon (newspaper, play, message circle, image; inbox for All) and a color:
-  `Accent` for articles, `Danger` for videos, `Warning` for social, `Success` for images, used as a soft fill behind a
-  subscription's monogram and on the chosen tab. Row actions are icons only (star, mark read, open in browser) with
-  labels and tooltips, shown on hover and on the focused row. Pictures are downloaded through the server
-  (`/api/image`), at most four at a time, and the 300 most recent bitmaps are kept; a missing picture keeps its box
-  with an image icon. A video cover carries a play mark and the duration, labelled "Duration 12:34".
+- **The timeline.** Each kind has an icon (newspaper, play, message circle, image; inbox for All) and a color: `Accent`
+  for articles, `Danger` for videos, `Warning` for social, `Success` for images, used as a soft fill behind a
+  subscription's monogram and on the chosen tab. A subscription shows its site icon where it has one: a 16 square tile
+  with radius 4 and a 1 px inset rim in `Border`, so a dark icon still reads on the dark sidebar, in the sidebar, the
+  row meta, the reader's meta and the edit dialog header (32 there with radius 8, the size of its monogram). The icon
+  loads through `/api/image` in the background; the monogram stands until it is decoded and stays when there is none or
+  it fails, so nothing jumps. Row actions are icons only (star, mark read, open in browser) with labels and tooltips,
+  shown on hover and on the focused row. Pictures are downloaded through the server (`/api/image`), at most four at a
+  time, and the 300 most recent bitmaps are kept; a missing picture keeps its box with an image icon. A video cover
+  carries a play mark and the duration, labelled "Duration 12:34".
 - **The product icon** is a mixed timeline on a warm ivory tile: a teal rail joins three entries, each a teal dot
   with a title line in ink (`#26231f`) and a shorter summary line in muted gray; the newest entry's dot, at the top,
   is the brightest (`#5eead4` to `#0f766e`). It sits on the macOS grid (an 824 tile at 100 in 1024, radius 185) with
@@ -241,8 +255,10 @@ What Oriel uses today:
 | `ui.SelectBase`, `ui.Switch`, `ui.TextArea` | A subscription's fetch interval, its pause switch and its mute keywords. |
 | `Element.ContextMenu` | Right click on a subscription: Refresh, Edit…, Pause or Resume, Delete…. |
 | `ui.List`, `ui.GridView` | The timeline's rows and its video cards; both build only what is in view. |
-| `ui.AlertDialog` | Confirming "Mark all as read" and deleting a subscription. Its last button, the action, is the default and takes the focus; Escape is Cancel. |
-| `c.Toast`, `c.Announce` | Feedback after starring, marking and failures; counts announced without moving the focus. |
+| `ui.AlertDialog` | Confirming deleting a subscription, which cannot be undone. Its last button, the action, is the default and takes the focus; Escape is Cancel. |
+| `c.Toast`, `c.Announce` | Feedback after starring, marking and failures, and "No unread entries below"; counts announced without moving the focus. |
+| `c.ToastAction` | "Mark all as read" acts at once and offers Undo here, with a close button; Cmd/Ctrl+Z undoes it while the toast shows. The toast is centered at the bottom in `Inverse` on `InverseText`. |
+| `ui.DialogBase` (key sheet) | The keyboard shortcut sheet, drawn like the subscription dialogs: two columns (timeline, reader) and an "Anywhere" group below, each key a small chip; one column below a 760 wide window. Escape or Close dismisses it. |
 
 The tables below say what to reach for as screens are added.
 
@@ -331,11 +347,18 @@ Overlays share focus and Escape behavior; see
   window to the front. See
   [Windows with native UI](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/windows.md) and the
   [window options](https://github.com/egoist/mygo/blob/v0.4.1/docs/windows.md).
-- **Title bar.** Keep the system title bar. A hidden title bar (`TitleBarStyle: mygo.TitleBarHidden`) makes the view
-  responsible for the room the window controls take (`c.TitleBar()`) and for a draggable area (`DragWindow`); use it
-  only with a mockup that shows why.
-- **Vibrancy and materials.** macOS vibrancy shows where the view draws no background; if used at all, use it for a
-  sidebar only, over opaque content. Oriel uses opaque theme surfaces and no custom glass.
+- **Title bar.** No title bar: `TitleBarStyle: mygo.TitleBarHidden`, the macOS window buttons placed with
+  `TrafficLightPosition` so they sit over the sidebar's top, centered in the 52 high toolbar row. The view then owns
+  the room the window controls take (`c.TitleBar()`: on Windows the caption buttons at the right, which the toolbar
+  leaves free) and the draggable area: the toolbar row's empty space and the sidebar's top call `DragWindow`. The
+  window's name stays set (`Title`) for the Window menu, the Dock and screen readers.
+- **Liquid Glass.** Oriel draws its chrome in glass, after macOS 26: the sidebar is a floating pane of
+  `glass.Glass{Tint: Surface}` (the [glass plugin](https://github.com/egoist/mygo/blob/v0.4.1/docs/plugins/glass.md)),
+  the toolbar's controls are capsules of `glass.Glass{}`, and `glass.ScrollEdge{}` fades content under the toolbar
+  row. Content stays on opaque `Background`; glass is for chrome only, never for entries, the article or dialogs.
+  Text on glass keeps the theme's contrast, and with Reduce Transparency on (or high contrast) glass becomes opaque
+  `Surface` with a `Border` rim. The plugin draws the same glass on Windows and Linux, so the look is one on every
+  platform; no system vibrancy is used.
 - **Menus.** The macOS menu bar belongs to the app. Oriel's menu has an app menu (About, check for updates, Quit),
   the Edit menu (`RoleEditMenu`, so copy and paste work) and the Window menu (`RoleWindowMenu`); "Connect to
   Server…" in the app menu opens the connect screen and "Settings…" (Cmd/Ctrl+,) the settings. Use roles
@@ -353,19 +376,23 @@ Overlays share focus and Escape behavior; see
   browser. Say so in the control ("Open in browser"), not only with an icon.
 - **Toolbar.** Frequent window-level commands, in order of importance; controls that do not fit overflow into a menu.
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.
-- **Timeline keys.** J or Down and K or Up move between entries, O or Enter opens the chosen one (an article in the
+- **Timeline keys.** J or Down and K or Up move between entries, N goes to the next unread entry below the chosen one
+  (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in the
   reader, anything else in the browser) and marks it read, S stars it, M toggles read, `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
   window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
-  Cmd/Ctrl+N adds a subscription.
+  Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+Z undoes "Mark all as read" while its toast shows, and `?` or Cmd/Ctrl+/
+  opens the key sheet, which the Help menu also lists as "Keyboard Shortcuts".
   Every entry is also a focusable element with its own name, so Tab reaches it.
-- **Reader keys.** While the reader shows, J and K go to the next and previous article, S stars, M toggles read, O
+- **Reader keys.** While the reader shows, J and K go to the next and previous article, N to the next unread one (a
+  toast when there is none, staying on this article), S stars, M toggles read, O
   opens the original in the browser and Escape goes back to the list, the entry it opened from focused. The article
   takes the focus when it opens, so the arrows, Space, Page Up/Down and Home/End scroll it, and Tab goes through its
   links. Every toolbar button names its key in the tooltip.
 - **Settings.** The settings take the whole window, in place of the timeline: their own sidebar has "Back to the
   timeline" on top, one item per group (Fetching, Import and export, AI, Devices) and the server bar, which says whose
   settings these are and does not open the connect screen. They open from the gear beside the timeline's server bar
-  or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. A setting is saved
+  or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. The page's toolbar title lines up with its
+  content column, at most 600 wide, in a wide window. A setting is saved
   where it is changed: the RSSHub instance with its Save button or Enter, the retention as soon as another is
   chosen; the line under it says it was saved, or why not, and a refused value keeps the focus in its field. OPML
   files are chosen and saved with the system's file dialogs, read and sent in the background; the result stays

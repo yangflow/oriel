@@ -17,6 +17,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
 var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
@@ -32,6 +33,7 @@ type fake struct {
 	queries  []client.Query
 	patches  map[int64][]client.EntryPatch
 	marked   []client.ReadScope
+	unmarked [][]int64
 	pictures []string
 	articles []int64 // the entries asked for in full
 
@@ -73,22 +75,48 @@ func (f *fake) SetEntry(_ context.Context, id int64, patch client.EntryPatch) (c
 	return client.Entry{}, f.setErr
 }
 
-func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) (int, error) {
+func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) ([]int64, error) {
 	f.marked = append(f.marked, scope)
+	if f.markErr != nil {
+		return nil, f.markErr
+	}
+	var ids []int64
+	for i, e := range f.entries {
+		if !e.IsRead && e.ID <= scope.UpTo && (scope.Kind == "" || e.Kind == scope.Kind) {
+			f.entries[i].IsRead = true
+			ids = append(ids, e.ID)
+		}
+	}
+	f.count()
+	return ids, nil
+}
+
+func (f *fake) MarkUnread(_ context.Context, ids []int64) (int, error) {
+	f.unmarked = append(f.unmarked, ids)
 	if f.markErr != nil {
 		return 0, f.markErr
 	}
 	n := 0
 	for i, e := range f.entries {
-		if !e.IsRead && e.ID <= scope.UpTo && (scope.Kind == "" || e.Kind == scope.Kind) {
-			f.entries[i].IsRead = true
+		if e.IsRead && slices.Contains(ids, e.ID) {
+			f.entries[i].IsRead = false
 			n++
 		}
 	}
+	f.count()
+	return n, nil
+}
+
+// count sets the unread counts of the sources from the entries.
+func (f *fake) count() {
 	for i := range f.sources {
 		f.sources[i].UnreadCount = 0
+		for _, e := range f.entries {
+			if e.SourceID == f.sources[i].ID && !e.IsRead {
+				f.sources[i].UnreadCount++
+			}
+		}
 	}
-	return n, nil
 }
 
 func (f *fake) Entry(_ context.Context, id int64) (client.Article, error) {
@@ -219,7 +247,7 @@ func setup(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 	sources, entries := sample()
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New(language, f.deps())
-	tt := ui.NewTester(s.View, 1100, 800)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -727,12 +755,6 @@ func TestMarkAllRead(t *testing.T) {
 	if err := tt.Click("Mark all as read"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Mark 5 entries in “All” as read?") {
-		t.Fatalf("texts %v", tt.Texts())
-	}
-	if err := tt.Click("Mark as read"); err != nil {
-		t.Fatal(err)
-	}
 	f.settle(t, tt)
 	if !reflect.DeepEqual(f.marked, []client.ReadScope{{UpTo: 8}}) {
 		t.Fatalf("marked %v", f.marked)
@@ -742,8 +764,165 @@ func TestMarkAllRead(t *testing.T) {
 			t.Fatalf("still unread: %v", e)
 		}
 	}
-	if !slices.Contains(tt.Announcements(), "Marked 5 as read") || s.canMarkAll() {
+	if !slices.Contains(tt.Announcements(), "Marked 5 entries in “All” as read") || s.canMarkAll() {
 		t.Fatalf("announcements %v", tt.Announcements())
+	}
+	if err := tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.unmarked, [][]int64{{8, 7, 6, 5, 3}}) {
+		t.Fatalf("unmarked %v", f.unmarked)
+	}
+	if s.unreadIn(s.scope) != 5 || tt.HasText("Undo") || s.undoable != nil {
+		t.Fatalf("unread %d, texts %v", s.unreadIn(s.scope), tt.Texts())
+	}
+}
+
+func TestUndoWithKey(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	tt.Key(ui.Cmd, ui.KeyZ)
+	f.settle(t, tt)
+	if len(f.unmarked) != 0 {
+		t.Fatalf("undid nothing: %v", f.unmarked)
+	}
+	if err := tt.Click("Mark all as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Key(ui.Cmd, ui.KeyZ)
+	f.settle(t, tt)
+	if len(f.unmarked) != 1 || s.unreadIn(s.scope) != 5 || tt.HasText("Undo") {
+		t.Fatalf("unmarked %v, texts %v", f.unmarked, tt.Texts())
+	}
+	tt.Key(ui.Cmd, ui.KeyZ)
+	f.settle(t, tt)
+	if len(f.unmarked) != 1 {
+		t.Fatalf("undid twice: %v", f.unmarked)
+	}
+}
+
+func TestUndoDismissed(t *testing.T) {
+	_, f, tt := setup(t, "en")
+	if err := tt.Click("Mark all as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.Click("Dismiss"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyZ)
+	f.settle(t, tt)
+	if len(f.unmarked) != 0 || tt.HasText("Undo") {
+		t.Fatalf("unmarked %v, texts %v", f.unmarked, tt.Texts())
+	}
+}
+
+func TestUndoFails(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.Click("Mark all as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	f.markErr = errors.New("offline")
+	if err := tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if s.unreadIn(s.scope) != 0 || !slices.Contains(tt.Announcements(), "Couldn’t save the change") {
+		t.Fatalf("unread %d, announcements %v", s.unreadIn(s.scope), tt.Announcements())
+	}
+}
+
+func TestNextUnread(t *testing.T) {
+	s, _, tt := setup(t, "en")
+	tt.Key(0, ui.KeyN)
+	if s.selected != 0 {
+		t.Fatalf("selected %d", s.selected)
+	}
+	tt.Key(0, ui.KeyN)
+	tt.Key(0, ui.KeyN)
+	tt.Key(0, ui.KeyN)
+	if s.selected != 3 {
+		t.Fatalf("selected %d", s.selected)
+	}
+	tt.Key(0, ui.KeyN)
+	if s.selected != 5 {
+		t.Fatalf("skipped the read entry badly: selected %d", s.selected)
+	}
+	tt.Key(0, ui.KeyN)
+	tt.Frame()
+	if s.selected != 5 || !slices.Contains(tt.Announcements(), "No unread entries below") {
+		t.Fatalf("selected %d, announcements %v", s.selected, tt.Announcements())
+	}
+}
+
+func TestNextUnreadLoadsMore(t *testing.T) {
+	sources, _ := sample()
+	var entries []client.Entry
+	for i := 120; i > 0; i-- {
+		entries = append(entries, client.Entry{ID: int64(i), SourceID: 1, SourceTitle: "Go Blog", Kind: "article",
+			Title: fmt.Sprintf("Entry %d", i), URL: fmt.Sprintf("https://go.dev/%d", i), IsRead: i > 10,
+			CreatedAt: ago(time.Duration(121-i) * time.Minute)})
+	}
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	f.count()
+	s := New("en", f.deps())
+	tt := ui.NewTester(s.View, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	if len(s.entries) != pageSize {
+		t.Fatalf("%d entries", len(s.entries))
+	}
+	tt.Key(0, ui.KeyN)
+	f.settle(t, tt)
+	if len(s.entries) <= pageSize || s.entries[s.selected].ID != 10 {
+		t.Fatalf("%d entries, selected %d", len(s.entries), s.selected)
+	}
+}
+
+func TestNextUnreadInReader(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.read(0)
+	f.settle(t, tt)
+	tt.Key(0, ui.KeyN)
+	f.settle(t, tt)
+	if s.reading != 3 {
+		t.Fatalf("reading %d", s.reading)
+	}
+}
+
+func TestKeySheet(t *testing.T) {
+	s, _, tt := setup(t, "en")
+	tt.TypeKey(ui.Shift, ui.KeySlash, "?")
+	tt.Frame()
+	if !s.keys || !tt.HasText("Keyboard shortcuts") || !tt.HasText("Next unread") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if s.keys || tt.HasText("Keyboard shortcuts") {
+		t.Fatal("still open")
+	}
+	tt.Key(ui.Cmd, ui.KeySlash)
+	tt.Frame()
+	if !s.keys {
+		t.Fatal("Cmd+/ did not open it")
+	}
+	if err := tt.Click("Close"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if s.keys {
+		t.Fatal("still open")
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("?")
+	tt.Frame()
+	if s.keys {
+		t.Fatal("? opened the sheet while typing")
 	}
 }
 
@@ -875,5 +1054,25 @@ func TestAddFirst(t *testing.T) {
 	f.settle(t, tt)
 	if !s.subs.Open() {
 		t.Fatal("Cmd+N does not open the add dialog")
+	}
+}
+
+func TestSiteIcons(t *testing.T) {
+	sources, entries := sample()
+	sources[0].IconURL = "https://go.dev/favicon.ico"
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New("en", f.deps())
+	tt := ui.NewTester(s.View, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	if !slices.Contains(f.pictures, "https://go.dev/favicon.ico") {
+		t.Fatalf("pictures %v", f.pictures)
+	}
+	if p := s.pictures["https://go.dev/favicon.ico"]; p == nil || p.bitmap == nil {
+		t.Fatal("the icon is not decoded")
+	}
+	if s.iconOf(1) != "https://go.dev/favicon.ico" || s.iconOf(2) != "" {
+		t.Fatalf("icons %q %q", s.iconOf(1), s.iconOf(2))
 	}
 }

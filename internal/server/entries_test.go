@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
@@ -124,12 +125,26 @@ func TestTimeline(t *testing.T) {
 	videos := decode(t, do(s, "GET", "/api/entries?kind=video", "", bearer(token)))["entries"].([]any)
 	oldestVideo := int(videos[1].(map[string]any)["id"].(float64))
 	w = do(s, "POST", "/api/entries/read", fmt.Sprintf(`{"upTo":%d}`, oldestVideo), bearer(token))
-	if w.Code != http.StatusOK || decode(t, w)["marked"] != 3.0 {
+	marked := decode(t, w)
+	if w.Code != http.StatusOK || marked["marked"] != 3.0 || len(marked["ids"].([]any)) != 3 {
 		t.Fatalf("mark read: %d %s", w.Code, w.Body)
 	}
 	if got := titles(t, decode(t, do(s, "GET", "/api/entries?unread=1", "", bearer(token)))); fmt.Sprint(got) != "[social 0 video 1]" {
 		t.Fatalf("unread: %v", got)
 	}
+	undo, _ := json.Marshal(map[string]any{"ids": marked["ids"]})
+	if w := do(s, "POST", "/api/entries/unread", string(undo), bearer(token)); w.Code != http.StatusOK || decode(t, w)["marked"] != 3.0 {
+		t.Fatalf("undo: %d %s", w.Code, w.Body)
+	}
+	if got := titles(t, decode(t, do(s, "GET", "/api/entries?unread=1", "", bearer(token)))); len(got) != 5 {
+		t.Fatalf("unread after undo: %v", got)
+	}
+	for _, body := range []string{`{"ids":[]}`, `{}`, `{"ids":"1"}`} {
+		if w := do(s, "POST", "/api/entries/unread", body, bearer(token)); w.Code != http.StatusBadRequest {
+			t.Errorf("unread %s: %d", body, w.Code)
+		}
+	}
+	do(s, "POST", "/api/entries/read", fmt.Sprintf(`{"upTo":%d}`, oldestVideo), bearer(token))
 	if w := do(s, "POST", "/api/entries/read", `{"kind":"social"}`, bearer(token)); decode(t, w)["marked"] != 1.0 {
 		t.Fatalf("mark social read: %s", w.Body)
 	}

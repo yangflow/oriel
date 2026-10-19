@@ -65,11 +65,13 @@ type API interface {
 // returns on the UI thread; Now is the clock, time.Now by default. Sources are the subscriptions the timeline has,
 // to name the one an address is already followed as. Added, Changed and Removed tell the timeline what the server
 // took, Show chooses a subscription in it, OpenSettings opens the AI group of the settings, and Expired shows the
-// connect screen because the server no longer takes the session.
+// connect screen because the server no longer takes the session. Icon returns a site icon once the timeline has
+// decoded it, nil until then.
 type Deps struct {
 	Go           func(work func() (apply func()))
 	Now          func() time.Time
 	Sources      func() []client.Source
+	Icon         func(address string) *ui.Bitmap
 	Added        func(client.Source)
 	Changed      func(client.Source)
 	Removed      func(id int64)
@@ -746,6 +748,24 @@ func tile(c *ui.Context, icon *ui.SVG) {
 	})
 }
 
+// glyph is the site icon of src, in a tile with a rim, or its monogram while the icon is not decoded or when it has
+// none.
+func (s *Screen) glyph(c *ui.Context, kind string, src client.Source) {
+	t := c.Theme()
+	var icon *ui.Bitmap
+	if src.IconURL != "" && s.deps.Icon != nil {
+		icon = s.deps.Icon(src.IconURL)
+	}
+	if icon == nil {
+		monogram(c, kind, Name(src))
+		return
+	}
+	ui.Box(c).Size(px(t, 32), px(t, 32)).Radius(8).Clip().Children(func() {
+		ui.Image(c, icon).Fit(ui.Cover).Fill()
+		ui.Box(c).Absolute().Fill().Radius(8).Border(1, t.Border)
+	})
+}
+
 func monogram(c *ui.Context, kind, name string) {
 	t := c.Theme()
 	letter := "·"
@@ -1041,7 +1061,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		where = e.src.RSSHubPath
 	}
 	s.dialog(c, &e.open, 480, s.text.EditTitle, func() {
-		s.header(c, &e.open, func() { monogram(c, kinds[e.kind], Name(e.src)) }, s.text.EditTitle, where)
+		s.header(c, &e.open, func() { s.glyph(c, kinds[e.kind], e.src) }, s.text.EditTitle, where)
 	}, func() {
 		s.health(c)
 		focus := e.focus

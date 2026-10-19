@@ -175,18 +175,55 @@ func (s *Store) UpdateEntry(ctx context.Context, id int64, patch EntryPatch, now
 	return s.Entry(ctx, id)
 }
 
-// MarkRead marks every unread entry matching the filter as read and returns how many changed.
-func (s *Store) MarkRead(ctx context.Context, filter EntryFilter, now time.Time) (int64, error) {
+// MarkRead marks every unread entry matching the filter as read and returns the IDs it changed, so the change can be
+// undone with MarkUnread.
+func (s *Store) MarkRead(ctx context.Context, filter EntryFilter, now time.Time) ([]int64, error) {
 	filter.Unread = true
 	where, args := filter.where()
-	result, err := s.db.ExecContext(ctx, `
+	rows, err := s.db.QueryContext(ctx, `
 		UPDATE entries SET is_read = 1, read_at = ? WHERE id IN (
-			SELECT e.id FROM entries e JOIN sources s ON s.id = e.source_id WHERE `+where+")",
+			SELECT e.id FROM entries e JOIN sources s ON s.id = e.source_id WHERE `+where+") RETURNING id",
 		append([]any{now.UnixMilli()}, args...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// MarkUnread marks the read entries among ids as unread and returns how many changed. Unknown IDs are skipped.
+func (s *Store) MarkUnread(ctx context.Context, ids []int64) (int64, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
-	return result.RowsAffected()
+	defer tx.Rollback()
+	statement, err := tx.PrepareContext(ctx, "UPDATE entries SET is_read = 0, read_at = NULL WHERE id = ? AND is_read = 1")
+	if err != nil {
+		return 0, err
+	}
+	defer statement.Close()
+	var marked int64
+	for _, id := range ids {
+		result, err := statement.ExecContext(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return 0, err
+		}
+		marked += n
+	}
+	return marked, tx.Commit()
 }
 
 // EntryPosition returns where an entry sits on the timeline.
