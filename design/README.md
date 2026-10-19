@@ -10,6 +10,9 @@ what counts.
 |---|---|
 | `screens/<screen>.html` | One self-contained mockup per screen: static HTML and CSS, no external resources |
 | `tokens.md` | Spacing, size, color and motion values, mapped to MyGo theme roles |
+| `icon.svg` | The product icon's source |
+| `icon.html` | The product icon at every size it ships, on light and dark, in a Dock and a taskbar |
+| `export-icon.sh` | Renders `icon.svg` to `resources/icon.png` with Chrome |
 
 The connect screen (`screens/connect.html`), the timeline (`screens/timeline.html`, home), the subscription dialogs
 over it (`screens/subscriptions.html`), the reader (`screens/reader.html`) and the settings (`screens/settings.html`)
@@ -53,7 +56,11 @@ Mockup, design notes and code go in the same pull request.
 
 ## Icons
 
-Interface icons are Lucide, kept in `internal/ui/icons/lucide/`; mockups inline the same SVG paths. The product icon
-is still to be designed. When it lands, its source and the script that exports it will live here.
+Interface icons are Lucide, kept in `internal/ui/icons/lucide/`; mockups inline the same SVG paths.
+
+The product icon's source is `icon.svg`. After changing it, run `design/export-icon.sh` (it needs Google Chrome, or
+a Chromium-based browser given as `CHROME`) and commit `resources/icon.png` with it; `mygo build` makes every
+platform's icon from that PNG. Check the result in `icon.html`. MyGo does not draw SVG filters, which is why the app
+uses the PNG.
 
 Screenshots go in the pull request body, not into the repository; `design/screenshots/` is ignored by git.

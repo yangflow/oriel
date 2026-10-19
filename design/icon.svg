@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Oriel's product icon: a mixed timeline on a warm ivory tile, on the macOS grid (824 tile at 100, radius 185).
+       A teal rail joins three entries, each a teal dot with a title line in ink and a summary line in muted gray; the
+       newest entry's dot is the brightest. Drawn for Oriel and released under the project's MIT license.
+       design/export-icon.sh renders it to resources/icon.png. -->
+  <defs>
+    <linearGradient id="field" x1="0" y1="0" x2=".2" y2="1">
+      <stop offset="0" stop-color="#fdfcf9"/><stop offset=".55" stop-color="#f4f1ea"/><stop offset="1" stop-color="#e6e0d5"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx=".22" cy=".1" r=".8">
+      <stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".3" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".7" stop-color="#8a8070" stop-opacity="0"/><stop offset="1" stop-color="#8a8070" stop-opacity=".35"/>
+    </linearGradient>
+    <radialGradient id="dot" cx=".38" cy=".32" r=".75">
+      <stop offset="0" stop-color="#2aa497"/><stop offset="1" stop-color="#0b5f58"/>
+    </radialGradient>
+    <radialGradient id="new" cx=".38" cy=".32" r=".75">
+      <stop offset="0" stop-color="#5eead4"/><stop offset=".55" stop-color="#14b8a6"/><stop offset="1" stop-color="#0f766e"/>
+    </radialGradient>
+    <filter id="tile-shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity=".28"/>
+    </filter>
+    <filter id="lift" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#3b2f1e" flood-opacity=".22"/>
+    </filter>
+  </defs>
+  <g filter="url(#tile-shadow)"><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#field)"/></g>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
+  <rect x="102" y="102" width="820" height="820" rx="183" fill="none" stroke="url(#rim)" stroke-width="4"/>
+  <path d="M312 274V706" stroke="#0f766e" stroke-opacity=".3" stroke-width="20" stroke-linecap="round"/>
+  <g filter="url(#lift)">
+    <circle cx="312" cy="274" r="44" fill="url(#new)"/>
+    <circle cx="312" cy="490" r="40" fill="url(#dot)"/>
+    <circle cx="312" cy="706" r="40" fill="url(#dot)"/>
+    <g stroke="#26231f" stroke-width="54" stroke-linecap="round"><path d="M410 274H738"/><path d="M410 490H676"/><path d="M410 706H706"/></g>
+  </g>
+  <g stroke="#aaa39b" stroke-width="32" stroke-linecap="round"><path d="M410 346H626"/><path d="M410 562H566"/><path d="M410 778H606"/></g>
+</svg>

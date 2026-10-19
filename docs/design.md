@@ -213,7 +213,12 @@ values are in [design/tokens.md](../design/tokens.md). See
   labels and tooltips, shown on hover and on the focused row. Pictures are downloaded through the server
   (`/api/image`), at most four at a time, and the 300 most recent bitmaps are kept; a missing picture keeps its box
   with an image icon. A video cover carries a play mark and the duration, labelled "Duration 12:34".
-- The product icon is still to be designed (see [design/README.md](../design/README.md)).
+- **The product icon** is a mixed timeline on a warm ivory tile: a teal rail joins three entries, each a teal dot
+  with a title line in ink (`#26231f`) and a shorter summary line in muted gray; the newest entry's dot, at the top,
+  is the brightest (`#5eead4` to `#0f766e`). It sits on the macOS grid (an 824 tile at 100 in 1024, radius 185) with
+  transparent corners, so every platform shows the same rounded tile. It was drawn for Oriel and is MIT licensed with
+  the rest of the project. The source is [design/icon.svg](../design/icon.svg); see
+  [design/README.md](../design/README.md) for exporting it.
 
 ## Component guide
 
