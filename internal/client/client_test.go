@@ -173,7 +173,9 @@ func TestTimelineAPI(t *testing.T) {
 		case "/api/entries/7":
 			w.Write([]byte(`{"id":7,"starred":true,"extractStatus":"ok","contentHtml":"<p>x</p>","extractedHtml":"<p>y</p>"}`))
 		case "/api/entries/read":
-			w.Write([]byte(`{"marked":4}`))
+			w.Write([]byte(`{"marked":2,"ids":[7,8]}`))
+		case "/api/entries/unread":
+			w.Write([]byte(`{"marked":2}`))
 		case "/api/image":
 			w.Write([]byte("PNG"))
 		case "/api/sources/5", "/api/sources/5/refresh":
@@ -216,8 +218,12 @@ func TestTimelineAPI(t *testing.T) {
 	if entry, err := session.SetEntry(ctx, 7, EntryPatch{Starred: &starred}); err != nil || !entry.Starred {
 		t.Errorf("SetEntry = %+v, %v", entry, err)
 	}
-	if marked, err := session.MarkRead(ctx, ReadScope{Kind: "video", UpTo: 7}); err != nil || marked != 4 {
-		t.Errorf("MarkRead = %d, %v", marked, err)
+	ids, err := session.MarkRead(ctx, ReadScope{Kind: "video", UpTo: 7})
+	if err != nil || len(ids) != 2 || ids[0] != 7 || ids[1] != 8 {
+		t.Errorf("MarkRead = %v, %v", ids, err)
+	}
+	if marked, err := session.MarkUnread(ctx, ids); err != nil || marked != 2 {
+		t.Errorf("MarkUnread = %d, %v", marked, err)
 	}
 	if body, err := session.Image(ctx, "https://i/1.jpg?w=2&h=1"); err != nil || string(body) != "PNG" {
 		t.Errorf("Image = %q, %v", body, err)
@@ -254,6 +260,7 @@ func TestTimelineAPI(t *testing.T) {
 		"GET /api/entries/7 ",
 		`PATCH /api/entries/7 {"starred":true}`,
 		`POST /api/entries/read {"kind":"video","upTo":7}`,
+		`POST /api/entries/unread {"ids":[7,8]}`,
 		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",
 		`POST /api/sources {"rsshubPath":"/x/y","kind":"social"}`,
 		`PATCH /api/sources/5 {"title":"New","paused":true}`,

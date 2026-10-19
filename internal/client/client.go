@@ -283,6 +283,7 @@ type Source struct {
 	URL                 string `json:"url"`
 	RSSHubPath          string `json:"rsshubPath"`
 	Title               string `json:"title"`
+	IconURL             string `json:"iconUrl"`
 	Kind                string `json:"kind"`
 	FetchIntervalSec    int64  `json:"fetchIntervalSec"`
 	NextFetchAt         int64  `json:"nextFetchAt"`
@@ -567,12 +568,21 @@ func (s Session) SetEntry(ctx context.Context, id int64, patch EntryPatch) (Entr
 	return entry, err
 }
 
-// MarkRead marks the unread entries of a scope as read and returns how many it marked.
-func (s Session) MarkRead(ctx context.Context, scope ReadScope) (int, error) {
+// MarkRead marks the unread entries of a scope as read and returns the IDs it marked, which MarkUnread takes to undo it.
+func (s Session) MarkRead(ctx context.Context, scope ReadScope) ([]int64, error) {
+	var reply struct {
+		IDs []int64 `json:"ids"`
+	}
+	err := s.call(ctx, http.MethodPost, "/api/entries/read", scope, &reply)
+	return reply.IDs, err
+}
+
+// MarkUnread marks the given entries unread again and returns how many changed.
+func (s Session) MarkUnread(ctx context.Context, ids []int64) (int, error) {
 	var reply struct {
 		Marked int `json:"marked"`
 	}
-	err := s.call(ctx, http.MethodPost, "/api/entries/read", scope, &reply)
+	err := s.call(ctx, http.MethodPost, "/api/entries/unread", map[string][]int64{"ids": ids}, &reply)
 	return reply.Marked, err
 }
 

@@ -22,6 +22,7 @@ const sessionFile = "remote.json"
 type home interface {
 	Use(api timeline.API, server string)
 	Refresh()
+	ShowKeys()
 	View(c *ui.Context)
 }
 
@@ -125,6 +126,14 @@ func (s *shell) openConnect() {
 	s.showing = true
 }
 
+// showKeys shows the key sheet, from the menu, when the timeline shows.
+func (s *shell) showKeys() {
+	if s.showing || s.setting {
+		return
+	}
+	s.home.ShowKeys()
+}
+
 // openSettings shows the settings, from the menu or the timeline, unless the connect screen shows.
 func (s *shell) openSettings() {
 	if s.showing || s.setting {
@@ -196,4 +205,5 @@ func (s *shell) View(c *ui.Context) {
 	default:
 		s.home.View(c)
 	}
+	theme.Toasts(c)
 }

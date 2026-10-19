@@ -11,14 +11,23 @@
      All, Articles and Social are one column; Videos become a cover grid and Images a masonry wall. The kinds are
      a row of icon tabs on top of the sidebar, which then lists only that kind's subscriptions. The server bar at the
      bottom opens the connect screen; the gear beside it opens the settings.
+     A social post's pictures stay low: one keeps its own ratio up to 240 high, two sit side by side, three or more
+     are one row of three squares, the third covered with +N for the rest. Over a column, the toolbar lines its title
+     and controls up with the column's edges, so a wide window keeps them together (size=wide).
+     The window has no title bar: the window buttons sit over the sidebar's top, the sidebar is a floating pane of
+     Liquid Glass and the toolbar's controls are glass capsules over the content (docs/design.md, Title bar).
+     Mark all as read acts at once and offers Undo in a toast (marked-read), never a confirmation. N goes to the next
+     unread entry; no-more-unread is what it says when there is none below. ? opens the keyboard shortcuts (keys).
+     Site icons replace the monogram where a subscription has one; the ones here are generic stand-ins, not the
+     sites' real icons, and The Go Blog shows the monogram a subscription without an icon keeps.
      The bar above the window only switches the mockup.
      URL parameters: state, scope=all|article|video|social|image|source, scheme=light|dark, lang=en|zh-Hans,
-     size=default|min. -->
+     size=default|min|wide. -->
 <style>
 :root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
 :root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --surface-pressed:#dfdbd2; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5); --star:#a16207 }
-:root[data-scheme=dark] { --background:#1b1a18; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55); --star:#facc15 }
+:root[data-scheme=dark] { --background:#161513; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55); --star:#facc15 }
 * { box-sizing:border-box }
 body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
 svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
@@ -31,7 +40,7 @@ button:focus-visible { outline:3px solid var(--focus); outline-offset:1px }
 
 .window { position:relative; width:960px; height:640px; border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; background:var(--background) }
 .window.min { width:640px; height:480px }
-.titlebar { height:28px; flex:none; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); background:var(--surface); border-bottom:1px solid var(--border) }
+.window.wide { width:1280px; height:760px }
 .body { flex:1; min-height:0; display:flex }
 
 /* Sidebar */
@@ -59,6 +68,8 @@ aside { width:212px; flex:none; display:flex; flex-direction:column; background:
 /* Toolbar */
 .main { flex:1; min-width:0; display:flex; flex-direction:column; position:relative }
 .toolbar { flex:none; height:48px; display:flex; align-items:center; gap:8px; padding:0 12px 0 20px; border-bottom:1px solid var(--border) }
+.toolbar.aligned { --col:680px; padding-left:max(20px,calc((100% - var(--col))/2 + 20px)); padding-right:max(12px,calc((100% - var(--col))/2 + 12px)) }
+.toolbar.aligned.wide { --col:720px }
 .toolbar h1 { margin:0; font-size:15px; font-weight:600; white-space:nowrap }
 .toolbar .sub { color:var(--muted); font-size:12px; white-space:nowrap; font-variant-numeric:tabular-nums }
 .spacer { flex:1 }
@@ -115,14 +126,13 @@ mark { background:var(--warning-soft); color:inherit; border-radius:3px; padding
 .grid { display:grid; gap:4px; margin-top:6px; border-radius:10px; overflow:hidden; max-width:440px }
 .grid.n1 { grid-template-columns:1fr }
 .grid.n2 { grid-template-columns:1fr 1fr }
-.grid.n4 { grid-template-columns:1fr 1fr }
+.grid.n3 { grid-template-columns:1fr 1fr 1fr }
 .grid .pic { border-radius:0; aspect-ratio:4/3 }
-.grid.n1 .pic { aspect-ratio:16/10 }
-.gallery { display:grid; grid-template-columns:2fr 1fr; gap:4px; margin-top:6px; border-radius:10px; overflow:hidden }
-.gallery .pic { border-radius:0 }
-.gallery .big { grid-row:span 2; aspect-ratio:4/3.1 }
-.gallery .more { position:relative }
-.gallery .more b { position:absolute; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.45); color:#fff; font-size:15px; font-weight:600 }
+.grid.n3 .pic { aspect-ratio:1 }
+.grid.n1 { max-width:384px }
+.grid.n1 .pic { aspect-ratio:16/10; max-height:240px }
+.grid .more { position:relative }
+.grid .more b { position:absolute; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.5); color:#fff; font-size:17px; font-weight:600; font-variant-numeric:tabular-nums }
 .single { margin-top:6px; aspect-ratio:3/2; max-height:340px; border-radius:10px }
 
 .actions { position:absolute; right:10px; top:10px; display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--background); box-shadow:0 0 0 1px var(--border), 0 2px 8px rgba(0,0,0,.08); visibility:hidden }
@@ -171,6 +181,31 @@ mark { background:var(--warning-soft); color:inherit; border-radius:3px; padding
 .alert p { margin:0; color:var(--muted); font-size:12px }
 .alert .buttons { display:flex; gap:8px; margin-top:8px; width:100% }
 .alert .buttons .button { flex:1 }
+.fav { position:relative; width:16px; height:16px; flex:none; border-radius:4px; overflow:hidden }
+.fav::after { content:""; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--text) 22%,transparent) }
+.fav svg { display:block; width:16px; height:16px }
+.toast { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:4; display:flex; align-items:center; gap:10px; max-width:calc(100% - 40px); min-height:40px; padding:6px 6px 6px 14px; border-radius:12px; background:var(--text); color:var(--background); font-size:12.5px; box-shadow:0 8px 28px rgba(0,0,0,.28) }
+.toast svg.icon { width:16px; height:16px; flex:none }
+.toast .msg { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.toast .act { height:28px; padding:0 10px; border-radius:8px; color:inherit; font-weight:600; white-space:nowrap; background:color-mix(in srgb,var(--background) 16%,transparent)}
+.toast .act kbd, .sheet kbd { font:inherit }
+.toast .act kbd { margin-left:6px; opacity:.6; font-weight:400 }
+.toast .x { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; color:inherit; opacity:.7 }
+.toast .x svg.icon { width:14px; height:14px }
+.toast.plain { padding-right:14px }
+.sheet { width:560px; max-width:calc(100% - 48px); max-height:calc(100% - 48px); overflow:auto; border-radius:12px; background:var(--background); box-shadow:0 0 0 1px var(--border), 0 16px 40px rgba(0,0,0,.25) }
+.sheet header { display:flex; align-items:center; gap:12px; padding:16px 16px 8px 20px }
+.sheet h2 { margin:0; flex:1; font-size:15px; font-weight:600 }
+.sheet .close { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
+.sheet .close:hover { background:var(--surface-hover) }
+.sheet .cols { display:grid; grid-template-columns:1fr 1fr; gap:4px 24px; padding:4px 20px 20px }
+.sheet h3 { margin:12px 0 4px; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em }
+.sheet dl { margin:0; display:grid; grid-template-columns:1fr auto; align-items:center; gap:2px 12px }
+.sheet dt { font-size:12.5px; padding:5px 0 }
+.sheet dd { margin:0; display:flex; gap:4px; justify-content:flex-end }
+.sheet kbd { min-width:22px; height:22px; padding:0 6px; display:inline-grid; place-items:center; border-radius:6px; background:var(--surface); box-shadow:inset 0 -1px 0 var(--border), 0 0 0 1px var(--border); font-size:11.5px; color:var(--text) }
+.sheet .or { font-size:11px; color:var(--muted); align-self:center }
+.window.min .sheet .cols { grid-template-columns:1fr }
 .dot-inline { width:6px; height:6px; flex:none; border-radius:50%; background:var(--accent) }
 
 /* Kind tabs, video grid, masonry */
@@ -196,6 +231,41 @@ mark { background:var(--warning-soft); color:inherit; border-radius:3px; padding
 .vcard .actions, .mtile .actions { top:8px; right:8px }
 .vcard.hover .actions, .mtile.hover .actions { visibility:visible }
 
+/* Window chrome, as macOS 26 draws it: no title bar, the window buttons over the sidebar's top; the sidebar a pane
+   of Liquid Glass floating 8 from the window's edges; the toolbar no bar, its controls capsules of glass floating
+   over the content, which fades under them (the soft scroll edge). */
+:root { --glass:color-mix(in srgb,var(--surface) 72%,transparent); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.8), inset 0 1px 0 rgba(255,255,255,.9), 0 0 0 .5px rgba(0,0,0,.13); --edge:color-mix(in srgb,var(--background) 85%,transparent) }
+:root[data-scheme=dark] { --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.13), inset 0 1px 0 rgba(255,255,255,.11), 0 0 0 .5px rgba(0,0,0,.6) }
+.window { position:relative; border:0; border-radius:16px; box-shadow:0 0 0 .5px rgba(0,0,0,.22), 0 24px 64px rgba(0,0,0,.22) }
+:root[data-scheme=dark] .window { box-shadow:0 0 0 1px rgba(255,255,255,.1), 0 24px 64px rgba(0,0,0,.6) }
+.lights { position:absolute; top:20px; left:20px; z-index:6; display:flex; gap:8px }
+.lights i { width:12px; height:12px; border-radius:50%; box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18) }
+.lights i:nth-child(1) { background:#ff5f57 }
+.lights i:nth-child(2) { background:#febc2e }
+.lights i:nth-child(3) { background:#28c840 }
+aside, .toolbar .segmented, .toolbar .search, .toolbar > .tool, .toolbar .group, .toolbar .back, .toolbar .ghost { background:var(--glass); -webkit-backdrop-filter:blur(24px) saturate(1.6); backdrop-filter:blur(24px) saturate(1.6); box-shadow:var(--glass-rim) }
+aside { margin:8px 0 8px 8px; padding-top:40px; border:0; border-radius:16px }
+.tabs { border-bottom:0; padding-top:0 }
+.server-bar { border-top:0 }
+aside .top { height:36px; border-bottom:0 }
+.main::after { content:""; position:absolute; top:0; left:0; right:0; height:62px; background:linear-gradient(var(--edge),transparent); pointer-events:none; z-index:1 }
+.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; border-bottom:0 }
+.toolbar ~ .scroll { padding-top:52px }
+.toolbar ~ .hint ~ .scroll { padding-top:0 }
+.toolbar + .hint { margin:56px 12px 4px; padding:7px 14px; border:0; border-radius:10px }
+.toolbar .segmented { height:32px; padding:3px; border-radius:16px }
+.toolbar .segmented button { height:26px; padding:0 10px; border-radius:13px }
+.toolbar .segmented button.on { background:var(--background); box-shadow:0 1px 3px rgba(0,0,0,.14) }
+:root[data-scheme=dark] .toolbar .segmented button.on { background:var(--surface-pressed); box-shadow:none }
+.toolbar .search { height:32px; padding:0 6px 0 12px; border:0; border-radius:16px }
+.toolbar .search.focused { box-shadow:var(--glass-rim), 0 0 0 3px var(--focus) }
+.toolbar .search.invalid { box-shadow:var(--glass-rim), inset 0 0 0 1.5px var(--warning) }
+.toolbar > .tool { width:32px; height:32px; border-radius:16px }
+.toolbar .group { flex:none; display:flex; align-items:center; height:32px; padding:0 2px; border-radius:16px }
+.toolbar .group .tool { height:28px; border-radius:14px }
+.toolbar .group + .group { margin-left:8px }
+.toolbar .back { height:32px; padding:0 12px 0 6px; border-radius:16px; color:var(--text) }
+.toolbar .ghost { height:32px; border-radius:16px }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>
@@ -204,13 +274,13 @@ mark { background:var(--warning-soft); color:inherit; border-radius:3px; padding
   <label>lang <select id="lang"></select></label>
   <label>size <select id="size"></select></label>
 </div>
-<div class="window" id="window"><div class="titlebar">Oriel</div><div class="body" id="app"></div></div>
+<div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','mark-all-read'];
+const states=['list','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','no-more-unread','keys'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
-const options={state:states,scope:['all',...kinds,'source'],scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
+const options={state:states,scope:['all',...kinds,'source'],scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
 const state=pick('state',states,'list');
 const scope=pick('scope',options.scope,'all');
 const scheme=pick('scheme',options.scheme,'light');
@@ -219,6 +289,7 @@ const size=pick('size',options.size,'default');
 document.documentElement.dataset.scheme=scheme;
 document.documentElement.lang=lang;
 document.getElementById('window').classList.toggle('min',size==='min');
+document.getElementById('window').classList.toggle('wide',size==='wide');
 for(const [id,list] of Object.entries(options)){
   const select=document.getElementById(id);
   select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
@@ -237,6 +308,8 @@ const icons={
   circle:'<circle cx="12" cy="12" r="10"/>',
   checkCheck:'<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
   circleCheck:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
+  mail:'<path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/>',
+  mailOpen:'<path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6Z"/><path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"/>',
   search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
   external:'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
@@ -248,6 +321,8 @@ const icons={
   loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
   server:'<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
   settings:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+  undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  keyboard:'<path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/>',
   laptop:'<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
 };
 const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -268,7 +343,11 @@ const copy={
     empty:'Nothing here yet', emptyHint:'New entries show up after the next fetch.',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first.',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
-    confirmTitle:'Mark {n} entries in “{scope}” as read?', confirmBody:'Entries that arrive after you opened this list stay unread.', cancel:'Cancel', confirm:'Mark as read',
+    marked:'Marked {n} entries in “{scope}” as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below',
+    keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
+    kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
+    kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
+    kSummarize:'Summarize', kTranslate:'Translate', kBack:'Back to the list', kAdd:'Add subscription', kSettings:'Settings', kKeys:'Keyboard shortcuts',
     thisComputer:'This computer', settings:'Settings', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures',
     ago:{m:'{n} min',h:'{n} h',d:'Yesterday',days:'{n} days'},
   },
@@ -287,7 +366,11 @@ const copy={
     empty:'这里还没有条目', emptyHint:'下次抓取之后，新条目会出现在这里。',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
-    confirmTitle:'把“{scope}”里的 {n} 条标为已读？', confirmBody:'打开列表之后新到的条目仍是未读。', cancel:'取消', confirm:'标为已读',
+    marked:'已把“{scope}”里的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了',
+    keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
+    kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
+    kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
+    kSummarize:'摘要', kTranslate:'翻译', kBack:'回到列表', kAdd:'添加订阅', kSettings:'设置', kKeys:'键盘快捷键',
     thisComputer:'本机', settings:'设置', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图',
     ago:{m:'{n} 分钟前',h:'{n} 小时前',d:'昨天',days:'{n} 天前'},
   },
@@ -296,6 +379,19 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const ago=(unit,n)=>copy.ago[unit].replace('{n}',n);
 const zh=lang==='zh-Hans';
 
+// Site icons are generic stand-ins drawn here, not the sites' real icons. The Go Blog has none, so it keeps its
+// monogram, the fallback for a subscription without an icon or whose icon has not loaded.
+const favs={
+  1:'<rect width="16" height="16" fill="#1d1d1f"/><path d="M4 11.5 8 4l4 7.5z" fill="#f5d547"/>',
+  2:'<rect width="16" height="16" fill="#d7262b"/><circle cx="8" cy="8" r="3.6" fill="none" stroke="#fff" stroke-width="1.8"/>',
+  4:'<rect width="16" height="16" fill="#2b4c7e"/><circle cx="5.5" cy="9" r="2.6" fill="#7fb3e8"/><circle cx="10.5" cy="7" r="3.2" fill="#a46a3a"/>',
+  5:'<rect width="16" height="16" fill="#111"/><path d="M3 12V4l5 5 5-5v8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/>',
+  6:'<rect width="16" height="16" fill="#000"/><path d="M8 3.5 13 12H3z" fill="#fff"/>',
+  7:'<rect width="16" height="16" fill="#f7b500"/><ellipse cx="7.5" cy="9.5" rx="4.5" ry="3.2" fill="#e6162d"/><circle cx="7" cy="9.8" r="1.4" fill="#fff"/>',
+  8:'<rect width="16" height="16" fill="#0b3d91"/><circle cx="8" cy="8" r="4.2" fill="#fff"/><path d="M2.5 10.5c4-1 7-3 11-6" stroke="#fc3d21" stroke-width="1.5" fill="none"/>',
+  9:'<rect width="16" height="16" fill="#fff"/><rect x="0.5" y="0.5" width="15" height="15" rx="3.5" fill="none" stroke="rgba(0,0,0,.15)"/><path d="M5 4h6v3H5zM3 8.5h3.5V11h3V8.5H13V13H3z" fill="#111"/>',
+};
+const glyph=s=>favs[s.id]?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${favs[s.id]}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`;
 const sources=[
   {id:1,kind:'article',name:'Simon Willison',mono:'S',unread:4},
   {id:2,kind:'article',name:zh?'少数派':'Sspai',mono:zh?'少':'S',unread:12},
@@ -309,7 +405,7 @@ const sources=[
 ];
 const byId=Object.fromEntries(sources.map(s=>[s.id,s]));
 const kindUnread=k=>sources.filter(s=>s.kind===k).reduce((a,s)=>a+s.unread,0);
-const total=sources.reduce((a,s)=>a+s.unread,0);
+let total;
 
 const entries=[
   {source:6,kind:'social',when:ago('m',4),author:'Guillermo Rauch',handle:'@rauchg',text:zh?'把构建时间从 4 分钟压到 38 秒。秘诀不是更快的机器，而是不再重复做同一件事：缓存每一步的输入，只重算变了的部分。':'Took our build from 4 minutes to 38 seconds. The trick wasn’t a faster machine, it was not doing the same work twice: hash every step’s inputs, rebuild only what changed.',images:['g3','g8']},
@@ -317,7 +413,7 @@ const entries=[
   {source:4,kind:'video',when:ago('h',1),title:zh?'卷积到底是什么？从概率到图像处理':'But what is a convolution? From probability to image processing',duration:'23:01',platform:'YouTube',thumb:'g5',starred:true},
   {source:8,kind:'image',when:ago('h',3),title:zh?'猎户座大星云的尘埃柱':'Dust pillars of the Orion Nebula',images:['g2'],r:'4/5'},
   {source:2,kind:'article',when:ago('h',5),title:zh?'我的 2026 桌面工作流：少即是多':'My 2026 desktop workflow: less is more',summary:zh?'这一年我删掉了一半的应用，留下的每一个都必须回答一个问题：它让我更专注了吗？':'This year I removed half of my apps. Every one that stayed had to answer one question: does it help me focus?',read:true},
-  {source:7,kind:'social',when:ago('h',7),author:zh?'中国国家地理':'China National Geography',handle:'Weibo',text:zh?'【秋日的喀纳斯】十月初，喀纳斯湖畔的白桦和落叶松陆续变黄，晨雾散开时，整片山谷像被点亮。':'Autumn at Kanas: in early October the birches and larches along the lake turn gold, and when the morning fog lifts the whole valley lights up.',images:['g6','g7','g4','g9'],read:true},
+  {source:7,kind:'social',when:ago('h',7),author:zh?'中国国家地理':'China National Geography',handle:'Weibo',text:zh?'【秋日的喀纳斯】十月初，喀纳斯湖畔的白桦和落叶松陆续变黄，晨雾散开时，整片山谷像被点亮。':'Autumn at Kanas: in early October the birches and larches along the lake turn gold, and when the morning fog lifts the whole valley lights up.',images:['g6','g7','g4','g9','g1','g5'],read:true},
   {source:5,kind:'video',when:ago('d'),title:zh?'我们用三个月拍了一条只有 60 秒的片子':'Three months of shooting for a 60-second film',duration:'14:37',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g7',read:true},
   {source:4,kind:'video',when:ago('days',2),title:zh?'行列式的几何意义':'The determinant, visualized',duration:'11:20',platform:'YouTube',thumb:'g3'},
   {source:9,kind:'image',when:ago('days',2),title:zh?'晨雾中的喀纳斯':'Morning fog over Kanas',images:['g6'],r:'3/2'},
@@ -330,6 +426,10 @@ const entries=[
   {source:9,kind:'image',when:ago('days',5),title:zh?'老城的屋顶':'Old town roofs',images:['g4'],r:'3/2',read:true},
   {source:8,kind:'image',when:ago('days',5),title:zh?'特罗姆瑟上空的极光':'Aurora over Tromsø',images:['g8'],r:'4/3'},
 ];
+const inScope=s=>scope==='all'||s.kind===scope||(scope==='source'&&s.id===1);
+const markedCount=sources.filter(inScope).reduce((a,s)=>a+s.unread,0);
+if(state==='marked-read'){entries.forEach(e=>{if(inScope(byId[e.source]))e.read=true});sources.filter(inScope).forEach(s=>s.unread=0)}
+total=sources.reduce((a,s)=>a+s.unread,0);
 const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[1].name:copy.all;
 const visible=kinds.includes(scope)?entries.filter(e=>e.kind===scope):scope==='source'?entries.filter(e=>e.source===1):entries.slice(0,7);
 const filter=state==='unread-done'?1:state==='starred-none'?2:0;
@@ -338,7 +438,7 @@ const searching=q!=='';
 const shown=state==='search'?entries.filter(e=>e.kind==='article'&&e.source===1):visible;
 
 const navItem=(glyph,name,count,chosen,extra='')=>`<button class="item${chosen?' chosen':''}" aria-current="${chosen}">${glyph}<span class="name">${name}</span>${extra}${count?`<span class="count">${count}</span>`:''}</button>`;
-const sourceItem=s=>navItem(`<span class="mono k-${s.kind}">${s.mono}</span>`,s.name,s.unread,scope==='source'&&s.id===1,s.failing?`<span class="warn" role="img" aria-label="${copy.failing}" title="${copy.failing}">${icon('alert')}</span>`:'');
+const sourceItem=s=>navItem(glyph(s),s.name,s.unread,scope==='source'&&s.id===1,s.failing?`<span class="warn" role="img" aria-label="${copy.failing}" title="${copy.failing}">${icon('alert')}</span>`:'');
 const tabKind=scope==='source'?'article':scope;
 const tabs=counts=>`<div class="tabs" role="tablist" aria-label="${copy.kinds}">${[['all','inbox'],...kinds.map(k=>[k,k])].map(([k,g])=>{
   const on=k===tabKind, name=k==='all'?copy.all:copy[k], n=counts?(k==='all'?total:kindUnread(k)):0;
@@ -353,21 +453,22 @@ function serverBar(){return `<div class="server-bar"><button class="server" aria
 
 const highlight=s=>q&&state==='search'?s.replace(new RegExp(q,'ig'),m=>`<mark>${m}</mark>`):s;
 const actionButtons=(e,cls='')=>`<button class="${cls}${e.starred?' starred':''}" aria-label="${e.starred?copy.unstar:copy.star}" title="${e.starred?copy.unstar:copy.star}">${icon('star',e.starred?'filled':'')}</button>
-  <button class="${cls}" aria-label="${e.read?copy.markUnread:copy.markRead}" title="${e.read?copy.markUnread:copy.markRead}">${icon(e.read?'dot':'circleCheck')}</button>
+  <button class="${cls}" aria-label="${e.read?copy.markUnread:copy.markRead}" title="${e.read?copy.markUnread:copy.markRead}">${icon(e.read?'mail':'mailOpen')}</button>
   <button class="${cls}" aria-label="${copy.open}" title="${copy.open}">${icon('external')}</button>`;
 const actions=e=>`<div class="actions">${actionButtons(e)}</div>`;
 const unreadDot=e=>e.read?'':`<span class="dot-inline" role="img" aria-label="${copy.unread}"></span>`;
-const meta=(e,prefix='')=>{const s=byId[e.source];return `<div class="meta">${prefix}<span class="mono k-${s.kind}">${s.mono}</span><span class="src">${s.name}</span><span class="sep"></span><span class="when">${e.when}</span>${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}</div>`};
+const meta=(e,prefix='')=>{const s=byId[e.source];return `<div class="meta">${prefix}${glyph(s)}<span class="src">${s.name}</span><span class="sep"></span><span class="when">${e.when}</span>${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}</div>`};
 const pictures=list=>{
   if(list.length===1)return `<div class="grid n1"><div class="pic ${list[0]}"></div></div>`;
   if(list.length===2)return `<div class="grid n2">${list.map(g=>`<div class="pic ${g}"></div>`).join('')}</div>`;
-  return `<div class="grid n4">${list.slice(0,4).map(g=>`<div class="pic ${g}"></div>`).join('')}</div>`;
+  const hidden=list.length-3;
+  return `<div class="grid n3">${list.slice(0,3).map((g,i)=>i===2&&hidden>0?`<div class="pic more ${g}" role="img" aria-label="${t('morePictures',{n:hidden})}"><b aria-hidden="true">+${hidden}</b></div>`:`<div class="pic ${g}"></div>`).join('')}</div>`;
 };
 const videoCover=(e,cls)=>`<div class="pic ${cls} ${e.thumb}" role="img" aria-label="${t('duration',{d:e.duration})}"><div class="play"><span>${icon('video')}</span></div><span class="duration">${e.duration}</span></div>`;
 
 // All, Articles, Social: one column of rows
 const row=(e,i)=>{
-  const cls=`row${e.read?' read':''}${i===1&&state==='list'?' hover':''}${i===2&&state==='list'?' chosen':''}`;
+  const cls=`row${e.read?' read':''}${i===1&&state==='list'?' hover':''}${(i===2&&state==='list')||(i===3&&state==='no-more-unread')?' chosen':''}`;
   const dot=e.read?'':`<span class="unread-dot" role="img" aria-label="${copy.unread}"></span>`;
   switch(e.kind){
     case 'article':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3><p class="summary">${highlight(e.summary)}</p></div>${e.thumb?`<div class="pic thumb ${e.thumb}"></div>`:''}${actions(e)}</article>`;
@@ -396,15 +497,25 @@ else if(scope==='image'&&state!=='search')list=`<div class="masonry" role="feed"
 else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map(row).join('')}${more}</div>`;
 
 const unreadInScope=kinds.includes(scope)?kindUnread(scope):scope==='source'?byId[1].unread:total;
-const sub=state==='no-subscriptions'||state==='error'?'':state==='search'?t('results',{n:1}):state==='unread-done'||state==='starred-none'||state==='empty'?'':t('unreadCount',{n:unreadInScope});
+const sub=state==='no-subscriptions'||state==='error'?'':state==='search'?t('results',{n:1}):state==='unread-done'||state==='starred-none'||state==='empty'||state==='marked-read'?'':t('unreadCount',{n:unreadInScope});
 const segments=[['inbox','everything'],['dot','unread'],['star','starred']].map(([g,k],i)=>`<button role="radio" aria-checked="${i===filter}" class="${i===filter?'on':''}" aria-label="${copy[k]}" title="${copy[k]}">${icon(g)}<span>${copy[k]}</span></button>`).join('');
 const searchField=`<div class="search${searching?' focused':''}${state==='search-short'?' invalid':''}">${icon('search')}<input aria-label="${copy.searchLabel}" placeholder="${copy.search}" value="${q}" ${state==='search-short'?'aria-invalid="true" aria-describedby="hint"':''}>${searching?`<button class="clear" aria-label="${copy.clear}">${icon('x')}</button>`:''}</div>`;
 const markAll=`<button class="tool" aria-label="${copy.markAllRead}" title="${copy.markAllRead}">${icon('checkCheck')}</button>`;
-const toolbar=`<div class="toolbar"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${searchField}${markAll}</div>`;
+const columned=!((scope==='video'||scope==='image')&&state!=='search');
+const toolbar=`<div class="toolbar${columned?' aligned':''}${scope==='social'?' wide':''}"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${searchField}${markAll}</div>`;
 const hint=state==='search-short'?`<div class="hint" id="hint" role="status">${icon('alert')}${copy.tooShort}</div>`:'';
 const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries',{n:3})}</button>`:'';
-const dialog=state==='mark-all-read'?`<div class="scrim"><div class="alert" role="alertdialog" aria-labelledby="ct" aria-describedby="cb"><div class="tile">${icon('checkCheck')}</div><h2 id="ct">${t('confirmTitle',{n:unreadInScope,scope:scopeName})}</h2><p id="cb">${copy.confirmBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button primary" autofocus>${copy.confirm}</button></div></div></div>`:'';
+const mod=navigator.platform.startsWith('Mac')?'⌘':'Ctrl+';
+const toast=state==='marked-read'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedCount,scope:scopeName})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
+  :state==='no-more-unread'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:'';
+const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
+const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${keys(...k)}</dd>`).join('')}</dl>`;
+const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="kt"><header><h2 id="kt">${copy.keysTitle}</h2><button class="close" aria-label="${copy.close}">${icon('x')}</button></header><div class="cols"><div>
+  <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kStar','S'],['kRead','M'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kUndo',[mod,'Z']]])}</div><div>
+  <h3>${copy.inReader}</h3>${keyList([['kNextArticle','J'],['kPrevArticle','K'],['kNextUnread','N'],['kStar','S'],['kRead','M'],['kOpenBrowser','O'],['kBack','Esc']])}
+  <h3>${copy.anywhere}</h3>${keyList([['kAdd',[mod,'N']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
 
-document.getElementById('app').innerHTML=`${sidebar()}<section class="main">${toolbar}${hint}${pill}<div class="scroll">${list}</div></section>${dialog}`;
+document.getElementById('app').innerHTML=`${sidebar()}<section class="main">${toolbar}${hint}${pill}<div class="scroll">${list}</div>${toast}</section>${dialog}`;
+if(state==='no-more-unread')document.querySelector('.row.chosen').scrollIntoView({block:'center'});
 </script>
 </html>

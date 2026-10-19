@@ -67,16 +67,18 @@ type Deps struct {
 	Expired      func(err error) bool
 	Back         func()
 	Move         func(by int)
+	NextUnread   func()
 	Star         func()
 	ToggleRead   func()
 	OpenSettings func()
 }
 
 // Nav is what the timeline tells the reader each frame: the entry as the list has it, with its read and starred
-// state, the scope Back returns to, whether there are articles before and after it, and whether the keys apply,
-// which they do not while a dialog shows.
+// state, its subscription's site icon once decoded, the scope Back returns to, whether there are articles before and
+// after it, and whether the keys apply, which they do not while a dialog shows.
 type Nav struct {
 	Entry          client.Entry
+	Icon           *ui.Bitmap
 	Scope          string
 	Previous, Next bool
 	Keys           bool
@@ -108,7 +110,8 @@ type Screen struct {
 	deps Deps
 	text copy
 	api  API
-	gen  int // counts articles opened, so the results for the one before are dropped
+	gen  int        // counts articles opened, so the results for the one before are dropped
+	icon *ui.Bitmap // the site icon of the entry, as the timeline last had it
 
 	id       int64
 	loading  bool
@@ -486,6 +489,7 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	status := s.article.ExtractStatus
 	s.article.Entry = nav.Entry
 	s.article.ExtractStatus = status
+	s.icon = nav.Icon
 	s.poll(c)
 	s.pollAI(c)
 	ready := !s.loading && !s.failed
@@ -502,6 +506,11 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 			{ui.KeyK, func() {
 				if nav.Previous {
 					s.deps.Move(-1)
+				}
+			}},
+			{ui.KeyN, func() {
+				if s.deps.NextUnread != nil {
+					s.deps.NextUnread()
 				}
 			}},
 			{ui.KeyS, func() {
@@ -692,7 +701,7 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 		ui.Column(c).FillWidth().MaxWidth(px(t, 680)).Margin(0, ui.Auto).Padding(pad...).Selectable().
 			Children(func() {
 				ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
-					monogram(c, e.SourceTitle)
+					glyph(c, e.SourceTitle, s.icon)
 					ui.Text(c, e.SourceTitle).FontSize(px(t, 12)).FontWeight(500).SingleLine().MinWidth(0).Shrink(1)
 					ui.Text(c, "·").FontSize(px(t, 12)).TextColor(t.TextMuted)
 					ui.Text(c, s.when(e)).FontSize(px(t, 12)).TextColor(t.TextMuted).NoWrap()
@@ -735,6 +744,19 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 				}
 			}).FillWidth().Padding(t.Space(6), t.Space(6), t.Space(6), t.Space(6))
 		}
+	})
+}
+
+// glyph is the site icon of the subscription, in a tile with a rim, or its monogram when there is no icon.
+func glyph(c *ui.Context, name string, icon *ui.Bitmap) {
+	t := c.Theme()
+	if icon == nil {
+		monogram(c, name)
+		return
+	}
+	ui.Box(c).Size(px(t, 16), px(t, 16)).Radius(4).Clip().Children(func() {
+		ui.Image(c, icon).Fit(ui.Cover).Fill()
+		ui.Box(c).Absolute().Fill().Radius(4).Border(1, t.Border)
 	})
 }
 

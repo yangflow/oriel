@@ -12,15 +12,20 @@
      the feed's content meanwhile), extracting-empty, failed (no full text and no feed content), loading, error.
      AI states: summarizing, summary, summary-failed, translating (the original stays readable), translation (the
      translated text, with a switch back to the original), translation-failed, ai-off (AI is not set up: the
-     summary or translate button leads to Settings instead of failing). Summary and translation sit between
+     summary or translate button leads to Settings instead of failing). no-more-unread: N found no unread article
+     after this one, so a toast says so and the reader stays put. Site icons are generic stand-ins. Summary and translation sit between
      previous/next and star in the toolbar; translation is plain text, so pictures and links are in the original.
+     Summary and translation carry their name beside the icon (icon only in the smallest window); mark as unread is
+     an envelope; every tooltip names its key. The toolbar's ends line up with the article column (size=wide).
+     The window has no title bar: the window buttons sit over the sidebar's top, the sidebar is a floating pane of
+     Liquid Glass and the toolbar's controls are glass capsules over the content (docs/design.md, Title bar).
      The bar above the window only switches the mockup.
-     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
+     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide. -->
 <style>
 :root { color-scheme:light; --stage:#e7e5e4; --stage-text:#57534e }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0c0a09; --stage-text:#a8a29e }
 :root { --background:#fbfaf7; --surface:#f2f0eb; --surface-hover:#e9e6df; --surface-pressed:#dfdbd2; --border:#dcd7cd; --text:#1f1d1a; --muted:#6f6a64; --accent:#0f766e; --accent-hover:#115e59; --accent-text:#ffffff; --accent-soft:#e3efeb; --danger:#c2410c; --danger-soft:#fbece4; --warning:#a16207; --warning-soft:#f8f0dc; --success:#15803d; --focus:rgba(15,118,110,.5); --star:#a16207 }
-:root[data-scheme=dark] { --background:#1b1a18; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55); --star:#facc15 }
+:root[data-scheme=dark] { --background:#161513; --surface:#25231f; --surface-hover:#2f2c28; --surface-pressed:#3a3732; --border:#3d3933; --text:#ede9e3; --muted:#a8a29e; --accent:#2dd4bf; --accent-hover:#5eead4; --accent-text:#0b2522; --accent-soft:#1f3330; --danger:#fb923c; --danger-soft:#3a2418; --warning:#facc15; --warning-soft:#35301a; --success:#4ade80; --focus:rgba(45,212,191,.55); --star:#facc15 }
 * { box-sizing:border-box }
 body { margin:0; padding:24px; font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
 svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
@@ -33,7 +38,7 @@ button:focus-visible { outline:3px solid var(--focus); outline-offset:1px }
 
 .window { position:relative; width:960px; height:640px; border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; background:var(--background) }
 .window.min { width:640px; height:480px }
-.titlebar { height:28px; flex:none; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); background:var(--surface); border-bottom:1px solid var(--border) }
+.window.wide { width:1280px; height:760px }
 .body { flex:1; min-height:0; display:flex }
 
 /* Sidebar */
@@ -48,6 +53,12 @@ aside { width:212px; flex:none; display:flex; flex-direction:column; background:
 .item .count { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums }
 .item .warn { color:var(--warning) }
 .mono { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:4px; font-size:10px; font-weight:600; background:var(--accent-soft); color:var(--accent) }
+.fav { position:relative; width:16px; height:16px; flex:none; border-radius:4px; overflow:hidden }
+.fav::after { content:""; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--text) 22%,transparent) }
+.fav svg { display:block; width:16px; height:16px }
+.toast { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:4; display:flex; align-items:center; gap:10px; max-width:calc(100% - 40px); min-height:40px; padding:6px 14px; border-radius:12px; background:var(--text); color:var(--background); font-size:12.5px; box-shadow:0 8px 28px rgba(0,0,0,.28) }
+.toast svg.icon { width:16px; height:16px; flex:none }
+.toast .msg { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .mono.k-video { background:var(--danger-soft); color:var(--danger) }
 .mono.k-social { background:var(--warning-soft); color:var(--warning) }
 .mono.k-image { background:color-mix(in srgb, var(--success) 14%, var(--background)); color:var(--success) }
@@ -81,12 +92,11 @@ aside { width:212px; flex:none; display:flex; flex-direction:column; background:
 .hint svg.icon { width:14px; height:14px }
 
 /* Reader */
-.toolbar { padding:0 12px 0 8px; gap:2px }
+.toolbar { padding:0 max(12px,calc((100% - 680px)/2 + 26px)) 0 max(8px,calc((100% - 680px)/2 + 10px)); gap:2px }
 .back { height:28px; display:flex; align-items:center; gap:2px; padding:0 8px 0 4px; border-radius:6px; color:var(--muted); min-width:0 }
 .back span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .back:hover { background:var(--surface-hover); color:var(--text) }
 .tool.on { color:var(--star) }
-.divider { width:1px; height:16px; margin:0 6px; background:var(--border) }
 .scroll { flex:1; overflow-y:auto }
 .page { max-width:680px; margin:0 auto; padding:28px 32px 48px }
 .min .page { padding:20px 20px 40px }
@@ -141,6 +151,9 @@ aside { width:212px; flex:none; display:flex; flex-direction:column; background:
 
 /* AI */
 .tool.pressed { background:var(--accent-soft); color:var(--accent) }
+.tool.labeled { width:auto; display:flex; gap:6px; padding:0 10px 0 8px; font-size:12.5px; font-weight:500 }
+.min .tool.labeled { width:28px; padding:0; display:grid }
+.min .tool.labeled span { display:none }
 .ai { margin:18px 0 0; padding:12px 14px 14px; border-radius:10px; background:var(--accent-soft); font-size:14px; line-height:1.6 }
 .ai.plain { background:var(--surface) }
 .ai.error { background:var(--danger-soft) }
@@ -165,6 +178,41 @@ aside { width:212px; flex:none; display:flex; flex-direction:column; background:
 .note.error { background:var(--danger-soft); color:var(--danger) }
 .note .segmented { margin:-4px -6px -4px 0; background:var(--background) }
 .note .segmented button.on { background:var(--accent); color:var(--accent-text); box-shadow:none }
+/* Window chrome, as macOS 26 draws it: no title bar, the window buttons over the sidebar's top; the sidebar a pane
+   of Liquid Glass floating 8 from the window's edges; the toolbar no bar, its controls capsules of glass floating
+   over the content, which fades under them (the soft scroll edge). */
+:root { --glass:color-mix(in srgb,var(--surface) 72%,transparent); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.8), inset 0 1px 0 rgba(255,255,255,.9), 0 0 0 .5px rgba(0,0,0,.13); --edge:color-mix(in srgb,var(--background) 85%,transparent) }
+:root[data-scheme=dark] { --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.13), inset 0 1px 0 rgba(255,255,255,.11), 0 0 0 .5px rgba(0,0,0,.6) }
+.window { position:relative; border:0; border-radius:16px; box-shadow:0 0 0 .5px rgba(0,0,0,.22), 0 24px 64px rgba(0,0,0,.22) }
+:root[data-scheme=dark] .window { box-shadow:0 0 0 1px rgba(255,255,255,.1), 0 24px 64px rgba(0,0,0,.6) }
+.lights { position:absolute; top:20px; left:20px; z-index:6; display:flex; gap:8px }
+.lights i { width:12px; height:12px; border-radius:50%; box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18) }
+.lights i:nth-child(1) { background:#ff5f57 }
+.lights i:nth-child(2) { background:#febc2e }
+.lights i:nth-child(3) { background:#28c840 }
+aside, .toolbar .segmented, .toolbar .search, .toolbar > .tool, .toolbar .group, .toolbar .back, .toolbar .ghost { background:var(--glass); -webkit-backdrop-filter:blur(24px) saturate(1.6); backdrop-filter:blur(24px) saturate(1.6); box-shadow:var(--glass-rim) }
+aside { margin:8px 0 8px 8px; padding-top:40px; border:0; border-radius:16px }
+.tabs { border-bottom:0; padding-top:0 }
+.server-bar { border-top:0 }
+aside .top { height:36px; border-bottom:0 }
+.main::after { content:""; position:absolute; top:0; left:0; right:0; height:62px; background:linear-gradient(var(--edge),transparent); pointer-events:none; z-index:1 }
+.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; border-bottom:0 }
+.toolbar ~ .scroll { padding-top:52px }
+.toolbar ~ .hint ~ .scroll { padding-top:0 }
+.toolbar + .hint { margin:56px 12px 4px; padding:7px 14px; border:0; border-radius:10px }
+.toolbar .segmented { height:32px; padding:3px; border-radius:16px }
+.toolbar .segmented button { height:26px; padding:0 10px; border-radius:13px }
+.toolbar .segmented button.on { background:var(--background); box-shadow:0 1px 3px rgba(0,0,0,.14) }
+:root[data-scheme=dark] .toolbar .segmented button.on { background:var(--surface-pressed); box-shadow:none }
+.toolbar .search { height:32px; padding:0 6px 0 12px; border:0; border-radius:16px }
+.toolbar .search.focused { box-shadow:var(--glass-rim), 0 0 0 3px var(--focus) }
+.toolbar .search.invalid { box-shadow:var(--glass-rim), inset 0 0 0 1.5px var(--warning) }
+.toolbar > .tool { width:32px; height:32px; border-radius:16px }
+.toolbar .group { flex:none; display:flex; align-items:center; height:32px; padding:0 2px; border-radius:16px }
+.toolbar .group .tool { height:28px; border-radius:14px }
+.toolbar .group + .group { margin-left:8px }
+.toolbar .back { height:32px; padding:0 12px 0 6px; border-radius:16px; color:var(--text) }
+.toolbar .ghost { height:32px; border-radius:16px }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>
@@ -172,12 +220,12 @@ aside { width:212px; flex:none; display:flex; flex-direction:column; background:
   <label>lang <select id="lang"></select></label>
   <label>size <select id="size"></select></label>
 </div>
-<div class="window" id="window"><div class="titlebar">Oriel</div><div class="body" id="app"></div></div>
+<div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['full','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off'];
+const states=['full','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
-const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
+const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
 const state=pick('state',states,'full');
 const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
@@ -185,6 +233,7 @@ const size=pick('size',options.size,'default');
 document.documentElement.dataset.scheme=scheme;
 document.documentElement.lang=lang;
 document.getElementById('window').classList.toggle('min',size==='min');
+document.getElementById('window').classList.toggle('wide',size==='wide');
 for(const [id,list] of Object.entries(options)){
   const select=document.getElementById(id);
   select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
@@ -221,11 +270,18 @@ const icons={
   sparkles:'<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
   languages:'<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
   settings:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+  mail:'<path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/>',
+  mailOpen:'<path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6Z"/><path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"/>',
   fileText:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
 };
 
 const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
 
+// Site icons are generic stand-ins, not the sites' real icons; The Go Blog has none and keeps its monogram.
+const favs={
+  simon:'<rect width="16" height="16" fill="#1d1d1f"/><path d="M4 11.5 8 4l4 7.5z" fill="#f5d547"/>',
+  sspai:'<rect width="16" height="16" fill="#d7262b"/><circle cx="8" cy="8" r="3.6" fill="none" stroke="#fff" stroke-width="1.8"/>',
+};
 const copy={
   en:{
     all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
@@ -245,7 +301,7 @@ const copy={
     translationFailed:'Couldn’t translate. {reason}',
     aiTimeout:'The AI endpoint took too long to answer.', aiUnauthorized:'The AI endpoint turned down the API key. Check it in Settings.',
     aiOff:'Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.',
-    aiOffTitle:'AI isn’t set up', openSettings:'Open Settings…', close:'Close',
+    noMoreUnread:'No unread articles after this one', aiOffTitle:'AI isn’t set up', openSettings:'Open Settings…', close:'Close',
   },
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
@@ -265,34 +321,34 @@ const copy={
     translationFailed:'没能翻译。{reason}',
     aiTimeout:'AI 接口太久没有响应。', aiUnauthorized:'AI 接口不接受这个 API key，去设置里检查一下。',
     aiOff:'摘要和翻译走你自己选的 AI 接口，例如 OpenAI 或本机的模型。先在设置里配好。',
-    aiOffTitle:'还没配置 AI', openSettings:'打开设置…', close:'关闭',
+    noMoreUnread:'后面没有未读文章了', aiOffTitle:'还没配置 AI', openSettings:'打开设置…', close:'关闭',
   },
 }[lang];
 const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 
 const sources=[
-  {kind:'article',name:'Simon Willison',mono:'S',unread:3,chosen:true},
-  {kind:'article',name:zh?'少数派':'Sspai',mono:zh?'少':'S',unread:12},
+  {kind:'article',name:'Simon Willison',mono:'S',unread:3,chosen:true,fav:favs.simon},
+  {kind:'article',name:zh?'少数派':'Sspai',mono:zh?'少':'S',unread:12,fav:favs.sspai},
   {kind:'article',name:'The Go Blog',mono:'G',unread:0,failing:true},
 ];
 const sidebar=`<aside><div class="tabs" role="tablist" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g])=>`<button class="tab${k==='article'?' on':''}" role="tab" aria-selected="${k==='article'}" aria-label="${copy[k]}">${icon(g)}<span>${k==='article'?15:''}</span></button>`).join('')}</div>
-<nav class="nav" aria-label="${copy.sources}"><div class="section">${copy.article}</div>${sources.map(s=>`<button class="item${s.chosen?' chosen':''}"><span class="mono">${s.mono}</span><span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failing}">${icon('alert')}</span>`:''}${s.unread?`<span class="count">${s.unread}</span>`:''}</button>`).join('')}</nav>
+<nav class="nav" aria-label="${copy.sources}"><div class="section">${copy.article}</div>${sources.map(s=>`<button class="item${s.chosen?' chosen':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failing}">${icon('alert')}</span>`:''}${s.unread?`<span class="count">${s.unread}</span>`:''}</button>`).join('')}</nav>
 <button class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></button></aside>`;
 
 const summaryOn=['summarizing','summary','summary-failed'].includes(state), translated=state==='translation';
 const starred=state==='full', read=true, off=state==='error'||state==='loading'?' disabled':'';
 const tools=`<button class="back" aria-label="${t('back',{scope:'Simon Willison'})}" title="${t('back',{scope:'Simon Willison'})} (Esc)">${icon('chevronLeft')}<span>Simon Willison</span></button><span class="spacer"></span>
-<button class="tool" aria-label="${copy.previous}" title="${copy.previous} (K)">${icon('chevronUp')}</button>
-<button class="tool" aria-label="${copy.next}" title="${copy.next} (J)">${icon('chevronDown')}</button><span class="divider"></span>
-<button class="tool${summaryOn?' pressed':''}"${off} aria-pressed="${summaryOn}" aria-label="${summaryOn?copy.hideSummary:copy.summarize}" title="${summaryOn?copy.hideSummary:copy.summarize}">${icon('sparkles')}</button>
-<button class="tool${translated?' pressed':''}"${off} aria-pressed="${translated}" aria-label="${translated?copy.showOriginal:copy.translate}" title="${translated?copy.showOriginal:copy.translate}">${icon('languages')}</button><span class="divider"></span>
+<div class="group"><button class="tool" aria-label="${copy.previous}" title="${copy.previous} (K)">${icon('chevronUp')}</button>
+<button class="tool" aria-label="${copy.next}" title="${copy.next} (J)">${icon('chevronDown')}</button></div><div class="group">
+<button class="tool labeled${summaryOn?' pressed':''}"${off} aria-pressed="${summaryOn}" aria-label="${summaryOn?copy.hideSummary:copy.summarize}" title="${summaryOn?copy.hideSummary:copy.summarize}">${icon('sparkles')}<span>${copy.summarize}</span></button>
+<button class="tool labeled${translated?' pressed':''}"${off} aria-pressed="${translated}" aria-label="${translated?copy.showOriginal:copy.translate}" title="${translated?copy.showOriginal:copy.translate}">${icon('languages')}<span>${copy.translate}</span></button></div><div class="group">
 <button class="tool${starred?' on':''}"${off} aria-pressed="${starred}" aria-label="${starred?copy.unstar:copy.star}" title="${starred?copy.unstar:copy.star} (S)">${icon('star',starred?'filled':'')}</button>
-<button class="tool"${off} aria-label="${read?copy.markUnread:copy.markRead}" title="${read?copy.markUnread:copy.markRead} (M)">${icon(read?'dot':'circleCheck')}</button>
-<button class="tool"${off} aria-label="${copy.open}" title="${copy.open} (O)">${icon('external')}</button>`;
+<button class="tool"${off} aria-label="${read?copy.markUnread:copy.markRead}" title="${read?copy.markUnread:copy.markRead} (M)">${icon(read?'mail':'mailOpen')}</button>
+<button class="tool"${off} aria-label="${copy.open}" title="${copy.open} (O)">${icon('external')}</button></div>`;
 
 const titleOf=zh=>zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer';
-const meta=`<div class="meta"><span class="mono">S</span><span class="src">Simon Willison</span><span class="sep"></span><span>${zh?'10月18日 11:34':'Oct 18, 11:34'}</span></div>`;
+const meta=`<div class="meta"><span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${favs.simon}</svg></span><span class="src">Simon Willison</span><span class="sep"></span><span>${zh?'10月18日 11:34':'Oct 18, 11:34'}</span></div>`;
 const fullOf=zh=>zh?`
 <p>SQLite 的 FTS5 自带三种分词器。<code>unicode61</code> 按空白和标点切词，对英文够用，对中文就不行了：一整句话会被当成一个词。<a href="#">trigram 分词器</a>换了个思路，把文本切成所有连续的三个字符。</p>
 <h2>它换来了什么</h2>
@@ -343,7 +399,7 @@ switch(state){
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
-  case 'full':page=article('',full);break;
+  case 'full':case 'no-more-unread':page=article('',full);break;
   case 'feed':page=article(note('warn','triangle',copy.feedNote),feed);break;
   case 'extracting':page=article(note('','loader',copy.extractingNote),feed);break;
   case 'extracting-empty':page=`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1></article>`+empty('loader',copy.extracting,copy.extractingHint,openButton()).replace('class="empty"','class="empty" style="min-height:0;padding-top:24px"');break;
@@ -351,6 +407,6 @@ switch(state){
   case 'loading':page=`<div class="page skeleton" aria-busy="true"><div class="bar m"></div><div class="bar h"></div>${'<div class="bar s"></div>'.repeat(3)}<div class="bar e"></div><br>${'<div class="bar s"></div>'.repeat(2)}<div class="bar e"></div></div>`;break;
   case 'error':page=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');break;
 }
-document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div></section>`;
+document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}</section>`;
 </script>
 </html>

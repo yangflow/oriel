@@ -208,7 +208,29 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 		}
 		filter.UpTo = &position
 	}
-	marked, err := s.store.MarkRead(r.Context(), filter, s.now())
+	ids, err := s.store.MarkRead(r.Context(), filter, s.now())
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	reply(w, http.StatusOK, map[string]any{"marked": len(ids), "ids": ids})
+}
+
+// maxUnread bounds one undo of "Mark all as read".
+const maxUnread = 10000
+
+func (s *Server) markUnread(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs []int64 `json:"ids"`
+	}
+	if !readBody(w, r, &body) {
+		return
+	}
+	if len(body.IDs) == 0 || len(body.IDs) > maxUnread {
+		fail(w, http.StatusBadRequest, "invalid_ids")
+		return
+	}
+	marked, err := s.store.MarkUnread(r.Context(), body.IDs)
 	if err != nil {
 		internal(w, err)
 		return

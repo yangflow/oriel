@@ -22,6 +22,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/settings"
 	"github.com/yangflow/oriel/internal/ui/startup"
+	"github.com/yangflow/oriel/internal/ui/timeline"
 )
 
 // defaultPort is where `oriel serve` listens unless -port says otherwise.
@@ -146,6 +147,7 @@ func desktop() {
 		}
 		root := newShell(systemLocale, filepath.Join(dataDir, sessionFile), client.Session{Server: "http://" + b.addr},
 			goAsync, files)
+		help, keys := timeline.MenuLabels(systemLocale)
 		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 			{Label: "Oriel", Submenu: []*mygo.MenuItem{
 				{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
@@ -163,6 +165,11 @@ func desktop() {
 				mygo.Separator(), {Role: mygo.RoleQuit},
 			}},
 			{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
+			{Label: help, Submenu: []*mygo.MenuItem{
+				{Label: keys, Accelerator: "CmdOrCtrl+/", Click: func(*mygo.MenuItem, *mygo.Window) {
+					window.Update(root.showKeys)
+				}},
+			}},
 		}))
 		window = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Oriel", Width: 960, Height: 640, MinWidth: 640, MinHeight: 480,

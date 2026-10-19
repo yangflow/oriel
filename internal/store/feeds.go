@@ -18,6 +18,10 @@ type FeedSource struct {
 	LastModified        string
 	FetchInterval       time.Duration
 	ConsecutiveFailures int
+	SiteURL             string
+	IconURL             string
+	// IconCheckedSite is the site address whose homepage was last searched for an icon.
+	IconCheckedSite string
 	// AITasks are the AI tasks queued for each new entry, from the source's automatic switches.
 	// The fetcher clears them while AI is not configured.
 	AITasks []string
@@ -35,7 +39,7 @@ type NewSource struct {
 func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]FeedSource, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, consecutive_failures,
-			auto_summary, auto_translate
+			auto_summary, auto_translate, site_url, icon_url, icon_checked_site
 		FROM sources WHERE paused = 0 AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
@@ -48,7 +52,8 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		var interval int64
 		var summary, translate bool
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
-			&interval, &src.ConsecutiveFailures, &summary, &translate); err != nil {
+			&interval, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
+			&src.IconCheckedSite); err != nil {
 			return nil, err
 		}
 		src.FetchInterval = time.Duration(interval) * time.Second
@@ -73,6 +78,15 @@ func (s *Store) FetchSuccess(ctx context.Context, id int64, etag, lastModified s
 			next_fetch_at = ?4
 		WHERE id = ?5`,
 		now.UnixMilli(), etag, lastModified, next.UnixMilli(), id)
+	return err
+}
+
+// SetSourceIcon records an icon lookup for the site address site. An icon already set is kept, and an empty
+// icon only marks the site as searched.
+func (s *Store) SetSourceIcon(ctx context.Context, id int64, icon, site string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE sources SET icon_url = CASE WHEN icon_url = '' THEN ? ELSE icon_url END, icon_checked_site = ?
+		WHERE id = ?`, icon, site, id)
 	return err
 }
 

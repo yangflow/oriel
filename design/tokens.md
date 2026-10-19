@@ -21,6 +21,10 @@ Mockups show the 4 DIP unit and 13 px text.
 | sheet | `t.Space(80)` | 320 | widest a centered sheet (the connect screen) grows |
 | symbol-button | `t.Space(11)` | 44 | width of square symbol buttons |
 | radius | `Theme.Radius` | 8 | corners of controls |
+| toolbar | `t.Space(13)` | 52 | the toolbar row; the window buttons are centered in it |
+| capsule | `t.Space(8)`, radius 16 | 32 | glass toolbar controls: segments, search, button groups |
+| pane-inset | `t.Space(2)` | 8 | the glass sidebar's distance from the window's edges |
+| pane-radius | 16 | 16 | corners of the glass sidebar |
 | icon | `t.Rem(1.25)` | about 16 / 18 | icons in fields and buttons; 1.05 rem in error lines |
 | title | `t.Rem(1.8)` bold | about 23 / 25 | screen title, a level 1 heading |
 | secondary | `t.Rem(0.9)` | about 12 / 13 | hints, in `TextMuted` |
@@ -36,7 +40,7 @@ and `Focus` is opaque. A soft fill (`theme.Soft`) is the role mixed toward `Back
 
 | Role | Light | Dark | Used for |
 |---|---|---|---|
-| `Background` | `#fbfaf7` | `#1b1a18` | window fill, focused field |
+| `Background` | `#fbfaf7` | `#161513` | window fill, focused field |
 | `Surface` | `#f2f0eb` | `#25231f` | control faces, fields |
 | `SurfaceHover` | `#e9e6df` | `#2f2c28` | hovered control |
 | `SurfacePressed` | `#dfdbd2` | `#3a3732` | pressed control |

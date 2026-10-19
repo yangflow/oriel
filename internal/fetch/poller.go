@@ -187,6 +187,11 @@ func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource) (int, e
 	if err != nil {
 		return 0, err
 	}
+	if src.IconURL == "" {
+		if err := p.fillIcon(ctx, src, feed); err != nil {
+			return 0, err
+		}
+	}
 	return created, p.store.FetchSuccess(ctx, src.ID, etag, lastModified, now, next)
 }
 
