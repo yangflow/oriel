@@ -177,13 +177,21 @@ func (s *Screen) finish(run int, session client.Session, err error) {
 
 // View draws the form; it does no disk or network work, which runs through Deps.
 func (s *Screen) View(c *ui.Context) {
-	t := c.Theme()
 	busy := s.phase != idle
 	if s.announce != "" {
 		c.Announce(s.announce)
 		s.announce = ""
 	}
 	_, height := c.Size()
+	ui.Box(c).Fill().Children(func() {
+		s.form(c, height, busy)
+		// No title bar: the top row drags the window and leaves the window buttons room.
+		ui.Box(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).DragWindow()
+	})
+}
+
+func (s *Screen) form(c *ui.Context, height float32, busy bool) {
+	t := c.Theme()
 	ui.Scroll(c).Fill().Children(func() {
 		ui.Column(c).FillWidth().MinHeight(height).Center().Padding(t.Space(6)).Children(func() {
 			ui.Column(c).FillWidth().MaxWidth(t.Space(80)).Gap(t.Space(6)).Children(func() {

@@ -367,8 +367,8 @@ Overlays share focus and Escape behavior; see
   `glass.Glass{Tint: Surface}` (the [glass plugin](https://github.com/egoist/mygo/blob/v0.4.1/docs/plugins/glass.md)),
   the toolbar's controls are capsules of `glass.Glass{}`, and `glass.ScrollEdge{}` fades content under the toolbar
   row. Content stays on opaque `Background`; glass is for chrome only, never for entries, the article or dialogs.
-  Text on glass keeps the theme's contrast, and with Reduce Transparency on (or high contrast) glass becomes opaque
-  `Surface` with a `Border` rim. The plugin draws the same glass on Windows and Linux, so the look is one on every
+  Text on glass keeps the theme's contrast, and with high contrast on glass becomes opaque `Surface` with a `Border`
+  rim (MyGo reports no Reduce Transparency setting, so high contrast is the one switch). The plugin draws the same glass on Windows and Linux, so the look is one on every
   platform; no system vibrancy is used.
 - **Menus.** The macOS menu bar belongs to the app. Oriel's menu has an app menu (About, check for updates, Quit),
   the Edit menu (`RoleEditMenu`, so copy and paste work) and the Window menu (`RoleWindowMenu`); "Connect to

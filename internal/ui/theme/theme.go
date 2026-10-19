@@ -5,8 +5,13 @@ package theme
 import (
 	"unicode"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 )
+
+// Bar is the height of the toolbar row each screen floats over its content, in DIPs: the window buttons sit
+// centered in it, and content scrolls under it starting this far down.
+const Bar = 52
 
 // Apply replaces the frame's theme with Oriel's palette for the system appearance. Call it first in the root view of
 // every window, each frame. Metrics stay the theme's, so the desktop's text size still applies, and the colors are
@@ -52,6 +57,48 @@ func Raised(t *ui.Theme, b ui.Element) {
 		return
 	}
 	b.Background(t.Background).Shadow(0, 0, 0, 1, t.Border)
+}
+
+// Pane fills the sidebar with a floating pane of glass tinted Surface; with high contrast it is opaque Surface with a
+// Border rim.
+func Pane(c *ui.Context, e ui.Element) ui.Element {
+	t := c.Theme()
+	if c.Preferences().HighContrast {
+		return e.Background(t.Surface).Border(1, t.Border)
+	}
+	return e.Material(glass.Glass{Tint: t.Surface})
+}
+
+// Capsule fills a toolbar control with clear glass, a little darker under the pointer; with high contrast it is
+// opaque Surface with a Border rim, SurfaceHover under the pointer.
+func Capsule(c *ui.Context, e ui.Element, hover bool) ui.Element {
+	t := c.Theme()
+	if c.Preferences().HighContrast {
+		if hover {
+			return e.Background(t.SurfaceHover).Border(1, t.Border)
+		}
+		return e.Background(t.Surface).Border(1, t.Border)
+	}
+	if hover {
+		return e.Material(glass.Glass{Tint: t.Text.Alpha(0.06)})
+	}
+	return e.Material(glass.Glass{})
+}
+
+// Edge fades the content scrolling under the toolbar row into the background (the soft scroll edge). Paint it over
+// the content and before the toolbar.
+func Edge(c *ui.Context) {
+	ui.Box(c).Absolute().Top(0).Left(0).Right(0).Height(Bar + 10).PassThrough().Material(glass.ScrollEdge{})
+}
+
+// Lifted draws the chosen segment of a control on glass: Background lifted off the track by a soft shadow in light,
+// SurfacePressed in dark.
+func Lifted(t *ui.Theme, b ui.Element) {
+	if t.Dark {
+		b.Background(t.SurfacePressed)
+		return
+	}
+	b.Background(t.Background).Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.14))
 }
 
 // Han reports whether a text has Chinese characters; Chinese runs taller, so such text gets a larger line height.

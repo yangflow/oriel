@@ -173,6 +173,8 @@ func desktop() {
 		}))
 		window = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Oriel", Width: 960, Height: 640, MinWidth: 640, MinHeight: 480,
+			// The view draws its own toolbar row, 52 high: the window buttons (14 high) sit centered in it.
+			TitleBarStyle: mygo.TitleBarHidden, TrafficLightPosition: &mygo.Point{X: 19, Y: 19},
 			Content: ui.View(root.View),
 		})
 		root.restore()
