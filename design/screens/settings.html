@@ -6,12 +6,13 @@
 <!-- Settings: they take the whole window. The timeline's sidebar gives way to the settings' own: "Back to the
      timeline" on top, then one item per group, and the server bar, which says whose settings these are. Opened from the
      gear button in the timeline's server bar or the app menu's "Settings…" (CmdOrCtrl+,); the back button and Escape
-     return to the timeline where it was. Groups: Fetching (the RSSHub instance and how long entries are kept), Import
-     and export (OPML), AI (the endpoint for summaries and translations, and the global prompts), Devices (the
-     sessions signed in to the server).
-     Language and appearance follow the system and are not settings. Colors are the Oriel palette of
+     return to the timeline where it was. Groups: Appearance (first; theme, interface language, interface font and the
+     reading text, kept on this device only, not on the server), Fetching (the RSSHub instance and how long entries are
+     kept), Import and export (OPML), AI (the endpoint for summaries and translations, and the global prompts), Devices
+     (the sessions signed in to the server).
+     Appearance is saved and applied as soon as a control is changed; it has no Save button. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License).
-     States: fetching, edited (the instance changed, not saved), invalid (the server refused it), saved, opml,
+     States: appearance, fetching, edited (the instance changed, not saved), invalid (the server refused it), saved, opml,
      importing, imported (with failures), import-error, exported, devices (a remote server and its sessions),
      devices-local (this computer's server, no sessions), revoke (confirming a revocation), loading, error;
      ai (not set up), ai-configured (saved, the key only shown as set), ai-edited (changed, not saved; testing waits
@@ -198,6 +199,13 @@ aside .top { height:36px; border-bottom:0 }
    12 below, cards and section titles are 28 apart. Fields and text areas share one fill, Surface, Background when
    focused. */
 .page { padding-top:32px }
+:root { --read-scale:1; --read-leading:1.65 }
+:root:lang(zh-Hans) { --read-leading:1.85 }
+.segmented { display:inline-flex; flex:none; gap:2px; padding:3px; border-radius:9px; background:var(--surface) }
+.segmented button { height:26px; padding:0 12px; border-radius:7px; color:var(--muted); white-space:nowrap }
+.segmented button.on { font-weight:500 }
+.preview { margin:0; font-size:calc(15px * var(--read-scale)); line-height:var(--read-leading); color:var(--text) }
+.preview-box { padding:12px 14px; border-radius:8px; background:var(--surface) }
 .row { padding:16px 20px }
 .lead { margin-bottom:20px }
 .help { margin-top:4px }
@@ -214,7 +222,7 @@ aside .top { height:36px; border-bottom:0 }
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','fetching','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
+const states=['appearance','ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','fetching','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -234,6 +242,7 @@ for(const [id,list] of Object.entries(options)){
 }
 
 const icons={
+  palette:'<path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>',
   inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
   article:'<path d="M15 18h-5"/><path d="M18 14h-8"/><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="10" y="6" rx="1"/>',
   video:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
@@ -279,6 +288,15 @@ const copy={
     thisComputer:'This computer', settings:'Settings', backTimeline:'Back to the timeline', serverNote:'These settings belong to this server',
     lead:'Settings are kept on the server, for every device connected to it.',
     fetching:'Fetching', opml:'Import and export', devices:'Devices', ai:'AI',
+    appearance:'Appearance', appearanceLead:'These apply only to this device.',
+    theme:'Theme', themeHelp:'Light or dark. Teal stays the accent in both.', themeSystem:'System', themeLight:'Light', themeDark:'Dark',
+    uiLanguage:'Interface language', uiLanguageHelp:'Applies at once.', systemChoice:'System',
+    uiFont:'Interface font', uiFontHelp:'The text size follows your system’s text size.', systemFont:'System font',
+    reading:'Reading', textSize:'Text size', textSizeHelp:'The text of an article in the reader.',
+    sizeSmall:'Small', sizeMedium:'Medium', sizeLarge:'Large', sizeXLarge:'Extra large',
+    lineSpacing:'Line spacing', lineSpacingHelp:'The space between the lines of an article.',
+    spacingCompact:'Compact', spacingStandard:'Standard', spacingRelaxed:'Relaxed',
+    previewText:'The quick brown fox jumps over the lazy dog. A good feed reader gets out of the way and lets the words do the work.',
     aiLead:'Summaries and translations go through an OpenAI-compatible endpoint of your choosing: OpenAI, another provider, or a model on this computer such as Ollama.',
     endpoint:'Endpoint', endpointHelp:'The base address of the API, such as <code>https://api.openai.com/v1</code>.', endpointPlaceholder:'https://api.openai.com/v1',
     model:'Model', modelPlaceholder:'gpt-4o-mini',
@@ -314,6 +332,15 @@ const copy={
     thisComputer:'本机', settings:'设置', backTimeline:'回到时间线', serverNote:'这些设置属于这个服务端',
     lead:'设置保存在服务端，连到它的每台设备都一样。',
     fetching:'抓取', opml:'导入和导出', devices:'设备', ai:'AI',
+    appearance:'外观', appearanceLead:'这些只对这台设备生效。',
+    theme:'主题', themeHelp:'浅色或深色。两种主题下强调色都是青绿。', themeSystem:'跟随系统', themeLight:'浅色', themeDark:'深色',
+    uiLanguage:'界面语言', uiLanguageHelp:'选了立即生效。', systemChoice:'跟随系统',
+    uiFont:'界面字体', uiFontHelp:'文字大小跟随系统的文字大小。', systemFont:'系统字体',
+    reading:'阅读', textSize:'文字大小', textSizeHelp:'阅读窗格里文章正文的大小。',
+    sizeSmall:'小', sizeMedium:'中', sizeLarge:'大', sizeXLarge:'特大',
+    lineSpacing:'行距', lineSpacingHelp:'文章正文的行与行之间的距离。',
+    spacingCompact:'紧凑', spacingStandard:'标准', spacingRelaxed:'宽松',
+    previewText:'好的阅读器不抢戏，让文字自己说话。长时间读下去，字号和行距合不合适，眼睛最先知道。',
     aiLead:'摘要和翻译走你自己选的 OpenAI 兼容接口：OpenAI、别的服务商，或者本机的模型（例如 Ollama）。',
     endpoint:'接口地址', endpointHelp:'API 的根地址，例如 <code>https://api.openai.com/v1</code>。', endpointPlaceholder:'https://api.openai.com/v1',
     model:'模型', modelPlaceholder:'gpt-4o-mini',
@@ -350,9 +377,9 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state.startsWith('ai')?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
+const group=state==='appearance'?'appearance':state.startsWith('ai')?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
 
-const groups=[['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop']];
+const groups=[['appearance','palette'],['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
 <nav class="nav" aria-label="${copy.settings}"><div class="section">${copy.settings}</div>${groups.map(([k,g])=>`<button class="item${k===group?' chosen':''}"${k===group?' aria-current="page"':''}>${icon(g)}<span class="name">${copy[k]}</span></button>`).join('')}</nav>
 <div class="server" title="${copy.serverNote}">${icon(remote?'server':'laptop')}<span class="name">${remote?host:copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></div></aside>`;
@@ -363,6 +390,19 @@ const dirty=state==='edited'||state==='invalid';
 let status='';
 if(state==='invalid')status=`<div class="status error" role="alert">${icon('alert')}${copy.invalidBase}</div>`;
 if(state==='saved')status=`<div class="status ok" role="status">${icon('check')}${copy.saved}</div>`;
+const seg=(label,items,on)=>`<div class="segmented" role="radiogroup" aria-label="${label}">${items.map(([k,name])=>`<button role="radio" aria-checked="${k===on}"${k===on?' class="on"':''}>${name}</button>`).join('')}</div>`;
+const menu=(label,value,style='')=>`<button class="select" aria-haspopup="listbox" aria-label="${label}"><span${style?` style="${style}"`:''}>${value}</span>${icon('chevronDown')}</button>`;
+const setting=(label,help,control)=>`<div class="row"><div class="device"><div class="text"><span class="label">${label}</span><p class="help">${help}</p></div>${control}</div></div>`;
+const appearance=`<p class="lead">${copy.appearanceLead}</p><div class="card">
+${setting(copy.theme,copy.themeHelp,seg(copy.theme,[['system',copy.themeSystem],['light',copy.themeLight],['dark',copy.themeDark]],'system'))}
+${setting(copy.uiLanguage,copy.uiLanguageHelp,menu(copy.uiLanguage,copy.systemChoice))}
+${setting(copy.uiFont,copy.uiFontHelp,menu(copy.uiFont,copy.systemFont))}
+</div><h2 class="section-title">${copy.reading}</h2><div class="card">
+${setting(copy.textSize,copy.textSizeHelp,seg(copy.textSize,[['s',copy.sizeSmall],['m',copy.sizeMedium],['l',copy.sizeLarge],['xl',copy.sizeXLarge]],'m'))}
+${setting(copy.lineSpacing,copy.lineSpacingHelp,seg(copy.lineSpacing,[['c',copy.spacingCompact],['s',copy.spacingStandard],['r',copy.spacingRelaxed]],'s'))}
+<div class="row"><div class="preview-box" aria-hidden="true"><p class="preview">${copy.previewText}</p></div></div>
+</div>`;
+
 const fetching=`<p class="lead">${copy.lead}</p><div class="card">
 <div class="row"><span class="label">${copy.rsshub}</span><p class="help">${copy.rsshubHelp}</p>
 <div class="control">${field}<button class="button${dirty?' primary':''}"${dirty?'':' disabled'}>${copy.save}</button></div>${status}</div>
@@ -420,7 +460,7 @@ ${prompt(copy.promptTranslate,'Translate the text into {language}. Keep the para
 let page;
 if(state==='loading')page=`<div class="page skeleton" aria-busy="true"><div class="bar" style="width:60%"></div><div class="block"></div></div>`;
 else if(state==='error')page=`<div class="empty" role="status"><div class="tile">${icon('wifiOff')}</div><h2>${copy.error}</h2><p>${copy.errorHint}</p><button class="button">${icon('refresh')}${copy.retry}</button></div>`;
-else page=`<div class="page">${{fetching,opml,ai,devices}[group]}</div>`;
+else page=`<div class="page">${{appearance,fetching,opml,ai,devices}[group]}</div>`;
 
 let overlay='';
 if(state==='revoke')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${t('revokeTitle',{name:'Safari · iPhone'})}</h2><p id="ab">${copy.revokeBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.revokeConfirm}</button></div></div></div>`;

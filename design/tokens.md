@@ -32,6 +32,21 @@ Mockups show the 4 DIP unit and 13 px text.
 | window | `Width`, `Height` | 960 x 640 | main window |
 | window-min | `MinWidth`, `MinHeight` | 640 x 480 | smallest supported size |
 
+## Reading text
+
+Two per-device preferences (Settings, Appearance) change the reader's article text and nothing else. Sizes are in
+mockup px (13 px body = `t.Rem(1)`, written `px(t, n)` in code). The default is Medium and Standard.
+
+| Preference | Choice | Value |
+|---|---|---|
+| Text size | Small / Medium / Large / Extra large | body 14 / 15 / 17 / 19, scale 0.933 / 1 / 1.133 / 1.267 |
+| Line spacing | Compact / Standard / Relaxed | line height 1.5 / 1.65 / 1.85; Simplified Chinese 1.7 / 1.85 / 2.05 |
+
+The scale multiplies the article's other sizes with the body: h2 (18) and h3 (15.5), code (13), the 14 between
+paragraphs, the 4 between list items and the 22 marker column. The column stays at most 680 wide, so a larger size
+sets fewer characters per line. The title, the source line, notes, captions and the toolbar keep their sizes, and the
+interface font and size are unaffected.
+
 ## Color roles
 
 Oriel's palette, paper and ink: warm paper neutrals, a softened ink and a muted teal accent, set by `theme.Apply`
