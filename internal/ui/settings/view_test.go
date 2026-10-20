@@ -507,7 +507,7 @@ func TestDevicesTable(t *testing.T) {
 	if r := rect(t, tt, "3 hours ago"); r.X+r.W != last.X+last.W {
 		t.Errorf("last used ends at %v, want %v", r.X+r.W, last.X+last.W)
 	}
-	if b := rect(t, tt, "Revoke “Safari · iPhone”?"); b.X < last.X+last.W || b.W == 0 {
+	if b := rect(t, tt, "Sign out “Safari · iPhone”?"); b.X < last.X+last.W || b.W == 0 {
 		t.Errorf("revoke at %v, last used ends at %v", b, last.X+last.W)
 	}
 	if a, b := rect(t, tt, "Safari"), rect(t, tt, "Unknown device"); a.X != b.X || a.Y >= b.Y {
@@ -549,7 +549,7 @@ func TestRevoke(t *testing.T) {
 	s, f, tt := setup(t, "en", true)
 	s.group = devices
 	tt.Frame()
-	if err := tt.Click("Revoke “Safari · iPhone”?"); err != nil {
+	if err := tt.Click("Sign out “Safari · iPhone”?"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText(s.text.RevokeBody) {
@@ -559,7 +559,7 @@ func TestRevoke(t *testing.T) {
 	if f.back != 0 || len(f.revoked) != 0 {
 		t.Fatalf("back %d, revoked %v", f.back, f.revoked)
 	}
-	if err := tt.Click("Revoke “Unknown device”?"); err != nil {
+	if err := tt.Click("Sign out “Unknown device”?"); err != nil {
 		t.Fatal(err)
 	}
 	f.revokeErr = errors.New("offline")
@@ -567,12 +567,12 @@ func TestRevoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.settle(tt)
-	if !tt.HasText("Couldn’t revoke Unknown device.") || !tt.HasText("Unknown device") {
+	if !tt.HasText("Couldn’t sign out Unknown device.") || !tt.HasText("Unknown device") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	tt.Frame()
 	f.revokeErr = &client.APIError{Status: 404, Code: "not_found"}
-	if err := tt.Click("Revoke “Unknown device”?"); err != nil {
+	if err := tt.Click("Sign out “Unknown device”?"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click(s.text.RevokeConfirm); err != nil {
