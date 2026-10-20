@@ -327,7 +327,7 @@ What Oriel uses today:
 | `ui.List`, `ui.GridView` | The timeline's rows and its video cards; both build only what is in view. |
 | `ui.AlertDialog` | Confirming deleting a subscription, which cannot be undone. Its last button, the action, is the default and takes the focus; Escape is Cancel. |
 | `c.Toast`, `c.Announce` | Feedback after starring, marking and failures, and "No unread entries below"; counts announced without moving the focus. |
-| `c.ToastAction` | "Mark all as read", "Mark above as read" and "Mark subscription as read" act at once and offer Undo here, with a close button, one Undo shared by the three; Cmd/Ctrl+Z undoes it while the toast shows. The toast is centered at the bottom as an `Inverse` tile with `InverseText`. |
+| `c.ToastAction` | "Mark all as read", "Mark above as read", "Mark subscription as read" and the V key act at once and offer Undo here, with a close button, one Undo shared by the four; Cmd/Ctrl+Z undoes it while the toast shows. The toast is centered at the bottom as an `Inverse` tile with `InverseText`. |
 | `ui.DialogBase` (key sheet) | The keyboard shortcut sheet, drawn like the subscription dialogs: two columns (timeline, reader) and an "Anywhere" group below, each key a small chip; one column below a 760 wide window. Escape or Close dismisses it. |
 
 The tables below say what to reach for as screens are added.
@@ -456,20 +456,36 @@ Overlays share focus and Escape behavior; see
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.
 - **Timeline keys.** J or Down and K or Up move between entries, N goes to the next unread entry below the chosen one
   (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in the
-  reader, anything else in the browser) and marks it read, S stars it, M toggles read, `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
+  reader, anything else in the browser) and marks it read, S stars it, M toggles read, V marks the entries fully in view as
+  read and scrolls the first one below them to the top (see "Mark visible" below), `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
   window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
-  Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+Z undoes the last of the three "mark as read" actions while its toast shows, and `?` or Cmd/Ctrl+/
+  Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+Z undoes the last of the four "mark as read" actions while its toast shows, and `?` or Cmd/Ctrl+/
   opens the key sheet, which the Help menu also lists as "Keyboard Shortcuts".
   Every entry is also a focusable element with its own name, so Tab reaches it.
+- **Mark visible (V).** One key clears a screenful: it marks the entries fully inside the list area as read, then
+  scrolls so the first entry below them is at the top, chosen and focused. "Fully inside" counts a row (a card in the video
+  grid, a tile in the picture wall) that lies wholly between the bottom of the toolbar, which the list scrolls under, and
+  the bottom of the window; a row cut by either edge is not marked and, at the bottom, is the one scrolled to the top. The
+  range runs in list order from the first entry fully in view to the last one before the first entry that is not; in the
+  picture wall, whose columns differ in height, that is the entries up to the first tile not wholly in view. Entries already
+  read inside the range stay as they are and are not counted. With no unread in the range V only scrolls and shows no
+  toast, so it also pages; at the end of the list it marks and stays. If the last loaded entry is wholly in view but
+  another page is to come, it is left unread and becomes the one scrolled to, while the page loads. The scroll is
+  immediate (MyGo's `ListState.ScrollTo` and `GridState.ScrollTo` do not glide) and not undone by Undo. V works in All and
+  Unread without a search, like "Mark all as read", and does nothing under Starred or a search. The toast is the shared
+  one: "Marked 5 visible entries as read" with Undo and the close button (`marked-visible` in the mockup). The toast is
+  announced, and the new chosen entry is then read by its own name; there is no extra announcement. The trackpad swipe is
+  not possible in MyGo 0.5.5 (no gesture callback) and is left out.
 - **Sidebar keys.** 1 to 5 switch to All and the four kinds, in the sidebar's order, from anywhere in the timeline. H or
   Left moves the focus to the chosen item of the sidebar (the kind, or the subscription when the scope is one), Up and
   Down walk its kinds, which choose as the focus passes, and its subscriptions, which wait for Enter (one vertical
   focus group each, so Tab still goes through the sidebar in two stops, and Left and Right are not the groups' but go
   back to the list); the focus stays on the item chosen, and L, Right or Escape gives the focus back to the list, the chosen entry
-  focused. While the sidebar has the focus by the keyboard (H, Left, Tab, the arrows) the entry keys (J K O S M N, Up and Down) do not touch the entries; `/` still
-  goes to search. A click on a kind or subscription does not count: the entry keys keep acting on the list. Shift+F10 or the Menu key opens the context menu of the focused subscription or entry, which MyGo
-  does natively for an element with `ContextMenu`; a Mac keyboard has no Menu key, so the key sheet lists Shift+F10
-  alone there. All of these are off while the search field has the focus, a dialog is open or the reader shows. A
+  focused. While the sidebar has the focus by the keyboard (H, Left, Tab, the arrows) the entry keys (J K O S M N V,
+  Up and Down) do not touch the entries; `/` still goes to search. A click on a kind or subscription does not count:
+  the entry keys keep acting on the list. Shift+F10 or the Menu key opens the context menu of the focused subscription
+  or entry, which MyGo does natively for an element with `ContextMenu`; a Mac keyboard has no Menu key, so the key
+  sheet lists Shift+F10 alone there. All of these are off while the search field has the focus, a dialog is open or the reader shows. A
   scope switched from the keyboard is announced with `c.Announce` ("Videos, 12 unread"), the focus staying where it was.
   The focus ring on a sidebar item is 2 DIPs of the pane's own accent at 55% (`sidebar-focus` in the mockup).
 - **Reader keys.** While the reader shows, J and K go to the next and previous article, N to the next unread one (a

@@ -36,10 +36,15 @@
      the sidebar keeps the existing menu of subscriptions.html): Mark subscription as read sits under Refresh and is
      dimmed when it has nothing unread (menu-feed-none). Both act at once and offer Undo in the same toast as Mark all
      as read (marked-above, marked-feed).
+     V marks the entries fully in view as read and scrolls so the first entry below them is at the top, the keyboard choice
+     on it (marked-visible, drawn after the press: eight entries were in view, five of them unread, so the toast says 5; the next one is chosen).
+     It marks from the first entry fully in view to the last one fully in view; a row cut at the top or bottom edge stays
+     unread. It offers Undo in the same toast as Mark all as read, and is off under Starred and search. With nothing
+     unread in view it only scrolls, without a toast.
      The keyboard reaches the sidebar too (sidebar-focus, the focus ring on the chosen item): 1 to 5 switch to All and
      the four kinds from anywhere in the timeline; H or Left moves the focus to the chosen item of the sidebar, Up and
      Down walk its kinds and subscriptions, Enter chooses one and the focus stays on it, and L, Right or Escape
-     returns it to the list, the chosen entry focused. While the sidebar has the focus the entry keys (J K O S M N,
+     returns it to the list, the chosen entry focused. While the sidebar has the focus the entry keys (J K O S M N V,
      Up and Down) leave the entries alone. Shift+F10 or the Menu key opens the menu of the focused subscription or
      entry (menu-feed and menu-entry look the same); a Mac has no Menu key, so there it is Shift+F10 (fn on laptops).
      All of them are listed in the key sheet (keys) and are off while the search field has the focus, a dialog is
@@ -340,7 +345,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-feed','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys'];
+const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -415,12 +420,12 @@ const copy={
     empty:'Nothing here yet', emptyHint:'New entries show up after the next fetch.',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', importOpml:'Import OPML…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
-    marked:'Marked {n} entries in “{scope}” as read', markedAbove:'Marked {n} entries above as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below',
+    marked:'Marked {n} entries in “{scope}” as read', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
     kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
     kSummarize:'Summarize', kTranslate:'Translate', kBack:'Back to the list', kAdd:'Add subscription', kSettings:'Settings', kKeys:'Keyboard shortcuts',
-    kScope:'Switch kind', kSidebar:'Go to the sidebar', kMenu:'Context menu',
+    kMarkVisible:'Mark visible as read', kScope:'Switch kind', kSidebar:'Go to the sidebar', kMenu:'Context menu',
     thisComputer:'This computer', settings:'Settings', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures',
     ago:{m:'{n} min',h:'{n} h',d:'Yesterday',days:'{n} days'},
   },
@@ -441,12 +446,12 @@ const copy={
     empty:'这里还没有条目', emptyHint:'下次抓取之后，新条目会出现在这里。',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', importOpml:'导入 OPML…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
-    marked:'已把“{scope}”里的 {n} 条标为已读', markedAbove:'已把上面的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了',
+    marked:'已把“{scope}”里的 {n} 条标为已读', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
     kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
     kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
     kSummarize:'摘要', kTranslate:'翻译', kBack:'回到列表', kAdd:'添加订阅', kSettings:'设置', kKeys:'键盘快捷键',
-    kScope:'切换形态', kSidebar:'到侧边栏', kMenu:'右键菜单',
+    kMarkVisible:'把可见的标为已读', kScope:'切换形态', kSidebar:'到侧边栏', kMenu:'右键菜单',
     thisComputer:'本机', settings:'设置', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图',
     ago:{m:'{n} 分钟前',h:'{n} 小时前',d:'昨天',days:'{n} 天前'},
   },
@@ -507,12 +512,14 @@ const markedCount=sources.filter(inScope).reduce((a,s)=>a+s.unread,0);
 const markedFeedCount=12;
 const feedMenu=state.startsWith('menu-feed');
 const menuSource=byId[state==='menu-feed-none'?3:2];
+const markedVisibleCount=entries.slice(0,8).filter(e=>!e.read).length;
+if(state==='marked-visible'){entries.slice(0,8).forEach(e=>{if(!e.read){e.read=true;byId[e.source].unread--}})}
 if(state==='marked-above'){entries.slice(0,2).forEach(e=>{e.read=true;byId[e.source].unread--})}
 if(state==='marked-feed'){entries.forEach(e=>{if(e.source===2)e.read=true});byId[2].unread=0}
 if(state==='marked-read'){entries.forEach(e=>{if(inScope(byId[e.source]))e.read=true});sources.filter(inScope).forEach(s=>s.unread=0)}
 total=sources.reduce((a,s)=>a+s.unread,0);
 const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[1].name:copy.all;
-const visible=kinds.includes(scope)?entries.filter(e=>e.kind===scope):scope==='source'?entries.filter(e=>e.source===1):entries.slice(0,7);
+const visible=kinds.includes(scope)?entries.filter(e=>e.kind===scope):scope==='source'?entries.filter(e=>e.source===1):state==='marked-visible'?entries.slice(8,15):entries.slice(0,7);
 const filter=state==='unread-done'?1:state==='starred-none'?2:0;
 const q=state==='search'?'sqlite':state==='search-none'?'kubernetes':state==='search-short'?'go':'';
 const searching=q!=='';
@@ -556,7 +563,7 @@ const videoCover=(e,cls)=>`<div class="pic ${cls} ${e.thumb}" role="img" aria-la
 
 // All, Articles, Social: one column of rows
 const row=(e,i)=>{
-  const cls=`row${e.read?' read':''}${i===1&&state==='list'?' hover':''}${(i===2&&state==='menu-entry')||(i===0&&state==='menu-entry-first')?' menued':''}${(i===2&&(state==='list'||state==='sidebar-focus'))||(i===3&&state==='no-more-unread')?' chosen':''}`;
+  const cls=`row${e.read?' read':''}${i===1&&state==='list'?' hover':''}${(i===2&&state==='menu-entry')||(i===0&&state==='menu-entry-first')?' menued':''}${(i===2&&(state==='list'||state==='sidebar-focus'))||(i===0&&state==='marked-visible'&&scope==='all')||(i===3&&state==='no-more-unread')?' chosen':''}`;
   const dot=e.read?'':`<span class="unread-dot" role="img" aria-label="${copy.unread}"></span>`;
   switch(e.kind){
     case 'article':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3><p class="summary">${highlight(e.summary)}</p></div>${e.thumb?`<div class="pic thumb ${e.thumb}"></div>`:''}${actions(e)}</article>`;
@@ -598,12 +605,13 @@ const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries
 const mac=navigator.platform.startsWith('Mac'),mod=mac?'⌘':'Ctrl+',shift=mac?'⇧':'Shift+';
 const toast=state==='marked-read'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedCount,scope:scopeName})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-above'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedAbove',{n:2})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
+  :state==='marked-visible'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedVisible',{n:markedVisibleCount})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-feed'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedFeedCount,scope:byId[2].name})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='no-more-unread'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:'';
 const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
 const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${keys(...k)}</dd>`).join('')}</dl>`;
 const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="kt"><header><h2 id="kt">${copy.keysTitle}</h2><button class="close" aria-label="${copy.close}">${icon('x')}</button></header><div class="cols"><div>
-  <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kStar','S'],['kRead','M'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kScope','1–5'],['kSidebar','H','←'],['kBack','L','→','Esc'],['kMenu',[shift,'F10'],...(mac?[]:['Menu'])],['kUndo',[mod,'Z']]])}</div><div>
+  <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kStar','S'],['kRead','M'],['kMarkVisible','V'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kScope','1–5'],['kSidebar','H','←'],['kBack','L','→','Esc'],['kMenu',[shift,'F10'],...(mac?[]:['Menu'])],['kUndo',[mod,'Z']]])}</div><div>
   <h3>${copy.inReader}</h3>${keyList([['kNextArticle','J'],['kPrevArticle','K'],['kNextUnread','N'],['kStar','S'],['kRead','M'],['kOpenBrowser','O'],['kBack','Esc']])}
   <h3>${copy.anywhere}</h3>${keyList([['kAdd',[mod,'N']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
 

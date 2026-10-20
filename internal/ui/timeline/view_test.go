@@ -1227,6 +1227,286 @@ func TestMarkAboveScope(t *testing.T) {
 	}
 }
 
+// crowd is a timeline of n articles, newest first, in a window that shows only some of them.
+func crowd(t *testing.T, n int, height int) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	f := &fake{now: now, patches: map[int64][]client.EntryPatch{},
+		sources: []client.Source{{ID: 1, Title: "Go Blog", Kind: "article", UnreadCount: n}}}
+	for i := n; i >= 1; i-- {
+		f.entries = append(f.entries, client.Entry{ID: int64(i), SourceID: 1, SourceTitle: "Go Blog", Kind: "article",
+			Title: fmt.Sprintf("Entry %d", i), URL: fmt.Sprintf("https://go.dev/%d", i),
+			CreatedAt: ago(time.Duration(n-i+1) * time.Minute)})
+	}
+	s := New("en", f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, height)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	return s, f, tt
+}
+
+// TestMarkVisibleWall marks the pictures that are whole on the Images wall, and scrolls the wall to the first one after.
+func TestMarkVisibleWall(t *testing.T) {
+	s, f, tt := crowd(t, 40, 600)
+	for i := range f.entries {
+		f.entries[i].Kind = "image"
+		f.entries[i].Images = []client.Image{{URL: fmt.Sprintf("https://photos.example/%d.jpg", i), Width: 1200, Height: 800}}
+	}
+	f.sources[0].Kind = "image"
+	if err := tt.Click("Images"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Key(0, ui.KeyL)
+	tt.Frame()
+	first, end := shown(t, s)
+	if first != 0 {
+		t.Fatalf("the wall starts at %d", first)
+	}
+	tt.Key(0, ui.KeyV)
+	f.settle(t, tt)
+	tt.Frame()
+	want := client.ReadScope{Kind: "image", UpTo: s.entries[0].ID, Newer: s.entries[end].ID}
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{want}) || s.selected != end {
+		t.Fatalf("marked %v, want %v, selected %d", f.marked, want, s.selected)
+	}
+	if s.wall.Y <= 0 || s.rects[end].Y < s.top() || s.rects[end].Y > s.top()+1 {
+		t.Fatalf("the wall is at %v, entry %d at %v", s.wall.Y, end, s.rects[end].Y)
+	}
+}
+
+// shown returns the entries that are whole in the window, as the list drew them: the first and one past the last.
+func shown(t *testing.T, s *Screen) (first, end int) {
+	t.Helper()
+	for first < len(s.entries) && !s.fullyShown(first) {
+		first++
+	}
+	for end = first; end < len(s.entries) && s.fullyShown(end); end++ {
+	}
+	if first == len(s.entries) || end-first < 3 || end == len(s.entries) {
+		t.Fatalf("the window shows entries %d to %d of %d", first, end, len(s.entries))
+	}
+	return first, end
+}
+
+func TestMarkVisible(t *testing.T) {
+	s, f, tt := crowd(t, 60, 420)
+	// An entry read already is left alone and not counted.
+	f.entries[1].IsRead = true
+	s.entries[1].IsRead = true
+	first, end := shown(t, s)
+	if first != 0 {
+		t.Fatalf("the list starts at %d", first)
+	}
+	tt.Key(0, ui.KeyV)
+	f.settle(t, tt)
+	tt.Frame()
+	want := client.ReadScope{UpTo: s.entries[0].ID, Newer: s.entries[end].ID}
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{want}) {
+		t.Fatalf("marked %v, want %v", f.marked, want)
+	}
+	for i, e := range s.entries[:end+1] {
+		if e.IsRead != (i < end) {
+			t.Fatalf("entry %d read %v", e.ID, e.IsRead)
+		}
+	}
+	if s.selected != end || !tt.Focused(fmt.Sprintf("Go Blog, Entry %d, %d min, Unread", s.entries[end].ID, end+1)) {
+		t.Fatalf("selected %d, want %d", s.selected, end)
+	}
+	// The entry after the visible ones is at the top, below the toolbar.
+	r := s.rects[end]
+	if r.Y < s.top() || r.Y > s.top()+float32(40) {
+		t.Fatalf("entry %d is at %v, the toolbar ends at %v", end, r.Y, s.top())
+	}
+	wantText := fmt.Sprintf("Marked %d visible entries as read", end-1)
+	if !slices.Contains(tt.Announcements(), wantText) || !tt.HasText("Undo") {
+		t.Fatalf("announcements %v", tt.Announcements())
+	}
+	if s.sources[0].UnreadCount != 60-end {
+		t.Fatalf("unread %d", s.sources[0].UnreadCount)
+	}
+
+	// Undo brings back the entries marked, not the one that was read before.
+	if err := tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if len(f.unmarked) != 1 || len(f.unmarked[0]) != end-1 || slices.Contains(f.unmarked[0], s.entries[1].ID) {
+		t.Fatalf("unmarked %v", f.unmarked)
+	}
+}
+
+func TestMarkVisibleUndoKey(t *testing.T) {
+	s, f, tt := crowd(t, 60, 420)
+	tt.Key(0, ui.KeyV)
+	f.settle(t, tt)
+	tt.Frame()
+	if s.undoable == nil || len(f.marked) != 1 {
+		t.Fatalf("marked %v", f.marked)
+	}
+	tt.Key(ui.Cmd, ui.KeyZ)
+	f.settle(t, tt)
+	if len(f.unmarked) != 1 || s.sources[0].UnreadCount != 60 || s.undoable != nil {
+		t.Fatalf("unmarked %v, unread %d", f.unmarked, s.sources[0].UnreadCount)
+	}
+}
+
+// TestMarkVisibleSharesUndo has the last marking replace the one before it.
+func TestMarkVisibleSharesUndo(t *testing.T) {
+	s, f, tt := crowd(t, 60, 420)
+	tt.Key(0, ui.KeyV)
+	f.settle(t, tt)
+	tt.Frame()
+	first := s.undoable
+	tt.Key(0, ui.KeyV)
+	f.settle(t, tt)
+	tt.Frame()
+	if len(f.marked) != 2 || s.undoable == nil || s.undoable == first {
+		t.Fatalf("marked %v", f.marked)
+	}
+	if f.marked[1].UpTo != f.marked[0].Newer {
+		t.Fatalf("the second marking starts at %d, the first ended before %d", f.marked[1].UpTo, f.marked[0].Newer)
+	}
+}
+
+// TestMarkVisibleNothingUnread scrolls on without a request or a toast.
+func TestMarkVisibleNothingUnread(t *testing.T) {
+	s, f, tt := crowd(t, 60, 420)
+	_, end := shown(t, s)
+	for i := 0; i < end; i++ {
+		f.entries[i].IsRead = true
+		s.entries[i].IsRead = true
+	}
+	tt.Key(0, ui.KeyV)
+	tt.Frame()
+	if len(f.queue) != 0 || len(f.marked) != 0 || s.undoable != nil {
+		t.Fatalf("queued %d, marked %v", len(f.queue), f.marked)
+	}
+	if s.selected != end || s.rects[end].Y > s.top()+40 {
+		t.Fatalf("selected %d, entry %d at %v", s.selected, end, s.rects[end].Y)
+	}
+}
+
+// TestMarkVisiblePageEdge leaves the last entry loaded unread while another page follows, and goes to it.
+func TestMarkVisiblePageEdge(t *testing.T) {
+	s, f, tt := crowd(t, 60, 20000)
+	if s.next == "" {
+		t.Fatal("the whole timeline is loaded")
+	}
+	last := len(s.entries) - 1
+	tt.Key(0, ui.KeyV)
+	f.settle(t, tt)
+	if s.entries[last].IsRead || !s.entries[last-1].IsRead {
+		t.Fatalf("the last entries read: %v %v", s.entries[last-1].IsRead, s.entries[last].IsRead)
+	}
+	if s.selected != last || len(f.marked) != 1 || f.marked[0].Newer != s.entries[last].ID {
+		t.Fatalf("selected %d, marked %v", s.selected, f.marked)
+	}
+}
+
+// TestMarkVisibleEnd marks to the end of the list, with no lower bound, and keeps the list where it is.
+func TestMarkVisibleEnd(t *testing.T) {
+	s, f, tt := crowd(t, 8, 20000)
+	if s.next != "" {
+		t.Fatal("more pages")
+	}
+	tt.Key(0, ui.KeyV)
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{UpTo: 8}}) {
+		t.Fatalf("marked %v", f.marked)
+	}
+	if s.selected != 7 || s.unreadIn(s.scope) != 0 {
+		t.Fatalf("selected %d", s.selected)
+	}
+}
+
+// TestMarkVisibleScope carries the kind of the tab in the request.
+func TestMarkVisibleScope(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.Click("Articles"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Key(0, ui.KeyL)
+	tt.Frame()
+	tt.Key(0, ui.KeyV)
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{Kind: "article", UpTo: 8}}) || s.selected != 2 {
+		t.Fatalf("marked %v, selected %d", f.marked, s.selected)
+	}
+}
+
+// TestMarkVisibleIgnored leaves V alone where the visible entries are not the scope's or the key is not for the list.
+func TestMarkVisibleIgnored(t *testing.T) {
+	check := func(t *testing.T, s *Screen, f *fake, tt *ui.Tester) {
+		t.Helper()
+		tt.Key(0, ui.KeyV)
+		f.settle(t, tt)
+		tt.Frame()
+		if len(f.marked) != 0 || s.undoable != nil {
+			t.Fatalf("marked %v", f.marked)
+		}
+	}
+	t.Run("starred", func(t *testing.T) {
+		s, f, tt := crowd(t, 60, 420)
+		s.filter = starred
+		check(t, s, f, tt)
+	})
+	t.Run("search", func(t *testing.T) {
+		s, f, tt := crowd(t, 60, 420)
+		s.searched = "entry"
+		check(t, s, f, tt)
+	})
+	t.Run("loading", func(t *testing.T) {
+		s, f, tt := crowd(t, 60, 420)
+		s.loading = true
+		check(t, s, f, tt)
+	})
+	t.Run("search box", func(t *testing.T) {
+		s, f, tt := crowd(t, 60, 420)
+		tt.Key(0, ui.KeySlash)
+		tt.Frame()
+		tt.Type("v")
+		if s.query != "v" {
+			t.Fatalf("query %q", s.query)
+		}
+		check(t, s, f, tt)
+	})
+	t.Run("key sheet", func(t *testing.T) {
+		s, f, tt := crowd(t, 60, 420)
+		s.ShowKeys()
+		tt.Frame()
+		check(t, s, f, tt)
+	})
+	t.Run("dialog", func(t *testing.T) {
+		s, f, tt := crowd(t, 60, 420)
+		s.subs.Add()
+		tt.Frame()
+		check(t, s, f, tt)
+	})
+	t.Run("reader", func(t *testing.T) {
+		s, f, tt := crowd(t, 60, 420)
+		if err := tt.Click("Go Blog, Entry 60, 1 min, Unread"); err != nil {
+			t.Fatal(err)
+		}
+		f.settle(t, tt)
+		if s.reading == 0 {
+			t.Fatal("the reader is not open")
+		}
+		check(t, s, f, tt)
+	})
+	t.Run("sidebar", func(t *testing.T) {
+		s, f, tt := crowd(t, 60, 420)
+		tt.Key(0, ui.KeyH)
+		tt.Frame()
+		if !s.inSide {
+			t.Fatal("not in the sidebar")
+		}
+		check(t, s, f, tt)
+	})
+}
+
 func TestEntryMenuActions(t *testing.T) {
 	_, f, tt := setup(t, "en")
 	if err := tt.RightClick("Profiling in practice"); err != nil {
