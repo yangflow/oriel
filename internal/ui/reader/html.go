@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/yangflow/oriel/internal/tracker"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
@@ -295,13 +296,41 @@ func (b *builder) picture(n *html.Node) {
 	src = b.address(src)
 	width, _ := strconv.Atoi(attr(n, "width"))
 	height, _ := strconv.Atoi(attr(n, "height"))
-	// Pictures of a pixel or two count visits; they are not part of the article.
-	if src == "" || width > 0 && width <= 2 || height > 0 && height <= 2 {
+	// Pictures of a pixel or two, hidden ones and those of known trackers count visits; they are not part of the
+	// article, and nothing asks for them.
+	if src == "" || width > 0 && width <= 2 || height > 0 && height <= 2 || hidden(n) || tracker.KnownAddress(src) {
 		return
 	}
 	b.flush(paragraph, 0)
 	b.blocks = append(b.blocks, b.mark(block{kind: picture, src: src, alt: strings.TrimSpace(attr(n, "alt")),
 		width: width, height: height}))
+}
+
+// hidden reports whether a picture is kept from view by its attributes or its inline style: hidden, display none,
+// visibility hidden, or a width or height of nothing or a pixel.
+func hidden(n *html.Node) bool {
+	for _, a := range n.Attr {
+		if a.Key == "hidden" {
+			return true
+		}
+	}
+	for _, rule := range strings.Split(strings.ToLower(attr(n, "style")), ";") {
+		name, value, ok := strings.Cut(rule, ":")
+		if !ok {
+			continue
+		}
+		name, value = strings.TrimSpace(name), strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(value), "!important"))
+		switch {
+		case name == "display" && value == "none", name == "visibility" && value == "hidden":
+			return true
+		case name == "width" || name == "height" || name == "max-width" || name == "max-height":
+			value = strings.TrimSuffix(value, "px")
+			if size, err := strconv.ParseFloat(value, 64); err == nil && size <= 1 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // address resolves a link of the page against its address, keeping http and https and the other schemes given;

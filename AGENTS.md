@@ -29,6 +29,7 @@ backend.go               opens the database, starts and stops the HTTP server; s
 internal/store/          SQLite and all queries; migrations in internal/store/migrations/
 internal/fetch/          fetch loop, feed parsing, failure backoff, full-text extraction, retention pruning
 internal/ai/             AI summaries and translations: settings, OpenAI-compatible calls, background queue
+internal/tracker/        known tracking-picture addresses, shared by the reader and the image proxy
 internal/server/         HTTP API and authentication
 internal/ui/<screen>/    one package per screen: state, copy.json catalog, headless interaction tests
 internal/ui/locale/      system language to UI language (Simplified Chinese, English), shared by all catalogs
