@@ -142,7 +142,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 9. 源的标题和站点地址为空时，用订阅里的补上，不覆盖用户改过的。
 10. 源的图标（`icon_url`）为空时找一次：先用订阅里带的图（RSS 的 `<image><url>`、Atom 的 `<icon>` 或 `<logo>`、JSON Feed 的 `icon`），没有就取站点地址的首页，读 `<link rel="apple-touch-icon">` 和 `<link rel="icon">`，apple-touch-icon 优先，其次 PNG，SVG 和 ICO 不要。首页按「正文抽取」的规则取（只连公网地址，经同一个受限客户端）。找不到就留空，站点地址变了之前不再找。
 
-成功（含 304）后按 `fetch_interval_sec` 排下一次，清掉失败计数和 `last_error`。失败时 `consecutive_failures` 加一，原因写进 `last_error`：连续失败 `n ≤ 5` 次时 60 秒后再试，之后 `min(60 × 2^(n−5), 600)` 秒。Cloudflare 拦截和 RSSHub 路由 404 有专门的说明。
+成功（含 304）后按 `fetch_interval_sec` 排下一次，清掉失败计数和 `last_error`。失败时 `consecutive_failures` 加一，原因写进 `last_error`：连续失败 `n ≤ 5` 次时 60 秒后再试，之后 `min(60 × 2^(n−5), 600)` 秒。状态码是 429 或 503 且带 `Retry-After`（秒数或 HTTP 日期）时，下一次不早于它指的时刻，即等待取 `Retry-After` 与上面的时间中较长的，最长 24 小时；值无效、为负或已过去时忽略，按上面的时间排。失败照常计数。Cloudflare 拦截和 RSSHub 路由 404 有专门的说明。
 
 订阅地址是用户自己填的，可以指向本机或内网（例如自建的 RSSHub），不做 SSRF 检查。订阅内容带出来的地址由正文抽取检查（见下一节）。
 

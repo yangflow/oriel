@@ -229,6 +229,64 @@ func TestPollFailuresBackOff(t *testing.T) {
 	}
 }
 
+func TestPollRetryAfter(t *testing.T) {
+	f := newFixture(t)
+	status, header := http.StatusTooManyRequests, ""
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if header != "" {
+			w.Header().Set("Retry-After", header)
+		}
+		w.WriteHeader(status)
+	}))
+	defer srv.Close()
+	id := f.add(store.NewSource{URL: srv.URL})
+	cases := []struct {
+		name   string
+		status int
+		header string
+		want   time.Duration
+	}{
+		{"seconds", http.StatusTooManyRequests, "300", 5 * time.Minute},
+		{"seconds on 503", http.StatusServiceUnavailable, "120", 2 * time.Minute},
+		{"http date", http.StatusServiceUnavailable, f.now.Add(90 * time.Minute).UTC().Format(http.TimeFormat), 90 * time.Minute},
+		{"shorter than the schedule", http.StatusTooManyRequests, "5", time.Minute},
+		{"capped at a day", http.StatusTooManyRequests, "99999999", 24 * time.Hour},
+		{"date capped at a day", http.StatusTooManyRequests, f.now.Add(30 * 24 * time.Hour).UTC().Format(http.TimeFormat), 24 * time.Hour},
+		{"huge number", http.StatusTooManyRequests, "99999999999999999999", time.Minute},
+		{"invalid", http.StatusTooManyRequests, "soon", time.Minute},
+		{"negative", http.StatusTooManyRequests, "-30", time.Minute},
+		{"date in the past", http.StatusTooManyRequests, f.now.Add(-time.Hour).UTC().Format(http.TimeFormat), time.Minute},
+		{"missing", http.StatusTooManyRequests, "", time.Minute},
+		{"ignored on 500", http.StatusInternalServerError, "300", time.Minute},
+		{"ignored on 404", http.StatusNotFound, "300", time.Minute},
+	}
+	for _, c := range cases {
+		status, header = c.status, c.header
+		if _, err := f.db.Exec("UPDATE sources SET consecutive_failures = 0, next_fetch_at = 0 WHERE id = ?", id); err != nil {
+			t.Fatal(err)
+		}
+		f.poller.fetchDue(context.Background())
+		next := time.UnixMilli(f.int("SELECT next_fetch_at FROM sources WHERE id = ?", id))
+		if got := next.Sub(f.now); got != c.want {
+			t.Errorf("%s: waits %s, want %s", c.name, got, c.want)
+		}
+		if f.int("SELECT consecutive_failures FROM sources WHERE id = ?", id) != 1 {
+			t.Errorf("%s: failure not counted", c.name)
+		}
+	}
+
+	// A later failure never waits less than the schedule says.
+	status, header = http.StatusTooManyRequests, "30"
+	f.db.Exec("UPDATE sources SET consecutive_failures = 7, next_fetch_at = 0 WHERE id = ?", id)
+	f.poller.fetchDue(context.Background())
+	if got := time.UnixMilli(f.int("SELECT next_fetch_at FROM sources WHERE id = ?", id)).Sub(f.now); got != retryDelay(8) {
+		t.Errorf("long schedule: waits %s, want %s", got, retryDelay(8))
+	}
+	if got := f.text("SELECT last_error FROM sources WHERE id = ?", id); got != "status 429" {
+		t.Errorf("last_error = %q", got)
+	}
+}
+
 func TestPollErrors(t *testing.T) {
 	f := newFixture(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
