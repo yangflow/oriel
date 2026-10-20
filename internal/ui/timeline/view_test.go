@@ -38,7 +38,7 @@ type fake struct {
 	pictures []string
 	articles []int64 // the entries asked for in full
 
-	entriesErr, setErr, markErr                      error
+	entriesErr, setErr, markErr, imageErr            error
 	connects, settings, aiSettings, imports, expired int
 }
 
@@ -134,6 +134,9 @@ func (f *fake) Entry(_ context.Context, id int64) (client.Article, error) {
 
 func (f *fake) Image(_ context.Context, address string) ([]byte, error) {
 	f.pictures = append(f.pictures, address)
+	if f.imageErr != nil {
+		return nil, f.imageErr
+	}
 	var b bytes.Buffer
 	png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 4, 3)))
 	return b.Bytes(), nil
@@ -2085,4 +2088,132 @@ func TestRowFills(t *testing.T) {
 			t.Errorf("selection marker drawn %v, want %v", got, theme.Marker(*main))
 		}
 	})
+}
+
+// rowRect is the rectangle of the row or card with the given accessible name.
+func rowRect(t *testing.T, tt *ui.Tester, label string) ui.Rect {
+	t.Helper()
+	r, ok := tt.Find(label)
+	if !ok {
+		t.Fatalf("no row %.60q", label)
+	}
+	return r
+}
+
+// A title stops at two lines whatever its length, and a word with no break point breaks where it must: the row
+// keeps its width and a height of two lines. The full title stays the accessible name.
+func TestLongTitles(t *testing.T) {
+	words := strings.TrimSpace(strings.Repeat("A very long title that goes on and on ", 12))
+	url := "https://example.com/" + strings.Repeat("a-path-with-no-break/", 20)
+	han := strings.Repeat("高效工作，快乐生活。", 20)
+	for _, tc := range []struct{ name, long, longer string }{
+		{"words", words, words + words},
+		{"no break point", url, url + url},
+		{"Chinese", han, han + han},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sources, entries := sample()
+			entries[0].Title, entries[0].Summary, entries[0].ThumbnailURL = tc.long, "", ""
+			entries[5].Title = tc.longer
+			f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+			s := New("en", f.deps())
+			tt := ui.NewTester(s.View, 1100, 2400)
+			s.Use(f, "")
+			tt.Frame()
+			f.settle(t, tt)
+			a := rowRect(t, tt, "Go Blog, "+tc.long+", 5 min, Unread")
+			b := rowRect(t, tt, "Go Blog, "+tc.longer+", Sep 13, 2025, Unread")
+			one := rowRect(t, tt, "Go Blog, Range over func, Sep 8, Read, Starred")
+			if a.H != b.H || a.H <= one.H {
+				t.Errorf("rows of %v and %v tall, a short one %v: not stopped at two lines", a.H, b.H, one.H)
+			}
+			if a.W != b.W || a.W != one.W {
+				t.Errorf("row widths %v, %v and %v differ", a.W, b.W, one.W)
+			}
+			if a.H > one.H+30 {
+				t.Errorf("a row of %v is more than a line taller than a short one of %v", a.H, one.H)
+			}
+		})
+	}
+}
+
+// A subscription's name shows in full in a tooltip once the pointer rests on its item.
+func TestSourceTooltip(t *testing.T) {
+	sources, entries := sample()
+	name := "Ars Technica » Technology Lab: Tech Policy, Gadgets, Science and Culture, Plus Long Reads and Reviews"
+	sources[1].Title = name
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New("en", f.deps())
+	tt := ui.NewTester(s.View, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	count := func() int {
+		n := 0
+		for _, text := range tt.Texts() {
+			if text == name {
+				n++
+			}
+		}
+		return n
+	}
+	item, ok := tt.Find(name)
+	if !ok {
+		t.Fatalf("no pane item in %v", tt.Texts())
+	}
+	before := count()
+	tt.Move(item.X+item.W/2, item.Y+item.H/2)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	if count() <= before {
+		t.Fatalf("no tooltip with the full name in %v", tt.Texts())
+	}
+}
+
+// A picture that fails to load keeps its box on the Track color with a muted image icon; a video cover keeps its play
+// mark and its duration.
+func TestBrokenImages(t *testing.T) {
+	sources, entries := sample()
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{},
+		imageErr: errors.New("broken")}
+	s := New("en", f.deps())
+	var main *ui.Theme
+	tt := ui.NewTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); main = c.Theme(); s.View(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	if p := s.pictures["https://go.dev/t.png"]; p == nil || !p.failed || p.bitmap != nil {
+		t.Fatalf("the thumbnail did not fail: %+v", p)
+	}
+	track, muted := theme.Track(main), main.TextMuted
+	// Within the row of the first entry the thumbnail box is on Track, and its middle holds the icon in the muted
+	// color.
+	row := rowRect(t, tt, "Go Blog, Go 1.27 is released, 5 min, Unread")
+	img := tt.Image()
+	minX, maxX, minY, maxY := float32(9999), float32(0), float32(9999), float32(0)
+	for y := row.Y + 20; y < row.Y+row.H; y++ {
+		for x := row.X + row.W - 240; x < row.X+row.W; x++ {
+			if near(pixel(img, x, y), track, 2) {
+				minX, maxX, minY, maxY = min(minX, x), max(maxX, x), min(minY, y), max(maxY, y)
+			}
+		}
+	}
+	if w, h := maxX-minX, maxY-minY; w < 90 || w > 98 || h < 58 || h > 66 {
+		t.Fatalf("the failed thumbnail box is %v by %v, not 96 by 64", w, h)
+	}
+	icon := 0
+	for y := minY + 16; y < maxY-16; y++ {
+		for x := minX + 28; x < maxX-28; x++ {
+			if near(pixel(img, x, y), muted, 16) {
+				icon++
+			}
+		}
+	}
+	if icon == 0 {
+		t.Error("no muted image icon in the failed thumbnail")
+	}
+	if _, ok := tt.Find("Duration 12:34"); !ok || !tt.HasText("12:34") {
+		t.Error("a failed video cover lost its duration")
+	}
 }
