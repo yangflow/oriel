@@ -36,9 +36,14 @@ func TestAI(t *testing.T) {
 	if w := do(s, "POST", "/api/ai/test", "", bearer(token)); w.Code != http.StatusConflict || decode(t, w)["error"] != "ai_not_configured" {
 		t.Fatalf("test not configured: %d %s", w.Code, w.Body)
 	}
-	if w := do(s, "GET", "/api/entries/"+id+"/ai", "", bearer(token)); w.Code != http.StatusOK || w.Body.String() != "{\"summary\":null,\"translation\":null}\n" {
+	if w := do(s, "GET", "/api/entries/"+id+"/ai", "", bearer(token)); w.Code != http.StatusOK || w.Body.String() != "{\"summary\":null,\"translation\":null,\"targetLanguage\":\"zh-Hans\"}\n" {
 		t.Fatalf("no results: %d %s", w.Code, w.Body)
 	}
+	s.store.SetSetting(ctx, ai.LanguageSetting, "en")
+	if got := decode(t, do(s, "GET", "/api/entries/"+id+"/ai", "", bearer(token))); got["targetLanguage"] != "en" {
+		t.Fatalf("target language: %v", got)
+	}
+	s.store.SetSetting(ctx, ai.LanguageSetting, "zh-Hans")
 
 	var status atomic.Int32
 	status.Store(http.StatusOK)

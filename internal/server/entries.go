@@ -31,6 +31,7 @@ type entryJSON struct {
 	ThumbnailURL  string        `json:"thumbnailUrl"`
 	DurationSec   *int          `json:"durationSec"`
 	Platform      string        `json:"platform"`
+	Language      string        `json:"language"`
 	Images        []store.Image `json:"images"`
 	ExtractStatus string        `json:"extractStatus"`
 	IsRead        bool          `json:"isRead"`
@@ -65,7 +66,7 @@ func entryToJSON(e store.Entry) entryJSON {
 	return entryJSON{
 		ID: e.ID, SourceID: e.SourceID, SourceTitle: e.SourceTitle, Kind: e.Kind, Title: e.Title, URL: e.URL,
 		Author: e.Author, PublishedAt: millis(e.PublishedAt), Summary: e.Summary, ThumbnailURL: e.ThumbnailURL,
-		DurationSec: duration, Platform: e.Platform, Images: images, ExtractStatus: e.ExtractStatus,
+		DurationSec: duration, Platform: e.Platform, Language: e.Language, Images: images, ExtractStatus: e.ExtractStatus,
 		IsRead: e.IsRead, ReadAt: millis(e.ReadAt), Starred: e.Starred, CreatedAt: e.CreatedAt.UnixMilli(),
 	}
 }

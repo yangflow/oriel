@@ -118,6 +118,7 @@ type FeedEntry struct {
 	ThumbnailURL string
 	DurationSec  int
 	Platform     string
+	Language     string // BCP 47 code, "" when unknown
 	Images       []Image
 }
 
@@ -125,9 +126,10 @@ type FeedEntry struct {
 // Items are inserted from last to first, so with equal created_at the newest item gets the highest ID.
 // An existing entry keeps its read and starred state, and its updated_at changes only when its content did.
 // A new item published before expired would be pruned again at once, so it is not added; zero keeps all.
-// Each new entry gets a pending result for every task in src.AITasks.
+// Each new entry gets a pending result for every task in src.AITasks, except the translation of an entry
+// already in targetLanguage, the language translations are made in.
 // It returns how many entries are new.
-func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL string, entries []FeedEntry, expired, now time.Time) (int, error) {
+func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL string, entries []FeedEntry, targetLanguage string, expired, now time.Time) (int, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -162,20 +164,21 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO entries (source_id, guid, title, url, author, published_at, rss_summary, rss_content_html,
-				extract_status, thumbnail_url, duration_sec, platform, images, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				extract_status, thumbnail_url, duration_sec, platform, images, language, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (source_id, guid) DO UPDATE SET
 				title = excluded.title, url = excluded.url, author = excluded.author, published_at = excluded.published_at,
 				rss_summary = excluded.rss_summary, rss_content_html = excluded.rss_content_html,
 				thumbnail_url = excluded.thumbnail_url, duration_sec = excluded.duration_sec,
-				platform = excluded.platform, images = excluded.images, updated_at = excluded.updated_at
+				platform = excluded.platform, images = excluded.images,
+				language = coalesce(excluded.language, language), updated_at = excluded.updated_at
 			WHERE title IS NOT excluded.title OR url IS NOT excluded.url OR author IS NOT excluded.author
 				OR published_at IS NOT excluded.published_at OR rss_summary IS NOT excluded.rss_summary
 				OR rss_content_html IS NOT excluded.rss_content_html OR thumbnail_url IS NOT excluded.thumbnail_url
 				OR duration_sec IS NOT excluded.duration_sec OR platform IS NOT excluded.platform
 				OR images IS NOT excluded.images`,
 			src.ID, e.GUID, e.Title, e.URL, e.Author, nullTime(e.PublishedAt), e.Summary, e.ContentHTML,
-			extract, e.ThumbnailURL, nullInt(e.DurationSec), e.Platform, string(imagesJSON), now.UnixMilli(), now.UnixMilli(),
+			extract, e.ThumbnailURL, nullInt(e.DurationSec), e.Platform, string(imagesJSON), nullString(e.Language), now.UnixMilli(), now.UnixMilli(),
 		); err != nil {
 			return 0, err
 		}
@@ -183,6 +186,9 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 			continue
 		}
 		for _, task := range src.AITasks {
+			if task == TaskTranslation && e.Language != "" && e.Language == targetLanguage {
+				continue
+			}
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO entry_ai (entry_id, task, status, updated_at)
 				SELECT id, ?, 'pending', ? FROM entries WHERE source_id = ? AND guid = ?`,
@@ -224,6 +230,13 @@ func nullTime(t time.Time) any {
 	return t.UnixMilli()
 }
 
+func nullString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
 func nullInt(n int) any {
 	if n == 0 {
 		return nil
@@ -233,15 +246,16 @@ func nullInt(n int) any {
 
 // ExtractTarget is an article entry waiting for its full text.
 type ExtractTarget struct {
-	ID  int64
-	URL string
+	ID    int64
+	URL   string
+	Title string
 }
 
 // PendingExtractions lists article entries never tried first, newest first, then failed ones with
 // attempts left. Entries of sources that are no longer articles are left alone.
 func (s *Store) PendingExtractions(ctx context.Context, limit, maxAttempts int) ([]ExtractTarget, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.id, e.url FROM entries e JOIN sources s ON s.id = e.source_id
+		SELECT e.id, e.url, e.title FROM entries e JOIN sources s ON s.id = e.source_id
 		WHERE s.kind = 'article'
 			AND (e.extract_status = 'pending' OR (e.extract_status = 'failed' AND e.extract_attempts < ?))
 		ORDER BY e.extract_status = 'failed', e.created_at DESC, e.id DESC
@@ -253,7 +267,7 @@ func (s *Store) PendingExtractions(ctx context.Context, limit, maxAttempts int) 
 	var targets []ExtractTarget
 	for rows.Next() {
 		var t ExtractTarget
-		if err := rows.Scan(&t.ID, &t.URL); err != nil {
+		if err := rows.Scan(&t.ID, &t.URL, &t.Title); err != nil {
 			return nil, err
 		}
 		targets = append(targets, t)
@@ -262,15 +276,17 @@ func (s *Store) PendingExtractions(ctx context.Context, limit, maxAttempts int) 
 }
 
 // SaveExtraction records one extraction attempt. Empty html marks it failed.
-// Derived text does not change the entry's updated_at.
-func (s *Store) SaveExtraction(ctx context.Context, id int64, html, text string) error {
+// The language of the full text, "" when unknown, replaces the one detected from the feed. Derived text does not
+// change the entry's updated_at.
+func (s *Store) SaveExtraction(ctx context.Context, id int64, html, text, language string) error {
 	status := "ok"
 	if html == "" {
 		status = "failed"
 	}
 	_, err := s.db.ExecContext(ctx, `
-		UPDATE entries SET extract_status = ?, extracted_html = ?, search_text = ?, extract_attempts = extract_attempts + 1
-		WHERE id = ?`, status, html, text, id)
+		UPDATE entries SET extract_status = ?, extracted_html = ?, search_text = ?, language = coalesce(?, language),
+			extract_attempts = extract_attempts + 1
+		WHERE id = ?`, status, html, text, nullString(language), id)
 	return err
 }
 

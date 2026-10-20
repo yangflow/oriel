@@ -37,7 +37,7 @@ func TestMigrationsAreRepeatable(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 3 {
+	if version != 4 {
 		t.Fatalf("user_version = %d", version)
 	}
 	var mode string
@@ -254,7 +254,7 @@ func TestEntries(t *testing.T) {
 	tube, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/videos", Kind: "video", FetchInterval: time.Hour}, "", start)
 	feed := func(src Source, at time.Time, items ...FeedEntry) {
 		t.Helper()
-		if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: src.Kind}, "", "", items, time.Time{}, at); err != nil {
+		if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: src.Kind}, "", "", items, "", time.Time{}, at); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -380,7 +380,7 @@ func TestAIResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: "social", AITasks: []string{TaskSummary}}, "", "",
-		[]FeedEntry{{GUID: "a", Title: "A"}}, time.Time{}, at); err != nil {
+		[]FeedEntry{{GUID: "a", Title: "A"}}, "", time.Time{}, at); err != nil {
 		t.Fatal(err)
 	}
 	entries, _ := s.Entries(ctx, EntryFilter{}, 1)
@@ -401,7 +401,7 @@ func TestAIResults(t *testing.T) {
 	}
 	// A result's entry is the owner: content changes leave it alone and deleting the entry removes it.
 	if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: "social", AITasks: []string{TaskTranslation}}, "", "",
-		[]FeedEntry{{GUID: "a", Title: "A2"}}, time.Time{}, at); err != nil {
+		[]FeedEntry{{GUID: "a", Title: "A2"}}, "", time.Time{}, at); err != nil {
 		t.Fatal(err)
 	}
 	if results, _ := s.AIResults(ctx, id); len(results) != 1 {
@@ -414,5 +414,96 @@ func TestAIResults(t *testing.T) {
 	s.db.QueryRow("SELECT count(*) FROM entry_ai").Scan(&n)
 	if n != 0 {
 		t.Fatal("results outlived their entry")
+	}
+}
+
+func TestEntryLanguage(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	ctx := context.Background()
+	at := time.UnixMilli(1_700_000_000_000)
+	src, err := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "", at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feed := FeedSource{ID: src.ID, Kind: "article", AITasks: []string{TaskSummary, TaskTranslation}}
+	items := []FeedEntry{
+		{GUID: "en", Title: "English", Language: "en"},
+		{GUID: "zh", Title: "Chinese", Language: "zh-Hans"},
+		{GUID: "none", Title: "Unknown"},
+	}
+	// The target is Simplified Chinese: only the entry already in it skips the translation.
+	if _, err := s.SaveFeed(ctx, feed, "", "", items, "zh-Hans", time.Time{}, at); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := s.Entries(ctx, EntryFilter{}, 10)
+	got := map[string]Entry{}
+	for _, e := range entries {
+		got[e.Title] = e
+	}
+	if got["English"].Language != "en" || got["Chinese"].Language != "zh-Hans" || got["Unknown"].Language != "" {
+		t.Fatalf("languages: %q %q %q", got["English"].Language, got["Chinese"].Language, got["Unknown"].Language)
+	}
+	for guid, wantTranslation := range map[string]bool{"English": true, "Chinese": false, "Unknown": true} {
+		results, err := s.AIResults(ctx, got[guid].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := results[TaskTranslation]; ok != wantTranslation {
+			t.Errorf("%s: translation queued = %v", guid, ok)
+		}
+		if _, ok := results[TaskSummary]; !ok {
+			t.Errorf("%s: the summary is still queued", guid)
+		}
+	}
+	// A later fetch that cannot tell the language keeps what is known; one that can replaces it.
+	if _, err := s.SaveFeed(ctx, feed, "", "", []FeedEntry{{GUID: "en", Title: "English, edited"}, {GUID: "none", Title: "Unknown, edited", Language: "fr"}},
+		"zh-Hans", time.Time{}, at); err != nil {
+		t.Fatal(err)
+	}
+	if e, _ := s.Entry(ctx, got["English"].ID); e.Language != "en" {
+		t.Fatalf("language lost: %q", e.Language)
+	}
+	if e, _ := s.Entry(ctx, got["Unknown"].ID); e.Language != "fr" {
+		t.Fatalf("language not set: %q", e.Language)
+	}
+	// The extracted text sets the language, and an extraction that cannot tell leaves it.
+	if err := s.SaveExtraction(ctx, got["Unknown"].ID, "<p>x</p>", "x", "de"); err != nil {
+		t.Fatal(err)
+	}
+	if e, _ := s.Entry(ctx, got["Unknown"].ID); e.Language != "de" {
+		t.Fatalf("extraction language: %q", e.Language)
+	}
+	if err := s.SaveExtraction(ctx, got["Unknown"].ID, "<p>x</p>", "x", ""); err != nil {
+		t.Fatal(err)
+	}
+	if e, _ := s.Entry(ctx, got["Unknown"].ID); e.Language != "de" {
+		t.Fatalf("extraction lost the language: %q", e.Language)
+	}
+	// An empty target never matches an unknown language.
+	other, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/other", Kind: "article", FetchInterval: time.Hour}, "", at)
+	if _, err := s.SaveFeed(ctx, FeedSource{ID: other.ID, Kind: "article", AITasks: []string{TaskTranslation}}, "", "",
+		[]FeedEntry{{GUID: "x", Title: "X"}}, "", time.Time{}, at); err != nil {
+		t.Fatal(err)
+	}
+	x, _ := s.Entries(ctx, EntryFilter{SourceID: other.ID}, 1)
+	if results, _ := s.AIResults(ctx, x[0].ID); len(results) != 1 {
+		t.Fatalf("unknown language skipped: %+v", results)
+	}
+}
+
+func TestMigrationAddsLanguageColumn(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	rows, err := s.db.Query("SELECT name, type, \"notnull\" FROM pragma_table_info('entries') WHERE name = 'language'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		t.Fatal("entries has no language column")
+	}
+	var name, kind string
+	var notNull int
+	if err := rows.Scan(&name, &kind, &notNull); err != nil || kind != "TEXT" || notNull != 0 {
+		t.Fatalf("language column: %s %d %v", kind, notNull, err)
 	}
 }

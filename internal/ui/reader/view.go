@@ -126,8 +126,9 @@ type Screen struct {
 	polling  bool
 
 	scroll ui.ScrollState
-	focus  bool // give the page the focus in the next frame
-	han    bool // the article's title is Chinese, so its text runs taller
+	focus  bool   // give the page the focus in the next frame
+	han    bool   // the article is Chinese, so its text runs taller
+	target string // the language translations are made in, "" until the server says
 
 	pictures  map[string]*loaded
 	wanted    []string
@@ -254,6 +255,7 @@ func (s *Screen) loadAI(first bool) {
 				}
 				return
 			}
+			s.target = r.TargetLanguage
 			if first {
 				if r.Summary != nil && r.Summary.Status != "failed" && !s.jobs[summary].on {
 					s.jobs[summary].on = true
@@ -347,6 +349,12 @@ func (s *Screen) pollAI(c *ui.Context) {
 		return
 	}
 	s.loadAI(false)
+}
+
+// canTranslate reports whether the entry offers a translation: not when it is already in the language translations
+// are made in, unless a translation of it is under way or made.
+func (s *Screen) canTranslate(e client.Entry) bool {
+	return s.jobs[translation].on || e.Language == "" || e.Language != s.target
 }
 
 // translating reports whether the translation shows in place of the original.
@@ -633,19 +641,21 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 				s.request(summary)
 			}
 		}
-		on, label = s.translating(), s.text.Translate
-		if on {
-			label = s.text.ShowOriginal
-		}
-		if s.toggle(c, icons.Languages, label, on, !ready, narrow).Clicked() {
-			j := s.jobs[translation]
-			switch {
-			case j.on && j.working:
-				s.cancel(translation)
-			case j.on && !j.failed:
-				s.shown = 1 - s.shown
-			default:
-				s.request(translation)
+		if s.canTranslate(e) {
+			on, label = s.translating(), s.text.Translate
+			if on {
+				label = s.text.ShowOriginal
+			}
+			if s.toggle(c, icons.Languages, label, on, !ready, narrow).Clicked() {
+				j := s.jobs[translation]
+				switch {
+				case j.on && j.working:
+					s.cancel(translation)
+				case j.on && !j.failed:
+					s.shown = 1 - s.shown
+				default:
+					s.request(translation)
+				}
 			}
 		}
 	})
@@ -770,7 +780,7 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 				if narrow {
 					size = px(t, 21)
 				}
-				s.han = theme.Han(title) || hanBlocks(blocks)
+				s.han = s.hanText(e, title, blocks)
 				tracking, line := -0.015*size, s.leading(1.28, 1.42)
 				if theme.Han(title) {
 					tracking = 0
@@ -1254,6 +1264,16 @@ func (s *Screen) reading() prefs.Preferences {
 
 // scale is the factor of the article's sizes that follow the text size.
 func (s *Screen) scale() float32 { return float32(s.reading().Scale()) }
+
+// hanText reports whether the text shown, the title and the blocks, runs taller as Chinese. The language the server
+// stored for the entry decides, except while a translation shows, which is not in that language; without one the
+// characters do.
+func (s *Screen) hanText(e client.Entry, title string, blocks []block) bool {
+	if han, known := theme.HanLanguage(e.Language); known && !s.translating() {
+		return han
+	}
+	return theme.Han(title) || hanBlocks(blocks)
+}
 
 // leading is the line height of the article's text, the second when its title is Chinese.
 func (s *Screen) leading(latin, han float32) float32 {

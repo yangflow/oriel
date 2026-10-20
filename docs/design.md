@@ -261,7 +261,8 @@ values are in [design/tokens.md](../design/tokens.md). See
   tightens (-0.015em); everything else is 0 or within 0.01em. Counts, times, durations and any number that changes in
   place use `FontFeatures("tnum")`.
 - **Chinese runs taller.** Simplified Chinese gets a larger line height at the same size: body 1.7 instead of 1.5,
-  row titles 1.5 instead of 1.35, the title 1.42 instead of 1.28, the reading body 1.85 instead of 1.7; Chinese
+  row titles 1.5 instead of 1.35, the title 1.42 instead of 1.28, the reading body 1.85 instead of 1.7. The reader tells by the language stored for the entry (Chinese and
+  Japanese run taller) and by the characters of the title and body only when none is stored; Chinese
   tracking is 0 except small labels. The reading text size and line spacing preferences change the reader's body
   text only, by the steps in [design/tokens.md](../design/tokens.md).
 - **The reading face.** The article's body is set in the interface font, as clean as the rest of the screen: Song and

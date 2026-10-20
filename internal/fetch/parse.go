@@ -69,6 +69,7 @@ func parse(body []byte, base *url.URL) (parsed, error) {
 			Platform:     platform(link),
 			Images:       images(item, content, base),
 		}
+		entry.Language = entryLanguage(entry.Title, summary)
 		if published != nil {
 			entry.PublishedAt = *published
 		}

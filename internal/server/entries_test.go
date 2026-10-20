@@ -25,7 +25,7 @@ func seed(t *testing.T, s *Server, kind string, n int, at time.Time) int64 {
 	for i := range items {
 		items[n-1-i] = store.FeedEntry{GUID: strconv.Itoa(i), Title: fmt.Sprintf("%s %d", kind, i), ContentHTML: "<p>body</p>"}
 	}
-	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: kind}, "", "", items, time.Time{}, at); err != nil {
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: kind}, "", "", items, "", time.Time{}, at); err != nil {
 		t.Fatal(err)
 	}
 	return src.ID
@@ -194,7 +194,7 @@ func TestMuteKeywords(t *testing.T) {
 		{GUID: "3", Title: "Rust news"},
 		{GUID: "4", Title: "Weekly sponsored post", Summary: "Thanks to Acme"},
 	}
-	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "article"}, "", "", items, time.Time{}, c.t); err != nil {
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "article"}, "", "", items, "", time.Time{}, c.t); err != nil {
 		t.Fatal(err)
 	}
 	source := "/api/sources/" + strconv.FormatInt(src.ID, 10)
@@ -258,5 +258,35 @@ func TestMuteKeywords(t *testing.T) {
 	do(s, "PATCH", source, `{"muteKeywords":""}`, nil)
 	if got := shown("/api/entries"); len(got) != 4 {
 		t.Fatalf("cleared: %v", got)
+	}
+}
+
+func TestEntryLanguageField(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/lang", Kind: "article", FetchInterval: time.Hour}, "", c.t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []store.FeedEntry{{GUID: "a", Title: "Known", Language: "zh-Hant"}, {GUID: "b", Title: "Unknown"}}
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "article"}, "", "", items, "", time.Time{}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	list := decode(t, do(s, "GET", "/api/entries?source="+strconv.FormatInt(src.ID, 10), "", bearer(token)))["entries"].([]any)
+	got := map[string]any{}
+	var id string
+	for _, item := range list {
+		m := item.(map[string]any)
+		got[m["title"].(string)] = m["language"]
+		if m["title"] == "Known" {
+			id = strconv.Itoa(int(m["id"].(float64)))
+		}
+	}
+	if got["Known"] != "zh-Hant" || got["Unknown"] != "" {
+		t.Fatalf("languages: %v", got)
+	}
+	if one := decode(t, do(s, "GET", "/api/entries/"+id, "", bearer(token))); one["language"] != "zh-Hant" {
+		t.Fatalf("entry: %v", one)
 	}
 }

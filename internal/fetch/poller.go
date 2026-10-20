@@ -187,16 +187,18 @@ func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource) (int, e
 	if keep := p.retention(ctx); keep > 0 {
 		expired = now.Add(-keep)
 	}
+	var target string
 	if len(src.AITasks) > 0 {
-		configured, err := ai.Configured(ctx, p.store)
+		cfg, err := ai.Load(ctx, p.store)
 		if err != nil {
 			return 0, err
 		}
-		if !configured {
+		if !cfg.Configured() {
 			src.AITasks = nil
 		}
+		target = cfg.Language
 	}
-	created, err := p.store.SaveFeed(ctx, src, feed.title, feed.siteURL, feed.entries, expired, now)
+	created, err := p.store.SaveFeed(ctx, src, feed.title, feed.siteURL, feed.entries, target, expired, now)
 	if err != nil {
 		return 0, err
 	}
