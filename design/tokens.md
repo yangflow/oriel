@@ -250,7 +250,7 @@ The ink pane is not glass: it is opaque (see above). Content never sits on glass
 
 | Token | Value |
 |---|---|
-| Radii | 4 (site icon, small tile, inline code, duration badge), 8 (controls, pane items, row actions, thumbnails), 12 (rows, code blocks, notes, pictures, video covers, dialogs), 14 (the ink pane, the AI card), 16 (capsules), 22 (the window in mockups; the system draws it) |
+| Radii | 4 (site icon, small tile, inline code, duration badge), 8 (controls, pane items, row actions, thumbnails), 12 (rows, code blocks, notes, pictures, video covers), 14 (the ink pane, the AI card), 16 (capsules, dialogs), 22 (the window in mockups; the system draws it) |
 | Hairline | 1 DIP, `Border`, between rows only (28 in from the left, 16 from the right); never around a card or control |
 | Image outline | 0.5 DIP, ink 10% |
 | Link | `Accent`, underline 1 DIP, offset 3, `Accent` at 38%, full `Accent` on hover |

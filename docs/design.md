@@ -112,8 +112,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `TextMuted`, a pause mark instead of the failure mark, and no count. With one subscription chosen, a pencil button
   after the count edits it. A row is chosen with a fill (ink 6.5%) and the selection marker; see
   [States](#color-and-dark-mode).
-- **The subscription dialogs.** Dialogs over the timeline on a `RGBA(0,0,0,.28)` backdrop: 440 wide to add, 480 to
-  edit, radius 12, `theme.RaisedFill` and a soft shadow, at most the window's height less `Space(8)`. A header (a 32 square
+- **The subscription dialogs.** Dialogs over the timeline on a `RGBA(28,24,18,.32)` backdrop: 440 wide to add, 480 to
+  edit, radius 16, `theme.RaisedFill` and a soft shadow, at most the window's height less `Space(8)`. A header (a 32 square
   tile or monogram, the title 15 semibold, a 28 square bare close button), a form that scrolls when the window is too low while the header and the buttons stay (a `Border` line appears under
   the header once the form is scrolled and above the buttons while more is below),
   with `Space(3.5)` between fields and 20 to the sides, and a footer with the buttons at the right; in the edit

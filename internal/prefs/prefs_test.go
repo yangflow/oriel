@@ -62,12 +62,12 @@ func TestDark(t *testing.T) {
 }
 
 func TestReading(t *testing.T) {
-	for size, body := range map[string]float64{SizeSmall: 14, SizeMedium: 15, SizeLarge: 17, SizeXLarge: 19} {
-		if got := (Preferences{ReadingSize: size}).Scale() * 15; got < body-1e-9 || got > body+1e-9 {
+	for size, body := range map[string]float64{SizeSmall: 14.9, SizeMedium: 16, SizeLarge: 18.1, SizeXLarge: 20.3} {
+		if got := (Preferences{ReadingSize: size}).Scale() * 16; got < body-1e-9 || got > body+1e-9 {
 			t.Errorf("%s: body %v, want %v", size, got, body)
 		}
 	}
-	lines := map[string][2]float64{SpacingCompact: {1.5, 1.7}, SpacingStandard: {1.65, 1.85}, SpacingRelaxed: {1.85, 2.05}}
+	lines := map[string][2]float64{SpacingCompact: {1.55, 1.7}, SpacingStandard: {1.7, 1.85}, SpacingRelaxed: {1.85, 2.0}}
 	for spacing, want := range lines {
 		p := Preferences{LineSpacing: spacing}
 		if p.Leading(false) != want[0] || p.Leading(true) != want[1] {

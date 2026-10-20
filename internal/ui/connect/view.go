@@ -232,18 +232,23 @@ func (s *Screen) box(c *ui.Context, key string, lead *ui.SVG, busy, ok bool, inp
 	t := c.Theme()
 	invalid := s.problem.field == fieldOf(key)
 	box := ui.Row(c).Key(key).FillWidth().Height(t.Space(8)).AlignItems(ui.Center).Gap(t.Space(2)).
-		Padding(0, t.Space(1), 0, t.Space(2.5)).Radius(t.Radius).Border(1, t.Border).Background(t.Surface)
+		Padding(0, t.Space(1), 0, t.Space(2.5)).Radius(t.Radius).Background(t.Surface)
+	if c.Preferences().HighContrast {
+		box.Border(1, t.Border)
+	} else {
+		box.Border(0.5, theme.LineStrong(t))
+	}
 	focused := box.FocusWithin() && !busy
 	color := t.TextMuted
 	switch {
 	case invalid:
-		box.BorderColor(t.Danger)
+		box.Border(1.5, t.Danger)
 		color = t.Danger
 		if focused {
-			box.Shadow(0, 0, 0, 3, theme.Soft(t, t.Danger))
+			box.Shadow(0, 0, 0, 2, theme.Soft(t, t.Danger))
 		}
 	case focused:
-		box.BorderColor(t.Accent).Background(t.Background).Shadow(0, 0, 0, 3, t.Focus)
+		box.Border(0, ui.Color{}).Background(theme.RaisedFill(t)).Shadow(0, 0, 0, 2, t.Focus)
 	case ok:
 		color = t.Success
 	}
@@ -312,10 +317,14 @@ func (s *Screen) passwordField(c *ui.Context, busy bool) {
 		if s.shown {
 			label, icon = s.text.Hide, icons.EyeOff
 		}
-		eye := ui.ButtonBase(c).Size(t.Space(6), t.Space(6)).Radius(t.Space(1.5)).Label(label).Tooltip(label).
-			Disabled(busy)
+		eye := theme.Fade(ui.ButtonBase(c).Size(t.Space(6), t.Space(6)).Radius(t.Space(1.5)).Label(label).
+			Tooltip(label).Disabled(busy))
 		color := t.TextMuted
-		if eye.Hovered() {
+		switch {
+		case eye.Pressed():
+			eye.Background(t.SurfacePressed)
+			color = t.Text
+		case eye.Hovered():
 			eye.Background(t.SurfaceHover)
 			color = t.Text
 		}
@@ -344,24 +353,33 @@ func (s *Screen) errorLine(c *ui.Context, f field) {
 func (s *Screen) actions(c *ui.Context, busy bool) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().Gap(t.Space(2)).Children(func() {
+		color := t.Text
+		if busy {
+			color = t.TextMuted
+		}
 		local := s.button(c, false, busy)
 		local.Children(func() {
-			ui.Icon(c, icons.Laptop).FontSize(t.Rem(1.25)).TextColor(t.Text)
-			ui.Text(c, s.text.UseLocal).NoWrap()
+			ui.Icon(c, icons.Laptop).FontSize(t.Rem(1.25)).TextColor(color)
+			ui.Text(c, s.text.UseLocal).NoWrap().FontWeight(500).TextColor(color)
 		})
 		if local.Clicked() && !busy {
 			s.run++
 			s.deps.UseLocal()
 		}
 		primary := s.button(c, true, busy)
+		if busy {
+			color = t.TextMuted
+		} else {
+			color = t.AccentText
+		}
 		primary.Children(func() {
 			if busy {
-				spin := ui.Icon(c, icons.LoaderCircle).FontSize(t.Rem(1.25)).TextColor(t.AccentText)
+				spin := ui.Icon(c, icons.LoaderCircle).FontSize(t.Rem(1.25)).TextColor(color)
 				spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-				ui.Text(c, s.text.Connecting).NoWrap().FontWeight(500).TextColor(t.AccentText)
+				ui.Text(c, s.text.Connecting).NoWrap().FontWeight(500).TextColor(color)
 			} else {
-				ui.Text(c, s.text.Connect).NoWrap().FontWeight(500).TextColor(t.AccentText)
-				ui.Icon(c, icons.ArrowRight).FontSize(t.Rem(1.25)).TextColor(t.AccentText)
+				ui.Text(c, s.text.Connect).NoWrap().FontWeight(500).TextColor(color)
+				ui.Icon(c, icons.ArrowRight).FontSize(t.Rem(1.25)).TextColor(color)
 			}
 		})
 		if primary.Clicked() {
@@ -370,24 +388,31 @@ func (s *Screen) actions(c *ui.Context, busy bool) {
 	})
 }
 
+// button is a button of the form: on a Track, or Accent when primary; while busy both are Surface with a TextMuted
+// label, never a faded accent.
 func (s *Screen) button(c *ui.Context, primary, busy bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Grow(1).Basis(0).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3)).
-		Radius(t.Radius).Disabled(busy)
-	fill, border := t.Background, t.Border
+	b := theme.Fade(ui.ButtonBase(c).Grow(1).Basis(0).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3)).
+		Radius(t.Radius).Disabled(busy))
+	track := theme.Track(t)
+	fill := track
 	if primary {
-		fill, border = t.Accent, t.Accent
+		fill = t.Accent
 	}
 	switch {
 	case busy:
+		fill = t.Surface
 	case b.Pressed() && primary:
-		fill, border = t.AccentPressed, t.AccentPressed
+		fill = t.AccentPressed
 	case b.Hovered() && primary:
-		fill, border = t.AccentHover, t.AccentHover
+		fill = t.AccentHover
 	case b.Pressed():
-		fill = t.SurfacePressed
+		fill = track.Mix(theme.Ink(t, 1), 0.1)
 	case b.Hovered():
-		fill = t.SurfaceHover
+		fill = track.Mix(theme.Ink(t, 1), 0.06)
 	}
-	return b.Background(fill).Border(1, border)
+	if c.Preferences().HighContrast {
+		b.Border(1, t.Border)
+	}
+	return b.Background(fill)
 }
