@@ -4,11 +4,14 @@ import (
 	"context"
 	"log/slog"
 	"net/url"
+	"slices"
 	"sync"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/ui/connect"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/settings"
 	"github.com/yangflow/oriel/internal/ui/theme"
 	"github.com/yangflow/oriel/internal/ui/timeline"
@@ -30,47 +33,83 @@ type home interface {
 // network work runs through goAsync, which runs work away from the UI thread and the function it returns on the UI
 // thread.
 type shell struct {
-	path     string // of the session file
-	goAsync  func(work func() (apply func()))
-	connect  *connect.Screen
-	settings *settings.Screen
-	home     home
-	local    client.Session  // the server of this computer
-	session  *client.Session // the remote server signed in to, nil for this computer
-	showing  bool            // whether the connect screen shows
-	setting  bool            // whether the settings show, under the connect screen
+	path         string // of the session file
+	prefsPath    string // of the preferences file
+	systemLocale string
+	files        settings.Deps
+	goAsync      func(work func() (apply func()))
+	newHome      func(language string) home // makes the timeline; tests put a stand-in
+	language     func(language string)      // told the interface language in use, at first and when it changes
+	connect      *connect.Screen
+	settings     *settings.Screen
+	home         home
+	local        client.Session  // the server of this computer
+	session      *client.Session // the remote server signed in to, nil for this computer
+	showing      bool            // whether the connect screen shows
+	setting      bool            // whether the settings show, under the connect screen
+	prefs        prefs.Preferences
+	fonts        []string // the font families of the system, empty until they are listed
+	fontsListed  bool
 
 	writes  int        // counts changes of the session file, on the UI thread
 	file    sync.Mutex // guards written and the file
 	written int        // the latest change written, so an older one finishing late does not undo it
+
+	changes   int        // counts changes of the preferences, on the UI thread
+	prefsFile sync.Mutex // guards saved and the preferences file
+	saved     int        // the latest change saved
 }
 
-// newShell makes the content of the window; files has the dialogs that choose the OPML files of the settings.
-func newShell(systemLocale, path string, local client.Session, goAsync func(func() func()), files settings.Deps) *shell {
-	s := &shell{path: path, goAsync: goAsync, local: local}
-	s.home = timeline.New(systemLocale, timeline.Deps{Go: goAsync, OpenConnect: s.openConnect,
-		OpenSettings: s.openSettings, OpenAISettings: s.openAISettings, Expired: s.expired})
-	s.settings = settings.New(systemLocale, settings.Deps{
-		Go:       goAsync,
-		Open:     files.Open,
-		Save:     files.Save,
-		Back:     func() { s.setting = false },
-		Imported: func() { s.home.Refresh() },
-		Expired:  s.expired,
+// newShell makes the content of the window; files has the dialogs that choose the OPML files of the settings. The
+// preferences are read from prefsPath here, a small file read once before the window shows.
+func newShell(systemLocale, path, prefsPath string, local client.Session, goAsync func(func() func()),
+	files settings.Deps) *shell {
+	s := &shell{path: path, prefsPath: prefsPath, systemLocale: systemLocale, files: files, goAsync: goAsync,
+		local: local, prefs: prefs.Load(prefsPath)}
+	s.newHome = func(language string) home {
+		return timeline.New(language, timeline.Deps{Go: goAsync, OpenConnect: s.openConnect,
+			OpenSettings: s.openSettings, OpenAISettings: s.openAISettings, Expired: s.expired,
+			Reading: func() prefs.Preferences { return s.prefs }})
+	}
+	s.build()
+	return s
+}
+
+// build makes the screens in the interface language the preferences and the system give.
+func (s *shell) build() {
+	language := locale.Resolve(s.prefs.Language, s.systemLocale)
+	s.home = s.newHome(language)
+	s.settings = settings.New(language, settings.Deps{
+		Go:          s.goAsync,
+		Open:        s.files.Open,
+		Save:        s.files.Save,
+		Back:        func() { s.setting = false },
+		Imported:    func() { s.home.Refresh() },
+		Expired:     s.expired,
+		Preferences: func() prefs.Preferences { return s.prefs },
+		Fonts:       func() []string { return s.fonts },
+		Change:      s.change,
 	})
-	s.connect = connect.New(systemLocale, connect.Deps{
+	s.connect = connect.New(language, connect.Deps{
 		Probe:     client.Probe,
 		Login:     client.Login,
-		Go:        goAsync,
+		Go:        s.goAsync,
 		Connected: s.connected,
 		UseLocal:  s.useLocal,
 	})
-	return s
+	if s.language != nil {
+		s.language(language)
+	}
 }
 
 // use shows home with the data of the remote server signed in to, or of this computer.
 func (s *shell) use() {
 	s.setting = false
+	s.attach()
+}
+
+// attach gives the screens the server in use.
+func (s *shell) attach() {
 	if s.session == nil {
 		s.home.Use(s.local, "")
 		s.settings.Use(s.local, "", s.local.Token != "")
@@ -84,9 +123,76 @@ func (s *shell) use() {
 	s.settings.Use(*s.session, host, s.session.Token != "")
 }
 
+// change applies the preferences the settings chose at once and saves them in the background; when the latest
+// change cannot be saved, the preferences go back to what they were and the settings say so.
+func (s *shell) change(p prefs.Preferences) {
+	p = p.Normalize()
+	before := s.prefs
+	if p == before {
+		return
+	}
+	s.apply(p)
+	s.changes++
+	n := s.changes
+	s.goAsync(func() func() {
+		s.prefsFile.Lock()
+		defer s.prefsFile.Unlock()
+		if n < s.saved {
+			return func() {}
+		}
+		s.saved = n
+		err := prefs.Save(s.prefsPath, p)
+		return func() {
+			if err == nil {
+				return
+			}
+			slog.Error("Cannot save the preferences", "error", err)
+			if n == s.changes { // a later change decides for itself
+				s.apply(before)
+				s.settings.PreferenceFailed()
+			}
+		}
+	})
+}
+
+// apply makes p the preferences in use; a new interface language rebuilds the screens, which come back on the page
+// they were on.
+func (s *shell) apply(p prefs.Preferences) {
+	changed := locale.Resolve(p.Language, s.systemLocale) != locale.Resolve(s.prefs.Language, s.systemLocale)
+	s.prefs = p
+	if !changed {
+		return
+	}
+	s.build()
+	s.attach()
+	if s.setting {
+		s.settings.OpenAppearance()
+	}
+}
+
+// listFonts lists the font families of the system in the background; the first listing takes a while.
+func (s *shell) listFonts() {
+	s.goAsync(func() func() {
+		var names []string
+		for _, f := range ui.FontFamilies() {
+			names = append(names, f.Name)
+		}
+		return func() { s.fonts, s.fontsListed = names, true }
+	})
+}
+
+// font is the family to draw with: the one chosen, unless the system no longer has it.
+func (s *shell) font() string {
+	if s.fontsListed && !slices.Contains(s.fonts, s.prefs.Font) {
+		return ""
+	}
+	return s.prefs.Font
+}
+
 // restore reads the saved session and checks it with its server, then shows the connect screen if it can no longer
 // be used. Home shows the data of this computer until the session is checked.
 func (s *shell) restore() {
+	s.listFonts()
 	s.goAsync(func() func() {
 		session, ok, err := client.LoadSession(s.path)
 		if err != nil {
@@ -196,7 +302,9 @@ func (s *shell) write(session *client.Session) {
 }
 
 func (s *shell) View(c *ui.Context) {
-	theme.Apply(c)
+	p := s.prefs
+	p.Font = s.font()
+	theme.Apply(c, p)
 	switch {
 	case s.showing:
 		s.connect.View(c)

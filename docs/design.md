@@ -39,7 +39,7 @@ Related files: [design/README.md](../design/README.md) (mockups and how a UI cha
 ## Principles
 
 - **Native first.** Use MyGo's native widgets and the theme defaults as they are, and follow the system's light and
-  dark appearance and accent color. A control that looks and behaves like the platform's is learned already. Style
+  dark appearance (unless the user chose one in Settings, Appearance) and its text size. A control that looks and behaves like the platform's is learned already. Style
   an element yourself only when no widget does the job, and build it on the
   [custom widget](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/custom-widgets.md) bases so focus, keyboard and
   accessibility stay intact. No WebView and no HTML frontend.
@@ -127,7 +127,9 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   centered, padded 28/32/48 (20 below a 760 wide window): the source's monogram, name and full date at 12; the title
   at 24 (20 when narrow) weight 650; the note on where the text comes from (`Warning` tint when it is the feed's,
   `Surface` with a spinner while the full text is being got), 12.5, its "Open the original" link underlined; then the
-  text 22 below. Body text is 15 at line height 1.65 (1.85 in Chinese); h2 18 and h3 15.5 semibold, 26 and 22 above; 14 between
+  text 22 below. Body text is 15 at line height 1.65 (1.85 in Chinese) by default; the Reading text size and Line spacing
+  preferences change it (tokens.md), and h2, h3, the gaps between paragraphs and list items and code scale in step with
+  the size. h2 18 and h3 15.5 semibold, 26 and 22 above; 14 between
   paragraphs, 4 between list items, a 22 wide marker column; quotes behind a 3 DIP `Border` line in `TextMuted`; code
   on `Surface` at 13 monospace, scrolling sideways; links in `Accent`, underlined; pictures at their own aspect ratio
   (16:9 until known), at most their own width, captions 12 in `TextMuted`. Loading is a skeleton; the empty states
@@ -148,7 +150,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
 
 Colors come from the theme, `c.Theme()`. Oriel puts its own palette, paper and ink, on the theme
 roles: the root view calls `theme.Apply` (in `internal/ui/theme/`) first in every frame, which picks the light or
-dark palette for the system appearance and keeps the theme's metrics, so the desktop's text size still applies. The
+dark palette for the Theme preference (the system appearance by default) and keeps the theme's metrics, so the desktop's text size still applies. The
 values are in [design/tokens.md](../design/tokens.md). See
 [Styling and themes](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/styling.md).
 
@@ -168,7 +170,8 @@ values are in [design/tokens.md](../design/tokens.md). See
   | `Inverse`, `InverseText` | tooltips and toasts (left zero, they are `Text` and `Background`) |
   | `Scrollbar` | scroll bar thumbs |
 
-- **Appearance.** Do not implement your own dark mode switch; the theme follows the system. If a screen draws custom
+- **Appearance.** The only dark mode switch is the Theme preference in Settings, Appearance: System (default), Light
+  or Dark, applied by `theme.Apply` alone; screens do not make their own. Teal stays the accent in both. If a screen draws custom
   elements, use only theme colors, or read `c.Theme().Dark` where a choice cannot be expressed with them. For derived
   colors use `Mix` and `Alpha` on theme colors rather than new constants.
 - **Accent.** Oriel's accent is teal, in both appearances; it does not follow the system accent. One primary action
@@ -197,9 +200,11 @@ values are in [design/tokens.md](../design/tokens.md). See
 
 ## Typography
 
-- **System font.** Leave `Font` empty so text uses the platform's UI font. The default text size is 13 on macOS and
-  14 elsewhere, and scales with the desktop's text size (`Preferences().TextScale`) when you rely on the theme. See
-  [Text](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/text.md).
+- **System font.** Leave `Font` empty so text uses the platform's UI font. The Interface font preference (Settings,
+  Appearance) sets the theme's `Font` to an installed family, chosen from `ui.FontFamilies()`; screens never set a
+  family of their own, except monospace for code and addresses. The default text size is 13 on macOS and
+  14 elsewhere, and scales with the desktop's text size (`Preferences().TextScale`) when you rely on the theme; it is
+  not a setting. See [Text](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/text.md).
 - **Size relative to the theme.** Use `t.Rem(n)` for sizes (`n` times the theme font size) rather than fixed numbers,
   so custom text follows the user's text scale. Widgets use the theme size.
 - **The connect screen.** Title 1.8 rem bold, hint 0.9 rem in `TextMuted`.
@@ -208,7 +213,8 @@ values are in [design/tokens.md](../design/tokens.md). See
   social text six; a picture's caption in the wall is one line. The full title is always the entry's accessible
   name.
 - **Chinese runs taller.** Simplified Chinese body text uses line height 1.6 instead of 1.45, entry titles 1.45,
-  the reader's text 1.85; the sizes stay the same.
+  the reader's text 1.85; the sizes stay the same. The reading text size and line spacing preferences change the
+  reader's body text only, by the steps in [design/tokens.md](../design/tokens.md).
 - **Hierarchy with few steps.** Body, secondary (`TextMuted`, about 0.9 rem), section heading (bold) and at most one
   display size per screen. Weight and color before size.
 - **Headings are real headings.** Give the title of a screen or section `Role(ui.RoleHeading)` and a `Level` so
@@ -406,7 +412,7 @@ Overlays share focus and Escape behavior; see
   takes the focus when it opens, so the arrows, Space, Page Up/Down and Home/End scroll it, and Tab goes through its
   links. Every toolbar button names its key in the tooltip.
 - **Settings.** The settings take the whole window, in place of the timeline: their own sidebar has "Back to the
-  timeline" on top, one item per group (Fetching, Import and export, AI, Devices) and the server bar, which says whose
+  timeline" on top, one item per group (Appearance, Fetching, Import and export, AI, Devices) and the server bar, which says whose
   settings these are and does not open the connect screen. They open from the gear beside the timeline's server bar
   or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. The page's toolbar title lines up with its
   content column, at most 600 wide, in a wide window. A setting is saved
@@ -419,8 +425,14 @@ Overlays share focus and Escape behavior; see
   card's width; and the two prompts in a second card. The key field is always
   empty; a badge says "Configured" or "Not configured", a new key replaces the old one and "Remove key" deletes it.
   Test sends a short request with the saved settings, so it is disabled while there are unsaved edits; its result
-  stays beside the buttons. Each prompt has "Restore default", disabled while it is the default. Language and
-  theme follow the system and are not settings. The page starts 32 below the toolbar; rows are padded 16 by 20, help
+  stays beside the buttons. Each prompt has "Restore default", disabled while it is the default. The Appearance group, first in the list, is
+  different: it is kept on this device, not on the server, and a line at the top of its page says so ("These apply only
+  to this device."), where the other pages say settings are kept on the server. One card holds a row each for Theme
+  (segmented: System, Light, Dark), Interface language (a menu: System, 简体中文, English, each language name in its own
+  language; chosen, it applies at once and the screens are rebuilt), Interface font (a menu of the installed families
+  with "System font" first, each family name set in that family) and, in a second card titled "Reading", Text size
+  (segmented: Small, Medium, Large, Extra large) and Line spacing (segmented: Compact, Standard, Relaxed). A sample paragraph on `Surface` under them shows the result. Every control
+  is saved and applied as soon as it is chosen; there is no Save button. The page starts 32 below the toolbar; rows are padded 16 by 20, help
   sits 4 under its label and the control 12 under that; cards and section titles are 28 apart.
 
 ## Accessibility checklist
@@ -477,7 +489,9 @@ Oriel has almost no custom animation: state changes take effect immediately, exc
 - The UI is in English and Simplified Chinese only. Every user-visible string is in the embedded catalog `copy.json`
   next to the screen, keyed `en` and `zh-Hans`. Change both together; do not add other languages.
 - `locale.Language` (in `internal/ui/locale/`) maps the system locale: every Chinese locale, Traditional included,
-  reads Simplified Chinese; everything else reads English. Screens use it rather than their own mapping.
+  reads Simplified Chinese; everything else reads English. Screens use it rather than their own mapping. The Interface
+  language preference (System, 简体中文, English; Settings, Appearance) overrides it: System means the mapping above.
+  Its choices are named in their own language and are not translated. A change rebuilds the screens at once.
 - Every key has both translations, and each screen's test fails on a missing or untranslated entry. Accessible
   names are copy too: translate `Label` and `Description`.
 - Feed content (titles, text, author names) is shown as it comes, in whatever language it is in; it is not copy.

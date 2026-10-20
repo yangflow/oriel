@@ -50,6 +50,7 @@ var (
 	MessageCircle  = parse("message-circle")
 	Monitor        = parse("monitor")
 	Newspaper      = parse("newspaper")
+	Palette        = parse("palette")
 	Pause          = parse("pause")
 	Pencil         = parse("pencil")
 	Play           = parse("play")

@@ -17,6 +17,7 @@ import (
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/store"
 	"github.com/yangflow/oriel/internal/ui/connect"
 	"github.com/yangflow/oriel/internal/ui/locale"
@@ -145,32 +146,36 @@ func desktop() {
 				return path, err
 			},
 		}
-		root := newShell(systemLocale, filepath.Join(dataDir, sessionFile), client.Session{Server: "http://" + b.addr},
-			goAsync, files)
-		help, keys := timeline.MenuLabels(systemLocale)
-		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-			{Label: "Oriel", Submenu: []*mygo.MenuItem{
-				{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
-				{Label: connect.MenuLabel(systemLocale), Click: func(*mygo.MenuItem, *mygo.Window) {
-					window.Update(root.openConnect)
-					window.Restore()
-					window.Focus()
-				}},
-				{Label: settings.MenuLabel(systemLocale), Accelerator: "CmdOrCtrl+,",
-					Click: func(*mygo.MenuItem, *mygo.Window) {
-						window.Update(root.openSettings)
+		root := newShell(systemLocale, filepath.Join(dataDir, sessionFile), filepath.Join(dataDir, prefs.File),
+			client.Session{Server: "http://" + b.addr}, goAsync, files)
+		setMenu := func(language string) {
+			help, keys := timeline.MenuLabels(language)
+			mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+				{Label: "Oriel", Submenu: []*mygo.MenuItem{
+					{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
+					{Label: connect.MenuLabel(language), Click: func(*mygo.MenuItem, *mygo.Window) {
+						window.Update(root.openConnect)
 						window.Restore()
 						window.Focus()
 					}},
-				mygo.Separator(), {Role: mygo.RoleQuit},
-			}},
-			{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
-			{Label: help, Submenu: []*mygo.MenuItem{
-				{Label: keys, Accelerator: "CmdOrCtrl+/", Click: func(*mygo.MenuItem, *mygo.Window) {
-					window.Update(root.showKeys)
+					{Label: settings.MenuLabel(language), Accelerator: "CmdOrCtrl+,",
+						Click: func(*mygo.MenuItem, *mygo.Window) {
+							window.Update(root.openSettings)
+							window.Restore()
+							window.Focus()
+						}},
+					mygo.Separator(), {Role: mygo.RoleQuit},
 				}},
-			}},
-		}))
+				{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
+				{Label: help, Submenu: []*mygo.MenuItem{
+					{Label: keys, Accelerator: "CmdOrCtrl+/", Click: func(*mygo.MenuItem, *mygo.Window) {
+						window.Update(root.showKeys)
+					}},
+				}},
+			}))
+		}
+		root.language = setMenu
+		setMenu(locale.Resolve(root.prefs.Language, systemLocale))
 		window = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Oriel", Width: 960, Height: 640, MinWidth: 640, MinHeight: 480,
 			// The view draws its own toolbar row, 52 high: the window buttons (14 high) sit centered in it.

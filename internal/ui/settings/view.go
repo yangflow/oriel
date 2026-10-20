@@ -21,6 +21,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
@@ -42,6 +43,10 @@ type copy struct {
 	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested      string
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase         string
 	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, InvalidPrompt                                      string
+	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp   string
+	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium           string
+	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed           string
+	PreviewText, PreferenceFailed                                                                                  string
 }
 
 var translations = func() map[string]copy {
@@ -58,12 +63,16 @@ func MenuLabel(systemLocale string) string { return translations[locale.Language
 // retentions are the days entries are kept that the picker offers, 0 for forever.
 var retentions = []int{0, 7, 30, 90, 180, 365}
 
+// interfaceLanguages are the choices of the interface language, each named in itself; the empty code follows the system.
+var interfaceLanguages = []struct{ code, name string }{{prefs.LanguageChinese, "简体中文"}, {prefs.LanguageEnglish, "English"}}
+
 // languages are the languages summaries and translations can be written in, each named in itself.
 var languages = []struct{ code, name string }{{"zh-Hans", "简体中文"}, {"en", "English"}}
 
 // The groups of the sidebar.
 const (
-	fetching = iota
+	appearance = iota
+	fetching
 	opml
 	ai
 	devices
@@ -84,7 +93,9 @@ type API interface {
 // returns on the UI thread; Now is the clock, time.Now by default. Open and Save ask for the OPML file to import and
 // the one to export to, filter naming its kind; they block until the user answers, so they run in Go's work and
 // return "" when cancelled. Back returns to the timeline, Imported tells it subscriptions were added, and Expired
-// shows the connect screen because the server no longer takes the session.
+// shows the connect screen because the server no longer takes the session. The appearance preferences belong to this
+// device: Preferences gives them, Fonts the installed font families once they are known (nil until then), and Change
+// takes new ones, which apply at once and are saved in the background.
 type Deps struct {
 	Go       func(work func() (apply func()))
 	Now      func() time.Time
@@ -93,6 +104,10 @@ type Deps struct {
 	Back     func()
 	Imported func()
 	Expired  func()
+
+	Preferences func() prefs.Preferences
+	Fonts       func() []string
+	Change      func(prefs.Preferences)
 }
 
 // How far something has loaded.
@@ -133,6 +148,7 @@ type Screen struct {
 	gen      int    // counts servers used, so the results of the one before are dropped
 	loads    int    // counts loads, so a result the user moved on from is dropped
 	group    int
+	lang     string // the language of the screen
 
 	state       int
 	settings    client.Settings
@@ -173,7 +189,17 @@ func New(systemLocale string, deps Deps) *Screen {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
-	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)]}
+	if deps.Preferences == nil {
+		deps.Preferences = prefs.Default
+	}
+	if deps.Fonts == nil {
+		deps.Fonts = func() []string { return nil }
+	}
+	if deps.Change == nil {
+		deps.Change = func(prefs.Preferences) {}
+	}
+	lang := locale.Language(systemLocale)
+	return &Screen{deps: deps, text: translations[lang], lang: lang}
 }
 
 // Use makes the screen work on api, whose host is server ("" for this computer); signedIn is whether its session
@@ -190,6 +216,17 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 func (s *Screen) OpenAI() {
 	s.group = ai
 	s.Open()
+}
+
+// OpenAppearance opens the screen on the appearance group, as it was when the interface language changed.
+func (s *Screen) OpenAppearance() {
+	s.group = appearance
+	s.Open()
+}
+
+// PreferenceFailed tells the preferences could not be saved and went back to what they were.
+func (s *Screen) PreferenceFailed() {
+	s.toast = s.text.PreferenceFailed
 }
 
 // Open loads the settings and the devices again, as the screen is shown.
@@ -759,6 +796,8 @@ func (s *Screen) ago(ms int64, now time.Time) string {
 
 func (s *Screen) groupName(g int) string {
 	switch g {
+	case appearance:
+		return s.text.Appearance
 	case opml:
 		return s.text.OPML
 	case ai:
@@ -862,7 +901,7 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 			ui.Column(c).FillWidth().Padding(t.Space(2)).Label(s.text.Settings).Children(func() {
 				ui.Text(c, s.text.Settings).SingleLine().FontSize(px(t, 11)).FontWeight(600).TextColor(t.TextMuted).
 					Margin(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
-				for g, icon := range []*ui.SVG{icons.Rss, icons.ArrowUpDown, icons.Sparkles, icons.Laptop} {
+				for g, icon := range []*ui.SVG{icons.Palette, icons.Rss, icons.ArrowUpDown, icons.Sparkles, icons.Laptop} {
 					s.navItem(c, g, icon)
 				}
 			})
@@ -915,7 +954,7 @@ func (s *Screen) serverBar(c *ui.Context) {
 func (s *Screen) content(c *ui.Context, compact bool) {
 	state := s.state
 	switch s.group {
-	case opml:
+	case appearance, opml:
 		state = loaded
 	case devices:
 		state = s.deviceState
@@ -930,6 +969,8 @@ func (s *Screen) content(c *ui.Context, compact bool) {
 	}
 	s.page(c, compact, func() {
 		switch s.group {
+		case appearance:
+			s.appearancePage(c)
 		case opml:
 			s.opmlPage(c)
 		case ai:
@@ -1357,6 +1398,153 @@ func (s *Screen) languageSelect(c *ui.Context) {
 			})
 		}
 	})
+}
+
+// appearancePage is the preferences of this device. Each choice goes to Change at once; the page reads the
+// preferences again each frame, so a choice that could not be saved shows as it was.
+func (s *Screen) appearancePage(c *ui.Context) {
+	t := c.Theme()
+	p := s.deps.Preferences()
+	lead(c, s.text.AppearanceLead)
+	card(c, func() {
+		labeled(c, s.text.Theme, s.text.ThemeHelp, func() {
+			themes := []string{"", prefs.ThemeLight, prefs.ThemeDark}
+			names := []string{s.text.ThemeSystem, s.text.ThemeLight, s.text.ThemeDark}
+			if i, changed := s.segments(c, s.text.Theme, names, slices.Index(themes, p.Theme)); changed {
+				p.Theme = themes[i]
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		labeled(c, s.text.UILanguage, s.text.UILanguageHelp, func() {
+			options := []choice{{value: "", name: s.text.SystemChoice}}
+			for _, l := range interfaceLanguages {
+				options = append(options, choice{value: l.code, name: l.name})
+			}
+			if v, changed := s.pick(c, p.Language, s.text.UILanguage, options); changed {
+				p.Language = v
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		labeled(c, s.text.UIFont, s.text.UIFontHelp, func() {
+			options := []choice{{value: "", name: s.text.SystemFont}}
+			for _, name := range s.deps.Fonts() {
+				options = append(options, choice{value: name, name: name, family: name})
+			}
+			if v, changed := s.pick(c, p.Font, s.text.UIFont, options); changed {
+				p.Font = v
+				s.deps.Change(p)
+			}
+		})
+	})
+	ui.Text(c, s.text.Reading).FontSize(px(t, 12)).FontWeight(600).TextColor(t.TextMuted).
+		Margin(px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+	card(c, func() {
+		labeled(c, s.text.TextSize, s.text.TextSizeHelp, func() {
+			names := []string{s.text.SizeSmall, s.text.SizeMedium, s.text.SizeLarge, s.text.SizeXLarge}
+			if i, changed := s.segments(c, s.text.TextSize, names, slices.Index(prefs.Sizes, p.ReadingSize)); changed {
+				p.ReadingSize = prefs.Sizes[i]
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		labeled(c, s.text.LineSpacing, s.text.LineSpacingHelp, func() {
+			names := []string{s.text.SpacingCompact, s.text.SpacingStandard, s.text.SpacingRelaxed}
+			if i, changed := s.segments(c, s.text.LineSpacing, names, slices.Index(prefs.Spacings, p.LineSpacing)); changed {
+				p.LineSpacing = prefs.Spacings[i]
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		ui.Column(c).FillWidth().Padding(px(t, 12), px(t, 14)).Radius(8).Background(t.Surface).Children(func() {
+			ui.Text(c, s.text.PreviewText).FontSize(px(t, 15) * float32(p.Scale())).
+				LineHeight(float32(p.Leading(s.lang == prefs.LanguageChinese))).Wrap()
+		})
+	})
+}
+
+// segments is a row of exclusive choices by name; it returns the index chosen and whether the user just chose it.
+func (s *Screen) segments(c *ui.Context, label string, names []string, current int) (int, bool) {
+	t := c.Theme()
+	chosen := max(current, 0)
+	seg := ui.SegmentedBase(c, &chosen, len(names))
+	seg.Track.Padding(3).Gap(2).Radius(9).Background(t.Surface).Label(label).Children(func() {
+		for i, name := range names {
+			b := seg.Segment(i).Height(px(t, 26)).PaddingX(px(t, 12)).Radius(7).Label(name)
+			color := t.TextMuted
+			switch {
+			case i == chosen:
+				theme.Raised(t, b)
+				color = t.Text
+			case b.Hovered():
+				color = t.Text
+			}
+			b.Children(func() {
+				text := ui.Text(c, name).NoWrap().TextColor(color)
+				if i == chosen {
+					text.FontWeight(500)
+				}
+			})
+		}
+	})
+	return chosen, seg.Track.Changed()
+}
+
+// choice is an option of pick: the value kept, its name, and the font family the name is drawn in, "" for the
+// interface font.
+type choice struct{ value, name, family string }
+
+// pick is a drop-down of options, the first the default; it returns the value chosen and whether the user just chose
+// it. A current value that is not among the options shows as the first.
+func (s *Screen) pick(c *ui.Context, current, label string, options []choice) (string, bool) {
+	t := c.Theme()
+	shown := options[0]
+	for _, o := range options {
+		if o.value == current {
+			shown = o
+		}
+	}
+	value := shown.value
+	sel := ui.SelectBase(c, &value)
+	sel.Trigger.MinWidth(px(t, 160)).MaxWidth(px(t, 240)).Height(px(t, 32)).Gap(t.Space(2)).
+		Padding(0, t.Space(2), 0, px(t, 10)).Radius(t.Radius).Border(1, t.Border).Background(t.Background).Label(label)
+	if sel.Trigger.Focused() {
+		sel.Trigger.BorderColor(t.Accent).Shadow(0, 0, 0, 3, t.Focus)
+	} else if sel.Trigger.Hovered() {
+		sel.Trigger.Background(t.SurfaceHover)
+	}
+	sel.Trigger.Children(func() {
+		name := ui.Text(c, shown.name).Grow(1).MinWidth(0).SingleLine()
+		if shown.family != "" {
+			name.Font(shown.family)
+		}
+		ui.Icon(c, icons.ChevronDown).FontSize(px(t, 14)).TextColor(t.TextMuted)
+	})
+	sel.Popup(func(panel ui.Element) {
+		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(px(t, 160)).Radius(t.Radius).Background(t.Background).
+			Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.18))
+		ui.Scroll(c).MaxHeight(px(t, 320)).Children(func() {
+			for _, o := range options {
+				item := sel.Item(o.value).FillWidth().Height(px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(5)
+				color := t.Text
+				if item.Highlighted() {
+					item.Background(t.Accent)
+					color = t.AccentText
+				}
+				item.Children(func() {
+					name := ui.Text(c, o.name).Grow(1).NoWrap().TextColor(color)
+					if o.family != "" {
+						name.Font(o.family)
+					}
+					if o.value == shown.value {
+						ui.Icon(c, icons.Check).FontSize(px(t, 14)).TextColor(color)
+					}
+				})
+			}
+		})
+	})
+	return value, sel.Trigger.Changed()
 }
 
 func (s *Screen) opmlPage(c *ui.Context) {

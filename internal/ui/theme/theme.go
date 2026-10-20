@@ -8,22 +8,26 @@ import (
 
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
+	"github.com/yangflow/oriel/internal/prefs"
 )
 
 // Bar is the height of the toolbar row each screen floats over its content, in DIPs: the window buttons sit
 // centered in it, and content scrolls under it starting this far down.
 const Bar = 52
 
-// Apply replaces the frame's theme with Oriel's palette for the system appearance. Call it first in the root view of
-// every window, each frame. Metrics stay the theme's, so the desktop's text size still applies, and the colors are
-// strengthened again where the desktop asks for high contrast.
-func Apply(c *ui.Context) {
+// Apply replaces the frame's theme with Oriel's palette, light or dark as the preferences say (the system appearance
+// by default), and with the preferences' font family (the system font when it is empty). Call it first in the root
+// view of every window, each frame. Metrics stay the theme's, so the desktop's text size still applies, and the colors
+// are strengthened again where the desktop asks for high contrast.
+func Apply(c *ui.Context, p prefs.Preferences) {
 	t := *c.Theme()
+	t.Dark = p.Dark(t.Dark)
 	if t.Dark {
 		dark(&t)
 	} else {
 		light(&t)
 	}
+	t.Font = p.Font
 	t.Radius = 8
 	if c.Preferences().HighContrast {
 		t.Border = t.Border.Mix(t.Text, 0.45)

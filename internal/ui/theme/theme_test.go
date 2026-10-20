@@ -5,20 +5,48 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/yangflow/oriel/internal/prefs"
 )
 
-func applied(t *testing.T, dark bool, prefs ui.Preferences) ui.Theme {
+func applied(t *testing.T, dark bool, up ui.Preferences) ui.Theme {
+	t.Helper()
+	return appliedWith(t, dark, up, prefs.Default())
+}
+
+func appliedWith(t *testing.T, dark bool, up ui.Preferences, own prefs.Preferences) ui.Theme {
 	t.Helper()
 	var got ui.Theme
 	tt := ui.NewTester(func(c *ui.Context) {
-		Apply(c)
+		Apply(c, own)
 		got = *c.Theme()
 		ui.Text(c, "x")
 	}, 200, 100)
 	tt.SetDark(dark)
-	tt.SetPreferences(prefs)
+	tt.SetPreferences(up)
 	tt.Frame()
 	return got
+}
+
+func TestThemeChoice(t *testing.T) {
+	for _, tc := range []struct {
+		theme  string
+		system bool
+		want   bool
+	}{{"", false, false}, {"", true, true}, {prefs.ThemeLight, true, false}, {prefs.ThemeDark, false, true}} {
+		got := appliedWith(t, tc.system, ui.Preferences{}, prefs.Preferences{Theme: tc.theme})
+		if got.Dark != tc.want || (got.Background == ui.Hex("#1d1c1a")) != tc.want {
+			t.Errorf("theme %q on a dark system %v: dark %v, background %v", tc.theme, tc.system, got.Dark, got.Background)
+		}
+	}
+}
+
+func TestFontChoice(t *testing.T) {
+	if got := applied(t, false, ui.Preferences{}); got.Font != "" {
+		t.Errorf("default font %q", got.Font)
+	}
+	if got := appliedWith(t, false, ui.Preferences{}, prefs.Preferences{Font: "Georgia"}); got.Font != "Georgia" {
+		t.Errorf("font %q", got.Font)
+	}
 }
 
 func TestPalette(t *testing.T) {
@@ -121,17 +149,17 @@ func TestHan(t *testing.T) {
 }
 
 // fill renders a 100 square with the given fill over a red backdrop and returns the color at its center.
-func fill(t *testing.T, prefs ui.Preferences, paint func(c *ui.Context, e ui.Element)) (ui.Theme, [4]uint8) {
+func fill(t *testing.T, up ui.Preferences, paint func(c *ui.Context, e ui.Element)) (ui.Theme, [4]uint8) {
 	t.Helper()
 	var got ui.Theme
 	tt := ui.NewTester(func(c *ui.Context) {
-		Apply(c)
+		Apply(c, prefs.Default())
 		got = *c.Theme()
 		ui.Box(c).Fill().Background(ui.Hex("#ff0000")).Children(func() {
 			paint(c, ui.Box(c).Width(100).Height(100))
 		})
 	}, 200, 200)
-	tt.SetPreferences(prefs)
+	tt.SetPreferences(up)
 	tt.Frame()
 	p := tt.Image().RGBAAt(50, 50)
 	return got, [4]uint8{p.R, p.G, p.B, p.A}
