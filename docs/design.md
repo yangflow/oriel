@@ -97,7 +97,10 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   entries, which fade under the row (the soft scroll edge); search is a flat ink fill, and the other buttons are
   bare icons. When a background check fails after the list loaded, a quiet 28 high status line sits under the toolbar,
   lined up with the list: a 14 `Warning` wifi-off icon and 12 `TextMuted` text, "Can't reach the server · last updated
-  10:42", with no fill; it is a polite status, announced once, and goes away on the next successful check. Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
+  10:42", with no fill; it is a polite status, announced once, and goes away on the next successful check. With no subscriptions the list is an empty state: a 48 tile, a
+  15 semibold heading, a hint at most 320 wide that names the links Oriel recognises, then a row of two buttons 8 apart,
+  wrapping when narrow: the primary "Add your first subscription" and the secondary "Import OPML…", which opens
+  Settings on Import and export. Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
   at the sides; a row is as high as its text, padded 16 with 14 between its parts, radius 12 when it has a fill, and
   an article's thumbnail, at most 96 by 64, radius 8, starts under the meta line and never makes the row taller. A
   row reads, top to bottom: the meta line (20 high: the site icon, the source name, a dot, the time, the kind

@@ -225,6 +225,12 @@ func (s *Screen) OpenAI() {
 	s.Open()
 }
 
+// OpenImport opens the screen on the import and export group, from the empty timeline of a first run.
+func (s *Screen) OpenImport() {
+	s.group = opml
+	s.Open()
+}
+
 // OpenAppearance opens the screen on the appearance group, as it was when the interface language changed.
 func (s *Screen) OpenAppearance() {
 	s.group = appearance

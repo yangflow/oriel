@@ -29,18 +29,18 @@ import (
 var catalog []byte
 
 type copy struct {
-	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show                     string
-	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                string
-	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded string
-	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                        string
-	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                         string
-	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                        string
-	MorePictures, Pictures, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                 string
-	AddSource, EditSource, AddFirst, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu         string
-	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                string
-	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                      string
-	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                    string
-	FailingTitle, ShowAll                                                                                           string
+	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show                         string
+	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                    string
+	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded     string
+	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                            string
+	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                             string
+	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                            string
+	MorePictures, Pictures, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                     string
+	AddSource, EditSource, AddFirst, ImportOPML, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu string
+	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                    string
+	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                          string
+	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                        string
+	FailingTitle, ShowAll                                                                                               string
 }
 
 var translations = func() map[string]copy {
@@ -80,7 +80,8 @@ type API interface {
 // returns on the UI thread. Now is the clock and Decode turns the bytes of a picture into a bitmap, off the UI thread;
 // they default to time.Now and ui.DecodeBitmap. OpenConnect shows the connect screen, from the server bar,
 // OpenSettings the settings, from the gear beside it, OpenAISettings the settings on the AI group, from the entry
-// points of summaries and translations while AI is not set up, and Expired the connect screen because the server no
+// points of summaries and translations while AI is not set up, OpenImport the settings on the import and export
+// group, from the empty timeline of a first run, and Expired the connect screen because the server no
 // longer takes the session. Reading gives the reading preferences of this device, for the reader.
 type Deps struct {
 	Go             func(work func() (apply func()))
@@ -89,6 +90,7 @@ type Deps struct {
 	OpenConnect    func()
 	OpenSettings   func()
 	OpenAISettings func()
+	OpenImport     func()
 	Expired        func()
 	Reading        func() prefs.Preferences
 }
@@ -1895,20 +1897,37 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed b
 			}
 		}
 		if title == s.text.NoSubscriptions {
-			b := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(t.Radius).
-				Background(t.Accent)
-			if b.Pressed() {
-				b.Background(t.AccentPressed)
-			} else if b.Hovered() {
-				b.Background(t.AccentHover)
-			}
-			b.Children(func() {
-				ui.Icon(c, icons.Plus).FontSize(px(t, 16)).TextColor(t.AccentText)
-				ui.Text(c, s.text.AddFirst).NoWrap().FontWeight(500).TextColor(t.AccentText)
+			ui.Row(c).Wrap().Justify(ui.Center).Gap(t.Space(2)).Children(func() {
+				b := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(t.Radius).
+					Background(t.Accent)
+				if b.Pressed() {
+					b.Background(t.AccentPressed)
+				} else if b.Hovered() {
+					b.Background(t.AccentHover)
+				}
+				b.Children(func() {
+					ui.Icon(c, icons.Plus).FontSize(px(t, 16)).TextColor(t.AccentText)
+					ui.Text(c, s.text.AddFirst).NoWrap().FontWeight(500).TextColor(t.AccentText)
+				})
+				if b.Clicked() {
+					s.subs.Add()
+				}
+				i := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(t.Radius).
+					Background(theme.Track(t))
+				if i.Pressed() {
+					i.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
+				} else if i.Hovered() {
+					i.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
+				}
+				theme.Fade(i)
+				i.Children(func() {
+					ui.Icon(c, icons.Upload).FontSize(px(t, 16)).TextColor(t.Text)
+					ui.Text(c, s.text.ImportOPML).NoWrap().FontWeight(500)
+				})
+				if i.Clicked() {
+					s.deps.OpenImport()
+				}
 			})
-			if b.Clicked() {
-				s.subs.Add()
-			}
 		}
 	})
 }

@@ -69,7 +69,8 @@ func newShell(systemLocale, path, prefsPath string, local client.Session, goAsyn
 		local: local, prefs: prefs.Load(prefsPath)}
 	s.newHome = func(language string) home {
 		return timeline.New(language, timeline.Deps{Go: goAsync, OpenConnect: s.openConnect,
-			OpenSettings: s.openSettings, OpenAISettings: s.openAISettings, Expired: s.expired,
+			OpenSettings: s.openSettings, OpenAISettings: s.openAISettings, OpenImport: s.openImportSettings,
+			Expired: s.expired,
 			Reading: func() prefs.Preferences { return s.prefs }})
 	}
 	s.build()
@@ -259,6 +260,15 @@ func (s *shell) openAISettings() {
 	}
 	s.setting = true
 	s.settings.OpenAI()
+}
+
+// openImportSettings shows the settings on the import and export group, from the empty timeline of a first run.
+func (s *shell) openImportSettings() {
+	if s.showing || s.setting {
+		return
+	}
+	s.setting = true
+	s.settings.OpenImport()
 }
 
 // expired shows the connect screen because the remote server no longer takes the session.
