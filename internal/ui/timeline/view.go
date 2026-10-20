@@ -168,6 +168,7 @@ type Screen struct {
 	focusRow  int  // the entry to give the focus in the next frame, -1 for none
 	sideFocus bool // give the sidebar the focus in the next frame
 	inSide    bool // the focus is in the sidebar, or goes there
+	sideKeyed bool // the focus in the sidebar came by the keyboard; a click on a kind or subscription clears it
 	hovered   int  // the entry under the pointer in the last frame
 	toTop     bool
 	list      ui.ListState
@@ -1113,8 +1114,10 @@ func (s *Screen) View(c *ui.Context) {
 
 // listKeys registers the keys of the list and of the sidebar. They work wherever the focus is, but not while the search
 // takes the letters typed, a dialog shows or the reader, which has its own, is open. They are registered after the
-// frame is laid out, which is when it is known whether the focus is in the sidebar; there the keys of the entries are
-// inert, as the arrows and Enter are the sidebar's own, and Escape, L and Right go back to the list.
+// frame is laid out, which is when it is known whether the focus is in the sidebar; when it came there by the keyboard
+// (H, Left, Tab, the arrows) the keys of the entries are inert, as the arrows and Enter are the sidebar's own, and
+// Escape, L and Right go back to the list. Focus a click put on a kind or subscription does not count: the keys of
+// the entries act on the list at once.
 func (s *Screen) listKeys(c *ui.Context, open bool) {
 	if s.typing || open || s.reading != 0 {
 		return
@@ -1156,7 +1159,7 @@ func (s *Screen) pickKind(i int) {
 }
 
 // toSidebar gives the focus to the subscription chosen, else the kind chosen.
-func (s *Screen) toSidebar() { s.sideFocus, s.inSide = true, true }
+func (s *Screen) toSidebar() { s.sideFocus, s.inSide, s.sideKeyed = true, true, true }
 
 // toList gives the focus back to the entry chosen, the first one when none is.
 func (s *Screen) toList() {
@@ -1327,8 +1330,9 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 	main := c.Theme()
 	pane := ui.Column(c).Width(sideWidth(main, compact)).Margin(8, 0, 8, 8)
 	theme.Pane(c, pane)
-	// The focus is moving to the sidebar or to an entry in this frame, which FocusWithin does not show yet.
-	s.inSide = s.sideFocus || (pane.FocusWithin() && s.focusRow < 0)
+	// The focus is moving to the sidebar or to an entry in this frame, which FocusWithin does not show yet. Focus that
+	// a click put on an item does not count: the pointer chose, and the keys of the entries still act on the list.
+	goingIn := s.sideFocus
 	c.SetTheme(theme.PaneTheme(main))
 	defer c.SetTheme(main)
 	pane.Children(func() {
@@ -1373,6 +1377,7 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 		s.serverBar(c)
 		s.sideFocus = false
 	})
+	s.inSide = goingIn || (pane.FocusWithin() && s.focusRow < 0 && s.sideKeyed)
 }
 
 // tabs are the kinds at the top of the sidebar, a list of an icon, a name and the unread count each; Up and Down move
@@ -1403,6 +1408,7 @@ func (s *Screen) tabs(c *ui.Context, focus bool) {
 				if focus && on {
 					tab.Focus()
 				}
+				s.sideKeyed = s.sideKeyed || tab.FocusVisible()
 				n := s.unreadIn(scope{kind: kind})
 				if n > 0 {
 					tab.Description(s.format(s.text.UnreadCount, n))
@@ -1419,6 +1425,7 @@ func (s *Screen) tabs(c *ui.Context, focus bool) {
 					}
 				})
 				if tab.Clicked() {
+					s.sideKeyed = tab.FocusVisible()
 					s.tab = i
 					s.failingOnly = false
 					s.back()
@@ -1521,6 +1528,7 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 	if chosen && s.sideFocus {
 		item.Focus()
 	}
+	s.sideKeyed = s.sideKeyed || item.FocusVisible()
 	item.Children(func() {
 		s.glyph(c, name, src.IconURL, 18)
 		color := theme.Text2(t)
@@ -1547,6 +1555,7 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 		}
 	})
 	if item.Clicked() {
+		s.sideKeyed = item.FocusVisible()
 		s.choose(scope{kind: src.Kind, source: src.ID})
 	}
 }
