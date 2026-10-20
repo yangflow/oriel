@@ -2124,7 +2124,8 @@ func TestLongTitles(t *testing.T) {
 			a := rowRect(t, tt, "Go Blog, "+tc.long+", 5 min, Unread")
 			b := rowRect(t, tt, "Go Blog, "+tc.longer+", Sep 13, 2025, Unread")
 			one := rowRect(t, tt, "Go Blog, Range over func, Sep 8, Read, Starred")
-			if a.H != b.H || a.H <= one.H {
+			// The heights are compared to within a pixel, as the layout of other text sizes rounds differently.
+			if a.H-b.H > 1 || b.H-a.H > 1 || a.H <= one.H {
 				t.Errorf("rows of %v and %v tall, a short one %v: not stopped at two lines", a.H, b.H, one.H)
 			}
 			if a.W != b.W || a.W != one.W {
@@ -2199,8 +2200,9 @@ func TestBrokenImages(t *testing.T) {
 			}
 		}
 	}
-	if w, h := maxX-minX, maxY-minY; w < 90 || w > 98 || h < 58 || h > 66 {
-		t.Fatalf("the failed thumbnail box is %v by %v, not 96 by 64", w, h)
+	// The box is 96 by 64 at the default text size and scales with it.
+	if w, h, bw, bh := maxX-minX, maxY-minY, px(main, 96), px(main, 64); w < bw-6 || w > bw+2 || h < bh-6 || h > bh+2 {
+		t.Fatalf("the failed thumbnail box is %v by %v, not %v by %v", w, h, bw, bh)
 	}
 	icon := 0
 	for y := minY + 16; y < maxY-16; y++ {
