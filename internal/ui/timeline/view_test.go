@@ -784,6 +784,35 @@ func TestNewEntries(t *testing.T) {
 	}
 }
 
+func TestOfflineLine(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	const line = "Can’t reach the server · last updated 12:00"
+	f.entriesErr = errors.New("offline")
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	f.settle(t, tt)
+	if !s.offline || !tt.HasText(line) || len(s.entries) != 6 || !tt.HasText("Go 1.27 is released") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if !slices.Contains(tt.Announcements(), line) {
+		t.Fatalf("announcements %v", tt.Announcements())
+	}
+	before := len(tt.Announcements())
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	f.settle(t, tt)
+	if !tt.HasText(line) || len(tt.Announcements()) != before {
+		t.Fatalf("announcements %v", tt.Announcements())
+	}
+	f.entriesErr = nil
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	f.settle(t, tt)
+	if s.offline || tt.HasText(line) || len(s.entries) != 6 {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
 func TestLanguageKeepsPlace(t *testing.T) {
 	var entries []client.Entry
 	for i := range 80 {
