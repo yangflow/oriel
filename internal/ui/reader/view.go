@@ -15,6 +15,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
@@ -59,7 +60,8 @@ type API interface {
 // on the UI thread. Now is the clock and Decode turns the bytes of a picture into a bitmap, off the UI thread; they
 // default to time.Now and ui.DecodeBitmap. Expired reports whether err means the server no longer takes the session,
 // and then shows the connect screen. Back returns to the list, Move goes to the article by entries away, and Star and
-// ToggleRead change the entry read. OpenSettings opens the AI group of the settings.
+// ToggleRead change the entry read. OpenSettings opens the AI group of the settings. Reading gives the preferences
+// of this device for the article's text size and line spacing, each frame; nil means the defaults.
 type Deps struct {
 	Go           func(work func() (apply func()))
 	Now          func() time.Time
@@ -71,6 +73,7 @@ type Deps struct {
 	Star         func()
 	ToggleRead   func()
 	OpenSettings func()
+	Reading      func() prefs.Preferences
 }
 
 // Nav is what the timeline tells the reader each frame: the entry as the list has it, with its read and starred
@@ -1087,7 +1090,7 @@ func (s *Screen) blocks(c *ui.Context, blocks []block) {
 			i++
 		}
 		run := blocks[start:i]
-		ui.Column(c).Key(start).FillWidth().Margin(gap(t, blocks, start), 0, 0, 0).Padding(2, 0, 2, px(t, 14)).
+		ui.Column(c).Key(start).FillWidth().Margin(gap(t, blocks, start, s.scale()), 0, 0, 0).Padding(2, 0, 2, px(t, 14)).
 			BorderWidth(0, 0, 0, 3).BorderColor(t.Border).Children(func() {
 			for k := range run {
 				s.block(c, run, k, t.TextMuted)
@@ -1097,7 +1100,7 @@ func (s *Screen) blocks(c *ui.Context, blocks []block) {
 }
 
 // gap is the space above the block at i, as the margins of the mockup's prose collapse.
-func gap(t *ui.Theme, blocks []block, i int) float32 {
+func gap(t *ui.Theme, blocks []block, i int, scale float32) float32 {
 	if i == 0 {
 		return 0
 	}
@@ -1118,15 +1121,16 @@ func gap(t *ui.Theme, blocks []block, i int) float32 {
 	case b.kind == picture || before.kind == picture || before.kind == caption:
 		return px(t, 20)
 	case b.depth > 0 && before.depth > 0:
-		return px(t, 4)
+		return px(t, 4) * scale
 	}
-	return px(t, 14)
+	return px(t, 14) * scale
 }
 
 func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 	t := c.Theme()
 	b := blocks[i]
-	top := gap(t, blocks, i)
+	scale := s.scale()
+	top := gap(t, blocks, i, scale)
 	indent := px(t, 14) * float32(max(0, b.quote-1))
 	if b.depth > 0 {
 		indent += px(t, 22) * float32(b.depth-1)
@@ -1140,31 +1144,43 @@ func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 			s.picture(c, b)
 		case code:
 			ui.ScrollHorizontal(c).FillWidth().Radius(t.Radius).Background(t.Surface).Children(func() {
-				ui.Text(c, b.text).Font("monospace").FontSize(px(t, 13)).LineHeight(1.5).NoWrap().TextColor(color).
+				ui.Text(c, b.text).Font("monospace").FontSize(px(t, 13)*scale).LineHeight(1.5).NoWrap().TextColor(color).
 					Padding(px(t, 12), px(t, 14))
 			})
 		case heading:
-			size := px(t, 18)
+			size := px(t, 18) * scale
 			if b.level == 3 {
-				size = px(t, 15.5)
+				size = px(t, 15.5) * scale
 			}
 			s.inline(c, b.spans, color).FontSize(size).FontWeight(600).LineHeight(s.leading(1.3, 1.4)).Role(ui.RoleHeading).
 				Level(b.level)
 		case caption:
 			s.inline(c, b.spans, t.TextMuted).FontSize(px(t, 12))
 		default:
+			line := float32(s.reading().Leading(s.han))
 			if b.depth == 0 {
-				s.inline(c, b.spans, color).FontSize(px(t, 15)).LineHeight(s.leading(1.65, 1.85))
+				s.inline(c, b.spans, color).FontSize(px(t, 15) * scale).LineHeight(line)
 				return
 			}
 			ui.Row(c).FillWidth().AlignItems(ui.Start).Children(func() {
-				ui.Text(c, b.marker).Width(px(t, 22)).Shrink(0).FontSize(px(t, 15)).LineHeight(s.leading(1.65, 1.85)).
+				ui.Text(c, b.marker).Width(px(t, 22) * scale).Shrink(0).FontSize(px(t, 15) * scale).LineHeight(line).
 					TextColor(t.TextMuted)
-				s.inline(c, b.spans, color).Grow(1).MinWidth(0).FontSize(px(t, 15)).LineHeight(s.leading(1.65, 1.85))
+				s.inline(c, b.spans, color).Grow(1).MinWidth(0).FontSize(px(t, 15) * scale).LineHeight(line)
 			})
 		}
 	})
 }
+
+// reading is the preferences for the article's text.
+func (s *Screen) reading() prefs.Preferences {
+	if s.deps.Reading == nil {
+		return prefs.Default()
+	}
+	return s.deps.Reading()
+}
+
+// scale is the factor of the article's sizes that follow the text size.
+func (s *Screen) scale() float32 { return float32(s.reading().Scale()) }
 
 // leading is the line height of the article's text, the second when its title is Chinese.
 func (s *Screen) leading(latin, han float32) float32 {
@@ -1192,7 +1208,7 @@ func (s *Screen) inline(c *ui.Context, spans []span, color ui.Color) ui.Element 
 				e.Italic()
 			}
 			if sp.mono {
-				e.Font("monospace").FontSize(px(t, 13)).TextBackground(t.Surface)
+				e.Font("monospace").FontSize(px(t, 13) * s.scale()).TextBackground(t.Surface)
 			}
 			if sp.gone {
 				e.Strikethrough()

@@ -15,6 +15,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/prefs"
 )
 
 var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
@@ -26,6 +27,9 @@ const (
 
 // fake stands in for the server, the file dialogs and the background: work waits in a queue until settle runs it.
 type fake struct {
+	prefs    prefs.Preferences
+	fonts    []string
+	changes  []prefs.Preferences
 	queue    []func() func()
 	settings client.Settings
 	devices  []client.Device
@@ -113,9 +117,15 @@ func (f *fake) deps() Deps {
 			f.filters = append(f.filters, filter)
 			return f.save, nil
 		},
-		Back:     func() { f.back++ },
-		Imported: func() { f.refreshed++ },
-		Expired:  func() { f.expired++ },
+		Back:        func() { f.back++ },
+		Imported:    func() { f.refreshed++ },
+		Expired:     func() { f.expired++ },
+		Preferences: func() prefs.Preferences { return f.prefs },
+		Fonts:       func() []string { return f.fonts },
+		Change: func(p prefs.Preferences) {
+			f.prefs = p
+			f.changes = append(f.changes, p)
+		},
 	}
 }
 
@@ -786,5 +796,91 @@ func TestAIExpired(t *testing.T) {
 	f.settle(tt)
 	if f.expired != 1 || s.testing || s.api != nil {
 		t.Fatalf("expired %d, testing %v", f.expired, s.testing)
+	}
+}
+
+// openAppearance shows the appearance group with the default preferences.
+func openAppearance(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	s, f, tt := setup(t, language, true)
+	f.prefs = prefs.Default()
+	s.OpenAppearance()
+	f.settle(tt)
+	tt.Frame()
+	return s, f, tt
+}
+
+func TestAppearanceShows(t *testing.T) {
+	s, _, tt := openAppearance(t, "en")
+	for _, want := range []string{s.text.AppearanceLead, s.text.Theme, s.text.ThemeSystem, s.text.UILanguage,
+		s.text.SystemChoice, s.text.UIFont, s.text.SystemFont, s.text.Reading, s.text.TextSize, s.text.SizeMedium,
+		s.text.LineSpacing, s.text.SpacingStandard, s.text.PreviewText} {
+		if !tt.HasText(want) {
+			t.Errorf("missing %q in %v", want, tt.Texts())
+		}
+	}
+	if tt.HasText(s.text.RetentionSaved) || tt.HasText("Keep entries") {
+		t.Fatalf("the fetching group shows: %v", tt.Texts())
+	}
+}
+
+func TestAppearanceChoices(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	press(t, tt, s.text.ThemeDark)
+	press(t, tt, s.text.SizeXLarge)
+	press(t, tt, s.text.SpacingRelaxed)
+	want := prefs.Preferences{Theme: prefs.ThemeDark, ReadingSize: prefs.SizeXLarge, LineSpacing: prefs.SpacingRelaxed}
+	if len(f.changes) != 3 || f.prefs != want {
+		t.Fatalf("changes %v", f.changes)
+	}
+	press(t, tt, s.text.ThemeSystem)
+	if f.prefs.Theme != "" {
+		t.Fatalf("theme %q", f.prefs.Theme)
+	}
+}
+
+func TestAppearanceLanguage(t *testing.T) {
+	_, f, tt := openAppearance(t, "en")
+	f.prefs.Language = prefs.LanguageEnglish
+	tt.Frame()
+	press(t, tt, "English")
+	press(t, tt, "简体中文")
+	if f.prefs.Language != prefs.LanguageChinese {
+		t.Fatalf("language %q", f.prefs.Language)
+	}
+}
+
+func TestAppearanceFonts(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	press(t, tt, s.text.SystemFont)
+	if tt.HasText("Georgia") {
+		t.Fatalf("a font shows before the list loads: %v", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	f.fonts = []string{"Georgia", "Menlo"}
+	tt.Frame()
+	press(t, tt, s.text.SystemFont)
+	press(t, tt, "Georgia")
+	if f.prefs.Font != "Georgia" {
+		t.Fatalf("font %q", f.prefs.Font)
+	}
+}
+
+func TestAppearanceFontGone(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	f.prefs.Font = "Gone Sans"
+	f.fonts = []string{"Georgia"}
+	tt.Frame()
+	if !tt.HasText(s.text.SystemFont) || tt.HasText("Gone Sans") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestAppearancePreferenceFailed(t *testing.T) {
+	s, _, tt := openAppearance(t, "zh-Hans")
+	s.PreferenceFailed()
+	tt.Frame()
+	if !tt.HasText(s.text.PreferenceFailed) {
+		t.Fatalf("texts %v", tt.Texts())
 	}
 }

@@ -14,3 +14,14 @@ func Language(locale string) string {
 	}
 	return "en"
 }
+
+// Resolve picks the UI language: the one chosen in the settings when it is one of Languages, else the language of
+// the system locale.
+func Resolve(chosen, systemLocale string) string {
+	for _, l := range Languages {
+		if chosen == l {
+			return l
+		}
+	}
+	return Language(systemLocale)
+}

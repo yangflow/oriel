@@ -12,3 +12,14 @@ func TestLanguage(t *testing.T) {
 		}
 	}
 }
+
+func TestResolve(t *testing.T) {
+	for _, tc := range []struct{ chosen, system, want string }{
+		{"", "en-US", "en"}, {"", "zh_TW", "zh-Hans"}, {"en", "zh-CN", "en"}, {"zh-Hans", "en-US", "zh-Hans"},
+		{"fr", "zh-CN", "zh-Hans"}, {"fr", "de", "en"},
+	} {
+		if got := Resolve(tc.chosen, tc.system); got != tc.want {
+			t.Errorf("%q on %q: %s, want %s", tc.chosen, tc.system, got, tc.want)
+		}
+	}
+}

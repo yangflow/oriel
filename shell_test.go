@@ -12,6 +12,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/ui/settings"
 	"github.com/yangflow/oriel/internal/ui/timeline"
 )
@@ -60,9 +61,11 @@ func (h *fakeHome) View(c *ui.Context) { ui.Text(c, "Home") }
 
 func newTestShell(t *testing.T) (*shell, *ui.Tester, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), sessionFile)
-	s := newShell("en", path, client.Session{Server: "http://127.0.0.1:7470"}, func(work func() func()) { work()() },
-		settings.Deps{})
+	dir := t.TempDir()
+	path := filepath.Join(dir, sessionFile)
+	s := newShell("en", path, filepath.Join(dir, prefs.File), client.Session{Server: "http://127.0.0.1:7470"},
+		func(work func() func()) { work()() }, settings.Deps{})
+	s.newHome = func(string) home { return &fakeHome{} }
 	s.home = &fakeHome{}
 	return s, ui.NewTester(s.View, 960, 640), path
 }
@@ -239,5 +242,66 @@ func TestShellSettingsExpire(t *testing.T) {
 	tt.Frame()
 	if s.setting || !s.showing || !tt.HasText("Connect to a server") {
 		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestShellPreferences(t *testing.T) {
+	s, tt, path := newTestShell(t)
+	var languages []string
+	s.language = func(l string) { languages = append(languages, l) }
+	s.use()
+	s.openSettings()
+	s.settings.OpenAppearance()
+	tt.Frame()
+	if !tt.HasText("Interface language") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	p := s.prefs
+	p.Theme, p.ReadingSize = prefs.ThemeDark, prefs.SizeLarge
+	s.change(p)
+	file := filepath.Join(filepath.Dir(path), prefs.File)
+	if got := prefs.Load(file); got != p || s.prefs != p || len(languages) != 0 {
+		t.Fatalf("saved %v, in use %v, languages %v", got, s.prefs, languages)
+	}
+	p.Language = prefs.LanguageChinese
+	s.change(p)
+	tt.Frame()
+	if !s.setting || !tt.HasText("界面语言") || !slices.Equal(languages, []string{"zh-Hans"}) {
+		t.Fatalf("setting %v, languages %v, texts %v", s.setting, languages, tt.Texts())
+	}
+	if prefs.Load(file) != p {
+		t.Fatal("the language was not saved")
+	}
+}
+
+func TestShellPreferencesNotSaved(t *testing.T) {
+	s, tt, path := newTestShell(t)
+	s.prefsPath = filepath.Join(filepath.Dir(path), "missing", prefs.File)
+	s.use()
+	s.openSettings()
+	s.settings.OpenAppearance()
+	before := s.prefs
+	p := before
+	p.Language = prefs.LanguageChinese
+	s.change(p)
+	tt.Frame()
+	if s.prefs != before || !tt.HasText("Interface language") || !tt.HasText("Couldn’t save that choice. It went back to what it was.") {
+		t.Fatalf("in use %v, texts %v", s.prefs, tt.Texts())
+	}
+}
+
+func TestShellFont(t *testing.T) {
+	s, _, _ := newTestShell(t)
+	s.prefs.Font = "Gone Sans"
+	if s.font() != "Gone Sans" {
+		t.Fatal("the font was dropped before the system fonts were listed")
+	}
+	s.fonts, s.fontsListed = []string{"Serif"}, true
+	if s.font() != "" || s.prefs.Font != "Gone Sans" {
+		t.Fatalf("font %q, kept %q", s.font(), s.prefs.Font)
+	}
+	s.prefs.Font = "Serif"
+	if s.font() != "Serif" {
+		t.Fatal("a listed font was dropped")
 	}
 }

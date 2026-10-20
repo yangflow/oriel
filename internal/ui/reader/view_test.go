@@ -15,6 +15,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/prefs"
 )
 
 var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
@@ -753,5 +754,33 @@ func TestTranslated(t *testing.T) {
 	title, blocks := translated("\n  Title  \n\nOne.\r\n  \nTwo.")
 	if title != "Title" || len(blocks) != 2 || blocks[0].spans[0].text != "One." || blocks[1].spans[0].text != "Two." {
 		t.Fatalf("%q %+v", title, blocks)
+	}
+}
+
+// TestReadingPreferences shows the size and line spacing of the preferences move the text down the page.
+func TestReadingPreferences(t *testing.T) {
+	below := func(p prefs.Preferences) float32 {
+		f := &fake{now: now, article: full(), nav: Nav{Entry: entry(), Scope: "All"}}
+		deps := f.deps()
+		deps.Reading = func() prefs.Preferences { return p }
+		s := New("en", deps)
+		s.Use(f)
+		tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1100, 800)
+		s.Open(f.article.Entry)
+		tt.Frame()
+		f.settle(tt)
+		r, ok := tt.Find("Smaller binaries")
+		if !ok {
+			t.Fatalf("texts %v", tt.Texts())
+		}
+		return r.Y
+	}
+	standard := below(prefs.Default())
+	large, relaxed, small, compact := prefs.Default(), prefs.Default(), prefs.Default(), prefs.Default()
+	large.ReadingSize, relaxed.LineSpacing = prefs.SizeXLarge, prefs.SpacingRelaxed
+	small.ReadingSize, compact.LineSpacing = prefs.SizeSmall, prefs.SpacingCompact
+	if below(large) <= standard || below(relaxed) <= standard || below(small) >= standard || below(compact) >= standard {
+		t.Fatalf("standard %v, large %v, relaxed %v, small %v, compact %v", standard, below(large), below(relaxed),
+			below(small), below(compact))
 	}
 }

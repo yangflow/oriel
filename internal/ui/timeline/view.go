@@ -17,6 +17,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/reader"
@@ -79,7 +80,7 @@ type API interface {
 // they default to time.Now and ui.DecodeBitmap. OpenConnect shows the connect screen, from the server bar,
 // OpenSettings the settings, from the gear beside it, OpenAISettings the settings on the AI group, from the entry
 // points of summaries and translations while AI is not set up, and Expired the connect screen because the server no
-// longer takes the session.
+// longer takes the session. Reading gives the reading preferences of this device, for the reader.
 type Deps struct {
 	Go             func(work func() (apply func()))
 	Now            func() time.Time
@@ -88,6 +89,7 @@ type Deps struct {
 	OpenSettings   func()
 	OpenAISettings func()
 	Expired        func()
+	Reading        func() prefs.Preferences
 }
 
 // scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
@@ -212,6 +214,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		Decode:       deps.Decode,
 		Expired:      s.expired,
 		OpenSettings: deps.OpenAISettings,
+		Reading:      deps.Reading,
 		Back:         s.back,
 		Move:         s.step,
 		NextUnread:   s.nextUnread,
