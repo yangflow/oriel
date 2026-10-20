@@ -16,6 +16,8 @@
      of glass and the toolbar's title sits bare over the content (docs/design.md, Title bar).
      Subscriptions show their site icon (generic stand-ins here); The Go Blog has none, so it keeps its monogram,
      in the list and in the edit dialog's header.
+     On a subscription whose last fetch failed, Refresh reads Try again, in its menu (menu-failing) and beside the
+     reason in the edit dialog (edit-failing).
      The bar above the window only switches the mockup.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
 <style>
@@ -226,7 +228,7 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','delete'];
+const states=['add','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','delete'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -283,7 +285,7 @@ const copy={
     exists:'You already follow this as “The Go Blog”.', show:'Show it',
     addHere:'Add your first subscription', noSubscriptions:'No subscriptions yet',
     noSubscriptionsHint:'Entries from your subscriptions show up here, newest first.',
-    refresh:'Refresh', edit:'Edit…', pause:'Pause', resume:'Resume', remove:'Delete…', editTitle:'Edit subscription',
+    refresh:'Refresh', retry:'Try again', edit:'Edit…', pause:'Pause', resume:'Resume', remove:'Delete…', editTitle:'Edit subscription',
     checked:'Checked 5 min ago · next in 10 min', failing:'Failed 3 times in a row: HTTP 404 Not Found',
     paused:'Paused. Nothing is fetched until you resume.',
     pauseLabel:'Pause fetching', pauseHelp:'Entries already fetched stay.',
@@ -308,7 +310,7 @@ const copy={
     exists:'已经订阅过了，叫「The Go Blog」。', show:'去看看',
     addHere:'添加第一个订阅', noSubscriptions:'还没有订阅',
     noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。',
-    refresh:'更新', edit:'编辑…', pause:'暂停', resume:'恢复', remove:'删除…', editTitle:'编辑订阅',
+    refresh:'更新', retry:'重试', edit:'编辑…', pause:'暂停', resume:'恢复', remove:'删除…', editTitle:'编辑订阅',
     checked:'5 分钟前检查过 · 10 分钟后再查', failing:'连续失败 3 次：HTTP 404 Not Found',
     paused:'已暂停，恢复之前不抓取。',
     pauseLabel:'暂停抓取', pauseHelp:'已经抓到的条目保留。',
@@ -330,15 +332,15 @@ const favs={
 };
 const sources=[
   {kind:'article',name:'Simon Willison',mono:'S',unread:4,fav:favs.simon},
-  {kind:'article',name:'The Go Blog',mono:'G',unread:14,failing:state==='edit-failing',paused:state==='edit-paused'},
+  {kind:'article',name:'The Go Blog',mono:'G',unread:14,failing:state==='edit-failing'||state==='menu-failing',paused:state==='edit-paused'},
   {kind:'video',name:'3Blue1Brown',mono:'3',unread:2,fav:favs.b3},
   {kind:'social',name:'@rauchg',mono:'R',unread:9,fav:favs.rauchg},
   {kind:'image',name:'NASA APOD',mono:'N',unread:1,fav:favs.nasa},
 ];
 const empty=state==='empty';
-const editing=['menu','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','delete'].includes(state);
+const editing=['menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','delete'].includes(state);
 const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
-const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state==='menu'&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
+const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
 const rows=Array.from({length:5},(_,i)=>`<div class="bars"><div class="bar" style="width:${30+i%3*6}%"></div><div class="bar" style="width:${74-i*5}%;height:14px"></div><div class="bar" style="width:${90-i*3}%"></div></div>`).join('');
 const toolbar=`<div class="toolbar"><h1>${editing?'The Go Blog':copy.all}</h1><span class="sub">${empty?'':copy.unread}</span>${editing?`<button class="tool${state==='edit'?' hover':''}" aria-label="${copy.editSource}" title="${copy.editSource}">${icon('pencil')}</button>`:''}<span class="spacer"></span><div class="ghost"></div></div>`;
@@ -376,7 +378,7 @@ function addDialog(){
 function editDialog(){
   const failing=state==='edit-failing', paused=state==='edit-paused', ai=state==='edit-ai';
   const health=failing
-    ?`<div class="health bad" role="status">${icon('alert')}<span>${copy.failing}</span><button class="button small">${icon('refresh')}${copy.refresh}</button></div>`
+    ?`<div class="health bad" role="status">${icon('alert')}<span>${copy.failing}</span><button class="button small">${icon('refresh')}${copy.retry}</button></div>`
     :paused?`<div class="health" role="status">${icon('pause')}<span>${copy.paused}</span></div>`
     :`<div class="health" role="status">${icon('check')}<span>${copy.checked}</span><button class="button small">${icon('refresh')}${copy.refresh}</button></div>`;
   return `<div class="scrim"><div class="dialog wide" role="dialog" aria-labelledby="dt">
@@ -401,7 +403,7 @@ function editDialog(){
 let overlay='';
 if(state.startsWith('add')||state==='adding')overlay=addDialog();
 if(state.startsWith('edit'))overlay=editDialog();
-if(state==='menu')overlay=`<div class="menu" role="menu" style="left:150px;top:168px"><button role="menuitem">${icon('refresh')}${copy.refresh}</button><button role="menuitem" class="hover">${icon('pencil')}${copy.edit}</button><button role="menuitem">${icon('pause')}${copy.pause}</button><hr><button role="menuitem" class="danger">${icon('trash')}${copy.remove}</button></div>`;
+if(state.startsWith('menu'))overlay=`<div class="menu" role="menu" style="left:150px;top:168px"><button role="menuitem"${state==='menu-failing'?' class="hover"':''}>${icon('refresh')}${state==='menu-failing'?copy.retry:copy.refresh}</button><button role="menuitem"${state==='menu'?' class="hover"':''}>${icon('pencil')}${copy.edit}</button><button role="menuitem">${icon('pause')}${copy.pause}</button><hr><button role="menuitem" class="danger">${icon('trash')}${copy.remove}</button></div>`;
 if(state==='delete')overlay=`<div class="scrim"><div class="alert" role="alertdialog" aria-labelledby="ct" aria-describedby="cb"><div class="tile danger">${icon('trash')}</div><h2 id="ct">${copy.deleteTitle}</h2><p id="cb">${copy.deleteBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button danger">${copy.confirmDelete}</button></div></div></div>`;
 
 document.getElementById('app').innerHTML=`${sidebar}${main}${overlay}`;

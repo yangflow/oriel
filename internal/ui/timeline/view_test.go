@@ -298,7 +298,7 @@ func TestTimeline(t *testing.T) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
 	}
-	for _, label := range []string{"Last fetch failed", "Duration 12:34", "5 pictures", "2 more pictures",
+	for _, label := range []string{"Last fetch failed: status 500", "Duration 12:34", "5 pictures", "2 more pictures",
 		"Server: This computer", "Mark all in “All” as read"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Errorf("no %q", label)
@@ -323,6 +323,78 @@ func TestTimeline(t *testing.T) {
 	f.queue = nil
 	if s.selected != -1 {
 		t.Fatalf("selected %d before any key", s.selected)
+	}
+}
+
+func TestFailingSubscriptions(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	for _, label := range []string{"Gopher, 1 unread, last fetch failed", "Last fetch failed: status 500",
+		"1 failing", "Show only the 1 failing subscriptions"} {
+		if _, ok := tt.Find(label); !ok {
+			t.Errorf("no %q in %v", label, tt.Texts())
+		}
+	}
+
+	f.sources[3].LastError, f.sources[3].ConsecutiveFailures, f.sources[3].UnreadCount = "timeout", 4, 0
+	s.Refresh()
+	f.settle(t, tt)
+	for _, label := range []string{"Photos, last fetch failed", "Failed 4 times in a row: timeout",
+		"2 failing", "Show only the 2 failing subscriptions"} {
+		if _, ok := tt.Find(label); !ok {
+			t.Errorf("no %q in %v", label, tt.Texts())
+		}
+	}
+
+	if err := tt.Click("Show only the 2 failing subscriptions"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	has := func(text string) bool { r, ok := tt.Find(text); return ok && r.X < 216 }
+	if !has("Failing") || !has("Show all") || !has("Gopher") || !has("Photos") || has("Go Blog") || has("Talks") ||
+		has("2 failing") {
+		t.Fatalf("not the failing ones only: %v", tt.Texts())
+	}
+	if err := tt.Click("Show all"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !has("Go Blog") || !has("Subscriptions") || !has("2 failing") || s.failingOnly {
+		t.Fatalf("not all again: %v", tt.Texts())
+	}
+
+	// Another kind returns to the whole list.
+	tt.Click("Show only the 2 failing subscriptions")
+	tt.Frame()
+	if err := tt.Click("Videos"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if s.failingOnly || !has("Talks") {
+		t.Fatalf("still failing only: %v", tt.Texts())
+	}
+
+	// When none fail any more, so does the narrowing.
+	tt.Click("All")
+	f.settle(t, tt)
+	tt.Click("Show only the 2 failing subscriptions")
+	tt.Frame()
+	for i := range f.sources {
+		f.sources[i].LastError = ""
+	}
+	s.Refresh()
+	f.settle(t, tt)
+	if s.failingOnly || !has("Go Blog") || has("Show all") || has("Failing") {
+		t.Fatalf("still failing only: %v", tt.Texts())
+	}
+}
+
+func TestFailingInChinese(t *testing.T) {
+	_, _, tt := setup(t, "zh-Hans")
+	for _, label := range []string{"Gopher，1 条未读，上次抓取失败", "上次抓取失败：status 500", "1 个失败",
+		"只显示 1 个抓取失败的订阅"} {
+		if _, ok := tt.Find(label); !ok {
+			t.Errorf("no %q in %v", label, tt.Texts())
+		}
 	}
 }
 

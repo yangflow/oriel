@@ -618,6 +618,47 @@ func TestMenu(t *testing.T) {
 	}
 }
 
+func TestTryAgain(t *testing.T) {
+	s, f, _ := setup(t, "en")
+	src := f.sources[1]
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Text(c, Name(src)).ContextMenu(func(m *ui.Menu) { s.Menu(m, src) })
+		s.View(c)
+	}, 1000, 760)
+	tt.Frame()
+	tt.RightClick(Name(src))
+	if menu := tt.Menu(); len(menu) == 0 || menu[0] != "Try again" {
+		t.Fatalf("menu %q", menu)
+	}
+	if err := tt.ChooseMenuItem("Try again"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !slices.Equal(f.fetched, []int64{2}) {
+		t.Fatalf("fetched %v", f.fetched)
+	}
+
+	s.Edit(src)
+	tt.Frame()
+	if _, ok := tt.Find("Try again"); !ok {
+		t.Fatalf("no Try again in %v", tt.Texts())
+	}
+	if err := tt.Click("Try again"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !slices.Equal(f.fetched, []int64{2, 2}) {
+		t.Fatalf("fetched %v", f.fetched)
+	}
+
+	tt.Key(0, ui.KeyEscape)
+	s.Edit(f.sources[0])
+	tt.Frame()
+	if _, ok := tt.Find("Refresh"); !ok || tt.HasText("Try again") {
+		t.Fatalf("a healthy subscription reads %v", tt.Texts())
+	}
+}
+
 func TestPausedMenu(t *testing.T) {
 	s, f, _ := setup(t, "en")
 	src := client.Source{ID: 1, Title: "Go Blog", Paused: true}

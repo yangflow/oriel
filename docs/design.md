@@ -120,7 +120,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; title and interval share a
   row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` soft fill) or what
   the address was recognized as (`Accent` soft fill, the address in monospace). The edit dialog starts with a health line
-  (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button. It ends with "Summaries and
+  (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail. It ends with "Summaries and
   translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
   Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".
@@ -291,7 +291,7 @@ values are in [design/tokens.md](../design/tokens.md). See
   on the focused row, fading in 120 ms. Pictures are downloaded through the server (`/api/image`), at most four at a
   time, and the 300 most recent bitmaps are kept; a missing picture keeps its box with an image icon. A video cover
   carries a play mark and the duration, labelled "Duration 12:34". The unread dot is a 7 `Accent` circle; a failing
-  subscription is `Danger` with a mark, the server is a `Success` dot; a starred entry is `theme.Star`.
+  subscription is `Warning` with a mark, the server is a `Success` dot; a starred entry is `theme.Star`.
 - **The product icon** is a mixed timeline on a warm ivory tile: a teal rail joins three entries, each a teal dot
   with a title line in ink (`#26231f`) and a shorter summary line in muted gray; the newest entry's dot, at the top,
   is the brightest (`#5eead4` to `#0f766e`). It sits on the macOS grid (an 824 tile at 100 in 1024, radius 185) with
@@ -318,7 +318,7 @@ What Oriel uses today:
 | `ui.SegmentedBase` | The timeline's list of kinds and its Everything/Unread/Starred filter, the kind of a subscription, and the reader's Translation/Original switch, drawn in the Oriel look. |
 | `ui.DialogBase` | The add and edit subscription dialogs: Escape and a click outside close them, the window's keys stop behind them, and the focus goes back where it was. |
 | `ui.SelectBase`, `ui.Switch`, `ui.TextArea` | A subscription's fetch interval, its pause switch and its mute keywords. |
-| `Element.ContextMenu` | Right click on a subscription: Refresh, Edit…, Pause or Resume, Delete…. |
+| `Element.ContextMenu` | Right click on a subscription: Refresh (Try again on a failing one), Edit…, Pause or Resume, Delete…. |
 | `ui.List`, `ui.GridView` | The timeline's rows and its video cards; both build only what is in view. |
 | `ui.AlertDialog` | Confirming deleting a subscription, which cannot be undone. Its last button, the action, is the default and takes the focus; Escape is Cancel. |
 | `c.Toast`, `c.Announce` | Feedback after starring, marking and failures, and "No unread entries below"; counts announced without moving the focus. |

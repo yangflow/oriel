@@ -21,6 +21,9 @@
      unread entry; no-more-unread is what it says when there is none below. ? opens the keyboard shortcuts (keys).
      Site icons replace the monogram where a subscription has one; the ones here are generic stand-ins, not the
      sites' real icons, and The Go Blog shows the monogram a subscription without an icon keeps.
+     A failing subscription carries the warning mark; its row's name says so ("The Go Blog, last fetch failed"), and the
+     mark's tooltip gives how many times in a row and the reason (failing, the pointer resting on the mark). While any
+     fail, the Subscriptions heading ends in "N failing", which narrows the list to them until Show all (failing-only).
      The bar above the window only switches the mockup.
      URL parameters: state, scope=all|article|video|social|image|source, scheme=light|dark, lang=en|zh-Hans,
      size=default|min|wide. -->
@@ -80,6 +83,13 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .kind-list { flex:none; padding:0 8px 8px; display:flex; flex-direction:column; gap:1px }
 .nav { flex:1; overflow-y:auto; padding:4px 8px 6px }
 .section { margin:14px 10px 4px; font-size:11px; font-weight:500; letter-spacing:.04em; color:var(--muted) }
+.section.with { display:flex; align-items:center; gap:6px; margin-right:4px }
+.section.with span { flex:1; min-width:0 }
+.section .link { display:flex; align-items:center; gap:4px; height:20px; padding:0 6px; border-radius:6px; font:inherit; letter-spacing:inherit; color:var(--warning) }
+.section .link.plain { color:var(--text2) }
+.section .link:hover, .section .link.hover { background:var(--hover) }
+.section .link svg.icon { width:12px; height:12px }
+.tip { position:absolute; z-index:5; max-width:260px; padding:5px 9px; border-radius:6px; font-size:12px; line-height:1.4; color:var(--text); background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--shadow),.18),0 4px 14px rgba(var(--shadow),.16) }
 :root:lang(zh-Hans) .section { font-size:12px; letter-spacing:.02em }
 .item { width:100%; height:30px; display:flex; align-items:center; gap:10px; padding:0 10px; border-radius:8px; color:var(--text); text-align:left }
 .item:hover { background:var(--hover) }
@@ -284,7 +294,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','no-more-unread','keys'];
+const states=['list','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','no-more-unread','keys'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -342,7 +352,9 @@ const copy={
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
     unreadCount:'{n} unread', results:'{n} found',
     markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser',
-    failing:'Last fetch failed',
+    failing:'Last fetch failed', failingName:'{name}, last fetch failed', failingUnread:'{name}, {n} unread, last fetch failed',
+    failedOnce:'Last fetch failed: {error}', failedTimes:'Failed {n} times in a row: {error}',
+    failingCount:'{n} failing', failingShow:'Show only the {n} failing subscriptions', failingTitle:'Failing', showAll:'Show all',
     newEntries:'{n} new', loadingMore:'Loading more',
     tooShort:'Type at least 3 characters to search',
     noResults:'Nothing matches “{q}”', noResultsHint:'Search looks at titles, summaries and full text.',
@@ -365,7 +377,9 @@ const copy={
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
     unreadCount:'{n} 条未读', results:'找到 {n} 条',
     markAllRead:'全部标为已读', markAllIn:'将“{scope}”全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开',
-    failing:'上次抓取失败',
+    failing:'上次抓取失败', failingName:'{name}，上次抓取失败', failingUnread:'{name}，{n} 条未读，上次抓取失败',
+    failedOnce:'上次抓取失败：{error}', failedTimes:'连续失败 {n} 次：{error}',
+    failingCount:'{n} 个失败', failingShow:'只显示 {n} 个抓取失败的订阅', failingTitle:'抓取失败', showAll:'显示全部',
     newEntries:'{n} 条新内容', loadingMore:'正在加载',
     tooShort:'至少输入 3 个字才能搜索',
     noResults:'没有找到“{q}”', noResultsHint:'搜索范围包括标题、摘要和全文。',
@@ -403,13 +417,13 @@ const glyph=s=>favs[s.id]?`<span class="fav" aria-hidden="true"><svg viewBox="0 
 const sources=[
   {id:1,kind:'article',name:'Simon Willison',mono:'S',unread:4},
   {id:2,kind:'article',name:zh?'少数派':'Sspai',mono:zh?'少':'S',unread:12},
-  {id:3,kind:'article',name:'The Go Blog',mono:'G',unread:0,failing:true},
+  {id:3,kind:'article',name:'The Go Blog',mono:'G',unread:0,failing:4,error:'HTTP 503 Service Unavailable'},
   {id:4,kind:'video',name:'3Blue1Brown',mono:'3',unread:2},
   {id:5,kind:'video',name:zh?'影视飓风':'MediaStorm',mono:zh?'影':'M',unread:5},
   {id:6,kind:'social',name:'@rauchg',mono:'R',unread:9},
   {id:7,kind:'social',name:zh?'微博 · 中国国家地理':'Weibo · China National Geography',mono:zh?'地':'C',unread:3},
   {id:8,kind:'image',name:'NASA APOD',mono:'N',unread:1},
-  {id:9,kind:'image',name:'Unsplash Editorial',mono:'U',unread:4},
+  {id:9,kind:'image',name:'Unsplash Editorial',mono:'U',unread:4,failing:1,error:zh?'被 Cloudflare 拦截，换一个 RSSHub 实例试试':'Blocked by Cloudflare; try another RSSHub instance'},
 ];
 const byId=Object.fromEntries(sources.map(s=>[s.id,s]));
 const kindUnread=k=>sources.filter(s=>s.kind===k).reduce((a,s)=>a+s.unread,0);
@@ -445,16 +459,24 @@ const q=state==='search'?'sqlite':state==='search-none'?'kubernetes':state==='se
 const searching=q!=='';
 const shown=state==='search'?entries.filter(e=>e.kind==='article'&&e.source===1):visible;
 
-const navItem=(glyph,name,count,chosen,extra='')=>`<button class="item${chosen?' chosen':''}" aria-current="${chosen}">${glyph}<span class="name">${name}</span>${extra}${count?`<span class="count">${count}</span>`:''}</button>`;
-const sourceItem=s=>navItem(glyph(s),s.name,s.unread,scope==='source'&&s.id===1,s.failing?`<span class="warn" role="img" aria-label="${copy.failing}" title="${copy.failing}">${icon('alert')}</span>`:'');
+const navItem=(glyph,name,count,chosen,extra='',label='')=>`<button class="item${chosen?' chosen':''}" aria-current="${chosen}"${label?` aria-label="${label}"`:''}>${glyph}<span class="name">${name}</span>${extra}${count?`<span class="count">${count}</span>`:''}</button>`;
+const failedText=s=>s.failing>1?t('failedTimes',{n:s.failing,error:s.error}):t('failedOnce',{error:s.error});
+const failingName=s=>s.unread?t('failingUnread',{name:s.name,n:s.unread}):t('failingName',{name:s.name});
+const sourceItem=s=>navItem(glyph(s),s.name,s.unread,scope==='source'&&s.id===1,s.failing?`<span class="warn" role="img" aria-label="${failedText(s)}" title="${failedText(s)}"${state==='failing'&&s.id===3?' id="tipped"':''}>${icon('alert')}</span>`:'',s.failing?failingName(s):'');
+const failingSources=sources.filter(s=>s.failing);
 const tabKind=scope==='source'?'article':scope;
 const kindList=[['all','inbox'],...kinds.map(k=>[k,k])];
 const kindCount=(k,counts)=>counts?(k==='all'?total:kindUnread(k)):0;
 const tabs=counts=>`<nav class="kind-list" aria-label="${copy.kinds}">${kindList.map(([k,g])=>navItem(icon(g),k==='all'?copy.all:copy[k],kindCount(k,counts),k===tabKind)).join('')}</nav>`;
 function sidebar(){
   if(state==='no-subscriptions')return `<aside>${tabs(false)}<nav class="nav"></nav>${serverBar()}</aside>`;
-  const list=tabKind==='all'?sources:sources.filter(s=>s.kind===tabKind);
-  return `<aside>${tabs(true)}<nav class="nav" aria-label="${copy.sources}"><div class="section">${tabKind==='all'?copy.sources:copy[tabKind]}</div>${list.map(sourceItem).join('')}</nav>${serverBar()}</aside>`;
+  const only=state==='failing-only';
+  const list=only?failingSources:tabKind==='all'?sources:sources.filter(s=>s.kind===tabKind);
+  const n=failingSources.length;
+  const heading=only?`<div class="section with"><span>${copy.failingTitle}</span><button class="link plain">${copy.showAll}</button></div>`
+    :n?`<div class="section with"><span>${tabKind==='all'?copy.sources:copy[tabKind]}</span><button class="link" aria-label="${t('failingShow',{n})}" title="${t('failingShow',{n})}">${icon('alert')}${t('failingCount',{n})}</button></div>`
+    :`<div class="section">${tabKind==='all'?copy.sources:copy[tabKind]}</div>`;
+  return `<aside>${tabs(true)}<nav class="nav" aria-label="${copy.sources}">${heading}${list.map(sourceItem).join('')}</nav>${serverBar()}</aside>`;
 }
 function serverBar(){return `<div class="server-bar"><button class="server" aria-label="${copy.thisComputer}">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></button><button class="gear" aria-label="${copy.settings}" title="${copy.settings} (Ctrl+,)">${icon('settings')}</button></div>`}
 
@@ -525,5 +547,8 @@ const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog"
 
 document.getElementById('app').innerHTML=`${sidebar()}<section class="main">${toolbar}${hint}${pill}<div class="scroll">${list}</div>${toast}</section>${dialog}`;
 if(state==='no-more-unread')document.querySelector('.row.chosen').scrollIntoView({block:'center'});
+const tipped=document.getElementById('tipped');
+if(tipped){const w=document.getElementById('window').getBoundingClientRect(),r=tipped.getBoundingClientRect();
+  document.getElementById('window').insertAdjacentHTML('beforeend',`<div class="tip" role="tooltip" style="left:${r.left-w.left-8}px;top:${r.bottom-w.top+6}px">${tipped.title}</div>`)}
 </script>
 </html>
