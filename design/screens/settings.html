@@ -20,7 +20,10 @@
      The window has no title bar: the window buttons sit over the sidebar's top, the sidebar is a floating pane of
      glass and the toolbar's title sits bare over the content (docs/design.md, Title bar).
      The bar above the window only switches the mockup.
-     The toolbar's title lines up with the settings column (size=wide).
+     The toolbar's title lines up with the settings column. Width rule: a page is a column centered in the window, at
+     most 600 wide (a form), 880 wide for the Devices table (from a 880 wide window; narrower, the stacked rows), 1040
+     wide for AI in two columns (from a 1200 wide window; narrower, one column). The mockup measures the room next to
+     the sidebar, so the rule holds at every window width, not only at size=wide.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42;
@@ -99,7 +102,10 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 /* Toolbar: no bar, the title bare over the content, which fades under it */
 .main { flex:1; min-width:0; display:flex; flex-direction:column; position:relative }
 .main::after { content:""; position:absolute; top:0; left:0; right:0; height:72px; background:linear-gradient(var(--edge),transparent); pointer-events:none; z-index:1 }
-.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:8px; padding:0 max(12px,calc((100% - 600px)/2 + 32px)) 0 max(20px,calc((100% - 600px)/2 + 32px)) }
+.main { container-type:inline-size; --pad:32px }
+.toolbar { --col:600px }
+.min .main { --pad:20px }
+.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:8px; padding:0 max(12px,calc((100% - var(--col))/2 + var(--pad))) 0 max(var(--pad),calc((100% - var(--col))/2 + var(--pad))) }
 .toolbar h1 { margin:0; font-size:15px; font-weight:600; letter-spacing:-.005em; white-space:nowrap }
 .scroll { flex:1; overflow-y:auto; padding-top:52px }
 
@@ -107,6 +113,13 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
    on the cards in Raised and Track. */
 .page { max-width:600px; margin:0 auto; padding:12px 32px 48px }
 .min .page { padding:12px 20px 40px }
+/* Width rule: a list page widens to hold its table, a long form splits in two. Measured on the room beside the sidebar. */
+.dtable { display:none }
+.two { display:block }
+.two .col + .col { margin-top:28px }
+@container (min-width:656px) { .main:has(.page.list) .toolbar { --col:880px } .page.list { max-width:880px } .page.list .dstack { display:none } .page.list .dtable { display:block } }
+@container (min-width:976px) { .main:has(.page.split) .toolbar { --col:1040px } .page.split { max-width:1040px } .page.split .lead { max-width:600px }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start } .two .col + .col { margin-top:0 } .page.split .textarea { min-height:120px } }
 .lead { margin:0 0 20px; color:var(--muted) }
 .card { border-radius:12px; background:var(--surface) }
 .row { position:relative; padding:16px 20px }
@@ -165,7 +178,18 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .device .text { flex:1; min-width:0 }
 .device .name { display:flex; align-items:center; gap:6px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .device .when { font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums }
+.dtable [role=row] { position:relative; display:grid; grid-template-columns:minmax(160px,1fr) 88px 96px 116px 96px; align-items:center; column-gap:16px; padding:10px 20px }
+.dtable [role=row] + [role=row]::before { content:""; position:absolute; top:0; left:20px; right:20px; border-top:1px solid var(--border) }
+.dtable .head { padding-top:0; padding-bottom:0; height:36px; font-size:11px; font-weight:500; letter-spacing:.04em; color:var(--muted) }
+:root:lang(zh-Hans) .dtable .head { font-size:12px; letter-spacing:.02em }
+.dtable .head + [role=row]::before { display:none }
+.dtable .head { border-bottom:1px solid var(--border) }
+.dtable .cell-muted { color:var(--muted); white-space:nowrap }
+.dtable .last { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums }
+.dtable .act { display:flex; justify-content:flex-end }
+.dtable .device .glyph { width:28px; height:28px }
 .badge { height:18px; display:inline-flex; align-items:center; padding:0 7px; border-radius:9px; font-size:11px; font-weight:500; letter-spacing:.02em; background:var(--accent-soft); color:var(--accent) }
+.sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%) }
 .badge.off { background:var(--track); color:var(--muted) }
 .note { display:flex; gap:10px; align-items:flex-start; color:var(--muted) }
 .note svg.icon { margin-top:1px }
@@ -301,7 +325,7 @@ const copy={
     invalidUrl:'Not an http or https address', invalidKind:'Unknown kind',
     devicesHelp:'Every sign-in is a device. Revoke one to sign it out; it needs the password to connect again.',
     localDevices:'This computer’s server has no password, so no device signs in to it. Devices show up here when you connect to a server that has one.',
-    thisDevice:'This device', revoke:'Revoke…', signedIn:'Signed in {date} · last used {seen}',
+    thisDevice:'This device', colDevice:'Device', colPlatform:'Platform', colSigned:'Signed in', colLastUsed:'Last used', connection:'Connection', revoke:'Revoke…', signedIn:'Signed in {date} · last used {seen}',
     revokeTitle:'Revoke “{name}”?', revokeBody:'It is signed out at once and needs the password to connect again.', cancel:'Cancel', revokeConfirm:'Revoke',
     error:'Can’t load settings', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
     now:'just now', hours:'{n} hours ago', yesterday:'yesterday',
@@ -345,7 +369,7 @@ const copy={
     invalidUrl:'不是 http 或 https 地址', invalidKind:'不认识的形态',
     devicesHelp:'每次登录是一台设备。吊销后它立即退出，要重新输入口令才能连上。',
     localDevices:'本机的服务端没有设口令，没有设备需要登录。连到设了口令的服务端后，登录过的设备会列在这里。',
-    thisDevice:'本设备', revoke:'吊销…', signedIn:'{date}登录 · 最近使用：{seen}',
+    thisDevice:'本设备', colDevice:'设备', colPlatform:'平台', colSigned:'登录', colLastUsed:'最近使用', connection:'连接', revoke:'吊销…', signedIn:'{date}登录 · 最近使用：{seen}',
     revokeTitle:'吊销「{name}」？', revokeBody:'它会立即退出，要重新输入口令才能连上。', cancel:'取消', revokeConfirm:'吊销',
     error:'设置加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
     now:'刚刚', hours:'{n} 小时前', yesterday:'昨天',
@@ -403,11 +427,18 @@ const opml=`<p class="lead">${copy.opmlHelp}</p><div class="card">
 </div>`;
 
 const sessions=[
-  {name:'Oriel · macOS',glyph:'laptop',date:zh?'10月3日':'Oct 3',seen:copy.now,current:true},
-  {name:'Oriel · Windows',glyph:'monitor',date:zh?'9月21日':'Sep 21',seen:t('hours',{n:3})},
-  {name:'Safari · iPhone',glyph:'smartphone',date:zh?'8月30日':'Aug 30',seen:copy.yesterday},
+  {client:'Oriel',platform:'macOS',glyph:'laptop',date:zh?'10月3日':'Oct 3',seen:copy.now,current:true},
+  {client:'Oriel',platform:'Windows',glyph:'monitor',date:zh?'9月21日':'Sep 21',seen:t('hours',{n:3})},
+  {client:'Safari',platform:'iPhone',glyph:'smartphone',date:zh?'8月30日':'Aug 30',seen:copy.yesterday},
+  {client:'Chrome',platform:'Linux',glyph:'monitor',date:zh?'8月2日':'Aug 2',seen:zh?'6 天前':'6 days ago'},
+  {client:'Firefox',platform:'Android',glyph:'smartphone',date:zh?'7月14日':'Jul 14',seen:zh?'3 周前':'3 weeks ago'},
 ];
-const devices=remote?`<p class="lead">${copy.devicesHelp}</p><div class="card">`+sessions.map(s=>`<div class="row"><div class="device"><div class="glyph">${icon(s.glyph)}</div><div class="text"><div class="name">${s.name}${s.current?`<span class="badge">${copy.thisDevice}</span>`:''}</div><div class="when">${t('signedIn',{date:s.date,seen:s.seen})}</div></div>${s.current?'':`<button class="button small danger">${copy.revoke}</button>`}</div></div>`).join('')+'</div>':
+const sname=s=>s.client==='Oriel'?'Oriel · '+s.platform:s.client+' · '+s.platform;
+const revokeBtn=s=>`<button class="button small danger" aria-label="${t('revokeTitle',{name:sname(s)}).replace(/[?？]$/,'')}">${copy.revoke}</button>`;
+const stack=sessions.map(s=>`<div class="row"><div class="device"><div class="glyph">${icon(s.glyph)}</div><div class="text"><div class="name">${sname(s)}${s.current?`<span class="badge">${copy.thisDevice}</span>`:''}</div><div class="when">${t('signedIn',{date:s.date,seen:s.seen})}</div></div>${s.current?'':revokeBtn(s)}</div></div>`).join('');
+const table=`<div role="table" aria-label="${copy.devices}"><div role="row" class="head"><span role="columnheader">${copy.colDevice}</span><span role="columnheader">${copy.colPlatform}</span><span role="columnheader">${copy.colSigned}</span><span role="columnheader" class="last">${copy.colLastUsed}</span><span role="columnheader"><span class="sr">${copy.revoke}</span></span></div>`+
+  sessions.map(s=>`<div role="row"><div role="cell" class="device"><div class="glyph">${icon(s.glyph)}</div><div class="text"><div class="name">${s.client}${s.current?`<span class="badge">${copy.thisDevice}</span>`:''}</div></div></div><span role="cell" class="cell-muted">${s.platform}</span><span role="cell" class="cell-muted">${s.date}</span><span role="cell" class="last">${s.seen}</span><span role="cell" class="act">${s.current?'':revokeBtn(s)}</span></div>`).join('')+'</div>';
+const devices=remote?`<p class="lead">${copy.devicesHelp}</p><div class="card"><div class="dstack">${stack}</div><div class="dtable">${table}</div></div>`:
 `<div class="card"><div class="row note">${icon('laptop')}<span>${copy.localDevices}</span></div></div>`;
 
 const aiSet=state!=='ai', aiDirty=state==='ai-edited'||state==='ai-invalid';
@@ -420,7 +451,7 @@ if(state==='ai-testing')aiStatus=`<div class="status busy" role="status">${icon(
 if(state==='ai-tested')aiStatus=`<div class="status ok" role="status">${icon('check')}${t('tested',{model:'gpt-4o-mini-2024-07-18'})}</div>`;
 if(state==='ai-test-failed')aiStatus=`<div class="status error" role="alert">${icon('alert')}${copy.aiUnauthorized}</div>`;
 const prompt=(label,text)=>`<div class="row"><div class="label-row"><span class="label">${label}</span><button class="button small" disabled>${icon('rotateCcw')}${copy.reset}</button></div><div class="textarea" role="textbox" aria-multiline="true" aria-label="${label}">${text}</div></div>`;
-const ai=`<p class="lead">${copy.aiLead}</p><div class="card">
+const ai=`<p class="lead">${copy.aiLead}</p><div class="two"><div class="col"><h2 class="section-title">${copy.connection}</h2><div class="card">
 <div class="row"><span class="label">${copy.endpoint}</span><p class="help">${copy.endpointHelp}</p><div class="control">${aiField(copy.endpoint,endpoint,copy.endpointPlaceholder,state==='ai-invalid'?' invalid':state==='ai'||state==='ai-edited'?' focused':'')}</div>${state==='ai-invalid'?`<div class="status error" role="alert">${icon('alert')}${copy.invalidAiBase}</div>`:''}</div>
 <div class="row"><span class="label">${copy.model}</span><div class="control">${aiField(copy.model,modelName,copy.modelPlaceholder)}</div></div>
 <div class="row"><div class="label-row"><span class="label">${copy.apiKey}</span><span class="badge${aiSet?'':' off'}">${aiSet?copy.keySet:copy.keyUnset}</span></div><p class="help">${copy.keyHelp}</p>
@@ -428,17 +459,17 @@ const ai=`<p class="lead">${copy.aiLead}</p><div class="card">
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.language}</span><p class="help">${copy.languageHelp}</p></div>
 <button class="select" aria-haspopup="listbox" aria-label="${copy.language}"><span>${copy.zhHans}</span>${icon('chevronDown')}</button></div></div>
 <div class="row"><div class="actions">${aiStatus||'<span class="status"></span>'}<button class="button"${aiSet&&!aiDirty&&state!=='ai-testing'?'':' disabled'}>${icon('plug')}${copy.test}</button><button class="button${aiDirty?' primary':''}"${aiDirty?'':' disabled'}>${copy.save}</button></div></div>
-</div>
-<h2 class="section-title">${copy.prompts}</h2><div class="card">
+</div></div>
+<div class="col"><h2 class="section-title">${copy.prompts}</h2><div class="card">
 ${prompt(copy.promptSummary,'Summarize the article in {language} in three to five sentences. Reply with the summary only.')}
 ${prompt(copy.promptTranslate,'Translate the text into {language}. Keep the paragraphs and their order, and the title on the first line. Reply with the translation only.')}
 <div class="row"><div class="actions"><p class="help status" style="display:block">${copy.promptHelp}</p><button class="button" disabled>${copy.save}</button></div></div>
-</div>`;
+</div></div></div>`;
 
 let page;
 if(state==='loading')page=`<div class="page skeleton" aria-busy="true"><div class="bar" style="width:60%"></div><div class="block"></div></div>`;
 else if(state==='error')page=`<div class="empty" role="status"><div class="tile">${icon('wifiOff')}</div><h2>${copy.error}</h2><p>${copy.errorHint}</p><button class="button">${icon('refresh')}${copy.retry}</button></div>`;
-else page=`<div class="page">${{appearance,fetching,opml,ai,devices}[group]}</div>`;
+else page=`<div class="page${group==='devices'&&remote?' list':group==='ai'?' split':''}">${{appearance,fetching,opml,ai,devices}[group]}</div>`;
 
 let overlay='';
 if(state==='revoke')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${t('revokeTitle',{name:'Safari · iPhone'})}</h2><p id="ab">${copy.revokeBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.revokeConfirm}</button></div></div></div>`;

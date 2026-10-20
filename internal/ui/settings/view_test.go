@@ -462,6 +462,65 @@ func TestDevices(t *testing.T) {
 	if err := tt.Click(s.text.Devices); err != nil {
 		t.Fatal(err)
 	}
+	// 1000 wide leaves the main area room for the table.
+	texts := tt.Texts()
+	for _, text := range []string{
+		s.text.ColDevice, s.text.ColPlatform, s.text.ColSigned, s.text.ColLastUsed,
+		"Oriel", s.text.ThisDevice, "macOS", "Oct 16", "just now",
+		"Safari", "iPhone", "Sep 18", "3 hours ago",
+		"Unknown device", "Oct 18, 2025", "Sep 8",
+	} {
+		if !tt.HasText(text) {
+			t.Errorf("no %q in %v", text, texts)
+		}
+	}
+	current := slices.Index(texts, "Oriel")
+	if current < 0 || texts[current+1] != s.text.ThisDevice {
+		t.Fatalf("the current device is not first and marked: %v", texts)
+	}
+	if n := strings.Count(strings.Join(texts, "\n"), s.text.Revoke); n != 3 {
+		t.Fatalf("%d revoke buttons in %v", n, texts)
+	}
+}
+
+// rect finds a text's place, or fails.
+func rect(t *testing.T, tt *ui.Tester, text string) ui.Rect {
+	t.Helper()
+	r, ok := tt.Find(text)
+	if !ok {
+		t.Fatalf("no %q in %v", text, tt.Texts())
+	}
+	return r
+}
+
+func TestDevicesTable(t *testing.T) {
+	s, _, tt := setup(t, "en", true)
+	s.group = devices
+	tt.Frame()
+	platform, signed, last := rect(t, tt, s.text.ColPlatform), rect(t, tt, s.text.ColSigned), rect(t, tt, s.text.ColLastUsed)
+	for text, head := range map[string]ui.Rect{"macOS": platform, "iPhone": platform, "Oct 16": signed, "Sep 18": signed} {
+		if r := rect(t, tt, text); r.X != head.X {
+			t.Errorf("%q at %v, its column at %v", text, r.X, head.X)
+		}
+	}
+	// Last used ends at the column's right edge, and Revoke is the last column.
+	if r := rect(t, tt, "3 hours ago"); r.X+r.W != last.X+last.W {
+		t.Errorf("last used ends at %v, want %v", r.X+r.W, last.X+last.W)
+	}
+	if b := rect(t, tt, "Revoke “Safari · iPhone”?"); b.X < last.X+last.W || b.W == 0 {
+		t.Errorf("revoke at %v, last used ends at %v", b, last.X+last.W)
+	}
+	if a, b := rect(t, tt, "Safari"), rect(t, tt, "Unknown device"); a.X != b.X || a.Y >= b.Y {
+		t.Errorf("devices at %v and %v", a, b)
+	}
+}
+
+func TestDevicesStacked(t *testing.T) {
+	s, _, tt := setup(t, "en", true)
+	s.group = devices
+	// 840 wide leaves the main area 616, short of a table.
+	tt.SetSize(840, 700)
+	tt.Frame()
 	texts := tt.Texts()
 	current := slices.Index(texts, "Oriel · macOS")
 	if current < 0 || texts[current+1] != s.text.ThisDevice {
@@ -476,8 +535,13 @@ func TestDevices(t *testing.T) {
 			t.Errorf("no %q in %v", text, texts)
 		}
 	}
-	if n := strings.Count(strings.Join(texts, "\n"), s.text.Revoke); n != 2 {
-		t.Fatalf("%d revoke buttons in %v", n, texts)
+	if tt.HasText(s.text.ColPlatform) {
+		t.Errorf("a table at 840 wide: %v", texts)
+	}
+	tt.SetSize(640, 600)
+	tt.Frame()
+	if !tt.HasText("Safari · iPhone") || tt.HasText(s.text.ColPlatform) {
+		t.Errorf("minimum window: %v", tt.Texts())
 	}
 }
 
@@ -591,6 +655,34 @@ func TestBack(t *testing.T) {
 	}
 	if f.back != 2 {
 		t.Fatalf("back %d", f.back)
+	}
+}
+
+func TestAIColumns(t *testing.T) {
+	s, _, tt := openAI(t, "en", true)
+	// 1100 wide leaves the main area 876, short of two columns: Prompts is under Connection.
+	tt.SetSize(1100, 1400)
+	tt.Frame()
+	conn, prompts := rect(t, tt, s.text.Connection), rect(t, tt, s.text.Prompts)
+	if prompts.Y <= conn.Y || prompts.X != conn.X {
+		t.Errorf("one column: connection %v, prompts %v", conn, prompts)
+	}
+	// 1300 wide leaves 1076: Prompts is beside Connection, and the page is centered.
+	tt.SetSize(1300, 900)
+	tt.Frame()
+	conn, prompts = rect(t, tt, s.text.Connection), rect(t, tt, s.text.Prompts)
+	if prompts.Y != conn.Y || prompts.X <= conn.X {
+		t.Errorf("two columns: connection %v, prompts %v", conn, prompts)
+	}
+	// The lead stops at 600, scaled with the text size, short of the two columns under it.
+	if lead := rect(t, tt, s.text.AILead); lead.X != conn.X || lead.W >= 2*conn.W {
+		t.Errorf("lead %v, connection %v", lead, conn)
+	}
+	// At the minimum window the single column keeps its Connection heading.
+	tt.SetSize(640, 600)
+	tt.Frame()
+	if !tt.HasText(s.text.Connection) || !tt.HasText(s.text.Prompts) {
+		t.Errorf("minimum window: %v", tt.Texts())
 	}
 }
 

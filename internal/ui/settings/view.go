@@ -46,7 +46,7 @@ type copy struct {
 	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp   string
 	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium           string
 	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed           string
-	PreviewText, PreferenceFailed                                                                                  string
+	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                      string
 }
 
 var translations = func() map[string]copy {
@@ -727,19 +727,28 @@ func (s *Screen) revoke() {
 // device names a device by the User-Agent it signed in with, as "Oriel · macOS" or "Safari · iPhone", and chooses
 // its glyph.
 func (s *Screen) device(d client.Device) (string, *ui.SVG) {
+	name, platform, icon := s.deviceParts(d)
+	if platform != "" {
+		name += " · " + platform
+	}
+	return name, icon
+}
+
+// deviceParts is the client and the platform a device signed in with, apart; the platform is empty when the
+// User-Agent does not tell it.
+func (s *Screen) deviceParts(d client.Device) (name, platform string, icon *ui.SVG) {
 	ua := strings.TrimSpace(d.UserAgent)
 	if ua == "" {
-		return s.text.UnknownDevice, icons.Laptop
+		return s.text.UnknownDevice, "", icons.Laptop
 	}
-	platform := ""
 	if rest, ok := strings.CutPrefix(ua, "Oriel"); ok && (rest == "" || rest[0] == '/' || rest[0] == ' ') {
 		if _, inside, ok := strings.Cut(rest, "("); ok {
 			platform, _, _ = strings.Cut(inside, ")")
 		}
 		if platform == "" {
-			return "Oriel", icons.Laptop
+			return "Oriel", "", icons.Laptop
 		}
-		return "Oriel · " + platform, glyph(platform)
+		return "Oriel", platform, glyph(platform)
 	}
 	for _, p := range []struct{ mark, name string }{
 		{"iPhone", "iPhone"}, {"iPad", "iPad"}, {"Android", "Android"}, {"Windows", "Windows"},
@@ -761,9 +770,9 @@ func (s *Screen) device(d client.Device) (string, *ui.SVG) {
 		}
 	}
 	if platform == "" || browser == "" {
-		return ua, icons.Laptop
+		return ua, "", icons.Laptop
 	}
-	return browser + " · " + platform, glyph(platform)
+	return browser, platform, glyph(platform)
 }
 
 func glyph(platform string) *ui.SVG {
@@ -851,15 +860,16 @@ func (s *Screen) View(c *ui.Context) {
 	}
 	width, _ := c.Size()
 	compact := width < 760
+	room := s.room(c, width, compact)
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
 		s.sidebar(c, compact)
 		// The title row floats over the page, which scrolls under it and fades under the scroll edge.
 		bar := c.TitleBar()
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			s.content(c, compact)
+			s.content(c, compact, room)
 			theme.Edge(c)
 			ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).
-				Padding(0, t.Space(3)+bar.Right, 0, t.Space(5)).DragWindow().Children(func() {
+				Padding(0, t.Space(3)+bar.Right, 0, s.titleLeft(t, compact, room)).DragWindow().Children(func() {
 				ui.Text(c, s.groupName(s.group)).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(0).
 					Shrink(1).Role(ui.RoleHeading).Level(1)
 			})
@@ -882,12 +892,23 @@ func (s *Screen) View(c *ui.Context) {
 	}
 }
 
+// sidebarWidth is the sidebar's width.
+func sidebarWidth(t *ui.Theme, compact bool) float32 {
+	if compact {
+		return px(t, 184)
+	}
+	return px(t, 216)
+}
+
+// room is the width of the main area, which is what is left of the window after the sidebar and its margin; the
+// layout cannot measure it, and the page widths below depend on it.
+func (s *Screen) room(c *ui.Context, width float32, compact bool) float32 {
+	return width - sidebarWidth(c.Theme(), compact) - 8
+}
+
 func (s *Screen) sidebar(c *ui.Context, compact bool) {
 	main := c.Theme()
-	width := px(main, 216)
-	if compact {
-		width = px(main, 184)
-	}
+	width := sidebarWidth(main, compact)
 	pane := ui.Column(c).Width(width).Margin(8, 0, 8, 8)
 	theme.Pane(c, pane).Children(func() {
 		// The pane has a theme of its own, light on dark in both schemes; the main one is back after it.
@@ -974,7 +995,7 @@ func (s *Screen) serverBar(c *ui.Context) {
 	})
 }
 
-func (s *Screen) content(c *ui.Context, compact bool) {
+func (s *Screen) content(c *ui.Context, compact bool, room float32) {
 	state := s.state
 	switch s.group {
 	case appearance, opml:
@@ -987,29 +1008,69 @@ func (s *Screen) content(c *ui.Context, compact bool) {
 		s.failure(c)
 		return
 	case loading:
-		s.page(c, compact, func() { s.skeleton(c) })
+		s.page(c, compact, formWidth(c.Theme()), func() { s.skeleton(c) })
 		return
 	}
-	s.page(c, compact, func() {
+	s.page(c, compact, s.pageWidth(c.Theme(), room), func() {
 		switch s.group {
 		case appearance:
 			s.appearancePage(c)
 		case opml:
 			s.opmlPage(c)
 		case ai:
-			s.aiPage(c)
+			s.aiPage(c, s.twoColumns(c.Theme(), room))
 		case devices:
-			s.devicesPage(c)
+			s.devicesPage(c, s.wideTable(c.Theme(), room))
 		default:
 			s.fetchingPage(c)
 		}
 	})
 }
 
-func (s *Screen) page(c *ui.Context, compact bool, children func()) {
+// Page widths, padding included. A form is 600 wide; the devices table is 880 wide once the main area holds it
+// (tableRoom), and the AI page is two columns up to 1040 wide once the main area holds them (splitRoom).
+const (
+	tableRoom = 656
+	splitRoom = 976
+)
+
+func formWidth(t *ui.Theme) float32 { return px(t, 600) }
+
+// pageWidth is the widest the page of the current group goes, for the room the main area has.
+func (s *Screen) pageWidth(t *ui.Theme, room float32) float32 {
+	switch {
+	case s.wideTable(t, room):
+		return px(t, 880)
+	case s.twoColumns(t, room):
+		return px(t, 1040)
+	}
+	return formWidth(t)
+}
+
+// wideTable is whether the devices come as a table.
+func (s *Screen) wideTable(t *ui.Theme, room float32) bool {
+	return s.group == devices && s.signedIn && room >= px(t, tableRoom)
+}
+
+// twoColumns is whether the AI page puts the connection and the prompts side by side.
+func (s *Screen) twoColumns(t *ui.Theme, room float32) bool {
+	return s.group == ai && room >= px(t, splitRoom)
+}
+
+// titleLeft is the title's left padding, which puts it on the left edge of the centered page.
+func (s *Screen) titleLeft(t *ui.Theme, compact bool, room float32) float32 {
+	pad := px(t, 32)
+	if compact {
+		pad = px(t, 20)
+	}
+	col := min(room, s.pageWidth(t, room))
+	return max(pad, (room-col)/2+pad)
+}
+
+func (s *Screen) page(c *ui.Context, compact bool, maxWidth float32, children func()) {
 	t := c.Theme()
 	ui.Scroll(c).Grow(1).FillWidth().ScrollbarInsets(theme.Bar, 0, 0, 0).Children(func() {
-		p := ui.Column(c).FillWidth().MaxWidth(px(t, 600)).Margin(0, ui.Auto)
+		p := ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto)
 		if compact {
 			p.Padding(theme.Bar+px(t, 20), px(t, 20), px(t, 40), px(t, 20))
 		} else {
@@ -1051,7 +1112,7 @@ func (s *Screen) failure(c *ui.Context) {
 
 func lead(c *ui.Context, text string) {
 	t := c.Theme()
-	ui.Text(c, text).TextColor(t.TextMuted).Wrap().Margin(0, 0, px(t, 20), 0)
+	ui.Text(c, text).TextColor(t.TextMuted).Wrap().MaxWidth(px(t, 600)).Margin(0, 0, px(t, 20), 0)
 }
 
 // card draws rows on a tinted Surface card, an inset hairline between each.
@@ -1260,9 +1321,32 @@ func (s *Screen) retentionSelect(c *ui.Context) {
 	}
 }
 
-func (s *Screen) aiPage(c *ui.Context) {
+// aiPage is the connection and the prompts, one under the other or, with room, side by side.
+func (s *Screen) aiPage(c *ui.Context, two bool) {
 	t := c.Theme()
 	lead(c, s.text.AILead)
+	if !two {
+		s.aiConnection(c, 0)
+		s.aiPrompts(c, px(t, 28), false)
+		return
+	}
+	ui.Grid(c).FillWidth().Columns(2).GapX(px(t, 24)).AlignItems(ui.Start).Children(func() {
+		ui.Column(c).MinWidth(0).Children(func() { s.aiConnection(c, 0) })
+		ui.Column(c).MinWidth(0).Children(func() { s.aiPrompts(c, 0, true) })
+	})
+}
+
+// sectionTitle is the small heading over a card.
+func sectionTitle(c *ui.Context, text string, top float32) {
+	t := c.Theme()
+	ui.Text(c, text).FontSize(px(t, 12)).FontWeight(600).TextColor(t.TextMuted).
+		Margin(top, 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+}
+
+// aiConnection is the endpoint, model, key and language, with Test and Save.
+func (s *Screen) aiConnection(c *ui.Context, top float32) {
+	t := c.Theme()
+	sectionTitle(c, s.text.Connection, top)
 	before := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage}
 	submit := func(in ui.Element) {
 		if in.Submitted() {
@@ -1362,10 +1446,15 @@ func (s *Screen) aiPage(c *ui.Context) {
 	if after := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage}; after != before {
 		s.aiInvalid, s.aiStatus = s.aiInvalid && after[0] == before[0], status{}
 	}
-	ui.Text(c, s.text.Prompts).FontSize(px(t, 12)).FontWeight(600).TextColor(t.TextMuted).
-		Margin(px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+}
+
+// aiPrompts is the summary and translation prompts, with Save.
+func (s *Screen) aiPrompts(c *ui.Context, top float32, two bool) {
+	t := c.Theme()
+	sectionTitle(c, s.text.Prompts, top)
 	typed := s.prompts
-	card(c, func() { s.promptField(c, 0, s.text.PromptSummary) }, func() { s.promptField(c, 1, s.text.PromptTranslate) },
+	card(c, func() { s.promptField(c, 0, s.text.PromptSummary, two) },
+		func() { s.promptField(c, 1, s.text.PromptTranslate, two) },
 		func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 				coded(c, s.text.PromptHelp, "{language}", "{language}").Grow(1).MinWidth(0)
@@ -1388,7 +1477,7 @@ func (s *Screen) aiPage(c *ui.Context) {
 }
 
 // promptField is a prompt, with Restore default while it is not the default.
-func (s *Screen) promptField(c *ui.Context, i int, label string) {
+func (s *Screen) promptField(c *ui.Context, i int, label string, two bool) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 		ui.Text(c, label).FontWeight(500).Grow(1).MinWidth(0)
@@ -1401,6 +1490,9 @@ func (s *Screen) promptField(c *ui.Context, i int, label string) {
 	})
 	area := ui.TextArea(c.Key(i), &s.prompts[i]).FillWidth().Lines(3, 10).Margin(px(t, 12), 0, 0, 0).Font("monospace").
 		FontSize(px(t, 12.5)).Label(label).Disabled(s.promptSaving)
+	if two {
+		area.MinHeight(px(t, 120))
+	}
 	area.Background(theme.RaisedFill(t)).Radius(t.Radius)
 	edge(c, area)
 	if area.Focused() {
@@ -1681,7 +1773,8 @@ func (s *Screen) failRow(c *ui.Context, i int, f client.ImportFail) {
 		})
 }
 
-func (s *Screen) devicesPage(c *ui.Context) {
+// devicesPage is the signed-in devices, as a table where there is room and as stacked rows where there is not.
+func (s *Screen) devicesPage(c *ui.Context, table bool) {
 	t := c.Theme()
 	if !s.signedIn {
 		card(c, func() {
@@ -1694,11 +1787,79 @@ func (s *Screen) devicesPage(c *ui.Context) {
 	}
 	lead(c, s.text.DevicesHelp)
 	now := s.deps.Now()
+	if table {
+		s.deviceTable(c, now)
+		return
+	}
 	rows := make([]func(), len(s.devices))
 	for i, d := range s.devices {
 		rows[i] = func() { s.deviceRow(c, d, now) }
 	}
 	card(c, rows...)
+}
+
+// deviceTable draws the devices in columns: the device, its platform, when it signed in, when it was last used
+// and Revoke. Every row is a grid of the same tracks, so the columns line up.
+func (s *Screen) deviceTable(c *ui.Context, now time.Time) {
+	t := c.Theme()
+	tracks := func(g ui.Element) ui.Element {
+		return g.FillWidth().ColumnTracks(ui.Fr(1), ui.Fixed(px(t, 88)), ui.Fixed(px(t, 96)), ui.Fixed(px(t, 116)),
+			ui.Fixed(px(t, 96))).GapX(px(t, 16)).AlignItems(ui.Center).Padding(0, px(t, 20))
+	}
+	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Role(ui.RoleTable).Label(s.text.Devices).Children(func() {
+		tracks(ui.Grid(c)).Height(px(t, 36)).Role(ui.RoleRow).Children(func() {
+			head := func(text string, align ui.Align) {
+				ui.Text(c, text).FontSize(px(t, 12)).FontWeight(500).TextColor(t.TextMuted).SingleLine().
+					TextAlign(align).Role(ui.RoleColumnHeader)
+			}
+			head(s.text.ColDevice, ui.Start)
+			head(s.text.ColPlatform, ui.Start)
+			head(s.text.ColSigned, ui.Start)
+			head(s.text.ColLastUsed, ui.End)
+			ui.Box(c).Label(s.text.Revoke)
+		})
+		for _, d := range s.devices {
+			ui.Column(c.Key(d.ID)).FillWidth().Children(func() {
+				ui.Box(c).FillWidth().Height(1).Margin(0, px(t, 20)).Background(t.Border)
+				tracks(ui.Grid(c)).Height(px(t, 48)).Role(ui.RoleRow).Children(func() { s.deviceCells(c, d, now) })
+			})
+		}
+	})
+}
+
+// deviceCells are the five cells of a device's row in the table.
+func (s *Screen) deviceCells(c *ui.Context, d client.Device, now time.Time) {
+	t := c.Theme()
+	name, platform, icon := s.deviceParts(d)
+	muted := func(text string) ui.Element {
+		return ui.Text(c, text).FontSize(px(t, 13)).TextColor(t.TextMuted).SingleLine()
+	}
+	ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(px(t, 12)).Children(func() {
+		ui.Box(c).Size(px(t, 28), px(t, 28)).Radius(8).Center().Background(theme.Track(t)).Children(func() {
+			ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(theme.Text2(t))
+		})
+		ui.Text(c, name).FontWeight(500).SingleLine().MinWidth(0).Shrink(1)
+		if d.Current {
+			ui.Box(c).Height(px(t, 18)).PaddingX(px(t, 6)).Radius(px(t, 9)).Center().
+				Background(theme.Soft(t, t.Accent)).Children(func() {
+				ui.Text(c, s.text.ThisDevice).FontSize(px(t, 11)).FontWeight(500).TextColor(t.Accent).NoWrap()
+			})
+		}
+	})
+	muted(platform)
+	muted(s.date(d.CreatedAt, now))
+	muted(s.ago(d.LastSeenAt, now)).TextAlign(ui.End)
+	ui.Row(c).JustifySelf(ui.End).Children(func() {
+		if d.Current {
+			return
+		}
+		full, _ := s.device(d)
+		b := button(c, danger, false).Label(s.fill(s.text.RevokeTitle, "{name}", full))
+		textButton(c, b, danger, nil, s.text.Revoke, false)
+		if b.Clicked() {
+			s.doomed, s.revoking = d, true
+		}
+	})
 }
 
 func (s *Screen) deviceRow(c *ui.Context, d client.Device, now time.Time) {

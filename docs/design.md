@@ -496,13 +496,27 @@ Overlays share focus and Escape behavior; see
 - **Settings.** The settings take the whole window, in place of the timeline: their own sidebar has "Back to the
   timeline" on top, one item per group (Appearance, Fetching, Import and export, AI, Devices) and the server bar, which says whose
   settings these are and does not open the connect screen. They open from the gear beside the timeline's server bar
-  or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. The page's toolbar title lines up with its
-  content column, at most 600 wide, in a wide window. A setting is saved
+  or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. The page's toolbar title lines up with the left edge
+  of its content column. **Page width.** A page is one column centered in the room beside the sidebar, its width
+  taken from the page and the room, not from the window: a form page (Appearance, Fetching, Import and export) keeps
+  a column at most 600 wide, padding included, for a readable line; Devices is a list and widens to 880 once the room
+  is 656 wide (a window of 880); AI splits in two columns, 1040 wide at most with a 24 gap, once the room is 976 wide
+  (a window of 1200). Below those widths a page is the single 600 column, padded 32 (20 below a 760 wide window).
+  Text outside a card (the lead line) never runs past 600. A setting is saved
   where it is changed: the RSSHub instance with its Save button or Enter, the retention as soon as another is
   chosen; the line under it says it was saved, or why not, and a refused value keeps the focus in its field. OPML
   files are chosen and saved with the system's file dialogs, read and sent in the background; the result stays
   under the button, with the subscriptions that could not be added and why, until dismissed. Revoking a device asks
-  first; the current device is marked and cannot be revoked. The AI group has the endpoint, model, API key and
+  first; the current device is marked and cannot be revoked. In the wide column Devices is a table in one card:
+  a header row 36 high (11 medium, `TextMuted`, 12 in Chinese) over rows 48 high parted by the inset hairline, columns
+  Device (a 28 glyph tile, the client's name at 13 medium and the "This device" badge), Platform and Signed in
+  (`TextMuted`, 88 and 96 wide), Last used (116 wide, right-aligned, `Text`, tabular figures) and a 96 wide last column
+  that holds "Revoke…" (the small danger button), empty on the current device. The first column takes the rest and
+  its text is cut with an ellipsis; the gap between columns is 16. Below the table's room the rows are the stacked
+  ones (name and badge over "Signed in … · last used …", Revoke at the right). It is a `ui.Grid` with column tracks,
+  not `ui.Table`: the devices are few and sit in the page's own scroll, in the card's style. The AI page
+  is a "Connection" card (endpoint, model, key, language, Test and Save) and a "Prompts" card, each under its own
+  title; in two columns the prompt boxes are 120 high. The AI group has the endpoint, model, API key and
   output language in one card with its own Save; each field, the model's too, has its label above and takes the
   card's width; and the two prompts in a second card. The key field is always
   empty; a badge says "Configured" or "Not configured", a new key replaces the old one and "Remove key" deletes it.
