@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,9 @@ const (
 	probeDelay   = time.Minute
 	flatProbes   = 5
 	backoffLimit = 10 * time.Minute
+
+	// A Retry-After on 429 or 503 raises the wait, but never past a day.
+	retryAfterLimit = 24 * time.Hour
 
 	// RSSHubSetting is the setting that holds the RSSHub root address, such as http://localhost:1200.
 	RSSHubSetting = "rsshub_base_url"
@@ -110,7 +114,12 @@ func (p *Poller) fetchSource(ctx context.Context, src store.FeedSource) int {
 	}
 	now := p.now()
 	if err != nil {
-		if err := p.store.FetchFailure(ctx, src.ID, err.Error(), now, now.Add(retryDelay(src.ConsecutiveFailures+1))); err != nil {
+		wait := retryDelay(src.ConsecutiveFailures + 1)
+		var asked *retryAfterError
+		if errors.As(err, &asked) {
+			wait = max(wait, asked.wait)
+		}
+		if err := p.store.FetchFailure(ctx, src.ID, err.Error(), now, now.Add(wait)); err != nil {
 			slog.Error("Cannot record a fetch failure", "source", src.ID, "error", err)
 		}
 		return 0
@@ -157,7 +166,11 @@ func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource) (int, e
 	case resp.StatusCode == http.StatusNotModified:
 		return 0, p.store.FetchSuccess(ctx, src.ID, etag, lastModified, now, next)
 	case resp.StatusCode < 200 || resp.StatusCode > 299:
-		return 0, statusError(resp, src)
+		err := statusError(resp, src)
+		if wait := retryAfter(resp, now); wait > 0 {
+			err = &retryAfterError{error: err, wait: wait}
+		}
+		return 0, err
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
@@ -206,6 +219,30 @@ func statusError(resp *http.Response, src store.FeedSource) error {
 		return errors.New("status 404: this RSSHub route no longer exists")
 	}
 	return fmt.Errorf("status %d", resp.StatusCode)
+}
+
+// retryAfterError is a failure after which the server asked for a wait.
+type retryAfterError struct {
+	error
+	wait time.Duration
+}
+
+func (e *retryAfterError) Unwrap() error { return e.error }
+
+// retryAfter reads the Retry-After of a 429 or 503, given as seconds or an HTTP date, capped at a day.
+// It returns 0 for other statuses and for values that are missing, invalid or not in the future.
+func retryAfter(resp *http.Response, now time.Time) time.Duration {
+	if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode != http.StatusServiceUnavailable {
+		return 0
+	}
+	value := strings.TrimSpace(resp.Header.Get("Retry-After"))
+	var wait time.Duration
+	if seconds, err := strconv.ParseUint(value, 10, 63); err == nil {
+		wait = time.Duration(min(seconds, uint64(retryAfterLimit/time.Second))) * time.Second
+	} else if at, err := http.ParseTime(value); err == nil {
+		wait = min(at.Sub(now), retryAfterLimit)
+	}
+	return max(wait, 0)
 }
 
 // retryDelay is the wait after the given number of consecutive failures.
