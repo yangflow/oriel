@@ -248,9 +248,13 @@ values are in [design/tokens.md](../design/tokens.md). See
 - **The connect screen.** Title 24 semibold, hint 12 in `TextMuted`.
 - **The timeline.** Screen title 15 semibold, row titles 15 semibold in `Text` (read rows 500 in `TextMuted`), the
   source name 12 medium in `Text2`, time and other meta 12 in `TextMuted`, summaries 13 in `Text2`, social text 13 in
-  `Text`, counts 11 medium with tabular figures. Titles in rows and video cards wrap; summaries show at most two lines and
-  social text six; a picture's caption in the wall is one line. The full title is always the entry's accessible
-  name.
+  `Text`, counts 11 medium with tabular figures. Titles in rows and video cards wrap and stop at two lines, summaries
+  show at most two lines and social text six; the ellipsis ends the last line. A picture's caption in the wall, the
+  source name in the meta line, a subscription's name in the pane and the screen title are one line with an ellipsis,
+  and the source name gives way first, before the time. A Chinese title breaks between any two characters and a word
+  with no break point (a URL, a version string) breaks where it must, so a title never pushes the row wider. The
+  full title is always the entry's accessible name and the reader shows it whole; the pane's name also shows in full
+  in a tooltip. Drawn in `design/screens/timeline.html`, `long-titles`.
 - **Hierarchy by lightness.** Within one size, the order is `Text`, `Text2`, `TextMuted`; weight comes second and size
   last. Read rows go quiet in lightness and weight (500), not in size.
 - **Tracking and numerals.** Small labels get letter spacing (+0.04em at 11, +0.02em in Chinese at 12); the title
@@ -291,10 +295,13 @@ values are in [design/tokens.md](../design/tokens.md). See
   square tile with radius 4 and a 0.5 DIP inset rim in ink 20%, so a dark icon still reads on the dark pane, 18 in the pane, 15 in the row
   meta, the reader's meta and 32 in the edit dialog header (radius 8, the size of its monogram). The icon
   loads through `/api/image` in the background; the monogram stands until it is decoded and stays when there is none or
-  it fails, so nothing jumps. Row actions are bare icons only (star, mark read, open in browser) with labels and
+  it fails, so nothing jumps (`broken-images`). With about 60 subscriptions the pane scrolls its heading and
+  subscriptions together, in the store's order (lowercase name); the kinds above and the server bar below stay in
+  place (`many-feeds`). Row actions are bare icons only (star, mark read, open in browser) with labels and
   tooltips, in the row's meta line at the right, never over a thumbnail or a title, shown on hover, on the chosen row and
   on the focused row, fading in 120 ms. Pictures are downloaded through the server (`/api/image`), at most four at a
-  time, and the 300 most recent bitmaps are kept; a missing picture keeps its box with an image icon. A video cover
+  time, and the 300 most recent bitmaps are kept; a picture that fails to load keeps its box on `Track` with a muted
+  image icon, and a video cover keeps its play mark and duration. A video cover
   carries a play mark and the duration, labelled "Duration 12:34". The unread dot is a 7 `Accent` circle; a failing
   subscription is `Warning` with a mark, the server is a `Success` dot, `Warning` while background checks fail; a starred entry is `theme.Star`.
 - **The product icon** is a mixed timeline on a warm ivory tile: a teal rail joins three entries, each a teal dot
