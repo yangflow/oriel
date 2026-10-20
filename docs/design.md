@@ -506,14 +506,14 @@ Overlays share focus and Escape behavior; see
   where it is changed: the RSSHub instance with its Save button or Enter, the retention as soon as another is
   chosen; the line under it says it was saved, or why not, and a refused value keeps the focus in its field. OPML
   files are chosen and saved with the system's file dialogs, read and sent in the background; the result stays
-  under the button, with the subscriptions that could not be added and why, until dismissed. Revoking a device asks
-  first; the current device is marked and cannot be revoked. In the wide column Devices is a table in one card:
+  under the button, with the subscriptions that could not be added and why, until dismissed. Signing a device out asks
+  first; the current device is marked and cannot be signed out. In the wide column Devices is a table in one card:
   a header row 36 high (11 medium, `TextMuted`, 12 in Chinese) over rows 48 high parted by the inset hairline, columns
   Device (a 28 glyph tile, the client's name at 13 medium and the "This device" badge), Platform and Signed in
   (`TextMuted`, 88 and 96 wide), Last used (116 wide, right-aligned, `Text`, tabular figures) and a 96 wide last column
-  that holds "Revoke…" (the small danger button), empty on the current device. The first column takes the rest and
+  that holds "Sign out…" (the small danger button), empty on the current device. The first column takes the rest and
   its text is cut with an ellipsis; the gap between columns is 16. Below the table's room the rows are the stacked
-  ones (name and badge over "Signed in … · last used …", Revoke at the right). It is a `ui.Grid` with column tracks,
+  ones (name and badge over "Signed in … · last used …", Sign out at the right). It is a `ui.Grid` with column tracks,
   not `ui.Table`: the devices are few and sit in the page's own scroll, in the card's style. The AI page
   is a "Connection" card (endpoint, model, key, language, Test and Save) and a "Prompts" card, each under its own
   title; in two columns the prompt boxes are 120 high. The AI group has the endpoint, model, API key and
@@ -598,6 +598,33 @@ color, and the row actions fade. See
 - English labels: short imperatives ("Reset", "Add subscription"), sentence case, no trailing period on labels and a
   full stop on sentences. Chinese sentences use full-width punctuation. Do not concatenate sentence fragments, since
   word order differs; use full-sentence strings with placeholders.
+- Chinese terms are used the same way everywhere. A term below does not get a second word for the same thing.
+
+  | English | Chinese | Note |
+  |---|---|---|
+  | subscription, feed | 订阅 | One word for both; the screens never say 源. |
+  | entry | 条目 | In lists and the keys of the timeline ("下一条"); in the reader it is 篇 ("上一篇", "下一篇"). |
+  | kind | 形态 | Not 类型, which is left to the technical sense. |
+  | mark as read | 标为已读 | Sentences use 把 ("把上面的标为已读"), not 将. |
+  | star | 收藏 | |
+  | sign in, sign out | 登录, 退出登录 | A device is signed out, never "吊销". |
+  | password | 口令 | |
+  | server | 服务端 | Not 服务器, which names the machine. |
+  | this computer | 本机 | |
+  | device | 设备 | |
+  | fetch | 抓取 | The schedule is spoken of as 检查 ("检查间隔", "检查过"); both stand until they are unified. |
+  | summary, translation | 摘要, 译文 | The verbs are 摘要 and 翻译. |
+  | AI endpoint | AI 接口 | |
+  | prompt, API key | prompt, API key | Kept in Latin; "key" alone is fine after the first mention. |
+  | Bilibili | 哔哩哔哩 | Not "B 站". |
+
+- Quotes around a placeholder that holds a name, a scope or a query: 「{name}」 in Chinese, “{name}” in English.
+  The same pair is used for names of screens and actions ("编辑订阅").
+- Spacing in Chinese strings: one half-width space between Chinese and Latin letters or digits (`Oriel 无法启动`,
+  `AI 接口`), and the same around a placeholder that holds a number, a file name or user content
+  (`{n} 条未读`, `{file} 超过 1 MB`). Exceptions: none beside full-width punctuation or 「」; none beside a placeholder
+  that holds already localized Chinese (`{t}前检查过`, `{date}登录`, `回到{scope}`); none inside date layouts
+  (`1月2日`).
 - Layouts must tolerate the longer of the two translations, and English text 30–50% longer than the first draft.
   Do not fix widths of text controls.
 - Format dates, times, numbers and plurals for the language. Chinese has no plural forms; English needs separate

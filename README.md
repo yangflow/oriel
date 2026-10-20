@@ -53,7 +53,7 @@ Working now:
   or the pencil in the toolbar; deleting asks first, since its entries go too.
 - **Settings.** Change the RSSHub instance and how long entries are kept from the gear beside the server bar or
   "Settings…" (Cmd/Ctrl+,); they are kept on the server, so every device connected to it shares them. Signed in to
-  a server with a password, see each device signed in and revoke the ones you no longer use.
+  a server with a password, see each device signed in and sign out the ones you no longer use.
 - **AI summaries and translation.** Through your own OpenAI-compatible endpoint, such as OpenAI or a local
   Ollama, set up in Settings with a connection test; the API key is kept on the server and never shown again. The
   reader summarizes or translates the open article on demand, cancellable, and keeps the result for next time; a
