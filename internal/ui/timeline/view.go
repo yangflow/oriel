@@ -40,7 +40,7 @@ type copy struct {
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                    string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                          string
 	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                        string
-	FailingTitle, ShowAll, MarkAbove, MarkedAbove                                                                       string
+	FailingTitle, ShowAll, MarkAbove, MarkedAbove, KeyScope, KeySidebar, KeyMenu                                        string
 }
 
 var translations = func() map[string]copy {
@@ -164,13 +164,15 @@ type Screen struct {
 	updated  time.Time // the last load or check that succeeded
 	fresh    int       // entries newer than the top one, found by polling
 
-	selected int // the entry chosen, -1 for none
-	focusRow int // the entry to give the focus in the next frame, -1 for none
-	hovered  int // the entry under the pointer in the last frame
-	toTop    bool
-	list     ui.ListState
-	grid     ui.GridState
-	wall     ui.ScrollState
+	selected  int  // the entry chosen, -1 for none
+	focusRow  int  // the entry to give the focus in the next frame, -1 for none
+	sideFocus bool // give the sidebar the focus in the next frame
+	inSide    bool // the focus is in the sidebar, or goes there
+	hovered   int  // the entry under the pointer in the last frame
+	toTop     bool
+	list      ui.ListState
+	grid      ui.GridState
+	wall      ui.ScrollState
 
 	pictures  map[string]*picture
 	wanted    []string // pictures to download, the latest asked first
@@ -1070,22 +1072,6 @@ func (s *Screen) View(c *ui.Context) {
 	if !open && !s.typing {
 		c.OnShortcut(ui.Shift, ui.KeySlash, s.ShowKeys)
 	}
-	// The keys of the list work wherever the focus is, but not while the search takes the letters typed, a dialog
-	// shows or the reader, which has its own, is open.
-	if !s.typing && !open && s.reading == 0 {
-		for _, k := range []struct {
-			key ui.Key
-			do  func()
-		}{
-			{ui.KeyJ, func() { s.move(1) }}, {ui.KeyDown, func() { s.move(1) }},
-			{ui.KeyK, func() { s.move(-1) }}, {ui.KeyUp, func() { s.move(-1) }},
-			{ui.KeyO, func() { s.open(c, s.selected) }}, {ui.KeyEnter, func() { s.open(c, s.selected) }},
-			{ui.KeyS, func() { s.toggleStar(s.selected) }}, {ui.KeyM, func() { s.toggleRead(s.selected) }},
-			{ui.KeyN, s.nextUnread}, {ui.KeySlash, func() { s.searchBox = true }},
-		} {
-			c.OnShortcut(0, k.key, k.do)
-		}
-	}
 	width, _ := c.Size()
 	compact := width < 760
 	s.wantMore = false
@@ -1107,6 +1093,7 @@ func (s *Screen) View(c *ui.Context) {
 			s.pill(c)
 		})
 	})
+	s.listKeys(c, open)
 	if s.wantMore {
 		s.loadMore()
 	}
@@ -1122,6 +1109,68 @@ func (s *Screen) View(c *ui.Context) {
 		s.toast = ""
 	}
 	s.toasts(c)
+}
+
+// listKeys registers the keys of the list and of the sidebar. They work wherever the focus is, but not while the search
+// takes the letters typed, a dialog shows or the reader, which has its own, is open. They are registered after the
+// frame is laid out, which is when it is known whether the focus is in the sidebar; there the keys of the entries are
+// inert, as the arrows and Enter are the sidebar's own, and Escape, L and Right go back to the list.
+func (s *Screen) listKeys(c *ui.Context, open bool) {
+	if s.typing || open || s.reading != 0 {
+		return
+	}
+	c.OnShortcut(0, ui.KeySlash, func() { s.searchBox = true })
+	for i, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5} {
+		c.OnShortcut(0, k, func() { s.pickKind(i) })
+	}
+	if s.inSide {
+		for _, k := range []ui.Key{ui.KeyL, ui.KeyRight, ui.KeyEscape} {
+			c.OnShortcut(0, k, s.toList)
+		}
+		return
+	}
+	for _, k := range []struct {
+		key ui.Key
+		do  func()
+	}{
+		{ui.KeyH, s.toSidebar}, {ui.KeyLeft, s.toSidebar},
+		{ui.KeyJ, func() { s.move(1) }}, {ui.KeyDown, func() { s.move(1) }},
+		{ui.KeyK, func() { s.move(-1) }}, {ui.KeyUp, func() { s.move(-1) }},
+		{ui.KeyO, func() { s.open(c, s.selected) }}, {ui.KeyEnter, func() { s.open(c, s.selected) }},
+		{ui.KeyS, func() { s.toggleStar(s.selected) }}, {ui.KeyM, func() { s.toggleRead(s.selected) }},
+		{ui.KeyN, s.nextUnread},
+	} {
+		c.OnShortcut(0, k.key, k.do)
+	}
+}
+
+// pickKind shows the kind at index i of the sidebar and says which and how many unread entries it has.
+func (s *Screen) pickKind(i int) {
+	s.failingOnly = false
+	s.choose(scope{kind: kinds[i]})
+	say := s.kindName(kinds[i])
+	if n := s.unreadIn(scope{kind: kinds[i]}); n > 0 {
+		say += s.text.Separator + s.format(s.text.UnreadCount, n)
+	}
+	s.announce = say
+}
+
+// toSidebar gives the focus to the subscription chosen, else the kind chosen.
+func (s *Screen) toSidebar() { s.sideFocus, s.inSide = true, true }
+
+// toList gives the focus back to the entry chosen, the first one when none is.
+func (s *Screen) toList() {
+	s.inSide = false
+	if len(s.entries) == 0 {
+		return
+	}
+	i := s.selected
+	if i < 0 || i >= len(s.entries) {
+		i = 0
+	}
+	s.selected, s.focusRow = i, i
+	s.list.ScrollIntoView(i)
+	s.grid.ScrollIntoView(i)
 }
 
 // toasts shows the toasts of "mark all as read", with its undo, and of N finding no unread entry.
@@ -1187,10 +1236,15 @@ func (s *Screen) keySheet(c *ui.Context) {
 		}
 		return out
 	}
+	menu := [][]string{{"Shift+", "F10"}, {"Menu"}}
+	if runtime.GOOS == "darwin" {
+		menu = [][]string{{"⇧", "F10"}}
+	}
 	timeline := []key{{s.text.KeyNext, one("J", "↓")}, {s.text.KeyPrevious, one("K", "↑")},
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyOpen, one("O", "↩")}, {s.text.KeyStar, one("S")},
 		{s.text.KeyRead, one("M")}, {s.text.KeySearch, [][]string{{"/"}, {cmd, "F"}}},
-		{s.text.KeyEscape, one("Esc")}, {s.text.KeyUndo, [][]string{{cmd, "Z"}}}}
+		{s.text.KeyEscape, one("Esc")}, {s.text.KeyScope, one("1–5")}, {s.text.KeySidebar, one("H", "←")},
+		{s.text.KeyBack, one("L", "→", "Esc")}, {s.text.KeyMenu, menu}, {s.text.KeyUndo, [][]string{{cmd, "Z"}}}}
 	reading := []key{{s.text.KeyNextArticle, one("J")}, {s.text.KeyPreviousArticle, one("K")},
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyStar, one("S")}, {s.text.KeyRead, one("M")},
 		{s.text.KeyOpenBrowser, one("O")}, {s.text.KeyBack, one("Esc")}}
@@ -1273,13 +1327,18 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 	main := c.Theme()
 	pane := ui.Column(c).Width(sideWidth(main, compact)).Margin(8, 0, 8, 8)
 	theme.Pane(c, pane)
+	// The focus is moving to the sidebar or to an entry in this frame, which FocusWithin does not show yet.
+	s.inSide = s.sideFocus || (pane.FocusWithin() && s.focusRow < 0)
 	c.SetTheme(theme.PaneTheme(main))
 	defer c.SetTheme(main)
 	pane.Children(func() {
 		t := c.Theme()
 		// The first 40 are the window buttons' and drag the window.
 		ui.Box(c).FillWidth().Height(40).DragWindow()
-		s.tabs(c)
+		onSource := slices.ContainsFunc(s.sources, func(src client.Source) bool {
+			return src.ID == s.scope.source && (!s.failingOnly || failed(src))
+		})
+		s.tabs(c, s.sideFocus && !onSource)
 		list := s.sources
 		if s.scope.kind != "" {
 			list = nil
@@ -1304,23 +1363,27 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			ui.Column(c).FillWidth().Padding(px(t, 4), px(t, 8), px(t, 6)).Label(s.text.Sources).Children(func() {
 				s.section(c, failing)
-				for _, src := range list {
-					s.sourceItem(c, src)
-				}
+				ui.Column(c).FillWidth().FocusGroup(ui.Vertical).Children(func() {
+					for _, src := range list {
+						s.sourceItem(c, src)
+					}
+				})
 			})
 		})
 		s.serverBar(c)
+		s.sideFocus = false
 	})
 }
 
-// tabs are the kinds at the top of the sidebar, a list of an icon, a name and the unread count each; the arrow keys
-// move between them. Names are Text2, the chosen one Text in weight 500; counts are TextMuted and step to Text2 under
-// the pointer and when chosen; the icon is TextMuted, Text2 under the pointer and the Accent when chosen.
-func (s *Screen) tabs(c *ui.Context) {
+// tabs are the kinds at the top of the sidebar, a list of an icon, a name and the unread count each; Up and Down move
+// between them, and Left and Right are left to go back to the list. focus gives the focus to the one chosen. Names are
+// Text2, the chosen one Text in weight 500; counts are TextMuted and step to Text2 under the pointer and when chosen;
+// the icon is TextMuted, Text2 under the pointer and the Accent when chosen.
+func (s *Screen) tabs(c *ui.Context, focus bool) {
 	t := c.Theme()
 	before := s.tab
 	seg := ui.SegmentedBase(c, &s.tab, len(kinds))
-	seg.Track.Column().FillWidth().Gap(px(t, 1)).Padding(0, px(t, 8), px(t, 8)).Label(s.text.Kinds).
+	seg.Track.Column().FocusGroup(ui.Vertical).FillWidth().Gap(px(t, 1)).Padding(0, px(t, 8), px(t, 8)).Label(s.text.Kinds).
 		Children(func() {
 			for i, kind := range kinds {
 				name := s.kindName(kind)
@@ -1337,6 +1400,9 @@ func (s *Screen) tabs(c *ui.Context) {
 					icon, count = theme.Text2(t), theme.Text2(t)
 				}
 				theme.Fade(tab)
+				if focus && on {
+					tab.Focus()
+				}
 				n := s.unreadIn(scope{kind: kind})
 				if n > 0 {
 					tab.Description(s.format(s.text.UnreadCount, n))
@@ -1452,6 +1518,9 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 		count = theme.Text2(t)
 	}
 	theme.Fade(item)
+	if chosen && s.sideFocus {
+		item.Focus()
+	}
 	item.Children(func() {
 		s.glyph(c, name, src.IconURL, 18)
 		color := theme.Text2(t)

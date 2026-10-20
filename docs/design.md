@@ -461,6 +461,17 @@ Overlays share focus and Escape behavior; see
   Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+Z undoes the last of the three "mark as read" actions while its toast shows, and `?` or Cmd/Ctrl+/
   opens the key sheet, which the Help menu also lists as "Keyboard Shortcuts".
   Every entry is also a focusable element with its own name, so Tab reaches it.
+- **Sidebar keys.** 1 to 5 switch to All and the four kinds, in the sidebar's order, from anywhere in the timeline. H or
+  Left moves the focus to the chosen item of the sidebar (the kind, or the subscription when the scope is one), Up and
+  Down walk its kinds, which choose as the focus passes, and its subscriptions, which wait for Enter (one vertical
+  focus group each, so Tab still goes through the sidebar in two stops, and Left and Right are not the groups' but go
+  back to the list); the focus stays on the item chosen, and L, Right or Escape gives the focus back to the list, the chosen entry
+  focused. While the sidebar has the focus the entry keys (J K O S M N, Up and Down) do not touch the entries; `/` still
+  goes to search. Shift+F10 or the Menu key opens the context menu of the focused subscription or entry, which MyGo
+  does natively for an element with `ContextMenu`; a Mac keyboard has no Menu key, so the key sheet lists Shift+F10
+  alone there. All of these are off while the search field has the focus, a dialog is open or the reader shows. A
+  scope switched from the keyboard is announced with `c.Announce` ("Videos, 12 unread"), the focus staying where it was.
+  The focus ring on a sidebar item is 2 DIPs of the pane's own accent at 55% (`sidebar-focus` in the mockup).
 - **Reader keys.** While the reader shows, J and K go to the next and previous article, N to the next unread one (a
   toast when there is none, staying on this article), S stars, M toggles read, O
   opens the original in the browser and Escape goes back to the list, the entry it opened from focused. The article
