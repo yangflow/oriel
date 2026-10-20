@@ -23,6 +23,14 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.4.0](https://github.com/yangflow/oriel/compare/v0.3.0...v0.4.0) (2026-10-20)
+
+
+### Added
+
+* **settings:** appearance options for theme, language, font and reading size ([#63](https://github.com/yangflow/oriel/issues/63)) ([716eba8](https://github.com/yangflow/oriel/commit/716eba846423edfb90160b4482eb20ae898f57b8))
+* **ui:** ink pane, graphite dark and sans reading across every screen ([#103](https://github.com/yangflow/oriel/issues/103)) ([78a6b75](https://github.com/yangflow/oriel/commit/78a6b75a2625d78fbaa694e1dfa7b886e11beff5))
+
 ## [0.3.0](https://github.com/yangflow/oriel/compare/v0.2.0...v0.3.0) (2026-10-19)
 
 
