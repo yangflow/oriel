@@ -223,6 +223,17 @@ func TestShellSettings(t *testing.T) {
 	}
 }
 
+func TestShellImportSettings(t *testing.T) {
+	server := remote(t)
+	s, tt, _ := newTestShell(t)
+	s.connected(client.Session{Server: server.URL, Token: "t1"})
+	s.openImportSettings()
+	tt.Frame()
+	if !s.setting || !tt.HasText("Choose File…") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
 func TestShellShowKeys(t *testing.T) {
 	s, _, _ := newTestShell(t)
 	home := s.home.(*fakeHome)

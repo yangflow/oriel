@@ -616,6 +616,15 @@ func openAI(t *testing.T, language string, configured bool) (*Screen, *fake, *ui
 	return s, f, tt
 }
 
+func TestOpenImport(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	s.OpenImport()
+	f.settle(tt)
+	if s.group != opml || !tt.HasText("Import and export") || !tt.HasText(s.text.Import) {
+		t.Fatalf("group %d, texts %v", s.group, tt.Texts())
+	}
+}
+
 // press clicks the element showing or labeled label.
 func press(t *testing.T, tt *ui.Tester, label string) {
 	t.Helper()

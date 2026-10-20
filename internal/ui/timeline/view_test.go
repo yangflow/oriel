@@ -38,8 +38,8 @@ type fake struct {
 	pictures []string
 	articles []int64 // the entries asked for in full
 
-	entriesErr, setErr, markErr             error
-	connects, settings, aiSettings, expired int
+	entriesErr, setErr, markErr                      error
+	connects, settings, aiSettings, imports, expired int
 }
 
 func (f *fake) Entries(_ context.Context, q client.Query) (client.Page, error) {
@@ -189,6 +189,7 @@ func (f *fake) deps() Deps {
 		OpenConnect:    func() { f.connects++ },
 		OpenSettings:   func() { f.settings++ },
 		OpenAISettings: func() { f.aiSettings++ },
+		OpenImport:     func() { f.imports++ },
 		Expired:        func() { f.expired++ },
 	}
 }
@@ -1192,6 +1193,27 @@ func TestAddFirst(t *testing.T) {
 	f.settle(t, tt)
 	if !s.subs.Open() {
 		t.Fatal("Cmd+N does not open the add dialog")
+	}
+}
+
+func TestNoSubscriptionsImport(t *testing.T) {
+	_, f, tt := setup(t, "en")
+	f.sources, f.entries = nil, nil
+	s := New("en", f.deps())
+	tt = ui.NewTester(s.View, 1100, 800)
+	s.Use(f, "")
+	f.settle(t, tt)
+	for _, text := range []string{"No subscriptions yet", "Add your first subscription", "Import OPML…",
+		"Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram."} {
+		if !tt.HasText(text) {
+			t.Fatalf("no %q in %v", text, tt.Texts())
+		}
+	}
+	if err := tt.Click("Import OPML…"); err != nil {
+		t.Fatal(err)
+	}
+	if f.imports != 1 || s.subs.Open() {
+		t.Fatalf("imports %d, add dialog %v", f.imports, s.subs.Open())
 	}
 }
 
