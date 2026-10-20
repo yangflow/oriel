@@ -40,7 +40,7 @@ type copy struct {
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                    string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                          string
 	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                        string
-	FailingTitle, ShowAll                                                                                               string
+	FailingTitle, ShowAll, MarkAbove, MarkedAbove                                                                       string
 }
 
 var translations = func() map[string]copy {
@@ -114,7 +114,7 @@ type picture struct {
 	used   int // when it was last drawn, to drop the least recently drawn
 }
 
-// marking is a "mark all as read" that can be undone: the entries it marked, and the text of its toast, once shown.
+// marking is a "mark as read" (all, above or a subscription) that can be undone: the entries it marked, and the text of its toast, once shown.
 type marking struct {
 	ids   []int64
 	text  string
@@ -177,7 +177,7 @@ type Screen struct {
 	downloads int
 	drawn     int
 
-	undoable *marking              // the last "mark all as read", until its toast closes
+	undoable *marking              // the last "mark as read", until its toast closes
 	seeking  bool                  // N found no unread entry loaded and waits for the next page
 	noMore   bool                  // show that no unread entry is below
 	keys     bool                  // the key sheet shows
@@ -207,6 +207,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		Changed:      s.changed,
 		Removed:      s.removed,
 		Show:         func(id int64) { s.choose(scope{kind: s.kindOf(id), source: id}) },
+		MarkRead:     s.markSource,
 		OpenSettings: deps.OpenAISettings,
 		Expired: func() {
 			s.gen++
@@ -729,7 +730,49 @@ func (s *Screen) markAll() {
 	if s.scope.source == 0 {
 		scope.Kind = s.scope.kind
 	}
-	name, gen, api := s.scopeName(), s.gen, s.api
+	s.markScope(scope, s.text.Marked, s.scopeName())
+}
+
+// canMarkAbove says whether an unread entry is loaded above the entry id, where "Mark above as read" can apply: not
+// under Starred or a search, which the server's scopes do not know.
+func (s *Screen) canMarkAbove(id int64) bool {
+	if s.filter == starred || s.searched != "" {
+		return false
+	}
+	for _, e := range s.entries {
+		if e.ID == id {
+			return false
+		}
+		if !e.IsRead {
+			return true
+		}
+	}
+	return false
+}
+
+// markAbove marks the loaded entries above the entry id read, in the scope, and offers to undo it.
+func (s *Screen) markAbove(id int64) {
+	if !s.canMarkAbove(id) || s.api == nil {
+		return
+	}
+	scope := client.ReadScope{SourceID: s.scope.source, Newer: id, UpTo: s.entries[0].ID}
+	if s.scope.source == 0 {
+		scope.Kind = s.scope.kind
+	}
+	s.markScope(scope, s.text.MarkedAbove, "")
+}
+
+// markSource marks everything unread in the subscription read, whatever the timeline shows, and offers to undo it.
+func (s *Screen) markSource(src client.Source) {
+	if src.UnreadCount == 0 || s.api == nil {
+		return
+	}
+	s.markScope(client.ReadScope{SourceID: src.ID}, s.text.Marked, subscriptions.Name(src))
+}
+
+// markScope marks the entries of scope read; text is the toast, with {n} for how many were marked and {scope} for name.
+func (s *Screen) markScope(scope client.ReadScope, text, name string) {
+	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		ids, err := api.MarkRead(context.Background(), scope)
 		return func() {
@@ -742,8 +785,7 @@ func (s *Screen) markAll() {
 			}
 			s.setRead(ids, true)
 			s.loadSources()
-			text := strings.ReplaceAll(s.format(s.text.Marked, len(ids)), "{scope}", name)
-			s.undoable = &marking{ids: ids, text: text}
+			s.undoable = &marking{ids: ids, text: strings.ReplaceAll(s.format(text, len(ids)), "{scope}", name)}
 		}
 	})
 }
@@ -1969,7 +2011,7 @@ func (s *Screen) hasFooter() bool { return s.more || s.moreErr }
 func (s *Screen) item(c *ui.Context, e ui.Element, i int, now time.Time, ringChosen bool) (hovered, chosen bool) {
 	t := c.Theme()
 	entry := s.entries[i]
-	e.Focusable().FocusRing(false).Label(s.label(entry, now))
+	e.Focusable().FocusRing(false).Label(s.label(entry, now)).ContextMenu(func(m *ui.Menu) { s.entryMenu(c, m, entry.ID) })
 	if s.focusRow == i {
 		e.Focus().ScrollIntoView()
 		s.focusRow = -1
@@ -1993,6 +2035,36 @@ func (s *Screen) item(c *ui.Context, e ui.Element, i int, now time.Time, ringCho
 		s.wantMore = true
 	}
 	return hovered, chosen
+}
+
+// entryMenu fills the context menu of the entry id: the actions of its row, and "Mark above as read" under them.
+func (s *Screen) entryMenu(c *ui.Context, m *ui.Menu, id int64) {
+	i := s.index(id)
+	if i < 0 {
+		return
+	}
+	e := s.entries[i]
+	star := s.text.Star
+	if e.Starred {
+		star = s.text.Unstar
+	}
+	if m.Item(star).Chosen() {
+		s.toggleStar(s.index(id))
+	}
+	read := s.text.MarkRead
+	if e.IsRead {
+		read = s.text.MarkUnread
+	}
+	if m.Item(read).Chosen() {
+		s.toggleRead(s.index(id))
+	}
+	if m.Item(s.text.Open).Chosen() {
+		s.browse(c, s.index(id))
+	}
+	m.Separator()
+	if m.Item(s.text.MarkAbove).Disabled(!s.canMarkAbove(id)).Chosen() {
+		s.markAbove(id)
+	}
 }
 
 // actionFade fades the actions of a row in and out, opacity only.

@@ -33,6 +33,7 @@ type fake struct {
 	changed []client.Source
 	removed []int64
 	shown   []int64
+	marked  []int64
 	opened  int // the AI settings
 	expired int
 }
@@ -97,6 +98,7 @@ func (f *fake) deps() Deps {
 		Changed:      func(src client.Source) { f.changed = append(f.changed, src) },
 		Removed:      func(id int64) { f.removed = append(f.removed, id) },
 		Show:         func(id int64) { f.shown = append(f.shown, id) },
+		MarkRead:     func(src client.Source) { f.marked = append(f.marked, src.ID) },
 		OpenSettings: func() { f.opened++ },
 		Expired:      func() { f.expired++ },
 	}
@@ -568,7 +570,7 @@ func TestMenu(t *testing.T) {
 	if err := tt.RightClick("Go Blog"); err != nil {
 		t.Fatal(err)
 	}
-	if menu := tt.Menu(); !slices.Equal(menu, []string{"Refresh", "Edit…", "Pause", "-", "Delete…"}) {
+	if menu := tt.Menu(); !slices.Equal(menu, []string{"Refresh", "Mark subscription as read", "Edit…", "Pause", "-", "Delete…"}) {
 		t.Fatalf("menu %q", menu)
 	}
 	if err := tt.ChooseMenuItem("Refresh"); err != nil {

@@ -323,11 +323,11 @@ What Oriel uses today:
 | `ui.SegmentedBase` | The timeline's list of kinds and its Everything/Unread/Starred filter, the kind of a subscription, and the reader's Translation/Original switch, drawn in the Oriel look. |
 | `ui.DialogBase` | The add and edit subscription dialogs: Escape and a click outside close them, the window's keys stop behind them, and the focus goes back where it was. |
 | `ui.SelectBase`, `ui.Switch`, `ui.TextArea` | A subscription's fetch interval, its pause switch and its mute keywords. |
-| `Element.ContextMenu` | Right click on a subscription: Refresh (Try again on a failing one), Edit…, Pause or Resume, Delete…. |
+| `Element.ContextMenu` | Right click on a subscription: Refresh (Try again on a failing one), Mark subscription as read, Edit…, Pause or Resume, a hairline, Delete…. Right click on an entry: Star, Mark as read or unread and Open in browser, as on the row, a hairline, Mark above as read. The menu is the platform's own, so its items are text only, with no icons or key hints; an item that has nothing to do (no unread above the entry, none in the subscription) is dimmed and does nothing. |
 | `ui.List`, `ui.GridView` | The timeline's rows and its video cards; both build only what is in view. |
 | `ui.AlertDialog` | Confirming deleting a subscription, which cannot be undone. Its last button, the action, is the default and takes the focus; Escape is Cancel. |
 | `c.Toast`, `c.Announce` | Feedback after starring, marking and failures, and "No unread entries below"; counts announced without moving the focus. |
-| `c.ToastAction` | "Mark all as read" acts at once and offers Undo here, with a close button; Cmd/Ctrl+Z undoes it while the toast shows. The toast is centered at the bottom as an `Inverse` tile with `InverseText`. |
+| `c.ToastAction` | "Mark all as read", "Mark above as read" and "Mark subscription as read" act at once and offer Undo here, with a close button, one Undo shared by the three; Cmd/Ctrl+Z undoes it while the toast shows. The toast is centered at the bottom as an `Inverse` tile with `InverseText`. |
 | `ui.DialogBase` (key sheet) | The keyboard shortcut sheet, drawn like the subscription dialogs: two columns (timeline, reader) and an "Anywhere" group below, each key a small chip; one column below a 760 wide window. Escape or Close dismisses it. |
 
 The tables below say what to reach for as screens are added.
@@ -458,7 +458,7 @@ Overlays share focus and Escape behavior; see
   (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in the
   reader, anything else in the browser) and marks it read, S stars it, M toggles read, `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
   window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
-  Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+Z undoes "Mark all as read" while its toast shows, and `?` or Cmd/Ctrl+/
+  Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+Z undoes the last of the three "mark as read" actions while its toast shows, and `?` or Cmd/Ctrl+/
   opens the key sheet, which the Help menu also lists as "Keyboard Shortcuts".
   Every entry is also a focusable element with its own name, so Tab reaches it.
 - **Reader keys.** While the reader shows, J and K go to the next and previous article, N to the next unread one (a

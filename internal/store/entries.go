@@ -51,6 +51,7 @@ type EntryFilter struct {
 	Query    string    // matched as one phrase in the full-text index
 	After    *Position // only entries older than this position
 	UpTo     *Position // only this position and older ones
+	Newer    *Position // only entries newer than this position
 }
 
 // EntryPatch holds the reading state a user may change; nil leaves it as it is.
@@ -119,6 +120,9 @@ func (f EntryFilter) where() (string, []any) {
 	}
 	if f.UpTo != nil {
 		add("(e.created_at, e.id) <= (?, ?)", f.UpTo.CreatedAt, f.UpTo.ID)
+	}
+	if f.Newer != nil {
+		add("(e.created_at, e.id) > (?, ?)", f.Newer.CreatedAt, f.Newer.ID)
 	}
 	return strings.Join(conditions, " AND "), args
 }

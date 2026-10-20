@@ -420,11 +420,12 @@ type EntryPatch struct {
 	Starred *bool `json:"starred,omitempty"`
 }
 
-// ReadScope says which entries "mark all as read" marks: a source, a kind, and those up to an entry.
+// ReadScope says which entries "mark as read" marks: a source, a kind, and those up to an entry and newer than another.
 type ReadScope struct {
 	SourceID int64  `json:"sourceId,omitempty"`
 	Kind     string `json:"kind,omitempty"`
 	UpTo     int64  `json:"upTo,omitempty"`
+	Newer    int64  `json:"newerThan,omitempty"`
 }
 
 // maxImage is the largest picture the server relays.

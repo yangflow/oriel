@@ -34,7 +34,7 @@ type copy struct {
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody      string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                string
 	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff        string
-	OpenSettings                                                                                                   string
+	OpenSettings, MarkRead                                                                                         string
 }
 
 var translations = func() map[string]copy {
@@ -76,6 +76,7 @@ type Deps struct {
 	Changed      func(client.Source)
 	Removed      func(id int64)
 	Show         func(id int64)
+	MarkRead     func(src client.Source)
 	OpenSettings func()
 	Expired      func()
 }
@@ -522,6 +523,9 @@ func (s *Screen) remove() {
 func (s *Screen) Menu(m *ui.Menu, src client.Source) {
 	if m.Item(s.refreshText(src)).Disabled(src.Paused).Chosen() {
 		s.Refresh(src)
+	}
+	if m.Item(s.text.MarkRead).Disabled(src.UnreadCount == 0).Chosen() {
+		s.deps.MarkRead(src)
 	}
 	if m.Item(s.text.Edit).Chosen() {
 		s.Edit(src)

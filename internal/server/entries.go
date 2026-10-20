@@ -187,6 +187,7 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 		SourceID int64  `json:"sourceId"`
 		Kind     string `json:"kind"`
 		UpTo     int64  `json:"upTo"`
+		Newer    int64  `json:"newerThan"`
 	}
 	if r.ContentLength != 0 && !readBody(w, r, &body) {
 		return
@@ -196,8 +197,14 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filter := store.EntryFilter{SourceID: body.SourceID, Kind: body.Kind}
-	if body.UpTo != 0 {
-		position, err := s.store.EntryPosition(r.Context(), body.UpTo)
+	for _, bound := range []struct {
+		id  int64
+		set **store.Position
+	}{{body.UpTo, &filter.UpTo}, {body.Newer, &filter.Newer}} {
+		if bound.id == 0 {
+			continue
+		}
+		position, err := s.store.EntryPosition(r.Context(), bound.id)
 		if errors.Is(err, store.ErrNotFound) {
 			fail(w, http.StatusNotFound, "not_found")
 			return
@@ -206,7 +213,7 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 			internal(w, err)
 			return
 		}
-		filter.UpTo = &position
+		*bound.set = &position
 	}
 	ids, err := s.store.MarkRead(r.Context(), filter, s.now())
 	if err != nil {
