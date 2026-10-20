@@ -24,6 +24,7 @@ const sessionFile = "remote.json"
 // home is the screen under the connect screen: the timeline of the server used.
 type home interface {
 	Use(api timeline.API, server string)
+	SetLanguage(language string)
 	Refresh()
 	ShowKeys()
 	View(c *ui.Context)
@@ -155,18 +156,20 @@ func (s *shell) change(p prefs.Preferences) {
 	})
 }
 
-// apply makes p the preferences in use; a new interface language rebuilds the screens, which come back on the page
-// they were on.
+// apply makes p the preferences in use; a new interface language changes the words of the screens in place, so
+// each keeps what it shows.
 func (s *shell) apply(p prefs.Preferences) {
-	changed := locale.Resolve(p.Language, s.systemLocale) != locale.Resolve(s.prefs.Language, s.systemLocale)
+	language := locale.Resolve(p.Language, s.systemLocale)
+	changed := language != locale.Resolve(s.prefs.Language, s.systemLocale)
 	s.prefs = p
 	if !changed {
 		return
 	}
-	s.build()
-	s.attach()
-	if s.setting {
-		s.settings.OpenAppearance()
+	s.home.SetLanguage(language)
+	s.settings.SetLanguage(language)
+	s.connect.SetLanguage(language)
+	if s.language != nil {
+		s.language(language)
 	}
 }
 

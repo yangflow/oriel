@@ -224,6 +224,14 @@ func New(systemLocale string, deps Deps) *Screen {
 	return s
 }
 
+// SetLanguage shows the screen, its dialogs and the reader in the language of systemLocale, keeping the scope, the
+// selection, the place in the list and the article open.
+func (s *Screen) SetLanguage(systemLocale string) {
+	s.text = translations[locale.Language(systemLocale)]
+	s.subs.SetLanguage(systemLocale)
+	s.reader.SetLanguage(systemLocale)
+}
+
 // Use shows the timeline of api, whose host is server ("" for this computer), from the start.
 func (s *Screen) Use(api API, server string) {
 	s.api, s.server = api, server
