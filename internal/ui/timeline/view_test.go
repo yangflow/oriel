@@ -676,6 +676,58 @@ func TestSidebarSources(t *testing.T) {
 	}
 }
 
+// TestSidebarClick checks that a click on a kind or a subscription leaves the keys of the entries working on the new
+// list, while focus that came by the keyboard keeps them inert.
+func TestSidebarClick(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.sources = append(f.sources, client.Source{ID: 5, Title: "Second Blog", Kind: "article"})
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	for _, name := range []string{"Videos", "Articles", "Go Blog"} {
+		if err := tt.Click(name); err != nil {
+			t.Fatal(err)
+		}
+		f.settle(t, tt)
+		tt.Frame()
+		if s.inSide {
+			t.Fatalf("a click on %s puts the keys in the sidebar", name)
+		}
+		tt.Key(0, ui.KeyJ)
+		if s.selected != 0 {
+			t.Fatalf("J after a click on %s selects %d", name, s.selected)
+		}
+	}
+
+	// H goes there by the keyboard: the keys of the entries are inert.
+	tt.Key(0, ui.KeyH)
+	tt.Frame()
+	tt.Key(0, ui.KeyJ)
+	if !s.inSide || s.selected != 0 {
+		t.Fatalf("J in the sidebar: in %v, selected %d", s.inSide, s.selected)
+	}
+	// Enter on a subscription chooses it and keeps the focus in the sidebar.
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	tt.Key(0, ui.KeyEnter)
+	f.settle(t, tt)
+	tt.Frame()
+	tt.Key(0, ui.KeyJ)
+	if s.scope.source != 5 || !s.inSide || s.selected != -1 {
+		t.Fatalf("Enter: scope %v, in %v, selected %d", s.scope, s.inSide, s.selected)
+	}
+	// A click after the keyboard hands the keys back to the list.
+	if err := tt.Click("Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Frame()
+	tt.Key(0, ui.KeyJ)
+	if s.inSide || s.selected != 0 {
+		t.Fatalf("after a click: in %v, selected %d", s.inSide, s.selected)
+	}
+}
+
 // TestKeysIgnored checks the places where the keys of the sidebar do not act.
 func TestKeysIgnored(t *testing.T) {
 	keys := func(t *testing.T, s *Screen, tt *ui.Tester) {

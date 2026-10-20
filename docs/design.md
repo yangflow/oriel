@@ -466,8 +466,8 @@ Overlays share focus and Escape behavior; see
   Down walk its kinds, which choose as the focus passes, and its subscriptions, which wait for Enter (one vertical
   focus group each, so Tab still goes through the sidebar in two stops, and Left and Right are not the groups' but go
   back to the list); the focus stays on the item chosen, and L, Right or Escape gives the focus back to the list, the chosen entry
-  focused. While the sidebar has the focus the entry keys (J K O S M N, Up and Down) do not touch the entries; `/` still
-  goes to search. Shift+F10 or the Menu key opens the context menu of the focused subscription or entry, which MyGo
+  focused. While the sidebar has the focus by the keyboard (H, Left, Tab, the arrows) the entry keys (J K O S M N, Up and Down) do not touch the entries; `/` still
+  goes to search. A click on a kind or subscription does not count: the entry keys keep acting on the list. Shift+F10 or the Menu key opens the context menu of the focused subscription or entry, which MyGo
   does natively for an element with `ContextMenu`; a Mac keyboard has no Menu key, so the key sheet lists Shift+F10
   alone there. All of these are off while the search field has the focus, a dialog is open or the reader shows. A
   scope switched from the keyboard is announced with `c.Announce` ("Videos, 12 unread"), the focus staying where it was.
