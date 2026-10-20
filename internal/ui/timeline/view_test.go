@@ -83,7 +83,8 @@ func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) ([]int64, err
 	}
 	var ids []int64
 	for i, e := range f.entries {
-		if !e.IsRead && e.ID <= scope.UpTo && (scope.Kind == "" || e.Kind == scope.Kind) {
+		if !e.IsRead && (scope.UpTo == 0 || e.ID <= scope.UpTo) && e.ID > scope.Newer &&
+			(scope.SourceID == 0 || e.SourceID == scope.SourceID) && (scope.Kind == "" || e.Kind == scope.Kind) {
 			f.entries[i].IsRead = true
 			ids = append(ids, e.ID)
 		}
@@ -915,6 +916,173 @@ func TestMarkAllRead(t *testing.T) {
 	}
 	if s.unreadIn(s.scope) != 5 || tt.HasText("Undo") || s.undoable != nil {
 		t.Fatalf("unread %d, texts %v", s.unreadIn(s.scope), tt.Texts())
+	}
+}
+
+func TestMarkAbove(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.RightClick("Harbor at dawn"); err != nil {
+		t.Fatal(err)
+	}
+	if menu := tt.Menu(); !slices.Equal(menu, []string{"Star", "Mark as read", "Open in browser", "-", "Mark above as read"}) {
+		t.Fatalf("menu %q", menu)
+	}
+	if err := tt.ChooseMenuItem("Mark above as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{Newer: 5, UpTo: 8}}) {
+		t.Fatalf("marked %v", f.marked)
+	}
+	for i, read := range []bool{true, true, true, false, true, false} {
+		if s.entries[i].IsRead != read {
+			t.Fatalf("entry %d read %v", s.entries[i].ID, s.entries[i].IsRead)
+		}
+	}
+	if !slices.Contains(tt.Announcements(), "Marked 3 entries above as read") || s.sources[0].UnreadCount != 1 {
+		t.Fatalf("announcements %v, sources %v", tt.Announcements(), s.sources)
+	}
+
+	// Everything above is read now: the item is dimmed.
+	if err := tt.RightClick("Harbor at dawn"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark above as read"); err == nil {
+		t.Fatal("marked above with nothing unread above")
+	}
+	tt.CloseMenu()
+
+	if err := tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.unmarked, [][]int64{{8, 7, 6}}) || s.unreadIn(s.scope) != 5 || s.undoable != nil {
+		t.Fatalf("unmarked %v, unread %d", f.unmarked, s.unreadIn(s.scope))
+	}
+}
+
+func TestMarkAboveScope(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	// The first entry has nothing above it.
+	if err := tt.RightClick("Go 1.27 is released"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark above as read"); err == nil {
+		t.Fatal("marked above the first entry")
+	}
+	tt.CloseMenu()
+	// Starred and a search list entries the server's scopes do not know.
+	s.filter = starred
+	if s.canMarkAbove(3) {
+		t.Fatal("mark above is offered under Starred")
+	}
+	s.filter, s.searched = everything, "go"
+	if s.canMarkAbove(3) {
+		t.Fatal("mark above is offered for a search")
+	}
+	s.searched = ""
+
+	// In a kind, the request carries the kind.
+	if err := tt.Click("Articles"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.RightClick("Go turns 16"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark above as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{Kind: "article", Newer: 3, UpTo: 8}}) {
+		t.Fatalf("marked %v", f.marked)
+	}
+}
+
+func TestEntryMenuActions(t *testing.T) {
+	_, f, tt := setup(t, "en")
+	if err := tt.RightClick("Profiling in practice"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Star"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if p := f.patches[7]; len(p) != 1 || p[0].Starred == nil || !*p[0].Starred {
+		t.Fatalf("patches %+v", f.patches)
+	}
+	if err := tt.RightClick("Profiling in practice"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if p := f.patches[7]; len(p) != 2 || p[1].IsRead == nil || !*p[1].IsRead {
+		t.Fatalf("patches %+v", f.patches)
+	}
+	if err := tt.RightClick("Profiling in practice"); err != nil {
+		t.Fatal(err)
+	}
+	if menu := tt.Menu(); menu[0] != "Remove star" || menu[1] != "Mark as unread" {
+		t.Fatalf("menu %q", menu)
+	}
+}
+
+func TestMarkSource(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.RightClick("Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	if menu := tt.Menu(); len(menu) < 2 || menu[1] != "Mark subscription as read" {
+		t.Fatalf("menu %q", menu)
+	}
+	if err := tt.ChooseMenuItem("Mark subscription as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{SourceID: 1}}) {
+		t.Fatalf("marked %v", f.marked)
+	}
+	if !slices.Contains(tt.Announcements(), "Marked 2 entries in “Go Blog” as read") || s.sources[0].UnreadCount != 0 {
+		t.Fatalf("announcements %v, sources %v", tt.Announcements(), s.sources)
+	}
+	// Nothing unread left: the item is dimmed.
+	if err := tt.RightClick("Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark subscription as read"); err == nil {
+		t.Fatal("marked a subscription with nothing unread")
+	}
+	tt.CloseMenu()
+
+	// One undo is shared: marking all as read replaces it, and Cmd+Z undoes the last one.
+	if err := tt.Click("Mark all in “All” as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Key(ui.Cmd, ui.KeyZ)
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.unmarked, [][]int64{{7, 6, 5}}) || s.undoable != nil {
+		t.Fatalf("unmarked %v", f.unmarked)
+	}
+}
+
+func TestMarkSourceUndo(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.RightClick("Talks"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark subscription as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.unmarked, [][]int64{{7}}) || s.sources[1].UnreadCount != 1 {
+		t.Fatalf("unmarked %v, sources %v", f.unmarked, s.sources)
 	}
 }
 

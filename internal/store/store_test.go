@@ -331,6 +331,23 @@ func TestEntries(t *testing.T) {
 	if unread, _ := s.Entries(ctx, EntryFilter{Unread: true}, 10); len(unread) != 3 || !unread[1].ReadAt.IsZero() {
 		t.Fatalf("unread after MarkUnread: %v", ids(unread))
 	}
+	newest, err := s.EntryPosition(ctx, all[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldest, err := s.EntryPosition(ctx, all[2].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.MarkRead(ctx, EntryFilter{Newer: &oldest, UpTo: &upTo}, first); err != nil || len(got) != 1 || got[0] != all[1].ID {
+		t.Fatalf("MarkRead between = %v, %v", got, err)
+	}
+	if got, err := s.MarkRead(ctx, EntryFilter{Newer: &newest}, first); err != nil || len(got) != 0 {
+		t.Fatalf("MarkRead newer than the newest = %v, %v", got, err)
+	}
+	if got, err := s.MarkRead(ctx, EntryFilter{Newer: &upTo}, first); err != nil || len(got) != 1 || got[0] != all[0].ID {
+		t.Fatalf("MarkRead newer = %v, %v", got, err)
+	}
 	if _, err := s.EntryPosition(ctx, 99); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("position of missing entry: %v", err)
 	}

@@ -30,6 +30,12 @@
      With no subscription yet (no-subscriptions) the empty state offers two ways in: the primary "Add your first
      subscription" opens the add dialog, and the quiet "Import OPML…" beside it opens Settings on Import and export.
      The hint adds one line saying that links to YouTube, X, GitHub and the like work too.
+     Right click opens a menu. On an entry (menu-entry): Star, Mark as read or unread and Open in browser, as the row's
+     actions have them, then Mark above as read, which marks the unread entries listed above this one (not this one)
+     and is dimmed when there are none (menu-entry-first) or under Starred and search. On a subscription (menu-feed,
+     the sidebar keeps the existing menu of subscriptions.html): Mark subscription as read sits under Refresh and is
+     dimmed when it has nothing unread (menu-feed-none). Both act at once and offer Undo in the same toast as Mark all
+     as read (marked-above, marked-feed).
      The bar above the window only switches the mockup.
      URL parameters: state, scope=all|article|video|social|image|source, scheme=light|dark, lang=en|zh-Hans,
      size=default|min|wide. -->
@@ -287,6 +293,20 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .toast .x { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; color:inherit; opacity:.7 }
 .toast .x svg.icon { width:14px; height:14px }
 .toast.plain { padding-right:14px }
+.menu { position:absolute; z-index:5; min-width:208px; padding:4px; border-radius:10px; background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 12px 32px rgba(var(--shadow),.22) }
+:root[data-scheme=dark] .menu { box-shadow:0 0 0 1px rgba(255,255,255,.08), 0 12px 32px rgba(0,0,0,.55) }
+.menu button { width:100%; height:28px; display:flex; align-items:center; gap:8px; padding:0 8px; border-radius:6px; text-align:left; white-space:nowrap }
+.menu button:hover, .menu button.hover { background:var(--sel) }
+.menu button svg.icon { width:14px; height:14px; color:var(--muted) }
+.menu button[aria-disabled=true] { color:var(--disabled) }
+.menu button[aria-disabled=true]:hover { background:none }
+.menu button[aria-disabled=true] svg.icon { color:inherit }
+.menu kbd { margin-left:auto; padding-left:16px; font:inherit; font-size:12px; color:var(--muted) }
+.menu button.danger { color:var(--danger) }
+.menu button.danger svg.icon { color:inherit }
+.menu hr { border:0; border-top:1px solid var(--border); margin:4px 2px }
+.row.menued, .row.menued:hover { background:var(--sel) }
+.item.menued { box-shadow:inset 0 0 0 1.5px var(--focus) }
 .sheet { width:560px; max-width:calc(100% - 48px); max-height:calc(100% - 48px); overflow:auto; border-radius:16px; background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 20px 50px rgba(var(--shadow),.25) }
 .sheet header { display:flex; align-items:center; gap:12px; padding:16px 16px 8px 20px }
 .sheet h2 { margin:0; flex:1; font-size:15px; font-weight:600 }
@@ -311,7 +331,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','no-more-unread','keys'];
+const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-feed','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','keys'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -341,6 +361,10 @@ const icons={
   star:'<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
   dot:'<circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/>',
   circle:'<circle cx="12" cy="12" r="10"/>',
+  pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  pause:'<rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/>',
+  trash:'<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  arrowUpToLine:'<path d="M5 3h14"/><path d="m18 13-6-6-6 6"/><path d="M12 7v14"/>',
   checkCheck:'<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
   circleCheck:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
   mail:'<path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/>',
@@ -370,7 +394,7 @@ const copy={
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
     unreadCount:'{n} unread', results:'{n} found',
-    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser',
+    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', markAbove:'Mark above as read', markFeed:'Mark subscription as read', refresh:'Refresh', edit:'Edit…', pause:'Pause', remove:'Delete…',
     failing:'Last fetch failed', failingName:'{name}, last fetch failed', failingUnread:'{name}, {n} unread, last fetch failed',
     failedOnce:'Last fetch failed: {error}', failedTimes:'Failed {n} times in a row: {error}',
     failingCount:'{n} failing', failingShow:'Show only the {n} failing subscriptions', failingTitle:'Failing', showAll:'Show all',
@@ -382,7 +406,7 @@ const copy={
     empty:'Nothing here yet', emptyHint:'New entries show up after the next fetch.',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', importOpml:'Import OPML…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
-    marked:'Marked {n} entries in “{scope}” as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below',
+    marked:'Marked {n} entries in “{scope}” as read', markedAbove:'Marked {n} entries above as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
     kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
@@ -395,7 +419,7 @@ const copy={
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
     unreadCount:'{n} 条未读', results:'找到 {n} 条',
-    markAllRead:'全部标为已读', markAllIn:'将“{scope}”全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开',
+    markAllRead:'全部标为已读', markAllIn:'将“{scope}”全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', markAbove:'把上面的标为已读', markFeed:'把订阅标为已读', refresh:'更新', edit:'编辑…', pause:'暂停', remove:'删除…',
     failing:'上次抓取失败', failingName:'{name}，上次抓取失败', failingUnread:'{name}，{n} 条未读，上次抓取失败',
     failedOnce:'上次抓取失败：{error}', failedTimes:'连续失败 {n} 次：{error}',
     failingCount:'{n} 个失败', failingShow:'只显示 {n} 个抓取失败的订阅', failingTitle:'抓取失败', showAll:'显示全部',
@@ -407,7 +431,7 @@ const copy={
     empty:'这里还没有条目', emptyHint:'下次抓取之后，新条目会出现在这里。',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', importOpml:'导入 OPML…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
-    marked:'已把“{scope}”里的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了',
+    marked:'已把“{scope}”里的 {n} 条标为已读', markedAbove:'已把上面的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
     kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
     kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
@@ -469,6 +493,11 @@ const entries=[
 ];
 const inScope=s=>scope==='all'||s.kind===scope||(scope==='source'&&s.id===1);
 const markedCount=sources.filter(inScope).reduce((a,s)=>a+s.unread,0);
+const markedFeedCount=12;
+const feedMenu=state.startsWith('menu-feed');
+const menuSource=byId[state==='menu-feed-none'?3:2];
+if(state==='marked-above'){entries.slice(0,2).forEach(e=>{e.read=true;byId[e.source].unread--})}
+if(state==='marked-feed'){entries.forEach(e=>{if(e.source===2)e.read=true});byId[2].unread=0}
 if(state==='marked-read'){entries.forEach(e=>{if(inScope(byId[e.source]))e.read=true});sources.filter(inScope).forEach(s=>s.unread=0)}
 total=sources.reduce((a,s)=>a+s.unread,0);
 const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[1].name:copy.all;
@@ -516,7 +545,7 @@ const videoCover=(e,cls)=>`<div class="pic ${cls} ${e.thumb}" role="img" aria-la
 
 // All, Articles, Social: one column of rows
 const row=(e,i)=>{
-  const cls=`row${e.read?' read':''}${i===1&&state==='list'?' hover':''}${(i===2&&state==='list')||(i===3&&state==='no-more-unread')?' chosen':''}`;
+  const cls=`row${e.read?' read':''}${i===1&&state==='list'?' hover':''}${(i===2&&state==='menu-entry')||(i===0&&state==='menu-entry-first')?' menued':''}${(i===2&&state==='list')||(i===3&&state==='no-more-unread')?' chosen':''}`;
   const dot=e.read?'':`<span class="unread-dot" role="img" aria-label="${copy.unread}"></span>`;
   switch(e.kind){
     case 'article':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3><p class="summary">${highlight(e.summary)}</p></div>${e.thumb?`<div class="pic thumb ${e.thumb}"></div>`:''}${actions(e)}</article>`;
@@ -557,6 +586,8 @@ const stale=state==='offline'?`<div class="stale${columned?' aligned':''}${scope
 const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries',{n:3})}</button>`:'';
 const mod=navigator.platform.startsWith('Mac')?'⌘':'Ctrl+';
 const toast=state==='marked-read'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedCount,scope:scopeName})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
+  :state==='marked-above'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedAbove',{n:2})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
+  :state==='marked-feed'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedFeedCount,scope:byId[2].name})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='no-more-unread'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:'';
 const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
 const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${keys(...k)}</dd>`).join('')}</dl>`;
@@ -566,6 +597,20 @@ const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog"
   <h3>${copy.anywhere}</h3>${keyList([['kAdd',[mod,'N']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
 
 document.getElementById('app').innerHTML=`${sidebar()}<section class="main">${toolbar}${hint}${stale}${pill}<div class="scroll">${list}</div>${toast}</section>${dialog}`;
+const menuItem=(g,label,{key='',cls='',off=false}={})=>`<button role="menuitem"${cls?` class="${cls}"`:''}${off?' aria-disabled="true"':''}>${label}</button>`;
+const place=(html,anchor,dx,dy)=>{const w=document.getElementById('window'),a=anchor.getBoundingClientRect(),b=w.getBoundingClientRect();
+  w.insertAdjacentHTML('beforeend',html);const m=w.lastElementChild;
+  m.style.left=Math.min(a.left-b.left+dx,b.width-m.offsetWidth-8)+'px';m.style.top=Math.min(a.top-b.top+dy,b.height-m.offsetHeight-8)+'px'};
+if(state==='menu-entry'||state==='menu-entry-first'){
+  const e=entries[state==='menu-entry'?2:0],first=state==='menu-entry-first';
+  place(`<div class="menu" role="menu" aria-label="${e.title||e.author}">${menuItem('star',e.starred?copy.unstar:copy.star,{key:'S'})}${menuItem(e.read?'mail':'mailOpen',e.read?copy.markUnread:copy.markRead,{key:'M'})}${menuItem('external',copy.open,{key:'O'})}<hr>${menuItem('arrowUpToLine',copy.markAbove,{cls:first?'':'hover',off:first})}</div>`,document.querySelector('.row.menued'),300,36);
+}
+if(feedMenu){
+  const s=menuSource,none=s.unread===0;
+  const anchor=[...document.querySelectorAll('.nav .item')].find(i=>i.querySelector('.name').textContent===s.name);
+  anchor.classList.add('menued');
+  place(`<div class="menu" role="menu" aria-label="${s.name}">${menuItem('refresh',s.failing?copy.retry:copy.refresh)}${menuItem('checkCheck',copy.markFeed,{cls:none?'':'hover',off:none})}${menuItem('pencil',copy.edit)}${menuItem('pause',copy.pause)}<hr>${menuItem('trash',copy.remove,{cls:'danger'})}</div>`,anchor,150,24);
+}
 if(state==='no-more-unread')document.querySelector('.row.chosen').scrollIntoView({block:'center'});
 const tipped=document.getElementById('tipped');
 if(tipped){const w=document.getElementById('window').getBoundingClientRect(),r=tipped.getBoundingClientRect();
