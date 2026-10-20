@@ -381,6 +381,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - `url` 必须是带主机名的 http 或 https 绝对地址，否则 400 `invalid_url`。
 - 按「正文抽取」的规则只连公网地址，超时 25 秒，重定向最多 5 次，直接连接不走代理。不带 `Referer`。
 - 最大 8 MiB。按内容判断类型，只放行界面能解码的 PNG、JPEG、GIF、WebP 和 BMP。
+- 已知的跟踪图片地址（见「正文显示」的图片规则）不去连，直接返回 502 `image_unavailable`，和被拦的地址一样；客户端本来就不会请求它们，这是给别的调用方挡一道。
 - 连不上、地址被拦、上游不是 2xx、超过大小或类型不对，都返回 502 `image_unavailable`。
 - SVG 不放行：它能带脚本，在服务端的源下打开时能读到会话 cookie；界面也解不了它。
 - 成功时带判断出的 `Content-Type`、`X-Content-Type-Options: nosniff` 和 `Cache-Control: private, max-age=86400`。服务端不存图片。
@@ -468,7 +469,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - 画：标题（h1、h2 一级，h3 到 h6 一级）、段落、换行、有序和无序列表（含嵌套和 `start`）、引用块、代码块（保留换行，横向滚动）、行内代码、粗体、斜体、删除线、链接、图片和图注、分隔线；表格每行一段，单元格之间用「·」隔开。
 - 不画：脚本、样式、表单、iframe、object、embed、svg、math、视频、音频、canvas。
 - 链接：相对地址按条目链接补全；只留 http、https 和 mailto，页内锚点和 `javascript:` 只留文字。点了用系统浏览器打开。
-- 图片：`src` 为空或是 data URI 时用 `data-src`；宽或高不超过 2 像素的（计数用的像素图）去掉。经图片代理取，在后台解码，按正文顺序同时最多取 4 张；按 `width`、`height` 留出位置，没有时按图片本身，取到之前按 16:9；取失败的不显示。
+- 图片：`src` 为空或是 data URI 时用 `data-src`。计数用的图片不画，也不去取，免得告诉对方这篇被打开了：宽或高不超过 2 像素的；带 `hidden` 属性的；行内 `style` 里 `display:none`、`visibility:hidden`，或 `width`、`height`、`max-width`、`max-height` 为 0 或不超过 1 像素的；地址属于已知跟踪图片的。已知跟踪图片的清单写在代码里（`internal/tracker/`），不联网更新，只按主机后缀和路径前缀匹配，不看查询串，不拦这些主机上的普通图片（`i0.wp.com`、`substackcdn.com`、list-manage.com 的 logo 照常显示）：`google-analytics.com`、`doubleclick.net`、`googletagmanager.com`、`pixel.wp.com`、`stats.wordpress.com`、`feedsportal.com`、`track.hubspot.com` 整个主机；feedburner 的 `/~r/`、`/~ff/`；邮件服务的打开像素：list-manage.com 和 mandrillapp.com 的 `/track/open`、sendgrid.net 的 `/wf/open`、mailgun.org 的 `/o/`、pstmrk.it 的 `/open`、ConvertKit 的 `open.convertkit-mail*` 和 `open.kit-mail*`；任何主机上的 `/__utm.gif`、`/__ptq.gif` 和 `/api/v1/email/open`（Substack 的打开像素）。只在显示时过滤：条目存的 `content` 仍是原始 HTML，抓取时不改写，接口给别的调用方的也是原文。经图片代理取，在后台解码，按正文顺序同时最多取 4 张；按 `width`、`height` 留出位置，没有时按图片本身，取到之前按 16:9；取失败的不显示。
 
 键盘：J K 上一篇、下一篇，N 下一篇未读（只在当前列表里找，跳过别的形态，再没有时提示「后面没有未读文章了」，留在这篇），S 收藏，M 切换已读，O 在浏览器中打开，Esc 回到列表，焦点回到那一行。焦点在正文上，方向键、空格、PageUp/PageDown、Home/End 滚动；Tab 依次经过正文里的链接。正文可以选中复制。播报「全文已载入」和出错。
 

@@ -451,6 +451,18 @@ func TestParse(t *testing.T) {
 		{"lazy picture", `<img src="data:image/gif;base64,R0lGOD" data-src="//cdn.example.com/x.jpg" width="800" height="600">`,
 			[]want{{kind: picture, src: "https://cdn.example.com/x.jpg", width: 800, height: 600}}},
 		{"tracking pixel", `<p>text<img src="/t.gif" width="1" height="1"></p>`, []want{{text: "text"}}},
+		{"hidden attribute", `<p>text<img src="/t.gif" hidden></p>`, []want{{text: "text"}}},
+		{"hidden by style", `<p>a<img src="/1.gif" style="display:none"><img src="/2.gif" style="Visibility: hidden !important">` +
+			`<img src="/3.gif" style="width:1px"><img src="/4.gif" style="border:0;height: 0"></p>`, []want{{text: "a"}}},
+		{"styled but visible", `<img src="/a.png" style="width:100%;border-radius:4px"><img src="/b.png" style="display:block">`,
+			[]want{{kind: picture, src: "https://example.com/a.png"}, {kind: picture, src: "https://example.com/b.png"}}},
+		{"known trackers", `<p>text<img src="https://pixel.wp.com/g.gif?v=ext"><img src="https://x.list-manage.com/track/open.php?u=1">` +
+			`<img src="https://www.google-analytics.com/collect?v=1"><img src="/__utm.gif"></p>`, []want{{text: "text"}}},
+		{"ordinary pictures on shared hosts stay", `<img src="https://i0.wp.com/example.com/a.jpg">` +
+			`<img src="https://substackcdn.com/image/fetch/w_800/a.png"><img src="https://x.list-manage.com/images/logo.png">`,
+			[]want{{kind: picture, src: "https://i0.wp.com/example.com/a.jpg"},
+				{kind: picture, src: "https://substackcdn.com/image/fetch/w_800/a.png"},
+				{kind: picture, src: "https://x.list-manage.com/images/logo.png"}}},
 		{"dropped elements", `<script>x()</script><style>p{}</style><iframe src="/v"></iframe><form><input></form>` +
 			`<video src="v.mp4">no video</video><p>kept</p>`, []want{{text: "kept"}}},
 		{"links", `<p><a href="javascript:alert(1)">script</a></p><p><a href="#top">top</a></p>` +

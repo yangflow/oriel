@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+
+	"github.com/yangflow/oriel/internal/tracker"
 )
 
 // image relays a picture found inside a feed, so the interface never connects to such addresses itself.
@@ -11,6 +13,11 @@ func (s *Server) image(w http.ResponseWriter, r *http.Request) {
 	address := r.URL.Query().Get("url")
 	if !feedURL(address) {
 		fail(w, http.StatusBadRequest, "invalid_url")
+		return
+	}
+	if tracker.KnownAddress(address) {
+		// A known tracker is refused as a blocked address is, and is not contacted.
+		fail(w, http.StatusBadGateway, "image_unavailable")
 		return
 	}
 	if s.images == nil {
