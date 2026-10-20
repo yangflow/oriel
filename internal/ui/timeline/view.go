@@ -40,7 +40,7 @@ type copy struct {
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                    string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                          string
 	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                        string
-	FailingTitle, ShowAll, MarkAbove, MarkedAbove, KeyScope, KeySidebar, KeyMenu                                        string
+	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu         string
 }
 
 var translations = func() map[string]copy {
@@ -164,12 +164,14 @@ type Screen struct {
 	updated  time.Time // the last load or check that succeeded
 	fresh    int       // entries newer than the top one, found by polling
 
-	selected  int  // the entry chosen, -1 for none
-	focusRow  int  // the entry to give the focus in the next frame, -1 for none
-	sideFocus bool // give the sidebar the focus in the next frame
-	inSide    bool // the focus is in the sidebar, or goes there
-	sideKeyed bool // the focus in the sidebar came by the keyboard; a click on a kind or subscription clears it
-	hovered   int  // the entry under the pointer in the last frame
+	selected  int             // the entry chosen, -1 for none
+	focusRow  int             // the entry to give the focus in the next frame, -1 for none
+	sideFocus bool            // give the sidebar the focus in the next frame
+	inSide    bool            // the focus is in the sidebar, or goes there
+	sideKeyed bool            // the focus in the sidebar came by the keyboard; a click on a kind or subscription clears it
+	hovered   int             // the entry under the pointer in the last frame
+	height    float32         // of the window in the last frame
+	rects     map[int]ui.Rect // where the entries were drawn in the last frame, in window DIPs
 	toTop     bool
 	list      ui.ListState
 	grid      ui.GridState
@@ -200,7 +202,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		deps.Decode = ui.DecodeBitmap
 	}
 	s := &Screen{deps: deps, text: translations[locale.Language(systemLocale)], selected: -1, focusRow: -1,
-		hovered: -1, pictures: map[string]*picture{}}
+		hovered: -1, pictures: map[string]*picture{}, rects: map[int]ui.Rect{}}
 	s.subs = subscriptions.New(systemLocale, subscriptions.Deps{
 		Go:           deps.Go,
 		Now:          deps.Now,
@@ -765,6 +767,60 @@ func (s *Screen) markAbove(id int64) {
 	s.markScope(scope, s.text.MarkedAbove, "")
 }
 
+// fullyShown says whether the entry i was drawn whole in the last frame: between the toolbar, which the list scrolls
+// under, and the bottom of the window.
+func (s *Screen) fullyShown(i int) bool {
+	r, ok := s.rects[i]
+	return ok && r.H > 0 && r.Y >= s.top() && r.Y+r.H <= s.height
+}
+
+// markVisible marks the unread entries that are whole in the window read, and scrolls the entry after them to the
+// top. The last entry loaded is left out while another page follows, since the entries below it are not known; it
+// stays unread and is the one scrolled to. At the end of the list it moves the choice to the last entry marked and does
+// not scroll. Under Starred or a search, which the server's scopes do not know, it does nothing.
+func (s *Screen) markVisible() {
+	if s.filter == starred || s.searched != "" || s.loading || s.api == nil {
+		return
+	}
+	first := 0
+	for first < len(s.entries) && !s.fullyShown(first) {
+		first++
+	}
+	end := first
+	for end < len(s.entries) && s.fullyShown(end) {
+		end++
+	}
+	if first == len(s.entries) {
+		return
+	}
+	if end == len(s.entries) && s.next != "" {
+		end--
+	}
+	if slices.ContainsFunc(s.entries[first:end], func(e client.Entry) bool { return !e.IsRead }) {
+		scope := client.ReadScope{SourceID: s.scope.source, UpTo: s.entries[first].ID}
+		if end < len(s.entries) {
+			scope.Newer = s.entries[end].ID
+		}
+		if s.scope.source == 0 {
+			scope.Kind = s.scope.kind
+		}
+		s.markScope(scope, s.text.MarkedVisible, "")
+	}
+	if end == len(s.entries) {
+		s.selected, s.focusRow = end-1, end-1
+		return
+	}
+	s.selected, s.focusRow = end, end
+	switch {
+	case s.scope.kind == "video" && s.scope.source == 0:
+		s.grid.ScrollTo(end, ui.Start)
+	case s.scope.kind == "image" && s.scope.source == 0:
+		s.wall.Y = min(max(s.rects[end].Y+s.wall.Y-s.top(), 0), s.wall.MaxY)
+	default:
+		s.list.ScrollTo(end, ui.Start)
+	}
+}
+
 // markSource marks everything unread in the subscription read, whatever the timeline shows, and offers to undo it.
 func (s *Screen) markSource(src client.Source) {
 	if src.UnreadCount == 0 || s.api == nil {
@@ -1073,9 +1129,11 @@ func (s *Screen) View(c *ui.Context) {
 	if !open && !s.typing {
 		c.OnShortcut(ui.Shift, ui.KeySlash, s.ShowKeys)
 	}
-	width, _ := c.Size()
+	width, height := c.Size()
 	compact := width < 760
+	s.height = height
 	s.wantMore = false
+	clear(s.rects)
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
 		s.sidebar(c, compact)
 		if s.reading != 0 {
@@ -1141,7 +1199,7 @@ func (s *Screen) listKeys(c *ui.Context, open bool) {
 		{ui.KeyK, func() { s.move(-1) }}, {ui.KeyUp, func() { s.move(-1) }},
 		{ui.KeyO, func() { s.open(c, s.selected) }}, {ui.KeyEnter, func() { s.open(c, s.selected) }},
 		{ui.KeyS, func() { s.toggleStar(s.selected) }}, {ui.KeyM, func() { s.toggleRead(s.selected) }},
-		{ui.KeyN, s.nextUnread},
+		{ui.KeyN, s.nextUnread}, {ui.KeyV, s.markVisible},
 	} {
 		c.OnShortcut(0, k.key, k.do)
 	}
@@ -1245,7 +1303,8 @@ func (s *Screen) keySheet(c *ui.Context) {
 	}
 	timeline := []key{{s.text.KeyNext, one("J", "↓")}, {s.text.KeyPrevious, one("K", "↑")},
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyOpen, one("O", "↩")}, {s.text.KeyStar, one("S")},
-		{s.text.KeyRead, one("M")}, {s.text.KeySearch, [][]string{{"/"}, {cmd, "F"}}},
+		{s.text.KeyRead, one("M")}, {s.text.KeyMarkVisible, one("V")},
+		{s.text.KeySearch, [][]string{{"/"}, {cmd, "F"}}},
 		{s.text.KeyEscape, one("Esc")}, {s.text.KeyScope, one("1–5")}, {s.text.KeySidebar, one("H", "←")},
 		{s.text.KeyBack, one("L", "→", "Esc")}, {s.text.KeyMenu, menu}, {s.text.KeyUndo, [][]string{{cmd, "Z"}}}}
 	reading := []key{{s.text.KeyNextArticle, one("J")}, {s.text.KeyPreviousArticle, one("K")},
@@ -2109,6 +2168,7 @@ func (s *Screen) item(c *ui.Context, e ui.Element, i int, now time.Time, ringCho
 	if e.Clicked() {
 		s.open(c, i)
 	}
+	s.rects[i] = e.Bounds()
 	if i >= len(s.entries)-nearEnd {
 		s.wantMore = true
 	}
@@ -2606,6 +2666,7 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 							at := top + tops[k][j]
 							near := at+width > s.wall.Y-wallAhead && at < s.wall.Y+viewHeight+wallAhead
 							s.tile(c, i, now, near)
+							s.rects[i] = ui.Rect{Y: at - s.wall.Y, H: s.rects[i].H}
 						}
 					})
 				}
