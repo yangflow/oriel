@@ -198,8 +198,15 @@ func New(systemLocale string, deps Deps) *Screen {
 	if deps.Change == nil {
 		deps.Change = func(prefs.Preferences) {}
 	}
-	lang := locale.Language(systemLocale)
-	return &Screen{deps: deps, text: translations[lang], lang: lang}
+	s := &Screen{deps: deps}
+	s.SetLanguage(systemLocale)
+	return s
+}
+
+// SetLanguage shows the screen in the language of systemLocale, keeping the group open and what was typed.
+func (s *Screen) SetLanguage(systemLocale string) {
+	s.lang = locale.Language(systemLocale)
+	s.text = translations[s.lang]
 }
 
 // Use makes the screen work on api, whose host is server ("" for this computer); signedIn is whether its session

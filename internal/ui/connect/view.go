@@ -91,6 +91,11 @@ func New(systemLocale string, deps Deps) *Screen {
 	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)], focus: addressField}
 }
 
+// SetLanguage shows the screen in the language of systemLocale, keeping what it shows.
+func (s *Screen) SetLanguage(systemLocale string) {
+	s.text = translations[locale.Language(systemLocale)]
+}
+
 // Open shows the form again for server, empty for none, with why the saved session of it can no longer be used:
 // client.ErrUnauthorized when it expired, or the error of checking it. The password is always empty.
 func (s *Screen) Open(server string, err error) {

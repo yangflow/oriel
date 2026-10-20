@@ -156,6 +156,11 @@ func New(systemLocale string, deps Deps) *Screen {
 	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)], pictures: map[string]*loaded{}}
 }
 
+// SetLanguage shows the screen in the language of systemLocale, keeping what it shows.
+func (s *Screen) SetLanguage(systemLocale string) {
+	s.text = translations[locale.Language(systemLocale)]
+}
+
 // Use reads from api from now on, dropping the work under way for the server before.
 func (s *Screen) Use(api API) {
 	s.api = api

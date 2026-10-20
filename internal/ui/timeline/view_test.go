@@ -712,6 +712,42 @@ func TestNewEntries(t *testing.T) {
 	}
 }
 
+func TestLanguageKeepsPlace(t *testing.T) {
+	var entries []client.Entry
+	for i := range 80 {
+		entries = append(entries, client.Entry{ID: int64(200 - i), SourceID: 1, SourceTitle: "Go Blog",
+			Kind: "article", Title: fmt.Sprintf("Post %d", i), CreatedAt: ago(time.Duration(i) * time.Hour)})
+	}
+	f := &fake{now: now, sources: []client.Source{{ID: 1, Title: "Go Blog", Kind: "article"}}, entries: entries,
+		patches: map[int64][]client.EntryPatch{}}
+	s := New("en", f.deps())
+	tt := ui.NewTester(s.View, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	s.list.ScrollTo(40, ui.Start)
+	tt.Frame()
+	s.SetLanguage("zh-Hans")
+	tt.Frame()
+	if _, ok := tt.Find("搜索条目"); !ok || !tt.HasText("Post 40") || tt.HasText("Post 0") {
+		t.Fatalf("the list did not stay in place in Chinese: %v", tt.Texts())
+	}
+	s.read(40)
+	f.settle(t, tt)
+	s.SetLanguage("en")
+	tt.Frame()
+	if _, ok := tt.Find("Back to All"); !ok || s.reading != 160 || !tt.HasText("Post 40") {
+		t.Fatalf("the reader did not stay open in English: reading %d, texts %v", s.reading, tt.Texts())
+	}
+	if err := tt.Click("Back to All"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if s.selected != 40 || !tt.HasText("Post 40") || tt.HasText("Post 0") {
+		t.Fatalf("selected %d, texts %v", s.selected, tt.Texts())
+	}
+}
+
 func TestLoadMore(t *testing.T) {
 	var entries []client.Entry
 	for i := range 120 {

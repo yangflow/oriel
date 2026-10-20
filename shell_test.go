@@ -47,11 +47,14 @@ type fakeHome struct {
 	used      []string
 	refreshed int
 	keys      int
+	languages []string
 }
 
 func (h *fakeHome) Use(api timeline.API, server string) {
 	h.used = append(h.used, api.(client.Session).Server+" "+server)
 }
+
+func (h *fakeHome) SetLanguage(language string) { h.languages = append(h.languages, language) }
 
 func (h *fakeHome) Refresh() { h.refreshed++ }
 
@@ -268,6 +271,9 @@ func TestShellPreferences(t *testing.T) {
 	tt.Frame()
 	if !s.setting || !tt.HasText("界面语言") || !slices.Equal(languages, []string{"zh-Hans"}) {
 		t.Fatalf("setting %v, languages %v, texts %v", s.setting, languages, tt.Texts())
+	}
+	if home := s.home.(*fakeHome); len(home.used) != 1 || !slices.Equal(home.languages, []string{"zh-Hans"}) {
+		t.Fatalf("home used %v, languages %v; it was made again or not told", home.used, home.languages)
 	}
 	if prefs.Load(file) != p {
 		t.Fatal("the language was not saved")
