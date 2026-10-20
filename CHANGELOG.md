@@ -23,6 +23,27 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.5.0](https://github.com/yangflow/oriel/compare/v0.4.0...v0.5.0) (2026-10-20)
+
+
+### Added
+
+* **ui:** mark the entries above, or a whole subscription, as read from the context menu ([#112](https://github.com/yangflow/oriel/issues/112)) ([34b1d5e](https://github.com/yangflow/oriel/commit/34b1d5eca50b715899d733ea1e7db30d44da02be))
+* **ui:** offer OPML import and name the links that work on first run ([#109](https://github.com/yangflow/oriel/issues/109)) ([d5bfaa1](https://github.com/yangflow/oriel/commit/d5bfaa1a15ce58be991e9be56565e1736c5138f8))
+* **ui:** press V to mark the visible entries as read and move past them ([#114](https://github.com/yangflow/oriel/issues/114)) ([7a4afe4](https://github.com/yangflow/oriel/commit/7a4afe4b218b452e5eca3d4dea0d00d14d669cc7))
+* **ui:** say when the server can't be reached and the list is stale ([#108](https://github.com/yangflow/oriel/issues/108)) ([cdc0729](https://github.com/yangflow/oriel/commit/cdc0729801f05b32ba8cd249074ffae5484695a5))
+* **ui:** switch scope and reach the sidebar from the keyboard ([#113](https://github.com/yangflow/oriel/issues/113)) ([97abaf1](https://github.com/yangflow/oriel/commit/97abaf17089117a4d4ea5f7d6fc0b985638d0251))
+* **ui:** use the room of a wide window in Settings ([#117](https://github.com/yangflow/oriel/issues/117)) ([c89fa18](https://github.com/yangflow/oriel/commit/c89fa18ef13794a36c0e1764076525ac02dce2d5))
+
+
+### Fixed
+
+* **fetch:** wait as long as a rate-limited feed asks before retrying ([#110](https://github.com/yangflow/oriel/issues/110)) ([060dc47](https://github.com/yangflow/oriel/commit/060dc47406a7d7bf7250e7e4f1163dfa4f278ac1))
+* **ui:** keep the list keys working after clicking a scope in the sidebar ([#116](https://github.com/yangflow/oriel/issues/116)) ([f6c5dfc](https://github.com/yangflow/oriel/commit/f6c5dfce672e543e6ab91ce586877ff1dc7bcf20))
+* **ui:** keep your place when the interface language changes ([#105](https://github.com/yangflow/oriel/issues/105)) ([0c54e13](https://github.com/yangflow/oriel/commit/0c54e1336f094594a8e79cfce761105e903bb29a))
+* **ui:** show why a subscription is failing and list the failing ones ([#107](https://github.com/yangflow/oriel/issues/107)) ([8954037](https://github.com/yangflow/oriel/commit/8954037e0194c5e4e8b0cf018ef1f2f40f8560e2))
+* **ui:** use one set of Chinese terms and quotes across the screens ([#118](https://github.com/yangflow/oriel/issues/118)) ([e4fbcec](https://github.com/yangflow/oriel/commit/e4fbcec0f502a4d95901202d1d989404ba903b1a))
+
 ## [0.4.0](https://github.com/yangflow/oriel/compare/v0.3.0...v0.4.0) (2026-10-20)
 
 
