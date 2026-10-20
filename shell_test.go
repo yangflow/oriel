@@ -208,7 +208,7 @@ func TestShellSettings(t *testing.T) {
 	if err := tt.Click("Devices"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Oriel · macOS") || !tt.HasText("This device") {
+	if !tt.HasText("Oriel") || !tt.HasText("macOS") || !tt.HasText("This device") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	tt.Key(0, ui.KeyEscape)
