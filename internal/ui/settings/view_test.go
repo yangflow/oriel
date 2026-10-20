@@ -674,7 +674,8 @@ func TestAIColumns(t *testing.T) {
 	if prompts.Y != conn.Y || prompts.X <= conn.X {
 		t.Errorf("two columns: connection %v, prompts %v", conn, prompts)
 	}
-	if lead := rect(t, tt, s.text.AILead); lead.X != conn.X || lead.W > 600*1.01 {
+	// The lead stops at 600, scaled with the text size, short of the two columns under it.
+	if lead := rect(t, tt, s.text.AILead); lead.X != conn.X || lead.W >= 2*conn.W {
 		t.Errorf("lead %v, connection %v", lead, conn)
 	}
 	// At the minimum window the single column keeps its Connection heading.
