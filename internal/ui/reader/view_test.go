@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	"image/png"
 	"net/url"
@@ -788,6 +789,16 @@ func TestReadingPreferences(t *testing.T) {
 // TestReadingScale shows the body is 16 with line height 1.7 by default, 1.85 in Chinese, and that the four text
 // sizes and three line spacings give the line heights of the design, in both languages.
 func TestReadingScale(t *testing.T) {
+	for _, scale := range textScales {
+		t.Run(fmt.Sprint("text=", scale), func(t *testing.T) { readingScale(t, scale) })
+	}
+}
+
+// textScales are the desktop text sizes the geometry tests run at: the design's 13 and the 14 of Linux and Windows.
+var textScales = []float32{1, 14.0 / 13}
+
+func readingScale(t *testing.T, scale float32) {
+	var unit float32 // one design pixel in the theme in use
 	line := func(p prefs.Preferences, han bool) float32 {
 		art := full()
 		if han {
@@ -799,7 +810,9 @@ func TestReadingScale(t *testing.T) {
 		deps.Reading = func() prefs.Preferences { return p }
 		s := New("en", deps)
 		s.Use(f)
-		tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1100, 800)
+		// Tall enough to hold the whole article: a line cut by the window reports the height that shows.
+		tt := ui.NewTester(func(c *ui.Context) { unit = px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 2000)
+		tt.SetPreferences(ui.Preferences{TextScale: scale})
 		s.Open(art.Entry)
 		tt.Frame()
 		f.settle(tt)
@@ -813,7 +826,7 @@ func TestReadingScale(t *testing.T) {
 		}
 		return r.H
 	}
-	near := func(got, want float32) bool { return got > want-0.6 && got < want+0.6 }
+	near := func(got, want float32) bool { return got > want-0.6*unit && got < want+0.6*unit }
 	for _, tc := range []struct {
 		size, spacing string
 		body          float32
@@ -825,11 +838,11 @@ func TestReadingScale(t *testing.T) {
 		{prefs.SizeXLarge, prefs.SpacingStandard, 20.3, 1.7, 1.85},
 	} {
 		p := prefs.Preferences{ReadingSize: tc.size, LineSpacing: tc.spacing}
-		if got := line(p, false); !near(got, tc.body*tc.latin) {
-			t.Errorf("%s %s: line %v, want %v", tc.size, tc.spacing, got, tc.body*tc.latin)
+		if got := line(p, false); !near(got, tc.body*tc.latin*unit) {
+			t.Errorf("%s %s: line %v, want %v", tc.size, tc.spacing, got, tc.body*tc.latin*unit)
 		}
-		if got := line(p, true); !near(got, tc.body*tc.han) {
-			t.Errorf("%s %s, Chinese: line %v, want %v", tc.size, tc.spacing, got, tc.body*tc.han)
+		if got := line(p, true); !near(got, tc.body*tc.han*unit) {
+			t.Errorf("%s %s, Chinese: line %v, want %v", tc.size, tc.spacing, got, tc.body*tc.han*unit)
 		}
 	}
 }
@@ -837,21 +850,29 @@ func TestReadingScale(t *testing.T) {
 // TestToolbarNames shows Summarize and Translate carry their names beside the icon, and only the icon in a window
 // narrower than 760.
 func TestToolbarNames(t *testing.T) {
+	for _, scale := range textScales {
+		t.Run(fmt.Sprint("text=", scale), func(t *testing.T) { toolbarNames(t, scale) })
+	}
+}
+
+func toolbarNames(t *testing.T, scale float32) {
 	f := &fake{now: now, article: full(), nav: Nav{Entry: full().Entry, Scope: "All"}}
 	s := New("en", f.deps())
 	s.Use(f)
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1100, 800)
+	var unit float32
+	tt := ui.NewTester(func(c *ui.Context) { unit = px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 800)
+	tt.SetPreferences(ui.Preferences{TextScale: scale})
 	s.Open(f.article.Entry)
 	tt.Frame()
 	f.settle(tt)
 	wide, ok := tt.Find("Summarize")
-	if !ok || wide.W < 60 {
+	if !ok || wide.W < 60*unit {
 		t.Fatalf("wide: %v %v", wide, ok)
 	}
 	tt.SetSize(700, 800)
 	tt.Frame()
 	narrow, ok := tt.Find("Summarize")
-	if !ok || narrow.W > 32 {
+	if !ok || narrow.W > 32*unit {
 		t.Fatalf("narrow: %v %v", narrow, ok)
 	}
 }

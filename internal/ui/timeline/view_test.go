@@ -1079,8 +1079,8 @@ func TestSiteIcons(t *testing.T) {
 }
 
 // pixel is the color drawn at a point of the tester's last frame, as 0 to 255 channels.
-func pixel(tt *ui.Tester, x, y float32) [3]int {
-	r, g, b, _ := tt.Image().At(int(x), int(y)).RGBA()
+func pixel(img image.Image, x, y float32) [3]int {
+	r, g, b, _ := img.At(int(x), int(y)).RGBA()
 	return [3]int{int(r >> 8), int(g >> 8), int(b >> 8)}
 }
 
@@ -1096,7 +1096,7 @@ func near(p [3]int, c ui.Color, tolerance int) bool {
 }
 
 // inkSetup is setup with the main theme of the window kept, so a test can ask for the pane's values.
-func inkSetup(t *testing.T, dark bool) (*Screen, *fake, *ui.Tester, **ui.Theme) {
+func inkSetup(t *testing.T, dark bool, scale float32) (*Screen, *fake, *ui.Tester, **ui.Theme) {
 	t.Helper()
 	sources, entries := sample()
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
@@ -1104,137 +1104,145 @@ func inkSetup(t *testing.T, dark bool) (*Screen, *fake, *ui.Tester, **ui.Theme) 
 	var main *ui.Theme
 	tt := ui.NewTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); main = c.Theme(); s.View(c) }, 1100, 800)
 	tt.SetDark(dark)
+	tt.SetPreferences(ui.Preferences{TextScale: scale})
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
 	return s, f, tt, &main
 }
 
-func TestInkPane(t *testing.T) {
+// inkCases runs a test in both schemes at the design's text size and at the 14 of Linux and Windows.
+func inkCases(t *testing.T, run func(t *testing.T, dark bool, scale float32)) {
 	for _, dark := range []bool{false, true} {
-		t.Run(fmt.Sprint("dark=", dark), func(t *testing.T) {
-			_, _, tt, main := inkSetup(t, dark)
-			pane := theme.PaneTheme(*main)
-			talks, ok := tt.Find("Talks")
-			if !ok {
-				t.Fatalf("no pane item in %v", tt.Texts())
-			}
-			// The pane is ink in both schemes: the empty strip beside an item is its Background, the timeline's is not.
-			x, y := talks.X-4, talks.Y+talks.H/2
-			if !near(pixel(tt, x, y), pane.Background, 2) {
-				t.Errorf("pane drawn %v, want %v", pixel(tt, x, y), pane.Background)
-			}
-			if near(pixel(tt, 700, 790), pane.Background, 2) {
-				t.Error("the timeline is drawn on the pane's ink")
-			}
+		for _, scale := range []float32{1, 14.0 / 13} {
+			t.Run(fmt.Sprint("dark=", dark, "/text=", scale), func(t *testing.T) { run(t, dark, scale) })
+		}
+	}
+}
 
-			// An item's name is drawn in the pane's text roles, not the window's: some pixel of its label is close to
-			// Text2 (unselected) and some of the selected one's to Text.
-			stem := func(label string, want ui.Color) bool {
-				r, _ := tt.Find(label)
-				for py := r.Y; py < r.Y+r.H; py++ {
-					for px := r.X; px < r.X+r.W; px++ {
-						if near(pixel(tt, px, py), want, 8) {
-							return true
-						}
+func TestInkPane(t *testing.T) {
+	inkCases(t, func(t *testing.T, dark bool, scale float32) {
+		_, _, tt, main := inkSetup(t, dark, scale)
+		pane := theme.PaneTheme(*main)
+		talks, ok := tt.Find("Talks")
+		if !ok {
+			t.Fatalf("no pane item in %v", tt.Texts())
+		}
+		// The pane is ink in both schemes: the empty strip beside an item is its Background, the timeline's is not.
+		x, y := talks.X-4, talks.Y+talks.H/2
+		if !near(pixel(tt.Image(), x, y), pane.Background, 2) {
+			t.Errorf("pane drawn %v, want %v", pixel(tt.Image(), x, y), pane.Background)
+		}
+		if near(pixel(tt.Image(), 700, 790), pane.Background, 2) {
+			t.Error("the timeline is drawn on the pane's ink")
+		}
+
+		// An item's name is drawn in the pane's text roles, not the window's: some pixel of its label is close to
+		// Text2 (unselected) and some of the selected one's to Text.
+		stem := func(label string, want ui.Color) bool {
+			r, _ := tt.Find(label)
+			img := tt.Image()
+			for py := r.Y; py < r.Y+r.H; py++ {
+				for px := r.X; px < r.X+r.W; px++ {
+					if near(pixel(img, px, py), want, 8) {
+						return true
 					}
 				}
-				return false
 			}
-			if !stem("Talks", theme.Text2(pane)) {
-				t.Errorf("an unselected pane item is not in the pane's Text2 %v", theme.Text2(pane))
-			}
-			if err := tt.Click("Go Blog"); err != nil {
-				t.Fatal(err)
-			}
-			tt.Move(1000, 700) // off the pane
-			tt.Frame()
-			if !stem("Go Blog", pane.Text) {
-				t.Errorf("the selected pane item is not in the pane's Text %v", pane.Text)
-			}
-		})
-	}
+			return false
+		}
+		if !stem("Talks", theme.Text2(pane)) {
+			t.Errorf("an unselected pane item is not in the pane's Text2 %v", theme.Text2(pane))
+		}
+		if err := tt.Click("Go Blog"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Move(1000, 700) // off the pane
+		tt.Frame()
+		if !stem("Go Blog", pane.Text) {
+			t.Errorf("the selected pane item is not in the pane's Text %v", pane.Text)
+		}
+	})
 }
 
 // The fill of a pane item and of a row steps up from hover to pressed to chosen, and the chosen row carries the marker.
 func TestStateFills(t *testing.T) {
-	for _, dark := range []bool{false, true} {
-		t.Run(fmt.Sprint("dark=", dark), func(t *testing.T) {
-			s, f, tt, _ := inkSetup(t, dark)
-			fade := func() { tt.Frame(); tt.Advance(time.Second); tt.Frame() }
-			// The pane is dark, so more ink is lighter.
-			talks, _ := tt.Find("Talks")
-			x, y := talks.X+2, talks.Y+talks.H/2
-			rest := light(pixel(tt, x, y))
-			tt.Move(talks.X+talks.W/2, y)
-			fade()
-			hover := light(pixel(tt, x, y))
-			tt.Press(talks.X+talks.W/2, y)
-			fade()
-			pressed := light(pixel(tt, x, y))
-			tt.Release(talks.X+talks.W/2, y)
-			f.settle(t, tt)
-			tt.Move(1000, 700)
-			fade()
-			talks, _ = tt.Find("Talks")
-			x, y = talks.X+2, talks.Y+talks.H/2
-			chosen := light(pixel(tt, x, y))
-			if !(rest < hover && hover < pressed && pressed < chosen) {
-				t.Errorf("pane item fills rest %d, hover %d, pressed %d, chosen %d are not in steps", rest, hover, pressed, chosen)
-			}
-			if s.scope.source != 2 {
-				t.Fatalf("scope %v after choosing Talks", s.scope)
-			}
+	inkCases(t, func(t *testing.T, dark bool, scale float32) {
+		s, f, tt, _ := inkSetup(t, dark, scale)
+		fade := func() { tt.Frame(); tt.Advance(time.Second); tt.Frame() }
+		// The pane is dark, so more ink is lighter.
+		talks, _ := tt.Find("Talks")
+		x, y := talks.X+2, talks.Y+talks.H/2
+		rest := light(pixel(tt.Image(), x, y))
+		tt.Move(talks.X+talks.W/2, y)
+		fade()
+		hover := light(pixel(tt.Image(), x, y))
+		tt.Press(talks.X+talks.W/2, y)
+		fade()
+		pressed := light(pixel(tt.Image(), x, y))
+		tt.Release(talks.X+talks.W/2, y)
+		f.settle(t, tt)
+		tt.Move(1000, 700)
+		fade()
+		talks, _ = tt.Find("Talks")
+		x, y = talks.X+2, talks.Y+talks.H/2
+		chosen := light(pixel(tt.Image(), x, y))
+		if !(rest < hover && hover < pressed && pressed < chosen) {
+			t.Errorf("pane item fills rest %d, hover %d, pressed %d, chosen %d are not in steps", rest, hover, pressed, chosen)
+		}
+		if s.scope.source != 2 {
+			t.Fatalf("scope %v after choosing Talks", s.scope)
+		}
 
-		})
-	}
+	})
 }
 
 // A row steps through the same three fills over the window's paper, and the chosen row carries the marker.
 func TestRowFills(t *testing.T) {
-	for _, dark := range []bool{false, true} {
-		t.Run(fmt.Sprint("dark=", dark), func(t *testing.T) {
-			s, _, tt, main := inkSetup(t, dark)
-			fade := func() { tt.Frame(); tt.Advance(time.Second); tt.Frame() }
-			label := "Go Blog, Go 1.27 is released, 5 min, Unread"
-			row, ok := tt.Find(label)
-			if !ok {
-				t.Fatalf("no row in %v", tt.Texts())
+	inkCases(t, func(t *testing.T, dark bool, scale float32) {
+		s, _, tt, main := inkSetup(t, dark, scale)
+		fade := func() { tt.Frame(); tt.Advance(time.Second); tt.Frame() }
+		label := "Go Blog, Go 1.27 is released, 5 min, Unread"
+		row, ok := tt.Find(label)
+		if !ok {
+			t.Fatalf("no row in %v", tt.Texts())
+		}
+		y := row.Y + row.H/2
+		// The row's box starts at the pane's edge, whose pixel is blended with the pane's ink when the column does not
+		// land on a whole pixel, so the paper is sampled a little inside it.
+		bare := pixel(tt.Image(), row.X+2, y)
+		rest := light(bare)
+		tt.Move(row.X+row.W/2, y)
+		fade()
+		// The fill is as wide as the column, which starts where the hovered row's pixels leave the paper's.
+		left := row.X + 2
+		img := tt.Image()
+		for pixel(img, left, y) == bare && left < row.X+row.W {
+			left++
+		}
+		x := left + 3
+		hover := light(pixel(tt.Image(), x, y))
+		tt.Press(row.X+row.W/2, row.Y+row.H/2)
+		tt.Move(row.X+row.W/2, 5) // released off the row: no click
+		tt.Release(row.X+row.W/2, 5)
+		if s.selected != 0 {
+			t.Fatalf("selected %d after pressing the first row", s.selected)
+		}
+		fade()
+		selected := light(pixel(tt.Image(), x, y))
+		// Light ink is dark on paper and dark ink is light on charcoal: the steps move away from the paper.
+		away := func(a, b int) bool {
+			if (*main).Dark {
+				return a < b
 			}
-			y := row.Y + row.H/2
-			bare := pixel(tt, row.X, y)
-			rest := light(bare)
-			tt.Move(row.X+row.W/2, y)
-			fade()
-			// The fill is as wide as the column, which starts where the hovered row's pixels leave the paper's.
-			left := row.X
-			for pixel(tt, left, y) == bare && left < row.X+row.W {
-				left++
-			}
-			x := left + 3
-			hover := light(pixel(tt, x, y))
-			tt.Press(row.X+row.W/2, row.Y+row.H/2)
-			tt.Move(row.X+row.W/2, 5) // released off the row: no click
-			tt.Release(row.X+row.W/2, 5)
-			if s.selected != 0 {
-				t.Fatalf("selected %d after pressing the first row", s.selected)
-			}
-			fade()
-			selected := light(pixel(tt, x, y))
-			// Light ink is dark on paper and dark ink is light on charcoal: the steps move away from the paper.
-			away := func(a, b int) bool {
-				if (*main).Dark {
-					return a < b
-				}
-				return a > b
-			}
-			if !(away(rest, hover) && away(hover, selected)) {
-				t.Errorf("row fills rest %d, hover %d, chosen %d are not in steps", rest, hover, selected)
-			}
-			mx, my := left+9.25, y
-			if got := pixel(tt, mx, my); !near(got, theme.Marker(*main), 6) {
-				t.Errorf("selection marker drawn %v, want %v", got, theme.Marker(*main))
-			}
-		})
-	}
+			return a > b
+		}
+		if !(away(rest, hover) && away(hover, selected)) {
+			t.Errorf("row fills rest %d, hover %d, chosen %d are not in steps", rest, hover, selected)
+		}
+		mx, my := left+9.25, y
+		if got := pixel(tt.Image(), mx, my); !near(got, theme.Marker(*main), 6) {
+			t.Errorf("selection marker drawn %v, want %v", got, theme.Marker(*main))
+		}
+	})
 }
