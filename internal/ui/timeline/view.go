@@ -1571,6 +1571,8 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 	}
 	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(px(t, 30)).Gap(px(t, 10)).PaddingX(px(t, 10)).
 		Radius(px(t, 8)).Label(label).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
+	// MyGo's tooltip cannot be asked to show only when the text is cut, so the full name is always the tip.
+	item.Tooltip(name)
 	count := t.TextMuted
 	switch {
 	case chosen:
@@ -2391,14 +2393,14 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	})
 }
 
-// titleText is a title in 15 (13 in a card) semibold; read, it is TextMuted in weight 500.
+// titleText is a title in 15 (13 in a card) semibold; read, it is TextMuted in weight 500. It stops at two lines.
 func (s *Screen) titleText(c *ui.Context, e client.Entry, size float32, muted ui.Color) ui.Element {
 	t := c.Theme()
 	color, weight := t.Text, 600
 	if e.IsRead {
 		color, weight = muted, 500
 	}
-	text := ui.RichText(c, s.marked(c, title(e), color)...).FontSize(px(t, size)).FontWeight(weight).Wrap()
+	text := ui.RichText(c, s.marked(c, title(e), color)...).FontSize(px(t, size)).FontWeight(weight).Wrap().MaxLines(2)
 	line, tracking := float32(1.35), -px(t, size)*0.005
 	if size < 14 {
 		line = 1.4
@@ -2567,8 +2569,9 @@ func aspect(e client.Entry) float32 {
 	return 4.0 / 3
 }
 
-// picture is a picture on the Track color, which shows until it loads or when it fails, with a hairline outline of
-// ink over it; load false leaves it unasked, for those far from the view. over draws on it.
+// picture is a picture on the Track color, which shows until it loads or when it fails, with a muted image icon on it
+// then, and a hairline outline of ink over it; load false leaves it unasked, for those far from the view. over draws
+// on it.
 func (s *Screen) picture(c *ui.Context, address string, load bool, radius float32, over func()) ui.Element {
 	t := c.Theme()
 	var bitmap *ui.Bitmap
@@ -2577,9 +2580,15 @@ func (s *Screen) picture(c *ui.Context, address string, load bool, radius float3
 	} else if p := s.pictures[address]; p != nil {
 		bitmap = p.bitmap
 	}
+	failed := s.pictures[address] != nil && s.pictures[address].failed
 	return ui.Box(c).Background(theme.Track(t)).Radius(radius).Clip().Children(func() {
 		if bitmap != nil {
 			ui.Image(c, bitmap).Fit(ui.Cover).Fill()
+		}
+		if failed {
+			ui.Box(c).Fill().Absolute().Center().PassThrough().Children(func() {
+				ui.Icon(c, icons.Image).FontSize(px(t, 20)).TextColor(t.TextMuted)
+			})
 		}
 		if over != nil {
 			over()
@@ -2618,7 +2627,7 @@ func (s *Screen) videoGrid(c *ui.Context, now time.Time, compact bool) {
 		hovered, chosen := s.item(c, card, i, now, true)
 		card.Children(func() {
 			s.cover(c, e, true, hovered).FillWidth()
-			s.titleText(c, e, 13, t.TextMuted).MaxLines(2)
+			s.titleText(c, e, 13, t.TextMuted)
 			s.meta(c, e, now, true, 0, t.TextMuted)
 			if hovered || chosen || card.Focused() {
 				s.actions(c, i, true)
