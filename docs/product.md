@@ -4,6 +4,8 @@
 
 Oriel 是单用户的混合信息流阅读器：订阅原生 RSS 和 RSSHub，一条时间线混排文章、视频、社交和图片，摘要和翻译按需走用户自己的 OpenAI 兼容接口。它用 Go 和 MyGo 原生 UI，不用 WebView。
 
+Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RSSHub），不登录原站账号，不调用平台的私有接口，也不往外发布内容。新功能先对照这一条，越过它的不做。
+
 ## 范围
 
 计划的范围，按 [milestone](https://github.com/yangflow/oriel/milestones) 的顺序逐项落地（规则见 [roadmap](roadmap.md)）：
