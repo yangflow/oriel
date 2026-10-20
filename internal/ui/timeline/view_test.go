@@ -570,6 +570,182 @@ func TestKeyboard(t *testing.T) {
 	}
 }
 
+// TestSidebarKeys follows the keys that switch the kind, go to the sidebar and come back.
+func TestSidebarKeys(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	tt.Key(0, ui.Key3)
+	f.settle(t, tt)
+	if s.scope != (scope{kind: "video"}) || s.tab != 2 || f.queries[len(f.queries)-1].Kind != "video" {
+		t.Fatalf("scope %v, tab %d", s.scope, s.tab)
+	}
+	if !slices.Contains(tt.Announcements(), "Videos, 1 unread") {
+		t.Fatalf("announcements %v", tt.Announcements())
+	}
+	tt.Key(0, ui.Key1)
+	f.settle(t, tt)
+	if s.scope != (scope{}) || s.tab != 0 || !slices.Contains(tt.Announcements(), "All, 5 unread") {
+		t.Fatalf("scope %v, announcements %v", s.scope, tt.Announcements())
+	}
+	for i, kind := range kinds {
+		tt.Key(0, []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5}[i])
+		f.settle(t, tt)
+		if s.scope.kind != kind {
+			t.Fatalf("key %d chose %q", i+1, s.scope.kind)
+		}
+	}
+
+	tt.Key(0, ui.Key1)
+	f.settle(t, tt)
+	tt.Key(0, ui.KeyJ)
+	if s.selected != 0 {
+		t.Fatalf("selected %d", s.selected)
+	}
+	tt.Key(0, ui.KeyH)
+	tt.Frame()
+	if !s.inSide || !tt.Focused("All") {
+		t.Fatalf("H does not go to the sidebar: %v", s.inSide)
+	}
+	// The keys of the entries are inert while the focus is in the sidebar.
+	tt.Key(0, ui.KeyS)
+	tt.Key(0, ui.KeyM)
+	tt.Key(0, ui.KeyO)
+	tt.Key(0, ui.KeyN)
+	tt.Key(0, ui.KeyK)
+	if s.selected != 0 || s.reading != 0 || len(f.patches) != 0 || !s.inSide {
+		t.Fatalf("selected %d, reading %d, patches %v", s.selected, s.reading, f.patches)
+	}
+	// Up and Down move among the kinds, whose arrows choose one.
+	tt.Key(0, ui.KeyDown)
+	f.settle(t, tt)
+	if s.scope.kind != "article" {
+		t.Fatalf("scope %v", s.scope)
+	}
+	// A kind chosen with a number while the focus is in the sidebar works too.
+	tt.Key(0, ui.Key3)
+	f.settle(t, tt)
+	if s.scope.kind != "video" || !s.inSide {
+		t.Fatalf("scope %v", s.scope)
+	}
+	for i, key := range []ui.Key{ui.KeyL, ui.KeyRight, ui.KeyEscape} {
+		if i > 0 {
+			tt.Key(0, ui.KeyLeft)
+			tt.Frame()
+			if !s.inSide {
+				t.Fatal("Left does not go to the sidebar")
+			}
+		}
+		tt.Key(0, key)
+		tt.Frame()
+		if s.inSide || !tt.Focused("Talks, Profiling in practice, 2 h, Unread") {
+			t.Fatalf("key %v does not go back to the list: in %v, selected %d, row %d, entries %d, texts %v", key, s.inSide, s.selected, s.focusRow, len(s.entries), tt.Texts())
+		}
+	}
+	tt.Key(0, ui.KeyJ)
+	tt.Key(0, ui.KeyJ)
+	if s.selected != 0 {
+		t.Fatalf("selected %d", s.selected)
+	}
+}
+
+// TestSidebarSources moves among the subscriptions of a kind and opens the menu of one with the keyboard.
+func TestSidebarSources(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.sources = append(f.sources, client.Source{ID: 5, Title: "Second Blog", Kind: "article"})
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Key(0, ui.Key2)
+	f.settle(t, tt)
+	if err := tt.Click("Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Key(0, ui.KeyH)
+	tt.Frame()
+	if !s.inSide || !tt.Focused("Go Blog") {
+		t.Fatalf("H does not focus the chosen subscription: %v", s.inSide)
+	}
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	if !tt.Focused("Second Blog") || s.scope.source != 1 {
+		t.Fatalf("Down does not move among the subscriptions: scope %v", s.scope)
+	}
+	tt.Key(ui.Shift, ui.KeyF10)
+	if len(tt.Menu()) == 0 {
+		t.Fatal("Shift+F10 shows no menu of the subscription")
+	}
+}
+
+// TestKeysIgnored checks the places where the keys of the sidebar do not act.
+func TestKeysIgnored(t *testing.T) {
+	keys := func(t *testing.T, s *Screen, tt *ui.Tester) {
+		t.Helper()
+		for _, key := range []ui.Key{ui.Key3, ui.Key5, ui.KeyH, ui.KeyLeft} {
+			tt.Key(0, key)
+			tt.Frame()
+		}
+		if s.scope != (scope{}) || s.inSide || s.sideFocus {
+			t.Fatalf("a key acted: scope %v, in the sidebar %v", s.scope, s.inSide)
+		}
+	}
+	t.Run("search", func(t *testing.T) {
+		s, _, tt := setup(t, "en")
+		tt.Key(0, ui.KeySlash)
+		tt.Type("3h")
+		if s.query != "3h" {
+			t.Fatalf("query %q", s.query)
+		}
+		keys(t, s, tt)
+	})
+	t.Run("key sheet", func(t *testing.T) {
+		s, _, tt := setup(t, "en")
+		s.ShowKeys()
+		tt.Frame()
+		keys(t, s, tt)
+	})
+	t.Run("dialog", func(t *testing.T) {
+		s, _, tt := setup(t, "en")
+		s.subs.Add()
+		tt.Frame()
+		keys(t, s, tt)
+	})
+	t.Run("reader", func(t *testing.T) {
+		s, f, tt := setup(t, "en")
+		if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+			t.Fatal(err)
+		}
+		f.settle(t, tt)
+		if s.reading == 0 {
+			t.Fatal("the reader is not open")
+		}
+		keys(t, s, tt)
+		if s.reading == 0 {
+			t.Fatal("a key closed the reader")
+		}
+	})
+	t.Run("in the sidebar", func(t *testing.T) {
+		s, _, tt := setup(t, "en")
+		tt.Key(0, ui.KeyH)
+		tt.Frame()
+		tt.Key(0, ui.KeyH)
+		tt.Key(0, ui.KeyLeft)
+		tt.Frame()
+		if !s.inSide || s.selected != -1 {
+			t.Fatalf("in the sidebar %v, selected %d", s.inSide, s.selected)
+		}
+	})
+}
+
+// TestEntryMenuKey opens the menu of the focused entry with Shift+F10.
+func TestEntryMenuKey(t *testing.T) {
+	_, _, tt := setup(t, "en")
+	tt.Key(0, ui.KeyJ)
+	tt.Key(ui.Shift, ui.KeyF10)
+	if menu := tt.Menu(); len(menu) == 0 || menu[0] != "Star" {
+		t.Fatalf("menu %q", menu)
+	}
+}
+
 // TestReaderAIOff follows the reader's way to the settings while AI is not set up.
 func TestReaderAIOff(t *testing.T) {
 	_, f, tt := setup(t, "en")
@@ -1207,6 +1383,11 @@ func TestKeySheet(t *testing.T) {
 	tt.Frame()
 	if !s.keys || !tt.HasText("Keyboard shortcuts") || !tt.HasText("Next unread") {
 		t.Fatalf("texts %v", tt.Texts())
+	}
+	for _, name := range []string{"Switch kind", "Go to the sidebar", "Context menu"} {
+		if !tt.HasText(name) {
+			t.Fatalf("no %q in %v", name, tt.Texts())
+		}
 	}
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()

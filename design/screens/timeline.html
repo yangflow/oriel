@@ -36,6 +36,14 @@
      the sidebar keeps the existing menu of subscriptions.html): Mark subscription as read sits under Refresh and is
      dimmed when it has nothing unread (menu-feed-none). Both act at once and offer Undo in the same toast as Mark all
      as read (marked-above, marked-feed).
+     The keyboard reaches the sidebar too (sidebar-focus, the focus ring on the chosen item): 1 to 5 switch to All and
+     the four kinds from anywhere in the timeline; H or Left moves the focus to the chosen item of the sidebar, Up and
+     Down walk its kinds and subscriptions, Enter chooses one and the focus stays on it, and L, Right or Escape
+     returns it to the list, the chosen entry focused. While the sidebar has the focus the entry keys (J K O S M N,
+     Up and Down) leave the entries alone. Shift+F10 or the Menu key opens the menu of the focused subscription or
+     entry (menu-feed and menu-entry look the same); a Mac has no Menu key, so there it is Shift+F10 (fn on laptops).
+     All of them are listed in the key sheet (keys) and are off while the search field has the focus, a dialog is
+     open or the reader shows. A switch made from the keyboard is announced ("Videos, 12 unread").
      The bar above the window only switches the mockup.
      URL parameters: state, scope=all|article|video|social|image|source, scheme=light|dark, lang=en|zh-Hans,
      size=default|min|wide. -->
@@ -142,8 +150,8 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .toolbar h1 { margin:0; font-size:15px; font-weight:600; letter-spacing:-.005em; white-space:nowrap }
 .toolbar .sub { font-size:12px; letter-spacing:.01em; white-space:nowrap; font-variant-numeric:tabular-nums; color:var(--muted) }
 .spacer { flex:1 }
-.segmented { display:flex; height:32px; padding:3px; gap:2px; border-radius:16px; background:var(--glass); box-shadow:var(--glass-rim); -webkit-backdrop-filter:blur(22px) saturate(1.5); backdrop-filter:blur(22px) saturate(1.5) }
-.segmented button { height:26px; display:flex; align-items:center; gap:4px; padding:0 11px; border-radius:13px; font-size:12px; font-weight:500; letter-spacing:.01em; color:var(--muted) }
+.segmented { flex:none; display:flex; height:32px; padding:3px; gap:2px; border-radius:16px; background:var(--glass); box-shadow:var(--glass-rim); -webkit-backdrop-filter:blur(22px) saturate(1.5); backdrop-filter:blur(22px) saturate(1.5) }
+.segmented button { flex:none; white-space:nowrap; height:26px; display:flex; align-items:center; gap:4px; padding:0 11px; border-radius:13px; font-size:12px; font-weight:500; letter-spacing:.01em; color:var(--muted) }
 .segmented button:hover { background:var(--hover); color:var(--text) }
 .segmented button.on { background:rgba(var(--ink),.10); color:var(--text) }
 .segmented button svg.icon { width:14px; height:14px }
@@ -307,6 +315,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .menu hr { border:0; border-top:1px solid var(--border); margin:4px 2px }
 .row.menued, .row.menued:hover { background:var(--sel) }
 .item.menued { box-shadow:inset 0 0 0 1.5px var(--focus) }
+.item.kfocus { box-shadow:0 0 0 2px rgba(124,201,187,.55) }
 .sheet { width:560px; max-width:calc(100% - 48px); max-height:calc(100% - 48px); overflow:auto; border-radius:16px; background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 20px 50px rgba(var(--shadow),.25) }
 .sheet header { display:flex; align-items:center; gap:12px; padding:16px 16px 8px 20px }
 .sheet h2 { margin:0; flex:1; font-size:15px; font-weight:600 }
@@ -331,7 +340,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-feed','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','keys'];
+const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-feed','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -411,6 +420,7 @@ const copy={
     kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
     kSummarize:'Summarize', kTranslate:'Translate', kBack:'Back to the list', kAdd:'Add subscription', kSettings:'Settings', kKeys:'Keyboard shortcuts',
+    kScope:'Switch kind', kSidebar:'Go to the sidebar', kMenu:'Context menu',
     thisComputer:'This computer', settings:'Settings', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures',
     ago:{m:'{n} min',h:'{n} h',d:'Yesterday',days:'{n} days'},
   },
@@ -436,6 +446,7 @@ const copy={
     kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
     kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
     kSummarize:'摘要', kTranslate:'翻译', kBack:'回到列表', kAdd:'添加订阅', kSettings:'设置', kKeys:'键盘快捷键',
+    kScope:'切换形态', kSidebar:'到侧边栏', kMenu:'右键菜单',
     thisComputer:'本机', settings:'设置', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图',
     ago:{m:'{n} 分钟前',h:'{n} 小时前',d:'昨天',days:'{n} 天前'},
   },
@@ -545,7 +556,7 @@ const videoCover=(e,cls)=>`<div class="pic ${cls} ${e.thumb}" role="img" aria-la
 
 // All, Articles, Social: one column of rows
 const row=(e,i)=>{
-  const cls=`row${e.read?' read':''}${i===1&&state==='list'?' hover':''}${(i===2&&state==='menu-entry')||(i===0&&state==='menu-entry-first')?' menued':''}${(i===2&&state==='list')||(i===3&&state==='no-more-unread')?' chosen':''}`;
+  const cls=`row${e.read?' read':''}${i===1&&state==='list'?' hover':''}${(i===2&&state==='menu-entry')||(i===0&&state==='menu-entry-first')?' menued':''}${(i===2&&(state==='list'||state==='sidebar-focus'))||(i===3&&state==='no-more-unread')?' chosen':''}`;
   const dot=e.read?'':`<span class="unread-dot" role="img" aria-label="${copy.unread}"></span>`;
   switch(e.kind){
     case 'article':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3><p class="summary">${highlight(e.summary)}</p></div>${e.thumb?`<div class="pic thumb ${e.thumb}"></div>`:''}${actions(e)}</article>`;
@@ -584,7 +595,7 @@ const toolbar=`<div class="toolbar${columned?' aligned':''}${scope==='social'?' 
 const hint=state==='search-short'?`<div class="hint" id="hint" role="status">${icon('alert')}${copy.tooShort}</div>`:'';
 const stale=state==='offline'?`<div class="stale${columned?' aligned':''}${scope==='social'?' wide':''}" role="status">${icon('wifiOff')}<span>${t('offline',{time:'10:42'})}</span></div>`:'';
 const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries',{n:3})}</button>`:'';
-const mod=navigator.platform.startsWith('Mac')?'⌘':'Ctrl+';
+const mac=navigator.platform.startsWith('Mac'),mod=mac?'⌘':'Ctrl+',shift=mac?'⇧':'Shift+';
 const toast=state==='marked-read'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedCount,scope:scopeName})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-above'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedAbove',{n:2})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-feed'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedFeedCount,scope:byId[2].name})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
@@ -592,7 +603,7 @@ const toast=state==='marked-read'?`<div class="toast" role="status">${icon('chec
 const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
 const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${keys(...k)}</dd>`).join('')}</dl>`;
 const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="kt"><header><h2 id="kt">${copy.keysTitle}</h2><button class="close" aria-label="${copy.close}">${icon('x')}</button></header><div class="cols"><div>
-  <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kStar','S'],['kRead','M'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kUndo',[mod,'Z']]])}</div><div>
+  <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kStar','S'],['kRead','M'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kScope','1–5'],['kSidebar','H','←'],['kBack','L','→','Esc'],['kMenu',[shift,'F10'],...(mac?[]:['Menu'])],['kUndo',[mod,'Z']]])}</div><div>
   <h3>${copy.inReader}</h3>${keyList([['kNextArticle','J'],['kPrevArticle','K'],['kNextUnread','N'],['kStar','S'],['kRead','M'],['kOpenBrowser','O'],['kBack','Esc']])}
   <h3>${copy.anywhere}</h3>${keyList([['kAdd',[mod,'N']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
 
@@ -611,6 +622,7 @@ if(feedMenu){
   anchor.classList.add('menued');
   place(`<div class="menu" role="menu" aria-label="${s.name}">${menuItem('refresh',s.failing?copy.retry:copy.refresh)}${menuItem('checkCheck',copy.markFeed,{cls:none?'':'hover',off:none})}${menuItem('pencil',copy.edit)}${menuItem('pause',copy.pause)}<hr>${menuItem('trash',copy.remove,{cls:'danger'})}</div>`,anchor,150,24);
 }
+if(state==='sidebar-focus')document.querySelector(scope==='source'?'.nav .item.chosen':'.kind-list .item.chosen').classList.add('kfocus');
 if(state==='no-more-unread')document.querySelector('.row.chosen').scrollIntoView({block:'center'});
 const tipped=document.getElementById('tipped');
 if(tipped){const w=document.getElementById('window').getBoundingClientRect(),r=tipped.getBoundingClientRect();
