@@ -38,11 +38,11 @@
 - **一个存储文件**：带全文检索的 SQLite，驱动是纯 Go 的，生产代码不用 cgo。窗口只通过 HTTP API 读写数据，所以桌面应用和无界面服务器的行为一致。
 - **两种语言**：界面提供英文和简体中文。
 
-按 [milestone](https://github.com/yangflow/oriel/milestones) 的顺序计划中的（规则见[路线图](docs/roadmap.md)）：第一个正式版本 1.0。
+按 [milestone](https://github.com/yangflow/oriel/milestones) 的顺序计划中的（规则见[路线图](docs/roadmap.md)）：0.5 打磨与修复、0.6 阅读体验、0.7 订阅管理、0.8 数据安全、0.9 优先级与自动化。
 
-项目状态：早期开发中，版本 0.1.0，还没有发布。窗口里有连接界面、时间线、订阅对话框、文章阅读器和设置。目标平台：macOS 12+、Windows 10/11、带 GTK 3 的 Linux，amd64 和 arm64。Linux 版本需要 glibc，无界面运行也一样。
+项目状态：早期开发中，发布版见 [Releases 页面](https://github.com/yangflow/oriel/releases)。窗口里有连接界面、时间线、订阅对话框、文章阅读器和设置。目标平台：macOS 12+、Windows 10/11、带 GTK 3 的 Linux，amd64 和 arm64。Linux 版本需要 glibc，无界面运行也一样。
 
-发布版从版本 tag 构建并发布（见 [docs/release.md](docs/release.md)），目前还没有发布过。装好的应用会从发布版自动更新，安装前先在更新窗口里确认。macOS 应用经过签名和公证；Windows 安装包暂时没有签名，第一次运行时 SmartScreen 会提示。
+发布版从版本 tag 构建并发布（见 [docs/release.md](docs/release.md)）。装好的应用会从发布版自动更新，安装前先在更新窗口里确认。macOS 应用经过签名和公证；Windows 安装包暂时没有签名，第一次运行时 SmartScreen 会提示。
 
 ## 快速开始
 

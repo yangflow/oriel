@@ -70,13 +70,14 @@ Working now:
 - **Two languages.** The interface is in English and Simplified Chinese.
 
 Planned, in the order of the [milestones](https://github.com/yangflow/oriel/milestones) (rules in the
-[roadmap](docs/roadmap.md), in Chinese): the first release, 1.0.
+[roadmap](docs/roadmap.md), in Chinese): 0.5 polish and fixes, 0.6 reading, 0.7 subscription care, 0.8 backup and
+diagnostics, 0.9 priorities and automation.
 
-Status: early development, version 0.1.0, no release yet. The window has the connect screen, the timeline, the
-subscription dialogs, the article reader and the settings. Targets: macOS 12+, Windows 10/11 and Linux
-with GTK 3, on amd64 and arm64. Linux builds need glibc, also when running headless.
+Status: early development; releases are on the [releases page](https://github.com/yangflow/oriel/releases). The
+window has the connect screen, the timeline, the subscription dialogs, the article reader and the settings.
+Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on amd64 and arm64. Linux builds need glibc, also when running headless.
 
-Releases are built and published from a version tag ([docs/release.md](docs/release.md)); none is published yet.
+Releases are built and published from a version tag ([docs/release.md](docs/release.md)).
 Installed copies will update themselves from them after you confirm in the update window. The macOS app is signed
 and notarized. The Windows installers are not signed yet, so SmartScreen warns on first launch.
 
