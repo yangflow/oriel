@@ -554,18 +554,6 @@ func (s *Screen) View(c *ui.Context) {
 // px converts a size of the mockup, drawn at a 13 px font, to the theme's text size.
 func px(t *ui.Theme, v float32) float32 { return t.Rem(v / 13) }
 
-func kindColor(t *ui.Theme, kind string) ui.Color {
-	switch kind {
-	case "video":
-		return t.Danger
-	case "social":
-		return t.Warning
-	case "image":
-		return t.Success
-	}
-	return t.Accent
-}
-
 func kindIcon(kind string) *ui.SVG {
 	switch kind {
 	case "video":
@@ -590,6 +578,25 @@ func (s *Screen) kindName(kind string) string {
 	return s.text.Article
 }
 
+// sheet gives a raised surface its rim and its shadow: a hairline in ink 12% in light, a 1 DIP white 8% line and a
+// deeper shadow in dark; with high contrast the rim is Border.
+func sheet(c *ui.Context, e ui.Element, offset, blur float32) {
+	t := c.Theme()
+	switch {
+	case c.Preferences().HighContrast:
+		e.Border(1, t.Border)
+	case t.Dark:
+		e.Border(1, ui.RGBA(255, 255, 255, 0.08))
+	default:
+		e.Border(0.5, theme.Ink(t, 0.12))
+	}
+	if t.Dark {
+		e.Shadow(0, offset, blur, 0, ui.RGBA(0, 0, 0, 0.55))
+	} else {
+		e.Shadow(0, offset, blur, 0, ui.RGBA(28, 24, 18, 0.25))
+	}
+}
+
 // dialog draws a dialog of the mockup: a header, a form that scrolls when the window is too low, and a footer. A line
 // under the header shows once the form is scrolled, and one above the footer while more of it is below.
 func (s *Screen) dialog(c *ui.Context, open *bool, scroll *ui.ScrollState, width float32, title string, header, form,
@@ -597,9 +604,10 @@ func (s *Screen) dialog(c *ui.Context, open *bool, scroll *ui.ScrollState, width
 	t := c.Theme()
 	_, height := c.Size()
 	ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Padding(t.Space(4))
-		panel.Column().Width(px(t, width)).MaxHeight(height-t.Space(8)).Radius(12).Background(t.Background).
-			Border(1, t.Border).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.25)).Label(title)
+		backdrop.Background(ui.RGBA(28, 24, 18, 0.32)).Padding(t.Space(4))
+		panel.Column().Width(px(t, width)).MaxHeight(height - t.Space(8)).Radius(16).Background(theme.RaisedFill(t)).
+			Label(title)
+		sheet(c, panel, 20, 50)
 		edge := func(shown bool) {
 			color := t.Border
 			if !shown {
@@ -630,10 +638,14 @@ func (s *Screen) header(c *ui.Context, open *bool, lead func(), title, sub strin
 				ui.Text(c, sub).FontSize(px(t, 12)).TextColor(t.TextMuted).SingleLine()
 			}
 		})
-		x := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).AlignSelf(ui.Start).
-			Label(s.text.Close).Tooltip(s.text.Close)
+		x := theme.Fade(ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(8).AlignSelf(ui.Start).
+			Label(s.text.Close).Tooltip(s.text.Close))
 		color := t.TextMuted
-		if x.Hovered() {
+		switch {
+		case x.Pressed():
+			x.Background(t.SurfacePressed)
+			color = t.Text
+		case x.Hovered():
 			x.Background(t.SurfaceHover)
 			color = t.Text
 		}
@@ -654,21 +666,33 @@ func help(c *ui.Context, text string) {
 	ui.Text(c, text).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap()
 }
 
+// fieldEdge draws the hairline of a field, ink 12% (theme.LineStrong); with high contrast it is Border at 1 DIP.
+func fieldEdge(c *ui.Context, e ui.Element) {
+	t := c.Theme()
+	if c.Preferences().HighContrast {
+		e.Border(1, t.Border)
+		return
+	}
+	e.Border(0.5, theme.LineStrong(t))
+}
+
 // box is the frame of a text field: its leading icon, if any, and the input built by input.
 func box(c *ui.Context, key string, lead *ui.SVG, invalid bool, fill ui.Color, input func()) {
 	t := c.Theme()
 	b := ui.Row(c).Key(key).FillWidth().Height(px(t, 32)).AlignItems(ui.Center).Gap(t.Space(2)).
-		PaddingX(t.Space(2.5)).Radius(t.Radius).Border(1, t.Border).Background(fill)
+		PaddingX(t.Space(2.5)).Radius(t.Radius)
+	fieldEdge(c, b)
+	b.Background(fill)
 	color := t.TextMuted
 	switch focused := b.FocusWithin(); {
 	case invalid:
-		b.BorderColor(t.Danger)
+		b.Border(1.5, t.Danger)
 		color = t.Danger
 		if focused {
-			b.Shadow(0, 0, 0, 3, theme.Soft(t, t.Danger))
+			b.Shadow(0, 0, 0, 2, theme.Soft(t, t.Danger))
 		}
 	case focused:
-		b.BorderColor(t.Accent).Background(t.Background).Shadow(0, 0, 0, 3, t.Focus)
+		b.Border(0, ui.Color{}).Background(theme.RaisedFill(t)).Shadow(0, 0, 0, 2, t.Focus)
 	}
 	b.Children(func() {
 		if lead != nil {
@@ -700,13 +724,15 @@ const (
 
 func button(c *ui.Context, style int, disabled bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Height(px(t, 32)).Gap(t.Space(1.5)).PaddingX(px(t, 14)).Radius(t.Radius).Disabled(disabled)
-	fill, border, color := t.Background, t.Border, t.Text
+	b := theme.Fade(ui.ButtonBase(c).Height(px(t, 32)).Gap(t.Space(1.5)).PaddingX(px(t, 14)).Radius(t.Radius).
+		Disabled(disabled))
+	track := theme.Track(t)
+	fill, color := track, t.Text
 	switch style {
 	case primary:
-		fill, border, color = t.Accent, t.Accent, t.AccentText
+		fill, color = t.Accent, t.AccentText
 	case quiet:
-		fill, border, color = ui.Color{}, ui.Color{}, t.Danger
+		fill, color = ui.Color{}, t.Danger
 		b.PaddingX(t.Space(2))
 	case small:
 		b.Height(px(t, 26)).PaddingX(px(t, 10))
@@ -715,17 +741,24 @@ func button(c *ui.Context, style int, disabled bool) ui.Element {
 	case disabled && style == quiet:
 		color = t.TextMuted
 	case disabled:
-		fill, border, color = t.Surface, t.Border, t.TextMuted
+		fill, color = t.Surface, t.TextMuted
 	case b.Pressed() && style == primary:
-		fill, border = t.AccentPressed, t.AccentPressed
+		fill = t.AccentPressed
 	case b.Hovered() && style == primary:
-		fill, border = t.AccentHover, t.AccentHover
+		fill = t.AccentHover
+	case b.Pressed() && style == quiet:
+		fill = theme.Soft(t, t.Danger).Mix(theme.Ink(t, 1), 0.05)
+	case b.Hovered() && style == quiet:
+		fill = theme.Soft(t, t.Danger)
 	case b.Pressed():
-		fill = t.SurfacePressed
+		fill = track.Mix(theme.Ink(t, 1), 0.1)
 	case b.Hovered():
-		fill = t.SurfaceHover
+		fill = track.Mix(theme.Ink(t, 1), 0.06)
 	}
-	return b.Background(fill).Border(1, border).TextColor(color)
+	if c.Preferences().HighContrast && style != quiet {
+		b.Border(1, t.Border)
+	}
+	return b.Background(fill).TextColor(color)
 }
 
 // textButton fills a button with an optional icon and its text, a spinner for the icon while busy, in the color
@@ -744,9 +777,7 @@ func textButton(c *ui.Context, b ui.Element, style int, icon *ui.SVG, text strin
 		if style == small {
 			text.FontSize(px(t, 12))
 		}
-		if style == primary || style == quiet {
-			text.FontWeight(500)
-		}
+		text.FontWeight(500)
 	})
 }
 
@@ -771,7 +802,7 @@ func (s *Screen) glyph(c *ui.Context, kind string, src client.Source) {
 	}
 	ui.Box(c).Size(px(t, 32), px(t, 32)).Radius(8).Clip().Children(func() {
 		ui.Image(c, icon).Fit(ui.Cover).Fill()
-		ui.Box(c).Absolute().Fill().Radius(8).Border(1, t.Border)
+		ui.Box(c).Absolute().Fill().Radius(8).Border(0.5, theme.Ink(t, 0.2))
 	})
 }
 
@@ -781,9 +812,8 @@ func monogram(c *ui.Context, kind, name string) {
 	if r, _ := utf8.DecodeRuneInString(strings.TrimLeft(name, "@#·/ ")); r != utf8.RuneError {
 		letter = strings.ToUpper(string(r))
 	}
-	color := kindColor(t, kind)
-	ui.Box(c).Size(px(t, 32), px(t, 32)).Radius(8).Center().Background(theme.Soft(t, color)).Children(func() {
-		ui.Text(c, letter).FontSize(px(t, 15)).FontWeight(600).TextColor(color)
+	ui.Box(c).Size(px(t, 32), px(t, 32)).Radius(8).Center().Background(theme.Track(t)).Children(func() {
+		ui.Text(c, letter).FontSize(px(t, 15)).FontWeight(600).TextColor(theme.Text2(t))
 	})
 }
 
@@ -912,7 +942,7 @@ func (s *Screen) found(c *ui.Context, t target, what, where string) {
 				ui.Text(c, what).FontWeight(600).SingleLine()
 				ui.Text(c, where).Font("monospace").FontSize(px(th, 12)).TextColor(th.TextMuted).SingleLine()
 			})
-			ui.Icon(c, icons.Check).FontSize(px(th, 16)).TextColor(th.Accent)
+			ui.Icon(c, icons.Check).FontSize(px(th, 16)).TextColor(th.Success)
 		})
 }
 
@@ -927,7 +957,7 @@ func (s *Screen) baseCard(c *ui.Context) {
 			ui.Text(c, s.text.NeedsBase).FontWeight(500).TextColor(t.Warning).Shrink(1).Wrap()
 		})
 		before := a.base
-		box(c, "base", icons.Link, a.baseErr != "", t.Background, func() {
+		box(c, "base", icons.Link, a.baseErr != "", theme.RaisedFill(t), func() {
 			in := ui.TextInputBase(c, &a.base).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.RSSHubAddress).
 				Placeholder(s.text.RSSHubPlaceholder).Disabled(a.busy)
 			if a.baseErr != "" {
@@ -955,23 +985,30 @@ func (s *Screen) kindPicker(c *ui.Context, value *int) {
 	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
 		label(c, s.text.ShowAs)
 		seg := ui.SegmentedBase(c, value, len(kinds))
-		seg.Track.FillWidth().Padding(2).Gap(2).Radius(t.Radius).Background(t.Surface).Label(s.text.ShowAs).
+		seg.Track.FillWidth().Padding(3).Gap(2).Radius(9).Background(theme.Track(t)).Label(s.text.ShowAs).
 			Children(func() {
 				for i, kind := range kinds {
 					name := s.kindName(kind)
-					b := seg.Segment(i).Grow(1).Basis(0).Height(px(t, 30)).Gap(t.Space(1.5)).Radius(t.Space(1.5)).
-						Label(name).Tooltip(name)
+					b := theme.Fade(seg.Segment(i).Grow(1).Basis(0).Height(px(t, 28)).Gap(t.Space(1.5)).Radius(7).
+						Label(name).Tooltip(name))
 					color, iconColor := t.TextMuted, t.TextMuted
 					switch {
 					case i == *value:
-						theme.Raised(t, b)
+						if t.Dark {
+							b.Background(theme.Ink(t, 0.12))
+						} else {
+							theme.Raised(t, b)
+						}
 						color, iconColor = t.Text, t.Accent
 					case b.Hovered():
 						color, iconColor = t.Text, t.Text
 					}
 					b.Children(func() {
 						ui.Icon(c, kindIcon(kind)).FontSize(px(t, 14)).TextColor(iconColor)
-						ui.Text(c, name).NoWrap().TextColor(color)
+						text := ui.Text(c, name).NoWrap().TextColor(color)
+						if i == *value {
+							text.FontWeight(500)
+						}
 					})
 				}
 			})
@@ -1033,9 +1070,10 @@ func (s *Screen) intervalSelect(c *ui.Context, value *int64, busy bool) {
 	}
 	sel := ui.SelectBase(c, value)
 	sel.Trigger.FillWidth().Height(px(t, 32)).Gap(t.Space(2)).PaddingX(t.Space(2.5)).Radius(t.Radius).
-		Border(1, t.Border).Background(t.Surface).Label(s.text.Every).Disabled(busy)
+		Background(t.Surface).Label(s.text.Every).Disabled(busy)
+	fieldEdge(c, sel.Trigger)
 	if sel.Trigger.Focused() {
-		sel.Trigger.BorderColor(t.Accent).Background(t.Background).Shadow(0, 0, 0, 3, t.Focus)
+		sel.Trigger.Border(0, ui.Color{}).Background(theme.RaisedFill(t)).Shadow(0, 0, 0, 2, t.Focus)
 	} else if sel.Trigger.Hovered() {
 		sel.Trigger.Background(t.SurfaceHover)
 	}
@@ -1044,19 +1082,17 @@ func (s *Screen) intervalSelect(c *ui.Context, value *int64, busy bool) {
 		ui.Icon(c, icons.ChevronDown).FontSize(px(t, 14)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(px(t, 160)).Radius(t.Radius).Background(t.Background).
-			Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.18))
+		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(px(t, 160)).Radius(10).Background(theme.RaisedFill(t))
+		sheet(c, panel, 8, 24)
 		for _, v := range options {
-			item := sel.Item(v).FillWidth().Height(px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(5)
-			color := t.Text
+			item := sel.Item(v).FillWidth().Height(px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(6)
 			if item.Highlighted() {
-				item.Background(t.Accent)
-				color = t.AccentText
+				item.Background(theme.Chosen(t))
 			}
 			item.Children(func() {
-				ui.Text(c, s.every(v)).Grow(1).NoWrap().TextColor(color)
+				ui.Text(c, s.every(v)).Grow(1).NoWrap().TextColor(t.Text)
 				if v == *value {
-					ui.Icon(c, icons.Check).FontSize(px(t, 14)).TextColor(color)
+					ui.Icon(c, icons.Check).FontSize(px(t, 14)).TextColor(t.Accent)
 				}
 			})
 		}
@@ -1217,7 +1253,7 @@ func (s *Screen) aiGroup(c *ui.Context) {
 			area := ui.TextArea(c, &e.prompts[i]).FillWidth().Lines(3, 8).Font("monospace").FontSize(px(t, 12.5)).
 				Label(text).Placeholder(s.text.PromptPlaceholder).Disabled(e.busy)
 			if area.Focused() {
-				area.Background(t.Background)
+				area.Background(theme.RaisedFill(t))
 			}
 		})
 	}
@@ -1230,7 +1266,7 @@ func (s *Screen) muteField(c *ui.Context) {
 		area := ui.TextArea(c, &s.edit.mute).FillWidth().Lines(3, 6).Label(s.text.Mute).Description(s.text.MuteHelp).
 			Disabled(s.edit.busy)
 		if area.Focused() {
-			area.Background(t.Background)
+			area.Background(theme.RaisedFill(t))
 		}
 		help(c, s.text.MuteHelp)
 	})

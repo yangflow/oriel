@@ -80,15 +80,16 @@ func (p Preferences) Dark(system bool) bool {
 	return system
 }
 
-// Scale is the factor of an article's sizes: 1 for the medium text size, whose body is 15.
+// Scale is the factor of an article's sizes: 1 for the medium text size, whose body is 16. The bodies of the four
+// sizes are 14.9, 16, 18.1 and 20.3 in every language.
 func (p Preferences) Scale() float64 {
 	switch p.ReadingSize {
 	case SizeSmall:
-		return 14.0 / 15
+		return 14.9 / 16
 	case SizeLarge:
-		return 17.0 / 15
+		return 18.1 / 16
 	case SizeXLarge:
-		return 19.0 / 15
+		return 20.3 / 16
 	}
 	return 1
 }
@@ -103,9 +104,9 @@ func (p Preferences) Leading(han bool) float64 {
 		i = 2
 	}
 	if han {
-		return [...]float64{1.7, 1.85, 2.05}[i]
+		return [...]float64{1.7, 1.85, 2.0}[i]
 	}
-	return [...]float64{1.5, 1.65, 1.85}[i]
+	return [...]float64{1.55, 1.7, 1.85}[i]
 }
 
 // Load reads the preferences. A missing or unreadable file gives the defaults, and so does any value it does not

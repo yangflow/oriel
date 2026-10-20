@@ -928,18 +928,6 @@ func (s *Screen) forget() {
 // px converts a size of the mockup, drawn at a 13 px font, to the theme's text size.
 func px(t *ui.Theme, v float32) float32 { return t.Rem(v / 13) }
 
-func kindColor(t *ui.Theme, kind string) ui.Color {
-	switch kind {
-	case "video":
-		return t.Danger
-	case "social":
-		return t.Warning
-	case "image":
-		return t.Success
-	}
-	return t.Accent
-}
-
 func kindIcon(kind string) *ui.SVG {
 	switch kind {
 	case "article":
@@ -1120,8 +1108,8 @@ func (s *Screen) keySheet(c *ui.Context) {
 		{s.text.KeyKeys, one("?")}}
 	ui.DialogBase(c, &s.keys, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Padding(t.Space(4))
-		panel.Column().Width(min(px(t, 560), width-t.Space(8))).MaxHeight(height-t.Space(8)).Radius(12).
-			Background(t.Background).Border(1, t.Border).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.25)).
+		panel.Column().Width(min(px(t, 560), width-t.Space(8))).MaxHeight(height-t.Space(8)).Radius(px(t, 14)).
+			Background(theme.RaisedFill(t)).Border(0.5, theme.LineStrong(t)).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.25)).
 			Label(s.text.KeysTitle)
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Padding(t.Space(4), t.Space(4), t.Space(2), t.Space(5)).
 			Children(func() {
@@ -1171,7 +1159,7 @@ func (s *Screen) keyGroup(c *ui.Context, name string, rows []key) {
 					}
 					for _, k := range keys {
 						ui.Box(c).MinWidth(px(t, 22)).Height(px(t, 22)).PaddingX(px(t, 6)).Center().Radius(6).
-							Background(t.Surface).Border(1, t.Border).Children(func() {
+							Background(theme.Track(t)).Border(0.5, theme.LineStrong(t)).Children(func() {
 							ui.Text(c, k).FontSize(px(t, 11.5)).NoWrap()
 						})
 					}
@@ -1181,14 +1169,24 @@ func (s *Screen) keyGroup(c *ui.Context, name string, rows []key) {
 	}
 }
 
-func (s *Screen) sidebar(c *ui.Context, compact bool) {
-	t := c.Theme()
-	width := px(t, 212)
+// sideWidth is the width of the sidebar, in units of the main theme.
+func sideWidth(t *ui.Theme, compact bool) float32 {
 	if compact {
-		width = px(t, 184)
+		return px(t, 184)
 	}
-	pane := ui.Column(c).Width(width).Margin(8, 0, 8, 8).Radius(16)
-	theme.Pane(c, pane).Children(func() {
+	return px(t, 216)
+}
+
+// sidebar is the ink pane. It is drawn with the pane's own theme, set before its elements are created and put back
+// after, so every role in it (text, hover and chosen fills, the accent) is the pane's.
+func (s *Screen) sidebar(c *ui.Context, compact bool) {
+	main := c.Theme()
+	pane := ui.Column(c).Width(sideWidth(main, compact)).Margin(8, 0, 8, 8)
+	theme.Pane(c, pane)
+	c.SetTheme(theme.PaneTheme(main))
+	defer c.SetTheme(main)
+	pane.Children(func() {
+		t := c.Theme()
 		// The first 40 are the window buttons' and drag the window.
 		ui.Box(c).FillWidth().Height(40).DragWindow()
 		s.tabs(c)
@@ -1202,7 +1200,7 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 			}
 		}
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-			ui.Column(c).FillWidth().Padding(t.Space(2)).Label(s.text.Sources).Children(func() {
+			ui.Column(c).FillWidth().Padding(px(t, 4), px(t, 8), px(t, 6)).Label(s.text.Sources).Children(func() {
 				s.section(c)
 				for _, src := range list {
 					s.sourceItem(c, src)
@@ -1214,25 +1212,27 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 }
 
 // tabs are the kinds at the top of the sidebar, a list of an icon, a name and the unread count each; the arrow keys
-// move between them.
+// move between them. Names are Text2, the chosen one Text in weight 500; counts are TextMuted and step to Text2 under
+// the pointer and when chosen; the icon is TextMuted, Text2 under the pointer and the Accent when chosen.
 func (s *Screen) tabs(c *ui.Context) {
 	t := c.Theme()
 	before := s.tab
 	seg := ui.SegmentedBase(c, &s.tab, len(kinds))
-	seg.Track.Column().FillWidth().Gap(1).Padding(t.Space(2), t.Space(2), t.Space(1.5), t.Space(2)).Label(s.text.Kinds).
+	seg.Track.Column().FillWidth().Gap(px(t, 1)).Padding(0, px(t, 8), px(t, 8)).Label(s.text.Kinds).
 		Children(func() {
 			for i, kind := range kinds {
 				name := s.kindName(kind)
 				on := i == s.tab
-				tab := seg.Segment(i).FillWidth().Height(px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).
-					Radius(t.Space(1.5)).Label(name)
+				tab := seg.Segment(i).FillWidth().Height(px(t, 30)).Gap(px(t, 10)).PaddingX(px(t, 10)).
+					Radius(px(t, 8)).Label(name)
 				icon, count := t.TextMuted, t.TextMuted
 				switch {
 				case on:
 					tab.Background(theme.Chosen(t))
-					icon, count = t.Accent, t.Accent
+					icon, count = t.Accent, theme.Text2(t)
 				case tab.Hovered():
 					tab.Background(t.SurfaceHover)
+					icon, count = theme.Text2(t), theme.Text2(t)
 				}
 				theme.Fade(tab)
 				n := s.unreadIn(scope{kind: kind})
@@ -1241,9 +1241,9 @@ func (s *Screen) tabs(c *ui.Context) {
 				}
 				tab.Children(func() {
 					ui.Icon(c, kindIcon(kind)).FontSize(px(t, 16)).TextColor(icon)
-					label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(t.Text)
+					label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(theme.Text2(t))
 					if on {
-						label.FontWeight(500)
+						label.TextColor(t.Text).FontWeight(500)
 					}
 					if n > 0 {
 						ui.Text(c, strconv.Itoa(n)).FontSize(px(t, 11)).FontWeight(500).FontFeatures("tnum").
@@ -1268,11 +1268,15 @@ func (s *Screen) section(c *ui.Context) {
 	if s.scope.kind != "" {
 		name = s.kindName(s.scope.kind)
 	}
-	ui.Row(c).FillWidth().Height(px(t, 22)).AlignItems(ui.Center).Margin(t.Space(1.5), 0, t.Space(1), t.Space(2)).
+	size, tracking := px(t, 11), px(t, 11)*0.04
+	if theme.Han(name) {
+		size, tracking = px(t, 12), px(t, 12)*0.02
+	}
+	ui.Row(c).FillWidth().Height(px(t, 22)).AlignItems(ui.Center).Margin(px(t, 14), 0, px(t, 4), px(t, 10)).
 		Children(func() {
-			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(px(t, 11)).FontWeight(600).
-				TextColor(t.TextMuted)
-			b := ui.ButtonBase(c).Size(px(t, 22), px(t, 22)).Radius(t.Space(1.5)).Label(s.text.AddSource).
+			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(size).FontWeight(500).
+				LetterSpacing(tracking).TextColor(t.TextMuted)
+			b := ui.ButtonBase(c).Size(px(t, 22), px(t, 22)).Radius(px(t, 8)).Label(s.text.AddSource).
 				Tooltip(s.text.AddSource)
 			color := t.TextMuted
 			if b.Hovered() {
@@ -1290,26 +1294,30 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 	t := c.Theme()
 	chosen := s.scope.source == src.ID
 	name := subscriptions.Name(src)
-	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).
-		Radius(t.Space(1.5)).Label(name).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
+	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(px(t, 30)).Gap(px(t, 10)).PaddingX(px(t, 10)).
+		Radius(px(t, 8)).Label(name).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
 	count := t.TextMuted
 	switch {
 	case chosen:
 		item.Background(theme.Chosen(t))
-		count = t.Accent
+		count = theme.Text2(t)
+	case item.Pressed():
+		item.Background(t.SurfacePressed)
+		count = theme.Text2(t)
 	case item.Hovered():
 		item.Background(t.SurfaceHover)
+		count = theme.Text2(t)
 	}
 	theme.Fade(item)
 	item.Children(func() {
-		s.glyph(c, src.Kind, name, src.IconURL)
-		color := t.Text
+		s.glyph(c, name, src.IconURL, 18)
+		color := theme.Text2(t)
 		if src.Paused {
 			color = t.TextMuted
 		}
 		label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(color)
 		if chosen {
-			label.FontWeight(500)
+			label.TextColor(t.Text).FontWeight(500)
 		}
 		if src.Paused {
 			ui.Box(c).Label(s.text.PausedMark).Tooltip(s.text.PausedMark).Role(ui.RoleImage).Children(func() {
@@ -1330,18 +1338,28 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 	}
 }
 
-// glyph is a subscription's site icon, or its monogram while the icon is not decoded and when it has none.
-func (s *Screen) glyph(c *ui.Context, kind, name, icon string) {
+// glyph is a subscription's site icon, or its monogram while the icon is not decoded and when it has none: a square
+// of size, 18 in the pane and 15 in the meta line, with a 0.5 DIP inset rim in ink at 20% so a dark icon still reads.
+func (s *Screen) glyph(c *ui.Context, name, icon string, size float32) {
 	t := c.Theme()
 	bitmap := s.bitmap(icon)
 	if bitmap == nil {
-		monogram(c, kind, name)
+		monogram(c, name, size)
 		return
 	}
-	ui.Box(c).Size(px(t, 16), px(t, 16)).Radius(4).Clip().Children(func() {
+	radius := radiusOf(size)
+	ui.Box(c).Size(px(t, size), px(t, size)).Radius(radius).Clip().Children(func() {
 		ui.Image(c, bitmap).Fit(ui.Cover).Fill()
-		ui.Box(c).Absolute().Fill().Radius(4).Border(1, t.Border)
+		ui.Box(c).Absolute().Fill().Radius(radius).Border(0.5, theme.Ink(t, 0.2))
 	})
+}
+
+// radiusOf is the corner radius of a glyph of size: 5 for the pane's, 4 for the meta line's.
+func radiusOf(size float32) float32 {
+	if size > 16 {
+		return 5
+	}
+	return 4
 }
 
 // iconOf returns the site icon of the subscription id, "" when it has none.
@@ -1354,15 +1372,19 @@ func (s *Screen) iconOf(id int64) string {
 	return ""
 }
 
-func monogram(c *ui.Context, kind, name string) {
+// monogram is the first letter of a subscription on a Track tile, in Text2, whatever its kind.
+func monogram(c *ui.Context, name string, size float32) {
 	t := c.Theme()
 	letter := "·"
 	if r, _ := utf8.DecodeRuneInString(strings.TrimLeft(name, "@#· ")); r != utf8.RuneError {
 		letter = strings.ToUpper(string(r))
 	}
-	color := kindColor(t, kind)
-	ui.Box(c).Size(px(t, 16), px(t, 16)).Radius(4).Center().Background(theme.Soft(t, color)).Children(func() {
-		ui.Text(c, letter).FontSize(px(t, 10)).FontWeight(600).TextColor(color)
+	font := px(t, 10.5)
+	if size <= 16 {
+		font = px(t, 9)
+	}
+	ui.Box(c).Size(px(t, size), px(t, size)).Radius(radiusOf(size)).Center().Background(theme.Track(t)).Children(func() {
+		ui.Text(c, letter).FontSize(font).FontWeight(600).TextColor(theme.Text2(t))
 	})
 }
 
@@ -1373,22 +1395,23 @@ func (s *Screen) serverBar(c *ui.Context) {
 		name, icon = s.server, icons.Server
 	}
 	// Inset like the rows above it, so its hover fill is a rounded row inside the pane, clear of its corner.
-	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Padding(0, px(t, 6), 0, t.Space(2)).Children(func() {
-		bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(px(t, 28)).Gap(t.Space(2)).Padding(0, px(t, 10), 0, t.Space(2)).
-			Radius(t.Space(1.5)).Label(strings.ReplaceAll(s.text.Server, "{server}", name))
+	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Padding(0, px(t, 6), 0, px(t, 8)).Children(func() {
+		bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(px(t, 30)).Gap(px(t, 8)).PaddingX(px(t, 10)).
+			Radius(px(t, 8)).Label(strings.ReplaceAll(s.text.Server, "{server}", name))
 		if bar.Hovered() {
 			bar.Background(t.SurfaceHover)
 		}
 		theme.Fade(bar)
 		bar.Children(func() {
 			ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(t.TextMuted)
-			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(px(t, 12)).TextColor(t.TextMuted)
+			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(px(t, 12)).LetterSpacing(px(t, 12) * 0.01).
+				TextColor(t.TextMuted)
 			ui.Box(c).Size(6, 6).Radius(3).Background(t.Success)
 		})
 		if bar.Clicked() {
 			s.deps.OpenConnect()
 		}
-		gear := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(t.Space(1.5)).Label(s.text.Settings).
+		gear := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(px(t, 8)).Label(s.text.Settings).
 			Tooltip(s.text.Settings)
 		color := t.TextMuted
 		if gear.Hovered() {
@@ -1406,7 +1429,7 @@ func (s *Screen) toolbar(c *ui.Context, compact bool) {
 	t := c.Theme()
 	bar := c.TitleBar()
 	// Keyed, so the search field keeps its focus when the hint above it in the column comes and goes.
-	ui.Row(c).Key("toolbar").Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(t.Space(2)).
+	ui.Row(c).Key("toolbar").Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(px(t, 10)).
 		Padding(0, t.Space(3)+bar.Right, 0, t.Space(5)).DragWindow().Children(func() {
 		ui.Text(c, s.scopeName()).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(0).Shrink(1).
 			Role(ui.RoleHeading).Level(1)
@@ -1423,7 +1446,7 @@ func (s *Screen) toolbar(c *ui.Context, compact bool) {
 			}
 		}
 		if sub != "" {
-			ui.Text(c, sub).FontSize(px(t, 12)).TextColor(t.TextMuted).NoWrap()
+			ui.Text(c, sub).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
 		}
 		s.editButton(c)
 		ui.Box(c).Grow(1)
@@ -1444,7 +1467,7 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 				name string
 			}{{icons.Inbox, s.text.Everything}, {icons.CircleDot, s.text.Unread}, {icons.Star, s.text.Starred}} {
 				on := i == s.filter
-				b := seg.Segment(i).Height(px(t, 26)).Gap(t.Space(1)).PaddingX(px(t, 10)).Radius(px(t, 13)).
+				b := seg.Segment(i).Height(px(t, 26)).Gap(px(t, 4)).PaddingX(px(t, 11)).Radius(px(t, 13)).
 					Label(item.name).Tooltip(item.name)
 				color := t.TextMuted
 				switch {
@@ -1452,12 +1475,14 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 					theme.Lifted(t, b)
 					color = t.Text
 				case b.Hovered():
+					b.Background(t.SurfaceHover)
 					color = t.Text
 				}
+				theme.Fade(b)
 				b.Children(func() {
 					ui.Icon(c, item.icon).FontSize(px(t, 14)).TextColor(color)
 					if !compact {
-						ui.Text(c, item.name).NoWrap().TextColor(color)
+						ui.Text(c, item.name).FontSize(px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
 					}
 				})
 			}
@@ -1476,9 +1501,20 @@ func (s *Screen) searchField(c *ui.Context, compact bool) {
 		width = px(t, 136)
 	}
 	_, short := s.trimmed()
-	box := ui.Row(c).Width(width).Height(px(t, 32)).Gap(t.Space(1.5)).Padding(0, px(t, 6), 0, px(t, 12)).
+	box := ui.Row(c).Key("search").Width(width).Height(px(t, 32)).Gap(px(t, 6)).Padding(0, px(t, 6), 0, px(t, 12)).
 		Radius(px(t, 16))
-	theme.Capsule(c, box, false)
+	focused := s.typing
+	switch {
+	case c.Preferences().HighContrast:
+		theme.Capsule(c, box, box.Hovered())
+	case focused:
+		box.Background(theme.RaisedFill(t)).Shadow(0, 0, 0, 2, t.Focus)
+	case box.Hovered():
+		box.Background(theme.Ink(t, 0.075))
+	default:
+		box.Background(theme.Ink(t, 0.055))
+	}
+	theme.Fade(box)
 	var input ui.Element
 	cleared := s.clearing
 	s.clearing = false
@@ -1491,7 +1527,7 @@ func (s *Screen) searchField(c *ui.Context, compact bool) {
 		}
 		if s.query != "" {
 			input.OnShortcut(0, ui.KeyEscape, func() { s.clearing = true })
-			clear := ui.ButtonBase(c).Size(px(t, 16), px(t, 16)).Radius(px(t, 8)).Label(s.text.Clear)
+			clear := ui.ButtonBase(c).Size(px(t, 20), px(t, 20)).Radius(px(t, 6)).Label(s.text.Clear)
 			if clear.Hovered() {
 				clear.Background(t.SurfaceHover)
 			}
@@ -1506,11 +1542,8 @@ func (s *Screen) searchField(c *ui.Context, compact bool) {
 		s.searchBox = false
 	}
 	s.typing = input.Focused()
-	switch {
-	case short:
-		box.Border(1.5, t.Warning)
-	case s.typing:
-		box.Shadow(0, 0, 0, 3, t.Focus)
+	if short {
+		box.InsetShadow(0, 0, 0, 1.5, t.Warning)
 	}
 	if cleared {
 		s.query = ""
@@ -1536,17 +1569,27 @@ func (s *Screen) editButton(c *ui.Context) {
 		return
 	}
 	t := c.Theme()
-	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Radius(px(t, 16)).Label(s.text.EditSource).
+	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Radius(px(t, 8)).Label(s.text.EditSource).
 		Tooltip(s.text.EditSource)
-	theme.Capsule(c, b, b.Hovered())
-	color := t.TextMuted
-	if b.Hovered() {
-		color = t.Text
-	}
+	color := toolFill(t, b)
 	b.Children(func() { ui.Icon(c, icons.Pencil).FontSize(px(t, 16)).TextColor(color) })
 	if b.Clicked() {
 		s.subs.Edit(s.sources[i])
 	}
+}
+
+// toolFill fills a bare toolbar button for its state, SurfaceHover under the pointer and SurfacePressed pressed, and
+// returns the color of its icon.
+func toolFill(t *ui.Theme, b ui.Element) ui.Color {
+	switch {
+	case b.Pressed():
+		b.Background(t.SurfacePressed)
+		return t.Text
+	case b.Hovered():
+		b.Background(t.SurfaceHover)
+		return t.Text
+	}
+	return t.TextMuted
 }
 
 // markAllLabel names the button by what it would mark: "Mark all in “Videos” as read".
@@ -1558,13 +1601,10 @@ func (s *Screen) markAllButton(c *ui.Context) {
 	t := c.Theme()
 	can := s.canMarkAll()
 	label := s.markAllLabel()
-	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Radius(px(t, 16)).Label(label).Tooltip(label).Disabled(!can)
-	theme.Capsule(c, b, can && b.Hovered())
-	color := t.TextMuted
-	if !can {
-		color = t.TextMuted.Alpha(0.45)
-	} else if b.Hovered() {
-		color = t.Text
+	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Radius(px(t, 8)).Label(label).Tooltip(label).Disabled(!can)
+	color := theme.Disabled(t)
+	if can {
+		color = toolFill(t, b)
 	}
 	b.Children(func() { ui.Icon(c, icons.CheckCheck).FontSize(px(t, 16)).TextColor(color) })
 	if b.Clicked() {
@@ -1578,11 +1618,11 @@ func (s *Screen) hint(c *ui.Context) {
 	}
 	t := c.Theme()
 	// Under the toolbar row, the content starting below it.
-	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(t.Space(1.5)).Margin(theme.Bar+4, px(t, 12), 4).
-		Padding(px(t, 7), px(t, 14)).Radius(10).Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).
+	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(px(t, 8)).Margin(theme.Bar+4, px(t, 12), 4).
+		Padding(px(t, 7), px(t, 14)).Radius(px(t, 12)).Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).
 		Children(func() {
 			ui.Icon(c, icons.CircleAlert).FontSize(px(t, 14)).TextColor(t.Warning)
-			ui.Text(c, s.text.TooShort).FontSize(px(t, 12)).TextColor(t.Warning)
+			ui.Text(c, s.text.TooShort).FontSize(px(t, 12)).TextColor(theme.Text2(t))
 		})
 }
 
@@ -1657,17 +1697,19 @@ func (s *Screen) skeleton(c *ui.Context) {
 		Padding(s.top()+t.Space(1), t.Space(5), t.Space(1)).
 		Label(s.text.Loading).Role(ui.RoleProgress).Children(func() {
 		for i := range 4 {
-			ui.Row(c).Key(i).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).Padding(t.Space(3.5), t.Space(3), t.Space(3.5), t.Space(5)).
-				Children(func() {
-					ui.Column(c).Grow(1).Gap(t.Space(2)).Children(func() {
-						for _, w := range []float32{0.36, 0.7, 0.92} {
-							ui.Box(c).Width(px(t, 420) * w).Height(px(t, 10)).Radius(5).Background(t.Surface)
-						}
-					})
-					if i%2 == 0 {
-						ui.Box(c).Size(px(t, 96), px(t, 64)).Radius(8).Background(t.Surface)
+			ui.Row(c).Key(i).FillWidth().AlignItems(ui.Start).Gap(px(t, 14)).
+				Padding(px(t, 16), px(t, 16), px(t, 16), px(t, 28)).Children(func() {
+				ui.Column(c).Grow(1).Gap(t.Space(2)).Children(func() {
+					for _, bar := range []struct{ width, height float32 }{{0.36, 10}, {0.7, 14}, {0.92, 10}} {
+						ui.Box(c).Width(px(t, 420) * bar.width).Height(px(t, bar.height)).Radius(5).
+							Background(theme.Track(t))
 					}
 				})
+				if i%2 == 0 {
+					ui.Box(c).Size(px(t, 96), px(t, 64)).Radius(px(t, 8)).Background(theme.Track(t)).
+						Margin(px(t, 24), 0, 0, 0)
+				}
+			})
 		}
 	})
 }
@@ -1676,23 +1718,26 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed b
 	t := c.Theme()
 	ui.Column(c).Fill().Center().Gap(t.Space(3)).Padding(s.top()+t.Space(6), t.Space(6), t.Space(6)).
 		Role(ui.RoleStatus).Children(func() {
-		color := t.Accent
+		fill, color := t.Surface, t.TextMuted
 		if failed {
-			color = t.Danger
+			fill, color = theme.Soft(t, t.Danger), t.Danger
 		}
-		ui.Box(c).Size(t.Space(12), t.Space(12)).Radius(t.Space(3)).Center().Background(theme.Soft(t, color)).
-			Children(func() { ui.Icon(c, icon).FontSize(t.Space(6)).TextColor(color) })
+		ui.Box(c).Size(px(t, 52), px(t, 52)).Radius(px(t, 16)).Center().Background(fill).
+			Children(func() { ui.Icon(c, icon).FontSize(px(t, 24)).TextColor(color) })
 		ui.Text(c, title).FontSize(px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(2)
 		ui.Text(c, hint).MaxWidth(px(t, 300)).TextColor(t.TextMuted).Wrap()
 		if failed {
-			b := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(t.Radius).
-				Border(1, t.Border).Background(t.Background)
-			if b.Hovered() {
-				b.Background(t.SurfaceHover)
+			b := ui.ButtonBase(c).Height(px(t, 32)).Gap(px(t, 6)).PaddingX(px(t, 14)).Radius(px(t, 10)).
+				Background(theme.Track(t))
+			if b.Pressed() {
+				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
+			} else if b.Hovered() {
+				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
 			}
+			theme.Fade(b)
 			b.Children(func() {
 				ui.Icon(c, icons.RefreshCw).FontSize(px(t, 16)).TextColor(t.Text)
-				ui.Text(c, s.text.Retry).NoWrap()
+				ui.Text(c, s.text.Retry).NoWrap().FontWeight(500)
 			})
 			if b.Clicked() {
 				if !s.sourcesLoaded {
@@ -1752,8 +1797,9 @@ func (s *Screen) footer(c *ui.Context) {
 func (s *Screen) hasFooter() bool { return s.more || s.moreErr }
 
 // item is the frame of an entry in any layout: it opens on a click, takes the focus as the keys choose it, and shows
-// its actions while the pointer is on it or it is chosen.
-func (s *Screen) item(c *ui.Context, e ui.Element, i int, now time.Time) (hovered, chosen bool) {
+// its actions while the pointer is on it or it is chosen. It rings the focus when the keyboard is on it, and a card,
+// which has no fill to show the choice, when it is chosen.
+func (s *Screen) item(c *ui.Context, e ui.Element, i int, now time.Time, ringChosen bool) (hovered, chosen bool) {
 	t := c.Theme()
 	entry := s.entries[i]
 	e.Focusable().FocusRing(false).Label(s.label(entry, now))
@@ -1770,7 +1816,7 @@ func (s *Screen) item(c *ui.Context, e ui.Element, i int, now time.Time) (hovere
 	} else if s.hovered == i {
 		s.hovered = -1
 	}
-	if chosen {
+	if e.Focused() || chosen && ringChosen {
 		e.Shadow(0, 0, 0, 2, t.Focus)
 	}
 	if e.Clicked() {
@@ -1782,37 +1828,52 @@ func (s *Screen) item(c *ui.Context, e ui.Element, i int, now time.Time) (hovere
 	return hovered, chosen
 }
 
-func (s *Screen) actions(c *ui.Context, i int, inset float32) {
+// actionFade fades the actions of a row in and out, opacity only.
+var actionFade = ui.ElementTransition{Duration: 120 * time.Millisecond, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
+
+// actions are the bare icons of a row, in its meta line at the right: the row's own meta line has room for them. A
+// card has its meta line at the bottom of the card.
+func (s *Screen) actions(c *ui.Context, i int, card bool) {
 	t := c.Theme()
 	e := s.entries[i]
-	ui.Row(c).Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(inset).Right(inset).Gap(2).Padding(2).Radius(t.Radius).
-		Background(t.Background).Shadow(0, 0, 0, 1, t.Border).Children(func() {
-		star, starIcon, starColor := s.text.Star, icons.Star, t.TextMuted
+	bar := ui.Row(c).Key("actions").Gap(px(t, 1)).Transition(actionFade)
+	if card {
+		bar.Attach(ui.AnchorBottomRight, ui.AnchorBottomRight)
+	} else {
+		bar.Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(px(t, 14)).Right(px(t, 10))
+	}
+	bar.Children(func() {
+		star, starColor := s.text.Star, t.TextMuted
 		if e.Starred {
-			star, starColor = s.text.Unstar, t.Warning
+			star, starColor = s.text.Unstar, theme.Star(t)
 		}
-		if s.action(c, star, starIcon, starColor) {
+		if s.action(c, star, icons.Star, starColor, e.Starred) {
 			s.toggleStar(i)
 		}
-		read, readIcon := s.text.MarkRead, icons.CircleCheckBig
+		read, readIcon := s.text.MarkRead, icons.MailOpen
 		if e.IsRead {
-			read, readIcon = s.text.MarkUnread, icons.CircleDot
+			read, readIcon = s.text.MarkUnread, icons.Mail
 		}
-		if s.action(c, read, readIcon, t.TextMuted) {
+		if s.action(c, read, readIcon, t.TextMuted, false) {
 			s.toggleRead(i)
 		}
-		if s.action(c, s.text.Open, icons.ExternalLink, t.TextMuted) {
+		if s.action(c, s.text.Open, icons.ExternalLink, t.TextMuted, false) {
 			s.browse(c, i)
 		}
 	})
 }
 
-func (s *Screen) action(c *ui.Context, label string, icon *ui.SVG, color ui.Color) bool {
+// action is one bare icon of a row: 27 by 24, SurfacePressed under the pointer and Chosen pressed. A starred one
+// keeps its own color.
+func (s *Screen) action(c *ui.Context, label string, icon *ui.SVG, color ui.Color, keep bool) bool {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Size(px(t, 26), px(t, 26)).Radius(t.Space(1.5)).Label(label).Tooltip(label)
-	if b.Hovered() {
-		b.Background(t.SurfaceHover)
-		if color == t.TextMuted {
+	b := ui.ButtonBase(c).Size(px(t, 27), px(t, 24)).Radius(px(t, 7)).Label(label).Tooltip(label)
+	switch {
+	case b.Pressed():
+		b.Background(theme.Chosen(t))
+	case b.Hovered():
+		b.Background(t.SurfacePressed)
+		if !keep {
 			color = t.Text
 		}
 	}
@@ -1820,21 +1881,28 @@ func (s *Screen) action(c *ui.Context, label string, icon *ui.SVG, color ui.Colo
 	return b.Clicked()
 }
 
-// meta is the line of the source, the time and the star; lead comes first, as the unread dot of a card.
-func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool) {
+// meta is the line of the source, the time and the star, 20 high; right is the room kept at its right for the
+// actions, and lead comes first, as the unread dot of a card. The source is Text2, TextMuted once read.
+func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, right float32, muted ui.Color) {
 	t := c.Theme()
-	ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
-		if lead && !e.IsRead {
-			ui.Box(c).Size(6, 6).Radius(3).Background(t.Accent)
-		}
-		s.glyph(c, e.Kind, e.SourceTitle, s.iconOf(e.SourceID))
-		ui.Text(c, e.SourceTitle).FontSize(px(t, 12)).FontWeight(500).SingleLine().MinWidth(0).Shrink(1)
-		ui.Text(c, "·").FontSize(px(t, 12)).TextColor(t.TextMuted)
-		ui.Text(c, s.when(e, now)).FontSize(px(t, 12)).TextColor(t.TextMuted).NoWrap()
-		if e.Starred {
-			ui.Icon(c, icons.Star).FontSize(px(t, 13)).TextColor(t.Warning)
-		}
-	})
+	source := theme.Text2(t)
+	if e.IsRead {
+		source = muted
+	}
+	ui.Row(c).FillWidth().Height(px(t, 20)).MinWidth(0).AlignItems(ui.Center).Gap(px(t, 6)).Padding(0, right, 0, 0).
+		Children(func() {
+			if lead && !e.IsRead {
+				ui.Box(c).Size(px(t, 7), px(t, 7)).Radius(px(t, 3.5)).Background(t.Accent)
+			}
+			s.glyph(c, e.SourceTitle, s.iconOf(e.SourceID), 15)
+			ui.Text(c, e.SourceTitle).FontSize(px(t, 12)).FontWeight(500).SingleLine().MinWidth(0).Shrink(1).
+				TextColor(source)
+			ui.Text(c, "·").FontSize(px(t, 12)).TextColor(muted).Opacity(0.7)
+			ui.Text(c, s.when(e, now)).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(muted).NoWrap()
+			if e.Starred {
+				ui.Icon(c, icons.Star).FontSize(px(t, 13)).TextColor(theme.Star(t))
+			}
+		})
 }
 
 // marked splits text into spans, the parts matching the search on the warning tint.
@@ -1885,7 +1953,8 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 		n++
 	}
 	ui.List(c, &s.list, n, func(i int) {
-		ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto).PaddingX(t.Space(2)).Children(func() {
+		// The row is 16 wider than the column on each side, so its text lines up with the toolbar's.
+		ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto).PaddingX(px(t, 8)).Children(func() {
 			if i >= len(s.entries) {
 				s.footer(c)
 				return
@@ -1896,69 +1965,93 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 		Label(s.scopeName())
 }
 
+// row is one entry: hover, pressed and chosen are the three steps of one fill, and the chosen row carries the marker.
+// The separator above it and the one above the next go while the row is hovered or chosen, and TextMuted text steps to
+// Text2 on the chosen fill.
 func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	t := c.Theme()
 	e := s.entries[i]
-	r := ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).
-		Padding(t.Space(3.5), t.Space(3), t.Space(3.5), t.Space(5)).Radius(px(t, 10))
-	hovered, chosen := s.item(c, r, i, now)
-	if hovered {
-		r.Background(t.Surface)
+	r := ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(px(t, 14)).
+		Padding(px(t, 16), px(t, 16), px(t, 16), px(t, 28)).Radius(px(t, 12))
+	hovered, chosen := s.item(c, r, i, now, false)
+	muted := t.TextMuted
+	switch {
+	case chosen:
+		r.Background(theme.Chosen(t))
+		muted = theme.Text2(t)
+	case r.Pressed():
+		r.Background(t.SurfacePressed)
+	case hovered:
+		r.Background(t.SurfaceHover)
 	}
 	theme.Fade(r)
 	quiet := hovered || chosen || i > 0 && (s.hovered == i-1 || s.selected == i-1)
 	r.Children(func() {
 		if i > 0 && !quiet {
-			ui.Box(c).Absolute().Top(0).Left(t.Space(5)).Right(t.Space(3)).Height(1).Background(t.Border)
+			ui.Box(c).Absolute().Top(0).Left(px(t, 28)).Right(px(t, 16)).Height(1).Background(t.Border)
+		}
+		if chosen {
+			ui.Box(c).Attach(ui.AnchorLeft, ui.AnchorLeft).Left(8).Size(2.5, 18).Radius(2).
+				Background(theme.Marker(t))
 		}
 		if !e.IsRead {
-			ui.Box(c).Absolute().Left(7).Top(px(t, 21)).Size(6, 6).Radius(3).Background(t.Accent)
+			ui.Box(c).Absolute().Left(px(t, 14)).Top(px(t, 23)).Size(px(t, 7), px(t, 7)).Radius(px(t, 3.5)).
+				Background(t.Accent)
 		}
 		switch e.Kind {
 		case "video":
-			s.videoRow(c, e, now, compact)
+			s.videoRow(c, e, now, compact, muted)
 		case "social":
-			s.socialRow(c, e, now)
+			s.socialRow(c, e, now, muted)
 		case "image":
-			s.imageRow(c, e, now)
+			s.imageRow(c, e, now, muted)
 		default:
-			s.articleRow(c, e, now)
+			s.articleRow(c, e, now, muted)
 		}
-		if hovered || chosen {
-			s.actions(c, i, t.Space(2.5))
+		if hovered || chosen || r.Focused() {
+			s.actions(c, i, false)
 		}
 	})
 }
 
-func (s *Screen) titleText(c *ui.Context, e client.Entry, size float32) ui.Element {
+// titleText is a title in 15 (13 in a card) semibold; read, it is TextMuted in weight 500.
+func (s *Screen) titleText(c *ui.Context, e client.Entry, size float32, muted ui.Color) ui.Element {
 	t := c.Theme()
 	color, weight := t.Text, 600
 	if e.IsRead {
-		color, weight = t.TextMuted, 500
+		color, weight = muted, 500
 	}
 	text := ui.RichText(c, s.marked(c, title(e), color)...).FontSize(px(t, size)).FontWeight(weight).Wrap()
-	if theme.Han(title(e)) {
-		text.LineHeight(1.45)
+	line, tracking := float32(1.35), -px(t, size)*0.005
+	if size < 14 {
+		line = 1.4
 	}
-	return text
+	if theme.Han(title(e)) {
+		line, tracking = 1.5, 0
+	}
+	return text.LineHeight(line).LetterSpacing(tracking)
 }
 
-func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time) {
+func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
-	ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-		s.meta(c, e, now, false)
-		s.titleText(c, e, 14.5)
+	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
+		s.meta(c, e, now, false, px(t, 88), muted)
+		s.titleText(c, e, 15, muted)
 		if summary := strings.Join(strings.Fields(e.Summary), " "); summary != "" {
-			text := ui.RichText(c, s.marked(c, summary, t.TextMuted)...).MaxLines(2)
+			color := theme.Text2(t)
+			if e.IsRead {
+				color = muted
+			}
+			text := ui.RichText(c, s.marked(c, summary, color)...).FontSize(px(t, 13)).MaxLines(2).LineHeight(1.5)
 			if theme.Han(summary) {
-				text.LineHeight(1.6)
+				text.LineHeight(1.7)
 			}
 		}
 	})
 	if e.ThumbnailURL != "" {
-		// As high as the text beside it, at most 64, so a short row stays short.
-		s.picture(c, e.ThumbnailURL, true, nil).Width(px(t, 96)).AlignSelf(ui.Stretch).MinHeight(px(t, 48)).
-			MaxHeight(px(t, 64)).Radius(8)
+		// Under the meta line, so the row's actions never cover it, and never taller than the text: it starts 24 down.
+		s.picture(c, e.ThumbnailURL, true, px(t, 8), nil).Size(px(t, 96), px(t, 64)).AlignSelf(ui.Start).
+			Margin(px(t, 24), 0, 0, 0)
 	}
 }
 
@@ -1968,74 +2061,81 @@ func (s *Screen) cover(c *ui.Context, e client.Entry, load, play bool) ui.Elemen
 	if e.DurationSec > 0 {
 		label = strings.ReplaceAll(s.text.Duration, "{d}", duration(e.DurationSec))
 	}
-	return s.picture(c, e.ThumbnailURL, load, func() {
+	return s.picture(c, e.ThumbnailURL, load, px(t, 10), func() {
 		if play {
 			ui.Box(c).Attach(ui.AnchorCenter, ui.AnchorCenter).Size(36, 36).Radius(18).Center().
-				Background(ui.RGBA(0, 0, 0, 0.45)).Children(func() {
+				Background(ui.RGBA(28, 24, 18, 0.4)).Children(func() {
 				ui.Icon(c, icons.Play).FontSize(16).TextColor(ui.Hex("#ffffff")).Margin(0, 0, 0, 2)
 			})
 		}
 		if e.DurationSec > 0 {
 			ui.Text(c, duration(e.DurationSec)).Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).Right(6).Bottom(6).
-				Padding(1, 5).Radius(4).Background(ui.RGBA(0, 0, 0, 0.72)).FontSize(px(t, 11)).FontWeight(600).
-				TextColor(ui.Hex("#ffffff"))
+				Padding(1, 6).Radius(5).Background(ui.RGBA(28, 24, 18, 0.62)).FontSize(px(t, 11)).FontWeight(500).
+				FontFeatures("tnum").TextColor(ui.Hex("#ffffff"))
 		}
-	}).AspectRatio(16.0 / 9).Radius(8).Label(label).Role(ui.RoleImage)
+	}).AspectRatio(16.0 / 9).Label(label).Role(ui.RoleImage)
 }
 
-func (s *Screen) videoRow(c *ui.Context, e client.Entry, now time.Time, compact bool) {
+func (s *Screen) videoRow(c *ui.Context, e client.Entry, now time.Time, compact bool, muted ui.Color) {
 	t := c.Theme()
 	width := px(t, 184)
 	if compact {
 		width = px(t, 136)
 	}
-	s.cover(c, e, true, true).Width(width)
-	ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-		s.meta(c, e, now, false)
-		s.titleText(c, e, 14.5)
+	s.cover(c, e, true, true).Width(width).Margin(px(t, 24), 0, 0, 0).AlignSelf(ui.Start)
+	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
+		s.meta(c, e, now, false, px(t, 88), muted)
+		s.titleText(c, e, 15, muted)
 		if e.Platform != "" {
-			ui.Row(c).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
-				ui.Icon(c, icons.Play).FontSize(px(t, 13)).TextColor(t.TextMuted)
-				ui.Text(c, e.Platform).FontSize(px(t, 12)).TextColor(t.TextMuted)
+			ui.Row(c).AlignItems(ui.Center).Gap(px(t, 6)).Children(func() {
+				ui.Icon(c, icons.Play).FontSize(px(t, 13)).TextColor(muted)
+				ui.Text(c, e.Platform).FontSize(px(t, 12)).TextColor(muted)
 			})
 		}
 	})
 }
 
-func (s *Screen) socialRow(c *ui.Context, e client.Entry, now time.Time) {
+func (s *Screen) socialRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
-	color := t.Text
+	color, author := t.Text, t.Text
 	if e.IsRead {
-		color = t.TextMuted
+		color, author = muted, theme.Text2(t)
 	}
-	ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-		s.meta(c, e, now, false)
+	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
+		s.meta(c, e, now, false, px(t, 88), muted)
 		if e.Author != "" || e.Platform != "" {
-			ui.RichText(c, ui.Span{Text: e.Author, Weight: 600}, ui.Span{Text: " " + e.Platform, Color: t.TextMuted}).
-				SingleLine()
+			ui.RichText(c, ui.Span{Text: e.Author, Weight: 500, Color: author},
+				ui.Span{Text: " " + e.Platform, Color: muted}).FontSize(px(t, 13)).SingleLine()
 		}
 		text := strings.TrimSpace(e.Summary)
 		if text == "" {
 			text = e.Title
 		}
-		ui.RichText(c, s.marked(c, text, color)...).MaxLines(6).Wrap()
+		body := ui.RichText(c, s.marked(c, text, color)...).FontSize(px(t, 13)).MaxLines(6).Wrap().LineHeight(1.55)
+		if theme.Han(text) {
+			body.LineHeight(1.7)
+		}
 		s.gallery(c, e)
 	})
 }
 
-// gallery is the grid of the pictures of a post: up to four, the last of them saying how many more there are.
+// gallery is the grid of the pictures of a post, never taller than one row of them: one picture keeps its shape, two
+// sit side by side, and three or more are the first three as squares, the third saying how many more there are.
 func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 	n := len(e.Images)
 	if n == 0 {
 		return
 	}
 	t := c.Theme()
-	shown := min(n, 4)
-	grid := ui.Grid(c).Columns(min(shown, 2)).Gap(4).Radius(px(t, 10)).Clip().Margin(t.Space(1.5), 0, 0, 0).
+	shown := min(n, 3)
+	grid := ui.Grid(c).Columns(shown).Gap(4).Radius(px(t, 12)).Clip().Margin(px(t, 8), 0, 0, 0).
 		Label(s.format(s.text.Pictures, n)).Role(ui.RoleImage)
-	if s.scope.kind == "social" {
+	switch {
+	case shown == 1:
+		grid.MaxWidth(px(t, 384))
+	case s.scope.kind == "social":
 		grid.MaxWidth(px(t, 520))
-	} else {
+	default:
 		grid.MaxWidth(px(t, 440))
 	}
 	grid.Children(func() {
@@ -2044,33 +2144,33 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 			if k == shown-1 && n > shown {
 				more := s.format(s.text.MorePictures, n-shown)
 				over = func() {
-					ui.Box(c).Fill().Absolute().Center().Background(ui.RGBA(0, 0, 0, 0.45)).Label(more).Children(func() {
-						ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(px(t, 15)).FontWeight(600).
-							TextColor(ui.Hex("#ffffff"))
+					ui.Box(c).Fill().Absolute().Center().Background(ui.RGBA(28, 24, 18, 0.5)).Label(more).Children(func() {
+						ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(px(t, 17)).FontWeight(600).
+							FontFeatures("tnum").TextColor(ui.Hex("#ffffff"))
 					})
 				}
 			}
-			p := s.picture(c, img.URL, true, over).Key(k)
-			switch {
-			case shown == 1:
-				p.AspectRatio(16.0 / 10)
-			case shown == 3 && k == 2:
-				p.ColumnSpan(2).AspectRatio(8.0 / 3)
-			default:
+			p := s.picture(c, img.URL, true, 0, over).Key(k)
+			switch shown {
+			case 1:
+				p.AspectRatio(16.0 / 10).MaxHeight(px(t, 240))
+			case 2:
 				p.AspectRatio(4.0 / 3)
+			default:
+				p.AspectRatio(1)
 			}
 		}
 	})
 }
 
-func (s *Screen) imageRow(c *ui.Context, e client.Entry, now time.Time) {
+func (s *Screen) imageRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
-	ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
-		s.meta(c, e, now, false)
-		s.titleText(c, e, 14.5)
+	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
+		s.meta(c, e, now, false, px(t, 88), muted)
+		s.titleText(c, e, 15, muted)
 		if address := firstPicture(e); address != "" {
-			s.picture(c, address, true, nil).FillWidth().AspectRatio(1.5).MaxHeight(px(t, 340)).Radius(px(t, 10)).
-				Margin(t.Space(1.5), 0, 0, 0)
+			s.picture(c, address, true, px(t, 12), nil).FillWidth().AspectRatio(1.5).MaxHeight(px(t, 320)).
+				Margin(px(t, 8), 0, 0, 0)
 		}
 	})
 }
@@ -2090,9 +2190,9 @@ func aspect(e client.Entry) float32 {
 	return 4.0 / 3
 }
 
-// picture is a picture on the Surface color, which shows until it loads or when it fails; load false leaves it
-// unasked, for those far from the view. over draws on it.
-func (s *Screen) picture(c *ui.Context, address string, load bool, over func()) ui.Element {
+// picture is a picture on the Track color, which shows until it loads or when it fails, with a hairline outline of
+// ink over it; load false leaves it unasked, for those far from the view. over draws on it.
+func (s *Screen) picture(c *ui.Context, address string, load bool, radius float32, over func()) ui.Element {
 	t := c.Theme()
 	var bitmap *ui.Bitmap
 	if load {
@@ -2100,13 +2200,14 @@ func (s *Screen) picture(c *ui.Context, address string, load bool, over func()) 
 	} else if p := s.pictures[address]; p != nil {
 		bitmap = p.bitmap
 	}
-	return ui.Box(c).Background(t.Surface).Clip().Children(func() {
+	return ui.Box(c).Background(theme.Track(t)).Radius(radius).Clip().Children(func() {
 		if bitmap != nil {
 			ui.Image(c, bitmap).Fit(ui.Cover).Fill()
 		}
 		if over != nil {
 			over()
 		}
+		ui.Box(c).Fill().Absolute().Radius(radius).PassThrough().Border(0.5, theme.Ink(t, 0.10))
 	})
 }
 
@@ -2115,11 +2216,7 @@ func (s *Screen) picture(c *ui.Context, address string, load bool, over func()) 
 func columns(c *ui.Context, compact bool, minWidth, gap, most float32) (int, float32) {
 	t := c.Theme()
 	width, _ := c.Size()
-	side := px(t, 212)
-	if compact {
-		side = px(t, 184)
-	}
-	width -= side + 1 + 2*t.Space(5)
+	width -= sideWidth(t, compact) + 8 + 2*px(t, 24)
 	n := max(1, int((width+gap)/(minWidth+gap)))
 	if most > 0 {
 		n = min(n, int(most))
@@ -2140,17 +2237,17 @@ func (s *Screen) videoGrid(c *ui.Context, now time.Time, compact bool) {
 	height := cell*9/16 + px(t, 13.5)*2.9 + px(t, 18) + t.Space(3) + px(t, 20)
 	ui.GridView(c, &s.grid, len(s.entries), px(t, 200), height, func(i int) {
 		e := s.entries[i]
-		card := ui.Column(c).Fill().Gap(t.Space(1.5)).Radius(8)
-		hovered, chosen := s.item(c, card, i, now)
+		card := ui.Column(c).Fill().Gap(px(t, 8)).Radius(px(t, 10))
+		hovered, chosen := s.item(c, card, i, now, true)
 		card.Children(func() {
 			s.cover(c, e, true, hovered).FillWidth()
-			s.titleText(c, e, 13.5).MaxLines(2)
-			s.meta(c, e, now, true)
-			if hovered || chosen {
-				s.actions(c, i, t.Space(2))
+			s.titleText(c, e, 13, t.TextMuted).MaxLines(2)
+			s.meta(c, e, now, true, 0, t.TextMuted)
+			if hovered || chosen || card.Focused() {
+				s.actions(c, i, true)
 			}
 		})
-	}).Grow(1).FillWidth().Gap(gap).Padding(s.top()+t.Space(4), t.Space(5), t.Space(6), t.Space(5)).
+	}).Grow(1).FillWidth().Gap(gap).Padding(s.top()+t.Space(4), px(t, 24), t.Space(6), px(t, 24)).
 		ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName())
 	if s.hasFooter() {
 		s.footer(c)
@@ -2163,7 +2260,7 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 	if s.toTop {
 		s.wall.Y = 0
 	}
-	gap := px(t, 12)
+	gap := px(t, 14)
 	n, width := columns(c, compact, px(t, 170), gap, 3)
 	_, viewHeight := c.Size()
 	caption := px(t, 12.5)*1.45 + px(t, 18) + 2*t.Space(1) + t.Space(4)
@@ -2184,7 +2281,7 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 	top := s.top() + t.Space(4)
 	ui.Scroll(c).TrackScroll(&s.wall).Grow(1).FillWidth().ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName()).
 		Children(func() {
-			ui.Row(c).FillWidth().Gap(gap).Padding(top, t.Space(5), t.Space(6), t.Space(5)).
+			ui.Row(c).FillWidth().Gap(gap).Padding(top, px(t, 24), t.Space(6), px(t, 24)).
 				AlignItems(ui.Start).Children(func() {
 				for k := range cols {
 					ui.Column(c).Key(k).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(4)).Children(func() {
@@ -2207,18 +2304,18 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 func (s *Screen) tile(c *ui.Context, i int, now time.Time, near bool) {
 	t := c.Theme()
 	e := s.entries[i]
-	tile := ui.Column(c).Key(e.ID).FillWidth().Gap(t.Space(1)).Radius(8)
-	hovered, chosen := s.item(c, tile, i, now)
+	tile := ui.Column(c).Key(e.ID).FillWidth().Gap(px(t, 6)).Radius(px(t, 10))
+	hovered, chosen := s.item(c, tile, i, now, true)
 	tile.Children(func() {
-		s.picture(c, firstPicture(e), near, nil).FillWidth().AspectRatio(aspect(e)).Radius(8)
+		s.picture(c, firstPicture(e), near, px(t, 10), nil).FillWidth().AspectRatio(aspect(e))
 		color := t.Text
 		if e.IsRead {
 			color = t.TextMuted
 		}
 		ui.Text(c, title(e)).FontSize(px(t, 12.5)).FontWeight(500).SingleLine().TextColor(color)
-		s.meta(c, e, now, true)
-		if hovered || chosen {
-			s.actions(c, i, t.Space(2))
+		s.meta(c, e, now, true, 0, t.TextMuted)
+		if hovered || chosen || tile.Focused() {
+			s.actions(c, i, true)
 		}
 	})
 }

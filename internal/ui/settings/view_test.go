@@ -16,6 +16,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/prefs"
+	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
 var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
@@ -882,5 +883,34 @@ func TestAppearancePreferenceFailed(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText(s.text.PreferenceFailed) {
 		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+// TestPalettes draws every group under Oriel's theme in light, dark and with high contrast: the pane's own theme
+// must not leak into the page, so every group's texts are still there.
+func TestPalettes(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, high := range []bool{false, true} {
+			s, f, _ := setup(t, "en", true)
+			p := prefs.Default()
+			p.Theme = prefs.ThemeLight
+			if dark {
+				p.Theme = prefs.ThemeDark
+			}
+			f.prefs = p
+			tt := ui.NewTester(func(c *ui.Context) {
+				theme.Apply(c, f.prefs)
+				s.View(c)
+			}, 1000, 760)
+			tt.SetPreferences(ui.Preferences{HighContrast: high})
+			for g := range 5 {
+				s.group = g
+				tt.Frame()
+				f.settle(tt)
+				if !tt.HasText(s.groupName(g)) || !tt.HasText(s.text.BackTimeline) {
+					t.Errorf("dark %v high %v group %d: %v", dark, high, g, tt.Texts())
+				}
+			}
+		}
 	}
 }

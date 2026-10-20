@@ -7,8 +7,8 @@ desktop app and, with `oriel serve`, a headless server; only the desktop app has
 through the HTTP API.
 
 The UI is built on the native toolkit of [MyGo](https://github.com/egoist/mygo). This document summarizes the parts
-of its [UI guides](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/README.md) that matter for design; the guides
-stay the authority on API details. Links point to MyGo v0.4.1, the version pinned in `go.mod`. When the pin moves,
+of its [UI guides](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/README.md) that matter for design; the guides
+stay the authority on API details. Links point to MyGo v0.5.5, the version pinned in `go.mod`. When the pin moves,
 check the pages again and update the links and this document together.
 
 Five screens are built: the connect screen in `internal/ui/connect/` (mockup `design/screens/connect.html`), which
@@ -34,34 +34,37 @@ Related files: [design/README.md](../design/README.md) (mockups and how a UI cha
 9. [Motion](#motion)
 10. [Localization](#localization)
 11. [Design acceptance checklist](#design-acceptance-checklist)
-12. [References](#references)
+12. [Polish checklist](#polish-checklist)
+13. [References](#references)
 
 ## Principles
 
 - **Native first.** Use MyGo's native widgets and the theme defaults as they are, and follow the system's light and
   dark appearance (unless the user chose one in Settings, Appearance) and its text size. A control that looks and behaves like the platform's is learned already. Style
   an element yourself only when no widget does the job, and build it on the
-  [custom widget](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/custom-widgets.md) bases so focus, keyboard and
+  [custom widget](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/custom-widgets.md) bases so focus, keyboard and
   accessibility stay intact. No WebView and no HTML frontend.
 - **Consistent across platforms, respectful of each.** One view serves macOS, Windows and Linux. Follow each
   platform's conventions where MyGo exposes them: menu roles, the accent color, the system font, shortcuts that use
   `CmdOrCtrl`. Do not add chrome that imitates one platform on the others.
 - **Content first.** Oriel is for reading. The timeline and the reader give the room to titles, text and images;
-  controls stay quiet and secondary until they are needed.
+  controls stay quiet and secondary until they are needed. An ink pane for the sidebar, paper for the content, one
+  accent, and fewer lines, fills and sizes than the toolkit's defaults.
 - **Accessible by default.** Every element can be reached with the keyboard, named for a screen reader, read in both
   appearances, and still works at larger text sizes. See the [checklist](#accessibility-checklist).
-- **Almost no custom motion.** State changes take effect at once; only hover and chosen fills fade. See [Motion](#motion).
+- **Almost no custom motion.** State changes take effect at once; only state fills, text color and the row actions
+  fade, in color and opacity, never longer than 200 ms. See [Motion](#motion).
 - **Meaning is never carried by color alone.** Say it in words; pair color with text, a symbol or a shape.
 - **The UI thread draws.** A frame is built from in-memory state. No disk, network or other blocking work in a view,
   including calls to Oriel's own HTTP API and decoding images; start that work in the background and change the state
-  back on the UI thread (see [Views](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/views.md)).
+  back on the UI thread (see [Views](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/views.md)).
 - **Spec before code.** Every screen is specified in its mockup in `design/` and in this document before it is
   written. Only `design/` and this document count as the design reference for Oriel.
 
 ## Layout and spacing
 
 Layout uses flexbox in device-independent pixels (DIPs); see
-[Layout](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/layout.md).
+[Layout](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/layout.md).
 
 - **One spacing unit.** The theme's `Spacing` (4 DIPs by default; 3 is compact, 5 roomy) is the unit of every widget's
   padding and gap. Size your own elements with `t.Space(n)` so they follow it. Do not write raw pixel numbers for
@@ -76,121 +79,147 @@ Layout uses flexbox in device-independent pixels (DIPs); see
 - **Alignment.** Left-align text and labels; center only isolated focal content, as an empty state. Reading
   text in the article reader gets a comfortable maximum line length (`MaxWidth`) instead of spanning a wide window.
 - **Scrolling.** Content that can exceed the window goes in a
-  [scroll view](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/scroll.md). The timeline is a
-  [list](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/list.md), which builds only the rows in view and lets rows
+  [scroll view](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/scroll.md). The timeline is a
+  [list](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/list.md), which builds only the rows in view and lets rows
   of different kinds have different heights.
 - **The connect screen.** A sheet at most `Space(80)` (320) wide, centered in a scroll view with outer padding
   `Space(6)`; `Space(6)` between the header, the form and the buttons, `Space(2)` between fields, `Space(1.5)` (6)
   between a field and its error. Fields and buttons are `Space(8)` (32) high; the two buttons share the width
   equally.
-- **The timeline.** A sidebar and the main column. The sidebar is 212 wide (184 below a 760 wide window), a pane of
-  glass tinted `Surface` floating 8 from the window's top, bottom and left edges, radius 16, with no divider; its first
-  40 are left to the window buttons. Then the five kinds (All, Articles, Videos, Social, Images) as 28 high rows, each
-  an icon, its name and its unread count; then the subscriptions of the chosen kind, 28 high rows; at the bottom the server bar, 40 high. The main column has a 52 high
-  toolbar row (title, count, the Everything/Unread/Starred segments, search, mark all as read, whose name and tooltip
-  say its scope: "Mark all in “Videos” as read") with no bar and no
-  divider: the segments, search and buttons are 32 high capsules of glass floating over the entries, which fade under
-  the row (the soft scroll edge). Article, social and mixed rows sit in one column at most 680 wide (720 for Social),
-  centered; a row is as high as its text, and an article's thumbnail, at most 96 by 64, starts at the top of the
-  text and never makes the row taller; the toolbar's title and buttons line up with that column's edges in a wide window (Videos and Images, which
-  fill the width, keep the 20 inset). Pictures in a social post share a grid at most 440 wide (520 in Social): one
-  picture keeps its aspect ratio, at most 384 wide and 240 high; two sit side by side at 4:3; three or more show the
-  first three as squares in one row, the third covered by "+N" for the rest (labelled "N more pictures"), so a post is
-  never taller than one row of pictures. Videos are a grid of cards at least 200 wide, 16:9 covers; Images are a masonry
-  wall of up to three columns at least 170 wide, each picture at its own aspect ratio. Below a 760 wide window the
-  segments show icons only. Sizes taken from the mockup are written `px(t, n)`, which is `t.Rem(n / 13)`, so they follow
-  the text size. The sidebar's section header, 22 high, ends in a 22 square + button that adds a subscription; it shows
-  even when there are none. A paused subscription has its name in `TextMuted`, a pause mark instead of the failure mark,
-  and no count. With one subscription chosen, a pencil button after the count edits it.
-- **The subscription dialogs.** Dialogs over the timeline on a `RGBA(0,0,0,.28)` backdrop: 440 wide to add, 480 to
-  edit, radius 12, `Border` and a soft shadow, at most the window's height less `Space(8)`. A header (a 32 square
-  tile or monogram, the title 15 semibold, a 28 square close button), a form that scrolls when the window is too low while the header and the buttons stay (a `Border` line appears under
+- **The timeline.** An ink pane and the main column. The pane is 216 wide (184 below a 760 wide window), an opaque
+  pane of ink (warm charcoal in light, deep teal in dark) floating 8 from the window's top, bottom and left edges, radius 14, with no divider; it is drawn with its
+  own light-on-dark theme (see [Glass and ink](#windows-menus-and-navigation)); its first 40 are left to the window
+  buttons. Then the five kinds (All, Articles, Videos, Social, Images) as 30 high rows, each an icon, its name and its
+  unread count; then the subscriptions of the chosen kind, 30 high rows; at the bottom the server bar, 40 high. The main
+  column is the paper: `Background`. It has a 52 high toolbar row (title, count, one capsule with the
+  Everything/Unread/Starred segments, search, mark all as read, whose name and tooltip say its scope: "Mark all in
+  “Videos” as read") with no bar and no divider: the segments are one 32 high capsule of glass floating over the
+  entries, which fade under the row (the soft scroll edge); search is a flat ink fill, and the other buttons are
+  bare icons. Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
+  at the sides; a row is as high as its text, padded 16 with 14 between its parts, radius 12 when it has a fill, and
+  an article's thumbnail, at most 96 by 64, radius 8, starts under the meta line and never makes the row taller. A
+  row reads, top to bottom: the meta line (20 high: the site icon, the source name, a dot, the time, the kind
+  mark; the row actions at its right), the title, the summary or the text, the pictures. Rows are separated by a
+  hairline only, which hover and selection hide. The toolbar's title and buttons line up with that column's edges in
+  a wide window (Videos and Images, which fill the width, keep the 20 inset). Pictures in a social post share a grid at
+  most 440 wide (520 in Social): one picture keeps its aspect ratio, at most 384 wide and 240 high; two sit side by
+  side at 4:3; three or more show the first three as squares in one row, the third covered by "+N" for the rest
+  (labelled "N more pictures"), so a post is never taller than one row of pictures. Videos are a grid of cards at least
+  200 wide, 16:9 covers; Images are a masonry wall of up to three columns at least 170 wide, each picture at its own
+  aspect ratio. Below a 760 wide window the segments show icons only. Sizes taken from the mockup are written
+  `px(t, n)`, which is `t.Rem(n / 13)`, so they follow the text size. The pane's section header, 22 high, ends in a 22
+  square + button that adds a subscription; it shows even when there are none. A paused subscription has its name in
+  `TextMuted`, a pause mark instead of the failure mark, and no count. With one subscription chosen, a pencil button
+  after the count edits it. A row is chosen with a fill (ink 6.5%) and the selection marker; see
+  [States](#color-and-dark-mode).
+- **The subscription dialogs.** Dialogs over the timeline on a `RGBA(28,24,18,.32)` backdrop: 440 wide to add, 480 to
+  edit, radius 16, `theme.RaisedFill` and a soft shadow, at most the window's height less `Space(8)`. A header (a 32 square
+  tile or monogram, the title 15 semibold, a 28 square bare close button), a form that scrolls when the window is too low while the header and the buttons stay (a `Border` line appears under
   the header once the form is scrolled and above the buttons while more is below),
   with `Space(3.5)` between fields and 20 to the sides, and a footer with the buttons at the right; in the edit
   dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; title and interval share a
-  row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` tint) or what
-  the address was recognized as (`Accent` tint, the address in monospace). The edit dialog starts with a health line
-  (`Surface`, or the `Warning` tint while fetches fail) with a small Refresh button. It ends with "Summaries and
-  translations", a 12 semibold muted group title with the sparkles icon: two switches that queue new entries, and two
+  row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` soft fill) or what
+  the address was recognized as (`Accent` soft fill, the address in monospace). The edit dialog starts with a health line
+  (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button. It ends with "Summaries and
+  translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
   Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".
-- **The reader.** It takes the main column's place; the sidebar stays. A 52 high toolbar row of glass capsules over the
-  article, as in the timeline: "Back to {scope}" (a chevron and the scope's name) at the left; three capsules at the
-  right, [previous, next], [Summarize (sparkles), Translate (languages)] and [star (`Warning` when starred), read
-  toggle, open in browser], 8 apart, in place of separators;
-  Summarize and Translate carry their names beside the icon (12.5 medium, icon only below a 760
-  wide window), the others are 28 square. The read toggle is an envelope: closed (mail) to mark unread, open
+- **The reader.** It takes the main column's place; the pane stays. A 52 high toolbar row over the article, as in the
+  timeline: "Back to {scope}" (a chevron and the scope's name) at the left as a bare button; at the right
+  [previous, next] and [star (`Star` when starred), read toggle, open in browser] as bare icon buttons, and between
+  them the one glass capsule, [Summarize (sparkles), Translate (languages)], carrying their names beside the icon (12
+  medium, icon only below a 760 wide window). The read toggle is an envelope: closed (mail) to mark unread, open
   (mail-open) to mark read, the same icons as the timeline's row action. Summarize and Translate are toggles: pressed,
-  they sit on `AccentSoft` in `Accent` and their names become "Hide the summary" and "Show the original". In a wide
+  they sit on `Soft(Accent)` in `Accent` and their names become "Hide the summary" and "Show the original". In a wide
   window the toolbar lines up with the article column: the back button's text starts at the column's left edge and
-  the last button ends at its right edge. Under the divider the article scrolls, a column at most 680 wide,
-  centered, padded 28/32/48 (20 below a 760 wide window): the source's monogram, name and full date at 12; the title
-  at 24 (20 when narrow) weight 650; the note on where the text comes from (`Warning` tint when it is the feed's,
-  `Surface` with a spinner while the full text is being got), 12.5, its "Open the original" link underlined; then the
-  text 22 below. Body text is 15 at line height 1.65 (1.85 in Chinese) by default; the Reading text size and Line spacing
-  preferences change it (tokens.md), and h2, h3, the gaps between paragraphs and list items and code scale in step with
-  the size. h2 18 and h3 15.5 semibold, 26 and 22 above; 14 between
-  paragraphs, 4 between list items, a 22 wide marker column; quotes behind a 3 DIP `Border` line in `TextMuted`; code
-  on `Surface` at 13 monospace, scrolling sideways; links in `Accent`, underlined; pictures at their own aspect ratio
-  (16:9 until known), at most their own width, captions 12 in `TextMuted`. Loading is a skeleton; the empty states
+  the last button ends at its right edge. Under the toolbar the article scrolls, a column at most 680 wide, centered,
+  padded 28/32/48 (20 below a 760 wide window): the source's monogram, name and full date at 12; the title at 24 (20
+  when narrow) weight 600 in `Text`; the note on where the text comes from (`Warning` soft fill when it is the feed's,
+  `Surface` with a spinner while the full text is being got), 12, its "Open the original" link underlined; then the
+  text 22 below. The body is set in the interface font (tokens.md) at 16 and line height 1.7 (1.85 in
+  Chinese) by default, in `theme.Prose`; the Reading text size and Line spacing preferences change it, and h2, h3, the
+  gaps between paragraphs and list items and code scale in step with the size. h2 and h3 use the interface font,
+  19 and 16 semibold, 1.9em and 1.3em above, 0.6em below; 1.05em between paragraphs, 0.3em between list items, a 22
+  wide marker column; quotes behind a 2 DIP ink 16% line in `Text2`; code on `Surface` at 13 monospace, radius 12,
+  scrolling sideways, inline code on an ink 5.5% fill, radius 4; links in `Accent` with a 1 DIP underline 3 below in
+  `Accent` at 38%; pictures at their own aspect ratio (16:9 until known), radius 12 with a 0.5 DIP ink 10% outline,
+  at most their own width, captions 12 in `TextMuted`. Loading is a skeleton of `Surface` bars; the empty states
   (getting the text, no text, can't load) are a 48 tile, a 15 semibold heading, a hint at most 320 wide and a button.
   The whole text is one selection.
-- **Summary and translation in the reader.** The summary is a card under the title, radius 10, padded 12/14, text 14
-  at line height 1.6, its head 12 semibold: while it is made, `AccentSoft` with a spinner, "Summarizing…", a Cancel
-  text button and three skeleton lines; done, `AccentSoft` with "Summary · by {model}", the model in `TextMuted`, and
-  a close button; failed, the `Danger` tint with what went wrong and a small "Try again"; while AI is not set up,
-  `Surface` with "AI isn't set up", one line on where to set it and a small primary "Open Settings…". The translation
-  replaces the title and text in place; the note under the title says what is shown. While it is made, the original
-  stays with a note (`Surface`, a spinner, Cancel); done, the note is `AccentSoft`, "Translated by {model}" and a
-  segmented Translation | Original switch, and the translated text is plain paragraphs, pictures and links staying in
-  the original; failed, the original stays with the note in the `Danger` tint, the reason and "Try again". Cancel only
-  stops waiting; leaving the article does the same.
+- **Summary and translation in the reader.** The summary is a card under the title, radius 14, padded 14/16/16, text
+  13 at line height 1.65 (1.75 in Chinese), its head 12 medium: while it is made, `Soft(Accent)` with a spinner,
+  "Summarizing…", a Cancel text button and three skeleton lines; done, `Soft(Accent)` with "Summary · by {model}", the
+  head in `Accent`, the model in `TextMuted`, and a close button; failed, the `Danger` soft fill with what went wrong
+  and a small "Try again"; while AI is not set up, `Surface` with "AI isn't set up", one line on where to set it and a
+  small primary "Open Settings…". The translation replaces the title and text in place; the note under the title says
+  what is shown. While it is made, the original stays with a note (`Surface`, a spinner, Cancel); done, the note is
+  `Soft(Accent)`, "Translated by {model}" and a segmented Translation | Original switch, and the translated text is
+  plain paragraphs, pictures and links staying in the original; failed, the original stays with the note in the
+  `Danger` soft fill, the reason and "Try again". Cancel only stops waiting; leaving the article does the same.
 
 ## Color and dark mode
 
-Colors come from the theme, `c.Theme()`. Oriel puts its own palette, paper and ink, on the theme
+Colors come from the theme, `c.Theme()`. Oriel puts its own palette, paper and ink (warm in light, neutral graphite in dark), on the theme
 roles: the root view calls `theme.Apply` (in `internal/ui/theme/`) first in every frame, which picks the light or
 dark palette for the Theme preference (the system appearance by default) and keeps the theme's metrics, so the desktop's text size still applies. The
 values are in [design/tokens.md](../design/tokens.md). See
-[Styling and themes](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/styling.md).
+[Styling and themes](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/styling.md).
 
 - **Always use theme roles, never literals.** Screens use only theme colors; for example, secondary text uses
-  `TextMuted`. Color literals live only in `internal/ui/theme/`. A faint fill behind an icon or a status is
-  `theme.Soft` of a role.
+  `TextMuted`. Color literals live only in `internal/ui/theme/`. `ui.Theme` has a fixed set of roles; the rest of the
+  scale (a second text color, the reading color, the star, tracks, the raised fill) are helpers in that package,
+  called `theme.Text2(t)`, `theme.Prose(t)`, `theme.Track(t)`, `theme.RaisedFill(t)`, `theme.LineStrong(t)`,
+  `theme.Disabled(t)`, `theme.Star(t)`, `theme.Marker(t)`, `theme.Chosen(t)`, `theme.Soft(t, c)` and
+  `theme.Ink(t, a)`. A faint fill behind an icon or a status is `theme.Soft` of a role.
 
   | Role | Use |
   |---|---|
-  | `Background` | window and page fill; in dark mode a step darker than `Surface`, so the sidebars stand apart from the main column |
-  | `Surface`, `SurfaceHover`, `SurfacePressed` | faces of controls and cards, and their states |
-  | `Border` | outlines and dividers |
-  | `Text`, `TextMuted` | primary text; secondary text, hints and placeholders |
-  | `Accent`, `AccentHover`, `AccentPressed`, `AccentText` | primary action, selection and checked controls; text on the accent |
+  | `Background` | window and content fill, the paper; in dark mode neutral graphite, a step below `Surface` |
+  | `Surface` | placeholders, code blocks, notes and plain cards, control faces |
+  | `SurfaceHover`, `SurfacePressed` | hover and pressed fills: ink at 3% and 5% (4% and 6% in dark) |
+  | `Border` | hairlines between rows and dividers inside cards: ink at 7.5% |
+  | `Text`, `TextMuted` | titles and primary text; meta, counts, read titles, hints and placeholders (`theme.Text2` between them for source names and summaries) |
+  | `Accent`, `AccentHover`, `AccentPressed`, `AccentText` | the unread dot, links, a chosen icon, the primary action; text on the accent |
   | `Danger`, `Warning`, `Success` | destructive, cautionary and positive status (always with text or a symbol) |
-  | `Selection`, `Focus` | selected text; the keyboard focus ring |
-  | `Inverse`, `InverseText` | tooltips and toasts (left zero, they are `Text` and `Background`) |
+  | `Selection`, `Focus` | selected text; the keyboard focus ring (`Accent` at 45%, 2 DIPs) |
+  | `Inverse`, `InverseText` | tooltips and toasts: a charcoal tile (warm in light, graphite in dark) with ivory text, set explicitly |
   | `Scrollbar` | scroll bar thumbs |
 
 - **Appearance.** The only dark mode switch is the Theme preference in Settings, Appearance: System (default), Light
   or Dark, applied by `theme.Apply` alone; screens do not make their own. Teal stays the accent in both. If a screen draws custom
   elements, use only theme colors, or read `c.Theme().Dark` where a choice cannot be expressed with them. For derived
-  colors use `Mix` and `Alpha` on theme colors rather than new constants.
-- **Accent.** Oriel's accent is teal, in both appearances; it does not follow the system accent. One primary action
-  per group gets the accent.
-- **Paper and ink.** Oriel is read for long stretches, so the palette is paper, not a screen: warm off-white and
-  warm charcoal instead of white and black, body text near 13:1 instead of 16:1 (the edges of light text on near
-  black glare in the dark), and hairline dividers that group a list without cutting it up. The surfaces step evenly
-  from `Background` to `SurfacePressed`, so a hover and a press are the same size of change everywhere.
+  colors use `theme.Ink` and `Alpha` on theme colors rather than new constants.
+- **Accent.** Oriel's accent is a muted teal, in both appearances; it does not follow the system accent. It is the
+  only hue besides status and the star: kinds of entries are not colored. One primary action per group gets the accent.
+- **Paper and ink.** Oriel is read for long stretches, so the palette is paper, not a screen: warm
+  off-white in light and neutral graphite in dark instead of white and black, body text near 15:1 in titles and 11:1 in prose instead of 16:1, a
+  low-chroma neutral scale (warm in light; in dark a hint of cool, no brown, so the pane and the accent are the only
+  color) and fills that are ink at a low alpha,
+  so the same fill works on `Background`, `Surface` and a photograph. The surfaces step evenly: a hover, a press and a
+  selection are three equal steps of lightness, the same everywhere.
+- **The ink pane.** The sidebar is the one dark surface in the light scheme: an opaque pane, per scheme. In light it is warm
+  charcoal, which sits with the warm paper; in dark it is deep teal ink, which separates from the neutral graphite
+  content by hue, so the pane and the accent are the only color in dark mode. It has its
+  own light-on-dark roles. It is drawn with `c.SetTheme(theme.PaneTheme(main))` before the
+  pane's elements are built and the main theme set back after, so its widgets, helpers and `Chosen` read the pane's
+  values. Its roles, fill and contrast are in tokens.md; with high contrast it gains a `Border` rim.
 - **Contrast.** Text and meaningful graphics should meet WCAG 2.1 AA: 4.5:1 for body text, 3:1 for large text and
   control boundaries. With the desktop's high contrast setting on (`c.Preferences().HighContrast`), `theme.Apply`
-  moves `Border` and `TextMuted` toward `Text` and makes `Focus` opaque; test with it on.
-- **States.** One look per state, the same on every screen. Chosen in navigation (a kind, a subscription, a
-  settings group): a neutral fill, `Text` at 7% alpha (9% in dark, so it shows on glass) through `theme.Chosen`, the
-  icon and count in `Accent`, the name in `Text` at weight 500; the accent never tints a fill on warm gray, where it
-  turns muddy. Chosen in a
-  control (a segment, the kind of a subscription, original or translation): a raised face, `Background` with a
-  hairline shadow (`SurfacePressed` in dark). The keyboard's place: the `Focus` ring. Hovered: `SurfaceHover`.
-  Disabled: `Surface` with a `Border` outline and `TextMuted` text, the primary button too, never a faded accent, so
-  its label stays readable (at least 3:1). Fields and text areas share one fill: `Surface`, `Background` when focused.
+  makes `Border` a `Text` line (55%), moves `TextMuted` toward `Text`, makes `Focus` opaque, raises the state fills to
+  8%, 12% and 16%, and turns glass (the capsules, the scroll edge) opaque; test with it on. Text on the ink pane holds AA
+  (tokens.md has the numbers); `Warning` and `Star` are graphics, never text.
+- **States.** One look per state, the same on every screen, as steps of lightness: ink fills of 3%, 5% and 6.5% in
+  light (4%, 6% and 8% in dark; 5.5%, 8.5% and 12% on the pane) for hovered, pressed and chosen, so
+  hover < pressed < chosen. Hovered: `SurfaceHover`. Pressed: `SurfacePressed`. Chosen in navigation (a kind, a
+  subscription, a settings group) and a chosen row: `theme.Chosen`, with the icon in `Accent` in navigation; a chosen
+  row of the timeline also has the selection marker, a 2.5 by 18 `Accent` bar, radius 2, inside the fill 8 from its left
+  edge. There is no border on a chosen row, and the accent never tints a fill on warm neutrals, where it turns muddy.
+  On a chosen or hovered row, `TextMuted` text steps to `Text2` to keep its contrast. Chosen in a
+  control (a segment, the kind of a subscription, original or translation): in the glass capsule an ink 10% fill; on a
+  `Track` trough, a `theme.RaisedFill` face with a hairline shadow. The keyboard's place: the `Focus` ring,
+  2 DIPs, always visible. Disabled: `Surface` with a `TextMuted` label, the primary button too, never a faded accent,
+  so its label stays readable (at least 3:1); a disabled glyph may use `theme.Disabled`. Fields and text areas share
+  one fill, `Surface`, and `theme.RaisedFill` with the `Focus` ring when focused.
 - **Status.** Color supplements a message; the message states the status in words. A read entry, a failing
   subscription or a missing full text is said in text, not only shown as a dimmed or red row.
 - **Content colors.** Images and video thumbnails from feeds keep their own colors; everything Oriel draws around
@@ -202,32 +231,43 @@ values are in [design/tokens.md](../design/tokens.md). See
 
 - **System font.** Leave `Font` empty so text uses the platform's UI font. The Interface font preference (Settings,
   Appearance) sets the theme's `Font` to an installed family, chosen from `ui.FontFamilies()`; screens never set a
-  family of their own, except monospace for code and addresses. The default text size is 13 on macOS and
-  14 elsewhere, and scales with the desktop's text size (`Preferences().TextScale`) when you rely on the theme; it is
-  not a setting. See [Text](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/text.md).
+  family of their own, except monospace for code and addresses. The default text
+  size is 13 on macOS and 14 elsewhere, and scales with the desktop's text size (`Preferences().TextScale`) when you
+  rely on the theme; it is not a setting. See [Text](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/text.md).
 - **Size relative to the theme.** Use `t.Rem(n)` for sizes (`n` times the theme font size) rather than fixed numbers,
   so custom text follows the user's text scale. Widgets use the theme size.
-- **The connect screen.** Title 1.8 rem bold, hint 0.9 rem in `TextMuted`.
-- **The timeline.** Screen title 15 bold, entry titles 13.5 semibold (read entries in `TextMuted`), source and time
-  12 in `TextMuted`, counts 11 medium with tabular figures. Titles in rows and video cards wrap; summaries show at most two lines and
+- **Five sizes.** 24 (the title), 15 (row title, section head, screen title), 13 (body and widget text), 12 (meta,
+  labels, segments) and 11 (small labels: counts, section labels in the pane, durations; 12 in Simplified Chinese).
+  Weights 400, 500 and 600 only. The reading body is the article's own scale, not interface type. The table of
+  sizes, line heights and tracking is in [design/tokens.md](../design/tokens.md).
+- **The connect screen.** Title 24 semibold, hint 12 in `TextMuted`.
+- **The timeline.** Screen title 15 semibold, row titles 15 semibold in `Text` (read rows 500 in `TextMuted`), the
+  source name 12 medium in `Text2`, time and other meta 12 in `TextMuted`, summaries 13 in `Text2`, social text 13 in
+  `Text`, counts 11 medium with tabular figures. Titles in rows and video cards wrap; summaries show at most two lines and
   social text six; a picture's caption in the wall is one line. The full title is always the entry's accessible
   name.
-- **Chinese runs taller.** Simplified Chinese body text uses line height 1.6 instead of 1.45, entry titles 1.45,
-  the reader's text 1.85; the sizes stay the same. The reading text size and line spacing preferences change the
-  reader's body text only, by the steps in [design/tokens.md](../design/tokens.md).
-- **Hierarchy with few steps.** Body, secondary (`TextMuted`, about 0.9 rem), section heading (bold) and at most one
-  display size per screen. Weight and color before size.
+- **Hierarchy by lightness.** Within one size, the order is `Text`, `Text2`, `TextMuted`; weight comes second and size
+  last. Read rows go quiet in lightness and weight (500), not in size.
+- **Tracking and numerals.** Small labels get letter spacing (+0.04em at 11, +0.02em in Chinese at 12); the title
+  tightens (-0.015em); everything else is 0 or within 0.01em. Counts, times, durations and any number that changes in
+  place use `FontFeatures("tnum")`.
+- **Chinese runs taller.** Simplified Chinese gets a larger line height at the same size: body 1.7 instead of 1.5,
+  row titles 1.5 instead of 1.35, the title 1.42 instead of 1.28, the reading body 1.85 instead of 1.7; Chinese
+  tracking is 0 except small labels. The reading text size and line spacing preferences change the reader's body
+  text only, by the steps in [design/tokens.md](../design/tokens.md).
+- **The reading face.** The article's body is set in the interface font, as clean as the rest of the screen: Song and
+  other thin serifs look faint and fuzzy at screen sizes and tire the eye over a long read. #101 will add a choice of
+  reading font, serif included; the default stays the interface font.
 - **Headings are real headings.** Give the title of a screen or section `Role(ui.RoleHeading)` and a `Level` so
   assistive technology can navigate by them.
 - **Do not truncate silently.** Prefer wrapping. Where a single line is needed (`SingleLine`, `MaxLines`), for
   example an entry title in the timeline, make the full text available in a tooltip or in the reader.
-- **Numbers and dates.** Show counts and dates in the user's language when they are data, not identifiers. Digits
-  that change in place can use `FontFeatures("tnum")`.
+- **Numbers and dates.** Show counts and dates in the user's language when they are data, not identifiers.
 
 ## Icons and images
 
 - **Icons are SVG** shown with `ui.Icon`, which takes the text color and the font size: an icon follows theme colors
-  and the text size automatically. See [Icon](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/icon.md).
+  and the text size automatically. Every icon has the same stroke weight, 1.6, at every size. See [Icon](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/icon.md).
 - **One set: [Lucide](https://lucide.dev)** (ISC License), recorded in `THIRD_PARTY.md`. The files of lucide-static
   are copied unchanged into `internal/ui/icons/lucide/` and parsed once in `internal/ui/icons`; add an icon there
   before using it. Prefer an icon to a word where the icon is clearer, and keep the word where it is not.
@@ -237,19 +277,21 @@ values are in [design/tokens.md](../design/tokens.md). See
 - **Icon before label** in buttons, except a forward arrow, which follows its label ("Connect →"). Icons in fields
   and buttons are 1.25 rem, in error lines 1.05 rem, sized with `FontSize`.
 - **Feed images** (thumbnails, image entries, site icons) use
-  [Image](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/image.md). Download and decode them in the background and
+  [Image](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/image.md). Download and decode them in the background and
   make each bitmap once, never in the view; until it is ready, keep the image's box at its final size so the timeline
   does not jump. Images that carry meaning get a `Label`; decorative ones do not.
-- **The timeline.** Each kind has an icon (newspaper, play, message circle, image; inbox for All) and a color: `Accent`
-  for articles, `Danger` for videos, `Warning` for social, `Success` for images, used as a soft fill behind a
-  subscription's monogram and on the chosen tab. A subscription shows its site icon where it has one: a 16 square tile
-  with radius 4 and a 1 px inset rim in `Border`, so a dark icon still reads on the dark sidebar, in the sidebar, the
-  row meta, the reader's meta and the edit dialog header (32 there with radius 8, the size of its monogram). The icon
+- **The timeline.** Each kind has an icon (newspaper, play, message circle, image; inbox for All). Kinds are not
+  colored: a subscription's monogram is a `Track` tile with its letter in `Text2` (on the pane, pane ink 11% and
+  `ChromeText2`), and only the chosen kind's icon takes `Accent`. A subscription shows its site icon where it has one: a
+  square tile with radius 4 and a 0.5 DIP inset rim in ink 20%, so a dark icon still reads on the dark pane, 18 in the pane, 15 in the row
+  meta, the reader's meta and 32 in the edit dialog header (radius 8, the size of its monogram). The icon
   loads through `/api/image` in the background; the monogram stands until it is decoded and stays when there is none or
-  it fails, so nothing jumps. Row actions are icons only (star, mark read, open in browser) with labels and tooltips,
-  shown on hover and on the focused row. Pictures are downloaded through the server (`/api/image`), at most four at a
+  it fails, so nothing jumps. Row actions are bare icons only (star, mark read, open in browser) with labels and
+  tooltips, in the row's meta line at the right, never over a thumbnail or a title, shown on hover, on the chosen row and
+  on the focused row, fading in 120 ms. Pictures are downloaded through the server (`/api/image`), at most four at a
   time, and the 300 most recent bitmaps are kept; a missing picture keeps its box with an image icon. A video cover
-  carries a play mark and the duration, labelled "Duration 12:34".
+  carries a play mark and the duration, labelled "Duration 12:34". The unread dot is a 7 `Accent` circle; a failing
+  subscription is `Danger` with a mark, the server is a `Success` dot; a starred entry is `theme.Star`.
 - **The product icon** is a mixed timeline on a warm ivory tile: a teal rail joins three entries, each a teal dot
   with a title line in ink (`#26231f`) and a shorter summary line in muted gray; the newest entry's dot, at the top,
   is the brightest (`#5eead4` to `#0f766e`). It sits on the macOS grid (an 824 tile at 100 in 1024, radius 185) with
@@ -261,7 +303,7 @@ values are in [design/tokens.md](../design/tokens.md). See
 
 Pick the widget by the job. Each name links to the upstream page, which also says what assistive technology sees of
 the widget. The complete list is the
-[UI index](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/README.md).
+[UI index](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/README.md).
 
 What Oriel uses today:
 
@@ -280,7 +322,7 @@ What Oriel uses today:
 | `ui.List`, `ui.GridView` | The timeline's rows and its video cards; both build only what is in view. |
 | `ui.AlertDialog` | Confirming deleting a subscription, which cannot be undone. Its last button, the action, is the default and takes the focus; Escape is Cancel. |
 | `c.Toast`, `c.Announce` | Feedback after starring, marking and failures, and "No unread entries below"; counts announced without moving the focus. |
-| `c.ToastAction` | "Mark all as read" acts at once and offers Undo here, with a close button; Cmd/Ctrl+Z undoes it while the toast shows. The toast is centered at the bottom in `Inverse` on `InverseText`. |
+| `c.ToastAction` | "Mark all as read" acts at once and offers Undo here, with a close button; Cmd/Ctrl+Z undoes it while the toast shows. The toast is centered at the bottom as an `Inverse` tile with `InverseText`. |
 | `ui.DialogBase` (key sheet) | The keyboard shortcut sheet, drawn like the subscription dialogs: two columns (timeline, reader) and an "Anywhere" group below, each key a small chip; one column below a 760 wide window. Escape or Close dismisses it. |
 
 The tables below say what to reach for as screens are added.
@@ -289,76 +331,76 @@ The tables below say what to reach for as screens are added.
 
 | Need | Use |
 |---|---|
-| The main action of a group, once | [Button](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/button.md) (`PrimaryButton`) |
-| Other actions | [Button](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/button.md) |
-| Open an entry's original page in the system browser | [Link](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/link.md) |
-| Several related actions in one place | [Menu button](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/menu-button.md) |
-| Actions on a specific entry or subscription, on right click | [Context menu](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/context-menu.md) |
-| An on/off command that stays pressed | [Toggle](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/toggle.md) |
-| Choose one of a few views or modes | [Segmented control](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/segmented.md) |
-| Window-level commands | [Toolbar](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/toolbar.md) |
+| The main action of a group, once | [Button](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/button.md) (`PrimaryButton`) |
+| Other actions | [Button](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/button.md) |
+| Open an entry's original page in the system browser | [Link](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/link.md) |
+| Several related actions in one place | [Menu button](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/menu-button.md) |
+| Actions on a specific entry or subscription, on right click | [Context menu](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/context-menu.md) |
+| An on/off command that stays pressed | [Toggle](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/toggle.md) |
+| Choose one of a few views or modes | [Segmented control](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/segmented.md) |
+| Window-level commands | [Toolbar](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/toolbar.md) |
 
 ### Choices
 
 | Need | Use |
 |---|---|
-| A setting applied immediately (for example a per-subscription switch) | [Switch](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/switch.md) |
-| A yes/no value submitted with a form, or several independent options | [Checkbox](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/checkbox.md) |
-| One of two to five visible options (for example a subscription's kind) | [Radio](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/radio.md) |
-| One of many options | [Select](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/select.md); with typing to filter, [Combobox](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/combobox.md) |
-| A value in a range | [Slider](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/slider.md); an exact number, [Number input](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/number-input.md) or [Stepper](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/stepper.md) |
+| A setting applied immediately (for example a per-subscription switch) | [Switch](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/switch.md) |
+| A yes/no value submitted with a form, or several independent options | [Checkbox](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/checkbox.md) |
+| One of two to five visible options (for example a subscription's kind) | [Radio](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/radio.md) |
+| One of many options | [Select](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/select.md); with typing to filter, [Combobox](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/combobox.md) |
+| A value in a range | [Slider](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/slider.md); an exact number, [Number input](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/number-input.md) or [Stepper](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/stepper.md) |
 
 ### Text
 
 | Need | Use |
 |---|---|
-| Free text, one or many lines (a feed URL, an RSSHub path, a prompt) | [Text input](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/text-input.md) |
-| Searching the timeline | [Search field](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/search-field.md), or [Find bar](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/find-bar.md) for text in the reader |
-| Mute keywords | [Token field](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/token-field.md) |
-| Rename a subscription in place | [Editable text](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/editable-text.md) |
-| Labeled controls with help and errors | [Form](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/form.md) |
+| Free text, one or many lines (a feed URL, an RSSHub path, a prompt) | [Text input](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/text-input.md) |
+| Searching the timeline | [Search field](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/search-field.md), or [Find bar](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/find-bar.md) for text in the reader |
+| Mute keywords | [Token field](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/token-field.md) |
+| Rename a subscription in place | [Editable text](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/editable-text.md) |
+| Labeled controls with help and errors | [Form](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/form.md) |
 
 ### Collections
 
 | Need | Use |
 |---|---|
-| The timeline, and other long lists of one kind | [List](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/list.md) |
-| Rows with sortable, resizable columns (for example subscription health) | [Table](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/table.md) |
-| Hierarchy | [Tree](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/tree.md), or [Outline](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/outline.md) when large |
-| Thumbnails | [Grid view](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/grid-view.md) |
+| The timeline, and other long lists of one kind | [List](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/list.md) |
+| Rows with sortable, resizable columns (for example subscription health) | [Table](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/table.md) |
+| Hierarchy | [Tree](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/tree.md), or [Outline](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/outline.md) when large |
+| Thumbnails | [Grid view](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/grid-view.md) |
 
 ### Containers and navigation
 
 | Need | Use |
 |---|---|
-| Scrolling content, such as the reader | [Scroll view](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/scroll.md) |
-| Columns and rows of controls | [Grid](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/grid.md) |
-| Two resizable panes (timeline and reader) | [Split view](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/split.md) |
-| Optional detail | [Collapsible](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/collapsible.md), [Accordion](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/accordion.md) |
-| Top-level sections of the app | [Sidebar](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/sidebar.md) |
-| A few peer pages inside a screen | [Tabs](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/tabs.md) |
-| Pages with a history | [Router](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/navigation.md), with [Back and forward buttons](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/history-buttons.md) |
+| Scrolling content, such as the reader | [Scroll view](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/scroll.md) |
+| Columns and rows of controls | [Grid](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/grid.md) |
+| Two resizable panes (timeline and reader) | [Split view](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/split.md) |
+| Optional detail | [Collapsible](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/collapsible.md), [Accordion](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/accordion.md) |
+| Top-level sections of the app | [Sidebar](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/sidebar.md) |
+| A few peer pages inside a screen | [Tabs](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/tabs.md) |
+| Pages with a history | [Router](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/navigation.md), with [Back and forward buttons](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/history-buttons.md) |
 
 ### Dialogs, messages and status
 
 | Need | Use |
 |---|---|
-| A task that needs the user's full attention | [Dialog](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/dialog.md) |
-| Confirm something important or destructive (deleting a subscription and its entries) | [Alert dialog](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/alert-dialog.md); for system file and message dialogs (OPML import and export, the startup error), `mygo.Dialog` ([desktop APIs](https://github.com/egoist/mygo/blob/v0.4.1/docs/native.md)) |
-| A small panel tied to an element | [Popover](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/popover.md) |
-| A short label or hint for a control | [Tooltip](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/tooltip.md) (never the only place for essential information) |
-| Feedback that needs no decision | [Toast](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/toast.md) |
-| Known progress / unknown duration (a fetch, an AI summary) | [Progress bar](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/progress.md) / [Spinner](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/spinner.md) |
-| A count or short status (unread entries) | [Badge](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/badge.md) |
+| A task that needs the user's full attention | [Dialog](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/dialog.md) |
+| Confirm something important or destructive (deleting a subscription and its entries) | [Alert dialog](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/alert-dialog.md); for system file and message dialogs (OPML import and export, the startup error), `mygo.Dialog` ([desktop APIs](https://github.com/egoist/mygo/blob/v0.5.5/docs/native.md)) |
+| A small panel tied to an element | [Popover](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/popover.md) |
+| A short label or hint for a control | [Tooltip](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/tooltip.md) (never the only place for essential information) |
+| Feedback that needs no decision | [Toast](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/toast.md) |
+| Known progress / unknown duration (a fetch, an AI summary) | [Progress bar](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/progress.md) / [Spinner](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/spinner.md) |
+| A count or short status (unread entries) | [Badge](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/badge.md) |
 
 Overlays share focus and Escape behavior; see
-[Overlays](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/overlays.md). Rules of thumb:
+[Overlays](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/overlays.md). Rules of thumb:
 
 - Prefer undo over confirmation. Confirm only what cannot be undone, with a button named for the action ("Delete"),
   not "OK", and Cancel as the Escape action.
 - Do not stack dialogs. Use a toast for news that needs no answer.
 - Errors say what happened and what to do, next to the control that caused them (`Error`, or a
-  [form](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/form.md) field). The server returns stable error codes;
+  [form](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/form.md) field). The server returns stable error codes;
   the UI maps each to localized copy and never shows the raw code alone.
 - AI summaries and translations are on demand and can be slow or fail: show that the work is going on, keep the
   original text readable meanwhile, and say plainly when it failed.
@@ -368,19 +410,26 @@ Overlays share focus and Escape behavior; see
 - **Windows.** One main window; set `Title`, `Width`, `Height`, and `MinWidth`/`MinHeight` so content never clips.
   Oriel's window is 960×640 with a minimum of 640×480. `StateKey` remembers size and position between runs and is not used yet. A second launch brings the existing
   window to the front. See
-  [Windows with native UI](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/windows.md) and the
-  [window options](https://github.com/egoist/mygo/blob/v0.4.1/docs/windows.md).
+  [Windows with native UI](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/windows.md) and the
+  [window options](https://github.com/egoist/mygo/blob/v0.5.5/docs/windows.md).
 - **Title bar.** No title bar: `TitleBarStyle: mygo.TitleBarHidden`, the macOS window buttons placed with
   `TrafficLightPosition` so they sit over the sidebar's top, centered in the 52 high toolbar row. The view then owns
   the room the window controls take (`c.TitleBar()`: on Windows the caption buttons at the right, which the toolbar
   leaves free) and the draggable area: the toolbar row's empty space and the sidebar's top call `DragWindow`. The
   window's name stays set (`Title`) for the Window menu, the Dock and screen readers.
-- **Liquid Glass.** Oriel draws its chrome in glass, after macOS 26: the sidebar is a floating pane of
-  `glass.Glass{Tint: Surface}` (the [glass plugin](https://github.com/egoist/mygo/blob/v0.4.1/docs/plugins/glass.md)),
-  the toolbar's controls are capsules of `glass.Glass{}`, and `glass.ScrollEdge{}` fades content under the toolbar
-  row. Content stays on opaque `Background`; glass is for chrome only, never for entries, the article or dialogs.
-  Text on glass keeps the theme's contrast, and with high contrast on glass becomes opaque `Surface` with a `Border`
-  rim (MyGo reports no Reduce Transparency setting, so high contrast is the one switch). The plugin draws the same glass on Windows and Linux, so the look is one on every
+- **Glass and ink.** Oriel draws its toolbar controls in glass (the [glass
+  plugin](https://github.com/egoist/mygo/blob/v0.5.5/docs/plugins/glass.md)) and its sidebar as an ink pane. The pane
+  is not glass: it is a plain floating view with an opaque `Background` of ink (warm charcoal `#37332e` in light, deep teal `#1a2422`
+  in dark; at 92 to 96% opacity glass added only softness and a muddy mix with the backdrop), radius 14, a 0.5 DIP
+  inner rim in the pane ink, in light-on-dark roles of its own (tokens.md): the root view takes them from
+  `theme.PaneTheme`, calls `c.SetTheme(paneTheme)` before building the sidebar and sets the main theme back after. The
+  toolbar has one glass capsule (a 32 high pill, tint rgba(255, 254, 251, 0.66) in light and rgba(58, 63, 62, 0.52) in
+  dark, radius 16, 0.5 DIP rim): the segmented control in the timeline, Summarize and Translate in the reader.
+  `glass.ScrollEdge{}` fades content under the toolbar row into `Background` (88% in light, 90% in dark, 72 high).
+  Content stays on opaque `Background`; glass is for chrome only, never for entries, the article, dialogs, search or
+  bare toolbar icons. Text on glass keeps AA contrast, and with high contrast glass becomes opaque (the capsule
+  `Surface`, the pane is already opaque) with a `Border` rim (MyGo reports no Reduce Transparency setting, so high
+  contrast is the one switch). The plugin draws the same glass on Windows and Linux, so the look is one on every
   platform; no system vibrancy is used.
 - **Menus.** The macOS menu bar belongs to the app. Oriel's menu has an app menu (About, check for updates, Quit),
   the Edit menu (`RoleEditMenu`, so copy and paste work) and the Window menu (`RoleWindowMenu`); "Connect to
@@ -388,16 +437,17 @@ Overlays share focus and Escape behavior; see
   (`RoleAbout`, `RoleQuit` and the others) for standard items: they carry the right label and shortcut, and items
   that only macOS has are left out elsewhere. Give custom items an accelerator with `CmdOrCtrl`. Every command
   reachable by a toolbar button should also be in a menu. See
-  [Menus](https://github.com/egoist/mygo/blob/v0.4.1/docs/menus.md).
+  [Menus](https://github.com/egoist/mygo/blob/v0.5.5/docs/menus.md).
 - **Navigation.** Choose the lightest structure that fits: a single screen;
-  [tabs](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/tabs.md) for a few peer views; a
-  [sidebar](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/sidebar.md) with a
-  [router](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/navigation.md) for several top-level sections (timeline,
+  [tabs](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/tabs.md) for a few peer views; a
+  [sidebar](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/sidebar.md) with a
+  [router](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/navigation.md) for several top-level sections (timeline,
   subscriptions, settings). A router gives back/forward keys, state restored per page and focus handling. Give every
   page a `Title`.
 - **Leaving the app.** Video and social entries have no embedded player; opening them hands the link to the system
   browser. Say so in the control ("Open in browser"), not only with an icon.
 - **Toolbar.** Frequent window-level commands, in order of importance; controls that do not fit overflow into a menu.
+  One glass capsule at most per toolbar; everything else is a bare icon or the flat search field.
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.
 - **Timeline keys.** J or Down and K or Up move between entries, N goes to the next unread entry below the chosen one
   (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in the
@@ -438,7 +488,7 @@ Overlays share focus and Escape behavior; see
 ## Accessibility checklist
 
 MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
-[Accessibility](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/accessibility.md).
+[Accessibility](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/accessibility.md).
 
 - [ ] Every interactive element has an accessible name: its text, or `Label` when it shows only an icon, a symbol or
       a drawing.
@@ -454,30 +504,33 @@ MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
 - [ ] Nothing depends on color, sound or motion alone.
 - [ ] Pointer targets are at least about 24×24 DIPs, and 32 or more for primary controls.
 - [ ] `ui.NewTester` tests click controls by their accessible names, so a missing name fails the test (see
-      [Testing](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/testing.md)).
+      [Testing](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/testing.md)).
 
 Contrast, scaling, keyboard use and screen readers are verified on real devices; a passing headless test does not
 count as accessibility acceptance.
-The [Inspector](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/inspector.md) (F12 in development builds) shows
+The [Inspector](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/inspector.md) (F12 in development builds) shows
 the element tree, roles and accessible names of a running window, which helps find a missing name before that check.
 
 ## Motion
 
-Oriel has almost no custom animation: state changes take effect immediately, except that state fills fade. See
-[Transitions](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/transitions.md) and
-[Drawing and animation](https://github.com/egoist/mygo/blob/v0.4.1/docs/ui/drawing.md) for what the toolkit offers.
+Oriel has almost no custom animation: state changes take effect immediately, except that state fills, text and link
+color, and the row actions fade. See
+[Transitions](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/transitions.md) and
+[Drawing and animation](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/drawing.md) for what the toolkit offers.
 
 - **Default is none.** Do not add `Transition`, `Animate` or page transitions without a mockup that shows the change
   they explain and the maintainer's agreement; record the exception here.
-- **State fills fade.** The agreed exception: the hover and chosen fills of rows (navigation rows, entry rows, the
-  server bar, settings groups) fade over 140 ms, ease-out, colors only, through `theme.Fade`, so the pointer
-  moving down a list leaves a soft trail instead of a flicker. A faded row needs a stable `Key`. Nothing moves or
-  resizes; controls drawn by MyGo keep their own behavior.
-- **If an exception is agreed,** use the built-ins with their defaults (element transitions are 200 ms, ease-out)
-  and nothing longer than 300 ms for interface feedback. Avoid frame-by-frame custom animation.
+- **State fills fade.** The agreed exception: the hover, pressed and chosen fills of rows (navigation rows, entry rows,
+  the server bar, settings groups), text color and the underline color of links fade over 140 ms, ease-out, colors
+  only, through `theme.Fade`, so the pointer moving down a list leaves a soft trail instead of a flicker. A faded row
+  needs a stable `Key`. Nothing moves or resizes; controls drawn by MyGo keep their own behavior.
+- **Row actions fade.** The row actions fade in and out over 120 ms, ease-out, opacity only.
+- **Short and interruptible.** Nothing is longer than 200 ms, only color and opacity change, and a new state starts
+  from where the old one is. If another exception is agreed, use the built-ins with their defaults (element
+  transitions are 200 ms, ease-out); avoid frame-by-frame custom animation.
 - **Reduced motion.** `Animate`, page transitions and the moving parts of element transitions already jump to the
-  target when the desktop asks for less motion (`c.Preferences().ReduceMotion`); color fades still play, since
-  nothing moves. Any motion you compute yourself must read the preference.
+  target when the desktop asks for less motion (`c.Preferences().ReduceMotion`); color and opacity fades still play,
+  since nothing moves. Any motion you compute yourself must read the preference.
   Spinners may keep turning: they show that work is going on.
 - **Never animate to hide latency**, and do not loop decoration.
 - The connect screen's only motion is its button's spinner icon while it connects. Apart from the state fills, the timeline has none: new
@@ -514,9 +567,33 @@ Run before a UI pull request is merged, and on each target platform before a rel
 - [ ] High contrast and larger text size checked.
 - [ ] Screenshots of each state, light and dark, are in the pull request body.
 
+## Polish checklist
+
+A reviewer's pass over any screen, after the acceptance checklist:
+
+- [ ] Fewer borders: separation comes from space, a fill or a hairline between rows; no outline around a card, a
+      row or a toolbar control.
+- [ ] Neutrals are the scale (`Background`, `Surface`, `Track`, `Text2`): warm in light, graphite in dark, none a pure gray, black or white.
+- [ ] One accent: the unread dot, links, the chosen icon and the primary action; kinds are not colored, and
+      status colors appear only with text or a symbol.
+- [ ] Radii are from the fixed scale (4, 8, 12, 14, 16); nothing is rounded by eye.
+- [ ] No more than five type sizes on the screen, weights 400 to 600, hierarchy by lightness before weight.
+- [ ] Counts, times and durations use tabular numerals.
+- [ ] Small labels are tracked; large titles are tightened.
+- [ ] Line height follows the script: Simplified Chinese runs taller than English at the same size.
+- [ ] Motion is short (140 ms fills, 120 ms row actions, never above 200 ms), color and opacity only, and
+      interruptible.
+- [ ] Hairlines separate rows only, and drop away from a hovered or chosen row.
+- [ ] Icons share one stroke weight (1.6) and sit on the text's optical center.
+- [ ] Every control shows a focus ring when reached with the keyboard.
+- [ ] The empty, loading and error states are designed, not left as a blank or a raw message.
+- [ ] Hover, pressed and chosen are lightness steps of the same ink fill, in that order, never a new hue.
+- [ ] Chinese and Latin text sit together cleanly: no stray spaces next to full-width punctuation, full-width
+      punctuation in Chinese sentences, and Latin runs in a Chinese line keep the same size and color.
+
 ## References
 
 This design language draws on the UI documentation of MyGo (MIT License, Copyright (c) egoist):
-<https://github.com/egoist/mygo/tree/v0.4.1/docs/ui>, together with `docs/native.md`, `docs/menus.md` and
+<https://github.com/egoist/mygo/tree/v0.5.5/docs/ui>, together with `docs/native.md`, `docs/menus.md` and
 `docs/windows.md` from the same version. The text here is a summary in our own words; the upstream pages are the
 source for APIs and behavior. See also [THIRD_PARTY.md](../THIRD_PARTY.md).

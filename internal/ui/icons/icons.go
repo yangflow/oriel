@@ -47,6 +47,8 @@ var (
 	Link           = parse("link")
 	LoaderCircle   = parse("loader-circle")
 	LockKeyhole    = parse("lock-keyhole")
+	Mail           = parse("mail")
+	MailOpen       = parse("mail-open")
 	MessageCircle  = parse("message-circle")
 	Monitor        = parse("monitor")
 	Newspaper      = parse("newspaper")
