@@ -25,16 +25,16 @@ import (
 var catalog []byte
 
 type copy struct {
-	Add, AddShort, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs       string
-	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute string
-	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo        string
-	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder         string
-	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added       string
-	EditTitle, Refresh, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn    string
-	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody  string
-	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                            string
-	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff    string
-	OpenSettings                                                                                               string
+	Add, AddShort, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs           string
+	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute     string
+	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo            string
+	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder             string
+	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added           string
+	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn string
+	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody      string
+	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                string
+	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff        string
+	OpenSettings                                                                                                   string
 }
 
 var translations = func() map[string]copy {
@@ -423,6 +423,14 @@ func (s *Screen) gone(id int64) {
 	s.deps.Removed(id)
 }
 
+// refreshText is what the refresh action of src reads: Try again while its last fetch failed.
+func (s *Screen) refreshText(src client.Source) string {
+	if src.LastError != "" {
+		return s.text.Retry
+	}
+	return s.text.Refresh
+}
+
 // Refresh asks the server to fetch src now.
 func (s *Screen) Refresh(src client.Source) {
 	if s.api == nil {
@@ -512,7 +520,7 @@ func (s *Screen) remove() {
 
 // Menu fills the context menu of src in the sidebar.
 func (s *Screen) Menu(m *ui.Menu, src client.Source) {
-	if m.Item(s.text.Refresh).Disabled(src.Paused).Chosen() {
+	if m.Item(s.refreshText(src)).Disabled(src.Paused).Chosen() {
 		s.Refresh(src)
 	}
 	if m.Item(s.text.Edit).Chosen() {
@@ -1195,7 +1203,7 @@ func (s *Screen) health(c *ui.Context) {
 			Role(ui.RoleStatus)
 		if !src.Paused {
 			refresh := button(c, small, false)
-			textButton(c, refresh, small, icons.RefreshCw, s.text.Refresh, false)
+			textButton(c, refresh, small, icons.RefreshCw, s.refreshText(src), false)
 			if refresh.Clicked() {
 				s.Refresh(src)
 			}

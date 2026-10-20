@@ -31,7 +31,7 @@ var catalog []byte
 type copy struct {
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show             string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead        string
-	MarkUnread, Open, Failing, NewEntries, Loading, LoadingMore, LoadMoreFailed, AllLoaded                  string
+	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Loading, LoadingMore, LoadMoreFailed, AllLoaded  string
 	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                string
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                 string
 	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                string
@@ -39,7 +39,8 @@ type copy struct {
 	AddSource, EditSource, AddFirst, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu string
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar        string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle              string
-	KeyBack, KeyAdd, KeySettings, KeyKeys                                                                   string
+	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow            string
+	FailingTitle, ShowAll                                                                                   string
 }
 
 var translations = func() map[string]copy {
@@ -133,6 +134,7 @@ type Screen struct {
 	gen    int    // counts servers used, so the results of the one before are dropped
 
 	sources       []client.Source
+	failingOnly   bool // the sidebar lists only the subscriptions whose last fetch failed
 	sourcesLoaded bool
 	scope         scope
 	tab           int // the tab of scope.kind
@@ -813,6 +815,25 @@ func (s *Screen) format(text string, n int) string {
 	return strings.ReplaceAll(text, "{n}", strconv.Itoa(n))
 }
 
+// reason is why src is failing, as the edit dialog of the subscription says it.
+func (s *Screen) reason(src client.Source) string {
+	text := s.text.FailedOnce
+	if src.ConsecutiveFailures > 1 {
+		text = s.format(s.text.FailedTimes, src.ConsecutiveFailures)
+	}
+	return strings.ReplaceAll(text, "{error}", src.LastError)
+}
+
+// failingName is the name of a failing subscription for a screen reader: its name, its unread count when it has
+// any, and that its last fetch failed.
+func (s *Screen) failingName(name string, unread int) string {
+	text := s.text.FailingName
+	if unread > 0 {
+		text = s.text.FailingUnread
+	}
+	return strings.ReplaceAll(s.format(text, unread), "{name}", name)
+}
+
 // when is the time of an entry as the list shows it: how long ago within a week, else the date.
 func (s *Screen) when(e client.Entry, now time.Time) string {
 	ms := e.PublishedAt
@@ -1207,9 +1228,21 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 				}
 			}
 		}
+		failing := 0
+		for _, src := range list {
+			if failed(src) {
+				failing++
+			}
+		}
+		if failing == 0 {
+			s.failingOnly = false
+		}
+		if s.failingOnly {
+			list = slices.DeleteFunc(slices.Clone(list), func(src client.Source) bool { return !failed(src) })
+		}
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			ui.Column(c).FillWidth().Padding(px(t, 4), px(t, 8), px(t, 6)).Label(s.text.Sources).Children(func() {
-				s.section(c)
+				s.section(c, failing)
 				for _, src := range list {
 					s.sourceItem(c, src)
 				}
@@ -1260,21 +1293,30 @@ func (s *Screen) tabs(c *ui.Context) {
 				})
 				if tab.Clicked() {
 					s.tab = i
+					s.failingOnly = false
 					s.back()
 				}
 			}
 		})
 	if s.tab != before || seg.Track.Changed() {
+		s.failingOnly = false
 		s.choose(scope{kind: kinds[s.tab]})
 	}
 }
 
-// section is the header of the subscriptions in the sidebar, with the button adding one.
-func (s *Screen) section(c *ui.Context) {
+// failed reports whether the last fetch of src failed; a paused subscription shows its pause instead.
+func failed(src client.Source) bool { return src.LastError != "" && !src.Paused }
+
+// section is the header of the subscriptions in the sidebar, with the button adding one. While failing
+// subscriptions are listed it ends in how many, a button that narrows the list to them until Show all.
+func (s *Screen) section(c *ui.Context, failing int) {
 	t := c.Theme()
 	name := s.text.Sources
 	if s.scope.kind != "" {
 		name = s.kindName(s.scope.kind)
+	}
+	if s.failingOnly {
+		name = s.text.FailingTitle
 	}
 	size, tracking := px(t, 11), px(t, 11)*0.04
 	if theme.Han(name) {
@@ -1284,6 +1326,17 @@ func (s *Screen) section(c *ui.Context) {
 		Children(func() {
 			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(size).FontWeight(500).
 				LetterSpacing(tracking).TextColor(t.TextMuted)
+			switch {
+			case s.failingOnly:
+				if s.link(c, nil, s.text.ShowAll, s.text.ShowAll, theme.Text2(t)) {
+					s.failingOnly = false
+				}
+			case failing > 0:
+				show := s.format(s.text.FailingShow, failing)
+				if s.link(c, icons.CircleAlert, s.format(s.text.FailingCount, failing), show, t.Warning) {
+					s.failingOnly = true
+				}
+			}
 			b := ui.ButtonBase(c).Size(px(t, 22), px(t, 22)).Radius(px(t, 8)).Label(s.text.AddSource).
 				Tooltip(s.text.AddSource)
 			color := t.TextMuted
@@ -1298,12 +1351,33 @@ func (s *Screen) section(c *ui.Context) {
 		})
 }
 
+// link is a small text button in the sidebar's section header, with an optional icon; it reports a click.
+func (s *Screen) link(c *ui.Context, icon *ui.SVG, text, label string, color ui.Color) bool {
+	t := c.Theme()
+	b := ui.ButtonBase(c).Height(px(t, 20)).Gap(px(t, 4)).PaddingX(px(t, 6)).Radius(px(t, 6)).Label(label).
+		Tooltip(label)
+	if b.Hovered() {
+		b.Background(t.SurfaceHover)
+	}
+	b.Children(func() {
+		if icon != nil {
+			ui.Icon(c, icon).FontSize(px(t, 12)).TextColor(color)
+		}
+		ui.Text(c, text).SingleLine().FontSize(px(t, 11)).FontWeight(500).TextColor(color)
+	})
+	return b.Clicked()
+}
+
 func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 	t := c.Theme()
 	chosen := s.scope.source == src.ID
 	name := subscriptions.Name(src)
+	label := name
+	if failed(src) {
+		label = s.failingName(name, src.UnreadCount)
+	}
 	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(px(t, 30)).Gap(px(t, 10)).PaddingX(px(t, 10)).
-		Radius(px(t, 8)).Label(name).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
+		Radius(px(t, 8)).Label(label).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
 	count := t.TextMuted
 	switch {
 	case chosen:
@@ -1323,16 +1397,17 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 		if src.Paused {
 			color = t.TextMuted
 		}
-		label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(color)
+		title := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(color)
 		if chosen {
-			label.TextColor(t.Text).FontWeight(500)
+			title.TextColor(t.Text).FontWeight(500)
 		}
 		if src.Paused {
 			ui.Box(c).Label(s.text.PausedMark).Tooltip(s.text.PausedMark).Role(ui.RoleImage).Children(func() {
 				ui.Icon(c, icons.Pause).FontSize(px(t, 14)).TextColor(t.TextMuted)
 			})
 		} else if src.LastError != "" {
-			ui.Box(c).Label(s.text.Failing).Tooltip(s.text.Failing).Role(ui.RoleImage).Children(func() {
+			reason := s.reason(src)
+			ui.Box(c).Label(reason).Tooltip(reason).Role(ui.RoleImage).Children(func() {
 				ui.Icon(c, icons.CircleAlert).FontSize(px(t, 14)).TextColor(t.Warning)
 			})
 		}
