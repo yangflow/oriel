@@ -95,7 +95,9 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   Everything/Unread/Starred segments, search, mark all as read, whose name and tooltip say its scope: "Mark all in
   “Videos” as read") with no bar and no divider: the segments are one 32 high capsule of glass floating over the
   entries, which fade under the row (the soft scroll edge); search is a flat ink fill, and the other buttons are
-  bare icons. Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
+  bare icons. When a background check fails after the list loaded, a quiet 28 high status line sits under the toolbar,
+  lined up with the list: a 14 `Warning` wifi-off icon and 12 `TextMuted` text, "Can't reach the server · last updated
+  10:42", with no fill; it is a polite status, announced once, and goes away on the next successful check. Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
   at the sides; a row is as high as its text, padded 16 with 14 between its parts, radius 12 when it has a fill, and
   an article's thumbnail, at most 96 by 64, radius 8, starts under the meta line and never makes the row taller. A
   row reads, top to bottom: the meta line (20 high: the site icon, the source name, a dot, the time, the kind
@@ -291,7 +293,7 @@ values are in [design/tokens.md](../design/tokens.md). See
   on the focused row, fading in 120 ms. Pictures are downloaded through the server (`/api/image`), at most four at a
   time, and the 300 most recent bitmaps are kept; a missing picture keeps its box with an image icon. A video cover
   carries a play mark and the duration, labelled "Duration 12:34". The unread dot is a 7 `Accent` circle; a failing
-  subscription is `Warning` with a mark, the server is a `Success` dot; a starred entry is `theme.Star`.
+  subscription is `Warning` with a mark, the server is a `Success` dot, `Warning` while background checks fail; a starred entry is `theme.Star`.
 - **The product icon** is a mixed timeline on a warm ivory tile: a teal rail joins three entries, each a teal dot
   with a title line in ink (`#26231f`) and a shorter summary line in muted gray; the newest entry's dot, at the top,
   is the brightest (`#5eead4` to `#0f766e`). It sits on the macOS grid (an 824 tile at 100 in 1024, radius 185) with

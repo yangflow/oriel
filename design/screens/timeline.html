@@ -24,6 +24,9 @@
      A failing subscription carries the warning mark; its row's name says so ("The Go Blog, last fetch failed"), and the
      mark's tooltip gives how many times in a row and the reason (failing, the pointer resting on the mark). While any
      fail, the Subscriptions heading ends in "N failing", which narrows the list to them until Show all (failing-only).
+     When a background check fails after the list has loaded, the list stays whole and usable and a quiet line under
+     the toolbar says so ("Can't reach the server · last updated 10:42", offline): muted text, a Warning-tinted
+     wifi-off mark, no button. It clears by itself on the next successful check, and is announced once (polite status).
      The bar above the window only switches the mockup.
      URL parameters: state, scope=all|article|video|social|image|source, scheme=light|dark, lang=en|zh-Hans,
      size=default|min|wide. -->
@@ -116,6 +119,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .server { flex:1; min-width:0; display:flex; align-items:center; gap:8px; height:40px; padding:0 10px 0 18px; text-align:left; font-size:12px; letter-spacing:.01em; color:var(--muted) }
 .server .name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .server .dot { width:6px; height:6px; border-radius:50%; background:var(--success) }
+.server .dot.off { background:var(--warning) }
 .gear { flex:none; width:28px; height:28px; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
 .gear:hover { background:var(--hover); color:var(--text) }
 
@@ -149,6 +153,13 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .tool:active { background:var(--pressed) }
 .hint { flex:none; display:flex; align-items:center; gap:6px; margin:56px 12px 4px; padding:7px 14px; border-radius:12px; font-size:12px; letter-spacing:.005em; color:var(--text2); background:var(--warning-soft) }
 .hint svg.icon { width:14px; height:14px; color:var(--warning) }
+
+.stale { position:relative; z-index:2; flex:none; display:flex; align-items:center; gap:6px; height:28px; margin-top:52px; padding:0 20px; font-size:12px; letter-spacing:.01em; white-space:nowrap; font-variant-numeric:tabular-nums; color:var(--muted) }
+.stale.aligned { --col:680px; padding-left:max(20px,calc((100% - var(--col))/2 + 36px)); padding-right:max(12px,calc((100% - var(--col))/2 + 20px)) }
+.stale.aligned.wide { --col:720px }
+.stale span { min-width:0; overflow:hidden; text-overflow:ellipsis }
+.stale svg.icon { width:14px; height:14px; color:var(--warning) }
+.stale + .scroll { padding-top:0 }
 
 /* Timeline: rows are 12-radius fills; the pointer, a press and the choice fill with the 3, 5 and 6.5% ink steps
    (4, 6 and 8% in dark). The choice also carries a small accent marker inside the fill, 8 from its left edge. */
@@ -294,7 +305,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','no-more-unread','keys'];
+const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','no-more-unread','keys'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -355,7 +366,7 @@ const copy={
     failing:'Last fetch failed', failingName:'{name}, last fetch failed', failingUnread:'{name}, {n} unread, last fetch failed',
     failedOnce:'Last fetch failed: {error}', failedTimes:'Failed {n} times in a row: {error}',
     failingCount:'{n} failing', failingShow:'Show only the {n} failing subscriptions', failingTitle:'Failing', showAll:'Show all',
-    newEntries:'{n} new', loadingMore:'Loading more',
+    newEntries:'{n} new', loadingMore:'Loading more', offline:'Can’t reach the server · last updated {time}',
     tooShort:'Type at least 3 characters to search',
     noResults:'Nothing matches “{q}”', noResultsHint:'Search looks at titles, summaries and full text.',
     unreadDone:'All caught up', unreadDoneHint:'No unread entries here.',
@@ -380,7 +391,7 @@ const copy={
     failing:'上次抓取失败', failingName:'{name}，上次抓取失败', failingUnread:'{name}，{n} 条未读，上次抓取失败',
     failedOnce:'上次抓取失败：{error}', failedTimes:'连续失败 {n} 次：{error}',
     failingCount:'{n} 个失败', failingShow:'只显示 {n} 个抓取失败的订阅', failingTitle:'抓取失败', showAll:'显示全部',
-    newEntries:'{n} 条新内容', loadingMore:'正在加载',
+    newEntries:'{n} 条新内容', loadingMore:'正在加载', offline:'连不上服务器 · 上次更新于 {time}',
     tooShort:'至少输入 3 个字才能搜索',
     noResults:'没有找到“{q}”', noResultsHint:'搜索范围包括标题、摘要和全文。',
     unreadDone:'都读完了', unreadDoneHint:'这里没有未读条目。',
@@ -478,7 +489,7 @@ function sidebar(){
     :`<div class="section">${tabKind==='all'?copy.sources:copy[tabKind]}</div>`;
   return `<aside>${tabs(true)}<nav class="nav" aria-label="${copy.sources}">${heading}${list.map(sourceItem).join('')}</nav>${serverBar()}</aside>`;
 }
-function serverBar(){return `<div class="server-bar"><button class="server" aria-label="${copy.thisComputer}">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></button><button class="gear" aria-label="${copy.settings}" title="${copy.settings} (Ctrl+,)">${icon('settings')}</button></div>`}
+function serverBar(){return `<div class="server-bar"><button class="server" aria-label="${copy.thisComputer}">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot${state==='offline'?' off':''}" aria-hidden="true"></span></button><button class="gear" aria-label="${copy.settings}" title="${copy.settings} (Ctrl+,)">${icon('settings')}</button></div>`}
 
 const highlight=s=>q&&state==='search'?s.replace(new RegExp(q,'ig'),m=>`<mark>${m}</mark>`):s;
 const actionButtons=(e,cls='')=>`<button class="${cls}${e.starred?' starred':''}" aria-label="${e.starred?copy.unstar:copy.star}" title="${e.starred?copy.unstar:copy.star}">${icon('star',e.starred?'filled':'')}</button>
@@ -534,6 +545,7 @@ const markAll=`<button class="tool" aria-label="${markAllName}" title="${markAll
 const columned=!((scope==='video'||scope==='image')&&state!=='search');
 const toolbar=`<div class="toolbar${columned?' aligned':''}${scope==='social'?' wide':''}"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${searchField}${markAll}</div>`;
 const hint=state==='search-short'?`<div class="hint" id="hint" role="status">${icon('alert')}${copy.tooShort}</div>`:'';
+const stale=state==='offline'?`<div class="stale${columned?' aligned':''}${scope==='social'?' wide':''}" role="status">${icon('wifiOff')}<span>${t('offline',{time:'10:42'})}</span></div>`:'';
 const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries',{n:3})}</button>`:'';
 const mod=navigator.platform.startsWith('Mac')?'⌘':'Ctrl+';
 const toast=state==='marked-read'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedCount,scope:scopeName})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
@@ -545,7 +557,7 @@ const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog"
   <h3>${copy.inReader}</h3>${keyList([['kNextArticle','J'],['kPrevArticle','K'],['kNextUnread','N'],['kStar','S'],['kRead','M'],['kOpenBrowser','O'],['kBack','Esc']])}
   <h3>${copy.anywhere}</h3>${keyList([['kAdd',[mod,'N']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
 
-document.getElementById('app').innerHTML=`${sidebar()}<section class="main">${toolbar}${hint}${pill}<div class="scroll">${list}</div>${toast}</section>${dialog}`;
+document.getElementById('app').innerHTML=`${sidebar()}<section class="main">${toolbar}${hint}${stale}${pill}<div class="scroll">${list}</div>${toast}</section>${dialog}`;
 if(state==='no-more-unread')document.querySelector('.row.chosen').scrollIntoView({block:'center'});
 const tipped=document.getElementById('tipped');
 if(tipped){const w=document.getElementById('window').getBoundingClientRect(),r=tipped.getBoundingClientRect();

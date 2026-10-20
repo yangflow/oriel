@@ -29,18 +29,18 @@ import (
 var catalog []byte
 
 type copy struct {
-	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show             string
-	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead        string
-	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Loading, LoadingMore, LoadMoreFailed, AllLoaded  string
-	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                string
-	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                 string
-	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                string
-	MorePictures, Pictures, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator         string
-	AddSource, EditSource, AddFirst, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu string
-	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar        string
-	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle              string
-	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow            string
-	FailingTitle, ShowAll                                                                                   string
+	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show                     string
+	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                string
+	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded string
+	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                        string
+	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                         string
+	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                        string
+	MorePictures, Pictures, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                 string
+	AddSource, EditSource, AddFirst, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu         string
+	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                string
+	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                      string
+	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                    string
+	FailingTitle, ShowAll                                                                                           string
 }
 
 var translations = func() map[string]copy {
@@ -158,7 +158,9 @@ type Screen struct {
 	run      int  // counts first pages, so a result the user moved on from is dropped
 	polledAt time.Time
 	polling  bool
-	fresh    int // entries newer than the top one, found by polling
+	offline  bool      // a background check failed after the list loaded
+	updated  time.Time // the last load or check that succeeded
+	fresh    int       // entries newer than the top one, found by polling
 
 	selected int // the entry chosen, -1 for none
 	focusRow int // the entry to give the focus in the next frame, -1 for none
@@ -346,6 +348,7 @@ func (s *Screen) reload() {
 	s.run++
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
 	s.entries, s.next, s.loading, s.loadErr, s.more, s.moreErr, s.fresh = nil, "", true, false, false, false, 0
+	s.offline = false
 	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = -1, -1, -1, true, 0, false
 	for address, p := range s.pictures {
 		if p.failed {
@@ -367,6 +370,7 @@ func (s *Screen) reload() {
 				return
 			}
 			s.entries, s.next, s.polledAt = page.Entries, page.Next, s.deps.Now()
+			s.updated = s.polledAt
 		}
 	})
 }
@@ -425,9 +429,16 @@ func (s *Screen) poll(c *ui.Context) {
 			if sourcesErr == nil {
 				s.sources, s.sourcesLoaded = sources, true
 			}
-			if err != nil || run != s.run {
+			if run != s.run {
 				return
 			}
+			if sourcesErr != nil || err != nil {
+				if !s.offline {
+					s.offline, s.announce = true, s.staleText()
+				}
+				return
+			}
+			s.offline, s.updated = false, s.deps.Now()
 			if len(s.entries) == 0 {
 				s.entries, s.next = page.Entries, page.Next
 				return
@@ -811,6 +822,11 @@ func (s *Screen) nextUnread() {
 	}
 }
 
+// staleText says that the server is out of reach and when the list was last brought up to date.
+func (s *Screen) staleText() string {
+	return strings.ReplaceAll(s.text.Offline, "{time}", s.updated.Format("15:04"))
+}
+
 func (s *Screen) format(text string, n int) string {
 	return strings.ReplaceAll(text, "{n}", strconv.Itoa(n))
 }
@@ -1040,6 +1056,7 @@ func (s *Screen) View(c *ui.Context) {
 		// The toolbar row floats over the content, which scrolls under it and fades under the scroll edge.
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 			s.hint(c)
+			s.stale(c)
 			s.content(c, now, compact)
 			theme.Edge(c)
 			s.toolbar(c, compact)
@@ -1479,6 +1496,10 @@ func (s *Screen) serverBar(c *ui.Context) {
 	}
 	// Inset like the rows above it, so its hover fill is a rounded row inside the pane, clear of its corner.
 	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Padding(0, px(t, 6), 0, px(t, 8)).Children(func() {
+		dot := t.Success
+		if s.offline {
+			dot = t.Warning
+		}
 		bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(px(t, 30)).Gap(px(t, 8)).PaddingX(px(t, 10)).
 			Radius(px(t, 8)).Label(strings.ReplaceAll(s.text.Server, "{server}", name))
 		if bar.Hovered() {
@@ -1489,7 +1510,7 @@ func (s *Screen) serverBar(c *ui.Context) {
 			ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(t.TextMuted)
 			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(px(t, 12)).LetterSpacing(px(t, 12) * 0.01).
 				TextColor(t.TextMuted)
-			ui.Box(c).Size(6, 6).Radius(3).Background(t.Success)
+			ui.Box(c).Size(6, 6).Radius(3).Background(dot)
 		})
 		if bar.Clicked() {
 			s.deps.OpenConnect()
@@ -1709,6 +1730,46 @@ func (s *Screen) hint(c *ui.Context) {
 		})
 }
 
+// staleHeight is the height of the line that says the server is out of reach.
+const staleHeight = 28
+
+// staleShown tells whether the line that says the server is out of reach shows under the toolbar.
+func (s *Screen) staleShown() bool {
+	return s.offline && !s.loadErr && !s.loading
+}
+
+// stale is the quiet line under the toolbar while background checks fail, lined up with the list.
+func (s *Screen) stale(c *ui.Context) {
+	if !s.staleShown() {
+		return
+	}
+	t := c.Theme()
+	top := float32(theme.Bar)
+	if _, short := s.trimmed(); short {
+		top = 4
+	}
+	row := ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(px(t, 6)).Height(staleHeight).Role(ui.RoleStatus)
+	if s.inColumn() {
+		maxWidth := px(t, 680)
+		if s.scope.kind == "social" {
+			maxWidth = px(t, 720)
+		}
+		row.MaxWidth(maxWidth).Margin(top, ui.Auto, 0).Padding(0, px(t, 20), 0, px(t, 36))
+	} else {
+		row.Margin(top, 0, 0).Padding(0, px(t, 20))
+	}
+	row.Children(func() {
+		ui.Icon(c, icons.WifiOff).FontSize(px(t, 14)).TextColor(t.Warning)
+		ui.Text(c, s.staleText()).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).SingleLine().
+			MinWidth(0).Shrink(1)
+	})
+}
+
+// inColumn tells whether the entries sit in the centered column, not in the video grid or the picture wall.
+func (s *Screen) inColumn() bool {
+	return s.searched != "" || s.scope.source != 0 || s.scope.kind != "video" && s.scope.kind != "image"
+}
+
 func (s *Screen) pill(c *ui.Context) {
 	if s.fresh == 0 {
 		return
@@ -1766,12 +1827,16 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 }
 
 // top is how far down the content starts: below the toolbar row, which it scrolls under, or below the hint, which
-// already sits below the row.
+// already sits below the row. The line that says the server is out of reach adds its own height.
 func (s *Screen) top() float32 {
+	top := float32(theme.Bar)
 	if _, short := s.trimmed(); short {
-		return 0
+		top = 0
 	}
-	return theme.Bar
+	if s.staleShown() {
+		top += staleHeight
+	}
+	return top
 }
 
 func (s *Screen) skeleton(c *ui.Context) {
