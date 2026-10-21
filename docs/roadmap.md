@@ -16,11 +16,11 @@
 - 0.2.0：形态列表、按范围全部标为已读并可撤销、快捷键表、下一条未读、站点图标。
 - 0.3.0：纸墨配色和行底色渐变，隐藏标题栏并用 Liquid Glass 绘制窗口外框。
 - 0.4.0：外观设置（主题、界面语言、字体、阅读字号）；墨色侧栏、石墨深色和无衬线正文的视觉改版。
+- 0.5.0：状态提示、右键菜单里的批量标为已读、键盘可达的侧栏、宽窗口设置页、术语表、遵守 Retry-After、预计阅读时间。
+- 0.6.0：按形态选默认视图、网格浏览、阅读字体与中西文排版、选中文字翻译解释、命令面板、阅读位置与上次看到哪里、讨论链接、看图层、导出 Markdown、列表密度和排序、侧栏过滤与收起、追踪图片过滤、条目语言。0.5 剩下的修复和小改动并入 0.7。
 
 ## 进行中和之后
 
-- [0.5 打磨与修复](https://github.com/yangflow/oriel/milestone/8)
-- [0.6 阅读体验](https://github.com/yangflow/oriel/milestone/9)
 - [0.7 订阅管理](https://github.com/yangflow/oriel/milestone/10)
 - [0.8 数据安全](https://github.com/yangflow/oriel/milestone/11)
 - [0.9 优先级与自动化](https://github.com/yangflow/oriel/milestone/12)
