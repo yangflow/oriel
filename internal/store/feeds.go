@@ -124,6 +124,9 @@ type FeedEntry struct {
 
 // SaveFeed writes the items of one fetch and fills the source's empty title and site address.
 // Items are inserted from last to first, so with equal created_at the newest item gets the highest ID.
+// An item with a GUID not yet stored is still an existing entry when it is the only item of the fetch with its link
+// and the source has exactly one entry with that link whose GUID is not in the fetch: the feed changed the GUID, and
+// the entry takes the new one. Entries of other sources are never matched.
 // An existing entry keeps its read and starred state, and its updated_at changes only when its content did.
 // A new item published before expired would be pruned again at once, so it is not added; zero keeps all.
 // Each new entry gets a pending result for every task in src.AITasks, except the translation of an entry
@@ -140,6 +143,9 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		extract = "pending"
 	}
 	created := 0
+	// Counts of the links and GUIDs in this fetch, and the source's stored links, read when first needed.
+	var itemLinks, itemGUIDs map[string]int
+	var stored map[string][]linkedEntry
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
 		var exists int
@@ -148,6 +154,25 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		switch err := tx.QueryRowContext(ctx, "SELECT 1, CASE extract_status WHEN 'ok' THEN search_text ELSE '' END FROM entries WHERE source_id = ? AND guid = ?",
 			src.ID, e.GUID).Scan(&exists, &extracted); {
 		case errors.Is(err, sql.ErrNoRows):
+			if stored == nil {
+				itemLinks, itemGUIDs = map[string]int{}, map[string]int{}
+				for _, it := range entries {
+					itemLinks[linkKey(it.URL)]++
+					itemGUIDs[it.GUID]++
+				}
+				if stored, err = sourceLinks(ctx, tx, src.ID); err != nil {
+					return 0, err
+				}
+			}
+			if old, ok := renamedEntry(e, stored, itemLinks, itemGUIDs); ok {
+				// The feed changed this entry's GUID: it is the same entry, so keep it (and its read and starred
+				// state) under the new GUID and let the update below refresh its content.
+				if _, err := tx.ExecContext(ctx, "UPDATE entries SET guid = ? WHERE id = ?", e.GUID, old.id); err != nil {
+					return 0, err
+				}
+				delete(stored, linkKey(e.URL))
+				break
+			}
 			if !expired.IsZero() && !e.PublishedAt.IsZero() && e.PublishedAt.Before(expired) {
 				continue
 			}
@@ -208,6 +233,21 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		return 0, err
 	}
 	return created, tx.Commit()
+}
+
+// renamedEntry finds the stored entry an item with an unknown GUID really is: the one entry of the source with the
+// same link. It returns false when no entry or several entries have the link, when several items of this fetch share
+// it (a feed whose items all link to the homepage), or when the stored entry's GUID is still in this fetch.
+func renamedEntry(e FeedEntry, stored map[string][]linkedEntry, itemLinks, itemGUIDs map[string]int) (linkedEntry, bool) {
+	key := linkKey(e.URL)
+	if key == "" || itemLinks[key] != 1 || len(stored[key]) != 1 {
+		return linkedEntry{}, false
+	}
+	old := stored[key][0]
+	if itemGUIDs[old.guid] > 0 {
+		return linkedEntry{}, false
+	}
+	return old, true
 }
 
 // Setting returns a setting, or "" when it was never set.
