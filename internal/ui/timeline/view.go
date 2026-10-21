@@ -121,6 +121,25 @@ type marking struct {
 	shown bool
 }
 
+// keepLists is how many lists the screen keeps to draw again at once.
+const keepLists = 8
+
+// listKey is what defines a list: the scope and the filter. A search is not kept.
+type listKey struct {
+	scope  scope
+	filter int
+}
+
+// snapshot is a list left, kept to draw again, where it was, when it is chosen again.
+type snapshot struct {
+	key      listKey
+	entries  []client.Entry
+	next     string
+	anchor   int64   // the first entry in view, 0 for none
+	wallY    float32 // how far the Images wall was scrolled
+	selected int64   // the entry chosen, 0 for none
+}
+
 // The IDs of the toasts the screen replaces rather than stacks.
 const (
 	markedToast = "timeline.marked"
@@ -156,8 +175,10 @@ type Screen struct {
 	loadErr  bool
 	more     bool // the next page
 	moreErr  bool
-	wantMore bool // a row near the end was drawn in this frame
-	run      int  // counts first pages, so a result the user moved on from is dropped
+	wantMore bool       // a row near the end was drawn in this frame
+	run      int        // counts first pages, so a result the user moved on from is dropped
+	checking bool       // a list drawn from memory is being checked against the server
+	lists    []snapshot // the lists left, the least recent first
 	polledAt time.Time
 	polling  bool
 	offline  bool      // a background check failed after the list loaded
@@ -173,6 +194,7 @@ type Screen struct {
 	height    float32         // of the window in the last frame
 	rects     map[int]ui.Rect // where the entries were drawn in the last frame, in window DIPs
 	toTop     bool
+	anchor    int64 // the first entry in view in the last frame, 0 for none
 	list      ui.ListState
 	grid      ui.GridState
 	wall      ui.ScrollState
@@ -217,6 +239,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		Expired: func() {
 			s.gen++
 			s.api = nil
+			s.lists = nil
 			s.deps.Expired()
 		},
 	})
@@ -251,6 +274,7 @@ func (s *Screen) Use(api API, server string) {
 	s.sources, s.sourcesLoaded = nil, false
 	s.scope, s.tab, s.filter = scope{}, 0, everything
 	s.query, s.searched, s.editing = "", "", false
+	s.lists, s.anchor = nil, 0
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
 	s.undoable, s.seeking, s.keys = nil, false, false
 	s.subs.Use(api)
@@ -261,6 +285,7 @@ func (s *Screen) Use(api API, server string) {
 
 // Refresh loads the subscriptions and the entries again, as after an import added subscriptions.
 func (s *Screen) Refresh() {
+	s.lists = nil
 	s.loadSources()
 	s.reload()
 }
@@ -271,6 +296,7 @@ func (s *Screen) expired(err error) bool {
 	}
 	s.gen++
 	s.api = nil
+	s.lists = nil
 	s.subs.Use(nil)
 	s.reader.Use(nil)
 	s.reading = 0
@@ -308,6 +334,7 @@ func (s *Screen) changed(src client.Source) {
 		s.tab = max(0, indexOf(kinds, src.Kind))
 	}
 	if src.Title != old.Title || src.Kind != old.Kind || src.MuteKeywords != old.MuteKeywords {
+		s.lists = nil
 		s.reload()
 	}
 }
@@ -316,7 +343,9 @@ func (s *Screen) changed(src client.Source) {
 func (s *Screen) removed(id int64) {
 	s.sources = slices.DeleteFunc(s.sources, func(src client.Source) bool { return src.ID == id })
 	s.loadSources()
+	s.lists = nil
 	if s.scope.source == id {
+		s.entries = nil
 		s.choose(scope{})
 		return
 	}
@@ -358,11 +387,8 @@ func (s *Screen) reload() {
 	s.entries, s.next, s.loading, s.loadErr, s.more, s.moreErr, s.fresh = nil, "", true, false, false, false, 0
 	s.offline = false
 	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = -1, -1, -1, true, 0, false
-	for address, p := range s.pictures {
-		if p.failed {
-			delete(s.pictures, address)
-		}
-	}
+	s.checking = false
+	s.retryPictures()
 	s.deps.Go(func() func() {
 		page, err := api.Entries(context.Background(), q)
 		return func() {
@@ -383,8 +409,203 @@ func (s *Screen) reload() {
 	})
 }
 
+// retryPictures forgets the pictures that failed to load, so the list tries them again.
+func (s *Screen) retryPictures() {
+	for address, p := range s.pictures {
+		if p.failed {
+			delete(s.pictures, address)
+		}
+	}
+}
+
+func (s *Screen) key() listKey { return listKey{s.scope, s.filter} }
+
+// grids and walls tell whether the list is drawn as the Videos grid or the Images wall, which keep their place
+// differently from the column of rows.
+func (s *Screen) grids() bool {
+	return s.scope.kind == "video" && s.scope.source == 0 && s.searched == ""
+}
+func (s *Screen) walls() bool {
+	return s.scope.kind == "image" && s.scope.source == 0 && s.searched == ""
+}
+
+// leave keeps the list on screen, which has the key old, to draw it again, where it was, when it is chosen again.
+// Lists not loaded, empty or failed and searches are not kept.
+func (s *Screen) leave(old listKey) {
+	if s.searched != "" || s.loading || s.loadErr || len(s.entries) == 0 {
+		return
+	}
+	snap := snapshot{key: old, entries: s.entries, next: s.next, anchor: s.anchor, wallY: s.wall.Y}
+	if s.selected >= 0 && s.selected < len(s.entries) {
+		snap.selected = s.entries[s.selected].ID
+	}
+	s.lists = slices.DeleteFunc(s.lists, func(l snapshot) bool { return l.key == old })
+	s.lists = append(s.lists, snap)
+	if len(s.lists) > keepLists {
+		s.lists = slices.Delete(s.lists, 0, 1)
+	}
+}
+
+// show changes what the list shows, the scope, the filter or the search, by change. The list left is kept; one
+// chosen again that is kept is drawn at once where it was and checked in the background, any other is loaded.
+func (s *Screen) show(change func()) {
+	s.leave(s.key())
+	change()
+	if s.searched == "" {
+		if i := slices.IndexFunc(s.lists, func(l snapshot) bool { return l.key == s.key() }); i >= 0 {
+			snap := s.lists[i]
+			s.lists = slices.Delete(s.lists, i, i+1)
+			s.restore(snap)
+			return
+		}
+	}
+	s.reload()
+}
+
+// restore draws snap at once, scrolled to the entry that was first in view and with the entry that was chosen, and
+// checks the first page against the server.
+func (s *Screen) restore(snap snapshot) {
+	if s.api == nil {
+		return
+	}
+	s.run++
+	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
+	s.entries, s.next, s.anchor = snap.entries, snap.next, snap.anchor
+	s.loading, s.loadErr, s.more, s.moreErr, s.fresh, s.offline, s.checking = false, false, false, false, 0, false, true
+	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = s.index(snap.selected), -1, -1, false, 0, false
+	s.polledAt = s.deps.Now()
+	s.retryPictures()
+	switch i := s.index(snap.anchor); {
+	case s.walls():
+		s.wall.Y = snap.wallY
+	case i < 0:
+	case s.grids():
+		s.grid.ScrollTo(i, ui.Start)
+	default:
+		s.list.ScrollTo(i, ui.Start)
+	}
+	s.deps.Go(func() func() {
+		page, err := api.Entries(context.Background(), q)
+		return func() {
+			if gen != s.gen || run != s.run {
+				return
+			}
+			s.checking = false
+			if s.expired(err) {
+				return
+			}
+			if err != nil {
+				if !s.offline {
+					s.offline, s.announce = true, s.staleText()
+				}
+				return
+			}
+			s.offline, s.polledAt = false, s.deps.Now()
+			s.updated = s.polledAt
+			s.merge(page)
+		}
+	})
+}
+
+// holdsTop tells whether entries newer than the top one must not be put above a grid or a wall scrolled away from
+// its top, which would move what is in view; the column of rows keeps its place by the keys of its rows.
+func (s *Screen) holdsTop() bool {
+	switch {
+	case s.walls():
+		return s.wall.Y > 0
+	case s.grids():
+		return len(s.entries) == 0 || s.anchor != s.entries[0].ID
+	}
+	return false
+}
+
+// older tells whether a comes after b in the timeline.
+func older(a, b client.Entry) bool {
+	return a.CreatedAt < b.CreatedAt || a.CreatedAt == b.CreatedAt && a.ID < b.ID
+}
+
+// merge puts the first page, fetched again for a list drawn from memory, in its place: the page, then the entries
+// loaded before that come after its last one. The choice stays on its entry, if the page and the list still have
+// it. A grid or wall scrolled away from its top does not take the entries newer than its top one; they show as
+// "new" as polling shows them. The article being read is left as it is.
+func (s *Screen) merge(page client.Page) {
+	if s.reading != 0 {
+		return
+	}
+	cached, fresh := s.entries, page.Entries
+	if len(cached) > 0 && s.holdsTop() {
+		n := 0
+		fresh = slices.DeleteFunc(slices.Clone(fresh), func(e client.Entry) bool {
+			newer := older(cached[0], e)
+			if newer {
+				n++
+			}
+			return newer
+		})
+		if n > 0 {
+			s.announce = s.format(s.text.NewEntries, n)
+		}
+		s.fresh = n
+	}
+	var selected, focus int64
+	if s.selected >= 0 && s.selected < len(cached) {
+		selected = cached[s.selected].ID
+	}
+	if s.focusRow >= 0 && s.focusRow < len(cached) {
+		focus = cached[s.focusRow].ID
+	}
+	merged, next := fresh, page.Next
+	if page.Next != "" {
+		have := make(map[int64]bool, len(fresh))
+		for _, e := range fresh {
+			have[e.ID] = true
+		}
+		merged = slices.Clone(fresh)
+		for _, e := range cached {
+			if !have[e.ID] && (len(fresh) == 0 || older(e, fresh[len(fresh)-1])) {
+				merged = append(merged, e)
+			}
+		}
+		if len(merged) > len(fresh) {
+			next = s.next
+		}
+	}
+	s.entries, s.next = merged, next
+	s.selected, s.focusRow, s.hovered = s.index(selected), s.index(focus), -1
+}
+
+// patchLists puts the change of the entries ids in the lists kept: the flags, and out of Unread what is read and out
+// of Starred what is not starred. Entries a list does not have are not added; the check on return gets the first page.
+func (s *Screen) patchLists(ids []int64, patch client.EntryPatch) {
+	set := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+	for i := range s.lists {
+		l := &s.lists[i]
+		l.entries = slices.DeleteFunc(l.entries, func(e client.Entry) bool {
+			if !set[e.ID] {
+				return false
+			}
+			return patch.IsRead != nil && *patch.IsRead && l.key.filter == unread ||
+				patch.Starred != nil && !*patch.Starred && l.key.filter == starred
+		})
+		for j := range l.entries {
+			if !set[l.entries[j].ID] {
+				continue
+			}
+			if patch.IsRead != nil {
+				l.entries[j].IsRead = *patch.IsRead
+			}
+			if patch.Starred != nil {
+				l.entries[j].Starred = *patch.Starred
+			}
+		}
+	}
+}
+
 func (s *Screen) loadMore() {
-	if s.api == nil || s.next == "" || s.loading || s.more || s.moreErr {
+	if s.api == nil || s.next == "" || s.loading || s.more || s.moreErr || s.checking {
 		return
 	}
 	s.more = true
@@ -413,7 +634,7 @@ func (s *Screen) loadMore() {
 
 // poll checks the sources and the first page for new entries every pollEvery, without moving the list.
 func (s *Screen) poll(c *ui.Context) {
-	if s.api == nil || s.loading || s.loadErr || s.polling || s.searched != "" {
+	if s.api == nil || s.loading || s.loadErr || s.checking || s.polling || s.searched != "" {
 		return
 	}
 	now := s.deps.Now()
@@ -470,9 +691,10 @@ func (s *Screen) choose(next scope) {
 	if next == s.scope {
 		return
 	}
-	s.scope = next
-	s.tab = max(0, indexOf(kinds, next.kind))
-	s.reload()
+	s.show(func() {
+		s.scope = next
+		s.tab = max(0, indexOf(kinds, next.kind))
+	})
 }
 
 func indexOf(list []string, v string) int {
@@ -497,8 +719,7 @@ func (s *Screen) search() {
 	if short || q == s.searched {
 		return
 	}
-	s.searched = q
-	s.reload()
+	s.show(func() { s.searched = q })
 }
 
 func (s *Screen) index(id int64) int {
@@ -527,6 +748,7 @@ func (s *Screen) change(id int64, patch client.EntryPatch) {
 	}
 	before := s.entries[i]
 	s.set(i, patch)
+	s.patchLists([]int64{id}, patch)
 	back := client.EntryPatch{}
 	if patch.IsRead != nil {
 		back.IsRead = &before.IsRead
@@ -544,6 +766,7 @@ func (s *Screen) change(id int64, patch client.EntryPatch) {
 			if i := s.index(id); i >= 0 {
 				s.set(i, back)
 			}
+			s.patchLists([]int64{id}, back)
 			s.toast = s.text.ActionFailed
 		}
 	})
@@ -876,6 +1099,7 @@ func (s *Screen) undo(m *marking) {
 
 // setRead shows the loaded entries among ids read or unread; the sources load again for the counts.
 func (s *Screen) setRead(ids []int64, read bool) {
+	s.patchLists(ids, client.EntryPatch{IsRead: &read})
 	for i := range s.entries {
 		if slices.Contains(ids, s.entries[i].ID) {
 			s.entries[i].IsRead = read
@@ -1774,8 +1998,9 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 				})
 			}
 		})
-	if s.filter != before {
-		s.reload()
+	if after := s.filter; after != before {
+		s.filter = before
+		s.show(func() { s.filter = after })
 	}
 }
 
@@ -2007,6 +2232,21 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 		}
 	})
 	s.toTop = false
+	s.anchor = s.firstInView()
+}
+
+// firstInView is the first entry that shows in the list area, as the last draw placed the entries, 0 for none.
+func (s *Screen) firstInView() int64 {
+	first := -1
+	for i, r := range s.rects {
+		if i < len(s.entries) && r.H > 0 && r.Y+r.H > s.top() && r.Y < s.height && (first < 0 || i < first) {
+			first = i
+		}
+	}
+	if first < 0 {
+		return 0
+	}
+	return s.entries[first].ID
 }
 
 // top is how far down the content starts: below the toolbar row, which it scrolls under, or below the hint, which
