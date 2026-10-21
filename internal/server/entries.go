@@ -16,6 +16,8 @@ const (
 	maxPage     = 100
 	// minQuery is the shortest text the trigram index can match.
 	minQuery = 3
+	// maxListAISummary is the most characters of an AI summary a list carries; the full one is at /api/entries/{id}/ai.
+	maxListAISummary = 300
 	// maxBudgetMinutes is the longest reading-time budget a client may ask for: one day.
 	maxBudgetMinutes = 1440
 )
@@ -30,6 +32,7 @@ type entryJSON struct {
 	Author        string        `json:"author"`
 	PublishedAt   *int64        `json:"publishedAt"`
 	Summary       string        `json:"summary"`
+	AISummary     string        `json:"aiSummary,omitempty"`
 	ThumbnailURL  string        `json:"thumbnailUrl"`
 	DurationSec   *int          `json:"durationSec"`
 	Platform      string        `json:"platform"`
@@ -73,6 +76,23 @@ func entryToJSON(e store.Entry) entryJSON {
 		DurationSec: duration, Platform: e.Platform, Language: e.Language, ReadingSec: e.ReadingSec, ReadProgress: e.ReadProgress, Images: images, ExtractStatus: e.ExtractStatus,
 		IsRead: e.IsRead, ReadAt: millis(e.ReadAt), Starred: e.Starred, CreatedAt: e.CreatedAt.UnixMilli(),
 	}
+}
+
+// clipSummary flattens the white space of an AI summary and keeps at most maxListAISummary characters of it. A cut
+// falls at a space when one is among the last fifth of what is kept, otherwise at the character; "…" follows it.
+func clipSummary(text string) string {
+	runes := []rune(strings.Join(strings.Fields(text), " "))
+	if len(runes) <= maxListAISummary {
+		return string(runes)
+	}
+	runes = runes[:maxListAISummary]
+	for i := len(runes) - 1; i >= maxListAISummary*4/5; i-- {
+		if runes[i] == ' ' {
+			runes = runes[:i]
+			break
+		}
+	}
+	return string(runes) + "…"
 }
 
 // cursor writes a timeline position as an opaque page token; parseCursor reads it back.
@@ -155,6 +175,7 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 	items := make([]entryJSON, len(list))
 	for i, entry := range list {
 		items[i] = entryToJSON(entry)
+		items[i].AISummary = clipSummary(entry.AISummary)
 	}
 	reply(w, http.StatusOK, map[string]any{"entries": items, "nextCursor": next})
 }

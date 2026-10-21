@@ -248,15 +248,17 @@ type Image struct {
 
 // Entry is an entry of the timeline. Times are Unix milliseconds, 0 when unknown.
 type Entry struct {
-	ID           int64  `json:"id"`
-	SourceID     int64  `json:"sourceId"`
-	SourceTitle  string `json:"sourceTitle"`
-	Kind         string `json:"kind"`
-	Title        string `json:"title"`
-	URL          string `json:"url"`
-	Author       string `json:"author"`
-	PublishedAt  int64  `json:"publishedAt"`
-	Summary      string `json:"summary"`
+	ID          int64  `json:"id"`
+	SourceID    int64  `json:"sourceId"`
+	SourceTitle string `json:"sourceTitle"`
+	Kind        string `json:"kind"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	Author      string `json:"author"`
+	PublishedAt int64  `json:"publishedAt"`
+	Summary     string `json:"summary"`
+	// AISummary is the start of the entry's stored AI summary, only in a list and only when one is ok; "" otherwise.
+	AISummary    string `json:"aiSummary"`
 	ThumbnailURL string `json:"thumbnailUrl"`
 	DurationSec  int    `json:"durationSec"`
 	Platform     string `json:"platform"`

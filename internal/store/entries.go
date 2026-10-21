@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ type Entry struct {
 	Author        string
 	PublishedAt   time.Time
 	Summary       string
+	AISummary     string // the stored AI summary when it is ok, the start of it in a list; "" when there is none
 	ContentHTML   string
 	ExtractedHTML string
 	ThumbnailURL  string
@@ -143,15 +145,21 @@ func (f EntryFilter) where() (string, []any) {
 	return strings.Join(conditions, " AND "), args
 }
 
-// timelineQuery selects the entries of the filter, newest first. Its last parameter is the limit.
+// listAISummaryRunes is how much of an AI summary a list reads from the database; the caller trims it further.
+const listAISummaryRunes = 1000
+
+// timelineQuery selects the entries of the filter, newest first, each with the start of its ok AI summary as the
+// column after entryColumns. Its last parameter is the limit.
 func (f EntryFilter) timelineQuery() (string, []any) {
 	where, args := f.where()
-	return "SELECT" + entryColumns + `
+	return "SELECT" + entryColumns + `, COALESCE(substr(a.text, 1, ` + strconv.Itoa(listAISummaryRunes) + `), '')
 		FROM entries e JOIN sources s ON s.id = e.source_id
+		LEFT JOIN entry_ai a ON a.entry_id = e.id AND a.task = '` + TaskSummary + `' AND a.status = 'ok'
 		WHERE ` + where + " ORDER BY e.created_at DESC, e.id DESC LIMIT ?", args
 }
 
-// Entries returns up to limit entries of the timeline, newest first.
+// Entries returns up to limit entries of the timeline, newest first. Their AISummary is the start of the stored AI
+// summary, up to 1000 characters; it never makes one.
 func (s *Store) Entries(ctx context.Context, filter EntryFilter, limit int) ([]Entry, error) {
 	query, args := filter.timelineQuery()
 	rows, err := s.db.QueryContext(ctx, query, append(args, limit)...)
@@ -161,10 +169,12 @@ func (s *Store) Entries(ctx context.Context, filter EntryFilter, limit int) ([]E
 	defer rows.Close()
 	entries := []Entry{}
 	for rows.Next() {
-		entry, err := scanEntry(rows)
+		var ai string
+		entry, err := scanEntry(rows, &ai)
 		if err != nil {
 			return nil, err
 		}
+		entry.AISummary = ai
 		entries = append(entries, entry)
 	}
 	return entries, rows.Err()

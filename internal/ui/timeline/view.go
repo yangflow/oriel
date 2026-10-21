@@ -35,7 +35,7 @@ type copy struct {
 	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                            string
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                             string
 	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                            string
-	MorePictures, Pictures, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                     string
+	MorePictures, Pictures, AISummary, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator          string
 	AddSource, EditSource, AddFirst, ImportOPML, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu string
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                    string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                          string
@@ -2965,14 +2965,33 @@ func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted 
 	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
 		s.meta(c, e, now, false, px(t, 88), muted, false)
 		s.titleText(c, e, 15, muted)
-		if summary := strings.Join(strings.Fields(e.Summary), " "); summary != "" {
+		summary, generated := strings.Join(strings.Fields(e.Summary), " "), false
+		if ai := strings.Join(strings.Fields(e.AISummary), " "); ai != "" {
+			summary, generated = ai, true
+		}
+		if summary != "" {
 			color := theme.Text2(t)
 			if e.IsRead {
 				color = muted
 			}
-			text := ui.RichText(c, s.marked(c, summary, color)...).FontSize(px(t, 13)).MaxLines(2).LineHeight(1.5)
-			if theme.Han(summary) {
-				text.LineHeight(1.7)
+			line := func() {
+				text := ui.RichText(c, s.marked(c, summary, color)...).FontSize(px(t, 13)).MaxLines(2).LineHeight(1.5)
+				if theme.Han(summary) {
+					text.LineHeight(1.7)
+				}
+				if generated {
+					text.Grow(1).MinWidth(0)
+				}
+			}
+			if generated {
+				// The sparkle says the text was generated; its label is how assistive technology says so.
+				ui.Row(c).Gap(px(t, 6)).AlignItems(ui.Start).Children(func() {
+					ui.Icon(c, icons.Sparkles).FontSize(px(t, 13)).TextColor(muted).Margin(px(t, 4), 0, 0, 0).
+						Label(s.text.AISummary).Role(ui.RoleImage)
+					line()
+				})
+			} else {
+				line()
 			}
 		}
 	})
