@@ -17,7 +17,10 @@
      importing, imported (with failures), import-error, exported, devices (a remote server and its sessions),
      devices-local (this computer's server, no sessions), revoke (confirming a revocation), loading, error;
      ai (not set up), ai-configured (saved, the key only shown as set), ai-edited (changed, not saved; testing waits
-     for the save), ai-invalid (the server refused the address), ai-testing, ai-tested, ai-test-failed;
+     for the save), ai-invalid (the server refused the address), ai-testing, ai-tested, ai-test-failed,
+     prompt-restored (Restore default on an edited summary prompt: the default is back in the box, unsaved, so Save is
+     primary and that Restore default is dimmed; a toast says "Summary prompt restored to default" with Undo, which puts back
+     the exact text that was there, and a close button; it closes by itself after 8 seconds);
      font-open (the Interface font picker open, the keyboard highlight on a row below the current choice),
      font-filtered ("sans" typed: the matches, the current choice still pinned on top if it matches),
      font-empty (nothing matches), font-loading (the family list is still being read);
@@ -260,6 +263,13 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .empty p { margin:-4px 0 0; max-width:320px; color:var(--muted) }
 .spin { animation:spin .9s linear infinite }
 @keyframes spin { to { transform:rotate(360deg) } }
+.toast { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:4; display:flex; align-items:center; gap:10px; max-width:calc(100% - 40px); min-height:40px; padding:6px 6px 6px 14px; border-radius:14px; background:#2a2620; color:#f4efe6; font-size:12.5px; box-shadow:0 10px 30px rgba(var(--ink),.28), 0 0 0 .5px rgba(255,248,235,.08) }
+:root[data-scheme=dark] .toast { background:#333837 }
+.toast svg.icon { flex:none }
+.toast .msg { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.toast .act { height:28px; padding:0 10px; border-radius:8px; color:inherit; font-weight:600; white-space:nowrap; background:rgba(255,248,235,.12) }
+.toast .x { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; color:inherit; opacity:.7 }
+.toast .x svg.icon { width:14px; height:14px }
 .backdrop { position:absolute; inset:0; display:grid; place-items:center; background:var(--scrim); z-index:5 }
 .alert { width:360px; padding:20px; border-radius:16px; background:var(--raised); box-shadow:var(--sheet-shadow) }
 .alert h2 { margin:0; font-size:15px; font-weight:600 }
@@ -274,7 +284,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -380,7 +390,7 @@ const copy={
     imported:'Imported {file}: {added} added, {existing} already subscribed, {failed} could not be added.',
     importedOk:'Imported {file}: {added} added, {existing} already subscribed.',
     invalidOpml:'{file} is not an OPML file. Nothing was added.', tooLarge:'{file} is larger than 1 MB.',
-    exported:'Exported {n} subscriptions to {file}.', dismiss:'Dismiss',
+    exported:'Exported {n} subscriptions to {file}.', dismiss:'Dismiss', undo:'Undo', promptRestored:'{name} restored to default',
     invalidUrl:'Not an http or https address', invalidKind:'Unknown kind',
     devicesHelp:'Every sign-in is a device. Sign one out and it needs the password to connect again.',
     localDevices:'This computer’s server has no password, so no device signs in to it. Devices show up here when you connect to a server that has one.',
@@ -433,7 +443,7 @@ const copy={
     imported:'已导入 {file}：新增 {added} 个，{existing} 个已经订阅，{failed} 个没能添加。',
     importedOk:'已导入 {file}：新增 {added} 个，{existing} 个已经订阅。',
     invalidOpml:'{file} 不是 OPML 文件，什么都没有添加。', tooLarge:'{file} 超过 1 MB。',
-    exported:'已把 {n} 个订阅导出到 {file}。', dismiss:'关闭',
+    exported:'已把 {n} 个订阅导出到 {file}。', dismiss:'关闭', undo:'撤销', promptRestored:'{name}已恢复默认',
     invalidUrl:'不是 http 或 https 地址', invalidKind:'不认识的形态',
     devicesHelp:'每次登录是一台设备。让它退出登录后，要重新输入口令才能连上。',
     localDevices:'本机的服务端没有设口令，没有设备需要登录。连到设了口令的服务端后，登录过的设备会列在这里。',
@@ -447,7 +457,7 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
+const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
 
 const groups=[['appearance','palette'],['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
@@ -544,7 +554,7 @@ if(state==='ai-edited')aiStatus=`<div class="status busy">${copy.testFirst}</div
 if(state==='ai-testing')aiStatus=`<div class="status busy" role="status">${icon('loader','spin')}${copy.testing}</div>`;
 if(state==='ai-tested')aiStatus=`<div class="status ok" role="status">${icon('check')}${t('tested',{model:'gpt-4o-mini-2024-07-18'})}</div>`;
 if(state==='ai-test-failed')aiStatus=`<div class="status error" role="alert">${icon('alert')}${copy.aiUnauthorized}</div>`;
-const prompt=(label,text)=>`<div class="row"><div class="label-row"><span class="label">${label}</span><button class="button small" disabled>${icon('rotateCcw')}${copy.reset}</button></div><div class="textarea" role="textbox" aria-multiline="true" aria-label="${label}">${text}</div></div>`;
+const prompt=(label,text,dim=true)=>`<div class="row"><div class="label-row"><span class="label">${label}</span><button class="button small"${dim?' disabled':''}>${icon('rotateCcw')}${copy.reset}</button></div><div class="textarea" role="textbox" aria-multiline="true" aria-label="${label}">${text}</div></div>`;
 const ai=`<p class="lead">${copy.aiLead}</p><div class="two"><div class="col"><h2 class="section-title">${copy.connection}</h2><div class="card">
 <div class="row"><span class="label">${copy.endpoint}</span><p class="help">${copy.endpointHelp}</p><div class="control">${aiField(copy.endpoint,endpoint,copy.endpointPlaceholder,state==='ai-invalid'?' invalid':state==='ai'||state==='ai-edited'?' focused':'')}</div>${state==='ai-invalid'?`<div class="status error" role="alert">${icon('alert')}${copy.invalidAiBase}</div>`:''}</div>
 <div class="row"><span class="label">${copy.model}</span><div class="control">${aiField(copy.model,modelName,copy.modelPlaceholder)}</div></div>
@@ -557,7 +567,7 @@ const ai=`<p class="lead">${copy.aiLead}</p><div class="two"><div class="col"><h
 <div class="col"><h2 class="section-title">${copy.prompts}</h2><div class="card">
 ${prompt(copy.promptSummary,'Summarize the article in {language} in three to five sentences. Reply with the summary only.')}
 ${prompt(copy.promptTranslate,'Translate the text into {language}. Keep the paragraphs and their order, and the title on the first line. Reply with the translation only.')}
-<div class="row"><div class="actions"><p class="help status" style="display:block">${copy.promptHelp}</p><button class="button" disabled>${copy.save}</button></div></div>
+<div class="row"><div class="actions"><p class="help status" style="display:block">${copy.promptHelp}</p><button class="button${state==='prompt-restored'?' primary':''}"${state==='prompt-restored'?'':' disabled'}>${copy.save}</button></div></div>
 </div></div></div>`;
 
 let page;
@@ -592,7 +602,8 @@ if(readingOpen){
   overlay=picker([[copy.followInterface,'inherit'],[copy.serif,serifFace]],copy.serif,families,'',false,'Charter');
 }
 if(state==='revoke')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${t('revokeTitle',{name:'Safari · iPhone'})}</h2><p id="ab">${copy.revokeBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.revokeConfirm}</button></div></div></div>`;
-document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar"><h1>${copy[group]}</h1></div><div class="scroll">${page}</div></section>${overlay}`;
+const toast=state==='prompt-restored'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${t('promptRestored',{name:copy.promptSummary})}</span><button class="act">${copy.undo}</button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`:'';
+document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar"><h1>${copy[group]}</h1></div><div class="scroll">${page}</div>${toast}</section>${overlay}`;
 if(fontOpen||readingOpen){
   // Anchor under the control, right edges aligned; use the larger side when 360 does not fit.
   const win=document.getElementById('window').getBoundingClientRect(), box=document.getElementById('picker');

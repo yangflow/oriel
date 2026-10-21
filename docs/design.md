@@ -784,7 +784,7 @@ Overlays share focus and Escape behavior; see
   card's width; and the two prompts in a second card. The key field is always
   empty; a badge says "Configured" or "Not configured", a new key replaces the old one and "Remove key" deletes it.
   Test sends a short request with the saved settings, so it is disabled while there are unsaved edits; its result
-  stays beside the buttons. Each prompt has "Restore default", disabled while it is the default. The Appearance group, first in the list, is
+  stays beside the buttons. Each prompt has "Restore default", disabled while it is the default; it acts at once, puts the default in the box (still unsaved) and offers Undo in a toast, "Summary prompt restored to default", with a close button (`prompt-restored` in the mockup). Undo puts back exactly the text that was there, and does nothing if the box was edited again since. The Appearance group, first in the list, is
   different: it is kept on this device, not on the server, and a line at the top of its page says so ("These apply only
   to this device."), where the other pages say settings are kept on the server. One card holds a row each for Theme
   (segmented: System, Light, Dark), Interface language (a menu: System, 简体中文, English, each language name in its own

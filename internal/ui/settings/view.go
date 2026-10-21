@@ -46,7 +46,7 @@ type copy struct {
 	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset     string
 	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested      string
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase         string
-	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, InvalidPrompt                                      string
+	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                string
 	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp   string
 	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                           string
 	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium           string
@@ -123,6 +123,9 @@ type Deps struct {
 	ReadingFont func() string
 	Change      func(prefs.Preferences)
 }
+
+// restoredToast is the ID of the toast of Restore default on a prompt.
+const restoredToast = "settings.prompt-restored"
 
 // How far something has loaded.
 const (
@@ -203,6 +206,16 @@ type Screen struct {
 	doomed   client.Device
 	announce string
 	toast    string
+
+	restored *restoration // the last "Restore default" of a prompt, until its toast closes
+}
+
+// restoration is a prompt put back to its default, with the text it had, which Undo returns.
+type restoration struct {
+	i      int
+	name   string
+	before string
+	shown  bool
 }
 
 // New selects the best available translation, falling back to English. The screen shows nothing until Use.
@@ -240,7 +253,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.gen++
 	s.group, s.busy, s.importing, s.result, s.revoking = fetching, false, "", result{}, false
 	s.saving, s.keeping, s.aiSaving, s.testing, s.promptSaving = false, false, false, false, false
-	s.state, s.deviceState = loading, loading
+	s.state, s.deviceState, s.restored = loading, loading, nil
 }
 
 // OpenAI opens the screen on the AI group, from an entry point of summaries and translations.
@@ -964,6 +977,35 @@ func (s *Screen) View(c *ui.Context) {
 		c.Toast(s.toast)
 		s.toast = ""
 	}
+	s.restoreToast(c)
+}
+
+// restoreToast shows the toast of Restore default on a prompt, with Undo.
+func (s *Screen) restoreToast(c *ui.Context) {
+	r := s.restored
+	if r == nil || r.shown {
+		return
+	}
+	r.shown = true
+	c.AddToast(ui.Toast{ID: restoredToast, Title: s.fill(s.text.PromptRestored, "{name}", r.name), Timeout: 8 * time.Second,
+		Action: s.text.Undo, OnAction: func() { s.undoRestore(r) },
+		OnClose: func() {
+			if s.restored == r {
+				s.restored = nil
+			}
+		},
+		Data: theme.ToastLook{Icon: icons.RotateCcw, Close: s.text.Dismiss}})
+}
+
+// undoRestore puts back the text a prompt had before Restore default, unless it has been edited since.
+func (s *Screen) undoRestore(r *restoration) {
+	if s.restored != r {
+		return
+	}
+	s.restored = nil
+	if s.prompts[r.i] == s.defaults()[r.i] {
+		s.prompts[r.i] = r.before
+	}
 }
 
 // sidebarWidth is the sidebar's width.
@@ -1571,6 +1613,7 @@ func (s *Screen) promptField(c *ui.Context, i int, label string, two bool) {
 			Label(label + " · " + s.text.Reset)
 		textButton(c, reset, small, icons.RotateCcw, s.text.Reset, false)
 		if reset.Clicked() {
+			s.restored = &restoration{i: i, name: label, before: s.prompts[i]}
 			s.prompts[i] = s.defaults()[i]
 		}
 	})
