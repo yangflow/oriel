@@ -125,6 +125,25 @@ func TestTimeline(t *testing.T) {
 	if w := do(s, "PATCH", "/api/entries/"+id, `{"isRead":"yes"}`, bearer(token)); w.Code != http.StatusBadRequest {
 		t.Fatalf("bad patch: %d", w.Code)
 	}
+	if _, set := decode(t, do(s, "GET", "/api/entries/"+id, "", bearer(token)))["readProgress"]; set {
+		t.Fatal("readProgress is present before any scroll")
+	}
+	for _, edge := range []string{"0", "0.37", "1"} {
+		w := do(s, "PATCH", "/api/entries/"+id, `{"readProgress":`+edge+`}`, bearer(token))
+		want, _ := strconv.ParseFloat(edge, 64)
+		if got := decode(t, w); w.Code != http.StatusOK || got["readProgress"] != want {
+			t.Fatalf("progress %s: %d %v", edge, w.Code, got)
+		}
+	}
+	for _, bad := range []string{"-0.1", "1.01", `"half"`} {
+		w := do(s, "PATCH", "/api/entries/"+id, `{"readProgress":`+bad+`}`, bearer(token))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("progress %s: %d", bad, w.Code)
+		}
+	}
+	if w := do(s, "PATCH", "/api/entries/"+id, `{"readProgress":2}`, bearer(token)); decode(t, w)["error"] != "invalid_progress" {
+		t.Fatalf("error code: %v", w.Body.String())
+	}
 
 	// Mark read up to the oldest video: the newer social entry and the newer video stay unread.
 	videos := decode(t, do(s, "GET", "/api/entries?kind=video", "", bearer(token)))["entries"].([]any)

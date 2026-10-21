@@ -50,7 +50,8 @@
     "AIOffTitle": "AI isn’t set up",
     "OpenSettings": "Open Settings…",
     "Close": "Close",
-    "ReadingTime": "{n} min read"
+    "ReadingTime": "{n} min read",
+    "Resumed": "Back where you left off"
   },
   "zh-Hans": {
     "Back": "回到{scope}",
@@ -103,6 +104,7 @@
     "AIOffTitle": "还没配置 AI",
     "OpenSettings": "打开设置…",
     "Close": "关闭",
-    "ReadingTime": "{n} 分钟阅读"
+    "ReadingTime": "{n} 分钟阅读",
+    "Resumed": "回到上次读到的位置"
   }
 }

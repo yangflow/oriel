@@ -171,7 +171,7 @@ func TestTimelineAPI(t *testing.T) {
 		case "/api/sources":
 			w.Write([]byte(`{"sources":[{"id":1,"title":"Feed","kind":"article","unreadCount":3,"lastError":"boom","fetchIntervalSec":900}]}`))
 		case "/api/entries/7":
-			w.Write([]byte(`{"id":7,"starred":true,"extractStatus":"ok","contentHtml":"<p>x</p>","extractedHtml":"<p>y</p>"}`))
+			w.Write([]byte(`{"id":7,"starred":true,"readProgress":0.5,"extractStatus":"ok","contentHtml":"<p>x</p>","extractedHtml":"<p>y</p>"}`))
 		case "/api/entries/read":
 			w.Write([]byte(`{"marked":2,"ids":[7,8]}`))
 		case "/api/entries/unread":
@@ -218,6 +218,10 @@ func TestTimelineAPI(t *testing.T) {
 	if entry, err := session.SetEntry(ctx, 7, EntryPatch{Starred: &starred}); err != nil || !entry.Starred {
 		t.Errorf("SetEntry = %+v, %v", entry, err)
 	}
+	progress := 0.5
+	if entry, err := session.SetEntry(ctx, 7, EntryPatch{ReadProgress: &progress}); err != nil || entry.ReadProgress == nil || *entry.ReadProgress != 0.5 {
+		t.Errorf("SetEntry progress = %+v, %v", entry, err)
+	}
 	ids, err := session.MarkRead(ctx, ReadScope{Kind: "video", UpTo: 7})
 	if err != nil || len(ids) != 2 || ids[0] != 7 || ids[1] != 8 {
 		t.Errorf("MarkRead = %v, %v", ids, err)
@@ -259,6 +263,7 @@ func TestTimelineAPI(t *testing.T) {
 		"GET /api/sources ",
 		"GET /api/entries/7 ",
 		`PATCH /api/entries/7 {"starred":true}`,
+		`PATCH /api/entries/7 {"readProgress":0.5}`,
 		`POST /api/entries/read {"kind":"video","upTo":7}`,
 		`POST /api/entries/unread {"ids":[7,8]}`,
 		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",

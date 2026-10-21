@@ -952,6 +952,7 @@ func (s *Screen) back() {
 	if s.reading == 0 {
 		return
 	}
+	s.reader.Leave()
 	i := s.index(s.reading)
 	s.reading, s.seeking = 0, false
 	if i < 0 {

@@ -28,8 +28,9 @@ type Entry struct {
 	ThumbnailURL  string
 	DurationSec   int
 	Platform      string
-	Language      string // BCP 47 code, "" when unknown
-	ReadingSec    *int   // estimated seconds, nil when unknown; see docs/product.md "阅读时间"
+	Language      string   // BCP 47 code, "" when unknown
+	ReadingSec    *int     // estimated seconds, nil when unknown; see docs/product.md "阅读时间"
+	ReadProgress  *float64 // how far the article was read, 0 to 1, nil when never scrolled; see docs/product.md "阅读器"
 	Images        []Image
 	ExtractStatus string
 	IsRead        bool
@@ -59,14 +60,15 @@ type EntryFilter struct {
 
 // EntryPatch holds the reading state a user may change; nil leaves it as it is.
 type EntryPatch struct {
-	IsRead  *bool
-	Starred *bool
+	IsRead       *bool
+	Starred      *bool
+	ReadProgress *float64 // 0 to 1; the caller checks the range
 }
 
 const entryColumns = `
 	e.id, e.source_id, CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN s.url ELSE s.rsshub_path END, s.kind,
 	e.title, e.url, e.author, e.published_at, e.rss_summary, e.thumbnail_url, e.duration_sec, e.platform, e.images,
-	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec`
+	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec, e.read_progress`
 
 // shown keeps the entries of s that none of its mute keywords hides. Starred entries are never hidden.
 const shown = "(e.starred = 1 OR NOT muted(s.mute_keywords, e.title, e.rss_summary))"
@@ -177,7 +179,7 @@ func (s *Store) Entry(ctx context.Context, id int64) (Entry, error) {
 	return entry, err
 }
 
-// UpdateEntry changes the reading state and returns the entry. Marking a read entry read keeps its read_at.
+// UpdateEntry changes the reading state and the reading position and returns the entry. Marking a read entry read keeps its read_at.
 // Reading state does not change the entry's updated_at, which follows the feed content only.
 func (s *Store) UpdateEntry(ctx context.Context, id int64, patch EntryPatch, now time.Time) (Entry, error) {
 	if patch.IsRead != nil || patch.Starred != nil {
@@ -187,6 +189,17 @@ func (s *Store) UpdateEntry(ctx context.Context, id int64, patch EntryPatch, now
 				read_at = CASE WHEN ?1 IS NULL THEN read_at WHEN ?1 = 0 THEN NULL ELSE coalesce(read_at, ?2) END,
 				starred = coalesce(?3, starred)
 			WHERE id = ?4`, nullBool(patch.IsRead), now.UnixMilli(), nullBool(patch.Starred), id)
+		if err != nil {
+			return Entry{}, err
+		}
+		if n, err := result.RowsAffected(); err != nil {
+			return Entry{}, err
+		} else if n == 0 {
+			return Entry{}, ErrNotFound
+		}
+	}
+	if patch.ReadProgress != nil {
+		result, err := s.db.ExecContext(ctx, "UPDATE entries SET read_progress = ? WHERE id = ?", *patch.ReadProgress, id)
 		if err != nil {
 			return Entry{}, err
 		}
@@ -273,10 +286,11 @@ func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error)
 	var images string
 	var language sql.NullString
 	var reading sql.NullInt64
+	var progress sql.NullFloat64
 	var created int64
 	dest := append([]any{&entry.ID, &entry.SourceID, &entry.SourceTitle, &entry.Kind, &entry.Title, &entry.URL,
 		&entry.Author, &published, &entry.Summary, &entry.ThumbnailURL, &duration, &entry.Platform, &images,
-		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading}, extra...)
+		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading, &progress}, extra...)
 	if err := row.Scan(dest...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Entry{}, ErrNotFound
@@ -296,6 +310,9 @@ func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error)
 	if reading.Valid {
 		sec := int(reading.Int64)
 		entry.ReadingSec = &sec
+	}
+	if progress.Valid {
+		entry.ReadProgress = &progress.Float64
 	}
 	entry.DurationSec = int(duration.Int64)
 	entry.CreatedAt = time.UnixMilli(created)
