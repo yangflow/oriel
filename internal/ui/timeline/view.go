@@ -29,20 +29,21 @@ import (
 var catalog []byte
 
 type copy struct {
-	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show                         string
-	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                    string
-	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded     string
-	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                            string
-	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                             string
-	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                            string
-	MorePictures, Pictures, AISummary, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator          string
-	AddSource, EditSource, AddFirst, ImportOPML, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu string
-	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                    string
-	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                          string
-	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                        string
-	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu         string
-	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength        string
-	ShowGrid, ShowList                                                                                                  string
+	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show                                       string
+	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                  string
+	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                   string
+	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                          string
+	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                           string
+	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                          string
+	MorePictures, Pictures, AISummary, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                        string
+	AddSource, EditSource, AddFirst, ImportOPML, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu               string
+	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                  string
+	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                        string
+	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                      string
+	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                       string
+	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                      string
+	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteActions, PaletteUnreadOnly, PaletteShowAll string
+	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices                         string
 }
 
 var translations = func() map[string]copy {
@@ -83,22 +84,24 @@ type API interface {
 // they default to time.Now and ui.DecodeBitmap. OpenConnect shows the connect screen, from the server bar,
 // OpenSettings the settings, from the gear beside it, OpenAISettings the settings on the AI group, from the entry
 // points of summaries and translations while AI is not set up, OpenImport the settings on the import and export
-// group, from the empty timeline of a first run, and Expired the connect screen because the server no
-// longer takes the session. Reading gives the reading preferences of this device, for the reader, and ReadingFont the
+// group, from the empty timeline of a first run, OpenSettingsPage the settings on the group called page
+// ("appearance", "fetching", "opml", "ai" or "devices"), from the command palette, and Expired the connect screen
+// because the server no longer takes the session. Reading gives the reading preferences of this device, for the reader, and ReadingFont the
 // font list of the article's body that they come to, "" for the interface font. Change keeps preferences the
 // screen changed itself, the list or grid of a scope.
 type Deps struct {
-	Go             func(work func() (apply func()))
-	Now            func() time.Time
-	Decode         func([]byte) (*ui.Bitmap, error)
-	OpenConnect    func()
-	OpenSettings   func()
-	OpenAISettings func()
-	OpenImport     func()
-	Expired        func()
-	Reading        func() prefs.Preferences
-	ReadingFont    func() string
-	Change         func(prefs.Preferences)
+	Go               func(work func() (apply func()))
+	Now              func() time.Time
+	Decode           func([]byte) (*ui.Bitmap, error)
+	OpenConnect      func()
+	OpenSettings     func()
+	OpenAISettings   func()
+	OpenImport       func()
+	OpenSettingsPage func(page string)
+	Expired          func()
+	Reading          func() prefs.Preferences
+	ReadingFont      func() string
+	Change           func(prefs.Preferences)
 }
 
 // scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
@@ -221,6 +224,7 @@ type Screen struct {
 	seeking  bool                  // N found no unread entry loaded and waits for the next page
 	noMore   bool                  // show that no unread entry is below
 	keys     bool                  // the key sheet shows
+	pal      paletteState          // the command palette
 	subs     *subscriptions.Screen // the dialogs that add and edit subscriptions
 	reader   *reader.Screen        // in the place of the list while an article is read
 	reading  int64                 // the entry read, 0 for none
@@ -290,7 +294,7 @@ func (s *Screen) Use(api API, server string) {
 	s.query, s.searched, s.editing = "", "", false
 	s.lists, s.anchor = nil, 0
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
-	s.undoable, s.seeking, s.keys = nil, false, false
+	s.undoable, s.seeking, s.keys, s.pal = nil, false, false, paletteState{}
 	s.subs.Use(api)
 	s.reader.Use(api)
 	s.loadSources()
@@ -1475,8 +1479,9 @@ func (s *Screen) View(c *ui.Context) {
 	if s.seeking && !s.more {
 		s.nextUnread()
 	}
-	open := s.keys || s.subs.Open()
+	open := s.keys || s.subs.Open() || s.pal.open
 	if !open {
+		c.OnShortcut(ui.Cmd, ui.KeyK, s.openPalette)
 		c.OnShortcut(ui.Cmd, ui.KeyF, func() {
 			s.back()
 			s.searchBox = true
@@ -1528,6 +1533,7 @@ func (s *Screen) View(c *ui.Context) {
 		s.loadMore()
 	}
 	s.keySheet(c)
+	s.palette(c)
 	s.subs.View(c)
 	s.download()
 	if s.announce != "" {
@@ -1635,7 +1641,7 @@ func modifier() string {
 
 // ShowKeys shows the key sheet, from the menu or ?.
 func (s *Screen) ShowKeys() {
-	if s.subs.Open() {
+	if s.subs.Open() || s.pal.open {
 		return
 	}
 	s.keys = true
@@ -1681,7 +1687,7 @@ func (s *Screen) keySheet(c *ui.Context) {
 	reading := []key{{s.text.KeyNextArticle, one("J")}, {s.text.KeyPreviousArticle, one("K")},
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyStar, one("S")}, {s.text.KeyRead, one("M")},
 		{s.text.KeyOpenBrowser, one("O")}, {s.text.KeyBack, one("Esc")}}
-	anywhere := []key{{s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
+	anywhere := []key{{s.text.KeyPalette, [][]string{{cmd, "K"}}}, {s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
 		{s.text.KeyKeys, one("?")}}
 	ui.DialogBase(c, &s.keys, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Padding(t.Space(4))

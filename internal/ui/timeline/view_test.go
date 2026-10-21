@@ -36,9 +36,10 @@ type fake struct {
 	marked   []client.ReadScope
 	unmarked [][]int64
 	pictures []string
-	articles []int64 // the entries asked for in full
-	aiReads  []int64 // the entries whose summary and translation were read
-	aiAsked  int     // the summaries and translations asked to be made
+	articles []int64  // the entries asked for in full
+	aiReads  []int64  // the entries whose summary and translation were read
+	aiAsked  int      // the summaries and translations asked to be made
+	pages    []string // the settings pages asked for
 
 	entriesErr, setErr, markErr, imageErr            error
 	connects, settings, aiSettings, imports, expired int
@@ -202,13 +203,14 @@ func (f *fake) Selection(context.Context, string, string, string) (string, strin
 
 func (f *fake) deps() Deps {
 	return Deps{
-		Go:             func(work func() func()) { f.queue = append(f.queue, work) },
-		Now:            func() time.Time { return f.now },
-		OpenConnect:    func() { f.connects++ },
-		OpenSettings:   func() { f.settings++ },
-		OpenAISettings: func() { f.aiSettings++ },
-		OpenImport:     func() { f.imports++ },
-		Expired:        func() { f.expired++ },
+		Go:               func(work func() func()) { f.queue = append(f.queue, work) },
+		Now:              func() time.Time { return f.now },
+		OpenConnect:      func() { f.connects++ },
+		OpenSettings:     func() { f.settings++ },
+		OpenAISettings:   func() { f.aiSettings++ },
+		OpenImport:       func() { f.imports++ },
+		OpenSettingsPage: func(page string) { f.pages = append(f.pages, page) },
+		Expired:          func() { f.expired++ },
 	}
 }
 
@@ -628,6 +630,17 @@ func TestKeyboard(t *testing.T) {
 	tt.Type("jk")
 	if s.selected != 1 || s.query != "jk" {
 		t.Fatalf("the keys moved the list while typing: selected %d, query %q", s.selected, s.query)
+	}
+
+	// palette: the list's keys type into the palette and leave the list alone.
+	tt.Key(0, ui.KeyEscape)
+	tt.Key(ui.Cmd, ui.KeyK)
+	tt.Frame()
+	before, patched := s.selected, len(f.patches[7])
+	tt.Type("jsm")
+	tt.Frame()
+	if !s.pal.open || s.pal.query != "jsm" || s.selected != before || s.reading != 0 || len(f.patches[7]) != patched {
+		t.Fatalf("the palette let list keys through: query %q, selected %d, patches %v", s.pal.query, s.selected, f.patches)
 	}
 }
 

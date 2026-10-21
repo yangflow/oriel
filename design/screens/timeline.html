@@ -29,6 +29,9 @@
      segmented control; search is a flat fill and the tools are bare icons (docs/design.md, Title bar).
      Mark all as read names its scope in its tooltip, acts at once and offers Undo in a toast (marked-read), never a confirmation. N goes to the next
      unread entry; no-more-unread is what it says when there is none below. ? opens the keyboard shortcuts (keys).
+     Cmd/Ctrl+K opens the command palette: palette (empty query: Actions, Kinds, then every subscription, the first
+     row highlighted), palette-query (typing, ranked: prefix, word start, substring, scattered letters) and
+     palette-none. 60% of the window high at most, anchored 15% from the top; Up and Down wrap.
      Site icons replace the monogram where a subscription has one; the ones here are generic stand-ins, not the
      sites' real icons, and The Go Blog shows the monogram a subscription without an icon keeps.
      A failing subscription carries the warning mark; its row's name says so ("The Go Blog, last fetch failed"), and the
@@ -421,8 +424,27 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .sheet dl { margin:0; display:grid; grid-template-columns:1fr auto; align-items:center; gap:2px 12px }
 .sheet dt { padding:5px 0; font-size:12.5px }
 .sheet dd { margin:0; display:flex; gap:4px; justify-content:flex-end }
-.sheet kbd { min-width:22px; height:22px; padding:0 6px; display:inline-grid; place-items:center; border-radius:6px; background:var(--track); font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; color:var(--text) }
-.sheet .or { align-self:center; font-size:11px; color:var(--muted) }
+.sheet kbd, .palette kbd { min-width:22px; height:22px; padding:0 6px; display:inline-grid; place-items:center; border-radius:6px; background:var(--track); font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; color:var(--text) }
+.sheet .or, .palette .or { align-self:center; font-size:11px; color:var(--muted) }
+.scrim.top { place-items:start center; padding-top:15% }
+.palette { width:560px; max-width:calc(100% - 48px); display:flex; flex-direction:column; min-height:0; max-height:calc(100% - 15% - 24px); border-radius:14px; background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 20px 50px rgba(var(--shadow),.25) }
+.palette .field { flex:none; height:32px; margin:8px 8px 4px; display:flex; align-items:center; gap:8px; padding:0 10px; border-radius:8px; background:var(--raised); box-shadow:0 0 0 2px var(--focus); color:var(--muted) }
+.palette .field input { flex:1; min-width:0; border:0; outline:0; background:none; font:inherit; color:var(--text) }
+.palette .field input::placeholder { color:var(--muted) }
+.palette .plist { min-height:0; max-height:384px; overflow:auto; padding:0 8px 8px }
+.window.min .plist { max-height:288px }
+.window.wide .plist { max-height:456px }
+.palette h3 { margin:0; height:26px; padding:8px 8px 0; font-size:11px; font-weight:500; letter-spacing:.05em; text-transform:uppercase; color:var(--muted) }
+.palette .prow { height:32px; display:flex; align-items:center; gap:8px; padding:0 8px; border-radius:6px; white-space:nowrap }
+.palette .prow.hl { background:var(--sel) }
+.palette .prow svg.icon { width:16px; height:16px; color:var(--muted) }
+.palette .prow .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis }
+.palette .prow .grp { flex:none; font-size:11px; color:var(--muted) }
+.palette .prow .name { flex:0 1 auto }
+.palette .prow .name:last-child, .palette .prow .name:has(+ .count), .palette .prow .name:has(+ .chips) { flex:1 }
+.palette .prow .count { font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; color:var(--muted) }
+.palette .prow dd, .palette .prow .chips { margin:0; display:flex; gap:4px }
+.palette .none { padding:20px 8px 24px; text-align:center; color:var(--muted) }
 .dot-inline { width:6px; height:6px; flex:none; border-radius:50%; background:var(--accent) }
 </style>
 <div class="switcher" aria-hidden="true">
@@ -434,7 +456,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','long-titles','many-feeds','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
+const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -500,6 +522,8 @@ const icons={
   server:'<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
   settings:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
   undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  palette:'<path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>',
+  arrowUpDown:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
   keyboard:'<path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/>',
   laptop:'<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
 };
@@ -531,7 +555,8 @@ const copy={
     kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
     kSummarize:'Summarize', kTranslate:'Translate', kBack:'Back to the list', kAdd:'Add subscription', kSettings:'Settings', kKeys:'Keyboard shortcuts',
-    kMarkVisible:'Mark visible as read', kScope:'Switch kind', kSidebar:'Go to the sidebar', kMenu:'Context menu',
+    kPalette:'Command palette', pGoTo:'Go to…', pActions:'Actions', pSettings:'Settings', pNone:'No matches', pUnreadOnly:'Show unread only', pOpenSettings:'Open settings',
+    pAppearance:'Appearance', pFetching:'Fetching', pOpml:'Import and export', pAi:'AI', pDevices:'Devices', kMarkVisible:'Mark visible as read', kScope:'Switch kind', kSidebar:'Go to the sidebar', kMenu:'Context menu',
     thisComputer:'This computer', settings:'Settings', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures', pictureCount:'{n} pictures', aiSummary:'AI summary',
     ago:{m:'{n} min',h:'{n} h',d:'Yesterday',days:'{n} days'},
   },
@@ -560,6 +585,8 @@ const copy={
     kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
     kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
     kSummarize:'摘要', kTranslate:'翻译', kBack:'回到列表', kAdd:'添加订阅', kSettings:'设置', kKeys:'键盘快捷键',
+    kPalette:'命令面板', pGoTo:'前往…', pActions:'操作', pSettings:'设置', pNone:'没有匹配', pUnreadOnly:'只看未读', pOpenSettings:'打开设置',
+    pAppearance:'外观', pFetching:'抓取', pOpml:'导入和导出', pAi:'AI', pDevices:'设备',
     kMarkVisible:'把可见的标为已读', kScope:'切换形态', kSidebar:'到侧边栏', kMenu:'右键菜单',
     thisComputer:'本机', settings:'设置', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图', pictureCount:'{n} 张图', aiSummary:'AI 摘要',
     ago:{m:'{n} 分钟前',h:'{n} 小时前',d:'昨天',days:'{n} 天前'},
@@ -804,9 +831,38 @@ const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${
 const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="kt"><header><h2 id="kt">${copy.keysTitle}</h2><button class="close" aria-label="${copy.close}">${icon('x')}</button></header><div class="cols"><div>
   <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kStar','S'],['kRead','M'],['kMarkVisible','V'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kScope','1–5'],['kSidebar','H','←'],['kBack','L','→','Esc'],['kMenu',[shift,'F10'],...(mac?[]:['Menu'])],['kUndo',[mod,'Z']]])}</div><div>
   <h3>${copy.inReader}</h3>${keyList([['kNextArticle','J'],['kPrevArticle','K'],['kNextUnread','N'],['kStar','S'],['kRead','M'],['kOpenBrowser','O'],['kBack','Esc']])}
-  <h3>${copy.anywhere}</h3>${keyList([['kAdd',[mod,'N']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
+  <h3>${copy.anywhere}</h3>${keyList([['kPalette',[mod,'K']],['kAdd',[mod,'N']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
 
-document.getElementById('app').innerHTML=`${sidebar()}<section class="main">${toolbar}${hint}${stale}${pill}<div class="scroll">${list}</div>${toast}</section>${dialog}`;
+// Command palette. The ranking is the one the code uses: spaces and case ignored; prefix, then the start of a word,
+// then a substring, then scattered letters; inside a rank the group order, then the original order; 50 rows at most.
+const paletteQuery=state==='palette-query'?(zh?'设':'ap'):state==='palette-none'?'zzq':'';
+const strip=x=>x.toLowerCase().replace(/\s+/g,'');
+const rankOf=(text,qq)=>{qq=strip(qq);if(!qq)return 0;const tt=strip(text);if(tt.startsWith(qq))return 0;const l=text.toLowerCase();
+  for(let i=1;i<l.length;i++)if(/[\s\p{P}\p{S}]/u.test(l[i-1])&&!/[\s\p{P}\p{S}]/u.test(l[i])&&strip(l.slice(i)).startsWith(qq))return 1;
+  if(tt.includes(qq))return 2;let j=0;for(const ch of tt){if(ch===qq[j])j++;if(j===qq.length)return 3}return -1};
+const paletteRows=()=>{
+  const scopeLabel=kinds.includes(scope)?copy[scope]:copy.all;
+  const chips=(...k)=>`<dd class="chips">${k.map(x=>`<kbd>${x}</kbd>`).join('')}</dd>`;
+  const rows=[
+    ...[[copy.pActions,t('markAllIn',{scope:scopeLabel}),'checkCheck',''],[copy.pActions,copy.kAdd,'plus',chips(...[mod,'N'])],[copy.pActions,copy.pUnreadOnly,'dot',''],
+        [copy.pActions,copy.pOpenSettings,'settings',chips(mod,',')],[copy.pActions,copy.kKeys,'keyboard',chips('?')]]
+      .map(([g,name,ic,tail])=>({g,name,lead:icon(ic),tail})),
+    ...['all',...kinds].map(k=>({g:copy.kinds,name:k==='all'?copy.all:copy[k],lead:icon(k==='all'?'inbox':k),tail:`<span class="count">${k==='all'?sources.reduce((a,x)=>a+x.unread,0):kindUnread(k)}</span>`})),
+    ...sources.map(x=>({g:copy.sources,name:x.name,lead:glyph(x),tail:x.unread?`<span class="count">${x.unread}</span>`:''})),
+    ...[['pAppearance','palette'],['pFetching','rss'],['pOpml','arrowUpDown'],['pAi','sparkles'],['pDevices','laptop']].map(([k,ic])=>({g:copy.pSettings,name:copy[k],lead:icon(ic),tail:''})),
+  ].map((r,i)=>({...r,i,rank:rankOf(r.name,paletteQuery)})).filter(r=>r.rank>=0);
+  return rows.sort((a,b)=>a.rank-b.rank||a.i-b.i).slice(0,50);
+};
+const paletteDialog=()=>{
+  const rows=paletteRows(),groups=[];
+  // With an empty query the rows keep their groups under headers; with a query the matches are one ranked list, no headers, each row naming its group.
+  if(!paletteQuery)rows.sort((a,b)=>a.i-b.i);
+  const flat=rows.map((r,n)=>{const head=(!paletteQuery&&(n===0||rows[n-1].g!==r.g))?`<h3>${r.g}</h3>`:'';
+    return `${head}<div class="prow${n===0?' hl':''}" role="option" aria-selected="${n===0}" aria-label="${r.g}, ${r.name}">${r.lead}<span class="name">${r.name}</span>${paletteQuery?`<span class="grp">${r.g}</span>`:''}${r.tail}</div>`}).join('');
+  const body=rows.length?`<div class="plist" role="listbox" aria-label="${copy.pGoTo}">${flat}</div>`:`<div class="none" role="status">${copy.pNone}</div>`;
+  return `<div class="scrim top"><div class="palette" role="dialog" aria-modal="true" aria-label="${copy.kPalette}"><div class="field">${icon('search')}<input value="${paletteQuery}" placeholder="${copy.pGoTo}" aria-label="${copy.pGoTo}"></div>${body}</div></div>`};
+const paletteOn=state.startsWith('palette');
+document.getElementById('app').innerHTML=`${sidebar()}<section class="main">${toolbar}${hint}${stale}${pill}<div class="scroll">${list}</div>${toast}</section>${paletteOn?paletteDialog():dialog}`;
 const menuItem=(g,label,{key='',cls='',off=false}={})=>`<button role="menuitem"${cls?` class="${cls}"`:''}${off?' aria-disabled="true"':''}>${label}</button>`;
 const place=(html,anchor,dx,dy)=>{const w=document.getElementById('window'),a=anchor.getBoundingClientRect(),b=w.getBoundingClientRect();
   w.insertAdjacentHTML('beforeend',html);const m=w.lastElementChild;
