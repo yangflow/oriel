@@ -23,34 +23,67 @@ func TestSettings(t *testing.T) {
 	s.store.SetSetting(ctx, "ai_api_key", "stored-secret-value")
 	w := do(s, "GET", "/api/settings", "", bearer(token))
 	if body := decode(t, w); w.Code != http.StatusOK || strings.Contains(w.Body.String(), "stored-secret-value") ||
-		body["rsshubBaseUrl"] != "" || body["retentionDays"] != 0.0 || body["aiBaseUrl"] != "" || body["aiModel"] != "" ||
+		body["rsshubBaseUrl"] != "" || len(body["rsshubBaseUrls"].([]any)) != 0 || body["retentionDays"] != 0.0 || body["aiBaseUrl"] != "" || body["aiModel"] != "" ||
 		body["aiApiKeySet"] != true || body["aiLanguage"] != "zh-Hans" || body["promptSummary"] != ai.DefaultPromptSummary ||
 		body["promptTranslate"] != ai.DefaultPromptTranslate || body["defaultPromptSummary"] != ai.DefaultPromptSummary ||
-		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 10 {
+		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 11 {
 		t.Fatalf("defaults: %d %s", w.Code, w.Body)
 	}
 
 	w = do(s, "PATCH", "/api/settings", `{"rsshubBaseUrl":" http://localhost:1200/ ","retentionDays":30}`, bearer(token))
-	if body := decode(t, w); w.Code != http.StatusOK || body["rsshubBaseUrl"] != "http://localhost:1200/" || body["retentionDays"] != 30.0 {
+	if body := decode(t, w); w.Code != http.StatusOK || body["rsshubBaseUrl"] != "http://localhost:1200" || body["retentionDays"] != 30.0 {
 		t.Fatalf("patch: %d %v", w.Code, body)
 	}
 	// The fetch loop reads these keys on every run, so new values apply from the next fetch and prune.
-	if root, _ := s.store.Setting(ctx, fetch.RSSHubSetting); root != "http://localhost:1200/" {
+	if root, _ := s.store.Setting(ctx, fetch.RSSHubSetting); root != "http://localhost:1200" {
 		t.Fatalf("stored root = %q", root)
 	}
 	if days, _ := s.store.Setting(ctx, fetch.RetentionSetting); days != "30" {
 		t.Fatalf("stored retention = %q", days)
 	}
-	if body := decode(t, do(s, "PATCH", "/api/settings", `{"retentionDays":0}`, bearer(token))); body["rsshubBaseUrl"] != "http://localhost:1200/" || body["retentionDays"] != 0.0 {
+	if body := decode(t, do(s, "PATCH", "/api/settings", `{"retentionDays":0}`, bearer(token))); body["rsshubBaseUrl"] != "http://localhost:1200" || body["retentionDays"] != 0.0 {
 		t.Fatalf("only the given field changes: %v", body)
 	}
 	if body := decode(t, do(s, "PATCH", "/api/settings", `{"rsshubBaseUrl":""}`, bearer(token))); body["rsshubBaseUrl"] != "" {
 		t.Fatalf("clear root: %v", body)
 	}
 
+	// Several instances: kept in order, blanks and repeats dropped, the first also read as the single address.
+	w = do(s, "PATCH", "/api/settings", `{"rsshubBaseUrls":[" https://a.example/ ","","http://b.example","HTTPS://A.EXAMPLE"]}`, bearer(token))
+	body := decode(t, w)
+	if urls, _ := body["rsshubBaseUrls"].([]any); w.Code != http.StatusOK || len(urls) != 2 || urls[0] != "https://a.example" ||
+		urls[1] != "http://b.example" || body["rsshubBaseUrl"] != "https://a.example" {
+		t.Fatalf("list: %d %v", w.Code, body)
+	}
+	if raw, _ := s.store.Setting(ctx, fetch.RSSHubSetting); raw != "https://a.example\nhttp://b.example" {
+		t.Fatalf("stored list = %q", raw)
+	}
+	// The list wins over the single address in one request; the single address alone replaces the whole list.
+	if body := decode(t, do(s, "PATCH", "/api/settings", `{"rsshubBaseUrl":"http://old.example","rsshubBaseUrls":["http://c.example"]}`, bearer(token))); body["rsshubBaseUrl"] != "http://c.example" {
+		t.Fatalf("list and single: %v", body)
+	}
+	if body := decode(t, do(s, "PATCH", "/api/settings", `{"rsshubBaseUrl":"http://old.example"}`, bearer(token))); len(body["rsshubBaseUrls"].([]any)) != 1 {
+		t.Fatalf("single replaces the list: %v", body)
+	}
+	if body := decode(t, do(s, "PATCH", "/api/settings", `{"rsshubBaseUrls":[]}`, bearer(token))); len(body["rsshubBaseUrls"].([]any)) != 0 || body["rsshubBaseUrl"] != "" {
+		t.Fatalf("clear list: %v", body)
+	}
+	// A value saved before the list existed, with its trailing slash, reads as a list of one.
+	if err := s.store.SetSetting(ctx, fetch.RSSHubSetting, "http://legacy.example/"); err != nil {
+		t.Fatal(err)
+	}
+	if body := decode(t, do(s, "GET", "/api/settings", "", bearer(token))); body["rsshubBaseUrl"] != "http://legacy.example" ||
+		len(body["rsshubBaseUrls"].([]any)) != 1 {
+		t.Fatalf("legacy value: %v", body)
+	}
+
 	for body, code := range map[string]string{
-		`{"rsshubBaseUrl":"ftp://example.org"}`:                   "invalid_rsshub_base_url",
-		`{"rsshubBaseUrl":"localhost:1200"}`:                      "invalid_rsshub_base_url",
+		`{"rsshubBaseUrl":"ftp://example.org"}`:                     "invalid_rsshub_base_url",
+		`{"rsshubBaseUrl":"localhost:1200"}`:                        "invalid_rsshub_base_url",
+		`{"rsshubBaseUrls":["http://a.example","localhost:1200"]}`:  "invalid_rsshub_base_url",
+		`{"rsshubBaseUrls":["http://a.example\nhttp://b.example"]}`: "invalid_rsshub_base_url",
+		`{"rsshubBaseUrls":"http://a.example"}`:                     "invalid_body",
+		`{"rsshubBaseUrls":["http://1.example","http://2.example","http://3.example","http://4.example","http://5.example","http://6.example"]}`: "too_many_rsshub_base_urls",
 		`{"retentionDays":-1}`:                                    "invalid_retention_days",
 		`{"retentionDays":3651}`:                                  "invalid_retention_days",
 		`{"retentionDays":"30"}`:                                  "invalid_body",

@@ -78,16 +78,18 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 
 // FetchSuccess records a fetch that reached the feed, including 304 Not Modified.
 // Empty validators keep the stored ones. A non-zero interval is stored as the interval in use when the source is
-// still automatic. Bookkeeping does not change the source's updated_at.
-func (s *Store) FetchSuccess(ctx context.Context, id int64, etag, lastModified string, now, next time.Time, interval time.Duration) error {
+// still automatic. instance is the RSSHub instance that served the feed, empty for a source that is not an RSSHub
+// route. Bookkeeping does not change the source's updated_at.
+func (s *Store) FetchSuccess(ctx context.Context, id int64, etag, lastModified, instance string, now, next time.Time, interval time.Duration) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE sources SET last_fetched_at = ?1, last_success_at = ?1, consecutive_failures = 0, last_error = '',
 			etag = CASE WHEN ?2 = '' THEN etag ELSE ?2 END,
 			last_modified = CASE WHEN ?3 = '' THEN last_modified ELSE ?3 END,
 			next_fetch_at = ?4,
-			fetch_interval_sec = CASE WHEN fetch_interval_auto = 1 AND ?5 > 0 THEN ?5 ELSE fetch_interval_sec END
-		WHERE id = ?6`,
-		now.UnixMilli(), etag, lastModified, next.UnixMilli(), int64(interval/time.Second), id)
+			fetch_interval_sec = CASE WHEN fetch_interval_auto = 1 AND ?5 > 0 THEN ?5 ELSE fetch_interval_sec END,
+			rsshub_instance = ?6
+		WHERE id = ?7`,
+		now.UnixMilli(), etag, lastModified, next.UnixMilli(), int64(interval/time.Second), instance, id)
 	return err
 }
 

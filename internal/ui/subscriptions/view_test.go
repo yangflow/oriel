@@ -86,7 +86,7 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	if f.setErr != nil {
 		return client.Settings{}, f.setErr
 	}
-	f.settings.RSSHubBaseURL = *patch.RSSHubBaseURL
+	f.settings.RSSHubBaseURLs = *patch.RSSHubBaseURLs
 	return f.settings, nil
 }
 
@@ -126,7 +126,7 @@ func setup(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 			{ID: 2, RSSHubPath: "/telegram/channel/golang", Kind: "social", FetchIntervalSec: 3600,
 				LastError: "status 503", ConsecutiveFailures: 3},
 		},
-		settings: client.Settings{RSSHubBaseURL: "https://rsshub.example.com", RetentionDays: 30},
+		settings: client.Settings{RSSHubBaseURLs: []string{"https://rsshub.example.com"}, RetentionDays: 30},
 		patches:  map[int64][]client.SourcePatch{},
 	}
 	s := New(language, f.deps())
@@ -287,6 +287,18 @@ func TestAddFullAddressOnTheInstance(t *testing.T) {
 	}
 }
 
+func TestAddFullAddressOnABackupInstance(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.settings.RSSHubBaseURLs = []string{"https://rsshub.example.com", "https://backup.example.com"}
+	open(t, s, f, tt)
+	tt.Type("https://backup.example.com/github/issue/golang/go")
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if len(f.added) != 1 || f.added[0].RSSHubPath != "/github/issue/golang/go" || f.added[0].URL != "" {
+		t.Fatalf("added %+v", f.added)
+	}
+}
+
 func TestInvalidAddress(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	open(t, s, f, tt)
@@ -341,7 +353,7 @@ func TestExists(t *testing.T) {
 
 func TestNeedsBase(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	f.settings.RSSHubBaseURL = ""
+	f.settings.RSSHubBaseURLs = nil
 	open(t, s, f, tt)
 	tt.Type("https://t.me/golang")
 	tt.Frame()
@@ -366,7 +378,7 @@ func TestNeedsBase(t *testing.T) {
 	tt.Frame()
 	tt.Key(0, ui.KeyEnter)
 	f.settle(tt)
-	if len(f.set) != 2 || *f.set[1].RSSHubBaseURL != "https://rsshub.example.com/" {
+	if len(f.set) != 2 || (*f.set[1].RSSHubBaseURLs)[0] != "https://rsshub.example.com/" {
 		t.Fatalf("settings %v", f.set)
 	}
 	if len(f.added) != 1 || f.added[0].RSSHubPath != "/telegram/channel/golang" || s.Open() {
@@ -444,6 +456,38 @@ func TestEdit(t *testing.T) {
 	}
 	if s.Open() || len(f.changed) != 1 || f.changed[0].Title != "Go Blog weekly" {
 		t.Fatalf("changed %v", f.changed)
+	}
+}
+
+func TestEditServedBy(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.settings.RSSHubBaseURLs = []string{"https://rsshub.example.com", "https://backup.example.com"}
+	route := client.Source{ID: 3, RSSHubPath: "/github/issue/golang/go", Kind: "article", FetchIntervalSec: 900}
+	for instance, want := range map[string]string{
+		"":                           "",
+		"https://rsshub.example.com": "Served by rsshub.example.com",
+		"https://backup.example.com": "Served by backup.example.com (backup)",
+	} {
+		route.RSSHubInstance = instance
+		s.Edit(route)
+		tt.Frame()
+		f.settle(tt)
+		tt.Frame()
+		if want != "" && !tt.HasText(want) {
+			t.Errorf("no %q in %v", want, tt.Texts())
+		}
+		if want == "" && tt.HasText("Served by") {
+			t.Errorf("served by shown for a route not fetched: %v", tt.Texts())
+		}
+	}
+	feed := f.sources[0]
+	feed.RSSHubInstance = "https://backup.example.com"
+	s.Edit(feed)
+	tt.Frame()
+	f.settle(tt)
+	tt.Frame()
+	if tt.HasText("Served by") {
+		t.Errorf("served by shown for a feed: %v", tt.Texts())
 	}
 }
 

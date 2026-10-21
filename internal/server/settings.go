@@ -18,14 +18,16 @@ const (
 
 // settingsJSON lists every setting a client may read. Secrets are never listed, only whether they are set.
 type settingsJSON struct {
-	RSSHubBaseURL   string `json:"rsshubBaseUrl"`
-	RetentionDays   int    `json:"retentionDays"`
-	AIBaseURL       string `json:"aiBaseUrl"`
-	AIModel         string `json:"aiModel"`
-	AIAPIKeySet     bool   `json:"aiApiKeySet"`
-	AILanguage      string `json:"aiLanguage"`
-	PromptSummary   string `json:"promptSummary"`
-	PromptTranslate string `json:"promptTranslate"`
+	// The RSSHub instances in priority order; RSSHubBaseURL is the first, for clients that know one.
+	RSSHubBaseURLs  []string `json:"rsshubBaseUrls"`
+	RSSHubBaseURL   string   `json:"rsshubBaseUrl"`
+	RetentionDays   int      `json:"retentionDays"`
+	AIBaseURL       string   `json:"aiBaseUrl"`
+	AIModel         string   `json:"aiModel"`
+	AIAPIKeySet     bool     `json:"aiApiKeySet"`
+	AILanguage      string   `json:"aiLanguage"`
+	PromptSummary   string   `json:"promptSummary"`
+	PromptTranslate string   `json:"promptTranslate"`
 	// The built-in prompts, so a client can tell a changed prompt and restore it.
 	DefaultPromptSummary   string `json:"defaultPromptSummary"`
 	DefaultPromptTranslate string `json:"defaultPromptTranslate"`
@@ -52,8 +54,16 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	instances := fetch.Instances(root)
+	if instances == nil {
+		instances = []string{}
+	}
+	primary := ""
+	if len(instances) > 0 {
+		primary = instances[0]
+	}
 	reply(w, http.StatusOK, settingsJSON{
-		RSSHubBaseURL: root, RetentionDays: days, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
+		RSSHubBaseURLs: instances, RSSHubBaseURL: primary, RetentionDays: days, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
 		AIAPIKeySet: cfg.APIKey != "", AILanguage: cfg.Language, PromptSummary: cfg.PromptSummary,
 		PromptTranslate: cfg.PromptTranslate, DefaultPromptSummary: ai.DefaultPromptSummary,
 		DefaultPromptTranslate: ai.DefaultPromptTranslate,
@@ -62,26 +72,35 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		RSSHubBaseURL   *string `json:"rsshubBaseUrl"`
-		RetentionDays   *int    `json:"retentionDays"`
-		AIBaseURL       *string `json:"aiBaseUrl"`
-		AIModel         *string `json:"aiModel"`
-		AIAPIKey        *string `json:"aiApiKey"`
-		AILanguage      *string `json:"aiLanguage"`
-		PromptSummary   *string `json:"promptSummary"`
-		PromptTranslate *string `json:"promptTranslate"`
+		RSSHubBaseURLs  *[]string `json:"rsshubBaseUrls"`
+		RSSHubBaseURL   *string   `json:"rsshubBaseUrl"`
+		RetentionDays   *int      `json:"retentionDays"`
+		AIBaseURL       *string   `json:"aiBaseUrl"`
+		AIModel         *string   `json:"aiModel"`
+		AIAPIKey        *string   `json:"aiApiKey"`
+		AILanguage      *string   `json:"aiLanguage"`
+		PromptSummary   *string   `json:"promptSummary"`
+		PromptTranslate *string   `json:"promptTranslate"`
 	}
 	if !readBody(w, r, &body) {
 		return
 	}
 	var changes [][2]string
-	if body.RSSHubBaseURL != nil {
-		root := strings.TrimSpace(*body.RSSHubBaseURL)
-		if root != "" && !feedURL(root) {
-			fail(w, http.StatusBadRequest, "invalid_rsshub_base_url")
+	// The list wins over the single address older clients send.
+	var roots *[]string
+	switch {
+	case body.RSSHubBaseURLs != nil:
+		roots = body.RSSHubBaseURLs
+	case body.RSSHubBaseURL != nil:
+		roots = &[]string{*body.RSSHubBaseURL}
+	}
+	if roots != nil {
+		stored, code := rsshubInstances(*roots)
+		if code != "" {
+			fail(w, http.StatusBadRequest, code)
 			return
 		}
-		changes = append(changes, [2]string{fetch.RSSHubSetting, root})
+		changes = append(changes, [2]string{fetch.RSSHubSetting, stored})
 	}
 	if body.RetentionDays != nil {
 		days := *body.RetentionDays
@@ -134,4 +153,25 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.getSettings(w, r)
+}
+
+// rsshubInstances validates RSSHub root addresses and returns the setting value that holds them, one per line, or
+// the error code. Blank entries are ignored and a repeated address is kept once.
+func rsshubInstances(roots []string) (string, string) {
+	var kept []string
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		if strings.ContainsAny(root, "\r\n") || !feedURL(root) {
+			return "", "invalid_rsshub_base_url"
+		}
+		kept = append(kept, root)
+	}
+	instances := fetch.Instances(strings.Join(kept, "\n"))
+	if len(instances) > fetch.MaxInstances {
+		return "", "too_many_rsshub_base_urls"
+	}
+	return strings.Join(instances, "\n"), ""
 }

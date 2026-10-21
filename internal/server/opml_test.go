@@ -85,7 +85,7 @@ func TestOPMLImport(t *testing.T) {
 func TestOPMLRoundTrip(t *testing.T) {
 	s, _ := newServer(t, "")
 	do(s, "POST", "/api/opml/import", importFile, nil)
-	s.store.SetSetting(context.Background(), fetch.RSSHubSetting, "http://localhost:1200/")
+	s.store.SetSetting(context.Background(), fetch.RSSHubSetting, "http://localhost:1200/\nhttp://backup.example")
 	w := do(s, "GET", "/api/opml/export", "", nil)
 	if w.Code != http.StatusOK || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/x-opml") ||
 		!strings.Contains(w.Body.String(), `xmlUrl="http://localhost:1200/github/issue/yangflow/oriel"`) {

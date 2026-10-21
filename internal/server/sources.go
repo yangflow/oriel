@@ -43,6 +43,7 @@ type sourceJSON struct {
 	AutoTranslate       bool   `json:"autoTranslate"`
 	MuteKeywords        string `json:"muteKeywords"`
 	Paused              bool   `json:"paused"`
+	RSSHubInstance      string `json:"rsshubInstance"`
 	UnreadCount         int    `json:"unreadCount"`
 	CreatedAt           int64  `json:"createdAt"`
 	UpdatedAt           int64  `json:"updatedAt"`
@@ -61,7 +62,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, UnreadCount: src.UnreadCount,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, RSSHubInstance: src.RSSHubInstance, UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
 }

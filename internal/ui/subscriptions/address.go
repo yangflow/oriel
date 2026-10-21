@@ -43,8 +43,8 @@ var (
 	}
 )
 
-// recognize turns what is typed in the address field into what it subscribes to, with base the RSSHub instance of
-// the settings, "" when there is none. It reports false for an address the server would refuse.
+// recognize turns what is typed in the address field into what it subscribes to, with base the RSSHub instances of
+// the settings, one per line, "" when there are none. It reports false for an address the server would refuse.
 func recognize(input, base string) (target, bool) {
 	input = strings.TrimSpace(input)
 	if strings.HasPrefix(input, "/") {
@@ -57,8 +57,11 @@ func recognize(input, base string) (target, bool) {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
 		return target{}, false
 	}
-	if base = strings.TrimRight(strings.TrimSpace(base), "/"); base != "" {
-		if rest, ok := strings.CutPrefix(input, base); ok && strings.HasPrefix(rest, "/") &&
+	for root := range strings.SplitSeq(base, "\n") {
+		if root = strings.TrimRight(strings.TrimSpace(root), "/"); root == "" {
+			continue
+		}
+		if rest, ok := strings.CutPrefix(input, root); ok && strings.HasPrefix(rest, "/") &&
 			!strings.HasPrefix(rest, "//") {
 			return target{Route: rest, Platform: route}, true
 		}

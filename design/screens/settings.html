@@ -7,12 +7,13 @@
      timeline" on top, then one item per group, and the server bar, which says whose settings these are. Opened from the
      gear button in the timeline's server bar or the app menu's "Settings…" (CmdOrCtrl+,); the back button and Escape
      return to the timeline where it was. Groups: Appearance (first; theme, interface language, interface font and the
-     reading text and how each kind is viewed, kept on this device only, not on the server), Fetching (the RSSHub instance and how long entries are
+     reading text and how each kind is viewed, kept on this device only, not on the server), Fetching (the RSSHub instances, an ordered list, and how long entries are
      kept), Import and export (OPML), AI (the endpoint for summaries and translations, and the global prompts), Devices
      (the sessions signed in to the server).
      Appearance is saved and applied as soon as a control is changed; it has no Save button. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License).
-     States: appearance, fetching, edited (the instance changed, not saved), invalid (the server refused it), saved, opml,
+     States: appearance, fetching (one RSSHub instance), several (three instances: the first is the primary, the others
+     take over in order), edited (the list changed, not saved), invalid (a line is not a valid address; nothing is sent), saved, opml,
      importing, imported (with failures), import-error, exported, devices (a remote server and its sessions),
      devices-local (this computer's server, no sessions), revoke (confirming a revocation), loading, error;
      ai (not set up), ai-configured (saved, the key only shown as set), ai-edited (changed, not saved; testing waits
@@ -157,6 +158,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .field.focused, .textarea.focused { box-shadow:0 0 0 2px var(--focus) }
 .field.invalid { box-shadow:inset 0 0 0 1.5px var(--danger) }
 .field .placeholder { color:var(--muted) }
+.textarea .line { display:block; min-height:1.5em; white-space:pre-wrap; overflow-wrap:anywhere } .textarea .line.bad { color:var(--danger) } .textarea.invalid { box-shadow:inset 0 0 0 1.5px var(--danger) }
 .textarea { display:block; margin-top:12px; min-height:76px; padding:7px 10px; border-radius:8px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace }
 .select { height:32px; display:flex; align-items:center; gap:8px; padding:0 8px 0 12px; border-radius:8px; background:var(--track); min-width:160px }
 .select:hover { background:color-mix(in srgb,var(--track),rgba(var(--ink),.06)) }
@@ -272,7 +274,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','fetching','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -367,9 +369,9 @@ const copy={
     invalidAiBase:'Enter a full http or https address with a host name, such as https://api.openai.com/v1.',
     prompts:'Prompts', promptSummary:'Summary prompt', promptTranslate:'Translation prompt',
     promptHelp:'<code>{language}</code> becomes the language above. Each subscription can use its own in Edit subscription.', reset:'Restore default',
-    rsshub:'RSSHub instance', rsshubHelp:'Subscriptions given as an RSSHub route, such as <code>/github/issue/golang/go</code>, are fetched from this address. Leave it empty if you use none.',
+    rsshub:'RSSHub instances', rsshubHelp:'Subscriptions given as an RSSHub route, such as <code>/github/issue/golang/go</code>, are fetched from these addresses. One address per line. The first is the primary; when it does not answer, the next takes over. Leave it empty if you use none.',
     rsshubPlaceholder:'https://rsshub.app', save:'Save', saved:'Saved. The next fetch uses it.',
-    invalidBase:'Enter a full http or https address with a host name, such as https://rsshub.app.',
+    invalidBase:'Line {n} is not a full http or https address with a host name, such as https://rsshub.app.',
     retention:'Keep entries', retentionHelp:'Older entries are removed once an hour, read or not. Starred entries are always kept.',
     forever:'Forever', days:'{n} days', week:'1 week', month:'1 month', months3:'3 months', months6:'6 months', year:'1 year',
     opmlHelp:'OPML files move subscriptions between Oriel and other readers.',
@@ -420,9 +422,9 @@ const copy={
     invalidAiBase:'填带主机名的完整 http 或 https 地址，例如 https://api.openai.com/v1。',
     prompts:'Prompt', promptSummary:'摘要 prompt', promptTranslate:'翻译 prompt',
     promptHelp:'<code>{language}</code> 会换成上面的输出语言。每个订阅可以在「编辑订阅」里用自己的。', reset:'恢复默认',
-    rsshub:'RSSHub 实例', rsshubHelp:'只填 RSSHub 路由的订阅（例如 <code>/github/issue/golang/go</code>）从这个地址抓取。不用 RSSHub 就留空。',
+    rsshub:'RSSHub 实例', rsshubHelp:'只填 RSSHub 路由的订阅（例如 <code>/github/issue/golang/go</code>）从这些地址抓取。一行一个地址，第一个是主实例，它没有响应时按顺序换下一个。不用 RSSHub 就留空。',
     rsshubPlaceholder:'https://rsshub.app', save:'保存', saved:'已保存，下次抓取起生效。',
-    invalidBase:'填带主机名的完整 http 或 https 地址，例如 https://rsshub.app。',
+    invalidBase:'第 {n} 行不是带主机名的完整 http 或 https 地址，例如 https://rsshub.app。',
     retention:'条目保留', retentionHelp:'过期的条目每小时清理一次，已读未读都删。收藏的条目一直保留。',
     forever:'永久', days:'{n} 天', week:'1 周', month:'1 个月', months3:'3 个月', months6:'半年', year:'1 年',
     opmlHelp:'用 OPML 文件在 Oriel 和别的阅读器之间搬订阅。',
@@ -452,11 +454,12 @@ const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.b
 <nav class="nav" aria-label="${copy.settings}"><div class="section">${copy.settings}</div>${groups.map(([k,g])=>`<button class="item${k===group?' chosen':''}"${k===group?' aria-current="page"':''}>${icon(g)}<span class="name">${copy[k]}</span></button>`).join('')}</nav>
 <div class="server" title="${copy.serverNote}">${icon(remote?'server':'laptop')}<span class="name">${remote?host:copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></div></aside>`;
 
-const base=state==='edited'||state==='invalid'?(state==='invalid'?'rsshub.example':'https://rsshub.example.net'):'https://rsshub.app';
-const field=`<div class="field${state==='edited'?' focused':''}${state==='invalid'?' invalid':''}" role="textbox" aria-label="${copy.rsshub}"${state==='invalid'?' aria-invalid="true"':''}>${base}</div>`;
+const lines=state==='several'?['https://rsshub.example.net','https://rsshub.backup.example','http://localhost:1200']
+  :state==='edited'?['https://rsshub.app','https://rsshub.example.net']:state==='invalid'?['https://rsshub.app','rsshub.example']:['https://rsshub.app'];
+const field=`<div class="textarea${state==='edited'?' focused':''}${state==='invalid'?' invalid':''}" role="textbox" aria-multiline="true" aria-label="${copy.rsshub}"${state==='invalid'?' aria-invalid="true"':''}>${lines.map((l,i)=>`<span class="line${state==='invalid'&&i===1?' bad':''}">${l}</span>`).join('')}</div>`;
 const dirty=state==='edited'||state==='invalid';
 let status='';
-if(state==='invalid')status=`<div class="status error" role="alert">${icon('alert')}${copy.invalidBase}</div>`;
+if(state==='invalid')status=`<div class="status error" role="alert">${icon('alert')}${t('invalidBase',{n:2})}</div>`;
 if(state==='saved')status=`<div class="status ok" role="status">${icon('check')}${copy.saved}</div>`;
 const seg=(label,items,on)=>`<div class="segmented" role="radiogroup" aria-label="${label}">${items.map(([k,name])=>`<button role="radio" aria-checked="${k===on}"${k===on?' class="on"':''}>${name}</button>`).join('')}</div>`;
 const viewed=state==='viewers', dense=state==='density';
@@ -498,7 +501,7 @@ ${setting(copy.vImages,'',seg(copy.vImages,[['wall',copy.vWall],['grid',copy.vGr
 
 const fetching=`<p class="lead">${copy.lead}</p><div class="card">
 <div class="row"><span class="label">${copy.rsshub}</span><p class="help">${copy.rsshubHelp}</p>
-<div class="control">${field}<button class="button${dirty?' primary':''}"${dirty?'':' disabled'}>${copy.save}</button></div>${status}</div>
+${field}<div class="actions">${status||'<span class="status"></span>'}<button class="button${dirty?' primary':''}"${dirty?'':' disabled'}>${copy.save}</button></div></div>
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.retention}</span><p class="help">${copy.retentionHelp}</p></div>
 <button class="select" aria-haspopup="listbox" aria-label="${copy.retention}"><span>${copy.months3}</span>${icon('chevronDown')}</button></div></div>
 </div>`;

@@ -294,6 +294,7 @@ type Source struct {
 	ID                  int64  `json:"id"`
 	URL                 string `json:"url"`
 	RSSHubPath          string `json:"rsshubPath"`
+	RSSHubInstance      string `json:"rsshubInstance"`
 	Title               string `json:"title"`
 	IconURL             string `json:"iconUrl"`
 	Kind                string `json:"kind"`
@@ -343,16 +344,17 @@ type SourcePatch struct {
 // Settings are the server's settings; RetentionDays is 0 to keep entries forever. The API key is never sent, only
 // whether one is set; the prompts are the defaults until changed, which the Default fields hold.
 type Settings struct {
-	RSSHubBaseURL          string `json:"rsshubBaseUrl"`
-	RetentionDays          int    `json:"retentionDays"`
-	AIBaseURL              string `json:"aiBaseUrl"`
-	AIModel                string `json:"aiModel"`
-	AIAPIKeySet            bool   `json:"aiApiKeySet"`
-	AILanguage             string `json:"aiLanguage"`
-	PromptSummary          string `json:"promptSummary"`
-	PromptTranslate        string `json:"promptTranslate"`
-	DefaultPromptSummary   string `json:"defaultPromptSummary"`
-	DefaultPromptTranslate string `json:"defaultPromptTranslate"`
+	RSSHubBaseURL          string   `json:"rsshubBaseUrl"`
+	RSSHubBaseURLs         []string `json:"rsshubBaseUrls"`
+	RetentionDays          int      `json:"retentionDays"`
+	AIBaseURL              string   `json:"aiBaseUrl"`
+	AIModel                string   `json:"aiModel"`
+	AIAPIKeySet            bool     `json:"aiApiKeySet"`
+	AILanguage             string   `json:"aiLanguage"`
+	PromptSummary          string   `json:"promptSummary"`
+	PromptTranslate        string   `json:"promptTranslate"`
+	DefaultPromptSummary   string   `json:"defaultPromptSummary"`
+	DefaultPromptTranslate string   `json:"defaultPromptTranslate"`
 }
 
 // AIConfigured reports whether the settings name an AI endpoint and a model.
@@ -361,14 +363,15 @@ func (s Settings) AIConfigured() bool { return s.AIBaseURL != "" && s.AIModel !=
 // SettingsPatch changes the settings that are not nil. AIAPIKey replaces the key, and "" removes it; an empty
 // prompt restores the default.
 type SettingsPatch struct {
-	RSSHubBaseURL   *string `json:"rsshubBaseUrl,omitempty"`
-	RetentionDays   *int    `json:"retentionDays,omitempty"`
-	AIBaseURL       *string `json:"aiBaseUrl,omitempty"`
-	AIModel         *string `json:"aiModel,omitempty"`
-	AIAPIKey        *string `json:"aiApiKey,omitempty"`
-	AILanguage      *string `json:"aiLanguage,omitempty"`
-	PromptSummary   *string `json:"promptSummary,omitempty"`
-	PromptTranslate *string `json:"promptTranslate,omitempty"`
+	RSSHubBaseURL   *string   `json:"rsshubBaseUrl,omitempty"`
+	RSSHubBaseURLs  *[]string `json:"rsshubBaseUrls,omitempty"`
+	RetentionDays   *int      `json:"retentionDays,omitempty"`
+	AIBaseURL       *string   `json:"aiBaseUrl,omitempty"`
+	AIModel         *string   `json:"aiModel,omitempty"`
+	AIAPIKey        *string   `json:"aiApiKey,omitempty"`
+	AILanguage      *string   `json:"aiLanguage,omitempty"`
+	PromptSummary   *string   `json:"promptSummary,omitempty"`
+	PromptTranslate *string   `json:"promptTranslate,omitempty"`
 }
 
 // AIResult is a summary or translation of an entry: Status is "pending", "ok" or "failed", Error the code of a

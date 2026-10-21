@@ -12,6 +12,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -35,6 +36,7 @@ var catalog []byte
 type copy struct {
 	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Shortcut, Lead, Fetching, OPML, Devices, RSSHub        string
 	RSSHubHelp, RSSHubPlaceholder, Save, Saved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp  string
+	InvalidBaseAny, TooManyBase                                                                                    string
 	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp string
 	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed        string
 	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind              string
@@ -171,7 +173,7 @@ type Screen struct {
 
 	state       int
 	settings    client.Settings
-	base        string // the RSSHub instance as typed
+	base        string // the RSSHub instances as typed, one per line
 	saving      bool
 	invalid     bool
 	baseStatus  status
@@ -323,7 +325,7 @@ func (s *Screen) loadSettings() {
 				return
 			}
 			s.state, s.settings = loaded, settings
-			s.base, s.retention = settings.RSSHubBaseURL, settings.RetentionDays
+			s.base, s.retention = strings.Join(settings.RSSHubBaseURLs, "\n"), settings.RetentionDays
 			s.aiBase, s.aiModel, s.aiKey, s.aiLanguage = settings.AIBaseURL, settings.AIModel, "", settings.AILanguage
 			s.prompts = [2]string{settings.PromptSummary, settings.PromptTranslate}
 		}
@@ -365,18 +367,57 @@ func (s *Screen) loadDevices() {
 	})
 }
 
-// dirty reports whether the RSSHub instance typed is not the one saved.
-func (s *Screen) dirty() bool { return strings.TrimSpace(s.base) != s.settings.RSSHubBaseURL }
+// baseList is the RSSHub instances in text: one per line, blank lines and trailing slashes dropped, a repeated
+// address kept once, as the server keeps them.
+func baseList(text string) []string {
+	var list []string
+	for line := range strings.SplitSeq(text, "\n") {
+		base := strings.TrimRight(strings.TrimSpace(line), "/")
+		if base != "" && !slices.ContainsFunc(list, func(have string) bool { return strings.EqualFold(have, base) }) {
+			list = append(list, base)
+		}
+	}
+	return list
+}
+
+// badBase is the number of the first line of text that is not a full http or https address with a host name, or 0.
+func badBase(text string) int {
+	for i, line := range slices.Collect(strings.SplitSeq(text, "\n")) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		u, err := url.Parse(line)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// dirty reports whether the RSSHub instances typed are not the ones saved.
+func (s *Screen) dirty() bool { return !slices.Equal(baseList(s.base), s.settings.RSSHubBaseURLs) }
+
+// refuseBase shows that the list cannot be saved and puts the cursor back in it.
+func (s *Screen) refuseBase(text string) {
+	s.invalid, s.focusBase = true, true
+	s.baseStatus = status{text: text}
+	s.announce = text
+}
 
 func (s *Screen) saveBase() {
 	if s.saving || s.api == nil || s.state != loaded || !s.dirty() {
 		return
 	}
-	base := strings.TrimSpace(s.base)
+	if line := badBase(s.base); line > 0 {
+		s.refuseBase(strings.ReplaceAll(s.text.InvalidBase, "{n}", strconv.Itoa(line)))
+		return
+	}
+	list := baseList(s.base)
 	s.saving, s.baseStatus, s.invalid = true, status{}, false
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
-		settings, err := api.SetSettings(context.Background(), client.SettingsPatch{RSSHubBaseURL: &base})
+		settings, err := api.SetSettings(context.Background(), client.SettingsPatch{RSSHubBaseURLs: &list})
 		return func() {
 			if gen != s.gen || s.expired(err) {
 				return
@@ -384,16 +425,18 @@ func (s *Screen) saveBase() {
 			s.saving = false
 			switch {
 			case err == nil:
-				s.settings.RSSHubBaseURL = settings.RSSHubBaseURL
-				s.base = settings.RSSHubBaseURL
+				s.settings.RSSHubBaseURL, s.settings.RSSHubBaseURLs = settings.RSSHubBaseURL, settings.RSSHubBaseURLs
+				s.base = strings.Join(settings.RSSHubBaseURLs, "\n")
 				s.baseStatus = status{ok: true, text: s.text.Saved}
+				s.announce = s.baseStatus.text
 			case code(err) == "invalid_rsshub_base_url":
-				s.invalid, s.focusBase = true, true
-				s.baseStatus = status{text: s.text.InvalidBase}
+				s.refuseBase(s.text.InvalidBaseAny)
+			case code(err) == "too_many_rsshub_base_urls":
+				s.refuseBase(s.text.TooManyBase)
 			default:
 				s.baseStatus = status{text: s.text.SaveFailed}
+				s.announce = s.baseStatus.text
 			}
-			s.announce = s.baseStatus.text
 		}
 	})
 }
@@ -1220,8 +1263,13 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 	card(c, func() {
 		ui.Text(c, s.text.RSSHub).FontWeight(500)
 		coded(c, s.text.RSSHubHelp, "{route}", "/github/issue/golang/go").Margin(px(t, 4), 0, 0, 0)
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(px(t, 12), 0, 0, 0).Children(func() {
-			s.baseField(c)
+		s.baseField(c)
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(px(t, 8), 0, 0, 0).Children(func() {
+			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(px(t, 6)).Role(ui.RoleStatus).Children(func() {
+				if s.baseStatus.text != "" {
+					statusText(c, s.baseStatus)
+				}
+			})
 			dirty := s.dirty()
 			style := secondary
 			if dirty {
@@ -1233,7 +1281,6 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 				s.saveBase()
 			}
 		})
-		statusLine(c, s.baseStatus)
 	}, func() {
 		labeled(c, s.text.Retention, s.text.RetentionHelp, func() { s.retentionSelect(c) })
 		statusLine(c, s.keepStatus)
@@ -1298,21 +1345,27 @@ func popover(c *ui.Context, e ui.Element) {
 	e.Background(theme.RaisedFill(t)).Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.18))
 }
 
+// baseField is the list of RSSHub instances, one address per line. Enter starts a new line, so only Save saves.
 func (s *Screen) baseField(c *ui.Context) {
+	t := c.Theme()
 	before := s.base
-	field(c, "base", &s.base, 0, s.invalid, func(in ui.Element) {
-		in.Font("monospace").Label(s.text.RSSHub).Placeholder(s.text.RSSHubPlaceholder).Disabled(s.saving)
-		if s.invalid {
-			in.Error(s.text.InvalidBase)
+	area := ui.TextArea(c.Key("base"), &s.base).FillWidth().Lines(2, 6).Margin(px(t, 12), 0, 0, 0).Font("monospace").
+		FontSize(px(t, 12.5)).Label(s.text.RSSHub).Placeholder(s.text.RSSHubPlaceholder).Disabled(s.saving)
+	area.Background(theme.RaisedFill(t)).Radius(t.Radius)
+	edge(c, area)
+	switch {
+	case s.invalid:
+		area.Border(1.5, t.Danger).Error(s.baseStatus.text)
+		if area.Focused() {
+			area.Shadow(0, 0, 0, 2, theme.Soft(t, t.Danger))
 		}
-		if s.focusBase {
-			in.Focus()
-			s.focusBase = false
-		}
-		if in.Submitted() {
-			s.saveBase()
-		}
-	})
+	case area.Focused():
+		area.Shadow(0, 0, 0, 2, t.Focus)
+	}
+	if s.focusBase {
+		area.Focus()
+		s.focusBase = false
+	}
 	if s.base != before {
 		s.invalid, s.baseStatus = false, status{}
 	}
