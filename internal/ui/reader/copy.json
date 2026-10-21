@@ -55,7 +55,16 @@
     "TextSwitch": "Text to read",
     "ShowFull": "Full text",
     "ShowFeed": "Feed",
-    "RetryFailed": "Couldn’t try again. Check the connection."
+    "RetryFailed": "Couldn’t try again. Check the connection.",
+    "TranslateSelection": "Translate selection",
+    "ExplainSelection": "Explain selection",
+    "CopyAnswer": "Copy",
+    "Copied": "Copied",
+    "SelectionFailed": "Couldn’t get an answer. {reason}",
+    "SelectLess": "Select less text",
+    "SelectLessHint": "Up to 2000 characters can be translated or explained at a time.",
+    "SelectionAIOff": "Translating and explaining use an AI endpoint of your choosing. Set one up in Settings first.",
+    "ExplanationReady": "Explanation ready"
   },
   "zh-Hans": {
     "Back": "回到{scope}",
@@ -113,6 +122,15 @@
     "TextSwitch": "要读的正文",
     "ShowFull": "全文",
     "ShowFeed": "原文",
-    "RetryFailed": "没能重试，检查一下连接。"
+    "RetryFailed": "没能重试，检查一下连接。",
+    "TranslateSelection": "翻译所选",
+    "ExplainSelection": "解释所选",
+    "CopyAnswer": "复制",
+    "Copied": "已复制",
+    "SelectionFailed": "没能得到回答。{reason}",
+    "SelectLess": "请少选一些文字",
+    "SelectLessHint": "一次最多翻译或解释 2000 个字。",
+    "SelectionAIOff": "翻译和解释使用你自己选定的 AI 接口，请先在设置里配置。",
+    "ExplanationReady": "解释已生成"
   }
 }

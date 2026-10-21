@@ -3,6 +3,8 @@ package server
 import (
 	"errors"
 	"net/http"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/store"
@@ -95,5 +97,41 @@ func (s *Server) testAI(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 	default:
 		reply(w, http.StatusOK, map[string]string{"model": model})
+	}
+}
+
+// selectAI translates or explains the text the reader selected, at once and without storing anything.
+func (s *Server) selectAI(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Task  string `json:"task"`
+		Text  string `json:"text"`
+		Title string `json:"title"`
+	}
+	if !readBody(w, r, &body) {
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	switch {
+	case body.Task != ai.SelectionTranslate && body.Task != ai.SelectionExplain:
+		fail(w, http.StatusBadRequest, "invalid_task")
+		return
+	case text == "":
+		fail(w, http.StatusBadRequest, "invalid_text")
+		return
+	case utf8.RuneCountInString(text) > ai.MaxSelection:
+		fail(w, http.StatusBadRequest, "text_too_long")
+		return
+	}
+	result, model, err := s.ai.Selection(r.Context(), body.Task, text, strings.TrimSpace(body.Title))
+	var code ai.Code
+	switch {
+	case errors.Is(err, ai.ErrNotConfigured):
+		fail(w, http.StatusConflict, string(ai.ErrNotConfigured))
+	case errors.As(err, &code):
+		fail(w, http.StatusBadGateway, string(code))
+	case err != nil:
+		internal(w, err)
+	default:
+		reply(w, http.StatusOK, map[string]string{"text": result, "model": model})
 	}
 }

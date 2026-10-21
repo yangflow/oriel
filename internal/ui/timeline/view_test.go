@@ -196,6 +196,10 @@ func (f *fake) RetryExtraction(context.Context, int64) (client.Article, error) {
 	return client.Article{}, nil
 }
 
+func (f *fake) Selection(context.Context, string, string, string) (string, string, error) {
+	return "", "", nil
+}
+
 func (f *fake) deps() Deps {
 	return Deps{
 		Go:             func(work func() func()) { f.queue = append(f.queue, work) },

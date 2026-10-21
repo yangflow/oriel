@@ -103,3 +103,102 @@ func TestAI(t *testing.T) {
 		t.Fatalf("test unauthorized: %d %s", w.Code, w.Body)
 	}
 }
+
+func TestAISelection(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	entries, err := s.store.Entries(ctx, store.EntryFilter{SourceID: seed(t, s, "social", 1, c.t)}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	post := func(body string) *httptest.ResponseRecorder {
+		return do(s, "POST", "/api/ai/selection", body, bearer(token))
+	}
+	if w := do(s, "POST", "/api/ai/selection", `{"task":"translate","text":"hello"}`, nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without session: %d", w.Code)
+	}
+	if w := post(`{"task":"translate","text":"hello"}`); w.Code != http.StatusConflict || decode(t, w)["error"] != "ai_not_configured" {
+		t.Fatalf("not configured: %d %s", w.Code, w.Body)
+	}
+
+	var status atomic.Int32
+	status.Store(http.StatusOK)
+	var asked []map[string]any
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		asked = append(asked, body)
+		w.WriteHeader(int(status.Load()))
+		json.NewEncoder(w).Encode(map[string]any{"model": "m", "choices": []any{map[string]any{"message": map[string]string{"content": " an answer "}}}})
+	}))
+	defer upstream.Close()
+	s.store.SetSetting(ctx, ai.BaseURLSetting, upstream.URL)
+	s.store.SetSetting(ctx, ai.ModelSetting, "m")
+
+	for body, code := range map[string]string{
+		`{"task":"summary","text":"hello"}`:                             "invalid_task",
+		`{"text":"hello"}`:                                              "invalid_task",
+		`{"task":"translate","text":"  \n "}`:                           "invalid_text",
+		`{"task":"explain"}`:                                            "invalid_text",
+		`{"task":"explain","text":"` + strings.Repeat("字", 2001) + `"}`: "text_too_long",
+		`{"task":"explain","text":"hello","extra":1}`:                   "invalid_body",
+	} {
+		if w := post(body); w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
+			t.Errorf("%.40s: %d %s, want %s", body, w.Code, w.Body, code)
+		}
+	}
+	if len(asked) != 0 {
+		t.Fatalf("a refused request reached the endpoint: %v", asked)
+	}
+
+	// 2000 characters are taken, with the spaces around them trimmed.
+	edge := strings.Repeat("字", 2000)
+	if w := post(`{"task":"translate","text":" ` + edge + ` "}`); w.Code != http.StatusOK {
+		t.Fatalf("2000 characters: %d %s", w.Code, w.Body)
+	}
+	asked = nil
+
+	w := post(`{"task":"translate","text":" hello world "}`)
+	if body := decode(t, w); w.Code != http.StatusOK || body["text"] != "an answer" || body["model"] != "m" {
+		t.Fatalf("translate: %d %s", w.Code, w.Body)
+	}
+	messages := asked[0]["messages"].([]any)
+	system, user := messages[0].(map[string]any)["content"], messages[1].(map[string]any)["content"]
+	if system != strings.ReplaceAll(ai.DefaultPromptTranslate, "{language}", "简体中文") || user != "hello world" {
+		t.Errorf("translate sent %q and %q", system, user)
+	}
+
+	w = post(`{"task":"explain","text":"hello","title":"  Go   1.27 \n"}`)
+	if body := decode(t, w); w.Code != http.StatusOK || body["text"] != "an answer" {
+		t.Fatalf("explain: %d %s", w.Code, w.Body)
+	}
+	messages = asked[1]["messages"].([]any)
+	system, user = messages[0].(map[string]any)["content"], messages[1].(map[string]any)["content"]
+	if system != strings.ReplaceAll(ai.PromptExplain, "{language}", "简体中文") || user != "Article: Go 1.27\n\nSelected text: hello" {
+		t.Errorf("explain sent %q and %q", system, user)
+	}
+	post(`{"task":"explain","text":"hello"}`)
+	if user := asked[2]["messages"].([]any)[1].(map[string]any)["content"]; user != "hello" {
+		t.Errorf("explain without a title sent %q", user)
+	}
+	s.store.SetSetting(ctx, ai.LanguageSetting, "en")
+	post(`{"task":"explain","text":"hello"}`)
+	if system := asked[3]["messages"].([]any)[0].(map[string]any)["content"]; system != strings.ReplaceAll(ai.PromptExplain, "{language}", "English") {
+		t.Errorf("explain in English sent %q", system)
+	}
+
+	status.Store(http.StatusTooManyRequests)
+	if w := post(`{"task":"translate","text":"hello"}`); w.Code != http.StatusBadGateway || decode(t, w)["error"] != "ai_rate_limited" {
+		t.Fatalf("rate limited: %d %s", w.Code, w.Body)
+	}
+	status.Store(http.StatusUnauthorized)
+	if w := post(`{"task":"translate","text":"hello"}`); w.Code != http.StatusBadGateway || decode(t, w)["error"] != "ai_unauthorized" {
+		t.Fatalf("unauthorized: %d %s", w.Code, w.Body)
+	}
+
+	results, err := s.store.AIResults(ctx, entries[0].ID)
+	if err != nil || len(results) != 0 {
+		t.Errorf("results stored: %v, %v", results, err)
+	}
+}

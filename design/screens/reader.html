@@ -41,6 +41,10 @@
      with spans (.cjk-gap, .cjk-tight); in the app it is layout and the text is unchanged. Off, text is set as the font
      gives it; the browser's own trimming and autospacing are turned off so on and off differ only by these rules.
      Try lang=zh-Hans&cjk=off against lang=zh-Hans (on).
+     Selection states (a right click on selected body text adds "Translate selection" and "Explain selection" to the
+     menu; the answer shows in a card over the bottom of the reader): selection-menu, selection-loading,
+     selection-translate (result), selection-explain (result), selection-failed, selection-ai-off, selection-too-long
+     (over 2000 characters: no request is made). Escape closes the card; so does opening another entry.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
@@ -245,6 +249,32 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 @keyframes spin { to { transform:rotate(360deg) } }
 .toast { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:4; display:flex; align-items:center; gap:10px; max-width:calc(100% - 40px); min-height:40px; padding:6px 14px; border-radius:14px; background:#2a2620; color:#f4efe6; font-size:12.5px; box-shadow:0 10px 30px rgba(var(--shadow),.28), 0 0 0 .5px rgba(255,248,235,.08) }
 :root[data-scheme=dark] .toast { background:#333837 }
+.sel { background:var(--accent-soft); border-radius:3px; box-shadow:0 0 0 1px var(--accent-soft) }
+.menu { position:absolute; z-index:5; left:50%; top:300px; min-width:200px; padding:5px; border-radius:12px; background:var(--raised); box-shadow:inset 0 0 0 .5px rgba(var(--ink),.12), 0 8px 28px rgba(var(--shadow),.2); font-size:13px }
+:root[data-scheme=dark] .menu { background:var(--track) }
+.menu .row { display:flex; align-items:center; gap:8px; height:28px; padding:0 10px; border-radius:7px; color:var(--text) }
+.menu .row.on { background:var(--accent); color:var(--accent-text) }
+.menu .row svg.icon { width:14px; height:14px }
+.menu hr { border:0; border-top:1px solid var(--border); margin:5px 6px }
+.selcard { position:absolute; z-index:4; left:50%; bottom:16px; transform:translateX(-50%); width:min(var(--col),calc(100% - 32px)); padding:12px 16px 14px; border-radius:14px; background:var(--raised); box-shadow:inset 0 0 0 .5px var(--border), 0 6px 24px rgba(var(--shadow),.16); font-size:13px; line-height:1.65 }
+:root[data-scheme=dark] .selcard { background:var(--track) }
+:root:lang(zh-Hans) .selcard { line-height:1.75 }
+.selcard .head { display:flex; align-items:center; gap:6px; height:22px; font-size:12px; font-weight:500; color:var(--accent) }
+.selcard .head svg.icon { width:14px; height:14px; flex:none }
+.selcard .head .quote { min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-weight:400; color:var(--muted) }
+.selcard .head .mini { width:22px; height:22px; display:grid; place-items:center; border-radius:6px; color:var(--muted); flex:none }
+.selcard .head .mini:hover { background:var(--hover); color:var(--text) }
+.selcard .head .mini svg.icon { width:13px; height:13px }
+.selcard .answer { max-height:192px; overflow-y:auto; margin:6px 0 0; color:var(--text) }
+.selcard .answer p { margin:0 }
+.selcard .bars .bar { height:10px; border-radius:5px; background:rgba(var(--ink),.08); margin:9px 0 0 }
+.selcard .button { background:rgba(var(--ink),.07) }
+.selcard .button.primary { background:var(--accent) }
+.selcard .foot { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:var(--muted) }
+.selcard.error { background:linear-gradient(var(--danger-soft),var(--danger-soft)),var(--raised) }
+:root[data-scheme=dark] .selcard.error { background:linear-gradient(var(--danger-soft),var(--danger-soft)),var(--track) }
+.selcard.error .head { color:var(--danger) }
+.selcard.plain .head { color:var(--text2) }
 .toast .msg { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 </style>
 <div class="switcher" aria-hidden="true">
@@ -258,7 +288,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread','resumed'];
+const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
@@ -347,6 +377,8 @@ const copy={
     aiTimeout:'The AI endpoint took too long to answer.', aiUnauthorized:'The AI endpoint turned down the API key. Check it in Settings.',
     aiOff:'Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.',
     noMoreUnread:'No unread articles after this one', resumed:'Back where you left off', aiOffTitle:'AI isn’t set up', openSettings:'Open Settings…', close:'Close',
+    translateSel:'Translate selection', explainSel:'Explain selection', copyAction:'Copy', selectAll:'Select All', selTranslation:'Translation', selExplanation:'Explanation',
+    selFailed:'Couldn’t get an answer. {reason}', selTooLong:'Select less text', selTooLongHint:'Up to 2000 characters can be translated or explained at a time.', selAiOff:'Translating and explaining use an AI endpoint of your choosing. Set one up in Settings first.',
   },
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
@@ -367,6 +399,8 @@ const copy={
     aiTimeout:'AI 接口太久没有响应。', aiUnauthorized:'AI 接口不接受这个 API key，去设置里检查一下。',
     aiOff:'摘要和翻译走你自己选的 AI 接口，例如 OpenAI 或本机的模型。先在设置里配好。',
     noMoreUnread:'后面没有未读文章了', resumed:'回到上次读到的位置', aiOffTitle:'还没配置 AI', openSettings:'打开设置…', close:'关闭',
+    translateSel:'翻译所选', explainSel:'解释所选', copyAction:'复制', selectAll:'全选', selTranslation:'译文', selExplanation:'解释',
+    selFailed:'没能得到回答。{reason}', selTooLong:'请少选一些文字', selTooLongHint:'一次最多翻译或解释 2000 个字。', selAiOff:'翻译和解释使用你自己选定的 AI 端点，请先在设置里配置。',
   },
 }[lang];
 const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
@@ -470,8 +504,31 @@ const plain=html=>html.replace(/<figure[\s\S]*?<\/figure>|<pre[\s\S]*?<\/pre>/g,
 const lens=`<div class="note lens" role="note">${icon('languages')}<span class="grow">${t('translated',{model})}</span><div class="segmented" role="radiogroup" aria-label="${copy.translate}"><button role="radio" aria-checked="true" class="on">${copy.translation}</button><button role="radio" aria-checked="false">${copy.original}</button></div></div>`;
 const original=(extra)=>`<article class="page" aria-labelledby="title" lang="${zh?'en':'zh-Hans'}">${meta}<h1 id="title">${titleOf(!zh)}</h1>${extra}<div class="prose">${fullOf(!zh)}</div></article>`;
 
+const isSel=state.startsWith('selection-');
+const quote=(isExplain,long)=>{const x=long?(zh?'SQLite 的 FTS5 自带三种分词器。unicode61 按空白和标点切词，对英文够用，对中文就不行了……':'SQLite’s FTS5 ships with three tokenizers. unicode61 splits on whitespace and punctuation, which is fine for…'):isExplain?'unicode61':(zh?'it indexes every run of three characters':'把文本切成所有连续的三个字符');return '“'+x+'”'};
+const selCard=()=>{
+  const head=(ic,name,q,extra='')=>`<div class="head">${icon(ic)}<span>${name}</span><span class="quote">${q}</span><button class="mini" aria-label="${copy.close}" title="${copy.close} (Esc)">${icon('x')}</button></div>`;
+  const answers={
+    translate:zh?'它会为连续的每三个字符建立索引。':'It indexes every run of three characters.',
+    explain:zh?'SQLite FTS5 内置的一种分词器：按空白和标点把文本切成词，适合英文，但不适合没有空格的中文。':'A tokenizer built into SQLite’s FTS5 that splits text into words at whitespace and punctuation. It suits English but not Chinese, which has no spaces between words.'};
+  const copyButton=`<button class="button small">${copy.copyAction}</button><span>${t('by',{model})}</span>`;
+  switch(state){
+    case 'selection-loading':return `<section class="selcard" role="group" aria-label="${copy.translateSel}" aria-busy="true">${head('languages',copy.translateSel,quote(false))}<div class="bars" aria-hidden="true"><div class="bar" style="width:96%"></div><div class="bar" style="width:80%"></div><div class="bar" style="width:52%"></div></div></section>`;
+    case 'selection-translate':return `<section class="selcard" role="group" aria-label="${copy.translateSel}">${head('languages',copy.translateSel,quote(false))}<div class="answer"><p>${answers.translate}</p></div><div class="foot">${copyButton}</div></section>`;
+    case 'selection-explain':return `<section class="selcard" role="group" aria-label="${copy.explainSel}">${head('sparkles',copy.explainSel,quote(true))}<div class="answer"><p>${answers.explain}</p></div><div class="foot">${copyButton}</div></section>`;
+    case 'selection-failed':return `<section class="selcard error" role="group" aria-label="${copy.translateSel}">${head('alert',copy.translateSel,quote(false))}<div class="answer" role="alert"><p>${t('selFailed',{reason:copy.aiTimeout})}</p></div><div class="foot"><button class="button small">${icon('refresh')}${copy.retry}</button></div></section>`;
+    case 'selection-ai-off':return `<section class="selcard plain" role="group" aria-label="${copy.aiOffTitle}">${head('sparkles',copy.aiOffTitle,'')}<div class="answer" role="status"><p>${copy.selAiOff}</p></div><div class="foot"><button class="button primary small">${copy.openSettings}</button></div></section>`;
+    case 'selection-too-long':return `<section class="selcard plain" role="group" aria-label="${copy.selTooLong}">${head('languages',copy.translateSel,quote(false,true))}<div class="answer" role="status"><p><strong>${copy.selTooLong}</strong><br>${copy.selTooLongHint}</p></div></section>`;
+  }
+  return '';
+};
+const selMenu=state==='selection-menu'?`<div class="menu" role="menu"><div class="row on" role="menuitem">${icon('languages')}${copy.translateSel}</div><div class="row" role="menuitem">${icon('sparkles')}${copy.explainSel}</div><hr><div class="row" role="menuitem">${copy.copyAction}</div><div class="row" role="menuitem">${copy.selectAll}</div></div>`:'';
+const markExplain=html=>html.replace('<code>unicode61</code>','<mark class="sel"><code>unicode61</code></mark>');
+
 let page;
 switch(state){
+  case 'selection-menu':case 'selection-explain':page=article('',markExplain(full));break;
+  case 'selection-loading':case 'selection-translate':case 'selection-failed':case 'selection-too-long':case 'selection-ai-off':page=original('').replace(zh?'it indexes every run of three characters':'把文本切成所有连续的三个字符',m=>`<mark class="sel">${m}</mark>`);break;
   case 'summarizing':case 'summary':case 'summary-failed':case 'ai-off':page=article(card[state],full);break;
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
@@ -486,7 +543,7 @@ switch(state){
   case 'loading':page=`<div class="page skeleton" aria-busy="true"><div class="bar m"></div><div class="bar h"></div>${'<div class="bar s"></div>'.repeat(3)}<div class="bar e"></div><br>${'<div class="bar s"></div>'.repeat(2)}<div class="bar e"></div></div>`;break;
   case 'error':page=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');break;
 }
-document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}${state==='resumed'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${copy.resumed}</span></div>`:''}</section>`;
+document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${selMenu}${isSel?selCard():''}${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}${state==='resumed'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${copy.resumed}</span></div>`:''}</section>`;
 if(state==='resumed'){const box=document.querySelector('.scroll');box.scrollTop=(box.scrollHeight-box.clientHeight)*.4}
 </script>
 </html>

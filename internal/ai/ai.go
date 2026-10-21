@@ -35,6 +35,16 @@ const (
 const (
 	DefaultPromptSummary   = "Summarize the article in {language} in three to five sentences. Reply with the summary only."
 	DefaultPromptTranslate = "Translate the text into {language}. Keep the paragraphs and their order, and the title on the first line. Reply with the translation only."
+	// PromptExplain explains a selected text; it is not a setting.
+	PromptExplain = "Explain the selected text in {language} in one to three plain sentences, so a reader who does not know the term or phrase can follow. Reply with the explanation only."
+)
+
+// The tasks on a selected text, and the most characters one takes and of the article title that comes with it.
+const (
+	SelectionTranslate = "translate"
+	SelectionExplain   = "explain"
+	MaxSelection       = 2000
+	maxSelectionTitle  = 200
 )
 
 const (

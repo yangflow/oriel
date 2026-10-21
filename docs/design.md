@@ -238,6 +238,18 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `Soft(Accent)`, "Translated by {model}" and a segmented Translation | Original switch, and the translated text is
   plain paragraphs, pictures and links staying in the original; failed, the original stays with the note in the
   `Danger` soft fill, the reason and "Try again". Cancel only stops waiting; leaving the article does the same.
+- **Selection card in the reader.** A selection in the article opens the system context menu with Copy and Select All
+  and, after a separator, "Translate selection" and "Explain selection" (only while text is selected). Choosing one pins
+  a card to the bottom of the reader column, 16 above the window edge, floating over the text: the width of the text
+  column at most, radius 14, `Surface` with a 0.5 DIP `Border` rim and a soft shadow, padded 12/16/14. The head (12
+  medium, 22 high): the `languages` or `sparkles` icon in `Accent`, the task name, then the first 40 characters of the
+  selection in `TextMuted` in curly quotes with an ellipsis, and a 22 close button at the end. Below it the result in
+  13 at line height 1.65 (1.75 in Chinese), selectable, scrolling inside the card from 40% of the window height, and a
+  small "Copy" button (secondary; copying announces "Copied" to screen readers) with "by {model}" in `TextMuted` beside it.
+  Loading is a spinner head ("Translating…" or "Explaining…") over three skeleton lines; failed is the `Danger` soft
+  fill with the reason and a small "Try again"; AI off has the "AI isn't set up" copy and the primary "Open
+  Settings…"; a selection over 2000 characters shows "Select less text" with the limit and no button. Escape closes
+  the card before it goes back to the list. The card has the group role named after the task, and the result is announced when it arrives.
 
 ## Color and dark mode
 

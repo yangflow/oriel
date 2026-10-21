@@ -36,6 +36,8 @@ type copy struct {
 	Translating, Translated, Translation, Original, TranslationFailed, SummaryReady, TranslationReady      string
 	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AIUpstream, AIEmpty, AIOff, AIOffTitle        string
 	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                 string
+	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint  string
+	SelectionAIOff, ExplanationReady                                                                       string
 }
 
 var translations = func() map[string]copy {
@@ -61,6 +63,7 @@ type API interface {
 	RequestAI(ctx context.Context, id int64, task string) (client.AIResult, error)
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
 	RetryExtraction(ctx context.Context, id int64) (client.Article, error)
+	Selection(ctx context.Context, task, text, title string) (answer, model string, err error)
 }
 
 // Deps is what the reader does outside itself. Go runs work away from the UI thread and then the function it returns
@@ -112,6 +115,15 @@ type job struct {
 	text, model, code           string
 }
 
+// selection is the answer to the text selected in the body, which shows in a card over the foot of the reader: the
+// task and the text asked about, then working, or the answer with its model, or why there is none. The answer is not
+// kept anywhere; ticket counts the questions asked and the cards closed, so the answer to one before is dropped.
+type selection struct {
+	on, working, failed, aiOff, long bool
+	task, text, answer, model, code  string
+	ticket                           int
+}
+
 // loaded is a picture of the article, once it loads: bitmap, or failed, which leaves it out.
 type loaded struct {
 	bitmap *ui.Bitmap
@@ -157,6 +169,7 @@ type Screen struct {
 	downloads int
 
 	jobs       [2]job
+	sel        selection
 	aiOff      bool // AI is not set up: the card says where to set it
 	shown      int  // with the translation ready, 0 shows it and 1 the original
 	title      string
@@ -232,6 +245,7 @@ func (s *Screen) Use(api API) {
 	s.api = api
 	s.gen++
 	s.id, s.moved, s.queued, s.resume = 0, false, nil, -1
+	s.closeSelection()
 	s.known = map[int64]float64{}
 	s.Forget()
 }
@@ -315,6 +329,7 @@ func (s *Screen) Open(e client.Entry) {
 	s.focus = true
 	s.pictures, s.wanted, s.downloads = map[string]*loaded{}, nil, 0
 	s.jobs, s.aiOff, s.shown, s.title, s.translated, s.aiPolling = [2]job{}, false, 0, "", nil, false
+	s.closeSelection()
 	if i := slices.IndexFunc(s.cache, func(c cached) bool { return c.id == e.ID }); i >= 0 {
 		c := s.cache[i]
 		s.remember(c)
@@ -781,7 +796,13 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 					s.openOriginal(c)
 				}
 			}},
-			{ui.KeyEscape, s.deps.Back},
+			{ui.KeyEscape, func() {
+				if s.sel.on {
+					s.closeSelection()
+				} else {
+					s.deps.Back()
+				}
+			}},
 		} {
 			c.OnShortcut(0, k.key, k.do)
 		}
@@ -803,6 +824,7 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 		}
 		theme.Edge(c)
 		s.toolbar(c, nav, ready, narrow)
+		s.selectionCard(c)
 	})
 	s.track(c)
 	s.toasts(c)
@@ -1004,53 +1026,55 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 		if s.translating() {
 			blocks, how = s.translated, whole
 		}
-		ui.Column(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Padding(pad...).Selectable().
-			Children(func() {
-				ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
-					glyph(c, e.SourceTitle, s.icon)
-					ui.Text(c, e.SourceTitle).FontSize(px(t, 12)).FontWeight(500).LetterSpacing(px(t, 12) * 0.005).
-						TextColor(theme.Text2(t)).SingleLine().MinWidth(0).Shrink(1)
+		body := ui.Column(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Padding(pad...).Selectable()
+		// The menu is built by this call, so the body is named before it.
+		body.ContextMenu(func(m *ui.Menu) { s.selectionMenu(m, body) })
+		body.Children(func() {
+			ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
+				glyph(c, e.SourceTitle, s.icon)
+				ui.Text(c, e.SourceTitle).FontSize(px(t, 12)).FontWeight(500).LetterSpacing(px(t, 12) * 0.005).
+					TextColor(theme.Text2(t)).SingleLine().MinWidth(0).Shrink(1)
+				ui.Text(c, "·").FontSize(px(t, 12)).TextColor(t.TextMuted.Alpha(0.7))
+				ui.Text(c, s.when(e)).FontSize(px(t, 12)).LetterSpacing(px(t, 12) * 0.005).FontFeatures("tnum").
+					TextColor(t.TextMuted).NoWrap()
+				if reading := s.readLabel(e); reading != "" {
 					ui.Text(c, "·").FontSize(px(t, 12)).TextColor(t.TextMuted.Alpha(0.7))
-					ui.Text(c, s.when(e)).FontSize(px(t, 12)).LetterSpacing(px(t, 12) * 0.005).FontFeatures("tnum").
+					ui.Text(c, reading).FontSize(px(t, 12)).LetterSpacing(px(t, 12) * 0.005).FontFeatures("tnum").
 						TextColor(t.TextMuted).NoWrap()
-					if reading := s.readLabel(e); reading != "" {
-						ui.Text(c, "·").FontSize(px(t, 12)).TextColor(t.TextMuted.Alpha(0.7))
-						ui.Text(c, reading).FontSize(px(t, 12)).LetterSpacing(px(t, 12) * 0.005).FontFeatures("tnum").
-							TextColor(t.TextMuted).NoWrap()
-					}
-				})
-				size := px(t, 24)
-				if narrow {
-					size = px(t, 21)
-				}
-				s.han = s.hanText(e, title, blocks)
-				tracking, line := -0.015*size, s.leading(1.28, 1.42)
-				if theme.Han(title) {
-					tracking = 0
-				}
-				s.plain(c, &s.titleSet, title, s.han, size, tracking).FontSize(size).FontWeight(600).LineHeight(line).
-					LetterSpacing(tracking).TextColor(t.Text).Wrap().Margin(px(t, 12), 0, 0, 0).Role(ui.RoleHeading).Level(1)
-				if s.jobs[translation].on {
-					s.translationNote(c)
-				}
-				if s.aiOff {
-					s.aiOffCard(c)
-				} else if s.jobs[summary].on {
-					s.summaryCard(c)
-				}
-				switch how {
-				case getting:
-					s.note(c, false, s.text.ExtractingNote)
-				case carried:
-					s.note(c, true, s.text.FeedNote)
-				}
-				if s.switchable() && !s.translating() {
-					s.textSwitch(c)
-				}
-				if len(blocks) > 0 {
-					ui.Column(c).FillWidth().Margin(px(t, 22), 0, 0, 0).Children(func() { s.blocks(c, blocks) })
 				}
 			})
+			size := px(t, 24)
+			if narrow {
+				size = px(t, 21)
+			}
+			s.han = s.hanText(e, title, blocks)
+			tracking, line := -0.015*size, s.leading(1.28, 1.42)
+			if theme.Han(title) {
+				tracking = 0
+			}
+			s.plain(c, &s.titleSet, title, s.han, size, tracking).FontSize(size).FontWeight(600).LineHeight(line).
+				LetterSpacing(tracking).TextColor(t.Text).Wrap().Margin(px(t, 12), 0, 0, 0).Role(ui.RoleHeading).Level(1)
+			if s.jobs[translation].on {
+				s.translationNote(c)
+			}
+			if s.aiOff {
+				s.aiOffCard(c)
+			} else if s.jobs[summary].on {
+				s.summaryCard(c)
+			}
+			switch how {
+			case getting:
+				s.note(c, false, s.text.ExtractingNote)
+			case carried:
+				s.note(c, true, s.text.FeedNote)
+			}
+			if s.switchable() && !s.translating() {
+				s.textSwitch(c)
+			}
+			if len(blocks) > 0 {
+				ui.Column(c).FillWidth().Margin(px(t, 22), 0, 0, 0).Children(func() { s.blocks(c, blocks) })
+			}
+		})
 		switch how {
 		case waiting:
 			s.empty(c, icons.LoaderCircle, t.TextMuted, s.text.Extracting, s.text.ExtractingHint, func() {
@@ -1224,7 +1248,7 @@ func (s *Screen) textButton(c *ui.Context, label string, color ui.Color) bool {
 	return b.Clicked()
 }
 
-// small is the small button of a card: an icon and a label, primary in the accent color.
+// small is the small button of a card: an icon (none when nil) and a label, primary in the accent color.
 func (s *Screen) small(c *ui.Context, icon *ui.SVG, label string, primary bool) bool {
 	t := c.Theme()
 	b := ui.ButtonBase(c).Height(px(t, 26)).Margin(px(t, 10), 0, 0, 0).Gap(t.Space(1.5)).PaddingX(px(t, 10)).
@@ -1248,7 +1272,9 @@ func (s *Screen) small(c *ui.Context, icon *ui.SVG, label string, primary bool) 
 		color = t.AccentText
 	}
 	b.Children(func() {
-		ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(color)
+		if icon != nil {
+			ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(color)
+		}
 		ui.Text(c, label).FontSize(px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
 	})
 	return b.Clicked()

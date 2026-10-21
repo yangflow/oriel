@@ -643,6 +643,29 @@ func (s Session) TestAI(ctx context.Context) (string, error) {
 	return reply.Model, nil
 }
 
+// Selection has the server translate (task "translate") or explain ("explain") a text selected while reading, and
+// returns the answer and the model that gave it. title, the article the text is from, is context and may be empty.
+// The server answers at once and stores nothing; it may take as long as the AI endpoint does.
+func (s Session) Selection(ctx context.Context, task, text, title string) (string, string, error) {
+	payload, err := json.Marshal(map[string]string{"task": task, "text": text, "title": title})
+	if err != nil {
+		return "", "", fmt.Errorf("selection: %w", err)
+	}
+	resp, err := s.send(ctx, aiClient, http.MethodPost, "/api/ai/selection", "application/json", bytes.NewReader(payload))
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+	var reply struct {
+		Text  string `json:"text"`
+		Model string `json:"model"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&reply); err != nil {
+		return "", "", fmt.Errorf("selection: %w", err)
+	}
+	return reply.Text, reply.Model, nil
+}
+
 // Image gets a picture found inside a feed through the server's image relay.
 func (s Session) Image(ctx context.Context, address string) ([]byte, error) {
 	resp, err := s.send(ctx, imageClient, http.MethodGet, "/api/image?url="+url.QueryEscape(address), "", nil)
