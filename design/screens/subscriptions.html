@@ -9,7 +9,8 @@
      says what it will subscribe to before anything is sent; the server checks again. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License). The edit dialog ends with the subscription's summaries and
      translations: switches that queue new entries, and prompts that replace the global ones in Settings; edit-ai
-     shows that part scrolled into view, edit-ai-off the same while AI is not set up. A dialog taller than the window
+     shows that part scrolled into view, edit-ai-off the same while AI is not set up. edit-backup is the dialog of an RSSHub route whose last fetch
+     was served by a backup instance: a muted line under the status names the host and "(backup)". A dialog taller than the window
      keeps its header and buttons in place and scrolls only the form, with a divider under the header once scrolled
      and above the buttons while more is below.
      The window has no title bar: the window buttons sit over the sidebar's top, the sidebar is a floating ink pane
@@ -232,7 +233,7 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','delete'];
+const states=['add','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','delete'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -292,6 +293,7 @@ const copy={
     refresh:'Refresh', retry:'Try again', edit:'Edit…', pause:'Pause', resume:'Resume', remove:'Delete…', editTitle:'Edit subscription',
     checked:'Checked 5 min ago · next in 10 min', failing:'Failed 3 times in a row: HTTP 404 Not Found',
     paused:'Paused. Nothing is fetched until you resume.',
+    servedBy:'Served by {host}', servedByBackup:'Served by {host} (backup)',
     pauseLabel:'Pause fetching', pauseHelp:'Entries already fetched stay.',
     mute:'Mute keywords', muteHelp:'One per line. Entries whose title or summary contains one are hidden; starred ones stay.',
     deleteTitle:'Delete “The Go Blog”?', deleteBody:'All its entries go too, starred ones included. This can’t be undone.', confirmDelete:'Delete',
@@ -317,6 +319,7 @@ const copy={
     refresh:'更新', retry:'重试', edit:'编辑…', pause:'暂停', resume:'恢复', remove:'删除…', editTitle:'编辑订阅',
     checked:'5 分钟前检查过 · 10 分钟后再查', failing:'连续失败 3 次：HTTP 404 Not Found',
     paused:'已暂停，恢复之前不抓取。',
+    servedBy:'由 {host} 提供', servedByBackup:'由 {host} 提供（备用）',
     pauseLabel:'暂停抓取', pauseHelp:'已经抓到的条目保留。',
     mute:'屏蔽词', muteHelp:'每行一个。标题或摘要里有的条目会隐藏，收藏的除外。',
     deleteTitle:'删除「The Go Blog」？', deleteBody:'它的条目会一起删掉，收藏的也是。删了不能恢复。', confirmDelete:'删除',
@@ -342,7 +345,7 @@ const sources=[
   {kind:'image',name:'NASA APOD',mono:'N',unread:1,fav:favs.nasa},
 ];
 const empty=state==='empty';
-const editing=['menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','delete'].includes(state);
+const editing=['menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','delete'].includes(state);
 const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
 const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
@@ -385,10 +388,12 @@ function editDialog(){
     ?`<div class="health bad" role="status">${icon('alert')}<span>${copy.failing}</span><button class="button small">${icon('refresh')}${copy.retry}</button></div>`
     :paused?`<div class="health" role="status">${icon('pause')}<span>${copy.paused}</span></div>`
     :`<div class="health" role="status">${icon('check')}<span>${copy.checked}</span><button class="button small">${icon('refresh')}${copy.refresh}</button></div>`;
+  const backup=state==='edit-backup';
+  const served=backup?`<span class="help">${copy.servedByBackup.replace('{host}','rsshub.backup.example')}</span>`:'';
   return `<div class="scrim"><div class="dialog wide" role="dialog" aria-labelledby="dt">
-    <header><span class="mono big">G</span><div class="titles"><h2 id="dt">${copy.editTitle}</h2><p>https://go.dev/blog/feed.atom</p></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>
+    <header><span class="mono big">G</span><div class="titles"><h2 id="dt">${copy.editTitle}</h2><p>${backup?'/github/trending/daily':'https://go.dev/blog/feed.atom'}</p></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>
     <div class="form">
-      ${health}
+      ${health}${served}
       <div class="pair"><div class="field"><label>${copy.title}</label><div class="box focused"><input value="The Go Blog" placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.autoEvery.replace('{every}',copy.every6h))}</div>
       ${kindPicker('article')}
       ${state==='edit-suggest'?`<div class="health" role="status">${icon('video')}<span>${copy.suggest}</span><button class="button small">${copy.suggestUse}</button></div>`:''}

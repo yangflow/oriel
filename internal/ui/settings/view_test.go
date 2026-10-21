@@ -62,8 +62,11 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	if f.setErr != nil {
 		return client.Settings{}, f.setErr
 	}
-	if patch.RSSHubBaseURL != nil {
-		f.settings.RSSHubBaseURL = strings.TrimSuffix(*patch.RSSHubBaseURL, "/")
+	if patch.RSSHubBaseURLs != nil {
+		f.settings.RSSHubBaseURLs = nil
+		for _, base := range *patch.RSSHubBaseURLs {
+			f.settings.RSSHubBaseURLs = append(f.settings.RSSHubBaseURLs, strings.TrimSuffix(base, "/"))
+		}
 	}
 	if patch.RetentionDays != nil {
 		f.settings.RetentionDays = *patch.RetentionDays
@@ -145,7 +148,7 @@ func (f *fake) settle(tt *ui.Tester) {
 func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
 	f := &fake{
-		settings: client.Settings{RSSHubBaseURL: "https://rsshub.example.com", RetentionDays: 30, AILanguage: "zh-Hans",
+		settings: client.Settings{RSSHubBaseURLs: []string{"https://rsshub.example.com"}, RetentionDays: 30, AILanguage: "zh-Hans",
 			PromptSummary: summaryPrompt, PromptTranslate: translatePrompt,
 			DefaultPromptSummary: summaryPrompt, DefaultPromptTranslate: translatePrompt},
 		devices: []client.Device{
@@ -204,16 +207,6 @@ func TestShows(t *testing.T) {
 	}
 }
 
-// clickBase clicks the RSSHub instance field, left of its Save button; its label is also the setting's heading.
-func clickBase(t *testing.T, s *Screen, tt *ui.Tester) {
-	t.Helper()
-	r, ok := tt.Find(s.text.Save)
-	if !ok {
-		t.Fatalf("no Save in %v", tt.Texts())
-	}
-	tt.ClickAt(r.X-40, r.Y+r.H/2)
-}
-
 func TestLoadFails(t *testing.T) {
 	f := &fake{settingsErr: errors.New("offline")}
 	s := New("en", f.deps())
@@ -246,39 +239,67 @@ func TestSaveBase(t *testing.T) {
 	}
 	f.settle(tt)
 	if len(f.set) != 0 {
-		t.Fatalf("saved an unchanged instance: %v", f.set)
+		t.Fatalf("saved an unchanged list: %v", f.set)
 	}
-	clickBase(t, s, tt)
-	tt.Type("/")
-	tt.Key(0, ui.KeyEnter)
+	// Enter in the field is a new line, not a save; a repeat, a blank line and a trailing slash are tidied.
+	edit(tt, func() {
+		s.base = "https://rsshub.example.com/\n\nhttps://backup.example.com/\nHTTPS://RSSHUB.EXAMPLE.COM"
+	})
+	if len(f.set) != 0 {
+		t.Fatalf("saved while typing: %v", f.set)
+	}
+	press(t, tt, s.text.Save)
 	f.settle(tt)
-	if len(f.set) != 1 || *f.set[0].RSSHubBaseURL != "https://rsshub.example.com/" {
-		t.Fatalf("set %v", f.set)
+	if len(f.set) != 1 || f.set[0].RSSHubBaseURL != nil || !slices.Equal(*f.set[0].RSSHubBaseURLs,
+		[]string{"https://rsshub.example.com", "https://backup.example.com"}) {
+		t.Fatalf("set %+v", f.set)
 	}
-	if !tt.HasText(s.text.Saved) || s.base != "https://rsshub.example.com" {
+	if !tt.HasText(s.text.Saved) || s.base != "https://rsshub.example.com\nhttps://backup.example.com" {
 		t.Fatalf("texts %v, base %q", tt.Texts(), s.base)
+	}
+
+	// Emptying the field saves an empty list.
+	edit(tt, func() { s.base = "" })
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 2 || f.set[1].RSSHubBaseURLs == nil || len(*f.set[1].RSSHubBaseURLs) != 0 {
+		t.Fatalf("set %+v", f.set)
 	}
 }
 
 func TestInvalidBase(t *testing.T) {
-	s, f, tt := setup(t, "zh-Hans", true)
-	f.setErr = &client.APIError{Status: 400, Code: "invalid_rsshub_base_url"}
-	clickBase(t, s, tt)
-	tt.Type("x")
-	if err := tt.Click(s.text.Save); err != nil {
-		t.Fatal(err)
-	}
+	s, f, tt := setup(t, "en", true)
+	// A line that is not an address is named by its number and nothing is sent.
+	edit(tt, func() { s.base = "https://rsshub.example.com\n\nrsshub.example" })
+	press(t, tt, s.text.Save)
 	f.settle(tt)
 	tt.Frame()
-	if !tt.HasText(s.text.InvalidBase) || !tt.Focused(s.text.RSSHub) {
-		t.Fatalf("texts %v", tt.Texts())
+	line3 := strings.ReplaceAll(s.text.InvalidBase, "{n}", "3")
+	if len(f.set) != 0 || !tt.HasText(line3) || !tt.Focused(s.text.RSSHub) {
+		t.Fatalf("set %v, texts %v", f.set, tt.Texts())
 	}
-	tt.Type("y")
-	if tt.HasText(s.text.InvalidBase) {
+	tt.Type("x")
+	if tt.HasText(line3) {
 		t.Fatal("the error stays after typing")
 	}
+
+	// A refusal from the server shows too, and a failure to reach it is a different message.
+	edit(tt, func() { s.base = "https://a.example\nhttps://b.example" })
+	f.setErr = &client.APIError{Status: 400, Code: "invalid_rsshub_base_url"}
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	tt.Frame()
+	if !tt.HasText(s.text.InvalidBaseAny) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	f.setErr = &client.APIError{Status: 400, Code: "too_many_rsshub_base_urls"}
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if !tt.HasText(s.text.TooManyBase) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
 	f.setErr = errors.New("offline")
-	tt.Key(0, ui.KeyEnter)
+	press(t, tt, s.text.Save)
 	f.settle(tt)
 	if !tt.HasText(s.text.SaveFailed) {
 		t.Fatalf("texts %v", tt.Texts())
@@ -640,7 +661,7 @@ func TestExpired(t *testing.T) {
 func TestStaleServer(t *testing.T) {
 	s, f, tt := setup(t, "en", true)
 	s.Open()
-	other := &fake{settings: client.Settings{RSSHubBaseURL: "https://other.example.com", RetentionDays: 7}}
+	other := &fake{settings: client.Settings{RSSHubBaseURLs: []string{"https://other.example.com"}, RetentionDays: 7}}
 	s.Use(other, "", false)
 	s.Open()
 	f.settle(tt)
@@ -787,7 +808,7 @@ func TestSaveAI(t *testing.T) {
 	}
 	p := f.set[0]
 	if *p.AIBaseURL != "https://api.example.com/v1/" || *p.AIModel != "small" || *p.AIAPIKey != "sk-test" ||
-		*p.AILanguage != "en" || p.RSSHubBaseURL != nil || p.PromptSummary != nil {
+		*p.AILanguage != "en" || p.RSSHubBaseURLs != nil || p.PromptSummary != nil {
 		t.Fatalf("patch %+v", p)
 	}
 	if !tt.HasText(s.text.AISaved) || !tt.HasText(s.text.KeySet) || !tt.HasText(s.text.RemoveKey) || s.aiKey != "" ||

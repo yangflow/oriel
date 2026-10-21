@@ -15,8 +15,9 @@ func TestMigrationMakesDefaultIntervalAuto(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Take the database back to what version 9 left: the two columns gone, three sources with their intervals.
+	// Take the database back to what version 9 left: the three columns gone, three sources with their intervals.
 	for _, q := range []string{
+		"ALTER TABLE sources DROP COLUMN rsshub_instance",
 		"ALTER TABLE sources DROP COLUMN fetch_interval_auto",
 		"ALTER TABLE sources DROP COLUMN suggested_kind",
 		"INSERT INTO sources (url, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at) VALUES ('https://a.org/a', 'article', 900, 0, 0, 0)",

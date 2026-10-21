@@ -215,7 +215,9 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; title and interval share a
   row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` soft fill) or what
   the address was recognized as (`Accent` soft fill, the address in monospace). The edit dialog starts with a health line
-  (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail. The interval offers Auto
+  (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail.
+  For a route that has been fetched, a muted 12 line under it names the RSSHub instance that served the last fetch
+  (host only, "(backup)" after it when it is not the first of the list). The interval offers Auto
   first, and an automatic subscription reads "Auto · 6 h" with the interval in use. When the first fetch found the feed to look like
   another kind, a line in the style of the health line sits under the kind picker with the kind's icon, one sentence and a small
   button "Show as Videos"; it only chooses the kind in the dialog. It ends with "Summaries and
@@ -754,8 +756,12 @@ Overlays share focus and Escape behavior; see
   a column at most 600 wide, padding included, for a readable line; Devices is a list and widens to 880 once the room
   is 656 wide (a window of 880); AI splits in two columns, 1040 wide at most with a 24 gap, once the room is 976 wide
   (a window of 1200). Below those widths a page is the single 600 column, padded 32 (20 below a 760 wide window).
-  Text outside a card (the lead line) never runs past 600. A setting is saved
-  where it is changed: the RSSHub instance with its Save button or Enter, the retention as soon as another is
+  Text outside a card (the lead line) never runs past 600. The RSSHub instances are an ordered list in one
+  multi-line monospace text input (as the prompts and mute words), one address per line, the first the primary; Enter
+  breaks the line, so only Save sends it. A line that is not an http or https address with a host name is named under
+  the field ("Line 2 is not ..."), the field takes the `Danger` outline, nothing is sent and the focus stays. Five
+  addresses at most. A setting is saved
+  where it is changed: the RSSHub instances with their Save button, the retention as soon as another is
   chosen; the line under it says it was saved, or why not, and a refused value keeps the focus in its field. OPML
   files are chosen and saved with the system's file dialogs, read and sent in the background; the result stays
   under the button, with the subscriptions that could not be added and why, until dismissed. Signing a device out asks

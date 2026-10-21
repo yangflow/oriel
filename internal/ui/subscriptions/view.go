@@ -32,6 +32,7 @@ type copy struct {
 	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added              string
 	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn    string
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody         string
+	ServedBy, ServedByBackup                                                                                          string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                   string
 	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff           string
 	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind string
@@ -109,7 +110,7 @@ type adding struct {
 	suggested  int // the kind the address suggests, which kind follows until another is picked
 	interval   int64
 	settings   int
-	root       string // the RSSHub instance of the settings
+	root       string // the RSSHub instances of the settings, one per line
 	addressErr string
 	exists     int64 // the subscription the address is already followed as, for "Show it"
 	baseErr    string
@@ -131,6 +132,7 @@ type editing struct {
 	auto     [2]bool   // summarize and translate new entries
 	prompts  [2]string // the summary and translation prompts of the subscription, "" for the ones in the settings
 	aiOff    bool      // the settings have no AI endpoint, so the switches do nothing yet
+	primary  string    // the first RSSHub instance of the settings, "" until they are loaded
 	formErr  string
 	busy     bool
 	focus    bool
@@ -238,7 +240,7 @@ func (s *Screen) Add() {
 				s.add.settings = settingsUnknown
 				return
 			}
-			s.add.settings, s.add.root = settingsLoaded, settings.RSSHubBaseURL
+			s.add.settings, s.add.root = settingsLoaded, strings.Join(settings.RSSHubBaseURLs, "\n")
 		}
 	})
 }
@@ -278,7 +280,7 @@ func (s *Screen) submit() {
 	s.deps.Go(func() func() {
 		ctx := context.Background()
 		if base != "" {
-			settings, err := api.SetSettings(ctx, client.SettingsPatch{RSSHubBaseURL: &base})
+			settings, err := api.SetSettings(ctx, client.SettingsPatch{RSSHubBaseURLs: &[]string{base}})
 			if err != nil {
 				return func() {
 					if gen != s.gen || s.expired(err) {
@@ -293,7 +295,7 @@ func (s *Screen) submit() {
 					s.announce = s.add.baseErr + s.add.formErr
 				}
 			}
-			base = settings.RSSHubBaseURL
+			base = strings.Join(settings.RSSHubBaseURLs, "\n")
 		}
 		added, err := api.AddSource(ctx, src)
 		return func() {
@@ -348,6 +350,9 @@ func (s *Screen) Edit(src client.Source) {
 				return
 			}
 			s.edit.aiOff = !settings.AIConfigured()
+			if len(settings.RSSHubBaseURLs) > 0 {
+				s.edit.primary = settings.RSSHubBaseURLs[0]
+			}
 		}
 	})
 }
@@ -1179,6 +1184,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.header(c, &e.open, func() { s.glyph(c, kinds[e.kind], e.src) }, s.text.EditTitle, where)
 	}, func() {
 		s.health(c)
+		s.servedBy(c)
 		focus := e.focus
 		e.focus = false
 		s.pair(c, func() {
@@ -1241,6 +1247,23 @@ func (s *Screen) healthText(src client.Source, now time.Time) (string, bool) {
 		next = strings.ReplaceAll(s.text.NextIn, "{t}", s.span(in))
 	}
 	return checked + s.text.Separator + next, false
+}
+
+// servedBy names the RSSHub instance that served the last fetch of a route, host only, and says so when it is not
+// the first of the settings. It shows nothing for a feed or a route that has not been fetched.
+func (s *Screen) servedBy(c *ui.Context) {
+	src := s.edit.src
+	if src.RSSHubPath == "" || src.RSSHubInstance == "" {
+		return
+	}
+	host, text := src.RSSHubInstance, s.text.ServedBy
+	if u, err := url.Parse(src.RSSHubInstance); err == nil && u.Host != "" {
+		host = u.Host
+	}
+	if primary := strings.TrimRight(s.edit.primary, "/"); primary != "" && !strings.EqualFold(primary, src.RSSHubInstance) {
+		text = s.text.ServedByBackup
+	}
+	help(c, strings.ReplaceAll(text, "{host}", host))
 }
 
 func (s *Screen) health(c *ui.Context) {

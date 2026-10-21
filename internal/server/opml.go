@@ -139,10 +139,14 @@ func (s *Server) exportOPML(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
-	root, err := s.store.Setting(r.Context(), fetch.RSSHubSetting)
+	raw, err := s.store.Setting(r.Context(), fetch.RSSHubSetting)
 	if err != nil {
 		internal(w, err)
 		return
+	}
+	root := "" // the primary instance, which other readers can use
+	if instances := fetch.Instances(raw); len(instances) > 0 {
+		root = instances[0]
 	}
 	doc := opmlDocument{Version: "2.0", Title: "Oriel", Body: make([]opmlOutline, len(list))}
 	for i, src := range list {

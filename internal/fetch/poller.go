@@ -51,11 +51,110 @@ const (
 	// A Retry-After on 429 or 503 raises the wait, but never past a day.
 	retryAfterLimit = 24 * time.Hour
 
-	// RSSHubSetting is the setting that holds the RSSHub root address, such as http://localhost:1200.
+	// RSSHubSetting is the setting that holds the RSSHub root addresses, one per line, such as http://localhost:1200.
+	// The first is the primary, the others are tried in order when it fails.
 	RSSHubSetting = "rsshub_base_url"
+
+	// MaxInstances is how many RSSHub addresses the setting may hold.
+	MaxInstances = 5
 )
 
 var errTooLarge = fmt.Errorf("response is larger than %d MiB", maxBytes>>20)
+
+// errDeferred is the outcome of a fetch that could not be tried at all now: every RSSHub instance is cooling down
+// or its host is busy. It is not a failure of the source, which stays due.
+var errDeferred = errors.New("no RSSHub instance is available now")
+
+// Instances lists the RSSHub root addresses in a setting value in priority order: one per line, blank lines and
+// trailing slashes dropped, a repeated address kept once at its first place.
+func Instances(raw string) []string {
+	var list []string
+	seen := map[string]bool{}
+	for line := range strings.SplitSeq(raw, "\n") {
+		base := strings.TrimRight(strings.TrimSpace(line), "/")
+		if base == "" || seen[strings.ToLower(base)] {
+			continue
+		}
+		seen[strings.ToLower(base)] = true
+		list = append(list, base)
+	}
+	return list
+}
+
+// instanceGate remembers which RSSHub instances are cooling down after a failure. Backoff belongs to the instance,
+// not to the sources: while one is cooling, every route goes to the next instance without waiting for a timeout.
+type instanceGate struct {
+	mu    sync.Mutex
+	state map[string]instanceState
+}
+
+type instanceState struct {
+	failures int       // in a row
+	until    time.Time // cooling down until
+	reason   string    // the last failure
+}
+
+// cooling reports whether the instance is cooling down at now, until when and why.
+func (g *instanceGate) cooling(base string, now time.Time) (time.Time, string, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	st := g.state[base]
+	return st.until, st.reason, now.Before(st.until)
+}
+
+// fail starts or extends the cool-down of an instance: the wait of a source with that many failures in a row, or
+// the Retry-After the instance asked for when that is longer. It returns when the cool-down ends.
+func (g *instanceGate) fail(base string, now time.Time, reason string, asked time.Duration) time.Time {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.state == nil {
+		g.state = map[string]instanceState{}
+	}
+	st := g.state[base]
+	st.failures++
+	st.until = now.Add(max(retryDelay(st.failures), asked))
+	st.reason = reason
+	g.state[base] = st
+	return st.until
+}
+
+// ok forgets the failures of an instance that answered.
+func (g *instanceGate) ok(base string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	delete(g.state, base)
+}
+
+// first is the instance a route is tried on first: the earliest in the list that is not cooling down, or when all
+// are, the one whose cool-down ends first.
+func (g *instanceGate) first(instances []string, now time.Time) string {
+	var soonest string
+	var end time.Time
+	for _, base := range instances {
+		until, _, cooling := g.cooling(base, now)
+		if !cooling {
+			return base
+		}
+		if soonest == "" || until.Before(end) {
+			soonest, end = base, until
+		}
+	}
+	return soonest
+}
+
+// label names an instance in a failure reason: its address without the scheme.
+func label(base string) string {
+	if u, err := url.Parse(base); err == nil && u.Host != "" {
+		return u.Host + u.Path
+	}
+	return base
+}
+
+// unavailableError is a failure of the instance rather than of the route: no answer, a 5xx or a 429. The same
+// route may work on another instance.
+type unavailableError struct{ error }
+
+func (e *unavailableError) Unwrap() error { return e.error }
 
 // Poller fetches due sources, extracts article text and prunes old entries, each in its own loop.
 type Poller struct {
@@ -66,6 +165,7 @@ type Poller struct {
 	now       func() time.Time
 	spacing   time.Duration // between two feed fetches to one host
 	hosts     hostGate      // limits and spaces out requests to one site, for feeds and extraction
+	rsshub    instanceGate  // the RSSHub instances that are cooling down
 	lastPrune time.Time     // only touched by prune, which runs in one loop
 
 	mu       sync.Mutex // guards the three fields below
@@ -187,10 +287,12 @@ func (p *Poller) refill(ctx context.Context, now time.Time) {
 		}
 		return
 	}
-	root, err := p.store.Setting(ctx, RSSHubSetting)
+	raw, err := p.store.Setting(ctx, RSSHubSetting)
 	if err != nil && ctx.Err() == nil {
 		slog.Error("Cannot read the RSSHub address", "error", err)
 	}
+	instances := Instances(raw)
+	root := p.rsshub.first(instances, now)
 	p.queue = p.queue[:0]
 	for _, src := range sources {
 		if p.inflight[src.ID] {
@@ -227,9 +329,9 @@ func sourceAddress(src store.FeedSource, root string) string {
 // fetchSource fetches one source and records the outcome on it.
 func (p *Poller) fetchSource(ctx context.Context, job queued) int {
 	src := job.src
-	created, err := p.fetchAndSave(ctx, src)
-	if ctx.Err() != nil {
-		return 0 // shutting down: leave the source due for the next start
+	created, err := p.fetchAndSave(ctx, src, job.host)
+	if ctx.Err() != nil || errors.Is(err, errDeferred) {
+		return 0 // shutting down, or nothing could be tried: leave the source due
 	}
 	now := p.now()
 	if err != nil {
@@ -248,17 +350,99 @@ func (p *Poller) fetchSource(ctx context.Context, job queued) int {
 	return created
 }
 
-func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource) (int, error) {
-	address := src.URL
-	if src.RSSHubPath != "" {
-		root, err := p.store.Setting(ctx, RSSHubSetting)
-		if err != nil {
-			return 0, err
-		}
-		if address = sourceAddress(src, root); address == "" {
-			return 0, errors.New("the RSSHub address is not set")
-		}
+// fetchAndSave fetches a source and stores what it brought. host is the host whose place the caller holds.
+func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource, host string) (int, error) {
+	if src.RSSHubPath == "" {
+		return p.fetchFrom(ctx, src, src.URL, "")
 	}
+	raw, err := p.store.Setting(ctx, RSSHubSetting)
+	if err != nil {
+		return 0, err
+	}
+	instances := Instances(raw)
+	if len(instances) == 0 {
+		return 0, errors.New("the RSSHub address is not set")
+	}
+	return p.fetchRoute(ctx, src, instances, host)
+}
+
+// fetchRoute fetches an RSSHub route from the instances in order and stops at the first that answers. An instance
+// that does not answer, or answers 5xx or 429, goes into a cool-down and the route goes on to the next; any other
+// failure belongs to the route and ends the attempt. A fallback instance on another host takes its own place at
+// that host, and is skipped when the host has none free. The source fails only when every instance did; when some
+// could not be tried (cooling down or busy) and none answered, nothing is recorded and the source stays due.
+// With one instance there is no one to fall back to, so it has no cool-down and its errors pass through as they are.
+// held is the host whose place the caller holds already.
+func (p *Poller) fetchRoute(ctx context.Context, src store.FeedSource, instances []string, held string) (int, error) {
+	if len(instances) == 1 {
+		return p.fetchFrom(ctx, src, sourceAddress(src, instances[0]), instances[0])
+	}
+	var reasons []string
+	var soonest time.Duration // until the first failed instance can be tried again
+	tried, busy := 0, false
+	for _, base := range instances {
+		now := p.now()
+		if until, reason, cooling := p.rsshub.cooling(base, now); cooling {
+			reasons = append(reasons, label(base)+": "+reason)
+			soonest = shortest(soonest, until.Sub(now))
+			continue
+		}
+		address := sourceAddress(src, base)
+		var host string
+		if u, err := url.Parse(address); err == nil {
+			host = u.Host
+		}
+		owned := host != "" && host == held
+		if owned {
+			held = "" // the place is used once; a second instance on the same host takes its own
+		} else if !p.hosts.acquire(host, now, p.spacing) {
+			busy = true
+			continue
+		}
+		created, err := p.fetchFrom(ctx, src, address, base)
+		if !owned {
+			p.hosts.release(host)
+		}
+		var unavailable *unavailableError
+		switch {
+		case err == nil:
+			p.rsshub.ok(base)
+			return created, nil
+		case ctx.Err() != nil:
+			return 0, err
+		case !errors.As(err, &unavailable):
+			p.rsshub.ok(base) // it answered: the route is what failed
+			return 0, fmt.Errorf("%s: %w", label(base), err)
+		}
+		var asked *retryAfterError
+		var wait time.Duration
+		if errors.As(err, &asked) {
+			wait = asked.wait
+		}
+		until := p.rsshub.fail(base, now, err.Error(), wait)
+		p.hosts.holdUntil(host, until)
+		tried++
+		reasons = append(reasons, label(base)+": "+err.Error())
+		soonest = shortest(soonest, until.Sub(now))
+	}
+	if tried == 0 || busy {
+		return 0, errDeferred
+	}
+	err := fmt.Errorf("%s", strings.Join(reasons, "; "))
+	return 0, &retryAfterError{error: err, wait: soonest}
+}
+
+// shortest is the smaller of two waits, where zero means none yet.
+func shortest(a, b time.Duration) time.Duration {
+	if a == 0 {
+		return b
+	}
+	return min(a, b)
+}
+
+// fetchFrom fetches the feed at address and stores it. instance is the RSSHub instance it belongs to, empty for a
+// source that is not a route.
+func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, instance string) (int, error) {
 	base, err := url.Parse(address)
 	if err != nil {
 		return 0, err
@@ -276,24 +460,27 @@ func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource) (int, e
 	}
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, unavailable(ctx, instance, err)
 	}
 	defer resp.Body.Close()
 	etag, lastModified := resp.Header.Get("ETag"), resp.Header.Get("Last-Modified")
 	now := p.now()
 	switch {
 	case resp.StatusCode == http.StatusNotModified:
-		return 0, p.recordSuccess(ctx, src, etag, lastModified, now)
+		return 0, p.recordSuccess(ctx, src, etag, lastModified, instance, now)
 	case resp.StatusCode < 200 || resp.StatusCode > 299:
 		err := statusError(resp, src)
 		if wait := retryAfter(resp, now); wait > 0 {
 			err = &retryAfterError{error: err, wait: wait}
 		}
+		if instance != "" && (resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests) {
+			err = &unavailableError{err}
+		}
 		return 0, err
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
-		return 0, err
+		return 0, unavailable(ctx, instance, err)
 	}
 	if len(body) > maxBytes {
 		return 0, errTooLarge
@@ -331,12 +518,12 @@ func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource) (int, e
 			return 0, err
 		}
 	}
-	return created, p.recordSuccess(ctx, src, etag, lastModified, now)
+	return created, p.recordSuccess(ctx, src, etag, lastModified, instance, now)
 }
 
 // recordSuccess records a fetch that reached the feed and schedules the next one. An automatic source first gets its
 // interval worked out again from the entries it holds now.
-func (p *Poller) recordSuccess(ctx context.Context, src store.FeedSource, etag, lastModified string, now time.Time) error {
+func (p *Poller) recordSuccess(ctx context.Context, src store.FeedSource, etag, lastModified, instance string, now time.Time) error {
 	interval, stored := src.FetchInterval, time.Duration(0)
 	if src.FetchIntervalAuto {
 		published, err := p.store.RecentPublished(ctx, src.ID, now, AutoSample)
@@ -346,7 +533,16 @@ func (p *Poller) recordSuccess(ctx context.Context, src store.FeedSource, etag, 
 		interval = AutoInterval(published)
 		stored = interval
 	}
-	return p.store.FetchSuccess(ctx, src.ID, etag, lastModified, now, now.Add(interval), stored)
+	return p.store.FetchSuccess(ctx, src.ID, etag, lastModified, instance, now, now.Add(interval), stored)
+}
+
+// unavailable marks a network failure of an RSSHub instance, so that the route goes on to the next one. A canceled
+// context and a failure of a source that is not a route stay as they are.
+func unavailable(ctx context.Context, instance string, err error) error {
+	if instance == "" || ctx.Err() != nil {
+		return err
+	}
+	return &unavailableError{err}
 }
 
 // statusError names the likely cause for the statuses users can act on.
