@@ -48,6 +48,7 @@ type copy struct {
 	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                        string
 	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                            string
 	CopyMarkdown, SaveMarkdown                                                                                                                            string
+	LastLooked                                                                                                                                            string
 }
 
 var translations = func() map[string]copy {
@@ -61,6 +62,8 @@ var translations = func() map[string]copy {
 const (
 	pageSize     = 50
 	nearEnd      = 10               // rows from the end of what is loaded at which the next page loads
+	lookEvery    = 15 * time.Second // how often the last-looked marker is kept while the list rests at the top
+	maxNewCount  = 50               // the most new entries the divider counts; more show as "50+"
 	pollEvery    = 60 * time.Second // how often the sources and the first page are checked for new entries
 	debounce     = 300 * time.Millisecond
 	minQuery     = 3 // characters a search needs, as the server's trigram index does
@@ -107,6 +110,11 @@ type Deps struct {
 	ReadingFont      func() string
 	Change           func(prefs.Preferences)
 	Save             func(name, filter string) (string, error)
+	// Active tells whether the window has the focus and shows this screen; nil means it does. The marker of what the
+	// reader last looked at moves only while it is true.
+	Active func() bool
+	// Look keeps the marker of what the reader last looked at, in the background. nil keeps nothing.
+	Look func(prefs.Marker)
 }
 
 // scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
@@ -230,6 +238,14 @@ type Screen struct {
 	downloads int
 	drawn     int
 
+	base      prefs.Marker     // where the divider stands: the marker as it was when the list was loaded
+	divider   int              // the entry the divider was drawn above in the last frame, -1 for none
+	away      bool             // the list was scrolled off the top since the divider showed
+	dismissed map[listKey]bool // the lists whose divider was dismissed
+	seen      prefs.Marker     // the newest entry seen at the top of the list, kept at the next write
+	atTop     bool             // the last frame was in the state that moves the marker
+	lookedAt  time.Time        // when the marker was last kept
+
 	undoable *marking              // the last "mark as read", until its toast closes
 	seeking  bool                  // N found no unread entry loaded and waits for the next page
 	noMore   bool                  // show that no unread entry is below
@@ -252,7 +268,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		deps.Decode = ui.DecodeBitmap
 	}
 	s := &Screen{deps: deps, text: translations[locale.Language(systemLocale)], selected: -1, focusRow: -1,
-		hovered: -1, pictures: map[string]*picture{}, rects: map[int]ui.Rect{}}
+		hovered: -1, divider: -1, pictures: map[string]*picture{}, rects: map[int]ui.Rect{}, dismissed: map[listKey]bool{}}
 	s.subs = subscriptions.New(systemLocale, subscriptions.Deps{
 		Go:           deps.Go,
 		Now:          deps.Now,
@@ -306,6 +322,8 @@ func (s *Screen) Use(api API, server string) {
 	s.scope, s.tab, s.filter, s.budget = scope{}, 0, everything, 0
 	s.query, s.searched, s.editing = "", "", false
 	s.lists, s.anchor = nil, 0
+	s.seen, s.atTop = prefs.Marker{}, false
+	s.renew()
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
 	s.undoable, s.seeking, s.keys, s.pal = nil, false, false, paletteState{}
 	s.subs.Use(api)
@@ -419,6 +437,7 @@ func (s *Screen) reload() {
 	s.offline = false
 	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = -1, -1, -1, true, 0, false
 	s.checking = false
+	s.divider, s.away = -1, false
 	s.retryPictures()
 	s.reader.Forget()
 	s.deps.Go(func() func() {
@@ -644,6 +663,122 @@ func (s *Screen) holdsTop() bool {
 // older tells whether a comes after b in the timeline.
 func older(a, b client.Entry) bool {
 	return a.CreatedAt < b.CreatedAt || a.CreatedAt == b.CreatedAt && a.ID < b.ID
+}
+
+// looked is the marker kept for what the reader last looked at.
+func (s *Screen) looked() prefs.Marker {
+	if s.deps.Reading == nil {
+		return prefs.Marker{}
+	}
+	return s.deps.Reading().LastLooked
+}
+
+// renew puts the divider where the marker kept now stands, and shows it again where it was dismissed: for a new
+// server and for the list loaded again from "new".
+func (s *Screen) renew() {
+	s.base = s.looked()
+	clear(s.dismissed)
+}
+
+// markerOf is the marker that stands for the entry e.
+func markerOf(e client.Entry) prefs.Marker { return prefs.Marker{At: e.CreatedAt, ID: e.ID} }
+
+// movesMarker tells whether the list on screen may move the marker: only the list of everything, in the order of the
+// whole timeline, has the newest entry there is as its first. In a kind, a subscription, Unread, Starred, a reading
+// time or a search the first entry is not that, so those only read the marker.
+func (s *Screen) movesMarker() bool {
+	return s.api != nil && s.reading == 0 && !s.loading && !s.loadErr && len(s.entries) > 0 && s.searched == "" &&
+		s.scope == (scope{}) && s.filter == everything && s.budget == 0
+}
+
+// onTop tells whether the first entry was drawn whole in the last frame, or the grid or wall is at its top.
+func (s *Screen) onTop() bool {
+	switch s.layout() {
+	case gridLayout, squareLayout, wallLayout:
+		return !s.holdsTop()
+	}
+	return s.fullyShown(0)
+}
+
+// look runs after each frame: it moves the marker to the newest entry seen while the window is active, the list is
+// the whole timeline and rests at the top, keeps it when that state ends and every lookEvery while it lasts, and
+// dismisses the divider when the list comes back to the top.
+func (s *Screen) look(c *ui.Context) {
+	active := s.deps.Active == nil || s.deps.Active()
+	top := active && s.movesMarker() && s.onTop()
+	kept := s.looked()
+	if top {
+		if m := markerOf(s.entries[0]); s.seen.Newer(m.At, m.ID) && kept.Newer(m.At, m.ID) {
+			s.seen = m
+		}
+	}
+	if dirty := s.seen.Valid() && s.seen != kept; dirty {
+		switch wait := lookEvery - s.deps.Now().Sub(s.lookedAt); {
+		case !top && s.atTop:
+			s.keep()
+		case top && wait <= 0:
+			s.keep()
+		case top:
+			c.After(wait)
+		}
+	}
+	s.atTop = top
+	if s.divider < 0 || !active || s.reading != 0 {
+		return
+	}
+	switch {
+	case s.scrolled():
+		s.away = true
+	case s.away && s.onTop():
+		s.dismiss()
+	}
+}
+
+// scrolled tells whether the list was drawn in the last frame without its first entry: the reader scrolled it away,
+// which a first frame, drawn before the list has its place, is not.
+func (s *Screen) scrolled() bool {
+	switch s.layout() {
+	case gridLayout, squareLayout, wallLayout:
+		return s.holdsTop()
+	}
+	_, drawn := s.rects[0]
+	return len(s.rects) > 0 && !drawn
+}
+
+// keep keeps the newest entry seen as the marker, in the background.
+func (s *Screen) keep() {
+	s.lookedAt = s.deps.Now()
+	if s.deps.Look != nil {
+		s.deps.Look(s.seen)
+	}
+}
+
+// dismiss takes the divider away from this list. Where the marker may move it catches up with the first entry.
+func (s *Screen) dismiss() {
+	s.dismissed[s.key()] = true
+	s.divider, s.away = -1, false
+	if s.movesMarker() {
+		if m := markerOf(s.entries[0]); s.seen.Newer(m.At, m.ID) && s.looked().Newer(m.At, m.ID) {
+			s.seen = m
+		}
+		if s.seen.Valid() && s.seen != s.looked() {
+			s.keep()
+		}
+	}
+}
+
+// dividerAt is the entry the divider goes above: the first at or older than the marker, so that every entry before it
+// is newer and the count of those is its index; -1 when the divider does not show. It does not show on a first run, in a search, in a list that was
+// dismissed, with nothing newer than the marker, or while all that is loaded is newer (the marker is further down).
+func (s *Screen) dividerAt() int {
+	if !s.base.Valid() || s.searched != "" || s.dismissed[s.key()] {
+		return -1
+	}
+	i := slices.IndexFunc(s.entries, func(e client.Entry) bool { return !s.base.Newer(e.CreatedAt, e.ID) })
+	if i <= 0 {
+		return -1
+	}
+	return i
 }
 
 // merge puts the first page, fetched again for a list drawn from memory, in its place: the page, then the entries
@@ -1576,6 +1711,7 @@ func (s *Screen) View(c *ui.Context) {
 		s.viewed = v
 	}
 	s.wantMore = false
+	s.look(c) // reads the rects of the last frame
 	clear(s.rects)
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
 		if !hidden {
@@ -2682,12 +2818,14 @@ func (s *Screen) pill(c *ui.Context) {
 		ui.Text(c, text).FontSize(px(t, 12)).FontWeight(500).TextColor(t.AccentText).NoWrap()
 	})
 	if b.Clicked() {
+		s.renew()
 		s.reload()
 	}
 }
 
 // content is the list, or the state that stands in for it.
 func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
+	s.divider = -1
 	area := ui.Column(c).Grow(1).FillWidth().MinHeight(0)
 	area.Children(func() {
 		switch {
@@ -3111,6 +3249,7 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 	if s.hasFooter() {
 		n++
 	}
+	s.divider = s.dividerAt()
 	ui.List(c, &s.list, n, func(i int) {
 		// The row is 16 wider than the column on each side, so its text lines up with the toolbar's.
 		ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto).PaddingX(px(t, 8)).Children(func() {
@@ -3118,10 +3257,40 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 				s.footer(c)
 				return
 			}
+			if i == s.divider {
+				s.divide(c, i)
+			}
 			s.row(c, i, now, compact)
 		})
 	}).Grow(1).FillWidth().Padding(s.top()+t.Space(1), 0, t.Space(6), 0).ScrollbarInsets(s.top(), 0, 0, 0).
 		Label(s.scopeName())
+}
+
+// divide is the divider above the first entry at or older than the marker of what the reader last looked at: a hairline
+// with the count of the entries above it, newer than the marker and loaded, in the middle. It is a button that
+// dismisses it, named by its text.
+func (s *Screen) divide(c *ui.Context, newer int) {
+	t := c.Theme()
+	count := strconv.Itoa(newer)
+	if newer > maxNewCount {
+		count = strconv.Itoa(maxNewCount) + "+"
+	}
+	label := strings.ReplaceAll(s.text.LastLooked, "{n}", count)
+	b := ui.ButtonBase(c).Key("looked").FillWidth().Height(px(t, 28)).Padding(0, px(t, 16), 0, px(t, 28)).Label(label)
+	color := t.Accent
+	if b.Hovered() {
+		color = t.AccentHover
+	}
+	b.Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(px(t, 10)).Children(func() {
+			ui.Box(c).Grow(1).Height(1).Background(t.Border)
+			ui.Text(c, label).FontSize(px(t, 12)).FontWeight(500).TextColor(color).NoWrap()
+			ui.Box(c).Grow(1).Height(1).Background(t.Border)
+		})
+	})
+	if b.Clicked() {
+		s.dismiss()
+	}
 }
 
 // row is one entry: hover, pressed and chosen are the three steps of one fill, and the chosen row carries the marker.
@@ -3159,7 +3328,7 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	quiet := hovered || chosen || i > 0 && (s.hovered == i-1 || s.selected == i-1)
 	showing := hovered || chosen || r.Focused()
 	r.Children(func() {
-		if i > 0 && !quiet {
+		if i > 0 && !quiet && i != s.divider {
 			ui.Box(c).Absolute().Top(0).Left(px(t, 28)).Right(px(t, 16)).Height(1).Background(t.Border)
 		}
 		if chosen {

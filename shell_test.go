@@ -331,6 +331,40 @@ func TestShellPreferencesNotSaved(t *testing.T) {
 	}
 }
 
+func TestShellLook(t *testing.T) {
+	s, _, path := newTestShell(t)
+	s.use()
+	if !s.active() {
+		t.Fatal("the timeline in front of the reader is not active")
+	}
+	s.focus(false)
+	if s.active() {
+		t.Fatal("a window that lost focus is active")
+	}
+	s.focus(true)
+	s.openSettings()
+	if s.active() {
+		t.Fatal("the timeline under the settings is active")
+	}
+	m := prefs.Marker{At: 1700000000000, ID: 7}
+	s.look(m)
+	file := filepath.Join(filepath.Dir(path), prefs.File)
+	if s.prefs.LastLooked != m || prefs.Load(file).LastLooked != m {
+		t.Fatalf("in use %v, saved %v", s.prefs.LastLooked, prefs.Load(file).LastLooked)
+	}
+}
+
+func TestShellLookNotSaved(t *testing.T) {
+	s, tt, path := newTestShell(t)
+	s.prefsPath = filepath.Join(filepath.Dir(path), "missing", prefs.File)
+	s.use()
+	s.look(prefs.Marker{At: 1700000000000, ID: 7})
+	tt.Frame()
+	if s.prefs.LastLooked.Valid() || tt.HasText("Couldn’t save that choice. It went back to what it was.") {
+		t.Fatalf("in use %v, texts %v", s.prefs.LastLooked, tt.Texts())
+	}
+}
+
 func TestShellFont(t *testing.T) {
 	s, _, _ := newTestShell(t)
 	s.prefs.Font = "Gone Sans"
