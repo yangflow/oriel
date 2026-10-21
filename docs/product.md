@@ -96,6 +96,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `is_read`、`read_at`、`starred` | 阅读状态。收藏的条目不被保留期限清理。 |
 | `search_text` | 抽取正文的纯文本，进全文索引。 |
 | `reading_sec` | 估计要花的时间，单位秒，服务端算好存下。可为空（`NULL`）：没有可估的内容，或还没算。见「阅读时间」。 |
+| `read_progress` | 读到文章的哪里，0 到 1 的小数：滚过的距离 ÷ 可滚动的总距离（内容高减视口高）。可为空（`NULL`）：从没滚动过。迁移 0007 加这一列。见「阅读器」的「阅读位置」。 |
 
 时间线按 `created_at, id` 排序和分页，不用 `published_at`。
 
@@ -277,11 +278,11 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 |---|---|
 | `GET /api/entries` | 一页条目，返回 `{ "entries": [...], "nextCursor": "..." }`；没有下一页时 `nextCursor` 为 `null`。 |
 | `GET /api/entries/{id}` | 一个条目，多带正文。 |
-| `PATCH /api/entries/{id}` | 改 `isRead`、`starred`，只改请求里带的，返回改后的条目。 |
+| `PATCH /api/entries/{id}` | 改 `isRead`、`starred`、`readProgress`，只改请求里带的，返回改后的条目。 |
 | `POST /api/entries/read` | 「全部已读」「把上面的标为已读」「把订阅标为已读」，返回 `{ "marked": n, "ids": [...] }`。 |
 | `POST /api/entries/unread` | 撤销上面三种已读：把请求里的 `ids` 标回未读，返回 `{ "marked": n }`。 |
 
-列表里的条目：`id`、`sourceId`、`sourceTitle`（源的标题，空就用地址）、`kind`（源的形态）、`title`、`url`、`author`、`publishedAt`、`summary`（订阅里的摘要）、`thumbnailUrl`、`durationSec`、`platform`、`images`、`language`（没有为空串）、`readingSec`（没有为 `null`）、`extractStatus`、`isRead`、`readAt`、`starred`、`createdAt`。没有的时间和时长为 `null`。单个条目再多带 `contentHtml`（订阅里的正文）和 `extractedHtml`（抽取的正文，没有为空串）。
+列表里的条目：`id`、`sourceId`、`sourceTitle`（源的标题，空就用地址）、`kind`（源的形态）、`title`、`url`、`author`、`publishedAt`、`summary`（订阅里的摘要）、`thumbnailUrl`、`durationSec`、`platform`、`images`、`language`（没有为空串）、`readingSec`（没有为 `null`）、`readProgress`（从没滚动过时不出现）、`extractStatus`、`isRead`、`readAt`、`starred`、`createdAt`。没有的时间和时长为 `null`。单个条目再多带 `contentHtml`（订阅里的正文）和 `extractedHtml`（抽取的正文，没有为空串）。
 
 `GET /api/entries` 的查询参数，都可选，可以组合：
 
@@ -298,6 +299,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 
 - `isRead` 改成 `true` 时记下 `read_at`，已经是已读就不变；改成 `false` 时清空 `read_at`。
 - `starred` 改成 `false` 后，过了保留期限的条目在下次清理时删掉。
+- `readProgress` 是 0 到 1 的数（含两端），不是数或超出范围时 400 `invalid_progress`。它让阅读位置跟着用户走，换设备也一样。
 - 不改条目的 `updated_at`：它只记订阅内容的变化。
 
 `POST /api/entries/read` 的请求体可以为空，字段都可选：`sourceId`、`kind`、`upTo`、`newerThan`。`upTo` 是条目 `id`，只标时间线上它和比它旧的条目，免得把用户还没看到的新条目一起标掉；`newerThan` 也是条目 `id`，只标比它新的条目（不含它自己），和 `upTo` 一起用就标出一段：比 `newerThan` 新、不比 `upTo` 新。两个条目不存在时都是 `not_found`。`ids` 是这次从未读变成已读的条目，给撤销用。
@@ -536,6 +538,10 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - 工具栏：左边「回到〈范围〉」；右边上一篇、下一篇、摘要、翻译、收藏、已读/未读切换、在浏览器中打开。上一篇、下一篇只在当前列表里的文章之间走，跳过别的形态；下一篇走到已加载的最后一篇时先取下一页。正文还没取到或取不到时，收藏、已读切换和在浏览器中打开不可用。
 - 页面：来源和时间（完整日期加时刻，不是今年时带年份），时间后面是同样的阅读时间标签「6 分钟阅读」（取条目的 `readingSec`，规则相同；只有订阅内容时的条目内容很短，通常没有），标题，再是正文，中号字时最宽 680，随阅读文字大小增减（见偏好）。正文开头和标题相同的标题行去掉。
 - 文章打开后，阅读器在后台预取列表里前一篇和后一篇的正文和已有的摘要、翻译（只读，从不请求生成），放进最多 3 篇的小缓存（当前一篇加两个邻居，按最近使用淘汰）；J、K 走到预取过的文章时立即显示正文，不出现加载状态，摘要和翻译仍照常重新读取。预取失败不提示，只是那一步照旧等待。换服务器、换范围或筛选、重新加载列表时缓存清空；不预取图片。
+- 阅读位置：文章滚过之后，位置存成 `readProgress`（经 `PATCH /api/entries/{id}`，客户端不碰存储），下次打开时回到那里。
+  - 存：滚动停下满 1 秒存一次，离开这篇文章（走到别的文章、返回列表、列表重新加载）时再存一次；和已存的值相差不到 0.01 就不存。不到 0.02 的存成 0。写在后台，不在绘制路径上；失败不提示，下次位置变了再试。
+  - 回：打开时 `readProgress` 在 0.02 到 0.95（不含）之间，正文排好版后滚到这个比例，并出一条提示「回到上次读到的位置」（英文「Back where you left off」），一次打开只回一次。没存过、不到 0.02 或不小于 0.95（算读完了）的从顶部开始，不提示。正在取全文（`pending`）时等全文换上、排好版再回，因为位置是按全文存的；等的时候用户已经自己滚了，就不回了。只有阅读器里的文章有位置。
+  - 原型结果：`ui.ScrollState` 的 `Y` 是已滚过的距离（DIP），`MaxY` 是容器按上一帧布局算出的最大 `Y`（内容高减视口高），所以进度是 `Y / MaxY`；给 `Y` 赋值就直接滚到那里（不走动画）。`MaxY` 要等正文布局过一帧之后才有值，所以回位置要晚于正文换上至少一帧。
 - 打开时标为已读，已读切换可以撤销。点左栏、换「全部 / 未读 / 收藏」或检索都会关上阅读器。
 
 状态，按 `extractStatus` 和带不带正文分：

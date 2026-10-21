@@ -34,7 +34,7 @@ type copy struct {
 	Summarize, HideSummary, Translate, ShowOriginal, Summary, By, Summarizing, Cancel, SummaryFailed       string
 	Translating, Translated, Translation, Original, TranslationFailed, SummaryReady, TranslationReady      string
 	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AIUpstream, AIEmpty, AIOff, AIOffTitle        string
-	OpenSettings, Close, ReadingTime                                                                       string
+	OpenSettings, Close, ReadingTime, Resumed                                                              string
 }
 
 var translations = func() map[string]copy {
@@ -58,6 +58,7 @@ type API interface {
 	Image(ctx context.Context, address string) ([]byte, error)
 	AI(ctx context.Context, id int64) (client.AIResults, error)
 	RequestAI(ctx context.Context, id int64, task string) (client.AIResult, error)
+	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
 }
 
 // Deps is what the reader does outside itself. Go runs work away from the UI thread and then the function it returns
@@ -166,8 +167,28 @@ type Screen struct {
 	// The pieces of the texts drawn as one string, for Chinese typesetting.
 	titleSet, summarySet, noteSet, translatedSet memo
 
+	// The reading position, see docs/product.md "阅读器": the fraction last stored, the one asked to restore (-1 for
+	// none), the scroll offset last seen and when it moved, and the writes under way. known holds what this session
+	// stored, which the list and the cache may not have yet.
+	stored, resume float64
+	lastY          float32
+	movedAt        time.Time
+	moved          bool // the offset moved since the last write
+	laid           int  // frames the body was laid out in, so that the scroll range is not a stale one
+	bodyHow        int
+	writing        bool
+	queued         *write
+	known          map[int64]float64
+	resumed        bool // show the toast of a restored position
+
 	announce string
 	toast    string
+}
+
+// write is a reading position to store for an entry.
+type write struct {
+	id       int64
+	progress float64
 }
 
 // memo is the pieces of a text that is drawn as one string, kept while the text stays the same, so that the
@@ -193,7 +214,8 @@ func New(systemLocale string, deps Deps) *Screen {
 	if deps.Decode == nil {
 		deps.Decode = ui.DecodeBitmap
 	}
-	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)], pictures: map[string]*loaded{}, fetching: map[int64]bool{}}
+	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)], pictures: map[string]*loaded{},
+		fetching: map[int64]bool{}, known: map[int64]float64{}, resume: -1}
 }
 
 // SetLanguage shows the screen in the language of systemLocale, keeping what it shows.
@@ -205,7 +227,8 @@ func (s *Screen) SetLanguage(systemLocale string) {
 func (s *Screen) Use(api API) {
 	s.api = api
 	s.gen++
-	s.id = 0
+	s.id, s.moved, s.queued, s.resume = 0, false, nil, -1
+	s.known = map[int64]float64{}
 	s.Forget()
 }
 
@@ -279,10 +302,12 @@ func (s *Screen) remember(c cached) {
 
 // Open shows e: it loads the article, from the top, and gives it the focus.
 func (s *Screen) Open(e client.Entry) {
+	s.Leave()
 	s.gen++
 	s.id, s.loading, s.failed, s.polling = e.ID, true, false, false
 	s.article, s.full, s.feed = client.Article{Entry: e}, nil, nil
 	s.scroll.X, s.scroll.Y = 0, 0
+	s.startPosition(e)
 	s.focus = true
 	s.pictures, s.wanted, s.downloads = map[string]*loaded{}, nil, 0
 	s.jobs, s.aiOff, s.shown, s.title, s.translated, s.aiPolling = [2]job{}, false, 0, "", nil, false
@@ -709,6 +734,8 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 		theme.Edge(c)
 		s.toolbar(c, nav, ready, narrow)
 	})
+	s.track(c)
+	s.toasts(c)
 	s.download()
 	if s.announce != "" {
 		c.Announce(s.announce)

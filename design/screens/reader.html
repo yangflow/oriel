@@ -13,7 +13,9 @@
      AI states: summarizing, summary, summary-failed, translating (the original stays readable), translation (the
      translated text, with a switch back to the original), translation-failed, ai-off (AI is not set up: the
      summary or translate button leads to Settings instead of failing). no-more-unread: N found no unread article
-     after this one, so a toast says so and the reader stays put. Site icons are generic stand-ins. Summary and translation sit between
+     after this one, so a toast says so and the reader stays put. resumed: the article was left part way (read progress
+     between 0.02 and 0.95), so it opens scrolled to the place, about 40% down here, with a quiet toast "Back where you left off"
+     (the toast of the no-more-unread state, with the rotate-ccw icon); a finished, unopened or near-top article opens at the top as full. Site icons are generic stand-ins. Summary and translation sit between
      previous/next and star in the toolbar; translation is plain text, so pictures and links are in the original.
      Summary and translation carry their name beside the icon (icon only in the smallest window); mark as unread is
      an envelope; every tooltip names its key. The toolbar's ends line up with the article column (size=wide).
@@ -251,7 +253,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['full','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread'];
+const states=['full','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread','resumed'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
@@ -288,6 +290,7 @@ const icons={
   dot:'<circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/>',
   circle:'<circle cx="12" cy="12" r="10"/>',
   checkCheck:'<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
+  rotateCcw:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   circleCheck:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
   search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
   external:'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
@@ -338,7 +341,7 @@ const copy={
     translationFailed:'Couldn’t translate. {reason}',
     aiTimeout:'The AI endpoint took too long to answer.', aiUnauthorized:'The AI endpoint turned down the API key. Check it in Settings.',
     aiOff:'Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.',
-    noMoreUnread:'No unread articles after this one', aiOffTitle:'AI isn’t set up', openSettings:'Open Settings…', close:'Close',
+    noMoreUnread:'No unread articles after this one', resumed:'Back where you left off', aiOffTitle:'AI isn’t set up', openSettings:'Open Settings…', close:'Close',
   },
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
@@ -358,7 +361,7 @@ const copy={
     translationFailed:'没能翻译。{reason}',
     aiTimeout:'AI 接口太久没有响应。', aiUnauthorized:'AI 接口不接受这个 API key，去设置里检查一下。',
     aiOff:'摘要和翻译走你自己选的 AI 接口，例如 OpenAI 或本机的模型。先在设置里配好。',
-    noMoreUnread:'后面没有未读文章了', aiOffTitle:'还没配置 AI', openSettings:'打开设置…', close:'关闭',
+    noMoreUnread:'后面没有未读文章了', resumed:'回到上次读到的位置', aiOffTitle:'还没配置 AI', openSettings:'打开设置…', close:'关闭',
   },
 }[lang];
 const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
@@ -467,7 +470,7 @@ switch(state){
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
-  case 'full':case 'no-more-unread':page=article('',full);break;
+  case 'full':case 'no-more-unread':case 'resumed':page=article('',full);break;
   case 'feed':page=article(note('warn','triangle',copy.feedNote),feed);break;
   case 'extracting':page=article(note('','loader',copy.extractingNote),feed);break;
   case 'extracting-empty':page=`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1></article>`+empty('loader',copy.extracting,copy.extractingHint,openButton()).replace('class="empty"','class="empty" style="min-height:0;padding-top:24px"');break;
@@ -475,6 +478,7 @@ switch(state){
   case 'loading':page=`<div class="page skeleton" aria-busy="true"><div class="bar m"></div><div class="bar h"></div>${'<div class="bar s"></div>'.repeat(3)}<div class="bar e"></div><br>${'<div class="bar s"></div>'.repeat(2)}<div class="bar e"></div></div>`;break;
   case 'error':page=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');break;
 }
-document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}</section>`;
+document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}${state==='resumed'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${copy.resumed}</span></div>`:''}</section>`;
+if(state==='resumed'){const box=document.querySelector('.scroll');box.scrollTop=(box.scrollHeight-box.clientHeight)*.4}
 </script>
 </html>

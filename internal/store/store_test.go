@@ -40,7 +40,7 @@ func TestMigrationsAreRepeatable(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 6 {
+	if version != 7 {
 		t.Fatalf("user_version = %d", version)
 	}
 	var mode string
@@ -246,6 +246,32 @@ func TestSources(t *testing.T) {
 	}
 	if _, err := s.Source(ctx, hub.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("deleted source: %v", err)
+	}
+}
+
+func TestReadProgress(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	now := time.UnixMilli(1_000_000)
+	src, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "Blog", now)
+	if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: src.Kind}, "", "", []FeedEntry{{GUID: "a", Title: "A"}}, "", time.Time{}, now); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.Entries(ctx, EntryFilter{}, 10)
+	if err != nil || len(list) != 1 || list[0].ReadProgress != nil {
+		t.Fatalf("a new entry has no progress: %+v, %v", list, err)
+	}
+	progress := 0.42
+	got, err := s.UpdateEntry(ctx, list[0].ID, EntryPatch{ReadProgress: &progress}, now)
+	if err != nil || got.ReadProgress == nil || *got.ReadProgress != 0.42 || got.IsRead {
+		t.Fatalf("set progress: %+v, %v", got, err)
+	}
+	again, err := s.Entry(ctx, list[0].ID)
+	if err != nil || again.ReadProgress == nil || *again.ReadProgress != 0.42 {
+		t.Fatalf("round trip: %+v, %v", again, err)
+	}
+	if _, err := s.UpdateEntry(ctx, 9999, EntryPatch{ReadProgress: &progress}, now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing entry: %v", err)
 	}
 }
 

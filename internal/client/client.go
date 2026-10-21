@@ -264,8 +264,10 @@ type Entry struct {
 	Language string `json:"language"`
 	// ReadingSec is the server's estimate of the time the entry takes, in seconds: whole minutes from a minute on,
 	// the duration for media. 0 when there is no estimate or it is under a second.
-	ReadingSec int     `json:"readingSec"`
-	Images     []Image `json:"images"`
+	ReadingSec int `json:"readingSec"`
+	// ReadProgress is how far the article was read, from 0 to 1 of its scrollable height; nil when it was never scrolled.
+	ReadProgress *float64 `json:"readProgress,omitempty"`
+	Images       []Image  `json:"images"`
 	// ExtractStatus is how getting the full text of an article went: "pending", "ok", "failed", or "skipped" for
 	// the other kinds.
 	ExtractStatus string `json:"extractStatus"`
@@ -426,6 +428,8 @@ type Page struct {
 type EntryPatch struct {
 	IsRead  *bool `json:"isRead,omitempty"`
 	Starred *bool `json:"starred,omitempty"`
+	// ReadProgress is how far the article was read, 0 to 1; the server refuses anything else with invalid_progress.
+	ReadProgress *float64 `json:"readProgress,omitempty"`
 }
 
 // ReadScope says which entries "mark as read" marks: a source, a kind, and those up to an entry and newer than another.
@@ -573,7 +577,7 @@ func (s Session) Entry(ctx context.Context, id int64) (Article, error) {
 	return article, err
 }
 
-// SetEntry changes whether an entry is read or starred and returns it as changed.
+// SetEntry changes whether an entry is read or starred, or how far it was read, and returns it as changed.
 func (s Session) SetEntry(ctx context.Context, id int64, patch EntryPatch) (Entry, error) {
 	var entry Entry
 	err := s.call(ctx, http.MethodPatch, "/api/entries/"+strconv.FormatInt(id, 10), patch, &entry)

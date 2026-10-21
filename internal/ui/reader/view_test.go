@@ -42,6 +42,14 @@ type fake struct {
 	replyErr error
 	requests []string
 	polls    int
+
+	saved []saved // the reading positions stored, in order
+}
+
+// saved is a reading position the reader stored.
+type saved struct {
+	id       int64
+	progress float64
 }
 
 func (f *fake) Entry(_ context.Context, id int64) (client.Article, error) {
@@ -67,6 +75,13 @@ func (f *fake) AI(_ context.Context, id int64) (client.AIResults, error) {
 func (f *fake) RequestAI(_ context.Context, id int64, task string) (client.AIResult, error) {
 	f.requests = append(f.requests, task)
 	return f.reply, f.replyErr
+}
+
+func (f *fake) SetEntry(_ context.Context, id int64, patch client.EntryPatch) (client.Entry, error) {
+	if patch.ReadProgress != nil {
+		f.saved = append(f.saved, saved{id, *patch.ReadProgress})
+	}
+	return client.Entry{ID: id}, nil
 }
 
 func (f *fake) deps() Deps {

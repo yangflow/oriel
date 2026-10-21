@@ -35,6 +35,7 @@ type entryJSON struct {
 	Platform      string        `json:"platform"`
 	Language      string        `json:"language"`
 	ReadingSec    *int          `json:"readingSec"`
+	ReadProgress  *float64      `json:"readProgress,omitempty"`
 	Images        []store.Image `json:"images"`
 	ExtractStatus string        `json:"extractStatus"`
 	IsRead        bool          `json:"isRead"`
@@ -69,7 +70,7 @@ func entryToJSON(e store.Entry) entryJSON {
 	return entryJSON{
 		ID: e.ID, SourceID: e.SourceID, SourceTitle: e.SourceTitle, Kind: e.Kind, Title: e.Title, URL: e.URL,
 		Author: e.Author, PublishedAt: millis(e.PublishedAt), Summary: e.Summary, ThumbnailURL: e.ThumbnailURL,
-		DurationSec: duration, Platform: e.Platform, Language: e.Language, ReadingSec: e.ReadingSec, Images: images, ExtractStatus: e.ExtractStatus,
+		DurationSec: duration, Platform: e.Platform, Language: e.Language, ReadingSec: e.ReadingSec, ReadProgress: e.ReadProgress, Images: images, ExtractStatus: e.ExtractStatus,
 		IsRead: e.IsRead, ReadAt: millis(e.ReadAt), Starred: e.Starred, CreatedAt: e.CreatedAt.UnixMilli(),
 	}
 }
@@ -173,13 +174,19 @@ func (s *Server) updateEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		IsRead  *bool `json:"isRead"`
-		Starred *bool `json:"starred"`
+		IsRead       *bool    `json:"isRead"`
+		Starred      *bool    `json:"starred"`
+		ReadProgress *float64 `json:"readProgress"`
 	}
 	if !readBody(w, r, &body) {
 		return
 	}
-	entry, err := s.store.UpdateEntry(r.Context(), id, store.EntryPatch{IsRead: body.IsRead, Starred: body.Starred}, s.now())
+	if p := body.ReadProgress; p != nil && !(*p >= 0 && *p <= 1) {
+		fail(w, http.StatusBadRequest, "invalid_progress")
+		return
+	}
+	entry, err := s.store.UpdateEntry(r.Context(), id, store.EntryPatch{IsRead: body.IsRead, Starred: body.Starred,
+		ReadProgress: body.ReadProgress}, s.now())
 	replyEntry(w, entry, err)
 }
 
