@@ -49,6 +49,7 @@ type copy struct {
 	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                            string
 	CopyMarkdown, SaveMarkdown                                                                                                                            string
 	LastLooked                                                                                                                                            string
+	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                              string
 }
 
 var translations = func() map[string]copy {
@@ -217,6 +218,7 @@ type Screen struct {
 	updated  time.Time // the last load or check that succeeded
 	fresh    int       // entries newer than the top one, found by polling
 
+	lb        lightbox        // the pictures of a social or image entry, over the window
 	selected  int             // the entry chosen, -1 for none
 	focusRow  int             // the entry to give the focus in the next frame, -1 for none
 	sideFocus bool            // give the sidebar the focus in the next frame
@@ -1679,7 +1681,10 @@ func (s *Screen) View(c *ui.Context) {
 	if s.seeking && !s.more {
 		s.nextUnread()
 	}
-	open := s.keys || s.subs.Open() || s.pal.open
+	if s.lb.open && s.index(s.lb.entry) < 0 {
+		s.lb.open = false
+	}
+	open := s.keys || s.subs.Open() || s.pal.open || s.lb.open
 	if !open {
 		c.OnShortcut(ui.Cmd, ui.KeyK, s.openPalette)
 		c.OnShortcut(ui.Cmd, ui.KeyF, func() {
@@ -1740,6 +1745,7 @@ func (s *Screen) View(c *ui.Context) {
 	s.keySheet(c)
 	s.palette(c)
 	s.subs.View(c)
+	s.viewPictures(c)
 	s.download()
 	if s.announce != "" {
 		c.Announce(s.announce)
@@ -1781,6 +1787,7 @@ func (s *Screen) listKeys(c *ui.Context, open bool) {
 		{ui.KeyJ, func() { s.move(1) }}, {ui.KeyDown, func() { s.move(1) }},
 		{ui.KeyK, func() { s.move(-1) }}, {ui.KeyUp, func() { s.move(-1) }},
 		{ui.KeyO, func() { s.open(c, s.selected) }}, {ui.KeyEnter, func() { s.open(c, s.selected) }},
+		{ui.KeySpace, func() { s.openPictures(s.selected, 0) }},
 		{ui.KeyS, func() { s.toggleStar(s.selected) }}, {ui.KeyM, func() { s.toggleRead(s.selected) }},
 		{ui.KeyN, s.nextUnread}, {ui.KeyV, s.markVisible},
 	} {
@@ -1913,7 +1920,8 @@ func (s *Screen) keySheet(c *ui.Context) {
 		menu = [][]string{{"⇧", "F10"}}
 	}
 	timeline := []key{{s.text.KeyNext, one("J", "↓")}, {s.text.KeyPrevious, one("K", "↑")},
-		{s.text.KeyNextUnread, one("N")}, {s.text.KeyOpen, one("O", "↩")}, {s.text.KeyStar, one("S")},
+		{s.text.KeyNextUnread, one("N")}, {s.text.KeyOpen, one("O", "↩")}, {s.text.KeyPictures, one("Space")},
+		{s.text.KeyStar, one("S")},
 		{s.text.KeyRead, one("M")}, {s.text.KeyMarkVisible, one("V")},
 		{s.text.KeySearch, [][]string{{"/"}, {cmd, "F"}}},
 		{s.text.KeyEscape, one("Esc")}, {s.text.KeyScope, one("1–5")}, {s.text.KeySidebar, one("H", "←")},
@@ -3328,25 +3336,30 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	quiet := hovered || chosen || i > 0 && (s.hovered == i-1 || s.selected == i-1)
 	showing := hovered || chosen || r.Focused()
 	r.Children(func() {
+		// The divider, the marker and the dot are always there, clear when they do not show: one that came and went
+		// would move the ids of the content after it, and a click pressed on a picture as the row is chosen would
+		// land on an element that is no longer there.
+		none := ui.RGBA(0, 0, 0, 0)
+		divider := ui.Box(c).Absolute().Top(0).Left(px(t, 28)).Right(px(t, 16)).Height(1).Background(none)
 		if i > 0 && !quiet && i != s.divider {
-			ui.Box(c).Absolute().Top(0).Left(px(t, 28)).Right(px(t, 16)).Height(1).Background(t.Border)
+			divider.Background(t.Border)
 		}
+		marker := float32(18)
+		if oneLine {
+			marker = 14
+		}
+		mark := ui.Box(c).Attach(ui.AnchorLeft, ui.AnchorLeft).Left(8).Size(2.5, marker).Radius(2).Background(none)
 		if chosen {
-			marker := float32(18)
-			if oneLine {
-				marker = 14
-			}
-			ui.Box(c).Attach(ui.AnchorLeft, ui.AnchorLeft).Left(8).Size(2.5, marker).Radius(2).
-				Background(theme.Marker(t))
+			mark.Background(theme.Marker(t))
+		}
+		dot := ui.Box(c).Absolute().Left(px(t, 14)).Size(px(t, 7), px(t, 7)).Radius(px(t, 3.5)).Background(none)
+		if oneLine {
+			dot.Top(px(t, 18) - px(t, 3.5))
+		} else {
+			dot.Top(px(t, 23))
 		}
 		if !e.IsRead {
-			dot := ui.Box(c).Absolute().Left(px(t, 14)).Size(px(t, 7), px(t, 7)).Radius(px(t, 3.5)).
-				Background(t.Accent)
-			if oneLine {
-				dot.Top(px(t, 18) - px(t, 3.5))
-			} else {
-				dot.Top(px(t, 23))
-			}
+			dot.Background(t.Accent)
 		}
 		at := inMeta
 		switch e.Kind {
@@ -3571,8 +3584,8 @@ func (s *Screen) briefPost(c *ui.Context, e client.Entry, now time.Time, muted, 
 	})
 	if len(e.Images) == 1 {
 		// Under the meta line, so the row's actions never cover it, as an article's thumbnail is.
-		s.pictureOf(c, e.Images[0].URL, true, px(t, 8), 16, nil).Size(px(t, 56), px(t, 56)).AlignSelf(ui.Start).
-			Margin(px(t, 24), 0, 0, 0).Label(s.format(s.text.Pictures, 1)).Role(ui.RoleImage)
+		s.zoom(s.pictureOf(c, e.Images[0].URL, true, px(t, 8), 16, nil), s.index(e.ID), 0).Size(px(t, 56), px(t, 56)).
+			AlignSelf(ui.Start).Margin(px(t, 24), 0, 0, 0).Label(s.format(s.text.Pictures, 1)).Role(ui.RoleImage)
 	}
 }
 
@@ -3595,7 +3608,8 @@ func (s *Screen) strip(c *ui.Context, e client.Entry) {
 							})
 					}
 				}
-				s.pictureOf(c, img.URL, true, px(t, 6), 16, over).Key(k).Size(px(t, 40), px(t, 40))
+				s.zoom(s.pictureOf(c, img.URL, true, px(t, 6), 16, over).Key(k), s.index(e.ID), k).
+					Size(px(t, 40), px(t, 40))
 			}
 		})
 }
@@ -3631,7 +3645,7 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 					})
 				}
 			}
-			p := s.picture(c, img.URL, true, 0, over).Key(k)
+			p := s.zoom(s.picture(c, img.URL, true, 0, over), s.index(e.ID), k)
 			switch shown {
 			case 1:
 				p.AspectRatio(16.0 / 10).MaxHeight(px(t, 240))
@@ -3650,8 +3664,8 @@ func (s *Screen) imageRow(c *ui.Context, e client.Entry, now time.Time, muted ui
 		s.meta(c, e, now, false, px(t, 88), muted, false)
 		s.titleText(c, e, 15, muted)
 		if address := firstPicture(e); address != "" {
-			s.picture(c, address, true, px(t, 12), nil).FillWidth().AspectRatio(1.5).MaxHeight(px(t, 320)).
-				Margin(px(t, 8), 0, 0, 0)
+			s.zoom(s.picture(c, address, true, px(t, 12), nil), s.index(e.ID), 0).FillWidth().AspectRatio(1.5).
+				MaxHeight(px(t, 320)).Margin(px(t, 8), 0, 0, 0)
 		}
 	})
 }
@@ -3701,6 +3715,244 @@ func (s *Screen) pictureOf(c *ui.Context, address string, load bool, radius, mar
 			over()
 		}
 		ui.Box(c).Fill().Absolute().Radius(radius).PassThrough().Border(0.5, theme.Ink(t, 0.10))
+	})
+}
+
+// lightbox is the pictures of one entry shown over the window, and which of them.
+type lightbox struct {
+	open     bool
+	entry    int64
+	at       int
+	pictures []string // the addresses of the entry's pictures, as the feed gives them
+}
+
+// pictureList is the addresses of the pictures the lightbox pages through for a social or image entry: its pictures,
+// or for an image entry without any its thumbnail.
+func pictureList(e client.Entry) []string {
+	if e.Kind != "social" && e.Kind != "image" {
+		return nil
+	}
+	list := make([]string, len(e.Images))
+	for k, img := range e.Images {
+		list[k] = img.URL
+	}
+	if len(list) == 0 && e.Kind == "image" && e.ThumbnailURL != "" {
+		list = append(list, e.ThumbnailURL)
+	}
+	return list
+}
+
+// openPictures shows the pictures of the entry at i in the lightbox, from picture at, and marks the entry read.
+func (s *Screen) openPictures(i, at int) {
+	if i < 0 || i >= len(s.entries) {
+		return
+	}
+	e := s.entries[i]
+	list := pictureList(e)
+	if len(list) == 0 {
+		return
+	}
+	s.selected = i
+	s.lb = lightbox{open: true, entry: e.ID, at: min(max(at, 0), len(list)-1), pictures: list}
+	s.announce = s.pictureName(s.lb.at)
+	s.markRead(e)
+}
+
+// page shows picture to of the lightbox, which stays on the first or the last one at the ends.
+func (s *Screen) page(to int) {
+	to = min(max(to, 0), len(s.lb.pictures)-1)
+	if to == s.lb.at {
+		return
+	}
+	s.lb.at = to
+	s.announce = s.pictureName(to)
+}
+
+// pictureName is "Picture {n} of {total}" for picture at of the lightbox.
+func (s *Screen) pictureName(at int) string { return s.numbered(at, len(s.lb.pictures)) }
+
+// numbered is "Picture {n} of {total}" for picture at of total.
+func (s *Screen) numbered(at, total int) string {
+	return strings.NewReplacer("{n}", strconv.Itoa(at+1), "{total}", strconv.Itoa(total)).Replace(s.text.LbPicture)
+}
+
+// zoom makes the picture p, picture k of the entry at i, open the lightbox when clicked. The click does not reach the
+// row under it, which would open the entry in the browser.
+func (s *Screen) zoom(p ui.Element, i, k int) ui.Element {
+	if i >= 0 && i < len(s.entries) {
+		p.Label(s.numbered(k, len(pictureList(s.entries[i]))))
+	}
+	if p.Clicked() {
+		s.openPictures(i, k)
+	}
+	return p
+}
+
+// viewPictures draws the lightbox while it is open: a solid dark layer over the whole window, the bar, the picture
+// fitted between the bars and the side buttons, Previous and Next, and the caption. The picture comes through the image
+// proxy and the decode cache like the rows' do; the ones either side of it are asked for so that paging finds them.
+func (s *Screen) viewPictures(c *ui.Context) {
+	if !s.lb.open {
+		return
+	}
+	i := s.index(s.lb.entry)
+	if i < 0 {
+		s.lb.open = false
+		return
+	}
+	e := s.entries[i]
+	t := c.Theme()
+	p := theme.PaneTheme(t)
+	width, height := c.Size()
+	list, at := s.lb.pictures, s.lb.at
+	last := len(list) - 1
+	var bitmap *ui.Bitmap
+	failed := false
+	for k := max(at-1, 0); k <= min(at+1, last); k++ {
+		b := s.bitmap(list[k])
+		if k == at {
+			bitmap = b
+			failed = s.pictures[list[k]] != nil && s.pictures[list[k]].failed
+		}
+	}
+	name := title(e)
+	if e.Author != "" {
+		name = e.Author
+	}
+	ui.DialogBase(c, &s.lb.open, func(backdrop, panel ui.Element) {
+		backdrop.Background(ui.RGB(20, 17, 13))
+		panel.Fill().Label(strings.ReplaceAll(s.text.LbTitle, "{title}", name))
+		if panel.Clicked() {
+			s.lb.open = false
+		}
+		for _, k := range []struct {
+			key ui.Key
+			do  func()
+		}{
+			{ui.KeyLeft, func() { s.page(at - 1) }}, {ui.KeyRight, func() { s.page(at + 1) }},
+			{ui.KeyHome, func() { s.page(0) }}, {ui.KeyEnd, func() { s.page(last) }},
+			{ui.KeyO, func() { s.browse(c, i) }},
+		} {
+			if panel.OverlayShortcut(0, k.key) {
+				k.do()
+			}
+		}
+		// button is a bare control of the bar or beside the picture: the pane's hover and pressed fills, and the focus
+		// ring when the keyboard reached it.
+		button := func(b ui.Element, label string, radius float32) bool {
+			b.Radius(radius).Label(label).Tooltip(label)
+			switch {
+			case b.Pressed():
+				b.Background(theme.Ink(p, 0.085))
+			case b.Hovered():
+				b.Background(theme.Ink(p, 0.055))
+			}
+			if b.FocusVisible() {
+				b.Shadow(0, 0, 0, 2, p.Focus)
+			}
+			return b.Clicked()
+		}
+		if last > 0 {
+			ui.Box(c).Absolute().Left(0).Right(0).Top(0).Height(px(t, 56)).Center().PassThrough().Children(func() {
+				ui.Text(c, strconv.Itoa(at+1)+" / "+strconv.Itoa(last+1)).FontSize(px(t, 13)).FontWeight(500).
+					FontFeatures("tnum").TextColor(p.Text)
+			})
+		}
+		ui.Row(c).Absolute().Left(0).Right(0).Top(0).Height(px(t, 56)).AlignItems(ui.Center).Justify(ui.End).
+			Gap(px(t, 8)).PaddingX(px(t, 12)).Children(func() {
+			browser := ui.ButtonBase(c).Height(px(t, 32)).Background(theme.Ink(p, 0.10))
+			if width < 760 {
+				browser.Width(px(t, 32))
+			}
+			if button(browser, s.text.Open, px(t, 8)) {
+				s.browse(c, i)
+			}
+			browser.Children(func() {
+				ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(px(t, 6)).PaddingX(px(t, 12)).Children(func() {
+					ui.Icon(c, icons.ExternalLink).FontSize(px(t, 15)).TextColor(p.Text)
+					if width >= 760 {
+						ui.Text(c, s.text.Open).FontSize(px(t, 13)).FontWeight(500).TextColor(p.Text)
+					}
+				})
+			})
+			pic := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Center()
+			if button(pic, s.text.LbOpenPicture, px(t, 8)) {
+				c.OpenURLThen(list[at], func(err error) {
+					if err != nil {
+						s.toast = s.text.OpenFailed
+						c.Invalidate()
+					}
+				})
+			}
+			pic.Children(func() { ui.Icon(c, icons.Image).FontSize(px(t, 16)).TextColor(theme.Text2(p)) })
+			closer := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Center()
+			if button(closer, s.text.Close, px(t, 8)) {
+				s.lb.open = false
+			}
+			closer.Children(func() { ui.Icon(c, icons.X).FontSize(px(t, 16)).TextColor(theme.Text2(p)) })
+		})
+		if last > 0 {
+			side := func(prev bool, icon *ui.SVG, label string, to int, off bool) {
+				holder := ui.Box(c).Absolute().Top(0).Bottom(0).Center().PassThrough()
+				if prev {
+					holder.Left(px(t, 20))
+				} else {
+					holder.Right(px(t, 20))
+				}
+				holder.Children(func() {
+					b := ui.ButtonBase(c).Size(px(t, 44), px(t, 44)).Center().Background(theme.Ink(p, 0.10)).
+						Disabled(off)
+					color := p.Text
+					if off {
+						color = theme.Disabled(p)
+					} else if b.Hovered() {
+						b.Background(theme.Ink(p, 0.18))
+					}
+					if button(b, label, px(t, 22)) {
+						s.page(to)
+					}
+					b.Children(func() { ui.Icon(c, icon).FontSize(px(t, 22)).TextColor(color) })
+				})
+			}
+			side(true, icons.ChevronLeft, s.text.LbPrev, at-1, at == 0)
+			side(false, icons.ChevronRight, s.text.LbNext, at+1, at == last)
+		}
+		fitW, fitH := width-px(t, 144), height-px(t, 100)
+		ui.Box(c).Absolute().Left(px(t, 72)).Right(px(t, 72)).Top(px(t, 56)).Bottom(px(t, 44)).Center().
+			Focusable().FocusRing(false).AutoFocus().Label(s.pictureName(at) + s.text.Separator + name).
+			Role(ui.RoleImage).Children(func() {
+			switch {
+			case failed:
+				w := min(fitW*0.6, px(t, 480))
+				card := ui.Column(c).Size(w, w*3/4).AlignItems(ui.Center).Justify(ui.Center).Gap(px(t, 10)).Radius(8).
+					Background(ui.RGB(42, 38, 33))
+				card.Clicked()
+				card.Children(func() {
+					ui.Icon(c, icons.ImageOff).FontSize(px(t, 32)).TextColor(p.TextMuted)
+					ui.Text(c, s.text.LbFailed).FontSize(px(t, 13)).TextColor(p.TextMuted)
+				})
+			case bitmap != nil:
+				w, h := bitmap.Size()
+				scale := min(1, fitW/float32(w), fitH/float32(h))
+				shown := ui.Box(c).Size(float32(w)*scale, float32(h)*scale).Radius(8).Clip()
+				shown.Clicked()
+				shown.Children(func() { ui.Image(c, bitmap).Fill() })
+			default:
+				w := min(fitW, fitH*4/3, px(t, 640))
+				ui.Box(c).Size(w, w*3/4).Center().Radius(8).Background(theme.Ink(p, 0.06)).Children(func() {
+					ui.Spinner(c)
+				})
+			}
+		})
+		ui.Row(c).Absolute().Left(px(t, 72)).Right(px(t, 72)).Bottom(0).Height(px(t, 44)).AlignItems(ui.Center).
+			Justify(ui.Center).Gap(px(t, 6)).PassThrough().Children(func() {
+			if e.Kind == "social" && (e.Author != "" || e.Platform != "") {
+				ui.RichText(c, ui.Span{Text: e.Author, Weight: 500, Color: theme.Text2(p)},
+					ui.Span{Text: " " + e.Platform, Color: p.TextMuted}).FontSize(px(t, 12)).SingleLine()
+			} else {
+				ui.Text(c, title(e)).FontSize(px(t, 12)).TextColor(p.TextMuted).SingleLine()
+			}
+		})
 	})
 }
 
@@ -3780,7 +4032,8 @@ func (s *Screen) square(c *ui.Context, e client.Entry) {
 			})
 		}
 	}
-	s.picture(c, firstPicture(e), true, px(t, 10), over).FillWidth().AspectRatio(1).Label(label).Role(ui.RoleImage)
+	s.zoom(s.picture(c, firstPicture(e), true, px(t, 10), over), s.index(e.ID), 0).FillWidth().AspectRatio(1).
+		Label(label).Role(ui.RoleImage)
 	color, weight := t.Text, 600
 	if e.IsRead {
 		color, weight = t.TextMuted, 500
@@ -3849,7 +4102,7 @@ func (s *Screen) tile(c *ui.Context, i int, now time.Time, near bool) {
 	tile := ui.Column(c).Key(e.ID).FillWidth().Gap(px(t, 6)).Radius(px(t, 10))
 	hovered, chosen := s.item(c, tile, i, now, true)
 	tile.Children(func() {
-		s.picture(c, firstPicture(e), near, px(t, 10), nil).FillWidth().AspectRatio(aspect(e))
+		s.zoom(s.picture(c, firstPicture(e), near, px(t, 10), nil), i, 0).FillWidth().AspectRatio(aspect(e))
 		color := t.Text
 		if e.IsRead {
 			color = t.TextMuted
