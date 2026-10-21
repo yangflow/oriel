@@ -25,6 +25,8 @@
      reading-cjk-off (the Reading card with Chinese typesetting off; on, the default, is the appearance state: the
      switch sits after Line spacing and the sample under it is set with the rules, in Simplified Chinese; the sample
      in English is plain either way);
+     density (the Timeline card, between Reading and View as, with List density set to Compact; Comfortable, the
+     default, is the appearance state);
      viewers (the View as card with the choices changed from the defaults: Articles Compact, Videos List, Images Grid;
      in appearance every row is on its default, the first segment: List, Grid, Card, Wall).
      The font picker is a popup anchored under its control, right edges aligned: a search field, a hairline, then the
@@ -270,7 +272,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','fetching','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','fetching','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -346,6 +348,7 @@ const copy={
     followInterface:'Follow interface', serif:'Serif', textSize:'Text size', textSizeHelp:'The text of an article in the reader.',
     sizeSmall:'Small', sizeMedium:'Medium', sizeLarge:'Large', sizeXLarge:'Extra large',
     lineSpacing:'Line spacing', lineSpacingHelp:'The space between the lines of an article.',
+    timeline:'Timeline', density:'List density', densityHelp:'How tight the rows sit. Compact keeps everything and only tightens the spacing.', dComfortable:'Comfortable', dCompact:'Compact',
     viewAs:'View as',
     vArticles:'Articles', vVideos:'Videos', vSocial:'Social', vImages:'Images',
     vList:'List', vCompact:'Compact', vCover:'Large cover', vGrid:'Grid', vWall:'Wall', vCard:'Card',
@@ -398,6 +401,7 @@ const copy={
     followInterface:'跟随界面', serif:'衬线', textSize:'文字大小', textSizeHelp:'阅读窗格里文章正文的大小。',
     sizeSmall:'小', sizeMedium:'中', sizeLarge:'大', sizeXLarge:'特大',
     lineSpacing:'行距', lineSpacingHelp:'文章正文的行与行之间的距离。',
+    timeline:'时间线', density:'列表密度', densityHelp:'行与行之间的松紧。紧凑不删任何内容，只收紧间距。', dComfortable:'舒适', dCompact:'紧凑',
     viewAs:'查看方式',
     vArticles:'文章', vVideos:'视频', vSocial:'社交', vImages:'图片',
     vList:'列表', vCompact:'紧凑', vCover:'大封面', vGrid:'网格', vWall:'瀑布流', vCard:'卡片',
@@ -441,7 +445,7 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'?'appearance':state.startsWith('ai')?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
+const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
 
 const groups=[['appearance','palette'],['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
@@ -455,7 +459,7 @@ let status='';
 if(state==='invalid')status=`<div class="status error" role="alert">${icon('alert')}${copy.invalidBase}</div>`;
 if(state==='saved')status=`<div class="status ok" role="status">${icon('check')}${copy.saved}</div>`;
 const seg=(label,items,on)=>`<div class="segmented" role="radiogroup" aria-label="${label}">${items.map(([k,name])=>`<button role="radio" aria-checked="${k===on}"${k===on?' class="on"':''}>${name}</button>`).join('')}</div>`;
-const viewed=state==='viewers';
+const viewed=state==='viewers', dense=state==='density';
 const cjkOn=state!=='reading-cjk-off';
 const han=c=>/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(c), latin=c=>/[A-Za-z0-9\u00c0-\u024f]/.test(c);
 const closing=c=>'，。、；：！？）」』》〉】'.includes(c), opening=c=>'（「『《〈【'.includes(c);
@@ -482,6 +486,8 @@ ${setting(copy.textSize,copy.textSizeHelp,seg(copy.textSize,[['s',copy.sizeSmall
 ${setting(copy.lineSpacing,copy.lineSpacingHelp,seg(copy.lineSpacing,[['c',copy.spacingCompact],['s',copy.spacingStandard],['r',copy.spacingRelaxed]],'s'))}
 ${switchRow(copy.cjk,copy.cjkHelp,cjkOn)}
 <div class="row"><div class="preview-box" aria-hidden="true"><p class="preview"${serifOn?` style="font-family:${serifFace}"`:''}>${lang==='zh-Hans'&&cjkOn?typeset(copy.previewText):copy.previewText}</p></div></div>
+</div><h2 class="section-title" id="timeline">${copy.timeline}</h2><div class="card">
+${setting(copy.density,copy.densityHelp,seg(copy.density,[['comfortable',copy.dComfortable],['compact',copy.dCompact]],dense?'compact':'comfortable'))}
 </div><h2 class="section-title" id="view-as">${copy.viewAs}</h2><div class="card">
 ${setting(copy.vArticles,'',seg(copy.vArticles,[['list',copy.vList],['compact',copy.vCompact]],viewed?'compact':'list'))}
 ${setting(copy.vVideos,'',seg(copy.vVideos,[['grid',copy.vGrid],['cover',copy.vCover],['list',copy.vList]],viewed?'list':'grid'))}
@@ -595,6 +601,6 @@ if(fontOpen||readingOpen){
   box.style.top=(up?at.top-win.top-4-box.offsetHeight:at.bottom-win.top+4)+'px';
   document.getElementById('hl')?.scrollIntoView({block:'nearest'});
 }
-if(viewed){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById('view-as').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
+if(viewed||dense){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById(viewed?'view-as':'timeline').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
 </script>
 </html>

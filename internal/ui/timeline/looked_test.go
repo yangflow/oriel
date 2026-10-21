@@ -207,3 +207,35 @@ func TestLastLookedClick(t *testing.T) {
 		t.Fatalf("a click left the divider: %d", s.divider)
 	}
 }
+
+// Oldest first shows no divider and leaves the marker, since the first entry is not the newest.
+func TestLastLookedOldest(t *testing.T) {
+	f := &fake{now: now, patches: map[int64][]client.EntryPatch{},
+		sources: []client.Source{{ID: 1, Title: "Go Blog", Kind: "article", UnreadCount: 60}}}
+	for i := 60; i >= 1; i-- {
+		f.entries = append(f.entries, client.Entry{ID: int64(i), SourceID: 1, SourceTitle: "Go Blog", Kind: "article",
+			Title: fmt.Sprintf("Entry %d", i), URL: fmt.Sprintf("https://go.dev/%d", i),
+			CreatedAt: ago(time.Duration(61-i) * time.Minute)})
+	}
+	g := &glance{active: true}
+	g.p.OldestFirst = true
+	g.p.LastLooked = prefs.Marker{At: ago(6 * time.Minute), ID: 55}
+	d := f.deps()
+	d.Reading = func() prefs.Preferences { return g.p }
+	d.Change = func(n prefs.Preferences) { g.p = n }
+	d.Active = func() bool { return g.active }
+	d.Look = func(m prefs.Marker) { g.p.LastLooked = m; g.kept = append(g.kept, m) }
+	s := New("en", d)
+	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	tt.Frame()
+	if !s.oldest || s.divider != -1 || tt.HasText("new since you last looked") {
+		t.Fatalf("oldest %v, divider %d", s.oldest, s.divider)
+	}
+	if len(g.kept) != 0 {
+		t.Fatalf("oldest first moved the marker: %v", g.kept)
+	}
+}

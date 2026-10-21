@@ -53,7 +53,7 @@ type copy struct {
 	ChineseTypesetting, ChineseTypesettingHelp                                                                     string
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                              string
 	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid           string
-	ViewWall, ViewCard, ViewAsHelp                                                                                 string
+	ViewWall, ViewCard, ViewAsHelp, Timeline, Density, DensityHelp, DensityComfortable, DensityCompact             string
 }
 
 var translations = func() map[string]copy {
@@ -1659,6 +1659,17 @@ func (s *Screen) appearancePage(c *ui.Context) {
 				TextColor(theme.Prose(t)).LineHeight(float32(p.Leading(s.lang == prefs.LanguageChinese))).Wrap()
 			if face := s.deps.ReadingFont(); face != "" {
 				sample.Font(face)
+			}
+		})
+	})
+	ui.Text(c, s.text.Timeline).FontSize(px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
+		Margin(px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+	card(c, func() {
+		labeled(c, s.text.Density, s.text.DensityHelp, func() {
+			names := []string{s.text.DensityComfortable, s.text.DensityCompact}
+			if i, changed := s.segments(c, s.text.Density, names, slices.Index(prefs.Densities, p.Density)); changed {
+				p.Density = prefs.Densities[i]
+				s.deps.Change(p)
 			}
 		})
 	})

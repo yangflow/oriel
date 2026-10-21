@@ -53,6 +53,8 @@ func TestEntryQueryValidation(t *testing.T) {
 		"limit=101":            "invalid_limit",
 		"cursor=abc":           "invalid_cursor",
 		"cursor=1.0":           "invalid_cursor",
+		"order=up":             "invalid_order",
+		"order=ASC":            "invalid_order",
 		"maxMinutes=0":         "invalid_max_minutes",
 		"maxMinutes=1441":      "invalid_max_minutes",
 		"maxMinutes=x":         "invalid_max_minutes",
@@ -62,6 +64,39 @@ func TestEntryQueryValidation(t *testing.T) {
 		if w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
 			t.Errorf("%s: %d %s, want %s", query, w.Code, w.Body, code)
 		}
+	}
+}
+
+func TestTimelineOrder(t *testing.T) {
+	s, c := newServer(t, "")
+	seed(t, s, "article", 3, c.t)
+	seed(t, s, "video", 2, c.t.Add(time.Minute))
+
+	// Oldest first pages through the same entries in the opposite order, and new entries arrive at the end.
+	var got []string
+	target := "/api/entries?order=asc&limit=2"
+	for pages := 0; ; pages++ {
+		body := decode(t, do(s, "GET", target, "", nil))
+		got = append(got, titles(t, body)...)
+		if pages == 0 {
+			seed(t, s, "social", 1, c.t.Add(time.Hour))
+		}
+		if body["nextCursor"] == nil {
+			break
+		}
+		target = "/api/entries?order=asc&limit=2&cursor=" + body["nextCursor"].(string)
+	}
+	if fmt.Sprint(got) != "[article 0 article 1 article 2 video 0 video 1 social 0]" {
+		t.Fatalf("oldest first: %v", got)
+	}
+	if got := titles(t, decode(t, do(s, "GET", "/api/entries?order=desc&limit=2", "", nil))); fmt.Sprint(got) != "[social 0 video 1]" {
+		t.Fatalf("explicit newest first: %v", got)
+	}
+	// The cursor of an oldest-first page leads on to newer entries, and the filters stay.
+	first := decode(t, do(s, "GET", "/api/entries?order=asc&kind=article&limit=1", "", nil))
+	next := decode(t, do(s, "GET", "/api/entries?order=asc&kind=article&limit=5&cursor="+first["nextCursor"].(string), "", nil))
+	if fmt.Sprint(titles(t, next)) != "[article 1 article 2]" || next["nextCursor"] != nil {
+		t.Fatalf("after cursor: %v", next)
 	}
 }
 

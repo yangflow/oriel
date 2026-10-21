@@ -161,7 +161,9 @@
     "LbNext": "Next picture",
     "LbOpenPicture": "Open picture in browser",
     "LbFailed": "This picture can’t be shown",
-    "KeyPictures": "View pictures"
+    "KeyPictures": "View pictures",
+    "OrderNewest": "Newest first",
+    "OrderOldest": "Oldest first"
   },
   "zh-Hans": {
     "All": "全部",
@@ -325,6 +327,8 @@
     "LbNext": "下一张",
     "LbOpenPicture": "在浏览器中打开这张图",
     "LbFailed": "这张图显示不出来",
-    "KeyPictures": "看图"
+    "KeyPictures": "看图",
+    "OrderNewest": "最新的在前",
+    "OrderOldest": "最旧的在前"
   }
 }

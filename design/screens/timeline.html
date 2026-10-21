@@ -27,6 +27,11 @@
      The window has no title bar: the window buttons sit over the sidebar's top, the sidebar is a floating pane of
      warm ink glass in both schemes, the content is warm paper, and the one capsule of glass in the toolbar is the
      segmented control; search is a flat fill and the tools are bare icons (docs/design.md, Title bar).
+     The list order has no button: "Newest first" and "Oldest first" are the last two rows of the clock menu, under a
+     hairline (order-oldest: the menu open, the oldest entries at the top, the clock tinted like a budget with no text
+     beside it, and ". Oldest first" added to its name); it is a device preference, and in the oldest-first order no
+     "N new" pill ever shows. dense is Settings > Appearance > Timeline > List density
+     Compact: the same rows with less padding and smaller gaps, nothing left out.
      Mark all as read names its scope in its tooltip, acts at once and offers Undo in a toast (marked-read), never a confirmation. N goes to the next
      unread entry; no-more-unread is what it says when there is none below. ? opens the keyboard shortcuts (keys).
      Cmd/Ctrl+K opens the command palette: palette (empty query: Actions, Kinds, then every subscription, the first
@@ -255,7 +260,10 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .timebtn { flex:none; position:relative; height:32px; min-width:32px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:16px; color:var(--muted) }
 .timebtn:hover { background:var(--hover); color:var(--text) }
 .timebtn.on, .timebtn.on:hover { padding:0 12px 0 9px; background:var(--accent-soft); color:var(--accent); font-size:12px; font-weight:500; letter-spacing:.01em; white-space:nowrap; font-variant-numeric:tabular-nums }
+.timebtn.tint, .timebtn.tint:hover { background:var(--accent-soft); color:var(--accent) }
 .timebtn .badge { display:none }
+.min .timebtn.tint, .min .timebtn.tint:hover { background:none }
+.min .timebtn.tint .badge { display:block; position:absolute; top:6px; right:6px; width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 2px var(--background) }
 .min .timebtn.on, .min .timebtn.on:hover { width:32px; padding:0; background:none }
 .min .timebtn.on:hover { background:var(--hover) }
 .min .timebtn.on .lbl { display:none }
@@ -369,6 +377,15 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .window.min .crow .src { width:96px }
 .row.scompact .text { -webkit-line-clamp:2 }
 .row.scompact .strip { display:flex; gap:4px; margin-top:5px }
+/* Compact list density (Settings, Timeline, List density): only the spacing tightens, every part stays. Rows pad 10
+   instead of 16 (a compact social post 8 instead of 12), the parts of a row sit 10 apart instead of 14 and its text
+   lines 2 instead of 3, a one-line article is 30 high instead of 36, and the grids sit closer. */
+.dense .row { gap:10px; padding-top:10px; padding-bottom:10px }
+.dense .row.scompact { padding-top:8px; padding-bottom:8px }
+.dense .row.crow { height:30px; padding-top:0; padding-bottom:0 }
+.dense .content { gap:2px }
+.dense .vgrid { gap:16px 10px }
+.dense .masonry { column-gap:10px }
 .strip .pic { width:40px; height:40px; border-radius:6px }
 .strip .pic.failed > svg.icon { width:16px; height:16px }
 .strip .more b { position:absolute; inset:0; display:grid; place-items:center; background:rgba(28,24,18,.5); color:#fff; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums }
@@ -525,7 +542,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
+const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','dense'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -548,6 +565,7 @@ document.documentElement.dataset.scheme=scheme;
 document.documentElement.lang=lang;
 document.getElementById('window').classList.toggle('min',size==='min');
 document.getElementById('window').classList.toggle('wide',size==='wide');
+document.getElementById('window').classList.toggle('dense',state==='dense');
 for(const [id,list] of Object.entries(options)){
   const select=document.getElementById(id);
   select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
@@ -591,6 +609,7 @@ const icons={
   x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
   arrowUp:'<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  arrowUpDown:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
   alert:'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
   wifiOff:'<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
   loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
@@ -622,6 +641,7 @@ const copy={
     noStarred:'No starred entries', noStarredHint:'Star an entry to keep it here.',
     empty:'Nothing here yet', emptyHint:'New entries show up after the next fetch.',
     readMin:'{n} min read', timeTitle:'Reading time', timeAny:'Any length', timeUpTo:'Up to {n} minutes', timeChip:'≤ {n} min',
+    orderNewest:'Newest first', orderOldest:'Oldest first',
     showGrid:'Show as grid', showList:'Show as list', timeName:'Reading time: any length', timeNameUpTo:'Reading time: up to {n} minutes',
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', importOpml:'Import OPML…',
@@ -654,6 +674,7 @@ const copy={
     noStarred:'还没有收藏', noStarredHint:'收藏的条目会留在这里。',
     empty:'这里还没有条目', emptyHint:'下次抓取之后，新条目会出现在这里。',
     readMin:'{n} 分钟阅读', timeTitle:'阅读时长', timeAny:'不限时长', timeUpTo:'{n} 分钟内', timeChip:'≤ {n} 分钟',
+    orderNewest:'最新的在前', orderOldest:'最旧的在前',
     showGrid:'以网格显示', showList:'以列表显示', timeName:'阅读时长：不限', timeNameUpTo:'阅读时长：{n} 分钟内',
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', importOpml:'导入 OPML…',
@@ -802,7 +823,9 @@ const searching=q!=='';
 const budget=state==='time-10'?10:state==='time-empty'?5:0;
 const fits=e=>e.sec!=null&&e.sec<=budget*60;
 const scoped=kinds.includes(scope)?pool.filter(e=>e.kind===scope):scope==='source'?pool.filter(e=>e.source===focusId):pool;
-const shown=state==='search'?entries.filter(e=>e.kind==='article'&&e.source===1):state==='time-10'?scoped.filter(fits).slice(0,7):visible;
+const newestFirst=state==='search'?entries.filter(e=>e.kind==='article'&&e.source===1):state==='time-10'?scoped.filter(fits).slice(0,7):visible;
+const oldest=state==='order-oldest';
+const shown=oldest?[...entries].reverse().slice(0,7):newestFirst;
 
 const navItem=(glyph,name,count,chosen,extra='',label='')=>`<button class="item${chosen?' chosen':''}" aria-current="${chosen}"${label?` aria-label="${label}"`:''}>${glyph}<span class="name">${name}</span>${extra}${count?`<span class="count">${count}</span>`:''}</button>`;
 const failedText=s=>s.failing>1?t('failedTimes',{n:s.failing,error:s.error}):t('failedOnce',{error:s.error});
@@ -902,8 +925,8 @@ const segments=[['inbox','everything'],['dot','unread'],['star','starred']].map(
 const searchField=`<div class="search${searching?' focused':''}${state==='search-short'?' invalid':''}">${icon('search')}<input aria-label="${copy.searchLabel}" placeholder="${copy.search}" value="${q}" ${state==='search-short'?'aria-invalid="true" aria-describedby="hint"':''}>${searching?`<button class="clear" aria-label="${copy.clear}">${icon('x')}</button>`:''}</div>`;
 const markAllName=t('markAllIn',{scope:scopeName});
 const markAll=`<button class="tool"${budget?' aria-disabled="true"':''} aria-label="${markAllName}" title="${markAllName}">${icon('checkCheck')}</button>`;
-const timeName=budget?t('timeNameUpTo',{n:budget}):copy.timeName;
-const timeBtn=`<button class="timebtn${budget?' on':''}" aria-label="${timeName}" title="${timeName}" aria-haspopup="menu" aria-expanded="${state==='time-menu'}">${icon('clock')}${budget?`<span class="lbl">${t('timeChip',{n:budget})}</span><span class="badge" aria-hidden="true"></span>`:''}</button>`;
+const timeName=(budget?t('timeNameUpTo',{n:budget}):copy.timeName)+(oldest?(zh?'。':'. ')+copy.orderOldest:'');
+const timeBtn=`<button class="timebtn${budget?' on':oldest?' tint':''}" aria-label="${timeName}" title="${timeName}" aria-haspopup="menu" aria-expanded="${state==='time-menu'||oldest}">${icon('clock')}${oldest&&!budget?'<span class="badge" aria-hidden="true"></span>':''}${budget?`<span class="lbl">${t('timeChip',{n:budget})}</span><span class="badge" aria-hidden="true"></span>`:''}</button>`;
 const switchName=gridOn?copy.showList:copy.showGrid;
 const switchBtn=switchable?`<button class="timebtn" aria-label="${switchName}" title="${switchName}">${icon(gridOn?'list':'layoutGrid')}</button>`:'';
 const columned=!(cardsOn||wallOn);
@@ -984,9 +1007,10 @@ if(state==='menu-entry'||state==='menu-entry-first'){
 if(state==='menu-markall'){
   place(`<div class="menu" role="menu" aria-label="${markAllName}">${menuItem('checkCheck',markAllName,{cls:'hover'})}<hr>${[1,7,30].map(n=>menuItem('calendar',copy['markOlder'+n])).join('')}</div>`,document.querySelector('.toolbar .tool'),-200,36);
 }
-if(state==='time-menu'){
-  const item=(label,n)=>`<button role="menuitemradio" aria-checked="${n===0}"${n===10?' class="hover"':''}>${icon('check',n===0?'tick':'tick none')}<span>${label}</span></button>`;
-  place(`<div class="menu" role="menu" aria-label="${copy.timeTitle}">${item(copy.timeAny,0)}${[5,10,15,30].map(n=>item(t('timeUpTo',{n}),n)).join('')}</div>`,document.querySelector('.timebtn'),0,36);
+if(state==='time-menu'||oldest){
+  const item=(label,n)=>`<button role="menuitemradio" aria-checked="${n===0&&!oldest}"${n===10&&!oldest?' class="hover"':''}>${icon('check',n===0&&!oldest?'tick':'tick none')}<span>${label}</span></button>`;
+  const order=(label,on)=>`<button role="menuitemradio" aria-checked="${on}">${icon('check',on?'tick':'tick none')}<span>${label}</span></button>`;
+  place(`<div class="menu" role="menu" aria-label="${copy.timeTitle}">${item(copy.timeAny,0)}${[5,10,15,30].map(n=>item(t('timeUpTo',{n}),n)).join('')}<hr>${order(copy.orderNewest,!oldest)}${order(copy.orderOldest,oldest)}</div>`,document.querySelector('.timebtn'),0,36);
 }
 if(feedMenu){
   const s=menuSource,none=s.unread===0;

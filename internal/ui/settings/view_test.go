@@ -1022,6 +1022,35 @@ func TestViewAs(t *testing.T) {
 	}
 }
 
+// TestListDensity shows the Timeline card offers the list density, comfortable by default, and that choosing a
+// segment changes only that preference.
+func TestListDensity(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	tt.SetSize(900, 1600)
+	tt.Frame()
+	for _, want := range []string{s.text.Timeline, s.text.Density, s.text.DensityHelp, s.text.DensityComfortable} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q in %v", want, tt.Texts())
+		}
+	}
+	if f.prefs.Density != prefs.DensityComfortable {
+		t.Fatalf("default %q", f.prefs.Density)
+	}
+	before := f.prefs
+	pressNext(t, tt, s.text.DensityComfortable)
+	if f.prefs.Density != prefs.DensityCompact {
+		t.Fatalf("density %q", f.prefs.Density)
+	}
+	before.Density = prefs.DensityCompact
+	if f.prefs != before {
+		t.Fatalf("other preferences changed: %+v", f.prefs)
+	}
+	press(t, tt, s.text.DensityComfortable)
+	if f.prefs.Density != prefs.DensityComfortable {
+		t.Fatalf("density %q", f.prefs.Density)
+	}
+}
+
 // TestChineseTypesettingSwitch shows the switch follows Line spacing and flips the setting.
 func TestChineseTypesettingSwitch(t *testing.T) {
 	s, f, tt := openAppearance(t, "en")
