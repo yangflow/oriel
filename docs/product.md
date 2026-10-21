@@ -78,11 +78,13 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `mute_keywords` | 按行分隔的屏蔽词，见「屏蔽词」。 |
 | `paused` | 暂停的源不抓，也不能标到期。 |
 
-`url` 和 `rsshub_path` 合起来唯一，同一订阅不能加两次。
+`url` 和 `rsshub_path` 合起来唯一，同一订阅不能加两次。比较订阅地址时先规范化：协议和主机名小写、去掉默认端口（http 的 80、https 的 443）和 `#` 片段、路径末尾的 `/` 忽略（空路径等于 `/`），所以 `https://a/feed` 和 `https://A:443/feed/` 算同一个订阅；查询串不同则不同。库里仍存用户给的原样地址，不改写。数据库的唯一索引只拦完全相同的写法，规范化比较在添加时做（订阅数不大，逐个比较，不加索引）。
 
 ### 条目
 
 源里的一条内容，按 `(source_id, guid)` 去重；没有 guid 时用规范化后的条目 URL。删源时条目一起删。
+
+订阅换了 guid 但链接没变时仍是同一条：抓到 guid 库里没有的条目时，若同一个源里恰好有一条已有条目的规范化链接（小写协议和主机名、去掉 `#` 片段和路径末尾的 `/`）与它相同，就当作那一条，更新内容并改存新 guid，已读、收藏和抓好的全文都留着，不再新增。链接为空、本源里有多条已有条目用同一链接、这次抓到的条目里有多条用同一链接（比如全都指向首页），或者那条已有条目的 guid 这次还在订阅里，都不合并，按新条目处理。不跨源合并。
 
 | 字段 | 说明 |
 |---|---|
@@ -186,7 +188,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 1. 每 15 秒取到期（`next_fetch_at` 已到）且未暂停的源，最多 4 个，同时抓。
 2. 带 ETag / Last-Modified 条件请求。超时 25 秒，响应最大 8 MiB，User-Agent `Oriel/<版本>`。
 3. RSSHub 源用设置 `rsshub_base_url` 加 `rsshub_path` 拼地址，换实例只改设置。没设根地址时这次抓取记为失败。完整的 RSSHub 地址（例如 `https://rsshub.app/bilibili/hot-search`）按普通源抓，用不到根地址；根地址只给只填路由的订阅用。
-4. 解析 RSS、Atom 和 JSON Feed，按 `(source_id, guid)` 写入。相对链接按订阅地址补全，只留 http 和 https 地址。
+4. 解析 RSS、Atom 和 JSON Feed，按 `(source_id, guid)` 写入，guid 换了而链接没变的按「条目」一节的规则认作原来那条。相对链接按订阅地址补全，只留 http 和 https 地址。
 5. 同一次抓到的条目从最后一条往前写，`created_at` 相同时新的条目 `id` 大，在时间线上排前面。
 6. 已有的条目只在内容变了时更新，`updated_at` 也只在这时改；已读和收藏不动。
 7. 文章形态的新条目 `extract_status` 为 `pending`，其他形态为 `skipped`。
@@ -266,7 +268,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 - `url` 和 `rsshubPath` 都给或都不给时 `invalid_source`。
 - `kind` 不是四种形态之一时 `invalid_kind`。
 - `fetchIntervalSec` 是 60 到 604800（7 天）的整数，默认 900，否则 `invalid_interval`。
-- 同一订阅已经有了，返回 409 `source_exists`。
+- 同一订阅已经有了（订阅地址按「源」一节规范化后比较，末尾多一个 `/`、主机名大小写或默认端口不同都算已有），返回 409 `source_exists`。
 
 能改的字段：`title`、`kind`、`fetchIntervalSec`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`。订阅地址不能改，要换就删了重加。
 

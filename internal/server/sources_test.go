@@ -60,6 +60,9 @@ func TestSourceLifecycle(t *testing.T) {
 	if w := do(s, "POST", "/api/sources", `{"url":"https://example.org/feed","kind":"video"}`, bearer(token)); w.Code != http.StatusConflict || decode(t, w)["error"] != "source_exists" {
 		t.Fatalf("duplicate: %d %s", w.Code, w.Body)
 	}
+	if w := do(s, "POST", "/api/sources", `{"url":"https://Example.org/feed/","kind":"video"}`, bearer(token)); w.Code != http.StatusConflict || decode(t, w)["error"] != "source_exists" {
+		t.Fatalf("trailing slash and host case: %d %s", w.Code, w.Body)
+	}
 	if w := do(s, "POST", "/api/sources", `{"rsshubPath":"/github/issue/x","kind":"social","fetchIntervalSec":3600}`, bearer(token)); w.Code != http.StatusCreated {
 		t.Fatalf("rsshub: %d %s", w.Code, w.Body)
 	}

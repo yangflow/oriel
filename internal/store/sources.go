@@ -64,7 +64,16 @@ const sourceColumns = `
 
 // CreateSource adds a subscription with a title, which may be empty, and returns it.
 // It returns ErrExists when the same feed is already subscribed.
+// Feed addresses are compared by feedURLKey, so a trailing slash, a capitalised host or a default port does not make
+// a second subscription; the address is stored as given.
 func (s *Store) CreateSource(ctx context.Context, src NewSource, title string, now time.Time) (Source, error) {
+	if src.URL != "" {
+		if exists, err := s.feedURLExists(ctx, src.URL); err != nil {
+			return Source{}, err
+		} else if exists {
+			return Source{}, ErrExists
+		}
+	}
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO sources (url, rsshub_path, title, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

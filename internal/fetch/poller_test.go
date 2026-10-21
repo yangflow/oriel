@@ -167,7 +167,7 @@ func TestPollQueuesAI(t *testing.T) {
 
 	f.store.SetSetting(ctx, ai.BaseURLSetting, "http://localhost:11434/v1")
 	f.store.SetSetting(ctx, ai.ModelSetting, "local")
-	feed = strings.Replace(rssFeed, "post-1", "post-3", 1)
+	feed = strings.Replace(strings.Replace(rssFeed, "post-1", "post-3", 1), "<link>/posts/1</link>", "<link>/posts/3</link>", 1)
 	f.now = f.now.Add(15 * time.Minute)
 	if n := f.poller.fetchDue(ctx); n != 1 {
 		t.Fatalf("second poll created %d entries", n)
@@ -176,6 +176,28 @@ func TestPollQueuesAI(t *testing.T) {
 	if f.int("SELECT count(*) FROM entry_ai WHERE status = 'pending' AND requested = 0") != 2 ||
 		f.int("SELECT count(DISTINCT e.guid) FROM entry_ai a JOIN entries e ON e.id = a.entry_id WHERE e.guid = 'post-3'") != 1 {
 		t.Fatal("new entry not queued for summary and translation")
+	}
+}
+
+func TestPollChangedGUID(t *testing.T) {
+	f := newFixture(t)
+	feed := rssFeed
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(feed)) }))
+	defer srv.Close()
+	f.add(store.NewSource{URL: srv.URL})
+	f.poller.fetchDue(context.Background())
+	if _, err := f.db.Exec("UPDATE entries SET is_read = 1, starred = 1 WHERE guid = 'post-1'"); err != nil {
+		t.Fatal(err)
+	}
+	// The feed gives the same article another GUID: it stays one starred, read entry.
+	feed = strings.Replace(rssFeed, "post-1", "post-1-renamed", 1)
+	f.now = f.now.Add(15 * time.Minute)
+	if n := f.poller.fetchDue(context.Background()); n != 0 {
+		t.Fatalf("a changed GUID created %d entries", n)
+	}
+	if f.int("SELECT count(*) FROM entries") != 2 ||
+		f.int("SELECT count(*) FROM entries WHERE guid = 'post-1-renamed' AND is_read = 1 AND starred = 1") != 1 {
+		t.Fatal("the entry was not kept under the new GUID")
 	}
 }
 

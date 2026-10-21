@@ -20,7 +20,7 @@ const importFile = `<?xml version="1.0" encoding="UTF-8"?>
       <outline text="Deep">
         <outline text="Talks" xmlUrl="https://example.org/talks" orielKind="video"/>
       </outline>
-      <outline text="Again" xmlUrl="https://example.org/feed"/>
+      <outline text="Again" xmlUrl="https://Example.org:443/feed/"/>
       <outline text="Old" xmlUrl="https://example.org/old"/>
       <outline text="Gopher" xmlUrl="ftp://example.org/feed"/>
       <outline text="Odd" xmlUrl="https://example.org/odd" orielKind="podcast"/>
