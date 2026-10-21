@@ -37,6 +37,8 @@ type fake struct {
 	unmarked [][]int64
 	pictures []string
 	articles []int64 // the entries asked for in full
+	aiReads  []int64 // the entries whose summary and translation were read
+	aiAsked  int     // the summaries and translations asked to be made
 
 	entriesErr, setErr, markErr, imageErr            error
 	connects, settings, aiSettings, imports, expired int
@@ -179,10 +181,14 @@ func (f *fake) SetSettings(context.Context, client.SettingsPatch) (client.Settin
 	return client.Settings{}, nil
 }
 
-func (f *fake) AI(context.Context, int64) (client.AIResults, error) { return client.AIResults{}, nil }
+func (f *fake) AI(_ context.Context, id int64) (client.AIResults, error) {
+	f.aiReads = append(f.aiReads, id)
+	return client.AIResults{}, nil
+}
 
 // RequestAI answers as a server without AI set up.
 func (f *fake) RequestAI(context.Context, int64, string) (client.AIResult, error) {
+	f.aiAsked++
 	return client.AIResult{}, &client.APIError{Status: 409, Code: "ai_not_configured"}
 }
 
@@ -818,6 +824,94 @@ func TestReaderAIOff(t *testing.T) {
 	}
 	if f.aiSettings != 1 || f.settings != 0 {
 		t.Fatalf("AI settings %d, settings %d", f.aiSettings, f.settings)
+	}
+}
+
+// TestReaderPrefetch follows the articles beside the one read: got once in the background, shown at once by J and K,
+// read only, and dropped with the list.
+func TestReaderPrefetch(t *testing.T) {
+	count := func(f *fake, id int64) int {
+		n := 0
+		for _, got := range f.articles {
+			if got == id {
+				n++
+			}
+		}
+		return n
+	}
+	s, f, tt := setup(t, "en")
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+		t.Fatal(err)
+	}
+	// Nothing is kept yet: the first article loads, and the next one, 4, is got after it.
+	if tt.HasText("The text of Go 1.27 is released.") {
+		t.Fatal("the article shows before it loads")
+	}
+	f.settle(t, tt)
+	if count(f, 8) != 1 || count(f, 4) != 1 || count(f, 3) != 0 || f.aiAsked != 0 {
+		t.Fatalf("articles %v, summaries asked %d", f.articles, f.aiAsked)
+	}
+	if !slices.Contains(f.aiReads, 4) {
+		t.Fatalf("the summary of the next article is not read: %v", f.aiReads)
+	}
+	// A prefetched article shows with the key, with no wait and no second request for it.
+	tt.Key(0, ui.KeyJ)
+	if s.reading != 4 || !tt.HasText("The text of Range over func.") {
+		t.Fatalf("reading %d, texts %v", s.reading, tt.Texts())
+	}
+	f.settle(t, tt)
+	if count(f, 4) != 1 || count(f, 8) != 1 || count(f, 3) != 1 || f.aiAsked != 0 {
+		t.Fatalf("articles %v, summaries asked %d", f.articles, f.aiAsked)
+	}
+	// The summary is read again as the article opens, as it may have changed.
+	if n := slices.Index(f.aiReads, 4); n < 0 || slices.Index(f.aiReads[n+1:], 4) < 0 {
+		t.Fatalf("the summary is not read again: %v", f.aiReads)
+	}
+	tt.Key(0, ui.KeyJ)
+	if s.reading != 3 || !tt.HasText("The text of Go turns 16.") {
+		t.Fatalf("reading %d", s.reading)
+	}
+	f.settle(t, tt)
+	// K back to 4 is kept too, and a step to an article not got shows the wait as before.
+	tt.Key(0, ui.KeyK)
+	if !tt.HasText("The text of Range over func.") {
+		t.Fatal("the article before does not show at once")
+	}
+	f.settle(t, tt)
+	s.reader.Forget()
+	f.queue = nil
+	got := len(f.articles)
+	tt.Key(0, ui.KeyJ)
+	if tt.HasText("The text of Go turns 16.") || len(f.queue) == 0 {
+		t.Fatal("an article got before the list changed shows at once")
+	}
+	f.settle(t, tt)
+	if !tt.HasText("The text of Go turns 16.") || len(f.articles) <= got {
+		t.Fatalf("the article does not load: %v", f.articles)
+	}
+}
+
+// TestReaderPrefetchDropped checks that changing the list stops what was got for the old one.
+func TestReaderPrefetchDropped(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.Click("Back to All"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	before := len(f.articles)
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+		t.Fatalf("%v in %v", err, tt.Texts())
+	}
+	f.settle(t, tt)
+	if len(f.articles) == before || s.reading != 8 {
+		t.Fatalf("reading %d, articles %v", s.reading, f.articles)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -46,6 +47,7 @@ const (
 	pollEvery    = 5 * time.Second // how often an article whose text is being got is asked for again
 	aiPollEvery  = 2 * time.Second // how often a summary or translation being made is asked for again
 	maxDownloads = 4
+	keepCached   = 3 // articles kept for a step: the one read and the two beside it
 )
 
 // API is what the reader reads on the server; client.Session is one.
@@ -108,6 +110,16 @@ type loaded struct {
 	failed bool
 }
 
+// cached is an article got before it is opened: its text as blocks, and the summary and translation as the server had
+// them when ai is set.
+type cached struct {
+	id         int64
+	article    client.Article
+	full, feed []block
+	ai         client.AIResults
+	hasAI      bool
+}
+
 // Screen keeps the article read: its text as blocks, and the work under way.
 type Screen struct {
 	deps Deps
@@ -142,6 +154,10 @@ type Screen struct {
 	aiPolledAt time.Time
 	aiPolling  bool
 
+	cache    []cached       // the articles got ahead, the one used last at the end
+	fetching map[int64]bool // the articles being got ahead
+	epoch    int            // counts the servers and lists the cache is for, so an answer for one before is dropped
+
 	announce string
 	toast    string
 }
@@ -154,7 +170,7 @@ func New(systemLocale string, deps Deps) *Screen {
 	if deps.Decode == nil {
 		deps.Decode = ui.DecodeBitmap
 	}
-	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)], pictures: map[string]*loaded{}}
+	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)], pictures: map[string]*loaded{}, fetching: map[int64]bool{}}
 }
 
 // SetLanguage shows the screen in the language of systemLocale, keeping what it shows.
@@ -167,6 +183,75 @@ func (s *Screen) Use(api API) {
 	s.api = api
 	s.gen++
 	s.id = 0
+	s.Forget()
+}
+
+// Forget drops the articles got ahead and the answers still to come, as when the list they were beside changes.
+func (s *Screen) Forget() {
+	s.epoch++
+	s.cache, s.fetching = nil, map[int64]bool{}
+}
+
+// Prefetch gets the articles ids, the neighbours of the one read, ahead of the step to them: their text and the
+// summary and translation the server already has. It only reads, never asks for a summary or translation to be made,
+// and fails silently, which leaves the step as slow as it would have been. It keeps nothing but the article read and
+// ids. One being got for the step already is got again by it, which is simpler than waiting for the first and costs
+// one request.
+func (s *Screen) Prefetch(ids ...int64) {
+	if s.api == nil || s.id == 0 {
+		return
+	}
+	s.cache = slices.DeleteFunc(s.cache, func(c cached) bool { return c.id != s.id && !slices.Contains(ids, c.id) })
+	epoch, api := s.epoch, s.api
+	for _, id := range ids {
+		if id == s.id || s.fetching[id] || slices.ContainsFunc(s.cache, func(c cached) bool { return c.id == id && c.hasAI }) {
+			continue
+		}
+		s.fetching[id] = true
+		s.deps.Go(func() func() {
+			a, err := api.Entry(context.Background(), id)
+			var r client.AIResults
+			var aiErr error
+			if err == nil {
+				r, aiErr = api.AI(context.Background(), id)
+			}
+			return func() {
+				if epoch != s.epoch {
+					return
+				}
+				delete(s.fetching, id)
+				if err != nil {
+					return
+				}
+				c := article(a)
+				c.ai, c.hasAI = r, aiErr == nil
+				s.remember(c)
+			}
+		})
+	}
+}
+
+// article turns what the server answers for an article into what the reader keeps of it.
+func article(a client.Article) cached {
+	base, _ := url.Parse(a.URL)
+	c := cached{id: a.ID, article: a, full: parse(a.ExtractedHTML, base, a.Title), feed: parse(a.ContentHTML, base, a.Title)}
+	if summary := strings.Join(strings.Fields(a.Summary), " "); len(c.feed) == 0 && summary != "" {
+		c.feed = []block{{kind: paragraph, spans: []span{{text: summary}}}}
+	}
+	return c
+}
+
+// remember keeps c as the one used last, in the place of the one of its article, and drops the one used longest ago
+// when there are more than keepCached.
+func (s *Screen) remember(c cached) {
+	if i := slices.IndexFunc(s.cache, func(o cached) bool { return o.id == c.id }); i >= 0 && !c.hasAI {
+		c.ai, c.hasAI = s.cache[i].ai, s.cache[i].hasAI
+	}
+	s.cache = slices.DeleteFunc(s.cache, func(o cached) bool { return o.id == c.id })
+	s.cache = append(s.cache, c)
+	if len(s.cache) > keepCached {
+		s.cache = s.cache[len(s.cache)-keepCached:]
+	}
 }
 
 // Open shows e: it loads the article, from the top, and gives it the focus.
@@ -178,7 +263,18 @@ func (s *Screen) Open(e client.Entry) {
 	s.focus = true
 	s.pictures, s.wanted, s.downloads = map[string]*loaded{}, nil, 0
 	s.jobs, s.aiOff, s.shown, s.title, s.translated, s.aiPolling = [2]job{}, false, 0, "", nil, false
-	s.load(false)
+	if i := slices.IndexFunc(s.cache, func(c cached) bool { return c.id == e.ID }); i >= 0 {
+		c := s.cache[i]
+		s.remember(c)
+		s.loading, s.polledAt = false, s.deps.Now()
+		s.article, s.full, s.feed = c.article, c.full, c.feed
+		s.article.Entry, s.article.ExtractStatus = e, c.article.ExtractStatus
+		if c.hasAI {
+			s.showAI(c.ai)
+		}
+	} else {
+		s.load(false)
+	}
 	s.loadAI(true)
 }
 
@@ -187,18 +283,13 @@ func (s *Screen) load(poll bool) {
 	if s.api == nil || s.id == 0 {
 		return
 	}
-	gen, api, id := s.gen, s.api, s.id
+	gen, epoch, api, id := s.gen, s.epoch, s.api, s.id
 	s.polling = poll
 	s.deps.Go(func() func() {
 		a, err := api.Entry(context.Background(), id)
-		var full, feed []block
+		var c cached
 		if err == nil {
-			base, _ := url.Parse(a.URL)
-			full = parse(a.ExtractedHTML, base, a.Title)
-			feed = parse(a.ContentHTML, base, a.Title)
-			if summary := strings.Join(strings.Fields(a.Summary), " "); len(feed) == 0 && summary != "" {
-				feed = []block{{kind: paragraph, spans: []span{{text: summary}}}}
-			}
+			c = article(a)
 		}
 		return func() {
 			if gen != s.gen {
@@ -214,10 +305,13 @@ func (s *Screen) load(poll bool) {
 				}
 				return
 			}
-			if poll && a.ExtractStatus == "ok" && len(full) > 0 {
+			if poll && a.ExtractStatus == "ok" && len(c.full) > 0 {
 				s.announce = s.text.FullText
 			}
-			s.article, s.full, s.feed = a, full, feed
+			s.article, s.full, s.feed = a, c.full, c.feed
+			if epoch == s.epoch {
+				s.remember(c)
+			}
 		}
 	})
 }
@@ -240,7 +334,7 @@ func (s *Screen) loadAI(first bool) {
 	if s.api == nil || s.id == 0 {
 		return
 	}
-	gen, api, id := s.gen, s.api, s.id
+	gen, epoch, api, id := s.gen, s.epoch, s.api, s.id
 	s.aiPolling = true
 	s.deps.Go(func() func() {
 		r, err := api.AI(context.Background(), id)
@@ -255,14 +349,14 @@ func (s *Screen) loadAI(first bool) {
 				}
 				return
 			}
-			s.target = r.TargetLanguage
+			if i := slices.IndexFunc(s.cache, func(c cached) bool { return c.id == id }); i >= 0 && epoch == s.epoch {
+				s.cache[i].ai, s.cache[i].hasAI = r, true
+			}
 			if first {
-				if r.Summary != nil && r.Summary.Status != "failed" && !s.jobs[summary].on {
-					s.jobs[summary].on = true
-					s.apply(summary, *r.Summary, false)
-				}
+				s.showAI(r)
 				return
 			}
+			s.target = r.TargetLanguage
 			for i, result := range []*client.AIResult{r.Summary, r.Translation} {
 				if j := s.jobs[i]; result != nil && j.working && !j.asking {
 					s.apply(i, *result, true)
@@ -270,6 +364,21 @@ func (s *Screen) loadAI(first bool) {
 			}
 		}
 	})
+}
+
+// showAI shows the summary already made or being made, as the article opens, unless the reader has asked for it or
+// hidden it since.
+func (s *Screen) showAI(r client.AIResults) {
+	s.target = r.TargetLanguage
+	if s.jobs[summary].ticket != 0 {
+		return
+	}
+	if r.Summary == nil || r.Summary.Status == "failed" {
+		s.jobs[summary] = job{}
+		return
+	}
+	s.jobs[summary].on = true
+	s.apply(summary, *r.Summary, false)
 }
 
 // request asks the server for job i, which answers with the result when it is ready and unchanged, and otherwise
