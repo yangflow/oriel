@@ -661,6 +661,28 @@ Overlays share focus and Escape behavior; see
   one: "Marked 5 visible entries as read" with Undo and the close button (`marked-visible` in the mockup). The toast is
   announced, and the new chosen entry is then read by its own name; there is no extra announcement. The trackpad swipe is
   not possible in MyGo 0.5.5 (no gesture callback) and is left out.
+- **Sidebar filter and sort.** Under the Subscriptions heading, above the list, one row 28 high with a 4 gap and a 2
+  inset: the filter field, which grows, and the Unread first toggle (`side-filter`, `side-filter-none` and
+  `side-unread-first` in the mockup). The field is a flat fill of the pane's hover (pane ink 5.5%, 8.5% under the
+  pointer and while it has the focus, which adds the 2 DIP focus ring of the pane),
+  radius 8, 10 left padding, a 14 magnifier in `TextMuted`, the input at 13 in `Text` with the placeholder "Filter
+  subscriptions" in `TextMuted`, and from the first character a 20 square clear button ("Clear filter", an x at 12) at
+  the right. The toggle is a 28 square icon button, radius 8, with the arrow-up-down icon at 14 in `TextMuted` (hover:
+  `SurfaceHover` fill, `Text2` icon); while on it is a `Chosen` fill with the icon in `Accent`, as a chosen item is. Its
+  label and tooltip are "Unread first"; the state is exposed as on or off to a screen reader, never by color alone
+  (the fill and the icon change, and the label stays). It is a toggle in the row, not an entry of a menu, so it can be
+  seen and found by keyboard; the heading already holds the failing count and the add button, and a third control
+  there would cut the name at the narrow width. The row is always there while there are subscriptions and is hidden
+  with none. The field matches the name, ignoring case, anywhere in it; it filters the list of the chosen kind (and
+  the failing ones when Show all is offered), and the list is shown from the first character, with no pause. When
+  nothing matches, the rows give way to one muted line, "No matching subscriptions" (「没有匹配的订阅」), 13 type, 10
+  inset, a status for a screen reader. The filter is not kept: the field is empty on the next start, and choosing a
+  kind or a subscription leaves it as it is. The order is by name (the store's order) or, with Unread first on, by
+  unread count descending and then by name, ignoring case; a paused subscription counts as none. The choice is kept
+  on this device in the preferences (`sourceSort`). Keys: Tab reaches the field and then the toggle before the list;
+  in the field Escape clears the text and, when it is empty, gives the focus to the chosen item of the sidebar; Down or
+  Enter gives it to the first match. While the field has the focus the keys of the list and sidebar (J K O S M N V,
+  H L, 1 to 5) type into it instead, as in the search field.
 - **Sidebar keys.** 1 to 5 switch to All and the four kinds, in the sidebar's order, from anywhere in the timeline. H or
   Left (expanding the sidebar first if it is hidden) moves the focus to the chosen item of the sidebar (the kind, or the subscription when the scope is one), Up and
   Down walk its kinds, which choose as the focus passes, and its subscriptions, which wait for Enter (one vertical

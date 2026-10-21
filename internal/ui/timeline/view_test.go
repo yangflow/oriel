@@ -3388,3 +3388,178 @@ func TestSidebarHiddenInset(t *testing.T) {
 		t.Fatalf("with the pane shown the button is at %v, %v", shown, ok)
 	}
 }
+
+// crowded is the sample with more subscriptions, set up with the preferences p kept on the device.
+func crowded(t *testing.T, language string, p *prefs.Preferences) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	sources, entries := sample()
+	sources = append(sources,
+		client.Source{ID: 5, Title: "Second Blog", Kind: "article", UnreadCount: 9},
+		client.Source{ID: 6, Title: "Zeta Blog", Kind: "article", UnreadCount: 5, Paused: true},
+		client.Source{ID: 7, Title: "少数派", Kind: "article", UnreadCount: 4},
+		client.Source{ID: 8, Title: "数据周刊", Kind: "article"})
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	d := f.deps()
+	d.Reading = func() prefs.Preferences { return *p }
+	d.Change = func(n prefs.Preferences) { *p = n }
+	s := New(language, d)
+	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	return s, f, tt
+}
+
+// sourceOrder lists the names among names that the sidebar (the first 260 DIPs) shows, from the top down.
+func sourceOrder(t *testing.T, tt *ui.Tester, names ...string) []string {
+	t.Helper()
+	var shown []string
+	for _, n := range names {
+		if r, ok := tt.Find(n); ok && r.X < 260 {
+			shown = append(shown, n)
+		}
+	}
+	slices.SortFunc(shown, func(a, b string) int {
+		ra, _ := tt.Find(a)
+		rb, _ := tt.Find(b)
+		return int(ra.Y - rb.Y)
+	})
+	return shown
+}
+
+var crowdNames = []string{"Go Blog", "Talks", "Photos", "Second Blog", "Zeta Blog", "少数派", "数据周刊"}
+
+// TestSourceFilter narrows the subscriptions by name as you type, ignoring case, in Chinese too, and says so when
+// nothing matches.
+func TestSourceFilter(t *testing.T) {
+	for language, none := range map[string]string{"en": "No matching subscriptions", "zh-Hans": "没有匹配的订阅"} {
+		t.Run(language, func(t *testing.T) {
+			p := prefs.Default()
+			s, _, tt := crowded(t, language, &p)
+			if len(sourceOrder(t, tt, crowdNames...)) != len(crowdNames) {
+				t.Fatalf("not all subscriptions show: %v", sourceOrder(t, tt, crowdNames...))
+			}
+			if tt.HasText(none) {
+				t.Fatal("the empty line shows before any filter")
+			}
+			if err := tt.Click(s.text.FilterSources); err != nil {
+				t.Fatal(err)
+			}
+			tt.Type("BLOG")
+			tt.Frame()
+			if got := sourceOrder(t, tt, crowdNames...); !slices.Equal(got, []string{"Go Blog", "Second Blog", "Zeta Blog"}) {
+				t.Fatalf("BLOG shows %v", got)
+			}
+			for range 4 {
+				tt.Key(0, ui.KeyBackspace)
+			}
+			tt.Type("数")
+			tt.Frame()
+			if got := sourceOrder(t, tt, crowdNames...); !slices.Equal(got, []string{"少数派", "数据周刊"}) {
+				t.Fatalf("数 shows %v", got)
+			}
+			tt.Type("x")
+			tt.Frame()
+			if got := sourceOrder(t, tt, crowdNames...); len(got) != 0 || !tt.HasText(none) {
+				t.Fatalf("no match shows %v, empty line %v", got, tt.HasText(none))
+			}
+			if err := tt.Click(s.text.ClearFilter); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if s.sideQuery != "" || len(sourceOrder(t, tt, crowdNames...)) != len(crowdNames) || tt.HasText(none) {
+				t.Fatalf("the clear button leaves %q", s.sideQuery)
+			}
+		})
+	}
+}
+
+// TestSourceFilterKeys checks that the single keys type into the field instead of acting, that Escape clears and then
+// leaves it, and that Down goes to the first match.
+func TestSourceFilterKeys(t *testing.T) {
+	p := prefs.Default()
+	s, _, tt := crowded(t, "en", &p)
+	if err := tt.Click(s.text.FilterSources); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("jk2")
+	tt.Frame()
+	if s.sideQuery != "jk2" || s.tab != 0 {
+		t.Fatalf("the keys acted while typing: query %q, tab %d", s.sideQuery, s.tab)
+	}
+	if !s.filtering {
+		t.Fatal("the field does not hold the focus")
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if s.sideQuery != "" || !tt.Focused(s.text.FilterSources) {
+		t.Fatalf("the first Escape leaves %q, focused %v", s.sideQuery, tt.Focused(s.text.FilterSources))
+	}
+	tt.Type("blog")
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	if !tt.Focused("Go Blog") || s.filtering {
+		t.Fatal("Down does not reach the first match")
+	}
+	if err := tt.Click(s.text.FilterSources); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if s.sideQuery != "" || s.filtering || !s.inSide {
+		t.Fatalf("the second Escape does not leave the field: query %q, in sidebar %v", s.sideQuery, s.inSide)
+	}
+}
+
+// TestSourceSort puts the subscriptions with unread entries first, keeps the choice in the preferences and counts a
+// paused subscription as having none.
+func TestSourceSort(t *testing.T) {
+	p := prefs.Default()
+	s, _, tt := crowded(t, "en", &p)
+	if got := sourceOrder(t, tt, crowdNames...); !slices.Equal(got, []string{"Go Blog", "Talks", "Photos", "Second Blog", "Zeta Blog", "少数派", "数据周刊"}) {
+		t.Fatalf("the default order is %v", got)
+	}
+	if err := tt.Click(s.text.UnreadFirst); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if p.SourceSort != prefs.SortUnread {
+		t.Fatalf("the choice is not kept: %q", p.SourceSort)
+	}
+	want := []string{"Second Blog", "少数派", "Go Blog", "Photos", "Talks", "Zeta Blog", "数据周刊"}
+	if got := sourceOrder(t, tt, crowdNames...); !slices.Equal(got, want) {
+		t.Fatalf("unread first shows %v, want %v", got, want)
+	}
+	if err := tt.Click(s.text.FilterSources); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("blog")
+	tt.Frame()
+	if got := sourceOrder(t, tt, crowdNames...); !slices.Equal(got, []string{"Second Blog", "Go Blog", "Zeta Blog"}) {
+		t.Fatalf("the filter and the sort together show %v", got)
+	}
+	if err := tt.Click(s.text.UnreadFirst); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if p.SourceSort != prefs.SortTitle {
+		t.Fatalf("the toggle does not go back: %q", p.SourceSort)
+	}
+}
+
+// TestSourceToolsHidden has no filter while there is nothing to filter.
+func TestSourceToolsHidden(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if _, ok := tt.Find(s.text.FilterSources); !ok {
+		t.Fatal("no filter with subscriptions")
+	}
+	f.sources = nil
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	if _, ok := tt.Find(s.text.FilterSources); ok {
+		t.Fatal("a filter with no subscriptions")
+	}
+}
