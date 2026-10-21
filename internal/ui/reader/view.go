@@ -40,7 +40,7 @@ type copy struct {
 	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                 string
 	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint  string
 	SelectionAIOff, ExplanationReady                                                                       string
-	More, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles                       string
+	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles string
 }
 
 var translations = func() map[string]copy {
@@ -943,6 +943,9 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 	if s.tool(c, icons.ExternalLink, s.text.Open, "O", t.TextMuted, !ready || e.URL == "").Clicked() {
 		s.openOriginal(c)
 	}
+	if s.tool(c, icons.Link, s.text.CopyLink, "", t.TextMuted, !ready || e.URL == "").Clicked() {
+		s.CopyLink(e)
+	}
 	s.tool(c, icons.Ellipsis, s.text.More, "", t.TextMuted, !ready).Menu(func(m *ui.Menu) {
 		if m.Item(s.text.CopyMarkdown).Chosen() {
 			s.Export(e, false)
@@ -951,6 +954,16 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 			s.Export(e, true)
 		}
 	})
+}
+
+// CopyLink puts the original link of the entry e on the clipboard and says so in a toast and to screen readers. It
+// does no work of its own; the clipboard and the messages follow in the next frame (see Flush). An entry with no link
+// does nothing. See docs/product.md, Copy link.
+func (s *Screen) CopyLink(e client.Entry) {
+	if e.URL == "" {
+		return
+	}
+	s.clip, s.clipped, s.announce, s.toast = e.URL, true, s.text.LinkCopied, s.text.LinkCopied
 }
 
 // Export copies the entry e as Markdown to the clipboard, or with save asks where to save it and writes the file. The

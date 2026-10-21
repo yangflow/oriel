@@ -47,7 +47,7 @@ type copy struct {
 	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, HideSidebar, ShowSidebar, KeyToggleSidebar string
 	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                        string
 	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                            string
-	CopyMarkdown, SaveMarkdown                                                                                                                            string
+	CopyLink, CopyMarkdown, SaveMarkdown                                                                                                                  string
 	LastLooked                                                                                                                                            string
 	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                              string
 	OrderNewest, OrderOldest                                                                                                                              string
@@ -3225,6 +3225,9 @@ func (s *Screen) entryMenu(c *ui.Context, m *ui.Menu, id int64) {
 	}
 	if m.Item(s.text.Open).Chosen() {
 		s.browse(c, s.index(id))
+	}
+	if m.Item(s.text.CopyLink).Disabled(e.URL == "").Chosen() {
+		s.reader.CopyLink(e)
 	}
 	m.Separator()
 	if m.Item(s.text.CopyMarkdown).Chosen() {

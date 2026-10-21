@@ -197,3 +197,31 @@ func TestExportOtherEntry(t *testing.T) {
 		t.Fatalf("asked %d, clipboard %q, want %q", f.asked-asked, tt.Clipboard(), want)
 	}
 }
+
+func TestCopyLink(t *testing.T) {
+	for language, c := range map[string]struct{ button, copied string }{
+		"en":      {"Copy link", "Link copied"},
+		"zh-Hans": {"复制链接", "已复制链接"},
+	} {
+		t.Run(language, func(t *testing.T) {
+			_, f, tt := setup(t, language, full())
+			f.settle(tt)
+			if err := tt.Click(c.button); err != nil {
+				t.Fatal(err)
+			}
+			if tt.Clipboard() != "https://go.dev/blog/go1.27" || !slices.Contains(tt.Announcements(), c.copied) || len(f.queue) != 0 {
+				t.Fatalf("clipboard %q, announcements %v, queued %d", tt.Clipboard(), tt.Announcements(), len(f.queue))
+			}
+		})
+	}
+}
+
+func TestCopyLinkWithoutLink(t *testing.T) {
+	a := full()
+	a.URL = ""
+	_, f, tt := setup(t, "en", a)
+	f.settle(tt)
+	if err := tt.Click("Copy link"); err == nil && tt.Clipboard() != "" {
+		t.Fatalf("clipboard %q", tt.Clipboard())
+	}
+}

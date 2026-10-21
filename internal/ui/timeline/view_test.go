@@ -1579,7 +1579,7 @@ func TestMarkAbove(t *testing.T) {
 	if err := tt.RightClick("Harbor at dawn"); err != nil {
 		t.Fatal(err)
 	}
-	if menu := tt.Menu(); !slices.Equal(menu, []string{"Star", "Mark as read", "Open in browser", "-", "Copy as Markdown", "Save as Markdown…", "-", "Mark above as read"}) {
+	if menu := tt.Menu(); !slices.Equal(menu, []string{"Star", "Mark as read", "Open in browser", "Copy link", "-", "Copy as Markdown", "Save as Markdown…", "-", "Mark above as read"}) {
 		t.Fatalf("menu %q", menu)
 	}
 	if err := tt.ChooseMenuItem("Mark above as read"); err != nil {
@@ -3890,5 +3890,26 @@ func TestLightboxMinimumWidth(t *testing.T) {
 	}
 	if r, _ := tt.Find("Open in browser"); r.W > 40 {
 		t.Fatalf("Open in browser is %v wide, not an icon", r.W)
+	}
+}
+
+func TestCopyLinkFromMenu(t *testing.T) {
+	for language, c := range map[string]struct{ item, copied string }{
+		"en":      {"Copy link", "Link copied"},
+		"zh-Hans": {"复制链接", "已复制链接"},
+	} {
+		t.Run(language, func(t *testing.T) {
+			_, f, tt := setup(t, language)
+			if err := tt.RightClick("Harbor at dawn"); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.ChooseMenuItem(c.item); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(t, tt)
+			if tt.Clipboard() != "https://photos.example/5" || !slices.Contains(tt.Announcements(), c.copied) {
+				t.Fatalf("clipboard %q, announcements %v", tt.Clipboard(), tt.Announcements())
+			}
+		})
 	}
 }
