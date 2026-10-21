@@ -18,6 +18,10 @@
      in the list and in the edit dialog's header.
      On a subscription whose last fetch failed, Refresh reads Try again, in its menu (menu-failing) and beside the
      reason in the edit dialog (edit-failing).
+     The check interval offers Auto first, which is also the default of a new subscription: the app works the
+     interval out from how often the feed publishes, between 15 minutes and a day, and the edit dialog shows what it
+     is now (Auto · 6 h). After the first fetch a feed that looks like another kind gets a line under the kind
+     picker (edit-suggest) with a button; nothing changes until it is pressed and the dialog saved.
      The bar above the window only switches the mockup.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
 <style>
@@ -228,7 +232,7 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','delete'];
+const states=['add','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','delete'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -276,7 +280,7 @@ const copy={
     add:'Add subscription', addShort:'Add', adding:'Adding', cancel:'Cancel', close:'Close', save:'Save',
     address:'Address', addressPlaceholder:'Feed URL, page link or RSSHub route',
     addressHelp:'Links to YouTube, Bilibili, X, GitHub, Telegram and Weibo are turned into feeds.',
-    showAs:'Show as', title:'Title', titlePlaceholder:'From the feed', every:'Check every', minutes15:'15 min',
+    showAs:'Show as', title:'Title', titlePlaceholder:'From the feed', every:'Check every', auto:'Auto', autoEvery:'Auto · {every}', every6h:'6 h', suggest:'The first entries look like videos.', suggestUse:'Show as Videos',
     feed:'Feed', viaRsshub:'RSSHub route',
     found:{bilibili:'Bilibili · videos of user 2267573', feed:'Feed at go.dev', route:'RSSHub route'},
     needsBase:'RSSHub routes need an RSSHub instance. Enter its address; it is saved in Settings.',
@@ -301,7 +305,7 @@ const copy={
     add:'添加订阅', addShort:'添加', adding:'正在添加', cancel:'取消', close:'关闭', save:'保存',
     address:'地址', addressPlaceholder:'订阅地址、主页链接或 RSSHub 路由',
     addressHelp:'YouTube、哔哩哔哩、X、GitHub、Telegram 和微博的链接会自动转成订阅。',
-    showAs:'显示为', title:'标题', titlePlaceholder:'用订阅里的标题', every:'检查间隔', minutes15:'15 分钟',
+    showAs:'显示为', title:'标题', titlePlaceholder:'用订阅里的标题', every:'检查间隔', auto:'自动', autoEvery:'自动 · {every}', every6h:'6 小时', suggest:'最早的几条看起来是视频。', suggestUse:'显示为视频',
     feed:'订阅地址', viaRsshub:'RSSHub 路由',
     found:{bilibili:'哔哩哔哩 · 用户 2267573 的视频', feed:'go.dev 的订阅', route:'RSSHub 路由'},
     needsBase:'RSSHub 路由要先有一个 RSSHub 实例。填上它的地址，会存进设置。',
@@ -338,7 +342,7 @@ const sources=[
   {kind:'image',name:'NASA APOD',mono:'N',unread:1,fav:favs.nasa},
 ];
 const empty=state==='empty';
-const editing=['menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','delete'].includes(state);
+const editing=['menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','delete'].includes(state);
 const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
 const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
@@ -369,7 +373,7 @@ function addDialog(){
     <div class="form">
       <div class="field"><label for="addr">${copy.address}</label><div class="box${state==='add'||state==='add-invalid'?' focused':''}${invalid?' invalid':''}">${icon('link')}<input id="addr" value="${value}" placeholder="${copy.addressPlaceholder}" ${invalid?'aria-invalid="true" aria-describedby="ae"':''}></div>${below}</div>
       ${kindPicker(kind)}
-      <div class="pair"><div class="field"><label>${copy.title}</label><div class="box"><input placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.minutes15)}</div>
+      <div class="pair"><div class="field"><label>${copy.title}</label><div class="box"><input placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.auto)}</div>
     </div>
     <footer><span class="spacer"></span><button class="button">${copy.cancel}</button><button class="button primary"${state==='add'||invalid?' disabled':''}>${busy?icon('loader','spin')+copy.adding:copy.addShort}</button></footer>
   </div></div>`;
@@ -385,8 +389,9 @@ function editDialog(){
     <header><span class="mono big">G</span><div class="titles"><h2 id="dt">${copy.editTitle}</h2><p>https://go.dev/blog/feed.atom</p></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>
     <div class="form">
       ${health}
-      <div class="pair"><div class="field"><label>${copy.title}</label><div class="box focused"><input value="The Go Blog" placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.minutes15)}</div>
+      <div class="pair"><div class="field"><label>${copy.title}</label><div class="box focused"><input value="The Go Blog" placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.autoEvery.replace('{every}',copy.every6h))}</div>
       ${kindPicker('article')}
+      ${state==='edit-suggest'?`<div class="health" role="status">${icon('video')}<span>${copy.suggest}</span><button class="button small">${copy.suggestUse}</button></div>`:''}
       <div class="switch-row"><div class="text"><span class="label">${copy.pauseLabel}</span><span class="help">${copy.pauseHelp}</span></div><span class="switch${paused?' on':''}" role="switch" aria-checked="${paused}" aria-label="${copy.pauseLabel}"></span></div>
       <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" aria-describedby="mh">${lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span></div>
       <h3 class="group-title">${icon('sparkles')}${copy.aiGroup}</h3>

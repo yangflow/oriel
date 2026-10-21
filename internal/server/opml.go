@@ -58,7 +58,7 @@ type opmlOutline struct {
 // source reads a subscription outline. The RSSHub path wins over xmlUrl, the kind defaults to article, and a title
 // that only repeats the address counts as none, so that the next fetch fills it in.
 func (o opmlOutline) source() (store.NewSource, string) {
-	src := store.NewSource{Kind: o.Kind, FetchInterval: defaultInterval}
+	src := store.NewSource{Kind: o.Kind, FetchInterval: defaultInterval, FetchIntervalAuto: true}
 	if src.RSSHubPath = strings.TrimSpace(o.RSSHubPath); src.RSSHubPath == "" {
 		src.URL = strings.TrimSpace(o.XMLURL)
 	}

@@ -298,6 +298,8 @@ type Source struct {
 	IconURL             string `json:"iconUrl"`
 	Kind                string `json:"kind"`
 	FetchIntervalSec    int64  `json:"fetchIntervalSec"`
+	FetchIntervalAuto   bool   `json:"fetchIntervalAuto"`
+	SuggestedKind       string `json:"suggestedKind"`
 	NextFetchAt         int64  `json:"nextFetchAt"`
 	LastFetchedAt       int64  `json:"lastFetchedAt"`
 	LastSuccessAt       int64  `json:"lastSuccessAt"`
@@ -313,7 +315,7 @@ type Source struct {
 }
 
 // NewSource is a subscription to add: exactly one of URL and RSSHubPath. An empty Title takes the feed's, and a zero
-// FetchIntervalSec the server's default.
+// FetchIntervalSec the automatic interval; a positive FetchIntervalSec is a fixed one.
 type NewSource struct {
 	URL              string `json:"url,omitempty"`
 	RSSHubPath       string `json:"rsshubPath,omitempty"`
@@ -327,12 +329,15 @@ type SourcePatch struct {
 	Title            *string `json:"title,omitempty"`
 	Kind             *string `json:"kind,omitempty"`
 	FetchIntervalSec *int64  `json:"fetchIntervalSec,omitempty"`
-	MuteKeywords     *string `json:"muteKeywords,omitempty"`
-	Paused           *bool   `json:"paused,omitempty"`
-	PromptSummary    *string `json:"promptSummary,omitempty"`
-	PromptTranslate  *string `json:"promptTranslate,omitempty"`
-	AutoSummary      *bool   `json:"autoSummary,omitempty"`
-	AutoTranslate    *bool   `json:"autoTranslate,omitempty"`
+	// FetchIntervalAuto true switches to the automatic interval; a FetchIntervalSec sets a fixed one (and is
+	// refused together with true).
+	FetchIntervalAuto *bool   `json:"fetchIntervalAuto,omitempty"`
+	MuteKeywords      *string `json:"muteKeywords,omitempty"`
+	Paused            *bool   `json:"paused,omitempty"`
+	PromptSummary     *string `json:"promptSummary,omitempty"`
+	PromptTranslate   *string `json:"promptTranslate,omitempty"`
+	AutoSummary       *bool   `json:"autoSummary,omitempty"`
+	AutoTranslate     *bool   `json:"autoTranslate,omitempty"`
 }
 
 // Settings are the server's settings; RetentionDays is 0 to keep entries forever. The API key is never sent, only

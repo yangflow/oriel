@@ -25,16 +25,16 @@ import (
 var catalog []byte
 
 type copy struct {
-	Add, AddShort, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs           string
-	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute     string
-	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo            string
-	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder             string
-	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added           string
-	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn string
-	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody      string
-	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                string
-	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff        string
-	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30                                                    string
+	Add, AddShort, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs              string
+	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute        string
+	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo               string
+	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder                string
+	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added              string
+	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn    string
+	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody         string
+	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                   string
+	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff           string
+	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind string
 }
 
 var translations = func() map[string]copy {
@@ -48,8 +48,8 @@ var translations = func() map[string]copy {
 // kinds are the kinds a subscription shows as, in the order of the picker.
 var kinds = []string{"article", "video", "social", "image"}
 
-// intervals are the fetch intervals offered, in seconds; the first is the default.
-var intervals = []int64{15 * 60, 30 * 60, 3600, 3 * 3600, 6 * 3600, 12 * 3600, 24 * 3600}
+// intervals are the fetch intervals offered, in seconds; 0 is Auto, the first and the default.
+var intervals = []int64{0, 15 * 60, 30 * 60, 3600, 3 * 3600, 6 * 3600, 12 * 3600, 24 * 3600}
 
 // API is what the dialogs read and write on the server; client.Session is one.
 type API interface {
@@ -226,7 +226,7 @@ func (s *Screen) Add() {
 	if s.api == nil {
 		return
 	}
-	s.add = adding{open: true, interval: intervals[0], focus: addressField}
+	s.add = adding{open: true, interval: 0, focus: addressField}
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		settings, err := api.Settings(context.Background())
@@ -273,7 +273,7 @@ func (s *Screen) submit() {
 	}
 	a.busy, a.baseErr, a.formErr = true, "", ""
 	src := client.NewSource{URL: t.URL, RSSHubPath: t.Route, Kind: kinds[a.kind], Title: strings.TrimSpace(a.title),
-		FetchIntervalSec: a.interval}
+		FetchIntervalSec: a.interval} // 0 is Auto
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		ctx := context.Background()
@@ -337,12 +337,9 @@ func (s *Screen) Edit(src client.Source) {
 		return
 	}
 	s.edit = editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
-		interval: src.FetchIntervalSec, paused: src.Paused, mute: src.MuteKeywords,
+		interval: intervalChoice(src), paused: src.Paused, mute: src.MuteKeywords,
 		auto:    [2]bool{src.AutoSummary, src.AutoTranslate},
 		prompts: [2]string{src.PromptSummary, src.PromptTranslate}, focus: true}
-	if s.edit.interval == 0 {
-		s.edit.interval = intervals[0]
-	}
 	gen, api, id := s.gen, s.api, src.ID
 	s.deps.Go(func() func() {
 		settings, err := api.Settings(context.Background())
@@ -368,8 +365,14 @@ func (s *Screen) save() {
 	if kind := kinds[e.kind]; kind != e.src.Kind {
 		patch.Kind, changed = &kind, true
 	}
-	if interval := e.interval; interval != e.src.FetchIntervalSec {
-		patch.FetchIntervalSec, changed = &interval, true
+	if interval := e.interval; interval != intervalChoice(e.src) {
+		if interval == 0 {
+			auto := true
+			patch.FetchIntervalAuto = &auto
+		} else {
+			patch.FetchIntervalSec = &interval
+		}
+		changed = true
 	}
 	if paused := e.paused; paused != e.src.Paused {
 		patch.Paused, changed = &paused, true
@@ -857,7 +860,7 @@ func (s *Screen) addDialog(c *ui.Context) {
 		s.pair(c, func() {
 			s.titleField(c, &a.title, a.busy, a.focus == titleField, s.submit)
 		}, func() {
-			s.intervalSelect(c, &a.interval, a.busy)
+			s.intervalSelect(c, &a.interval, 0, a.busy)
 		})
 		if a.formErr != "" {
 			errorLine(c, a.formErr, "")
@@ -1041,6 +1044,31 @@ func (s *Screen) kindPicker(c *ui.Context, value *int) {
 	})
 }
 
+// kindSuggestion is the line under the kind picker when the first fetch found the feed to look like another kind than
+// the one chosen. The button only chooses the kind in the dialog; Save stores it.
+func (s *Screen) kindSuggestion(c *ui.Context) {
+	e := &s.edit
+	i := slices.Index(kinds, e.src.SuggestedKind)
+	if i < 0 || i == e.kind {
+		return
+	}
+	text := s.text.SuggestVideo
+	if e.src.SuggestedKind == "image" {
+		text = s.text.SuggestImage
+	}
+	t := c.Theme()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(2), t.Space(3)).Radius(8).
+		Background(t.Surface).Label(text).Children(func() {
+		ui.Icon(c, kindIcon(e.src.SuggestedKind)).FontSize(px(t, 14)).TextColor(t.TextMuted)
+		ui.Text(c, text).FontSize(px(t, 12)).TextColor(t.TextMuted).Grow(1).MinWidth(0).Wrap()
+		use := button(c, small, e.busy)
+		textButton(c, use, small, nil, strings.ReplaceAll(s.text.UseKind, "{kind}", s.kindName(e.src.SuggestedKind)), false)
+		if use.Clicked() {
+			e.kind = i
+		}
+	})
+}
+
 func (s *Screen) pair(c *ui.Context, left, right func()) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).Children(func() {
@@ -1064,9 +1092,19 @@ func (s *Screen) titleField(c *ui.Context, value *string, busy, focus bool, subm
 	})
 }
 
-// every names a fetch interval in seconds.
+// intervalChoice is the choice in the interval select that src is on: 0 for Auto, else its fixed seconds.
+func intervalChoice(src client.Source) int64 {
+	if src.FetchIntervalAuto {
+		return 0
+	}
+	return src.FetchIntervalSec
+}
+
+// every names a fetch interval in seconds, 0 being Auto.
 func (s *Screen) every(sec int64) string {
 	switch {
+	case sec == 0:
+		return s.text.Auto
 	case sec%(24*3600) == 0:
 		return s.count(s.text.Days, int(sec/(24*3600)))
 	case sec%3600 == 0:
@@ -1086,7 +1124,9 @@ func (s *Screen) span(d time.Duration) string {
 	return s.count(s.text.Days, int(d/(24*time.Hour)))
 }
 
-func (s *Screen) intervalSelect(c *ui.Context, value *int64, busy bool) {
+// intervalSelect is the select of the check interval. Chosen as Auto it shows the interval Auto works out now when
+// that is known (autoNow, seconds), as in "Auto · 6 h".
+func (s *Screen) intervalSelect(c *ui.Context, value *int64, autoNow int64, busy bool) {
 	t := c.Theme()
 	label(c, s.text.Every)
 	options := intervals
@@ -1104,7 +1144,11 @@ func (s *Screen) intervalSelect(c *ui.Context, value *int64, busy bool) {
 		sel.Trigger.Background(t.SurfaceHover)
 	}
 	sel.Trigger.Children(func() {
-		ui.Text(c, s.every(*value)).Grow(1).MinWidth(0).SingleLine()
+		name := s.every(*value)
+		if *value == 0 && autoNow > 0 {
+			name = strings.ReplaceAll(s.text.AutoEvery, "{every}", s.every(autoNow))
+		}
+		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine()
 		ui.Icon(c, icons.ChevronDown).FontSize(px(t, 14)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
@@ -1140,9 +1184,10 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.pair(c, func() {
 			s.titleField(c, &e.title, e.busy, focus, s.save)
 		}, func() {
-			s.intervalSelect(c, &e.interval, e.busy)
+			s.intervalSelect(c, &e.interval, e.src.FetchIntervalSec, e.busy)
 		})
 		s.kindPicker(c, &e.kind)
+		s.kindSuggestion(c)
 		s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, s.text.PauseHelp)
 		s.muteField(c)
 		s.aiGroup(c)

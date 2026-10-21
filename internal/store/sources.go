@@ -27,6 +27,8 @@ type Source struct {
 	IconURL             string
 	Kind                string
 	FetchInterval       time.Duration
+	FetchIntervalAuto   bool
+	SuggestedKind       string
 	NextFetchAt         time.Time
 	LastFetchedAt       time.Time
 	LastSuccessAt       time.Time
@@ -45,19 +47,22 @@ type Source struct {
 
 // SourcePatch holds the fields a user may change; nil leaves a field as it is.
 type SourcePatch struct {
-	Title           *string
-	Kind            *string
-	FetchInterval   *time.Duration
-	PromptSummary   *string
-	PromptTranslate *string
-	AutoSummary     *bool
-	AutoTranslate   *bool
-	MuteKeywords    *string
-	Paused          *bool
+	Title         *string
+	Kind          *string
+	FetchInterval *time.Duration
+	// FetchIntervalAuto switches the automatic interval on or off; the interval in use stays until the next fetch
+	// or until FetchInterval sets another.
+	FetchIntervalAuto *bool
+	PromptSummary     *string
+	PromptTranslate   *string
+	AutoSummary       *bool
+	AutoTranslate     *bool
+	MuteKeywords      *string
+	Paused            *bool
 }
 
 const sourceColumns = `
-	s.id, s.url, s.rsshub_path, s.title, s.site_url, s.icon_url, s.kind, s.fetch_interval_sec, s.next_fetch_at,
+	s.id, s.url, s.rsshub_path, s.title, s.site_url, s.icon_url, s.kind, s.fetch_interval_sec, s.fetch_interval_auto, s.suggested_kind, s.next_fetch_at,
 	s.last_fetched_at, s.last_success_at, s.last_error, s.consecutive_failures, s.prompt_summary, s.prompt_translate,
 	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused,
 	(SELECT count(*) FROM entries e WHERE e.source_id = s.id AND e.is_read = 0 AND ` + shown + `), s.created_at, s.updated_at`
@@ -76,9 +81,9 @@ func (s *Store) CreateSource(ctx context.Context, src NewSource, title string, n
 		}
 	}
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO sources (url, rsshub_path, title, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		src.URL, src.RSSHubPath, title, src.Kind, int64(src.FetchInterval/time.Second),
+		INSERT INTO sources (url, rsshub_path, title, kind, fetch_interval_sec, fetch_interval_auto, next_fetch_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		src.URL, src.RSSHubPath, title, src.Kind, int64(src.FetchInterval/time.Second), src.FetchIntervalAuto,
 		now.Add(max(src.FirstFetchDelay, 0)).UnixMilli(), now.UnixMilli(), now.UnixMilli())
 	if err != nil {
 		var sqliteErr *sqlite.Error
@@ -134,6 +139,9 @@ func (s *Store) UpdateSource(ctx context.Context, id int64, patch SourcePatch, n
 	}
 	if patch.FetchInterval != nil {
 		set("fetch_interval_sec", int64(*patch.FetchInterval/time.Second))
+	}
+	if patch.FetchIntervalAuto != nil {
+		set("fetch_interval_auto", *patch.FetchIntervalAuto)
 	}
 	if patch.PromptSummary != nil {
 		set("prompt_summary", *patch.PromptSummary)
@@ -204,7 +212,7 @@ func scanSource(row interface{ Scan(...any) error }) (Source, error) {
 	var interval, next, created, updated int64
 	var fetched, success sql.NullInt64
 	if err := row.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Title, &src.SiteURL, &src.IconURL, &src.Kind, &interval,
-		&next, &fetched, &success, &src.LastError, &src.ConsecutiveFailures, &src.PromptSummary, &src.PromptTranslate,
+		&src.FetchIntervalAuto, &src.SuggestedKind, &next, &fetched, &success, &src.LastError, &src.ConsecutiveFailures, &src.PromptSummary, &src.PromptTranslate,
 		&src.AutoSummary, &src.AutoTranslate, &src.MuteKeywords, &src.Paused, &src.UnreadCount, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Source{}, ErrNotFound

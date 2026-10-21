@@ -121,7 +121,7 @@ func setup(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 	f := &fake{
 		sources: []client.Source{
 			{ID: 1, Title: "Go Blog", URL: "https://go.dev/blog/feed.atom", Kind: "article",
-				FetchIntervalSec: 900, LastFetchedAt: now.Add(-3 * time.Minute).UnixMilli(),
+				FetchIntervalSec: 900, FetchIntervalAuto: true, LastFetchedAt: now.Add(-3 * time.Minute).UnixMilli(),
 				NextFetchAt: now.Add(12 * time.Minute).UnixMilli()},
 			{ID: 2, RSSHubPath: "/telegram/channel/golang", Kind: "social", FetchIntervalSec: 3600,
 				LastError: "status 503", ConsecutiveFailures: 3},
@@ -250,7 +250,7 @@ func TestAdd(t *testing.T) {
 	if err := tt.Click("Videos"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("15 min"); err != nil {
+	if err := tt.Click("Auto"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("1 h"); err != nil {
@@ -282,7 +282,7 @@ func TestAddFullAddressOnTheInstance(t *testing.T) {
 	tt.Key(0, ui.KeyEnter)
 	f.settle(tt)
 	if len(f.added) != 1 || f.added[0].RSSHubPath != "/github/issue/golang/go" || f.added[0].URL != "" ||
-		f.added[0].Kind != "article" || f.added[0].FetchIntervalSec != 900 {
+		f.added[0].Kind != "article" || f.added[0].FetchIntervalSec != 0 {
 		t.Fatalf("added %+v", f.added)
 	}
 }
@@ -412,7 +412,7 @@ func TestEdit(t *testing.T) {
 	s.Edit(f.sources[0])
 	tt.Frame()
 	for _, text := range []string{"Edit subscription", "https://go.dev/blog/feed.atom",
-		"Checked 3 min ago · next in 12 min", "15 min"} {
+		"Checked 3 min ago · next in 12 min", "Auto · 15 min"} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
@@ -711,5 +711,105 @@ func TestChinese(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText(s.text.EditTitle) || !tt.HasText("3 分钟前检查过 · 12 分钟后再查") {
 		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestEditAutoInterval(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.Edit(f.sources[0])
+	tt.Frame()
+	if s.edit.interval != 0 {
+		t.Fatalf("interval choice %d for an automatic subscription", s.edit.interval)
+	}
+	if err := tt.Click("Auto · 15 min"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("6 h"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Save"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	p := f.patches[1]
+	if len(p) != 1 || p[0].FetchIntervalSec == nil || *p[0].FetchIntervalSec != 6*3600 || p[0].FetchIntervalAuto != nil {
+		t.Fatalf("patches %+v", p)
+	}
+
+	s.Edit(f.sources[1])
+	tt.Frame()
+	if err := tt.Click("1 h"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Auto"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Save"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	p = f.patches[2]
+	if len(p) != 1 || p[0].FetchIntervalAuto == nil || !*p[0].FetchIntervalAuto || p[0].FetchIntervalSec != nil {
+		t.Fatalf("patches %+v", p)
+	}
+}
+
+func TestEditKindSuggestion(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	src := f.sources[0]
+	src.SuggestedKind = "video"
+	s.Edit(src)
+	tt.Frame()
+	for _, text := range []string{"The first entries look like videos.", "Show as Videos"} {
+		if !tt.HasText(text) {
+			t.Errorf("no %q in %v", text, tt.Texts())
+		}
+	}
+	if s.edit.kind != slices.Index(kinds, "article") {
+		t.Fatalf("the suggestion changed the kind to %d", s.edit.kind)
+	}
+	if err := tt.Click("Save"); err != nil {
+		t.Fatal(err)
+	}
+	if s.Open() || len(f.patches[1]) != 0 {
+		t.Fatalf("saving without choosing sent %v", f.patches)
+	}
+
+	s.Edit(src)
+	tt.Frame()
+	if err := tt.Click("Show as Videos"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if tt.HasText("The first entries look like videos.") {
+		t.Error("the suggestion stays once taken")
+	}
+	if err := tt.Click("Save"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	p := f.patches[1]
+	if len(p) != 1 || p[0].Kind == nil || *p[0].Kind != "video" {
+		t.Fatalf("patches %+v", p)
+	}
+
+	src.Kind = "video"
+	s.Edit(src)
+	tt.Frame()
+	if tt.HasText("The first entries look like videos.") {
+		t.Error("suggests the kind it already is")
+	}
+}
+
+func TestEditSuggestionChinese(t *testing.T) {
+	s, f, tt := setup(t, "zh-Hans")
+	src := f.sources[0]
+	src.SuggestedKind = "image"
+	s.Edit(src)
+	tt.Frame()
+	for _, text := range []string{"最早的几条看起来是图片。", "显示为图片", "自动 · 15 分钟"} {
+		if !tt.HasText(text) {
+			t.Errorf("no %q in %v", text, tt.Texts())
+		}
 	}
 }
