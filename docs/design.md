@@ -641,7 +641,10 @@ Overlays share focus and Escape behavior; see
 ## Windows, menus and navigation
 
 - **Windows.** One main window; set `Title`, `Width`, `Height`, and `MinWidth`/`MinHeight` so content never clips.
-  Oriel's window is 960×640 with a minimum of 640×480. `StateKey` remembers size and position between runs and is not used yet. A second launch brings the existing
+  Oriel's window is 960×640 with a minimum of 640×480. `StateKey` (`oriel-main`) remembers size, position and the maximized state between runs, in `window-state.json` in the
+  user data directory, a client-side file next to `preferences.json`. A saved position that no longer shows on a
+  connected display falls back to a centered window on the primary display, at the saved size as far as that display
+  allows. A second launch brings the existing
   window to the front. See
   [Windows with native UI](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/windows.md) and the
   [window options](https://github.com/egoist/mygo/blob/v0.5.5/docs/windows.md).
