@@ -164,7 +164,7 @@ func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Te
 	s := New(language, f.deps())
 	s.Use(f, "reader.example.com", signedIn)
 	s.Open()
-	tt := ui.NewTester(s.View, 1000, 760)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 760)
 	tt.Frame()
 	f.settle(tt)
 	return s, f, tt
@@ -932,6 +932,48 @@ func TestPrompts(t *testing.T) {
 	f.settle(tt)
 	if len(f.set) != 3 {
 		t.Fatalf("saved unchanged prompts: %v", f.set)
+	}
+}
+
+// TestPromptRestoreUndo has Restore default offer Undo, which puts back the exact text, and only while the box has
+// not been edited again.
+func TestPromptRestoreUndo(t *testing.T) {
+	s, _, tt := openAI(t, "en", true)
+	tt.SetSize(1000, 1200)
+	tt.Frame()
+	reset := s.text.PromptSummary + " · " + s.text.Reset
+	toast := s.fill(s.text.PromptRestored, "{name}", s.text.PromptSummary)
+	edited := "  Be brief.\nUse \"quotes\".  " + strings.Repeat("é", 100)
+	edit(tt, func() { s.prompts[0] = edited })
+	press(t, tt, reset)
+	tt.Frame()
+	if s.prompts[0] != summaryPrompt || !tt.HasText(toast) || !tt.HasText(s.text.Undo) || !tt.HasText(s.text.Dismiss) {
+		t.Fatalf("prompt %q, texts %v", s.prompts[0], tt.Texts())
+	}
+	press(t, tt, s.text.Undo)
+	tt.Frame()
+	if s.prompts[0] != edited || tt.HasText(s.text.Undo) || s.restored != nil {
+		t.Fatalf("prompt %q, texts %v", s.prompts[0], tt.Texts())
+	}
+
+	// Edited again after restoring: Undo leaves the new text alone.
+	press(t, tt, reset)
+	tt.Frame()
+	edit(tt, func() { s.prompts[0] = "Something new." })
+	press(t, tt, s.text.Undo)
+	tt.Frame()
+	if s.prompts[0] != "Something new." || tt.HasText(s.text.Undo) {
+		t.Fatalf("prompt %q, texts %v", s.prompts[0], tt.Texts())
+	}
+
+	// Dismissed: nothing to undo; the default stays.
+	edit(tt, func() { s.prompts[1] = "Keep it." })
+	press(t, tt, s.text.PromptTranslate+" · "+s.text.Reset)
+	tt.Frame()
+	press(t, tt, s.text.Dismiss)
+	tt.Frame()
+	if s.prompts[1] != translatePrompt || tt.HasText(s.text.Undo) || s.restored != nil {
+		t.Fatalf("prompt %q, texts %v", s.prompts[1], tt.Texts())
 	}
 }
 
