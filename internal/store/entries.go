@@ -75,7 +75,8 @@ const entryColumns = `
 	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec, e.read_progress`
 
 // shown keeps the entries of s that none of its mute keywords hides. Starred entries are never hidden.
-const shown = "(e.starred = 1 OR NOT muted(s.mute_keywords, e.title, e.rss_summary))"
+// A source without keywords is decided in SQL, so the Go function runs only for sources that have some.
+const shown = "(e.starred = 1 OR s.mute_keywords = '' OR NOT muted(s.mute_keywords, e.title, e.rss_summary))"
 
 func init() {
 	sqlite.MustRegisterDeterministicScalarFunction("muted", 3, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
