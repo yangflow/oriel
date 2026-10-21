@@ -133,6 +133,7 @@ func TestErrors(t *testing.T) {
 		{client.ErrUnwritable, nil, "The server can’t open its data", "Server address"},
 		{nil, client.ErrPasswordRequired, "Password required", "Password"},
 		{nil, client.ErrWrongPassword, "Wrong password", "Password"},
+		{nil, client.ErrTooManyAttempts, "Too many attempts. Try again in a moment", "Password"},
 		{nil, errors.New("login: status 500"), "Couldn’t sign in", "Server address"},
 	} {
 		t.Run(tc.message, func(t *testing.T) {

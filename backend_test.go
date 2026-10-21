@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yangflow/oriel/internal/store"
 )
@@ -46,4 +47,16 @@ func TestBackend(t *testing.T) {
 		t.Fatalf("restart after close: %v", err)
 	}
 	again.close(ctx)
+}
+
+func TestServerTimeouts(t *testing.T) {
+	b, err := start(context.Background(), t.TempDir(), "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.close(context.Background())
+	// The write timeout must outlast the slowest answer, an AI test call of up to two minutes.
+	if b.http.ReadTimeout <= 0 || b.http.IdleTimeout <= 0 || b.http.WriteTimeout <= 2*time.Minute {
+		t.Fatalf("read %v, write %v, idle %v", b.http.ReadTimeout, b.http.WriteTimeout, b.http.IdleTimeout)
+	}
 }

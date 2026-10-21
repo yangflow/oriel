@@ -229,6 +229,9 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 - 设了口令时听所有网卡，除 `GET /health` 和 `POST /auth/login` 外都要会话。
 - 口令不写进日志和数据库。启动时用 PBKDF2-SHA256（60 万轮、随机盐）派生一次，登录时同样派生后用常数时间比较。
 - 登录请求的坏 JSON 返回 401，不是字段校验错误。
+- 登录限速，防止猜口令和拖垮服务：同一个客户端地址（`RemoteAddr`，不看 `X-Forwarded-For`）连续输错 5 次不受限，第 6 次错起锁 1 秒，之后每多错一次翻倍，最长 15 分钟；锁定期间的登录不再派生密钥，直接返回 429、`error` 为 `too_many_attempts`，`Retry-After` 给出剩余秒数。登录成功清掉该地址的记录，安静满 1 小时的记录也会清掉，内存里最多留 1 万条。
+- 同时派生密钥的登录最多 2 个，其余不排队，直接返回 429 和 `Retry-After: 1`。连接界面把 429 显示为「尝试次数太多，请稍后再试」，焦点在口令框。
+- HTTP 服务设读头 10 秒、整个请求 1 分钟、写 150 秒（比最慢的 AI 测试调用 2 分钟略长）、空闲 2 分钟的超时。
 - 会话放在 cookie `oriel_session`（HttpOnly，SameSite=Lax，30 天；HTTPS 或带 `X-Forwarded-Proto: https` 时加 Secure），或 `Authorization: Bearer <token>`。空闲满 30 天失效。最近使用时间最多一分钟写一次。
 - 每次登录是一条设备会话，可以单独退出登录，也可以登出当前会话。
 

@@ -22,8 +22,8 @@ import (
 var catalog []byte
 
 type copy struct {
-	Title, Address, Password, PasswordLabel, Show, Hide, Reachable, UseLocal, Connect, Connecting string
-	Unreachable, NotOriel, PasswordRequired, WrongPassword, ServerError, Failed, Expired, Menu    string
+	Title, Address, Password, PasswordLabel, Show, Hide, Reachable, UseLocal, Connect, Connecting               string
+	Unreachable, NotOriel, PasswordRequired, WrongPassword, TooManyAttempts, ServerError, Failed, Expired, Menu string
 }
 
 var translations = func() map[string]copy {
@@ -127,6 +127,8 @@ func (s *Screen) fail(err error) {
 		s.problem = problem{passwordField, icons.LockKeyhole, t.PasswordRequired}
 	case errors.Is(err, client.ErrWrongPassword):
 		s.problem = problem{passwordField, icons.CircleAlert, t.WrongPassword}
+	case errors.Is(err, client.ErrTooManyAttempts):
+		s.problem = problem{passwordField, icons.Clock, t.TooManyAttempts}
 	case errors.Is(err, client.ErrUnwritable):
 		s.problem = problem{formField, icons.Database, t.ServerError}
 	default:
