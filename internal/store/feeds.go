@@ -287,18 +287,15 @@ func (s *Store) SaveExtraction(ctx context.Context, id int64, html, text, langua
 	if html == "" {
 		status = "failed"
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
 	// A failed or skipped extraction leaves the estimate as it was; the full text replaces the feed's content in it.
+	// The read stays outside the write: a read transaction that later writes fails at once when another writer
+	// committed in between, and none of the fields read here change with an extraction.
 	reading := sql.NullInt64{}
 	update := false
 	if status == "ok" {
 		var kind, content, summary string
 		var duration sql.NullInt64
-		err := tx.QueryRowContext(ctx, "SELECT kind, duration_sec, rss_content_html, rss_summary FROM entries WHERE id = ?", id).
+		err := s.db.QueryRowContext(ctx, "SELECT kind, duration_sec, rss_content_html, rss_summary FROM entries WHERE id = ?", id).
 			Scan(&kind, &duration, &content, &summary)
 		if err == nil {
 			reading, update = readingValue(kind, int(duration.Int64), text, content, summary), true
@@ -306,13 +303,11 @@ func (s *Store) SaveExtraction(ctx context.Context, id int64, html, text, langua
 			return err
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `
+	_, err := s.db.ExecContext(ctx, `
 		UPDATE entries SET extract_status = ?, extracted_html = ?, search_text = ?, language = coalesce(?, language),
 			reading_sec = CASE WHEN ? THEN ? ELSE reading_sec END, extract_attempts = extract_attempts + 1
-		WHERE id = ?`, status, html, text, nullString(language), update, reading, id); err != nil {
-		return err
-	}
-	return tx.Commit()
+		WHERE id = ?`, status, html, text, nullString(language), update, reading, id)
+	return err
 }
 
 // PruneEntries deletes unstarred entries published, or else added, before cutoff, read or not.
