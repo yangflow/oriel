@@ -182,7 +182,7 @@ document.getElementById('app').innerHTML=`<div class="sheet">
       ${errorLine('address')}</div>
     <div class="field"><div class="box${passwordInvalid?' invalid':''}">${icon('key')}
       <input id="password" type="password" aria-label="${t('passwordLabel')}" placeholder="${t('password')}" value="${password}" ${busy?'disabled':''} ${described('password')}>
-      <button type="button" class="trail" aria-label="${t('show')}" title="${t('show')}" ${busy?'disabled':''}>${icon('eye')}</button></div>
+      <button type="button" class="trail" aria-label="${t('show')}" aria-pressed="false" title="${t('show')}" ${busy?'disabled':''}>${icon('eye')}</button></div>
       ${errorLine('password')}</div>
     ${errorLine('form')}
   </form>

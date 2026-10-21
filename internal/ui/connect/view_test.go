@@ -101,13 +101,13 @@ func TestShowPassword(t *testing.T) {
 	if err := tt.Click("Show password"); err != nil {
 		t.Fatal(err)
 	}
-	if !s.shown || !tt.HasText("Hide password") {
+	if !s.shown || !tt.HasText("Show password") || tt.HasText("Hide password") {
 		t.Fatalf("shown %v, texts %v", s.shown, tt.Texts())
 	}
-	if err := tt.Click("Hide password"); err != nil {
+	if err := tt.Click("Show password"); err != nil {
 		t.Fatal(err)
 	}
-	if s.shown || !tt.HasText("Show password") {
+	if s.shown || !tt.HasText("Show password") || tt.HasText("Hide password") {
 		t.Fatalf("shown %v, texts %v", s.shown, tt.Texts())
 	}
 }
