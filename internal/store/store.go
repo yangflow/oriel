@@ -56,6 +56,9 @@ func Open(ctx context.Context, file string) (*Store, error) {
 	}
 	dbFile.Close()
 	query := url.Values{}
+	// Every transaction takes the write lock when it begins. A deferred one that reads first and writes later
+	// would fail at once with SQLITE_BUSY when it upgrades, and busy_timeout does not apply to that.
+	query.Set("_txlock", "immediate")
 	for _, pragma := range []string{"journal_mode(WAL)", "foreign_keys(1)", "busy_timeout(5000)", "synchronous(NORMAL)"} {
 		query.Add("_pragma", pragma)
 	}

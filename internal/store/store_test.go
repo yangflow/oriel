@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -756,5 +757,42 @@ func TestTimelineQueriesUseIndexes(t *testing.T) {
 		if !strings.Contains(text, "INDEX "+c.index) || strings.Contains(text, "TEMP B-TREE") || strings.Contains(text, "SCAN s") {
 			t.Errorf("%s: want %s and no sorting, got\n%s", c.name, c.index, text)
 		}
+	}
+}
+
+func TestConcurrentWritersWaitForEachOther(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	at := time.UnixMilli(1_000_000)
+	var sources []Source
+	for i := range 4 {
+		src, err := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed" + strconv.Itoa(i), Kind: "article", FetchInterval: time.Hour}, "", at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sources = append(sources, src)
+	}
+	errs := make(chan error, 400)
+	var wg sync.WaitGroup
+	for w := range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			src := sources[w%len(sources)]
+			for i := range 15 {
+				items := []FeedEntry{{GUID: "g" + strconv.Itoa(w) + "-" + strconv.Itoa(i), Title: "t", PublishedAt: at}}
+				if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: "article"}, "", "", items, "", time.Time{}, at); err != nil {
+					errs <- err
+				}
+				if _, err := s.MarkRead(ctx, EntryFilter{SourceID: src.ID}, at); err != nil {
+					errs <- err
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
 	}
 }

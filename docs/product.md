@@ -172,6 +172,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 ## 存储
 
 - SQLite，一个文件 `oriel.sqlite`，WAL，开外键。驱动是纯 Go 的 `modernc.org/sqlite`（见 [ADR 0003](adr/0003-pure-go-sqlite.md)）。
+- 写事务一开始就取写锁（`_txlock=immediate`），并发的写互相等待（`busy_timeout` 5 秒），不会报 `database is locked`，健康的订阅源也不会因此记一次抓取失败。
 - 全文检索 FTS5，分词 trigram，列为标题、RSS 摘要、`search_text`。由触发器和条目表同步。
 - 迁移是内嵌的 SQL 文件，按 `PRAGMA user_version` 逐个执行，每个一个事务。只加新迁移，不改已发布的。
 - 同一个数据目录只能有一个 Oriel 进程：打开数据库时对旁边的 `oriel.sqlite.lock` 加系统文件锁，第二个进程直接报错。进程崩溃时系统会释放锁。
