@@ -234,6 +234,30 @@ func TestShellImportSettings(t *testing.T) {
 	}
 }
 
+func TestShellSettingsPage(t *testing.T) {
+	server := remote(t)
+	s, tt, _ := newTestShell(t)
+	s.connected(client.Session{Server: server.URL, Token: "t1"})
+	s.openSettingsPage("devices")
+	tt.Frame()
+	if !s.setting || !tt.HasText("This device") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	s.openSettingsPage("nowhere")
+	tt.Frame()
+	if !s.setting || !tt.HasText("This device") {
+		t.Fatalf("an unknown page did not keep the last one: %v", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	s.openConnect()
+	s.openSettingsPage("ai")
+	tt.Frame()
+	if s.setting || !tt.HasText("Connect to a server") {
+		t.Fatal("the settings opened over the connect screen")
+	}
+}
+
 func TestShellShowKeys(t *testing.T) {
 	s, _, _ := newTestShell(t)
 	home := s.home.(*fakeHome)

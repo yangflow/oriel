@@ -72,8 +72,9 @@ func newShell(systemLocale, path, prefsPath string, local client.Session, goAsyn
 	s.newHome = func(language string) home {
 		return timeline.New(language, timeline.Deps{Go: goAsync, OpenConnect: s.openConnect,
 			OpenSettings: s.openSettings, OpenAISettings: s.openAISettings, OpenImport: s.openImportSettings,
-			Expired: s.expired,
-			Reading: func() prefs.Preferences { return s.prefs }, ReadingFont: func() string { return s.face },
+			OpenSettingsPage: s.openSettingsPage,
+			Expired:          s.expired,
+			Reading:          func() prefs.Preferences { return s.prefs }, ReadingFont: func() string { return s.face },
 			Change: s.change})
 	}
 	s.updateFace()
@@ -284,6 +285,15 @@ func (s *shell) openImportSettings() {
 	}
 	s.setting = true
 	s.settings.OpenImport()
+}
+
+// openSettingsPage shows the settings on the group called page, from the command palette of the timeline.
+func (s *shell) openSettingsPage(page string) {
+	if s.showing || s.setting {
+		return
+	}
+	s.setting = true
+	s.settings.OpenPage(page)
 }
 
 // expired shows the connect screen because the remote server no longer takes the session.

@@ -42,6 +42,7 @@ var (
 	Image          = parse("image")
 	Images         = parse("images")
 	Inbox          = parse("inbox")
+	Keyboard       = parse("keyboard")
 	KeyRound       = parse("key-round")
 	Languages      = parse("languages")
 	LayoutGrid     = parse("layout-grid")

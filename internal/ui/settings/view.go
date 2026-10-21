@@ -85,6 +85,9 @@ const (
 	devices
 )
 
+// pages are the names of the groups, in the order of the constants above, as the command palette calls them.
+var pages = []string{appearance: "appearance", fetching: "fetching", opml: "opml", ai: "ai", devices: "devices"}
+
 // API is what the screen reads and writes on the server; client.Session is one.
 type API interface {
 	Settings(ctx context.Context) (client.Settings, error)
@@ -253,6 +256,15 @@ func (s *Screen) OpenImport() {
 // OpenAppearance opens the screen on the appearance group, as it was when the interface language changed.
 func (s *Screen) OpenAppearance() {
 	s.group = appearance
+	s.Open()
+}
+
+// OpenPage opens the screen on the group called name: "appearance", "fetching", "opml", "ai" or "devices", from the
+// command palette of the timeline. Any other name opens it on the group it showed last.
+func (s *Screen) OpenPage(name string) {
+	if g := slices.Index(pages, name); g >= 0 {
+		s.group = g
+	}
 	s.Open()
 }
 

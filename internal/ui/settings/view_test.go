@@ -719,6 +719,27 @@ func TestOpenImport(t *testing.T) {
 	}
 }
 
+func TestOpenPage(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		group int
+	}{{"appearance", appearance}, {"fetching", fetching}, {"opml", opml}, {"ai", ai}, {"devices", devices}} {
+		s, f, tt := setup(t, "en", true)
+		s.OpenPage(tc.name)
+		f.settle(tt)
+		if s.group != tc.group {
+			t.Errorf("%s: group %d, want %d", tc.name, s.group, tc.group)
+		}
+	}
+	s, f, tt := setup(t, "zh-Hans", true)
+	s.OpenPage("ai")
+	s.OpenPage("nowhere")
+	f.settle(tt)
+	if s.group != ai {
+		t.Fatalf("an unknown page changed the group to %d", s.group)
+	}
+}
+
 // press clicks the element showing or labeled label.
 func press(t *testing.T, tt *ui.Tester, label string) {
 	t.Helper()
