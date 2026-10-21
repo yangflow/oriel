@@ -726,7 +726,8 @@ func TestSidebarClick(t *testing.T) {
 	f.settle(t, tt)
 	tt.Frame()
 	tt.Key(0, ui.KeyJ)
-	if s.inSide || s.selected != 0 {
+	// The list of Go Blog comes back with its choice, the first entry, so J moves to the second.
+	if s.inSide || s.selected != 1 {
 		t.Fatalf("after a click: in %v, selected %d", s.inSide, s.selected)
 	}
 }
@@ -2217,5 +2218,248 @@ func TestBrokenImages(t *testing.T) {
 	}
 	if _, ok := tt.Find("Duration 12:34"); !ok || !tt.HasText("12:34") {
 		t.Error("a failed video cover lost its duration")
+	}
+}
+
+// twin is a timeline of two subscriptions, Alpha and Beta, with 80 entries each, alternating, newest first.
+func twin(t *testing.T) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	f := &fake{now: now, patches: map[int64][]client.EntryPatch{}, sources: []client.Source{
+		{ID: 1, Title: "Alpha", Kind: "article"}, {ID: 2, Title: "Beta", Kind: "article"}}}
+	for i := range 160 {
+		name := []string{"Alpha", "Beta"}[i%2]
+		f.entries = append(f.entries, client.Entry{ID: int64(1000 - i), SourceID: int64(1 + i%2), SourceTitle: name,
+			Kind: "article", Title: fmt.Sprintf("%s post %d", name, i/2), CreatedAt: ago(time.Duration(i) * time.Minute)})
+	}
+	s := New("en", f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	return s, f, tt
+}
+
+// firstShown is the ID of the entry at the top of the list.
+func firstShown(s *Screen) int64 {
+	first, _ := s.list.Visible()
+	return s.entries[first].ID
+}
+
+// keptNear says the list shows from the entry that was first in view, or from the one above it: the entry under
+// the toolbar may show only in part, and the list is put back by whole entries.
+func keptNear(s *Screen, shown int64) bool {
+	at := s.index(shown)
+	return at >= 0 && (firstShown(s) == shown || at > 0 && firstShown(s) == s.entries[at-1].ID)
+}
+
+// visit chooses the subscription by a click and loads what it needs.
+func visit(t *testing.T, f *fake, tt *ui.Tester, name string) {
+	t.Helper()
+	if err := tt.Click(name); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Frame()
+}
+
+// leaveAlpha reads Alpha down to its second page, chooses an entry, and goes to Beta.
+func leaveAlpha(t *testing.T, s *Screen, f *fake, tt *ui.Tester) (shown, chosen int64) {
+	t.Helper()
+	visit(t, f, tt, "Alpha")
+	s.loadMore()
+	f.settle(t, tt)
+	s.list.ScrollTo(30, ui.Start)
+	tt.Frame()
+	s.selected = 33
+	tt.Frame()
+	shown, chosen = firstShown(s), s.entries[33].ID
+	if len(s.entries) != 80 || shown == s.entries[0].ID {
+		t.Fatalf("%d entries, the list shows from %d", len(s.entries), shown)
+	}
+	visit(t, f, tt, "Beta")
+	if len(s.entries) == 0 || s.entries[0].SourceID != 2 {
+		t.Fatalf("Beta shows %d entries, source %d, scope %v, queries %v", len(s.entries), s.entries[0].SourceID, s.scope, f.queries)
+	}
+	return shown, chosen
+}
+
+func TestSwitchBackKeepsPlace(t *testing.T) {
+	s, f, tt := twin(t)
+	shown, chosen := leaveAlpha(t, s, f, tt)
+	before := len(f.queries)
+	if err := tt.Click("Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	// Alpha is drawn at once, as it was left, while the first page is fetched again.
+	if len(s.entries) != 80 || s.loading || s.entries[0].SourceID != 1 || len(f.queue) != 1 {
+		t.Fatalf("%d entries, loading %v, %d queued", len(s.entries), s.loading, len(f.queue))
+	}
+	if s.selected < 0 || s.entries[s.selected].ID != chosen || !keptNear(s, shown) {
+		t.Fatalf("selected %d, the list shows from %d, want %d and %d", s.selected, firstShown(s), chosen, shown)
+	}
+	drawn := firstShown(s)
+	f.settle(t, tt)
+	if q := f.queries[before]; q.Source != 1 || q.Cursor != "" || len(f.queries) != before+1 {
+		t.Fatalf("queries %v", f.queries[before:])
+	}
+	if len(s.entries) != 80 || s.entries[s.selected].ID != chosen || firstShown(s) != drawn {
+		t.Fatalf("after the check: %d entries, selected %d, the list shows from %d", len(s.entries), s.selected, firstShown(s))
+	}
+}
+
+func TestCheckAddsNewEntryWithoutAJump(t *testing.T) {
+	s, f, tt := twin(t)
+	_, chosen := leaveAlpha(t, s, f, tt)
+	if err := tt.Click("Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	drawn := firstShown(s)
+	f.entries = append([]client.Entry{{ID: 2000, SourceID: 1, SourceTitle: "Alpha", Kind: "article",
+		Title: "Alpha fresh", CreatedAt: now.UnixMilli()}}, f.entries...)
+	read := true
+	f.entries[1].IsRead = read
+	f.settle(t, tt)
+	if len(s.entries) != 81 || s.entries[0].ID != 2000 || !s.entries[1].IsRead {
+		t.Fatalf("%d entries, the top is %d", len(s.entries), s.entries[0].ID)
+	}
+	if s.entries[s.selected].ID != chosen || firstShown(s) != drawn || s.next != "" {
+		t.Fatalf("selected %d, the list shows from %d, next %q", s.entries[s.selected].ID, firstShown(s), s.next)
+	}
+}
+
+func TestCheckDropsWhatTheServerLost(t *testing.T) {
+	s, f, tt := twin(t)
+	_, chosen := leaveAlpha(t, s, f, tt)
+	f.entries = slices.DeleteFunc(f.entries, func(e client.Entry) bool { return e.ID == chosen || e.ID == 1000 })
+	visit(t, f, tt, "Alpha")
+	if s.selected != -1 || len(s.entries) != 78 || s.index(1000) >= 0 {
+		t.Fatalf("selected %d, %d entries", s.selected, len(s.entries))
+	}
+}
+
+func TestStaleCheckIgnored(t *testing.T) {
+	s, f, tt := twin(t)
+	leaveAlpha(t, s, f, tt)
+	if err := tt.Click("Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	// Beta is chosen again before the check of Alpha comes back.
+	if err := tt.Click("Beta"); err != nil {
+		t.Fatal(err)
+	}
+	f.entries = append([]client.Entry{{ID: 2000, SourceID: 1, SourceTitle: "Alpha", Kind: "article",
+		Title: "Alpha fresh", CreatedAt: now.UnixMilli()}}, f.entries...)
+	f.settle(t, tt)
+	if s.scope.source != 2 || len(s.entries) == 0 || s.entries[0].SourceID != 2 || s.checking {
+		t.Fatalf("scope %v, %d entries, the top is of source %d", s.scope, len(s.entries), s.entries[0].SourceID)
+	}
+	// Alpha was left as the stale check found it; its own check puts the new entry in.
+	visit(t, f, tt, "Alpha")
+	if s.entries[0].ID != 2000 {
+		t.Fatalf("the top is %d", s.entries[0].ID)
+	}
+}
+
+func TestFilterKeepsList(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	for _, name := range []string{"Unread", "Everything"} {
+		if err := tt.Click(name); err != nil {
+			t.Fatal(err)
+		}
+		f.settle(t, tt)
+	}
+	s.selected = 2
+	if err := tt.Click("Unread"); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.entries) != 5 || s.loading {
+		t.Fatalf("%d entries", len(s.entries))
+	}
+	f.settle(t, tt)
+	if err := tt.Click("Everything"); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.entries) != 6 || s.selected != 2 {
+		t.Fatalf("%d entries, selected %d", len(s.entries), s.selected)
+	}
+}
+
+func TestMarkAllReadDropsKeptUnread(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	for _, name := range []string{"Unread", "Everything"} {
+		if err := tt.Click(name); err != nil {
+			t.Fatal(err)
+		}
+		f.settle(t, tt)
+	}
+	if err := tt.Click("Mark all in “All” as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.Click("Unread"); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.entries) != 0 || s.loading {
+		t.Fatalf("the list kept by Unread still has %d entries", len(s.entries))
+	}
+	f.settle(t, tt)
+	if len(s.entries) != 0 || !tt.HasText("All caught up") {
+		t.Fatalf("%d entries, texts %v", len(s.entries), tt.Texts())
+	}
+}
+
+func TestKeptListsAreBounded(t *testing.T) {
+	f := &fake{now: now, patches: map[int64][]client.EntryPatch{}}
+	for id := int64(1); id <= 10; id++ {
+		f.sources = append(f.sources, client.Source{ID: id, Title: fmt.Sprintf("Source %d", id), Kind: "article"})
+		f.entries = append(f.entries, client.Entry{ID: id, SourceID: id, Kind: "article", Title: fmt.Sprintf("Entry %d", id),
+			CreatedAt: ago(time.Duration(id) * time.Minute)})
+	}
+	s := New("en", f.deps())
+	tt := ui.NewTester(s.View, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	for id := int64(1); id <= 10; id++ {
+		s.choose(scope{kind: "article", source: id})
+		f.settle(t, tt)
+	}
+	// Source 10 is on screen; of the nine left, the least recently seen is gone.
+	var kept []int64
+	for _, l := range s.lists {
+		kept = append(kept, l.key.scope.source)
+	}
+	if !slices.Equal(kept, []int64{2, 3, 4, 5, 6, 7, 8, 9}) {
+		t.Fatalf("kept %v", kept)
+	}
+	s.choose(scope{kind: "article", source: 1})
+	if len(s.entries) != 0 || !s.loading {
+		t.Fatalf("the list evicted shows %d entries", len(s.entries))
+	}
+	f.settle(t, tt)
+	s.choose(scope{kind: "article", source: 9})
+	if len(s.entries) != 1 || s.loading || len(s.lists) != keepLists-1 {
+		t.Fatalf("%d entries, %d kept", len(s.entries), len(s.lists))
+	}
+}
+
+func TestUseClearsKeptLists(t *testing.T) {
+	s, f, tt := twin(t)
+	visit(t, f, tt, "Alpha")
+	visit(t, f, tt, "Beta")
+	if len(s.lists) == 0 {
+		t.Fatal("nothing kept")
+	}
+	s.Use(f, "")
+	if len(s.lists) != 0 {
+		t.Fatalf("%d lists kept across Use", len(s.lists))
+	}
+	f.settle(t, tt)
+	tt.Frame()
+	if err := tt.Click("Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.entries) != 0 || !s.loading {
+		t.Fatalf("Alpha shows %d entries from before Use", len(s.entries))
 	}
 }
