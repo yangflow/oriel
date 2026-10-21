@@ -88,7 +88,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 |---|---|
 | `guid`、`title`、`url`、`author`、`published_at` | 来自订阅。`published_at` 只用来展示，会被重新发布覆盖。 |
 | `rss_summary`、`rss_content_html` | 订阅里的摘要和正文。 |
-| `extracted_html`、`extract_status`、`extract_attempts` | 抽取的正文。状态 `pending` → `ok` / `failed`；非文章形态为 `skipped`。 |
+| `extracted_html`、`extract_status`、`extract_attempts`、`next_extract_at` | 抽取的正文。状态 `pending` → `ok` / `failed`；非文章形态为 `skipped`。`next_extract_at` 是失败后最早再试的时刻（毫秒），可为空：不再自动重试。迁移 0008 加这一列。 |
 | `kind` | 所属源的 `kind` 的副本，只为让「按形态」和「未读」的时间线走索引；数据库触发器在新条目写入和源改形态时同步，不由接口读写。 |
 | `thumbnail_url`、`duration_sec`、`platform` | 视频和社交的展示信息。 |
 | `language` | 条目文字的语言，BCP 47 码：ISO 639-1 的两个字母（`en`、`de`、`ja`……），中文分 `zh-Hans` 和 `zh-Hant`，没有两字母码的语言用三字母码。可为空（`NULL`）：文字太短或检测没有把握时不写，不猜。见「语言检测」。 |
@@ -202,11 +202,14 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 
 ## 正文抽取
 
-每次抓取之后，同一个循环再取最多 4 条等待抽取的文章，同时抽：先取从没试过的（新的在前），再取失败但没满 3 次的。源后来改成别的形态时，它的条目不再抽。
+每次抓取之后，同一个循环再取最多 4 条等待抽取的文章，同时抽：先取从没试过的（新的在前），再取失败且到了 `next_extract_at` 的。同一个网站（主机名加端口）两次请求至少隔 5 秒，一轮里每个网站最多取一条，轮到不了的留到下一轮。源后来改成别的形态时，它的条目不再抽。
 
 1. 下载条目链接的网页，超时 25 秒，最大 8 MiB，按响应头和网页声明的编码解码。
 2. Discourse 论坛的帖子页只取链接指向的那一楼（`#post_N` 或 `/t/<slug>/<主题>/<N>`，没有就取一楼），并去掉引用块；其他网页用 Readability 取正文。相对链接按最终地址（跟随重定向之后）补全。
-3. 成功时 `extract_status` 为 `ok`，写 `extracted_html` 和它的纯文本 `search_text`（进全文索引）；失败为 `failed`。每次都给 `extract_attempts` 加一，满 3 次不再自动重试。用户在阅读器里点「重试」（`POST /api/entries/{id}/extract`）算重新开始：`extract_attempts` 清零、状态回到 `pending`，又有完整的 3 次，下一轮抽取照常取它，仍走同一个受限的客户端。
+3. 成功时 `extract_status` 为 `ok`，写 `extracted_html` 和它的纯文本 `search_text`（进全文索引）；失败为 `failed`。每次都给 `extract_attempts` 加一。失败分两种：
+   - 临时的错误：连接失败、超时、读到一半断开，以及状态码 408、425、429 和 5xx。网站可能过一会儿就好，所以晚点再试，间隔越来越长：第 1 次失败后 1 分钟，之后依次 5 分钟、30 分钟、2 小时、6 小时；满 6 次（约 8.5 小时）不再自动重试，`next_extract_at` 清空。状态码是 429 或 503 且带 `Retry-After` 时，等待取它与上面的时间中较长的（解析同订阅抓取，最长 24 小时），并且这段时间里该网站的其他条目也不取。
+   - 永久的错误：404、410 等其他状态码、不是 HTML 的页面（`Content-Type` 不是 `text/html` 或 `application/xhtml+xml`）、超过 8 MiB、地址被拦（见下）、抽不出可读正文。等也不会变好，失败一次就不再自动重试，`next_extract_at` 为空。
+   用户在阅读器里点「重试」（`POST /api/entries/{id}/extract`）算重新开始：`extract_attempts` 清零、`next_extract_at` 清空、状态回到 `pending`，又有完整的 6 次，下一轮抽取照常取它，仍走同一个受限的客户端。
 4. 抽取的结果是派生内容，不改条目的 `updated_at`。
 
 条目链接来自订阅内容，不是用户填的，所以只能访问公网地址：

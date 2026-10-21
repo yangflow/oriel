@@ -96,8 +96,9 @@ func TestExtract(t *testing.T) {
 	if _, err := f.store.SaveFeed(ctx, src, "", "", entries, "", time.Time{}, f.now); err != nil {
 		t.Fatal(err)
 	}
-	for range 2 {
-		f.poller.extractAll(ctx) // four at a time
+	for range 8 {
+		f.now = f.now.Add(hostSpacing) // one request to a site per spacing
+		f.poller.extractAll(ctx)
 	}
 
 	html := func(guid string) string { return f.text("SELECT extracted_html FROM entries WHERE guid = ?", guid) }
@@ -123,17 +124,20 @@ func TestExtract(t *testing.T) {
 		}
 	}
 
-	// Failures retry until the third attempt, then stop.
+	// A page that is gone or has no article fails for good: it is not tried again.
 	for range 5 {
+		f.now = f.now.Add(24 * time.Hour)
 		f.poller.extractAll(ctx)
 	}
-	if n := f.int("SELECT extract_attempts FROM entries WHERE guid = '/missing'"); n != maxExtractAttempts {
-		t.Errorf("attempts: %d", n)
+	for _, guid := range []string{"/missing", "/empty"} {
+		if n := f.int("SELECT extract_attempts FROM entries WHERE guid = ?", guid); n != 1 {
+			t.Errorf("%s attempts: %d", guid, n)
+		}
 	}
 	if gbkHits.Load() != 1 {
 		t.Errorf("a finished extraction ran again: %d", gbkHits.Load())
 	}
-	if targets, _ := f.store.PendingExtractions(ctx, 10, maxExtractAttempts); len(targets) != 0 {
+	if targets, _ := f.store.PendingExtractions(ctx, f.now, 10); len(targets) != 0 {
 		t.Errorf("still pending: %+v", targets)
 	}
 }
@@ -144,7 +148,7 @@ func TestExtractSkipsOtherKinds(t *testing.T) {
 	id := f.add(store.NewSource{URL: "https://example.org/feed"})
 	f.store.SaveFeed(ctx, store.FeedSource{ID: id, Kind: "article"}, "", "", []store.FeedEntry{{GUID: "a", URL: "https://example.org/a"}}, "", time.Time{}, f.now)
 	f.db.Exec("UPDATE sources SET kind = 'video'")
-	if targets, _ := f.store.PendingExtractions(ctx, 10, maxExtractAttempts); len(targets) != 0 {
+	if targets, _ := f.store.PendingExtractions(ctx, f.now, 10); len(targets) != 0 {
 		t.Fatalf("a video source's entry is waiting for extraction: %+v", targets)
 	}
 }

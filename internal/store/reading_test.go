@@ -250,16 +250,14 @@ func TestRetryExtraction(t *testing.T) {
 		}
 		return n
 	}
-	for range 3 {
-		if err := s.SaveExtraction(ctx, id("failed"), "", "", ""); err != nil {
-			t.Fatal(err)
-		}
+	if err := s.SaveExtraction(ctx, id("failed"), "", "", ""); err != nil {
+		t.Fatal(err)
 	}
 	if err := s.SaveExtraction(ctx, id("done"), "<p>x</p>", "x", ""); err != nil {
 		t.Fatal(err)
 	}
 	targets := func() int {
-		list, err := s.PendingExtractions(ctx, 10, 3)
+		list, err := s.PendingExtractions(ctx, at, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
