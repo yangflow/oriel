@@ -261,8 +261,11 @@ type Entry struct {
 	DurationSec  int    `json:"durationSec"`
 	Platform     string `json:"platform"`
 	// Language is the BCP 47 code of the entry's language, "" when it is unknown.
-	Language string  `json:"language"`
-	Images   []Image `json:"images"`
+	Language string `json:"language"`
+	// ReadingSec is the server's estimate of the time the entry takes, in seconds: whole minutes from a minute on,
+	// the duration for media. 0 when there is no estimate or it is under a second.
+	ReadingSec int     `json:"readingSec"`
+	Images     []Image `json:"images"`
 	// ExtractStatus is how getting the full text of an article went: "pending", "ok", "failed", or "skipped" for
 	// the other kinds.
 	ExtractStatus string `json:"extractStatus"`
@@ -407,8 +410,10 @@ type Query struct {
 	Unread  bool
 	Starred bool
 	Search  string
-	Limit   int
-	Cursor  string
+	// MaxMinutes keeps the entries that take at most this many minutes and have an estimate; 0 does not filter.
+	MaxMinutes int
+	Limit      int
+	Cursor     string
 }
 
 // Page is one page of entries; Next is empty on the last page.
@@ -457,6 +462,9 @@ func (s Session) Entries(ctx context.Context, q Query) (Page, error) {
 	}
 	if q.Search != "" {
 		values.Set("q", q.Search)
+	}
+	if q.MaxMinutes != 0 {
+		values.Set("maxMinutes", strconv.Itoa(q.MaxMinutes))
 	}
 	if q.Limit != 0 {
 		values.Set("limit", strconv.Itoa(q.Limit))

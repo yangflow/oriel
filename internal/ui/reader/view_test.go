@@ -1304,3 +1304,37 @@ func TestChineseTypesettingLink(t *testing.T) {
 		t.Errorf("stops of the Tab key on the link: %d spaced, %d unspaced", stops[true], stops[false])
 	}
 }
+
+func TestReadingTime(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		language string
+		edit     func(e *client.Entry)
+		want     string
+	}{
+		{"minutes", "en", func(e *client.Entry) { e.ReadingSec = 360 }, "6 min read"},
+		{"chinese", "zh-Hans", func(e *client.Entry) { e.ReadingSec = 360 }, "6 分钟阅读"},
+		{"under a minute", "en", func(e *client.Entry) { e.ReadingSec = 40 }, ""},
+		{"unknown", "en", func(e *client.Entry) {}, ""},
+		{"duration", "en", func(e *client.Entry) { e.ReadingSec, e.DurationSec = 360, 360 }, ""},
+		{"video", "en", func(e *client.Entry) { e.ReadingSec, e.Kind = 360, "video" }, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			art := full()
+			tc.edit(&art.Entry)
+			_, f, tt := setup(t, tc.language, art)
+			f.settle(tt)
+			for _, text := range tt.Texts() {
+				if strings.Contains(text, "min read") || strings.Contains(text, "分钟阅读") {
+					if text != tc.want {
+						t.Fatalf("shows %q, want %q", text, tc.want)
+					}
+					return
+				}
+			}
+			if tc.want != "" {
+				t.Fatalf("no %q: %v", tc.want, tt.Texts())
+			}
+		})
+	}
+}

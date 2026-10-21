@@ -143,8 +143,10 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
 		var exists int
+		var extracted string // the full text of an entry that already has it
 		isNew := false
-		switch err := tx.QueryRowContext(ctx, "SELECT 1 FROM entries WHERE source_id = ? AND guid = ?", src.ID, e.GUID).Scan(&exists); {
+		switch err := tx.QueryRowContext(ctx, "SELECT 1, CASE extract_status WHEN 'ok' THEN search_text ELSE '' END FROM entries WHERE source_id = ? AND guid = ?",
+			src.ID, e.GUID).Scan(&exists, &extracted); {
 		case errors.Is(err, sql.ErrNoRows):
 			if !expired.IsZero() && !e.PublishedAt.IsZero() && e.PublishedAt.Before(expired) {
 				continue
@@ -164,21 +166,23 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO entries (source_id, guid, title, url, author, published_at, rss_summary, rss_content_html,
-				extract_status, thumbnail_url, duration_sec, platform, images, language, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				extract_status, thumbnail_url, duration_sec, platform, images, language, reading_sec, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (source_id, guid) DO UPDATE SET
 				title = excluded.title, url = excluded.url, author = excluded.author, published_at = excluded.published_at,
 				rss_summary = excluded.rss_summary, rss_content_html = excluded.rss_content_html,
 				thumbnail_url = excluded.thumbnail_url, duration_sec = excluded.duration_sec,
 				platform = excluded.platform, images = excluded.images,
-				language = coalesce(excluded.language, language), updated_at = excluded.updated_at
+				language = coalesce(excluded.language, language), reading_sec = excluded.reading_sec,
+				updated_at = excluded.updated_at
 			WHERE title IS NOT excluded.title OR url IS NOT excluded.url OR author IS NOT excluded.author
 				OR published_at IS NOT excluded.published_at OR rss_summary IS NOT excluded.rss_summary
 				OR rss_content_html IS NOT excluded.rss_content_html OR thumbnail_url IS NOT excluded.thumbnail_url
 				OR duration_sec IS NOT excluded.duration_sec OR platform IS NOT excluded.platform
 				OR images IS NOT excluded.images`,
 			src.ID, e.GUID, e.Title, e.URL, e.Author, nullTime(e.PublishedAt), e.Summary, e.ContentHTML,
-			extract, e.ThumbnailURL, nullInt(e.DurationSec), e.Platform, string(imagesJSON), nullString(e.Language), now.UnixMilli(), now.UnixMilli(),
+			extract, e.ThumbnailURL, nullInt(e.DurationSec), e.Platform, string(imagesJSON), nullString(e.Language),
+			readingValue(src.Kind, e.DurationSec, extracted, e.ContentHTML, e.Summary), now.UnixMilli(), now.UnixMilli(),
 		); err != nil {
 			return 0, err
 		}
@@ -283,10 +287,26 @@ func (s *Store) SaveExtraction(ctx context.Context, id int64, html, text, langua
 	if html == "" {
 		status = "failed"
 	}
+	// A failed or skipped extraction leaves the estimate as it was; the full text replaces the feed's content in it.
+	// The read stays outside the write: a read transaction that later writes fails at once when another writer
+	// committed in between, and none of the fields read here change with an extraction.
+	reading := sql.NullInt64{}
+	update := false
+	if status == "ok" {
+		var kind, content, summary string
+		var duration sql.NullInt64
+		err := s.db.QueryRowContext(ctx, "SELECT kind, duration_sec, rss_content_html, rss_summary FROM entries WHERE id = ?", id).
+			Scan(&kind, &duration, &content, &summary)
+		if err == nil {
+			reading, update = readingValue(kind, int(duration.Int64), text, content, summary), true
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+	}
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE entries SET extract_status = ?, extracted_html = ?, search_text = ?, language = coalesce(?, language),
-			extract_attempts = extract_attempts + 1
-		WHERE id = ?`, status, html, text, nullString(language), id)
+			reading_sec = CASE WHEN ? THEN ? ELSE reading_sec END, extract_attempts = extract_attempts + 1
+		WHERE id = ?`, status, html, text, nullString(language), update, reading, id)
 	return err
 }
 

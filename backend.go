@@ -72,6 +72,11 @@ func start(ctx context.Context, dataDir, password string, port int) (*backend, e
 	}()
 	b.background.Go(func() { fetch.New(st, version).Run(backgroundCtx) })
 	b.background.Go(func() { worker.Run(backgroundCtx) })
+	b.background.Go(func() {
+		if err := st.BackfillReadingTime(backgroundCtx); err != nil && backgroundCtx.Err() == nil {
+			slog.Error("Cannot fill in reading times", "error", err)
+		}
+	})
 	return b, nil
 }
 

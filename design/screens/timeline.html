@@ -58,6 +58,13 @@
      box on the Track color with a muted image mark (a video cover keeps its play mark and duration); a site icon
      that fails keeps the monogram.
      The bar above the window only switches the mockup.
+     Reading time: a row's meta line ends with a quiet "6 min read" after the time, for an article or a post whose estimate is
+     a minute or more; a video, an image and anything shorter show none. The clock button right of the segments narrows
+     the list to what fits the time you have (time-menu: Any length, 5, 10, 15, 30 minutes, the current one checked;
+     time-10: the chip reads "≤ 10 min" and the list holds what fits, newest first, including entries too short to
+     carry a label and videos of up to 10 minutes; time-empty: 5 minutes together with Unread leaves nothing and the
+     empty state offers Show any length). It is a view filter that marks nothing, hides the unread count and dims
+     Mark all as read. Below 760 (size=min) the chip is the icon with a dot.
      URL parameters: state, scope=all|article|video|social|image|source, scheme=light|dark, lang=en|zh-Hans,
      size=default|min|wide. -->
 <style>
@@ -184,6 +191,16 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .tool { width:32px; height:32px; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
 .tool:hover { background:var(--hover); color:var(--text) }
 .tool:active { background:var(--pressed) }
+.tool[aria-disabled=true] { color:var(--disabled) }
+.tool[aria-disabled=true]:hover { background:none; color:var(--disabled) }
+.timebtn { flex:none; position:relative; height:32px; min-width:32px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:16px; color:var(--muted) }
+.timebtn:hover { background:var(--hover); color:var(--text) }
+.timebtn.on, .timebtn.on:hover { padding:0 12px 0 9px; background:var(--accent-soft); color:var(--accent); font-size:12px; font-weight:500; letter-spacing:.01em; white-space:nowrap; font-variant-numeric:tabular-nums }
+.timebtn .badge { display:none }
+.min .timebtn.on, .min .timebtn.on:hover { width:32px; padding:0; background:none }
+.min .timebtn.on:hover { background:var(--hover) }
+.min .timebtn.on .lbl { display:none }
+.min .timebtn.on .badge { display:block; position:absolute; top:6px; right:6px; width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 2px var(--background) }
 .hint { flex:none; display:flex; align-items:center; gap:6px; margin:56px 12px 4px; padding:7px 14px; border-radius:12px; font-size:12px; letter-spacing:.005em; color:var(--text2); background:var(--warning-soft) }
 .hint svg.icon { width:14px; height:14px; color:var(--warning) }
 
@@ -211,7 +228,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .meta { display:flex; align-items:center; gap:6px; height:20px; padding-right:88px; min-width:0; font-size:12px; letter-spacing:.005em; color:var(--muted) }
 .meta .src { font-weight:500; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .meta .sep::before { content:"·"; opacity:.7 }
-.meta .when { white-space:nowrap; font-variant-numeric:tabular-nums }
+.meta .when, .meta .read-time { white-space:nowrap; font-variant-numeric:tabular-nums }
 .meta svg.icon { width:13px; height:13px }
 .title { margin:0; font-size:15px; font-weight:600; line-height:1.35; letter-spacing:-.005em; text-wrap:pretty; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
 :root:lang(zh-Hans) .title { line-height:1.5; letter-spacing:0 }
@@ -325,6 +342,8 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .menu button { width:100%; height:28px; display:flex; align-items:center; gap:8px; padding:0 8px; border-radius:6px; text-align:left; white-space:nowrap }
 .menu button:hover, .menu button.hover { background:var(--sel) }
 .menu button svg.icon { width:14px; height:14px; color:var(--muted) }
+.menu button svg.icon.tick { color:var(--accent) }
+.menu button svg.icon.tick.none { visibility:hidden }
 .menu button[aria-disabled=true] { color:var(--disabled) }
 .menu button[aria-disabled=true]:hover { background:none }
 .menu button[aria-disabled=true] svg.icon { color:inherit }
@@ -359,7 +378,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','long-titles','many-feeds','broken-images'];
+const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','long-titles','many-feeds','broken-images'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -398,6 +417,8 @@ const icons={
   mail:'<path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/>',
   mailOpen:'<path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6Z"/><path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"/>',
   search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
   external:'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
   upload:'<path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>',
@@ -432,6 +453,9 @@ const copy={
     unreadDone:'All caught up', unreadDoneHint:'No unread entries here.',
     noStarred:'No starred entries', noStarredHint:'Star an entry to keep it here.',
     empty:'Nothing here yet', emptyHint:'New entries show up after the next fetch.',
+    readMin:'{n} min read', timeTitle:'Reading time', timeAny:'Any length', timeUpTo:'Up to {n} minutes', timeChip:'≤ {n} min',
+    timeName:'Reading time: any length', timeNameUpTo:'Reading time: up to {n} minutes',
+    timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', importOpml:'Import OPML…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
     marked:'Marked {n} entries in “{scope}” as read', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below',
@@ -458,6 +482,9 @@ const copy={
     unreadDone:'都读完了', unreadDoneHint:'这里没有未读条目。',
     noStarred:'还没有收藏', noStarredHint:'收藏的条目会留在这里。',
     empty:'这里还没有条目', emptyHint:'下次抓取之后，新条目会出现在这里。',
+    readMin:'{n} 分钟阅读', timeTitle:'阅读时长', timeAny:'不限时长', timeUpTo:'{n} 分钟内', timeChip:'≤ {n} 分钟',
+    timeName:'阅读时长：不限', timeNameUpTo:'阅读时长：{n} 分钟内',
+    timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', importOpml:'导入 OPML…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
     marked:'已把「{scope}」里的 {n} 条标为已读', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了',
@@ -526,23 +553,27 @@ const kindUnread=k=>sources.filter(s=>s.kind===k).reduce((a,s)=>a+s.unread,0);
 let total;
 
 const entries=[
-  {source:6,kind:'social',when:ago('m',4),author:'Guillermo Rauch',handle:'@rauchg',text:zh?'把构建时间从 4 分钟压到 38 秒。秘诀不是更快的机器，而是不再重复做同一件事：缓存每一步的输入，只重算变了的部分。':'Took our build from 4 minutes to 38 seconds. The trick wasn’t a faster machine, it was not doing the same work twice: hash every step’s inputs, rebuild only what changed.',images:['g3','g8']},
-  {source:1,kind:'article',when:ago('m',26),title:zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer',summary:zh?'trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。':'The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.',thumb:'g1'},
-  {source:4,kind:'video',when:ago('h',1),title:zh?'卷积到底是什么？从概率到图像处理':'But what is a convolution? From probability to image processing',duration:'23:01',platform:'YouTube',thumb:'g5',starred:true},
-  {source:8,kind:'image',when:ago('h',3),title:zh?'猎户座大星云的尘埃柱':'Dust pillars of the Orion Nebula',images:['g2'],r:'4/5'},
-  {source:2,kind:'article',when:ago('h',5),title:zh?'我的 2026 桌面工作流：少即是多':'My 2026 desktop workflow: less is more',summary:zh?'这一年我删掉了一半的应用，留下的每一个都必须回答一个问题：它让我更专注了吗？':'This year I removed half of my apps. Every one that stayed had to answer one question: does it help me focus?',read:true},
-  {source:7,kind:'social',when:ago('h',7),author:zh?'中国国家地理':'China National Geography',handle:'Weibo',text:zh?'【秋日的喀纳斯】十月初，喀纳斯湖畔的白桦和落叶松陆续变黄，晨雾散开时，整片山谷像被点亮。':'Autumn at Kanas: in early October the birches and larches along the lake turn gold, and when the morning fog lifts the whole valley lights up.',images:['g6','g7','g4','g9','g1','g5'],read:true},
-  {source:5,kind:'video',when:ago('d'),title:zh?'我们用三个月拍了一条只有 60 秒的片子':'Three months of shooting for a 60-second film',duration:'14:37',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g7',read:true},
-  {source:4,kind:'video',when:ago('days',2),title:zh?'行列式的几何意义':'The determinant, visualized',duration:'11:20',platform:'YouTube',thumb:'g3'},
-  {source:9,kind:'image',when:ago('days',2),title:zh?'晨雾中的喀纳斯':'Morning fog over Kanas',images:['g6'],r:'3/2'},
-  {source:5,kind:'video',when:ago('days',2),title:zh?'零下 30 度拍摄：器材实测':'Shooting at −30°C: a gear test',duration:'18:05',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g6',read:true},
-  {source:9,kind:'image',when:ago('days',3),title:zh?'沙丘的线条':'Lines in the dunes',images:['g7'],r:'4/5'},
-  {source:8,kind:'image',when:ago('days',3),title:zh?'卡西尼号眼中的土星环':'Saturn’s rings, seen by Cassini',images:['g5'],r:'1/1',read:true},
-  {source:4,kind:'video',when:ago('days',3),title:zh?'群论与魔群':'Group theory and the Monster',duration:'20:42',platform:'YouTube',thumb:'g9'},
-  {source:9,kind:'image',when:ago('days',4),title:zh?'黄昏的港口':'Harbor at dusk',images:['g9'],r:'3/4'},
-  {source:5,kind:'video',when:ago('days',4),title:zh?'一盏灯拍完一整天':'A whole day on set with one light',duration:'9:58',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g8',read:true},
-  {source:9,kind:'image',when:ago('days',5),title:zh?'老城的屋顶':'Old town roofs',images:['g4'],r:'3/2',read:true},
-  {source:8,kind:'image',when:ago('days',5),title:zh?'特罗姆瑟上空的极光':'Aurora over Tromsø',images:['g8'],r:'4/3'},
+  {source:6,kind:'social',sec:25,when:ago('m',4),author:'Guillermo Rauch',handle:'@rauchg',text:zh?'把构建时间从 4 分钟压到 38 秒。秘诀不是更快的机器，而是不再重复做同一件事：缓存每一步的输入，只重算变了的部分。':'Took our build from 4 minutes to 38 seconds. The trick wasn’t a faster machine, it was not doing the same work twice: hash every step’s inputs, rebuild only what changed.',images:['g3','g8']},
+  {source:1,kind:'article',sec:420,when:ago('m',26),title:zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer',summary:zh?'trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。':'The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.',thumb:'g1'},
+  {source:4,kind:'video',sec:1381,when:ago('h',1),title:zh?'卷积到底是什么？从概率到图像处理':'But what is a convolution? From probability to image processing',duration:'23:01',platform:'YouTube',thumb:'g5',starred:true},
+  {source:8,kind:'image',sec:null,when:ago('h',3),title:zh?'猎户座大星云的尘埃柱':'Dust pillars of the Orion Nebula',images:['g2'],r:'4/5'},
+  {source:2,kind:'article',sec:180,when:ago('h',5),title:zh?'我的 2026 桌面工作流：少即是多':'My 2026 desktop workflow: less is more',summary:zh?'这一年我删掉了一半的应用，留下的每一个都必须回答一个问题：它让我更专注了吗？':'This year I removed half of my apps. Every one that stayed had to answer one question: does it help me focus?',read:true},
+  {source:7,kind:'social',sec:40,when:ago('h',7),author:zh?'中国国家地理':'China National Geography',handle:'Weibo',text:zh?'【秋日的喀纳斯】十月初，喀纳斯湖畔的白桦和落叶松陆续变黄，晨雾散开时，整片山谷像被点亮。':'Autumn at Kanas: in early October the birches and larches along the lake turn gold, and when the morning fog lifts the whole valley lights up.',images:['g6','g7','g4','g9','g1','g5'],read:true},
+  {source:5,kind:'video',sec:877,when:ago('d'),title:zh?'我们用三个月拍了一条只有 60 秒的片子':'Three months of shooting for a 60-second film',duration:'14:37',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g7',read:true},
+  {source:4,kind:'video',sec:680,when:ago('days',2),title:zh?'行列式的几何意义':'The determinant, visualized',duration:'11:20',platform:'YouTube',thumb:'g3'},
+  {source:9,kind:'image',sec:null,when:ago('days',2),title:zh?'晨雾中的喀纳斯':'Morning fog over Kanas',images:['g6'],r:'3/2'},
+  {source:5,kind:'video',sec:1085,when:ago('days',2),title:zh?'零下 30 度拍摄：器材实测':'Shooting at −30°C: a gear test',duration:'18:05',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g6',read:true},
+  {source:9,kind:'image',sec:null,when:ago('days',3),title:zh?'沙丘的线条':'Lines in the dunes',images:['g7'],r:'4/5'},
+  {source:8,kind:'image',sec:null,when:ago('days',3),title:zh?'卡西尼号眼中的土星环':'Saturn’s rings, seen by Cassini',images:['g5'],r:'1/1',read:true},
+  {source:4,kind:'video',sec:1242,when:ago('days',3),title:zh?'群论与魔群':'Group theory and the Monster',duration:'20:42',platform:'YouTube',thumb:'g9'},
+  {source:9,kind:'image',sec:null,when:ago('days',4),title:zh?'黄昏的港口':'Harbor at dusk',images:['g9'],r:'3/4'},
+  {source:5,kind:'video',sec:598,when:ago('days',4),title:zh?'一盏灯拍完一整天':'A whole day on set with one light',duration:'9:58',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g8',read:true},
+  {source:9,kind:'image',sec:null,when:ago('days',5),title:zh?'老城的屋顶':'Old town roofs',images:['g4'],r:'3/2',read:true},
+  {source:8,kind:'image',sec:null,when:ago('days',5),title:zh?'特罗姆瑟上空的极光':'Aurora over Tromsø',images:['g8'],r:'4/3'},
+  {source:1,kind:'article',when:ago('days',5),sec:1380,title:zh?'从零写一个 B 树：一次完整的实现笔记':'Writing a B-tree from scratch: a complete walkthrough',summary:zh?'从节点布局到分裂与合并，每一步都配了可以运行的代码和测试。':'From node layout to splits and merges, every step comes with code you can run and a test.',read:true},
+  {source:2,kind:'article',when:ago('days',5),sec:240,title:zh?'这周值得读的五条链接':'Five links worth your time this week',summary:zh?'一个关于排版的长读，一个关于离线优先的小工具，外加三篇短文。':'A long read on typography, a small offline-first tool and three short pieces.',read:true},
+  {source:1,kind:'article',when:ago('days',6),sec:720,title:zh?'为什么我不再把代码覆盖率当目标':'Why I stopped treating code coverage as a goal',summary:zh?'覆盖率告诉你哪些代码没被测过，却不告诉你测得好不好。':'Coverage tells you which code was never tested, not whether it was tested well.',read:true},
+  {source:2,kind:'article',when:ago('days',6),sec:120,title:zh?'一个关于时区的小提醒':'A short reminder about time zones',summary:zh?'存 UTC，显示时再转换，别在中间做任何聪明的事。':'Store UTC, convert when you show it, and do nothing clever in between.',read:true},
 ];
 // Edge cases: feed content stays as written whatever the interface language is, so a long English title and a long
 // Chinese one without spaces both show in either language.
@@ -584,10 +615,13 @@ total=sources.reduce((a,s)=>a+s.unread,0);
 const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[focusId].name:copy.all;
 const pool=edge||entries;
 const visible=kinds.includes(scope)?pool.filter(e=>e.kind===scope):scope==='source'?pool.filter(e=>e.source===focusId):edge?edge:state==='marked-visible'?entries.slice(8,15):entries.slice(0,7);
-const filter=state==='unread-done'?1:state==='starred-none'?2:0;
+const filter=state==='unread-done'||state==='time-empty'?1:state==='starred-none'?2:0;
 const q=state==='search'?'sqlite':state==='search-none'?'kubernetes':state==='search-short'?'go':'';
 const searching=q!=='';
-const shown=state==='search'?entries.filter(e=>e.kind==='article'&&e.source===1):visible;
+const budget=state==='time-10'?10:state==='time-empty'?5:0;
+const fits=e=>e.sec!=null&&e.sec<=budget*60;
+const scoped=kinds.includes(scope)?pool.filter(e=>e.kind===scope):scope==='source'?pool.filter(e=>e.source===focusId):pool;
+const shown=state==='search'?entries.filter(e=>e.kind==='article'&&e.source===1):state==='time-10'?scoped.filter(fits).slice(0,7):visible;
 
 const navItem=(glyph,name,count,chosen,extra='',label='')=>`<button class="item${chosen?' chosen':''}" aria-current="${chosen}"${label?` aria-label="${label}"`:''}>${glyph}<span class="name">${name}</span>${extra}${count?`<span class="count">${count}</span>`:''}</button>`;
 const failedText=s=>s.failing>1?t('failedTimes',{n:s.failing,error:s.error}):t('failedOnce',{error:s.error});
@@ -616,7 +650,8 @@ const actionButtons=(e,cls='')=>`<button class="${cls}${e.starred?' starred':''}
   <button class="${cls}" aria-label="${copy.open}" title="${copy.open}">${icon('external')}</button>`;
 const actions=e=>`<div class="actions">${actionButtons(e)}</div>`;
 const unreadDot=e=>e.read?'':`<span class="dot-inline" role="img" aria-label="${copy.unread}"></span>`;
-const meta=(e,prefix='')=>{const s=byId[e.source];return `<div class="meta">${prefix}${glyph(s)}<span class="src">${s.name}</span><span class="sep"></span><span class="when">${e.when}</span>${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}</div>`};
+const readMin=e=>e.sec>=60&&(e.kind==='article'||e.kind==='social')?Math.round(e.sec/60):0;
+const meta=(e,prefix='')=>{const s=byId[e.source];return `<div class="meta">${prefix}${glyph(s)}<span class="src">${s.name}</span><span class="sep"></span><span class="when">${e.when}</span>${readMin(e)?`<span class="sep"></span><span class="read-time">${t('readMin',{n:readMin(e)})}</span>`:''}${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}</div>`};
 const pictures=list=>{
   if(list.length===1)return `<div class="grid n1"><div class="pic ${list[0]}">${failedPic(list[0])}</div></div>`;
   if(list.length===2)return `<div class="grid n2">${list.map(g=>`<div class="pic ${g}">${failedPic(g)}</div>`).join('')}</div>`;
@@ -650,19 +685,22 @@ else if(state==='error')list=empty('wifiOff',copy.error,copy.errorHint,`<button 
 else if(state==='unread-done')list=empty('circleCheck',copy.unreadDone,copy.unreadDoneHint);
 else if(state==='starred-none')list=empty('star',copy.noStarred,copy.noStarredHint);
 else if(state==='empty')list=empty('inbox',copy.empty,copy.emptyHint);
+else if(state==='time-empty')list=empty('clock',t('timeEmpty',{n:budget}),copy.timeEmptyHint,`<button class="button">${copy.timeClear}</button>`);
 else if(state==='search-none')list=empty('search',t('noResults',{q}),copy.noResultsHint);
 else if(scope==='video'&&state!=='search')list=`<div class="vgrid" role="feed" aria-label="${scopeName}">${shown.map(videoCard).join('')}</div>${more}`;
 else if(scope==='image'&&state!=='search')list=`<div class="masonry" role="feed" aria-label="${scopeName}">${shown.map(masonryTile).join('')}</div>${more}`;
 else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map(row).join('')}${more}</div>`;
 
 const unreadInScope=kinds.includes(scope)?kindUnread(scope):scope==='source'?byId[focusId].unread:total;
-const sub=state==='no-subscriptions'||state==='error'?'':state==='search'?t('results',{n:1}):state==='unread-done'||state==='starred-none'||state==='empty'||state==='marked-read'?'':t('unreadCount',{n:unreadInScope});
+const sub=state==='no-subscriptions'||state==='error'?'':state==='search'?t('results',{n:1}):state==='unread-done'||state==='starred-none'||state==='empty'||state==='marked-read'||budget?'':t('unreadCount',{n:unreadInScope});
 const segments=[['inbox','everything'],['dot','unread'],['star','starred']].map(([g,k],i)=>`<button role="radio" aria-checked="${i===filter}" class="${i===filter?'on':''}" aria-label="${copy[k]}" title="${copy[k]}">${icon(g)}<span>${copy[k]}</span></button>`).join('');
 const searchField=`<div class="search${searching?' focused':''}${state==='search-short'?' invalid':''}">${icon('search')}<input aria-label="${copy.searchLabel}" placeholder="${copy.search}" value="${q}" ${state==='search-short'?'aria-invalid="true" aria-describedby="hint"':''}>${searching?`<button class="clear" aria-label="${copy.clear}">${icon('x')}</button>`:''}</div>`;
 const markAllName=t('markAllIn',{scope:scopeName});
-const markAll=`<button class="tool" aria-label="${markAllName}" title="${markAllName}">${icon('checkCheck')}</button>`;
+const markAll=`<button class="tool"${budget?' aria-disabled="true"':''} aria-label="${markAllName}" title="${markAllName}">${icon('checkCheck')}</button>`;
+const timeName=budget?t('timeNameUpTo',{n:budget}):copy.timeName;
+const timeBtn=`<button class="timebtn${budget?' on':''}" aria-label="${timeName}" title="${timeName}" aria-haspopup="menu" aria-expanded="${state==='time-menu'}">${icon('clock')}${budget?`<span class="lbl">${t('timeChip',{n:budget})}</span><span class="badge" aria-hidden="true"></span>`:''}</button>`;
 const columned=!((scope==='video'||scope==='image')&&state!=='search');
-const toolbar=`<div class="toolbar${columned?' aligned':''}${scope==='social'?' wide':''}"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${searchField}${markAll}</div>`;
+const toolbar=`<div class="toolbar${columned?' aligned':''}${scope==='social'?' wide':''}"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${timeBtn}${searchField}${markAll}</div>`;
 const hint=state==='search-short'?`<div class="hint" id="hint" role="status">${icon('alert')}${copy.tooShort}</div>`:'';
 const stale=state==='offline'?`<div class="stale${columned?' aligned':''}${scope==='social'?' wide':''}" role="status">${icon('wifiOff')}<span>${t('offline',{time:'10:42'})}</span></div>`:'';
 const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries',{n:3})}</button>`:'';
@@ -687,6 +725,10 @@ const place=(html,anchor,dx,dy)=>{const w=document.getElementById('window'),a=an
 if(state==='menu-entry'||state==='menu-entry-first'){
   const e=entries[state==='menu-entry'?2:0],first=state==='menu-entry-first';
   place(`<div class="menu" role="menu" aria-label="${e.title||e.author}">${menuItem('star',e.starred?copy.unstar:copy.star,{key:'S'})}${menuItem(e.read?'mail':'mailOpen',e.read?copy.markUnread:copy.markRead,{key:'M'})}${menuItem('external',copy.open,{key:'O'})}<hr>${menuItem('arrowUpToLine',copy.markAbove,{cls:first?'':'hover',off:first})}</div>`,document.querySelector('.row.menued'),300,36);
+}
+if(state==='time-menu'){
+  const item=(label,n)=>`<button role="menuitemradio" aria-checked="${n===0}"${n===10?' class="hover"':''}>${icon('check',n===0?'tick':'tick none')}<span>${label}</span></button>`;
+  place(`<div class="menu" role="menu" aria-label="${copy.timeTitle}">${item(copy.timeAny,0)}${[5,10,15,30].map(n=>item(t('timeUpTo',{n}),n)).join('')}</div>`,document.querySelector('.timebtn'),0,36);
 }
 if(feedMenu){
   const s=menuSource,none=s.unread===0;

@@ -166,7 +166,7 @@ func TestTimelineAPI(t *testing.T) {
 				w.Write([]byte(`{"error":"query_too_short"}`))
 				return
 			}
-			w.Write([]byte(`{"entries":[{"id":7,"kind":"video","title":"T","publishedAt":null,"durationSec":95,
+			w.Write([]byte(`{"entries":[{"id":7,"kind":"video","title":"T","publishedAt":null,"durationSec":95,"readingSec":600,
 				"images":[{"url":"https://i/1.jpg","width":4,"height":3}],"createdAt":1700000000000}],"nextCursor":null}`))
 		case "/api/sources":
 			w.Write([]byte(`{"sources":[{"id":1,"title":"Feed","kind":"article","unreadCount":3,"lastError":"boom","fetchIntervalSec":900}]}`))
@@ -194,11 +194,11 @@ func TestTimelineAPI(t *testing.T) {
 	defer srv.Close()
 	session := Session{Server: srv.URL, Token: "t1"}
 
-	page, err := session.Entries(ctx, Query{Kind: "video", Unread: true, Search: "go fmt", Limit: 50, Cursor: "1.2"})
+	page, err := session.Entries(ctx, Query{Kind: "video", Unread: true, Search: "go fmt", MaxMinutes: 10, Limit: 50, Cursor: "1.2"})
 	if err != nil || len(page.Entries) != 1 || page.Next != "" {
 		t.Fatalf("Entries = %+v, %v", page, err)
 	}
-	if e := page.Entries[0]; e.DurationSec != 95 || e.PublishedAt != 0 || e.Images[0].Width != 4 || e.CreatedAt != 1700000000000 {
+	if e := page.Entries[0]; e.DurationSec != 95 || e.ReadingSec != 600 || e.PublishedAt != 0 || e.Images[0].Width != 4 || e.CreatedAt != 1700000000000 {
 		t.Errorf("entry = %+v", e)
 	}
 	var apiErr *APIError
@@ -254,7 +254,7 @@ func TestTimelineAPI(t *testing.T) {
 		t.Errorf("SetSettings = %+v, %v", settings, err)
 	}
 	want := []string{
-		"GET /api/entries?cursor=1.2&kind=video&limit=50&q=go+fmt&unread=1 ",
+		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&q=go+fmt&unread=1 ",
 		"GET /api/entries?q=ab ",
 		"GET /api/sources ",
 		"GET /api/entries/7 ",

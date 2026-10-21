@@ -93,19 +93,28 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   buttons. Then the five kinds (All, Articles, Videos, Social, Images) as 30 high rows, each an icon, its name and its
   unread count; then the subscriptions of the chosen kind, 30 high rows; at the bottom the server bar, 40 high. The main
   column is the paper: `Background`. It has a 52 high toolbar row (title, count, one capsule with the
-  Everything/Unread/Starred segments, search, mark all as read, whose name and tooltip say its scope: "Mark all in
-  “Videos” as read") with no bar and no divider: the segments are one 32 high capsule of glass floating over the
+  Everything/Unread/Starred segments, the reading-time button, search, mark all as read, whose name and tooltip say
+  its scope: "Mark all in “Videos” as read") with no bar and no divider: the segments are one 32 high capsule of glass floating over the
   entries, which fade under the row (the soft scroll edge); search is a flat ink fill, and the other buttons are
-  bare icons. When a background check fails after the list loaded, a quiet 28 high status line sits under the toolbar,
+  bare icons. The reading-time button is a bare 32 square clock icon right of the capsule, named "Reading time: any
+  length"; its menu lists Any length (the default), Up to 5, 10, 15 and 30 minutes, each a 28 high menu row with a
+  check on the current one. With a budget chosen it becomes a 32 high pill (radius 16) with the `Soft(Accent)` fill,
+  "≤ 10 min" in `Accent` at 12 medium beside the icon, tabular numerals, named "Reading time: up to 10 minutes"; below
+  a 760 wide window it keeps only the icon, with a 7 `Accent` dot at its top right. It is a view filter: it does not
+  mark or move anything, the title's unread count is hidden while it is on, and mark all as read, mark above and V are
+  disabled as under Starred. When a background check fails after the list loaded, a quiet 28 high status line sits under the toolbar,
   lined up with the list: a 14 `Warning` wifi-off icon and 12 `TextMuted` text, "Can't reach the server · last updated
   10:42", with no fill; it is a polite status, announced once, and goes away on the next successful check. With no subscriptions the list is an empty state: a 48 tile, a
   15 semibold heading, a hint at most 320 wide that names the links Oriel recognises, then a row of two buttons 8 apart,
   wrapping when narrow: the primary "Add your first subscription" and the secondary "Import OPML…", which opens
-  Settings on Import and export. Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
+  Settings on Import and export. When a reading-time budget leaves nothing, the list shows the same pattern: a 48
+  tile with a clock, "Nothing fits in 10 minutes", the hint "Entries with no estimate, like pictures, are left out.",
+  and one secondary button, "Show any length", which clears the budget. Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
   at the sides; a row is as high as its text, padded 16 with 14 between its parts, radius 12 when it has a fill, and
   an article's thumbnail, at most 96 by 64, radius 8, starts under the meta line and never makes the row taller. A
-  row reads, top to bottom: the meta line (20 high: the site icon, the source name, a dot, the time, the kind
-  mark; the row actions at its right), the title, the summary or the text, the pictures. Rows are separated by a
+  row reads, top to bottom: the meta line (20 high: the site icon, the source name, a dot, the time, the reading
+  time "6 min read" in `TextMuted` (after a dot, only when the estimate is a minute or more and the entry is read, not
+  watched), the kind mark; the row actions at its right), the title, the summary or the text, the pictures. Rows are separated by a
   hairline only, which hover and selection hide. The toolbar's title and buttons line up with that column's edges in
   a wide window (Videos and Images, which fill the width, keep the 20 inset). Pictures in a social post share a grid at
   most 440 wide (520 in Social): one picture keeps its aspect ratio, at most 384 wide and 240 high; two sit side by
@@ -139,7 +148,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   they sit on `Soft(Accent)` in `Accent` and their names become "Hide the summary" and "Show the original". In a wide
   window the toolbar lines up with the article column: the back button's text starts at the column's left edge and
   the last button ends at its right edge. Under the toolbar the article scrolls, a column at most 680 wide at Medium (680 times the Reading text size scale: 635, 680, 771, 861, tokens.md; the window can limit it further), centered,
-  padded 28/32/48 (20 below a 760 wide window): the source's monogram, name and full date at 12; the title at 24 (20
+  padded 28/32/48 (20 below a 760 wide window): the source's monogram, name, full date and, after a dot, the reading time ("6 min read") at 12; the title at 24 (20
   when narrow) weight 600 in `Text`; the note on where the text comes from (`Warning` soft fill when it is the feed's,
   `Surface` with a spinner while the full text is being got), 12, its "Open the original" link underlined; then the
   text 22 below. The body is set in the Reading font (the interface font unless the reader chose a serif or a family, tokens.md) at 16 and line height 1.7 (1.85 in
@@ -630,6 +639,8 @@ MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
       Toasts announce their text, and a router the title of a page shown while the focus stays outside it.
 - [ ] The whole UI works with the keyboard: the focus order is the standard one and follows reading order, there is
       a visible focus ring (do not remove it), shortcuts exist for frequent actions, Escape closes overlays.
+- [ ] A row's screen-reader label reads source, title, time, reading time, unread or read, starred; the reading-time
+      button's name states the current budget, and its menu items are radio items with the current one checked.
 - [ ] Text uses theme sizes (`Rem`) and scales; layouts reflow at larger text and in the longer translation.
 - [ ] Colors are theme roles; contrast holds in both appearances and with high contrast on.
 - [ ] Nothing depends on color, sound or motion alone.
@@ -692,6 +703,7 @@ color, and the row actions fade. See
   | kind | 形态 | Not 类型, which is left to the technical sense. |
   | mark as read | 标为已读 | Sentences use 把 ("把上面的标为已读"), not 将. |
   | star | 收藏 | |
+  | reading time | 阅读时间 | The row label is "{n} 分钟阅读"; the filter is "阅读时长" in its name ("阅读时长：10 分钟内") and "{n} 分钟内" in its menu. |
   | sign in, sign out | 登录, 退出登录 | A device is signed out, never "吊销". |
   | password | 口令 | |
   | server | 服务端 | Not 服务器, which names the machine. |

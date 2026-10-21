@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -33,7 +34,7 @@ type copy struct {
 	Summarize, HideSummary, Translate, ShowOriginal, Summary, By, Summarizing, Cancel, SummaryFailed       string
 	Translating, Translated, Translation, Original, TranslationFailed, SummaryReady, TranslationReady      string
 	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AIUpstream, AIEmpty, AIOff, AIOffTitle        string
-	OpenSettings, Close                                                                                    string
+	OpenSettings, Close, ReadingTime                                                                       string
 }
 
 var translations = func() map[string]copy {
@@ -576,6 +577,15 @@ func (s *Screen) shortcut(action, key string) string {
 	return strings.NewReplacer("{action}", action, "{key}", key).Replace(s.text.Shortcut)
 }
 
+// readLabel is "6 min read" for an entry that takes a minute or more to read, and "" for a video, an entry with a
+// duration of its own, or one with no estimate.
+func (s *Screen) readLabel(e client.Entry) string {
+	if e.ReadingSec < 60 || e.DurationSec > 0 || e.Kind == "video" {
+		return ""
+	}
+	return strings.ReplaceAll(s.text.ReadingTime, "{n}", strconv.Itoa(e.ReadingSec/60))
+}
+
 // when is the time of the article in full: the date, with the year when it is not this one, and the time of day.
 func (s *Screen) when(e client.Entry) string {
 	ms := e.PublishedAt
@@ -906,6 +916,11 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 					ui.Text(c, "·").FontSize(px(t, 12)).TextColor(t.TextMuted.Alpha(0.7))
 					ui.Text(c, s.when(e)).FontSize(px(t, 12)).LetterSpacing(px(t, 12) * 0.005).FontFeatures("tnum").
 						TextColor(t.TextMuted).NoWrap()
+					if reading := s.readLabel(e); reading != "" {
+						ui.Text(c, "·").FontSize(px(t, 12)).TextColor(t.TextMuted.Alpha(0.7))
+						ui.Text(c, reading).FontSize(px(t, 12)).LetterSpacing(px(t, 12) * 0.005).FontFeatures("tnum").
+							TextColor(t.TextMuted).NoWrap()
+					}
 				})
 				size := px(t, 24)
 				if narrow {

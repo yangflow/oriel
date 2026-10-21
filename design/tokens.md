@@ -279,6 +279,7 @@ fills are 8% / 12% / 16%, and glass (the capsules, the scroll edge) becomes opaq
 
 The timeline's toolbar has one capsule, the segmented control (Everything / Unread / Starred); the reader's has one
 capsule, Summarize and Translate. Search is a flat ink 5.5% fill and every other toolbar button is a bare icon.
+The reading-time button is a bare 32 square icon; with a budget it is a 32 high pill, radius 16, filled `Soft(Accent)`, with `Accent` text and icon, and in a narrow window an icon with a 7 `Accent` dot.
 The ink pane is not glass: it is opaque (see above). Content never sits on glass.
 
 ## Shape

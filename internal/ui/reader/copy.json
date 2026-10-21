@@ -49,7 +49,8 @@
     "AIOff": "Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.",
     "AIOffTitle": "AI isn’t set up",
     "OpenSettings": "Open Settings…",
-    "Close": "Close"
+    "Close": "Close",
+    "ReadingTime": "{n} min read"
   },
   "zh-Hans": {
     "Back": "回到{scope}",
@@ -101,6 +102,7 @@
     "AIOff": "摘要和翻译走你自己选的 AI 接口，例如 OpenAI 或本机的模型。先在设置里配好。",
     "AIOffTitle": "还没配置 AI",
     "OpenSettings": "打开设置…",
-    "Close": "关闭"
+    "Close": "关闭",
+    "ReadingTime": "{n} 分钟阅读"
   }
 }

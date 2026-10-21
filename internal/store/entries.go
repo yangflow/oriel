@@ -29,6 +29,7 @@ type Entry struct {
 	DurationSec   int
 	Platform      string
 	Language      string // BCP 47 code, "" when unknown
+	ReadingSec    *int   // estimated seconds, nil when unknown; see docs/product.md "阅读时间"
 	Images        []Image
 	ExtractStatus string
 	IsRead        bool
@@ -45,14 +46,15 @@ type Position struct {
 
 // EntryFilter narrows the timeline. Zero values do not filter.
 type EntryFilter struct {
-	SourceID int64
-	Kind     string
-	Unread   bool
-	Starred  bool
-	Query    string    // matched as one phrase in the full-text index
-	After    *Position // only entries older than this position
-	UpTo     *Position // only this position and older ones
-	Newer    *Position // only entries newer than this position
+	SourceID      int64
+	Kind          string
+	Unread        bool
+	Starred       bool
+	MaxReadingSec int       // only entries that take at most this many seconds; unknown ones never match; 0 does not filter
+	Query         string    // matched as one phrase in the full-text index
+	After         *Position // only entries older than this position
+	UpTo          *Position // only this position and older ones
+	Newer         *Position // only entries newer than this position
 }
 
 // EntryPatch holds the reading state a user may change; nil leaves it as it is.
@@ -64,7 +66,7 @@ type EntryPatch struct {
 const entryColumns = `
 	e.id, e.source_id, CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN s.url ELSE s.rsshub_path END, s.kind,
 	e.title, e.url, e.author, e.published_at, e.rss_summary, e.thumbnail_url, e.duration_sec, e.platform, e.images,
-	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at`
+	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec`
 
 // shown keeps the entries of s that none of its mute keywords hides. Starred entries are never hidden.
 const shown = "(e.starred = 1 OR NOT muted(s.mute_keywords, e.title, e.rss_summary))"
@@ -120,6 +122,9 @@ func (f EntryFilter) where() (string, []any) {
 	}
 	if f.Starred {
 		add("e.starred = 1")
+	}
+	if f.MaxReadingSec > 0 {
+		add("e.reading_sec <= ?", f.MaxReadingSec) // NULL never compares true
 	}
 	if f.Query != "" {
 		add("e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH ?)", `"`+strings.ReplaceAll(f.Query, `"`, `""`)+`"`)
@@ -267,10 +272,11 @@ func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error)
 	var published, readAt, duration sql.NullInt64
 	var images string
 	var language sql.NullString
+	var reading sql.NullInt64
 	var created int64
 	dest := append([]any{&entry.ID, &entry.SourceID, &entry.SourceTitle, &entry.Kind, &entry.Title, &entry.URL,
 		&entry.Author, &published, &entry.Summary, &entry.ThumbnailURL, &duration, &entry.Platform, &images,
-		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created}, extra...)
+		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading}, extra...)
 	if err := row.Scan(dest...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Entry{}, ErrNotFound
@@ -287,6 +293,10 @@ func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error)
 		entry.ReadAt = time.UnixMilli(readAt.Int64)
 	}
 	entry.Language = language.String
+	if reading.Valid {
+		sec := int(reading.Int64)
+		entry.ReadingSec = &sec
+	}
 	entry.DurationSec = int(duration.Int64)
 	entry.CreatedAt = time.UnixMilli(created)
 	return entry, nil
