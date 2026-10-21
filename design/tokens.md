@@ -33,7 +33,7 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | pane-width | 216 (184 below a 760 wide window) | 216 / 184 | the ink pane |
 | pane-radius | 14 | 14 | corners of the ink pane |
 | pane-item | 30 high, radius 8, 10 padding, 10 gap | 30 | a kind, a subscription or a settings group in the pane |
-| column | `MaxWidth` 680 (720 for Social) | 680 / 720 | article, social and mixed rows; the reader's text |
+| column | `MaxWidth` 680 (720 for Social) | 680 / 720 | article, social and mixed rows in the timeline; the reader's text column is 680 at Medium and follows the Text size (Reading text) |
 | row | padding 16, gap 14, radius 12 | | an entry row; 28 on the left, where the unread dot (7, 11 from the edge) sits |
 | row-meta | 20 high | 20 | the meta line of a row; it keeps 88 free at the right for the row actions |
 | thumbnail | 96 x 64, radius 8 | 96 x 64 | an article's picture, beside the title, below the meta line |
@@ -73,26 +73,47 @@ Notes:
 
 ## Reading text
 
-The reader's article text is set in the interface font, never a serif by default: Song and other thin serifs blur at
-screen sizes and tire the eye over a long read. Two per-device preferences (Settings, Appearance) change the article's
-size and line height and nothing else. #101 will add a choice of reading font; until then the face is the default
-below. The default is Medium and Standard.
+The reader's article text is set in the interface font by default, never a serif: Song and other thin serifs blur at
+screen sizes and tire the eye over a long read. Three per-device preferences (Settings, Appearance, the Reading card)
+change the article's body: the font, the size and the line height. The default is Follow interface, Medium and
+Standard. The choice of a serif is the reader's; the default does not change.
 
 | Part | Value |
 |---|---|
-| Reading face | the interface font: the theme's `Font`, so the system UI font (SF and PingFang SC on macOS, Segoe UI and Microsoft YaHei on Windows, the GTK default on Linux) or the family chosen in Interface font |
+| Reading face | by default the interface font: the theme's `Font`, so the system UI font (SF and PingFang SC on macOS, Segoe UI and Microsoft YaHei on Windows, the GTK default on Linux) or the family chosen in Interface font; otherwise the Reading font below |
 | Weight, color | 400, `theme.Prose` |
-| Interface font preference | changes the reading face with the rest of the interface |
+| Interface font preference | changes the reading face with the rest of the interface while the Reading font is Follow interface |
+| Applies to | the article's body only (paragraphs, lists, quotes). The title, the source line, notes, captions, h2 and h3, code and the toolbar keep the interface font (code stays monospace) |
 
 | Preference | Choice | Value |
 |---|---|---|
-| Text size | Small / Medium / Large / Extra large | body 14.9 / 16 / 18.1 / 20.3 in every language, scale 0.933 / 1 / 1.133 / 1.267 |
+| Reading font | Follow interface / Serif / an installed family | Follow interface (default): the reading face above. Serif: the platform serif set below. A family: that family, with the interface font behind it for the glyphs it lacks |
+| Text size | Small / Medium / Large / Extra large | body 14.9 / 16 / 18.1 / 20.3 in every language, scale 0.933 / 1 / 1.133 / 1.267 (exactly 14/15, 1, 17/15, 19/15); column 635 / 680 / 771 / 861 |
 | Line spacing | Compact / Standard / Relaxed | line height 1.55 / 1.7 / 1.85; Simplified Chinese 1.7 / 1.85 / 2.0 |
 
 The scale multiplies the article's other sizes with the body: h2 (19) and h3 (16), code (13), and the spaces,
 which are in em: 1.05em between paragraphs, 0.3em between list items, 1.9em above and 0.6em below h2. The list marker
-column is 22 and its marker `TextMuted`. The column stays at most 680 wide, so a larger size sets fewer characters per
-line. The title, the source line, notes, captions and the toolbar keep their sizes.
+column is 22 and its marker `TextMuted`. The title, the source line, notes, captions and the toolbar keep their sizes.
+
+Serif is a platform set, a Latin face with a Chinese one behind it, falling back to the interface font when neither is
+installed:
+
+| Platform | Latin | Simplified Chinese |
+|---|---|---|
+| macOS | New York | Songti SC |
+| Windows | Georgia | SimSun (宋体) |
+| Linux | Noto Serif | Noto Serif CJK SC |
+
+New York is not in the installed family list on macOS and MyGo does not find it by that name, so the code addresses it
+by the system font name `.AppleSystemUIFontSerif`; it is taken as installed without a check.
+
+The reading column grows with the Text size so that the characters per line stay about the same: its maximum width
+(the `MaxWidth` of the column, padding included) is 680 times the size scale, rounded to a whole DIP: 635 (Small), 680
+(Medium), 771 (Large), 861 (Extra large). The window still limits it: the column is never wider than the space the
+window leaves beside the ink pane. Line spacing and the
+Reading font do not change the width. The title, the source line and the note sit in the same column, and in a wide
+window the toolbar lines up with its edges (docs/design.md, Reader). Social rows in the timeline keep 720; this rule is
+the reader's text only.
 
 ## Color roles
 

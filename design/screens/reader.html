@@ -21,7 +21,14 @@
      warm ink glass in both schemes, the article is paper set in the system sans, and Summarize and Translate are the one
      glass capsule; the other controls are bare icons (docs/design.md, Title bar).
      The bar above the window only switches the mockup.
-     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide. -->
+     Reading preferences (Settings, Appearance, kept per device): textsize=small|medium|large|xlarge (default medium)
+     scales the body, h2, h3, code, the gaps and the column: the column is 680 x the text size scale (634 / 680 /
+     771 / 861, rounded; scale 14/15, 1, 17/15, 19/15), never wider than the window leaves it, and the toolbar's ends
+     follow it. font=interface|serif (default interface) is the Reading font: it sets the article's body only; the
+     title, notes, h2, h3, captions and the toolbar stay in the interface font. Serif is the platform serif set (here
+     macOS: New York and Songti SC). Use size=wide to see the two largest columns whole; the default window is
+     narrower than they are, so the window limits them.
+     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
   --background:#fdfcfa; --surface:#f6f3ee; --raised:#ffffff; --track:#ece8e0; --disabled:#b3ada1;
@@ -32,7 +39,7 @@
   --chrome:#37332e; --chrome-ink:255,248,235; --chrome-text:#ece7dd; --chrome-text2:#cdc7bb; --chrome-muted:#a49e91;
   --glass:rgba(255,254,251,.66); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.95), 0 0 0 .5px rgba(var(--ink),.12), 0 2px 12px rgba(var(--ink),.07);
   --edge:color-mix(in srgb,var(--background) 96%,transparent);
-  --reading:system-ui,-apple-system,"SF Pro Text","PingFang SC","Segoe UI",sans-serif }
+  --reading:system-ui,-apple-system,"SF Pro Text","PingFang SC","Segoe UI",sans-serif; --scale:1; --col:680px }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0b0c0c; --stage-text:#8a918f;
   --background:#171918; --surface:#1d1f1e; --raised:#252827; --track:#2c2f2e; --disabled:#565b59;
   --text:#dde1df; --text2:#aab0ae; --muted:#8a918f; --prose:#c3c9c7;
@@ -109,7 +116,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
    holds Summarize and Translate. The ends line up with the article column. */
 .main { flex:1; min-width:0; display:flex; flex-direction:column; position:relative }
 .main::after { content:""; position:absolute; top:0; left:0; right:0; height:76px; background:linear-gradient(var(--edge) 52px,transparent); pointer-events:none; z-index:1 }
-.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:6px; padding:0 max(16px,calc((100% - 680px)/2 + 32px)) 0 max(12px,calc((100% - 680px)/2 + 28px)) }
+.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:6px; padding:0 max(16px,calc((100% - var(--col))/2 + 32px)) 0 max(12px,calc((100% - var(--col))/2 + 28px)) }
 .spacer { flex:1 }
 .back { height:32px; display:flex; align-items:center; gap:2px; min-width:0; padding:0 10px 0 4px; border-radius:10px; color:var(--text2); font-weight:500 }
 .back span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
@@ -130,7 +137,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 
 /* Reader: the article is paper; the body is set in the system sans. */
 .scroll { flex:1; overflow-y:auto }
-.page { max-width:680px; margin:0 auto; padding:56px 32px 72px }
+.page { max-width:var(--col); margin:0 auto; padding:56px 32px 72px }
 .min .page { padding:52px 20px 56px }
 .meta { display:flex; align-items:center; gap:6px; min-width:0; flex-wrap:wrap; font-size:12px; letter-spacing:.005em; color:var(--muted) }
 .meta .src { font-weight:500; color:var(--text2) }
@@ -139,12 +146,12 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .page h1 { margin:12px 0 0; font-size:24px; line-height:1.28; font-weight:600; letter-spacing:-.015em; text-wrap:pretty; color:var(--text) }
 .min .page h1 { font-size:21px }
 :root:lang(zh-Hans) .page h1 { line-height:1.42; letter-spacing:-.005em }
-.prose { margin-top:26px; font:400 16px/1.7 var(--reading); color:var(--prose); font-feature-settings:"kern","liga" }
-:root:lang(zh-Hans) .prose { font-size:16px; line-height:1.85 }
+.prose { margin-top:26px; font:400 calc(16px * var(--scale))/1.7 var(--reading); color:var(--prose); font-feature-settings:"kern","liga" }
+:root:lang(zh-Hans) .prose { line-height:1.85 }
 .prose > * { margin:0 0 1.05em }
-.prose h2 { margin:1.9em 0 .6em; font:600 19px/1.35 system-ui,-apple-system,"PingFang SC",sans-serif; letter-spacing:-.01em; color:var(--text) }
+.prose h2 { margin:1.9em 0 .6em; font:600 calc(19px * var(--scale))/1.35 system-ui,-apple-system,"PingFang SC",sans-serif; letter-spacing:-.01em; color:var(--text) }
 :root:lang(zh-Hans) .prose h2 { line-height:1.5; letter-spacing:0 }
-.prose h3 { margin:1.6em 0 .5em; font:600 16px/1.4 system-ui,-apple-system,"PingFang SC",sans-serif; color:var(--text) }
+.prose h3 { margin:1.6em 0 .5em; font:600 calc(16px * var(--scale))/1.4 system-ui,-apple-system,"PingFang SC",sans-serif; color:var(--text) }
 .prose a { color:var(--accent); text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:3px; text-decoration-color:color-mix(in srgb,var(--accent) 38%,transparent); transition:text-decoration-color var(--t) }
 .prose a:hover { text-decoration-color:var(--accent) }
 .prose ul, .prose ol { padding-left:22px }
@@ -152,8 +159,8 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .prose li::marker { color:var(--muted) }
 .prose blockquote { padding:0 0 0 18px; border-left:2px solid rgba(var(--ink),.16); color:var(--text2) }
 .prose code { font:.86em/1.5 ui-monospace,"SF Mono",Menlo,Consolas,monospace; padding:.08em .38em; border-radius:5px; background:rgba(var(--ink),.055); color:var(--text) }
-.prose pre { padding:14px 16px; border-radius:12px; background:var(--surface); overflow-x:auto; font-size:13px; line-height:1.6 }
-.prose pre code { font-size:13px; padding:0; background:none }
+.prose pre { padding:14px 16px; border-radius:12px; background:var(--surface); overflow-x:auto; font-size:calc(13px * var(--scale)); line-height:1.6 }
+.prose pre code { font-size:inherit; padding:0; background:none }
 .prose figure { margin:1.4em 0 }
 .pic { border-radius:12px; background-color:var(--surface); outline:.5px solid rgba(var(--ink),.10); outline-offset:-.5px }
 .prose .pic { width:100% }
@@ -226,17 +233,26 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
   <label>scheme <select id="scheme"></select></label>
   <label>lang <select id="lang"></select></label>
   <label>size <select id="size"></select></label>
+  <label>textsize <select id="textsize"></select></label>
+  <label>font <select id="font"></select></label>
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
 const states=['full','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
-const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
+const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif']};
 const state=pick('state',states,'full');
 const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
 const size=pick('size',options.size,'default');
+const textsize=pick('textsize',options.textsize,'medium');
+const font=pick('font',options.font,'interface');
+const scale={small:14/15,medium:1,large:17/15,xlarge:19/15}[textsize];
+const root=document.documentElement.style;
+root.setProperty('--scale',scale);
+root.setProperty('--col',Math.round(680*scale)+'px');
+if(font==='serif')root.setProperty('--reading','"New York","Songti SC",Georgia,"Noto Serif","Noto Serif CJK SC",serif');
 document.documentElement.dataset.scheme=scheme;
 document.documentElement.lang=lang;
 document.getElementById('window').classList.toggle('min',size==='min');
@@ -244,7 +260,7 @@ document.getElementById('window').classList.toggle('wide',size==='wide');
 for(const [id,list] of Object.entries(options)){
   const select=document.getElementById(id);
   select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
-  select.value={state,scheme,lang,size}[id];
+  select.value={state,scheme,lang,size,textsize,font}[id];
   select.onchange=()=>{query.set(id,select.value);location.search=query};
 }
 

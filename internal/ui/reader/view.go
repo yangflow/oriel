@@ -63,7 +63,9 @@ type API interface {
 // default to time.Now and ui.DecodeBitmap. Expired reports whether err means the server no longer takes the session,
 // and then shows the connect screen. Back returns to the list, Move goes to the article by entries away, and Star and
 // ToggleRead change the entry read. OpenSettings opens the AI group of the settings. Reading gives the preferences
-// of this device for the article's text size and line spacing, each frame; nil means the defaults.
+// of this device for the article's text size and line spacing, each frame; nil means the defaults. ReadingFont gives
+// the font list of the article's body, "" (and nil) for the interface font; the shell works it out when the
+// preferences or the installed fonts change.
 type Deps struct {
 	Go           func(work func() (apply func()))
 	Now          func() time.Time
@@ -76,6 +78,7 @@ type Deps struct {
 	ToggleRead   func()
 	OpenSettings func()
 	Reading      func() prefs.Preferences
+	ReadingFont  func() string
 }
 
 // Nav is what the timeline tells the reader each frame: the entry as the list has it, with its read and starred
@@ -700,7 +703,7 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready, narrow bool) {
 	}
 	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).Padding(0, bar.Right, 0, 0).DragWindow().
 		Children(func() {
-			ui.Row(c).FillWidth().MaxWidth(px(t, 680)).Margin(0, ui.Auto).Height(theme.Bar).AlignItems(ui.Center).
+			ui.Row(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Height(theme.Bar).AlignItems(ui.Center).
 				Gap(px(t, 6)).Padding(0, right, 0, left).Children(func() {
 				s.toolbarItems(c, nav, e, ready, narrow)
 			})
@@ -875,7 +878,7 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 		if s.translating() {
 			blocks, how = s.translated, whole
 		}
-		ui.Column(c).FillWidth().MaxWidth(px(t, 680)).Margin(0, ui.Auto).Padding(pad...).Selectable().
+		ui.Column(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Padding(pad...).Selectable().
 			Children(func() {
 				ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
 					glyph(c, e.SourceTitle, s.icon)
@@ -957,7 +960,7 @@ func monogram(c *ui.Context, name string) {
 
 func (s *Screen) skeleton(c *ui.Context, pad []float32) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().MaxWidth(px(t, 680)).Margin(0, ui.Auto).Padding(pad...).Label(s.text.Loading).
+	ui.Column(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Padding(pad...).Label(s.text.Loading).
 		Role(ui.RoleProgress).Children(func() {
 		bar := func(width, height, top, bottom float32) {
 			ui.Row(c).FillWidth().Margin(px(t, top), 0, px(t, bottom), 0).Children(func() {
@@ -1351,13 +1354,16 @@ func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 		default:
 			line := float32(s.reading().Leading(s.han))
 			if b.depth == 0 {
-				s.inline(c, b.spans, color).FontSize(px(t, 16) * scale).LineHeight(line)
+				s.prose(c, b.spans, color).FontSize(px(t, 16) * scale).LineHeight(line)
 				return
 			}
 			ui.Row(c).FillWidth().AlignItems(ui.Start).Children(func() {
-				ui.Text(c, b.marker).Width(px(t, 22) * scale).Shrink(0).FontSize(px(t, 16) * scale).LineHeight(line).
+				marker := ui.Text(c, b.marker).Width(px(t, 22) * scale).Shrink(0).FontSize(px(t, 16) * scale).LineHeight(line).
 					TextColor(t.TextMuted)
-				s.inline(c, b.spans, color).Grow(1).MinWidth(0).FontSize(px(t, 16) * scale).LineHeight(line)
+				if face := s.face(); face != "" {
+					marker.Font(face)
+				}
+				s.prose(c, b.spans, color).Grow(1).MinWidth(0).FontSize(px(t, 16) * scale).LineHeight(line)
 			})
 		}
 	})
@@ -1373,6 +1379,27 @@ func (s *Screen) reading() prefs.Preferences {
 
 // scale is the factor of the article's sizes that follow the text size.
 func (s *Screen) scale() float32 { return float32(s.reading().Scale()) }
+
+// column is the greatest width of the text column, the toolbar's ends following it: 680 at the medium text size,
+// growing and shrinking with it. The window can leave less.
+func (s *Screen) column(t *ui.Theme) float32 { return px(t, float32(s.reading().Column())) }
+
+// face is the font list of the article's body, "" for the interface font.
+func (s *Screen) face() string {
+	if s.deps.ReadingFont == nil {
+		return ""
+	}
+	return s.deps.ReadingFont()
+}
+
+// prose draws spans as the article's body, in the reading font; the interface font where it is "".
+func (s *Screen) prose(c *ui.Context, spans []span, color ui.Color) ui.Element {
+	e := s.inline(c, spans, color)
+	if face := s.face(); face != "" {
+		e.Font(face)
+	}
+	return e
+}
 
 // hanText reports whether the text shown, the title and the blocks, runs taller as Chinese. The language the server
 // stored for the entry decides, except while a translation shows, which is not in that language; without one the

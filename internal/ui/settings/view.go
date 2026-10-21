@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -44,6 +45,7 @@ type copy struct {
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase         string
 	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, InvalidPrompt                                      string
 	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp   string
+	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                           string
 	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium           string
 	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed           string
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                      string
@@ -95,8 +97,9 @@ type API interface {
 // the one to export to, filter naming its kind; they block until the user answers, so they run in Go's work and
 // return "" when cancelled. Back returns to the timeline, Imported tells it subscriptions were added, and Expired
 // shows the connect screen because the server no longer takes the session. The appearance preferences belong to this
-// device: Preferences gives them, Fonts the installed font families once they are known (nil until then), and Change
-// takes new ones, which apply at once and are saved in the background.
+// device: Preferences gives them, Fonts the installed font families once they are known (nil until then), ReadingFont
+// the font list of an article's body that they come to ("" for the interface font), and Change takes new ones, which
+// apply at once and are saved in the background.
 type Deps struct {
 	Go       func(work func() (apply func()))
 	Now      func() time.Time
@@ -108,6 +111,7 @@ type Deps struct {
 
 	Preferences func() prefs.Preferences
 	Fonts       func() []string
+	ReadingFont func() string
 	Change      func(prefs.Preferences)
 }
 
@@ -151,6 +155,7 @@ type Screen struct {
 	group    int
 	lang     string     // the language of the screen
 	uiFont   fontPicker // the picker of the Interface font
+	rdFont   fontPicker // the picker of the Reading font
 
 	state       int
 	settings    client.Settings
@@ -196,6 +201,9 @@ func New(systemLocale string, deps Deps) *Screen {
 	}
 	if deps.Fonts == nil {
 		deps.Fonts = func() []string { return nil }
+	}
+	if deps.ReadingFont == nil {
+		deps.ReadingFont = func() string { return "" }
 	}
 	if deps.Change == nil {
 		deps.Change = func(prefs.Preferences) {}
@@ -857,7 +865,7 @@ func px(t *ui.Theme, v float32) float32 { return t.Rem(v / 13) }
 // View draws the settings; it does no disk or network work, which runs through Deps.
 func (s *Screen) View(c *ui.Context) {
 	t := c.Theme()
-	if !s.revoking && !s.uiFont.open {
+	if !s.revoking && !s.uiFont.open && !s.rdFont.open {
 		c.OnShortcut(0, ui.KeyEscape, s.deps.Back)
 	}
 	width, _ := c.Size()
@@ -1581,6 +1589,22 @@ func (s *Screen) appearancePage(c *ui.Context) {
 	ui.Text(c, s.text.Reading).FontSize(px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
 		Margin(px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
 	card(c, func() {
+		labeled(c, s.text.ReadingFont, s.text.ReadingFontHelp, func() {
+			// The pinned rows of the Reading font: Follow interface, Serif in its own face, and the family in use.
+			fonts := s.deps.Fonts()
+			serif := prefs.Preferences{ReadingFont: prefs.ReadingSerif}.ReadingFace(runtime.GOOS, fonts, "")
+			pinned := []choice{{value: "", name: s.text.FollowInterface},
+				{value: prefs.ReadingSerif, name: s.text.Serif, family: serif}}
+			if p.ReadingFont != "" && p.ReadingFont != prefs.ReadingSerif &&
+				(fonts == nil || slices.Contains(fonts, p.ReadingFont)) {
+				pinned = append(pinned, choice{value: p.ReadingFont, name: p.ReadingFont, family: p.ReadingFont})
+			}
+			if v, changed := s.fontPick(c, &s.rdFont, s.text.ReadingFont, p.ReadingFont, pinned, fonts); changed {
+				p.ReadingFont = v
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
 		labeled(c, s.text.TextSize, s.text.TextSizeHelp, func() {
 			names := []string{s.text.SizeSmall, s.text.SizeMedium, s.text.SizeLarge, s.text.SizeXLarge}
 			if i, changed := s.segments(c, s.text.TextSize, names, slices.Index(prefs.Sizes, p.ReadingSize)); changed {
@@ -1598,8 +1622,11 @@ func (s *Screen) appearancePage(c *ui.Context) {
 		})
 	}, func() {
 		ui.Column(c).FillWidth().Padding(px(t, 12), px(t, 14)).Radius(8).Background(t.Background).Children(func() {
-			ui.Text(c, s.text.PreviewText).FontSize(16 * float32(p.Scale())).TextColor(theme.Prose(t)).
+			sample := ui.Text(c, s.text.PreviewText).FontSize(16 * float32(p.Scale())).TextColor(theme.Prose(t)).
 				LineHeight(float32(p.Leading(s.lang == prefs.LanguageChinese))).Wrap()
+			if face := s.deps.ReadingFont(); face != "" {
+				sample.Font(face)
+			}
 		})
 	})
 }

@@ -82,7 +82,8 @@ type API interface {
 // OpenSettings the settings, from the gear beside it, OpenAISettings the settings on the AI group, from the entry
 // points of summaries and translations while AI is not set up, OpenImport the settings on the import and export
 // group, from the empty timeline of a first run, and Expired the connect screen because the server no
-// longer takes the session. Reading gives the reading preferences of this device, for the reader.
+// longer takes the session. Reading gives the reading preferences of this device, for the reader, and ReadingFont the
+// font list of the article's body that they come to, "" for the interface font.
 type Deps struct {
 	Go             func(work func() (apply func()))
 	Now            func() time.Time
@@ -93,6 +94,7 @@ type Deps struct {
 	OpenImport     func()
 	Expired        func()
 	Reading        func() prefs.Preferences
+	ReadingFont    func() string
 }
 
 // scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
@@ -250,6 +252,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		Expired:      s.expired,
 		OpenSettings: deps.OpenAISettings,
 		Reading:      deps.Reading,
+		ReadingFont:  deps.ReadingFont,
 		Back:         s.back,
 		Move:         s.step,
 		NextUnread:   s.nextUnread,
