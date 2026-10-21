@@ -48,6 +48,7 @@ type fakeHome struct {
 	refreshed int
 	keys      int
 	ran       []timeline.Command
+	all       int
 	languages []string
 }
 
@@ -62,6 +63,7 @@ func (h *fakeHome) Refresh() { h.refreshed++ }
 func (h *fakeHome) ShowKeys() { h.keys++ }
 
 func (h *fakeHome) Run(cmd timeline.Command) { h.ran = append(h.ran, cmd) }
+func (h *fakeHome) RefreshAll()              { h.all++ }
 
 func (h *fakeHome) View(c *ui.Context) { ui.Text(c, "Home") }
 
@@ -286,6 +288,26 @@ func TestShellRunsMenuCommands(t *testing.T) {
 	s.run(timeline.LoadNew)
 	if len(home.ran) != 1 {
 		t.Fatal("a command ran over the connect screen")
+	}
+}
+
+func TestShellRefreshAll(t *testing.T) {
+	s, _, _ := newTestShell(t)
+	home := s.home.(*fakeHome)
+	s.refreshAll()
+	if home.all != 1 {
+		t.Fatalf("refreshes %d", home.all)
+	}
+	s.openSettings()
+	s.refreshAll()
+	if home.all != 1 {
+		t.Fatal("refreshed from the settings")
+	}
+	s.setting = false
+	s.openConnect()
+	s.refreshAll()
+	if home.all != 1 {
+		t.Fatal("refreshed from the connect screen")
 	}
 }
 

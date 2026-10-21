@@ -208,6 +208,17 @@ func (s *Store) MarkSourceDue(ctx context.Context, id int64, now time.Time) erro
 	return err
 }
 
+// MarkAllSourcesDue makes every unpaused subscription due now, without changing updated_at, and returns how many it
+// made due. The fetch loop picks them up like any other due subscription.
+func (s *Store) MarkAllSourcesDue(ctx context.Context, now time.Time) (int, error) {
+	res, err := s.db.ExecContext(ctx, "UPDATE sources SET next_fetch_at = ? WHERE paused = 0", now.UnixMilli())
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
+
 func scanSource(row interface{ Scan(...any) error }) (Source, error) {
 	var src Source
 	var interval, next, created, updated int64

@@ -45,6 +45,10 @@ type fake struct {
 	aiAsked  int      // the summaries and translations asked to be made
 	pages    []string // the settings pages asked for
 
+	refreshed  client.RefreshResult // what RefreshAll answers
+	refreshes  int                  // the times it was asked
+	refreshErr error
+
 	entriesErr, setErr, markErr, imageErr            error
 	connects, settings, aiSettings, imports, expired int
 }
@@ -189,6 +193,11 @@ func (f *fake) DeleteSource(_ context.Context, id int64) error {
 }
 
 func (f *fake) RefreshSource(context.Context, int64) error { return nil }
+
+func (f *fake) RefreshAll(context.Context) (client.RefreshResult, error) {
+	f.refreshes++
+	return f.refreshed, f.refreshErr
+}
 
 func (f *fake) Settings(context.Context) (client.Settings, error) {
 	return client.Settings{RSSHubBaseURL: "https://rsshub.example.com"}, nil
@@ -4068,5 +4077,165 @@ func TestRunCommands(t *testing.T) {
 		if !tt.HasText(text) {
 			t.Fatalf("the key sheet lacks %q", text)
 		}
+	}
+}
+
+// fetched marks the first n subscriptions as fetched at the fake time.
+func (f *fake) fetched(n int) {
+	for i := range f.sources[:n] {
+		f.sources[i].LastFetchedAt = f.now.UnixMilli()
+	}
+}
+
+// refreshAll presses Cmd+R and runs the request, which queued n subscriptions at the fake time.
+func refreshAll(t *testing.T, f *fake, tt *ui.Tester, n int) {
+	t.Helper()
+	f.refreshed = client.RefreshResult{Queued: n, At: f.now.UnixMilli()}
+	tt.Key(ui.Cmd, ui.KeyR)
+	f.settle(t, tt)
+}
+
+// TestRefreshAll asks every subscription to be checked, shows the count in the sidebar while the server works through
+// them, ignores a second request, and ends in a toast that says how many failed and has the timeline look at once.
+func TestRefreshAll(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	refreshAll(t, f, tt, 4)
+	if f.refreshes != 1 || !tt.HasText("0/4") || !slices.Contains(tt.Announcements(), "Refreshing 4 subscriptions") {
+		t.Fatalf("refreshes %d, texts %v, announcements %v", f.refreshes, tt.Texts(), tt.Announcements())
+	}
+	if tt.HasText("1 failing") {
+		t.Error("the failing count shows beside the progress")
+	}
+	tt.Key(ui.Cmd, ui.KeyR)
+	if f.refreshes != 1 || len(f.queue) != 0 {
+		t.Fatalf("a second request went out: %d, %d queued", f.refreshes, len(f.queue))
+	}
+
+	f.now = f.now.Add(refreshEvery)
+	f.fetched(2)
+	tt.Frame()
+	f.settle(t, tt)
+	if !tt.HasText("2/4") || s.refresh == nil {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+
+	f.now = f.now.Add(refreshEvery)
+	f.fetched(4)
+	asked := len(f.queries)
+	tt.Frame()
+	f.settle(t, tt)
+	if s.refresh != nil || tt.HasText("4/4") || !tt.HasText("Checked 4 subscriptions, 1 failed") || !tt.HasText("1 failing") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if len(f.queries) == asked {
+		t.Error("the timeline did not look for new entries when the refresh ended")
+	}
+	refreshAll(t, f, tt, 4)
+	if f.refreshes != 2 || s.refresh == nil {
+		t.Fatalf("it cannot be asked again after it ended: %d", f.refreshes)
+	}
+}
+
+func TestRefreshAllPlainResult(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.sources[2].LastError = ""
+	refreshAll(t, f, tt, 4)
+	f.now = f.now.Add(refreshEvery)
+	f.fetched(4)
+	tt.Frame()
+	f.settle(t, tt)
+	if s.refresh != nil || !tt.HasText("Checked 4 subscriptions") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+// TestRefreshAllTimeout stops counting after refreshLimit and says how many were checked.
+func TestRefreshAllTimeout(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	refreshAll(t, f, tt, 4)
+	f.now = f.now.Add(refreshLimit)
+	f.fetched(1)
+	tt.Frame()
+	f.settle(t, tt)
+	if s.refresh != nil || !tt.HasText("Checked 1 of 4 subscriptions, the rest will follow") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestRefreshAllNothingAndFailure(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	refreshAll(t, f, tt, 0)
+	if s.refresh != nil || !tt.HasText("No subscriptions to refresh") || tt.HasText("0/0") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	f.refreshErr = errors.New("down")
+	refreshAll(t, f, tt, 0)
+	if s.refresh != nil || !tt.HasText("Can't refresh now. Try again later.") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestRefreshAllExpired(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.refreshErr = client.ErrUnauthorized
+	refreshAll(t, f, tt, 0)
+	if f.expired != 1 || s.refresh != nil {
+		t.Fatalf("expired %d", f.expired)
+	}
+}
+
+// TestRefreshAllEntryPoints reaches it from the palette and the key sheet, in both languages.
+func TestRefreshAllEntryPoints(t *testing.T) {
+	for language, name := range map[string]string{"en": "Refresh all subscriptions", "zh-Hans": "全部更新"} {
+		t.Run(language, func(t *testing.T) {
+			s, f, tt := setup(t, language)
+			s.ShowKeys()
+			tt.Frame()
+			if !tt.HasText(name) {
+				t.Fatalf("no key sheet row in %v", tt.Texts())
+			}
+			tt.Key(0, ui.KeyEscape)
+			tt.Key(ui.Cmd, ui.KeyK)
+			tt.Frame()
+			if !tt.HasText(name) {
+				t.Fatalf("no palette action in %v", tt.Texts())
+			}
+			if err := tt.Click(name); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(t, tt)
+			if f.refreshes != 1 {
+				t.Fatalf("refreshes %d", f.refreshes)
+			}
+		})
+	}
+	menu, item := RefreshMenuLabels("zh-Hans")
+	if menu != "订阅" || item != "全部更新" {
+		t.Errorf("labels %q %q", menu, item)
+	}
+}
+
+// TestRefreshKeyBesideLoadNew shows Cmd+R refreshes all subscriptions without loading the new entries, and plain R
+// loads them without refreshing.
+func TestRefreshKeyBesideLoadNew(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.entries = append([]client.Entry{{ID: 9, SourceID: 1, SourceTitle: "Go Blog", Kind: "article", Title: "Fresh",
+		CreatedAt: now.UnixMilli()}}, f.entries...)
+	f.sources[0].UnreadCount++
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	f.settle(t, tt)
+	if !tt.HasText("1 new") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	before := len(s.entries)
+	refreshAll(t, f, tt, 4)
+	if f.refreshes != 1 || !tt.HasText("1 new") || len(s.entries) != before {
+		t.Fatalf("refreshes %d, %d entries, texts %v", f.refreshes, len(s.entries), tt.Texts())
+	}
+	tt.Key(0, ui.KeyR)
+	f.settle(t, tt)
+	if f.refreshes != 1 || tt.HasText("1 new") || len(s.entries) != before+1 {
+		t.Fatalf("refreshes %d, %d entries", f.refreshes, len(s.entries))
 	}
 }

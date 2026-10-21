@@ -179,6 +179,7 @@ func desktop() {
 					window.Update(func() { root.run(it.Command) })
 				}})
 			}
+			subscriptions, refreshAll := timeline.RefreshMenuLabels(language)
 			mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 				{Label: "Oriel", Submenu: []*mygo.MenuItem{
 					{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
@@ -195,7 +196,13 @@ func desktop() {
 						}},
 					mygo.Separator(), {Role: mygo.RoleQuit},
 				}},
-				{Role: mygo.RoleEditMenu}, {Label: view, Submenu: items}, {Role: mygo.RoleWindowMenu},
+				{Role: mygo.RoleEditMenu}, {Label: view, Submenu: items},
+				{Label: subscriptions, Submenu: []*mygo.MenuItem{
+					{Label: refreshAll, Accelerator: "CmdOrCtrl+R", Click: func(*mygo.MenuItem, *mygo.Window) {
+						window.Update(root.refreshAll)
+					}},
+				}},
+				{Role: mygo.RoleWindowMenu},
 				{Label: help, Submenu: []*mygo.MenuItem{
 					{Label: keys, Accelerator: "CmdOrCtrl+/", Click: func(*mygo.MenuItem, *mygo.Window) {
 						window.Update(root.showKeys)

@@ -99,6 +99,27 @@ func TestSourceLifecycle(t *testing.T) {
 		t.Fatalf("after refresh: %v", got)
 	}
 
+	if w := do(s, "POST", "/api/sources/refresh", "", nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("refresh all without a session: %d", w.Code)
+	}
+	c.t = c.t.Add(time.Minute)
+	all := decode(t, do(s, "POST", "/api/sources/refresh", "", bearer(token)))
+	if all["queued"] != 2.0 || all["at"] != float64(c.t.UnixMilli()) {
+		t.Fatalf("refresh all: %v", all)
+	}
+	if got := decode(t, do(s, "GET", "/api/sources/"+id, "", bearer(token))); got["nextFetchAt"] != float64(c.t.UnixMilli()) {
+		t.Fatalf("after refresh all: %v", got)
+	}
+	do(s, "PATCH", "/api/sources/"+id, `{"paused":true}`, bearer(token))
+	c.t = c.t.Add(time.Minute)
+	if all := decode(t, do(s, "POST", "/api/sources/refresh", "", bearer(token))); all["queued"] != 1.0 {
+		t.Fatalf("refresh all with one paused: %v", all)
+	}
+	if got := decode(t, do(s, "GET", "/api/sources/"+id, "", bearer(token))); got["nextFetchAt"] == float64(c.t.UnixMilli()) {
+		t.Fatalf("paused source marked due: %v", got)
+	}
+	do(s, "PATCH", "/api/sources/"+id, `{"paused":false}`, bearer(token))
+
 	if w := do(s, "DELETE", "/api/sources/"+id, "", bearer(token)); w.Code != http.StatusNoContent {
 		t.Fatalf("delete: %d", w.Code)
 	}
