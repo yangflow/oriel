@@ -250,20 +250,22 @@ func nullInt(n int) any {
 
 // ExtractTarget is an article entry waiting for its full text.
 type ExtractTarget struct {
-	ID    int64
-	URL   string
-	Title string
+	ID       int64
+	URL      string
+	Title    string
+	Attempts int // extractions already tried and failed
 }
 
-// PendingExtractions lists article entries never tried first, newest first, then failed ones with
-// attempts left. Entries of sources that are no longer articles are left alone.
-func (s *Store) PendingExtractions(ctx context.Context, limit, maxAttempts int) ([]ExtractTarget, error) {
+// PendingExtractions lists article entries never tried first, newest first, then failed ones whose next attempt is
+// due at now. A failed entry without a next attempt gave up for good. Entries of sources that are no longer articles
+// are left alone.
+func (s *Store) PendingExtractions(ctx context.Context, now time.Time, limit int) ([]ExtractTarget, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.id, e.url, e.title FROM entries e JOIN sources s ON s.id = e.source_id
+		SELECT e.id, e.url, e.title, e.extract_attempts FROM entries e JOIN sources s ON s.id = e.source_id
 		WHERE s.kind = 'article'
-			AND (e.extract_status = 'pending' OR (e.extract_status = 'failed' AND e.extract_attempts < ?))
+			AND (e.extract_status = 'pending' OR (e.extract_status = 'failed' AND e.next_extract_at <= ?))
 		ORDER BY e.extract_status = 'failed', e.created_at DESC, e.id DESC
-		LIMIT ?`, maxAttempts, limit)
+		LIMIT ?`, now.UnixMilli(), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +273,7 @@ func (s *Store) PendingExtractions(ctx context.Context, limit, maxAttempts int) 
 	var targets []ExtractTarget
 	for rows.Next() {
 		var t ExtractTarget
-		if err := rows.Scan(&t.ID, &t.URL, &t.Title); err != nil {
+		if err := rows.Scan(&t.ID, &t.URL, &t.Title, &t.Attempts); err != nil {
 			return nil, err
 		}
 		targets = append(targets, t)
@@ -279,7 +281,21 @@ func (s *Store) PendingExtractions(ctx context.Context, limit, maxAttempts int) 
 	return targets, rows.Err()
 }
 
-// SaveExtraction records one extraction attempt. Empty html marks it failed.
+// FailExtraction records a failed extraction attempt. A non-zero retryAt is when it may be tried again; the zero time
+// gives up on the entry until the user retries it.
+func (s *Store) FailExtraction(ctx context.Context, id int64, retryAt time.Time) error {
+	var next any
+	if !retryAt.IsZero() {
+		next = retryAt.UnixMilli()
+	}
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE entries SET extract_status = 'failed', extracted_html = '', search_text = '',
+			extract_attempts = extract_attempts + 1, next_extract_at = ?
+		WHERE id = ?`, next, id)
+	return err
+}
+
+// SaveExtraction records one extraction attempt. Empty html marks it failed for good; FailExtraction schedules a retry.
 // The language of the full text, "" when unknown, replaces the one detected from the feed. Derived text does not
 // change the entry's updated_at.
 func (s *Store) SaveExtraction(ctx context.Context, id int64, html, text, language string) error {
@@ -305,7 +321,8 @@ func (s *Store) SaveExtraction(ctx context.Context, id int64, html, text, langua
 	}
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE entries SET extract_status = ?, extracted_html = ?, search_text = ?, language = coalesce(?, language),
-			reading_sec = CASE WHEN ? THEN ? ELSE reading_sec END, extract_attempts = extract_attempts + 1
+			reading_sec = CASE WHEN ? THEN ? ELSE reading_sec END, extract_attempts = extract_attempts + 1,
+			next_extract_at = NULL
 		WHERE id = ?`, status, html, text, nullString(language), update, reading, id)
 	return err
 }
@@ -315,7 +332,7 @@ func (s *Store) SaveExtraction(ctx context.Context, id int64, html, text, langua
 // It returns the entry, ErrNotFound for a missing one, and ErrNotRetryable for one that is neither failed nor pending.
 func (s *Store) RetryExtraction(ctx context.Context, id int64) (Entry, error) {
 	if _, err := s.db.ExecContext(ctx, `
-		UPDATE entries SET extract_status = 'pending', extract_attempts = 0
+		UPDATE entries SET extract_status = 'pending', extract_attempts = 0, next_extract_at = NULL
 		WHERE id = ? AND extract_status = 'failed'`, id); err != nil {
 		return Entry{}, err
 	}

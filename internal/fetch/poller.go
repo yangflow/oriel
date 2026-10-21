@@ -46,6 +46,7 @@ type Poller struct {
 	guarded   *http.Client // pages: addresses found inside feeds
 	userAgent string
 	now       func() time.Time
+	hosts     hostGate  // spaces out extraction requests to one site
 	lastPrune time.Time // only touched by Poll, which never runs concurrently
 }
 
