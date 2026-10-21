@@ -117,7 +117,10 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   an article's thumbnail, at most 96 by 64, radius 8, starts under the meta line and never makes the row taller. A
   row reads, top to bottom: the meta line (20 high: the site icon, the source name, a dot, the time, the reading
   time "6 min read" in `TextMuted` (after a dot, only when the estimate is a minute or more and the entry is read, not
-  watched), the kind mark; the row actions at its right), the title, the summary or the text, the pictures. Rows are separated by a
+  watched), the kind mark; the row actions at its right), the title, the summary or the text, the pictures. An article that has an
+  AI summary shows it in place of the feed summary, in the same size, color and two-line clamp, led by the `sparkles` icon
+  (13, `TextMuted`, labelled "AI summary") so it reads as generated; Social, Videos, Images and the Compact viewer, which
+  show no feed summary, are unchanged. Rows are separated by a
   hairline only, which hover and selection hide. The toolbar's title and buttons line up with that column's edges in
   a wide window (Videos and Images, which fill the width, keep the 20 inset). Pictures in a social post share a grid at
   most 440 wide (520 in Social): one picture keeps its aspect ratio, at most 384 wide and 240 high; two sit side by

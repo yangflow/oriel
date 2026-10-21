@@ -282,7 +282,9 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `POST /api/entries/read` | 「全部已读」「把上面的标为已读」「把订阅标为已读」，返回 `{ "marked": n, "ids": [...] }`。 |
 | `POST /api/entries/unread` | 撤销上面三种已读：把请求里的 `ids` 标回未读，返回 `{ "marked": n }`。 |
 
-列表里的条目：`id`、`sourceId`、`sourceTitle`（源的标题，空就用地址）、`kind`（源的形态）、`title`、`url`、`author`、`publishedAt`、`summary`（订阅里的摘要）、`thumbnailUrl`、`durationSec`、`platform`、`images`、`language`（没有为空串）、`readingSec`（没有为 `null`）、`readProgress`（从没滚动过时不出现）、`extractStatus`、`isRead`、`readAt`、`starred`、`createdAt`。没有的时间和时长为 `null`。单个条目再多带 `contentHtml`（订阅里的正文）和 `extractedHtml`（抽取的正文，没有为空串）。
+列表里的条目：`id`、`sourceId`、`sourceTitle`（源的标题，空就用地址）、`kind`（源的形态）、`title`、`url`、`author`、`publishedAt`、`summary`（订阅里的摘要）、`aiSummary`（见下）、`thumbnailUrl`、`durationSec`、`platform`、`images`、`language`（没有为空串）、`readingSec`（没有为 `null`）、`readProgress`（从没滚动过时不出现）、`extractStatus`、`isRead`、`readAt`、`starred`、`createdAt`。没有的时间和时长为 `null`。单个条目再多带 `contentHtml`（订阅里的正文）和 `extractedHtml`（抽取的正文，没有为空串）。
+
+`aiSummary` 是这个条目已存的 AI 摘要，给时间线的行代替订阅里的摘要显示：只在摘要任务的结果是 `ok` 且有文字时出现，否则整个字段不出现。它读的是「AI 结果」里存着的那一行，列表从不触发生成，也不调 AI 接口；阅读器显示的是同一份。为了不让列表变大，文字压平空白后最多 300 个字符，超出时在词界（没有空格的文字就在字符处）截断并加 `…`；完整的摘要用 `GET /api/entries/{id}/ai` 取。单个条目不带这个字段。
 
 `GET /api/entries` 的查询参数，都可选，可以组合：
 
@@ -486,7 +488,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 列表：
 
 - 每页 50 条，按游标翻页，滚到离底部不到 10 条时取下一页；取失败时底部显示重试。
-- 每个条目按自己的形态画，画法由「查看方式」决定（见下面「查看方式」和「外观」）。默认：「全部」「文章」「社交」和单个订阅用一列，文章是标题、来源和时间、两行摘要，有缩略图时放右边；视频是 16:9 封面加时长；社交是作者、正文（最多 6 行）配图，不超过一行：一张按自己的比例，两张并排成 4:3，三张或更多只显示前三张，排成一行方图，多出的数量写在第三张上「+N」；图片是一张 3:2 的大图。
+- 每个条目按自己的形态画，画法由「查看方式」决定（见下面「查看方式」和「外观」）。默认：「全部」「文章」「社交」和单个订阅用一列，文章是标题、来源和时间、两行摘要，有缩略图时放右边；条目已有 AI 摘要时，这两行显示 AI 摘要而不是订阅里的摘要，前面带一个小星光图标（只有文章行这样；社交的正文就是帖子本身，视频和图片不显示摘要）；视频是 16:9 封面加时长；社交是作者、正文（最多 6 行）配图，不超过一行：一张按自己的比例，两张并排成 4:3，三张或更多只显示前三张，排成一行方图，多出的数量写在第三张上「+N」；图片是一张 3:2 的大图。
 - 默认「视频」用封面网格，「图片」用瀑布流：按图片的宽高放进当前最矮的一列，没有宽高时按 4:3。
 - 未读的条目左边有一个强调色圆点，标题加粗；已读的标题变淡。
 - 时间显示为相对时间（「5 分钟前」「3 小时前」「昨天」「3 天前」），一周以前显示日期，不是今年时带年份。用 `publishedAt`，没有就用 `createdAt`。

@@ -361,3 +361,61 @@ func TestReadingTime(t *testing.T) {
 		t.Fatalf("entry: %v", one)
 	}
 }
+
+func TestListCarriesOkAISummary(t *testing.T) {
+	s, c := newServer(t, "")
+	seed(t, s, "article", 6, c.t)
+	ctx := context.Background()
+	body := decode(t, do(s, "GET", "/api/entries", "", nil))
+	ids := map[string]int64{}
+	for _, item := range body["entries"].([]any) {
+		entry := item.(map[string]any)
+		ids[entry["title"].(string)] = int64(entry["id"].(float64))
+	}
+	save := func(title, task, text, code string) {
+		t.Helper()
+		id := ids[title]
+		if _, err := s.store.RequestAI(ctx, id, task, c.t); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.store.SaveAI(ctx, id, task, text, "m", "f", code, c.t); err != nil {
+			t.Fatal(err)
+		}
+	}
+	long := strings.Repeat("word ", 100)
+	save("article 0", store.TaskSummary, "  Short\n\nsummary.  ", "")
+	save("article 1", store.TaskSummary, long, "")
+	save("article 2", store.TaskSummary, strings.Repeat("字", 400), "")
+	save("article 3", store.TaskSummary, "", "ai_upstream")
+	save("article 4", store.TaskTranslation, "Only a translation.", "")
+	save("article 5", store.TaskSummary, "Old summary.", "")
+	if _, err := s.store.RequestAI(ctx, ids["article 5"], store.TaskSummary, c.t); err != nil {
+		t.Fatal(err)
+	}
+
+	got := map[string]any{}
+	for _, item := range decode(t, do(s, "GET", "/api/entries", "", nil))["entries"].([]any) {
+		entry := item.(map[string]any)
+		if text, ok := entry["aiSummary"]; ok {
+			got[entry["title"].(string)] = text
+		}
+	}
+	want := map[string]any{
+		"article 0": "Short summary.",
+		"article 1": strings.TrimSpace(strings.Repeat("word ", 60)) + "…",
+		"article 2": strings.Repeat("字", maxListAISummary) + "…",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("aiSummary on %v, want %v", got, want)
+	}
+	for title, text := range want {
+		if got[title] != text {
+			t.Errorf("%s: aiSummary %q, want %q", title, got[title], text)
+		}
+	}
+
+	one := decode(t, do(s, "GET", "/api/entries/"+strconv.FormatInt(ids["article 0"], 10), "", nil))
+	if _, ok := one["aiSummary"]; ok {
+		t.Errorf("a single entry carries aiSummary: %v", one)
+	}
+}

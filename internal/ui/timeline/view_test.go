@@ -266,6 +266,50 @@ func setup(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 	return s, f, tt
 }
 
+// setupAI is setup with an AI summary on the newest article and a feed summary on the older one.
+func setupAI(t *testing.T, language string) (*fake, *ui.Tester) {
+	t.Helper()
+	sources, entries := sample()
+	entries[0].AISummary = "Generated overview of the release."
+	entries[4].Summary = "Feed text of the old post."
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New(language, f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	return f, tt
+}
+
+func TestAISummaryRow(t *testing.T) {
+	for language, label := range map[string]string{"en": "AI summary", "zh-Hans": "AI 摘要"} {
+		t.Run(language, func(t *testing.T) {
+			f, tt := setupAI(t, language)
+			if !tt.HasText("Generated overview of the release.") {
+				t.Fatalf("no AI summary in %v", tt.Texts())
+			}
+			if tt.HasText("The latest Go release.") {
+				t.Error("the feed summary shows next to the AI summary")
+			}
+			if !tt.HasText("Feed text of the old post.") {
+				t.Error("an entry without an AI summary lost its feed summary")
+			}
+			n := 0
+			for _, text := range tt.Texts() {
+				if text == label {
+					n++
+				}
+			}
+			if n != 1 {
+				t.Errorf("%d %q marks, want one", n, label)
+			}
+			if len(f.queries) != 1 {
+				t.Errorf("%d list queries; drawing the list must ask nothing else", len(f.queries))
+			}
+		})
+	}
+}
+
 func TestCatalogsMatch(t *testing.T) {
 	var raw map[string]map[string]string
 	if err := json.Unmarshal(catalog, &raw); err != nil {
