@@ -760,7 +760,7 @@ func TestEditKindSuggestion(t *testing.T) {
 	src.SuggestedKind = "video"
 	s.Edit(src)
 	tt.Frame()
-	for _, text := range []string{"The first entries look like videos.", "Show as Videos"} {
+	for _, text := range []string{"Most entries in this feed are videos.", "Show as Videos"} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
@@ -781,7 +781,7 @@ func TestEditKindSuggestion(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if tt.HasText("The first entries look like videos.") {
+	if tt.HasText("Most entries in this feed are videos.") {
 		t.Error("the suggestion stays once taken")
 	}
 	if err := tt.Click("Save"); err != nil {
@@ -796,7 +796,7 @@ func TestEditKindSuggestion(t *testing.T) {
 	src.Kind = "video"
 	s.Edit(src)
 	tt.Frame()
-	if tt.HasText("The first entries look like videos.") {
+	if tt.HasText("Most entries in this feed are videos.") {
 		t.Error("suggests the kind it already is")
 	}
 }
@@ -807,7 +807,7 @@ func TestEditSuggestionChinese(t *testing.T) {
 	src.SuggestedKind = "image"
 	s.Edit(src)
 	tt.Frame()
-	for _, text := range []string{"最早的几条看起来是图片。", "显示为图片", "自动 · 15 分钟"} {
+	for _, text := range []string{"这个订阅的条目大多是图片。", "显示为图片", "自动 · 15 分钟"} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
