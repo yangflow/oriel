@@ -226,3 +226,25 @@ func (w *Worker) Test(ctx context.Context) (string, error) {
 	_, model, err := w.call(ctx, cfg, "Reply with OK.", "OK")
 	return model, err
 }
+
+// Selection translates or explains a text the user selected while reading, in the target language, and returns the
+// text and the model that answered. It is answered at once, outside the queue, and stores nothing. text is trimmed
+// and at most MaxSelection characters, and task one of SelectionTranslate and SelectionExplain; title, the article
+// the text is from, only gives an explanation its background. It returns ErrNotConfigured when AI is not set up.
+func (w *Worker) Selection(ctx context.Context, task, text, title string) (string, string, error) {
+	cfg, err := Load(ctx, w.store)
+	if err != nil {
+		return "", "", err
+	}
+	if !cfg.Configured() {
+		return "", "", ErrNotConfigured
+	}
+	prompt, user := cfg.PromptTranslate, text
+	if task == SelectionExplain {
+		prompt = PromptExplain
+		if title = strings.Join(strings.Fields(title), " "); title != "" {
+			user = "Article: " + truncate(title, maxSelectionTitle) + "\n\nSelected text: " + text
+		}
+	}
+	return w.call(ctx, cfg, strings.ReplaceAll(prompt, "{language}", Languages[cfg.Language]), user)
+}

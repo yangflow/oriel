@@ -362,6 +362,13 @@ func TestAIAPI(t *testing.T) {
 			w.Write([]byte(`{"error":"ai_not_configured"}`))
 		case "/api/ai/test":
 			w.Write([]byte(`{"model":"m-1"}`))
+		case "/api/ai/selection":
+			if strings.Contains(string(body), "too long") {
+				w.WriteHeader(http.StatusBadGateway)
+				w.Write([]byte(`{"error":"ai_timeout"}`))
+				return
+			}
+			w.Write([]byte(`{"text":"你好","model":"m-1"}`))
 		case "/api/settings":
 			w.Write([]byte(`{"aiBaseUrl":"http://x/v1","aiModel":"m","aiApiKeySet":true,"aiLanguage":"en"}`))
 		}
@@ -384,6 +391,12 @@ func TestAIAPI(t *testing.T) {
 	if model, err := session.TestAI(ctx); err != nil || model != "m-1" {
 		t.Errorf("TestAI = %q, %v", model, err)
 	}
+	if text, model, err := session.Selection(ctx, "translate", "hello", "Greetings"); err != nil || text != "你好" || model != "m-1" {
+		t.Errorf("Selection = %q, %q, %v", text, model, err)
+	}
+	if _, _, err := session.Selection(ctx, "explain", "too long", ""); !errors.As(err, &apiErr) || apiErr.Code != "ai_timeout" {
+		t.Errorf("Selection upstream failure: %v", err)
+	}
 	key := ""
 	settings, err := session.SetSettings(ctx, SettingsPatch{AIAPIKey: &key})
 	if err != nil || !settings.AIConfigured() || !settings.AIAPIKeySet || settings.AILanguage != "en" {
@@ -396,6 +409,8 @@ func TestAIAPI(t *testing.T) {
 		"POST /api/entries/7/translation ",
 		"POST /api/entries/8/summary ",
 		"POST /api/ai/test ",
+		`POST /api/ai/selection {"task":"translate","text":"hello","title":"Greetings"}`,
+		`POST /api/ai/selection {"task":"explain","text":"too long","title":""}`,
 		`PATCH /api/settings {"aiApiKey":""}`,
 		`PATCH /api/sources/5 {"promptSummary":"","autoSummary":true}`,
 	}

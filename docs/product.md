@@ -383,6 +383,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 | `POST /api/entries/{id}/summary` | 要摘要，返回这一种结果。 |
 | `POST /api/entries/{id}/translation` | 要翻译，返回这一种结果。 |
 | `POST /api/ai/test` | 用当前设置发一个很短的请求，成功返回 `{ "model": "..." }`；没配置好时 409，上游失败时 502，带下面的错误码。 |
+| `POST /api/ai/selection` | 翻译或解释阅读器里选中的一段文字：`{ "task": "translate" \| "explain", "text": "...", "title": "..." }`，成功返回 `{ "text": "...", "model": "..." }`。见下面的「所选文字」。 |
 
 一种结果是 `{ "status", "text", "error", "model", "updatedAt" }`，`status` 是 `pending`、`ok`、`failed`，`error` 只在 `failed` 时有值。
 
@@ -420,6 +421,15 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 | `ai_rate_limited` | 上游 429。 |
 | `ai_upstream` | 上游其他非 2xx，或返回的不是预期的 JSON，或结果为空。 |
 | `ai_empty` | 条目没有可送的文字。 |
+
+所选文字（`POST /api/ai/selection`）：
+
+- 同步做完再回答，不排队、不占上面处理器的名额，什么都不写进数据库。
+- `task` 是 `translate` 或 `explain`，别的值 400 `invalid_task`。`text` 去掉首尾空白后为空 400 `invalid_text`，超过 2000 个字符 400 `text_too_long`。`title` 可不给，是所读文章的标题，只作为解释的背景，去掉首尾空白后最多取 200 个字符，多出的截掉，不会因它报错。
+- 没配置好时 409 `ai_not_configured`；上游失败时 502，带上面的错误码（结果为空是 `ai_empty`）。
+- 翻译用生效的翻译 prompt 里的全局那一份（所选文字不属于某个源），目标语言和条目翻译相同；送去的 user 消息就是所选文字。
+- 解释的内置 prompt：`Explain the selected text in {language} in one to three plain sentences, so a reader who does not know the term or phrase can follow. Reply with the explanation only.`；有 `title` 时 user 消息是 `Article: <title>` 一行、空一行、`Selected text: <text>`，没有时只送所选文字。
+- 调用、超时、响应上限、错误码和日志的规矩与上面相同；日志不记所选文字。
 
 自动处理：
 
@@ -572,6 +582,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - 「翻译」也是开关：按下发 `POST .../translation`。生成时原文照常显示，标题下面一条提示「正在翻译，好了之前先看原文」和「取消」；好了之后标题和正文换成译文，提示「由〈模型〉翻译」，带「译文 | 原文」切换；失败时原文不动，提示原因和「重试」。译文是纯文本段落，第一行是标题；图片和链接只在原文里。
 - 进行中时每 2 秒取一次 `GET .../ai`。「取消」和离开这篇文章只是不再等，服务端的处理照常做完，下次打开时就有结果。
 - 没配置 AI（`ai_not_configured`）时，按摘要或翻译出一张卡片「还没配置 AI」，带「打开设置…」，打开设置的 AI 组。
+- 所选文字：正文里有选中的文字时，右键菜单在「拷贝」「全选」之后多两项「翻译所选」「解释所选」，没有选中时不出现。选了其中一项，阅读器底部出一张浮在正文上的卡片，不动正文和滚动位置。卡片头是任务名和所选文字的前 40 个字符（多出的用省略号），右边一个关闭按钮；Esc 也关闭它（先关卡片，再按才返回）。卡片里依次是：请求时显示「正在翻译…」或「正在解释…」；成功显示结果（可选中，长了在卡片里滚动）和「拷贝」；失败显示原因（按错误码，见「AI 接口」）和「重试」；没配置 AI 显示「还没配置 AI」和「打开设置…」。所选文字超过 2000 个字符时菜单照常有这两项，卡片直接说「选的文字太长，请少选一些」，不发请求。再选一次菜单项会换掉这张卡片；换一篇文章时卡片收起；旧请求的回答都丢掉。结果不存。
 
 正文在客户端从 HTML 画成原生视图，不用 WebView：
 

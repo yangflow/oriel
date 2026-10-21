@@ -99,6 +99,7 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("POST /api/entries/{id}/summary", s.authed(s.requestSummary))
 	mux.HandleFunc("POST /api/entries/{id}/translation", s.authed(s.requestTranslation))
 	mux.HandleFunc("POST /api/ai/test", s.authed(s.testAI))
+	mux.HandleFunc("POST /api/ai/selection", s.authed(s.selectAI))
 	mux.HandleFunc("GET /api/settings", s.authed(s.getSettings))
 	mux.HandleFunc("PATCH /api/settings", s.authed(s.updateSettings))
 	mux.HandleFunc("POST /api/opml/import", s.authed(s.importOPML))

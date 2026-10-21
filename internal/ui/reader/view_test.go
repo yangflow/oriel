@@ -48,6 +48,11 @@ type fake struct {
 	retryErr error
 
 	saved []saved // the reading positions stored, in order
+
+	selected  []string // the tasks and texts asked about a selection, as "task: text"
+	selTitles []string // the titles sent with them
+	selReply  string   // the answer to a selection
+	selErr    error
 }
 
 // saved is a reading position the reader stored.
@@ -79,6 +84,12 @@ func (f *fake) AI(_ context.Context, id int64) (client.AIResults, error) {
 func (f *fake) RequestAI(_ context.Context, id int64, task string) (client.AIResult, error) {
 	f.requests = append(f.requests, task)
 	return f.reply, f.replyErr
+}
+
+func (f *fake) Selection(_ context.Context, task, text, title string) (string, string, error) {
+	f.selected = append(f.selected, task+": "+text)
+	f.selTitles = append(f.selTitles, title)
+	return f.selReply, "gpt-4o-mini", f.selErr
 }
 
 func (f *fake) SetEntry(_ context.Context, id int64, patch client.EntryPatch) (client.Entry, error) {
