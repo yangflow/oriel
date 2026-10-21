@@ -75,13 +75,13 @@ func (s *Screen) paletteItems() []paletteItem {
 	add := func(it paletteItem) { items = append(items, it) }
 	if s.canMarkAll() {
 		add(paletteItem{group: groupActions, name: strings.ReplaceAll(s.text.MarkAllIn, "{scope}", s.scopeName()),
-			icon: icons.CheckCheck, run: s.markAll})
+			icon: icons.CheckCheck, keys: []string{shiftKey(), "A"}, run: s.markAll})
 	}
 	add(paletteItem{group: groupActions, name: s.text.AddSource, icon: icons.Plus, keys: []string{cmd, "N"}, run: s.subs.Add})
 	if s.filter == unread {
-		add(paletteItem{group: groupActions, name: s.text.PaletteShowAll, icon: icons.CircleDot, run: func() { s.setFilter(everything) }})
+		add(paletteItem{group: groupActions, name: s.text.PaletteShowAll, icon: icons.CircleDot, keys: []string{"A"}, run: func() { s.setFilter(everything) }})
 	} else {
-		add(paletteItem{group: groupActions, name: s.text.PaletteUnreadOnly, icon: icons.CircleDot, run: func() { s.setFilter(unread) }})
+		add(paletteItem{group: groupActions, name: s.text.PaletteUnreadOnly, icon: icons.CircleDot, keys: []string{"U"}, run: func() { s.setFilter(unread) }})
 	}
 	add(paletteItem{group: groupActions, name: s.text.PaletteOpenSettings, icon: icons.Settings, keys: []string{cmd, ","},
 		run: func() {

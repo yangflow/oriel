@@ -655,7 +655,7 @@ const copy={
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
     kSummarize:'Summarize', kTranslate:'Translate', kBack:'Back to the list', kAdd:'Add subscription', kSettings:'Settings', kKeys:'Keyboard shortcuts',
     kPalette:'Command palette', pGoTo:'Go to…', pActions:'Actions', pSettings:'Settings', pNone:'No matches', pUnreadOnly:'Show unread only', pOpenSettings:'Open settings',
-    pAppearance:'Appearance', pFetching:'Fetching', pOpml:'Import and export', pAi:'AI', pDevices:'Devices', kMarkVisible:'Mark visible as read', kScope:'Switch kind', kSidebar:'Go to the sidebar', hideSidebar:'Hide sidebar', showSidebar:'Show sidebar', kToggleSidebar:'Hide or show the sidebar', kMenu:'Context menu',
+    pAppearance:'Appearance', pFetching:'Fetching', pOpml:'Import and export', pAi:'AI', pDevices:'Devices', kMarkVisible:'Mark visible as read', kUnread:'Show unread only', kAll:'Show all entries', kStarred:'Show starred only', kLoadNew:'Load new entries', kScope:'Switch kind', kSidebar:'Go to the sidebar', hideSidebar:'Hide sidebar', showSidebar:'Show sidebar', kToggleSidebar:'Hide or show the sidebar', kMenu:'Context menu',
     thisComputer:'This computer', settings:'Settings', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures', pictureCount:'{n} pictures', aiSummary:'AI summary',
     lbTitle:'Pictures from “{title}”', lbPicture:'Picture {n} of {total}', lbPrev:'Previous picture', lbNext:'Next picture', lbOpenPicture:'Open picture in browser', lbFailed:'This picture can’t be shown', kPictures:'View pictures',
     ago:{m:'{n} min',h:'{n} h',d:'Yesterday',days:'{n} days'},
@@ -689,7 +689,7 @@ const copy={
     kSummarize:'摘要', kTranslate:'翻译', kBack:'回到列表', kAdd:'添加订阅', kSettings:'设置', kKeys:'键盘快捷键',
     kPalette:'命令面板', pGoTo:'前往…', pActions:'操作', pSettings:'设置', pNone:'没有匹配', pUnreadOnly:'只看未读', pOpenSettings:'打开设置',
     pAppearance:'外观', pFetching:'抓取', pOpml:'导入和导出', pAi:'AI', pDevices:'设备',
-    kMarkVisible:'把可见的标为已读', kScope:'切换形态', kSidebar:'到侧边栏', hideSidebar:'隐藏侧栏', showSidebar:'显示侧栏', kToggleSidebar:'隐藏或显示侧栏', kMenu:'右键菜单',
+    kMarkVisible:'把可见的标为已读', kUnread:'只看未读', kAll:'显示全部条目', kStarred:'只看收藏', kLoadNew:'载入新内容', kScope:'切换形态', kSidebar:'到侧边栏', hideSidebar:'隐藏侧栏', showSidebar:'显示侧栏', kToggleSidebar:'隐藏或显示侧栏', kMenu:'右键菜单',
     thisComputer:'本机', settings:'设置', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图', pictureCount:'{n} 张图', aiSummary:'AI 摘要',
     lbTitle:'「{title}」的图片', lbPicture:'第 {n} 张，共 {total} 张', lbPrev:'上一张', lbNext:'下一张', lbOpenPicture:'在浏览器中打开这张图', lbFailed:'这张图显示不出来', kPictures:'看图',
     ago:{m:'{n} 分钟前',h:'{n} 小时前',d:'昨天',days:'{n} 天前'},
@@ -950,7 +950,7 @@ const toast=state==='marked-read'?`<div class="toast" role="status">${icon('chec
 const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
 const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${keys(...k)}</dd>`).join('')}</dl>`;
 const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="kt"><header><h2 id="kt">${copy.keysTitle}</h2><button class="close" aria-label="${copy.close}">${icon('x')}</button></header><div class="cols"><div>
-  <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kPictures','Space'],['kStar','S'],['kRead','M'],['kMarkVisible','V'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kScope','1–5'],['kSidebar','H','←'],['kBack','L','→','Esc'],['kMenu',[shift,'F10'],...(mac?[]:['Menu'])],['kUndo',[mod,'Z']]])}</div><div>
+  <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kPictures','Space'],['kStar','S'],['kRead','M'],['kMarkVisible','V'],['kMarkAll',[shift,'A']],['kUnread','U'],['kAll','A'],['kStarred','*'],['kLoadNew','R'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kScope','1–5'],['kSidebar','H','←'],['kBack','L','→','Esc'],['kMenu',[shift,'F10'],...(mac?[]:['Menu'])],['kUndo',[mod,'Z']]])}</div><div>
   <h3>${copy.inReader}</h3>${keyList([['kNextArticle','J'],['kPrevArticle','K'],['kNextUnread','N'],['kStar','S'],['kRead','M'],['kOpenBrowser','O'],['kBack','Esc']])}
   <h3>${copy.anywhere}</h3>${keyList([['kPalette',[mod,'K']],['kAdd',[mod,'N']],['kToggleSidebar',[mod,'\\']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
 
