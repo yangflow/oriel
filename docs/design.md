@@ -121,12 +121,60 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   side at 4:3; three or more show the first three as squares in one row, the third covered by "+N" for the rest
   (labelled "N more pictures"), so a post is never taller than one row of pictures. Videos are a grid of cards at least
   200 wide, 16:9 covers; Images are a masonry wall of up to three columns at least 170 wide, each picture at its own
-  aspect ratio. Below a 760 wide window the segments show icons only. Sizes taken from the mockup are written
+  aspect ratio. These are the defaults; the View as preference (the next bullet) changes them. Below a 760 wide window the segments show icons only. Sizes taken from the mockup are written
   `px(t, n)`, which is `t.Rem(n / 13)`, so they follow the text size. The pane's section header, 22 high, ends in a 22
   square + button that adds a subscription; it shows even when there are none. A paused subscription has its name in
   `TextMuted`, a pause mark instead of the failure mark, and no count. With one subscription chosen, a pencil button
   after the count edits it. A row is chosen with a fill (ink 6.5%) and the selection marker; see
   [States](#color-and-dark-mode).
+- **Viewers (View as).** Each kind has a viewer the reader chooses in Settings, Appearance (the settings row is
+  described under Settings below; the rule for which entries use it is in `docs/product.md`, Viewers). The default of
+  each kind is the look described in the timeline bullet above (Articles List, Videos Grid, Social Card, Images Wall); the others are:
+  **Article, Compact.** A row 36 high, in the column (680 wide), padded 0 16 0 28 like a row, radius 10, parted by the
+  same hairline; the unread dot sits at its left, centered. Left to right: the site icon (16), the source name in a
+  128 wide field (96 below a 760 wide window; 12 medium `Text2`, one line, ellipsis), a 12 gap, the title (13
+  semibold `Text`, one line, ellipsis, taking the rest; read: 500 `TextMuted`), the star mark when starred, and the
+  time (12 `TextMuted`, tabular figures, right-aligned, 56 wide at least). The reading time is left out, the summary
+  and the thumbnail too. The row actions replace the time while the pointer rests on the row or it is chosen or
+  focused (27 by 24, centered vertically, no longer in the meta band because there is none).
+  **Social, Compact.** A row padded 12 16 12 28 with 4 between its parts: the meta line (author, handle, time), the
+  text at 13 `Text` clamped to 2 lines (6 in the default viewer), then the pictures shrunk to thumbnails. One picture
+  is a 56 square, radius 8, at the right of the text, starting under the meta line (as an article's thumbnail does);
+  two or more are a strip under the text, 8 below it, of at most four 40 squares, radius 6, 4 apart, the fourth
+  covered by "+N" (11 semibold white on ink 50%) when more follow; the strip never wraps. Failed thumbnails show the
+  `Track` fill and a 16 image mark.
+  **Video, Large cover.** A row of the column's width (the 28 gutter stays for the unread dot): the cover fills the
+  row's content width at 16:9, radius 12 with the 0.5 DIP outline, the play mark (a 44 disc of ink 40% with a 16
+  white triangle) always shown, the duration badge at the bottom right, then 8 below the cover the title (15
+  semibold, two lines at most, ellipsis), then the meta line (source, time, the platform with the video mark). The row
+  actions sit at the right of the meta line. The cover is at most 640 wide (360 high) and stays left-aligned with the text; in a narrower column it is just the column's width. In the 680 column it is about 620 by 350, so a screen shows two
+  to three entries; it is for people who want the picture first.
+  **Video, List** and **Image, Card** are the rows the other scopes draw today, now also in Videos and Images: the
+  video row (a 16:9 thumbnail with the duration, the meta line and the title beside it) and the image card (the
+  3:2 picture); the grid and the wall are not used for that kind.
+  **Image, Grid.** Used only in the Images scope without a search, as the wall is. It is the Videos grid with square
+  pictures, so it follows the same layout: the grid fills the column, padded 16 at the top, 24 at the sides and 32 at the
+  bottom, cells at least 170 wide (the wall's column width) sharing the width, 16 across and 24 down, aligned
+  at the top. A cell: a square picture (radius 10, 0.5 outline, centered and cropped), 4 below it the title in 13
+  semibold on one line with an ellipsis, then the meta line with the inline unread dot. The cell is square before the
+  picture arrives, so a late picture moves nothing; the stored width and height are not used. An entry with more than
+  one picture shows the count in a badge at the top right, a dark pill (11 medium white on ink 62%, radius 5, 6 in
+  from the corner) with an 11 images mark and the number ("3 pictures" as the picture's name). Like a video card, the
+  cell has no fill, chosen ring or focus ring of its own; hover, the actions and the keyboard are as the Videos grid
+  has them. Keyboard and the V rule treat a row of cells whole, as the Videos grid does.
+  **Hover, in the grid and the wall.** As today's cards: the video card's play mark appears, the row actions appear
+  at the cell's bottom right (`bottom -2, right -4`), and the meta line gives way 84 on its right so the actions never
+  cover it. Nothing else changes: the time and the star stay.
+  **Unread dot.** A grid card, a wall tile and the square image cell carry the 7 `Accent` dot inline at the start of
+  the meta line. A row, including the Large cover and the video row, carries it in the 28 left gutter, level with the top of
+  the row's first line (on the Large cover, with the top of the cover).
+  **Where each applies.** Grid, Wall and the square Grid only in the Videos or Images scope with no search; in All,
+  Articles, Social, a single subscription and a search the kind draws its row or card, so a subscription keeps the
+  column (a per-source choice is a later change). Compact and Large cover apply wherever the kind appears, so a Compact
+  article row, a Large cover video and a Compact social post can sit one under another in All. Drawn in
+  `design/screens/timeline.html`: `article-compact`, `social-compact`, `video-cover`, `video-list`, `image-grid`,
+  `image-card` and `mixed-viewers`; with no state, `scope=video` and `scope=image` are the defaults, the grid and the
+  wall.
 - **The subscription dialogs.** Dialogs over the timeline on a `RGBA(28,24,18,.32)` backdrop: 440 wide to add, 480 to
   edit, radius 16, `theme.RaisedFill` and a soft shadow, at most the window's height less `Space(8)`. A header (a 32 square
   tile or monogram, the title 15 semibold, a 28 square bare close button), a form that scrolls when the window is too low while the header and the buttons stay (a `Border` line appears under
@@ -559,8 +607,9 @@ Overlays share focus and Escape behavior; see
   scrolls so the first entry below them is at the top, chosen and focused. "Fully inside" counts a row (a card in the video
   grid, a tile in the picture wall) that lies wholly between the bottom of the toolbar, which the list scrolls under, and
   the bottom of the window; a row cut by either edge is not marked and, at the bottom, is the one scrolled to the top. The
-  range runs in list order from the first entry fully in view to the last one before the first entry that is not; in the
-  picture wall, whose columns differ in height, that is the entries up to the first tile not wholly in view. Entries already
+  range runs in list order from the first entry fully in view to the last one before the first entry that is not; in a
+  grid the cards of a row count whole, and in the picture wall, whose columns differ in height, that is the entries up
+  to the first tile not wholly in view (the square picture grid counts as the video grid does). Entries already
   read inside the range stay as they are and are not counted. With no unread in the range V only scrolls and shows no
   toast, so it also pages; at the end of the list it marks and stays. If the last loaded entry is wholly in view but
   another page is to come, it is left unread and becomes the one scrolled to, while the page loads. The scroll is
@@ -621,7 +670,7 @@ Overlays share focus and Escape behavior; see
   language; chosen, it applies at once and the screens are rebuilt), Interface font (a button that opens the font picker
   below: "System font" and the current family first, then the installed families, each set in its own face) and, in a second card titled "Reading", Reading font
   (a button like Interface font that opens the same font picker, with "Follow interface" (the default) and "Serif" pinned above a hairline, each drawn in its own face, then the current family if it is one, then the installed families; its value shows the current choice in its own face), Text size
-  (segmented: Small, Medium, Large, Extra large) and Line spacing (segmented: Compact, Standard, Relaxed) and Chinese typesetting (a switch, on by default; see Chinese typesetting). A sample paragraph on `Surface` under them shows the result, set in the chosen Reading font (the column width is not shown there). Drawn in `design/screens/settings.html`, `reading-font`, `reading-font-open` and `reading-cjk-off`, and in `design/screens/reader.html` with `textsize`, `font` and `cjk`. Every control
+  (segmented: Small, Medium, Large, Extra large) and Line spacing (segmented: Compact, Standard, Relaxed) and Chinese typesetting (a switch, on by default; see Chinese typesetting). A third card, titled "View as" under the Reading card, has one row per kind, each a segmented control of its own values (Articles: List, Compact; Videos: Grid, Large cover, List; Social: Card, Compact; Images: Wall, Grid, Card), the default first, each row just the kind's name and its control; the last row of the card is a note in 12 `TextMuted` that says "Grid and Wall are used in Videos and Images. Elsewhere those entries appear as rows or cards." The segments are 26 high in a 32 high capsule, as in Theme, so a row never needs a popup. Drawn in `design/screens/settings.html`, `viewers`. A sample paragraph on `Surface` under them shows the result, set in the chosen Reading font (the column width is not shown there). Drawn in `design/screens/settings.html`, `reading-font`, `reading-font-open` and `reading-cjk-off`, and in `design/screens/reader.html` with `textsize`, `font` and `cjk`. Every control
   is saved and applied as soon as it is chosen; there is no Save button. The page starts 32 below the toolbar; rows are padded 16 by 20, help
   sits 4 under its label and the control 12 under that; cards and section titles are 28 apart.
 

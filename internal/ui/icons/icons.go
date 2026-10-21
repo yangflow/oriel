@@ -40,6 +40,7 @@ var (
 	FileText       = parse("file-text")
 	Globe          = parse("globe")
 	Image          = parse("image")
+	Images         = parse("images")
 	Inbox          = parse("inbox")
 	KeyRound       = parse("key-round")
 	Languages      = parse("languages")

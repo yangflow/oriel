@@ -37,6 +37,13 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | row | padding 16, gap 14, radius 12 | | an entry row; 28 on the left, where the unread dot (7, 11 from the edge) sits |
 | row-meta | 20 high | 20 | the meta line of a row; it keeps 88 free at the right for the row actions |
 | thumbnail | 96 x 64, radius 8 | 96 x 64 | an article's picture, beside the title, below the meta line |
+| row-compact | 36 high, radius 10, padding 0 16 0 28 | 36 | an article in the Compact viewer; source field 128 (96 below 760), title takes the rest, time 56 at least |
+| social-compact-thumb | 56 square, radius 8; strip of up to four 40 squares, radius 6, 4 apart | 56 / 40 | pictures of a social post in the Compact viewer |
+| cover-large | 16:9 at the row's content width, at most 640 wide (360 high), left-aligned with the text, radius 12 | about 620 x 350, at most 640 x 360 | a video in the Large cover viewer; title 15 semibold under it |
+| video-grid | cells at least 200 wide, gap 16 across and 24 down, padding 16 24 32 | 200 | Videos scope; 16:9 cover, title 13 up to two lines, 7 below the cover |
+| picture-wall | up to three columns at least 170 wide, column gap 14, tile gap 20 below, padding 16 24 32 | 170 | Images scope (Wall); each picture at its own aspect ratio, 4:3 when unknown; caption 13 semibold, one line |
+| picture-grid | cells at least 170 wide, same gaps and padding as video-grid | 170 | Images scope (Grid); square picture, radius 10, title 13 semibold one line, 4 below |
+| badge | radius 5, 11 medium white on ink 62%, 6 from the corner | | duration (bottom right) and picture count (top right) on a cover |
 | icon | `t.Rem(1.25)` | about 16 / 18 | icons in fields and buttons; 1.05 rem in error lines; 14 in segments, 13 in the meta line |
 | icon stroke | 1.6 | 1.6 | every Lucide icon, at every size |
 

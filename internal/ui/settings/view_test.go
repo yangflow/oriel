@@ -933,14 +933,71 @@ func TestAppearanceChoices(t *testing.T) {
 	press(t, tt, s.text.ThemeDark)
 	press(t, tt, s.text.SizeXLarge)
 	press(t, tt, s.text.SpacingRelaxed)
-	want := prefs.Preferences{Theme: prefs.ThemeDark, ReadingSize: prefs.SizeXLarge, LineSpacing: prefs.SpacingRelaxed,
-		ChineseTypesetting: true}
+	want := prefs.Default()
+	want.Theme, want.ReadingSize, want.LineSpacing = prefs.ThemeDark, prefs.SizeXLarge, prefs.SpacingRelaxed
 	if len(f.changes) != 3 || f.prefs != want {
 		t.Fatalf("changes %v", f.changes)
 	}
 	press(t, tt, s.text.ThemeSystem)
 	if f.prefs.Theme != "" {
 		t.Fatalf("theme %q", f.prefs.Theme)
+	}
+}
+
+// pressNext presses the segment right after the one showing text, so a name that repeats in the card can be told apart
+// by the segment before it.
+func pressNext(t *testing.T, tt *ui.Tester, text string) {
+	t.Helper()
+	r, ok := tt.Find(text)
+	if !ok {
+		t.Fatalf("no %q in %v", text, tt.Texts())
+	}
+	tt.ClickAt(r.X+r.W+20, r.Y+r.H/2)
+}
+
+// TestViewAs shows the View as card has a row for each kind, defaulting to the first segment, and that each segment
+// changes only its own kind's viewer.
+func TestViewAs(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	tt.SetSize(900, 1600)
+	tt.Frame()
+	for _, want := range []string{s.text.ViewAs, s.text.ViewArticles, s.text.ViewVideos, s.text.ViewSocial,
+		s.text.ViewImages, s.text.ViewCover, s.text.ViewWall, s.text.ViewAsHelp} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q in %v", want, tt.Texts())
+		}
+	}
+	if f.prefs.ArticleViewer != prefs.ViewList || f.prefs.VideoViewer != prefs.ViewGrid ||
+		f.prefs.SocialViewer != prefs.ViewCard || f.prefs.ImageViewer != prefs.ViewWall {
+		t.Fatalf("defaults %+v", f.prefs)
+	}
+	press(t, tt, s.text.ViewCover)
+	if f.prefs.VideoViewer != prefs.ViewCover {
+		t.Fatalf("video %q", f.prefs.VideoViewer)
+	}
+	pressNext(t, tt, s.text.ViewCover)
+	if f.prefs.VideoViewer != prefs.ViewList {
+		t.Fatalf("video %q", f.prefs.VideoViewer)
+	}
+	pressNext(t, tt, s.text.ViewWall)
+	if f.prefs.ImageViewer != prefs.ViewGrid {
+		t.Fatalf("image %q", f.prefs.ImageViewer)
+	}
+	press(t, tt, s.text.ViewWall)
+	if f.prefs.ImageViewer != prefs.ViewWall {
+		t.Fatalf("image %q", f.prefs.ImageViewer)
+	}
+	// The first List and Card of the page are the Articles' and the Social's.
+	pressNext(t, tt, s.text.ViewList)
+	if f.prefs.ArticleViewer != prefs.ViewCompact {
+		t.Fatalf("article %q", f.prefs.ArticleViewer)
+	}
+	pressNext(t, tt, s.text.ViewCard)
+	if f.prefs.SocialViewer != prefs.ViewCompact {
+		t.Fatalf("social %q", f.prefs.SocialViewer)
+	}
+	if f.prefs.VideoViewer != prefs.ViewList || f.prefs.ImageViewer != prefs.ViewWall {
+		t.Fatalf("other kinds changed: %+v", f.prefs)
 	}
 }
 

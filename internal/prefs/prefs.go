@@ -1,5 +1,5 @@
 // Package prefs holds the appearance preferences of this device: the theme, the interface language and font, and the
-// font, size, line spacing and Chinese typesetting of an article. They live in a file of the data directory beside the session file and never
+// font, size, line spacing and Chinese typesetting of an article, and how the timeline views each kind of entry. They live in a file of the data directory beside the session file and never
 // go through the server.
 package prefs
 
@@ -34,12 +34,25 @@ const (
 	SpacingCompact  = "compact"
 	SpacingStandard = "standard"
 	SpacingRelaxed  = "relaxed"
+
+	// The viewers of the timeline, one set per kind of entry; the first of each set is its default.
+	ViewList    = "list"    // an article's row; a video's row
+	ViewCompact = "compact" // an article or a social post in a few lines
+	ViewGrid    = "grid"    // the cover grid of Videos; the square grid of Images
+	ViewCover   = "cover"   // a video as a large cover
+	ViewCard    = "card"    // a social post's card; an image's card
+	ViewWall    = "wall"    // the masonry wall of Images
 )
 
 // Sizes and Spacings list the choices of the reading preferences in the order the settings show them.
 var (
 	Sizes    = []string{SizeSmall, SizeMedium, SizeLarge, SizeXLarge}
 	Spacings = []string{SpacingCompact, SpacingStandard, SpacingRelaxed}
+
+	ArticleViewers = []string{ViewList, ViewCompact}
+	VideoViewers   = []string{ViewGrid, ViewCover, ViewList}
+	SocialViewers  = []string{ViewCard, ViewCompact}
+	ImageViewers   = []string{ViewWall, ViewGrid, ViewCard}
 )
 
 // Preferences are the choices of this device. Use Normalize before relying on the reading choices.
@@ -54,11 +67,19 @@ type Preferences struct {
 	// ChineseTypesetting sets Chinese text in the reader by the rules of docs/design.md. A file without the field
 	// reads as on, because Load starts from Default.
 	ChineseTypesetting bool `json:"chineseTypesetting"`
+
+	// How the timeline draws each kind of entry: one of ArticleViewers, VideoViewers, SocialViewers and ImageViewers.
+	// Use Normalize before relying on them.
+	ArticleViewer string `json:"articleViewer"`
+	VideoViewer   string `json:"videoViewer"`
+	SocialViewer  string `json:"socialViewer"`
+	ImageViewer   string `json:"imageViewer"`
 }
 
 // Default has every preference at its default.
 func Default() Preferences {
-	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ChineseTypesetting: true}
+	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ChineseTypesetting: true,
+		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall}
 }
 
 // Normalize replaces every value it does not know with the default. A font is kept as it is: it may be installed
@@ -75,6 +96,18 @@ func (p Preferences) Normalize() Preferences {
 	}
 	if !slices.Contains(Spacings, p.LineSpacing) {
 		p.LineSpacing = SpacingStandard
+	}
+	if !slices.Contains(ArticleViewers, p.ArticleViewer) {
+		p.ArticleViewer = ViewList
+	}
+	if !slices.Contains(VideoViewers, p.VideoViewer) {
+		p.VideoViewer = ViewGrid
+	}
+	if !slices.Contains(SocialViewers, p.SocialViewer) {
+		p.SocialViewer = ViewCard
+	}
+	if !slices.Contains(ImageViewers, p.ImageViewer) {
+		p.ImageViewer = ViewWall
 	}
 	return p
 }

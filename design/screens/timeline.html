@@ -8,7 +8,13 @@
      and searches it. Colors are the Oriel palette of design/tokens.md; icons are Lucide (ISC License). Pictures are
      drawn as gradients here; in the app they load in the background and show the Surface color until then.
      Row 2 shows the pointer resting on it (its actions show), row 3 the keyboard choice (focus ring).
-     All, Articles and Social are one column; Videos become a cover grid and Images a masonry wall. The kinds sit on
+     All, Articles, Social and a single subscription are one column; Videos is a cover grid and Images a masonry wall.
+     Each kind has a viewer chosen in Settings (View as, a device preference): Articles List or Compact
+     (article-compact), Videos Grid, Large cover or List (video-cover, video-list), Social Card or Compact
+     (social-compact), Images Wall, Grid or Card (image-grid, image-card). The defaults, Grid for Videos and Wall for
+     Images, are what Videos and Images show with no state. Grid, Wall and the square image Grid are used only in the
+     Videos and Images scopes without a search; everywhere else those kinds draw their row or card, and Compact and
+     Large cover apply everywhere (mixed-viewers). The kinds sit on
      top of the sidebar as named items with counts; the sidebar then lists only that kind's subscriptions. The server bar at the
      bottom opens the connect screen; the gear beside it opens the settings.
      A social post's pictures stay low: one keeps its own ratio up to 240 high, two sit side by side, three or more
@@ -285,8 +291,42 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .g8 { background-image:linear-gradient(150deg,#384b57,#99b1b8) }
 .g9 { background-image:linear-gradient(130deg,#5a3d6b,#d08a92) }
 
-/* Videos become a cover grid, Images a masonry wall. */
+/* Viewers other than the default. Compact article: a 36 high line. Compact social: clamped text and small pictures.
+   Large cover: the 16:9 cover at the column's width. Grid: cells that share the width, in rows. */
+.crow { align-items:center; gap:12px; height:36px; padding:0 16px 0 28px; border-radius:10px }
+.crow .unread-dot { top:50%; margin-top:-3.5px }
+.row.crow.chosen::after { height:14px; margin-top:-7px }
+.crow .fav, .crow .mono { width:16px; height:16px; border-radius:4px }
+.crow .mono { font-size:9px }
+.crow .src { flex:none; width:128px; font-size:12px; font-weight:500; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.crow .ctitle { flex:1; min-width:0; margin:0; font-size:13px; font-weight:600; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.crow .star-mark { flex:none; display:grid }
+.crow .when { flex:none; min-width:56px; text-align:right; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap }
+.crow.read .src, .crow.read .ctitle { color:var(--muted) }
+.crow.read .ctitle { font-weight:500 }
+.crow .actions { top:50%; right:10px; margin-top:-12px }
+.crow.hover .when, .crow.chosen .when, .crow:hover .when { min-width:84px; color:transparent }
+.window.min .crow .src { width:96px }
+.row.scompact .text { -webkit-line-clamp:2 }
+.row.scompact .strip { display:flex; gap:4px; margin-top:5px }
+.strip .pic { width:40px; height:40px; border-radius:6px }
+.strip .pic.failed > svg.icon { width:16px; height:16px }
+.strip .more b { position:absolute; inset:0; display:grid; place-items:center; background:rgba(28,24,18,.5); color:#fff; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums }
+.thumb-s { width:56px; height:56px; margin-top:24px; align-self:flex-start; border-radius:8px }
+.thumb-s.failed > svg.icon { width:20px; height:20px }
+.vlarge .content { gap:8px }
+.vlarge .video-thumb { width:100%; max-width:640px; border-radius:12px }
+.vlarge .play span { width:44px; height:44px }
+.vlarge .play svg.icon { width:16px; height:16px }
+.vlarge .video-thumb.failed .play { color:var(--muted) }
+.vlarge .video-thumb.failed .play span { background:none; box-shadow:none }
+.vlarge .meta { padding-right:88px }
+.vlarge .actions { top:auto; bottom:14px; right:10px }
+.vlarge .unread-dot { top:23px }
+
+/* Videos are a cover grid, Images a masonry wall; the Images Grid viewer makes the picture cells square. */
 .vgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); align-items:start; gap:24px 16px; padding:16px 24px 32px }
+.vgrid.sq { grid-template-columns:repeat(auto-fill,minmax(170px,1fr)) }
 .vcard { position:relative; display:flex; flex-direction:column; gap:7px }
 .vcard .video-thumb { width:100% }
 .vcard .play { opacity:0; transition:opacity var(--t) }
@@ -297,6 +337,11 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .vcard .meta, .mtile .meta { padding-right:0 }
 .vcard.hover .meta, .vcard:hover .meta, .mtile.hover .meta, .mtile:hover .meta { padding-right:84px }
 .vcard .actions, .mtile .actions { top:auto; bottom:-2px; right:-4px }
+.vcard.sq { gap:4px }
+.vcard.sq .title { display:block; white-space:nowrap; text-overflow:ellipsis }
+.vcard .pic.sqpic { position:relative; width:100%; aspect-ratio:1 }
+.pcount { position:absolute; top:6px; right:6px; display:flex; align-items:center; gap:3px; padding:1px 6px 1px 5px; border-radius:5px; font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; background:rgba(28,24,18,.62); color:#fff }
+.pcount svg.icon { width:11px; height:11px }
 .masonry { columns:3 170px; column-gap:14px; padding:16px 24px 32px }
 .mtile { position:relative; break-inside:avoid; margin:0 0 20px; display:flex; flex-direction:column; gap:4px }
 .mtile .pic { width:100% }
@@ -378,13 +423,21 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','long-titles','many-feeds','broken-images'];
+const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','long-titles','many-feeds','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
 const options={state:states,scope:['all',...kinds,'source'],scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
 const state=pick('state',states,'list');
-const scope=pick('scope',options.scope,'all');
+// Each viewer state is drawn in the scope that shows it best; the scope menu still switches it.
+const stateScope={'article-compact':'article','social-compact':'social','video-cover':'video','video-list':'video','image-grid':'image','image-card':'image'};
+const scope=pick('scope',options.scope,stateScope[state]||'all');
+// The viewers, as Settings > Appearance > View as keeps them. The first value of each kind is the default.
+const viewer={article:'list',video:'grid',social:'card',image:'wall',...{
+  'article-compact':{article:'compact'},'social-compact':{social:'compact'},'video-cover':{video:'cover'},'video-list':{video:'list'},
+  'image-grid':{image:'grid'},'image-card':{image:'card'},
+  'mixed-viewers':{article:'compact',video:'cover',social:'compact'},
+}[state]};
 const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
 const size=pick('size',options.size,'default');
@@ -405,6 +458,7 @@ const icons={
   video:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
   social:'<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
   image:'<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  images:'<path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16"/><path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2"/><circle cx="13" cy="7" r="1" fill="currentColor"/><rect x="8" y="2" width="14" height="14" rx="2"/>',
   star:'<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
   dot:'<circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/>',
   circle:'<circle cx="12" cy="12" r="10"/>',
@@ -464,7 +518,7 @@ const copy={
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
     kSummarize:'Summarize', kTranslate:'Translate', kBack:'Back to the list', kAdd:'Add subscription', kSettings:'Settings', kKeys:'Keyboard shortcuts',
     kMarkVisible:'Mark visible as read', kScope:'Switch kind', kSidebar:'Go to the sidebar', kMenu:'Context menu',
-    thisComputer:'This computer', settings:'Settings', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures',
+    thisComputer:'This computer', settings:'Settings', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures', pictureCount:'{n} pictures',
     ago:{m:'{n} min',h:'{n} h',d:'Yesterday',days:'{n} days'},
   },
   'zh-Hans':{
@@ -493,7 +547,7 @@ const copy={
     kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
     kSummarize:'摘要', kTranslate:'翻译', kBack:'回到列表', kAdd:'添加订阅', kSettings:'设置', kKeys:'键盘快捷键',
     kMarkVisible:'把可见的标为已读', kScope:'切换形态', kSidebar:'到侧边栏', kMenu:'右键菜单',
-    thisComputer:'本机', settings:'设置', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图',
+    thisComputer:'本机', settings:'设置', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图', pictureCount:'{n} 张图',
     ago:{m:'{n} 分钟前',h:'{n} 小时前',d:'昨天',days:'{n} 天前'},
   },
 }[lang];
@@ -563,7 +617,7 @@ const entries=[
   {source:4,kind:'video',sec:680,when:ago('days',2),title:zh?'行列式的几何意义':'The determinant, visualized',duration:'11:20',platform:'YouTube',thumb:'g3'},
   {source:9,kind:'image',sec:null,when:ago('days',2),title:zh?'晨雾中的喀纳斯':'Morning fog over Kanas',images:['g6'],r:'3/2'},
   {source:5,kind:'video',sec:1085,when:ago('days',2),title:zh?'零下 30 度拍摄：器材实测':'Shooting at −30°C: a gear test',duration:'18:05',platform:zh?'哔哩哔哩':'Bilibili',thumb:'g6',read:true},
-  {source:9,kind:'image',sec:null,when:ago('days',3),title:zh?'沙丘的线条':'Lines in the dunes',images:['g7'],r:'4/5'},
+  {source:9,kind:'image',sec:null,when:ago('days',3),title:zh?'沙丘的线条':'Lines in the dunes',images:['g7','g4','g1'],r:'4/5'},
   {source:8,kind:'image',sec:null,when:ago('days',3),title:zh?'卡西尼号眼中的土星环':'Saturn’s rings, seen by Cassini',images:['g5'],r:'1/1',read:true},
   {source:4,kind:'video',sec:1242,when:ago('days',3),title:zh?'群论与魔群':'Group theory and the Monster',duration:'20:42',platform:'YouTube',thumb:'g9'},
   {source:9,kind:'image',sec:null,when:ago('days',4),title:zh?'黄昏的港口':'Harbor at dusk',images:['g9'],r:'3/4'},
@@ -574,6 +628,7 @@ const entries=[
   {source:2,kind:'article',when:ago('days',5),sec:240,title:zh?'这周值得读的五条链接':'Five links worth your time this week',summary:zh?'一个关于排版的长读，一个关于离线优先的小工具，外加三篇短文。':'A long read on typography, a small offline-first tool and three short pieces.',read:true},
   {source:1,kind:'article',when:ago('days',6),sec:720,title:zh?'为什么我不再把代码覆盖率当目标':'Why I stopped treating code coverage as a goal',summary:zh?'覆盖率告诉你哪些代码没被测过，却不告诉你测得好不好。':'Coverage tells you which code was never tested, not whether it was tested well.',read:true},
   {source:2,kind:'article',when:ago('days',6),sec:120,title:zh?'一个关于时区的小提醒':'A short reminder about time zones',summary:zh?'存 UTC，显示时再转换，别在中间做任何聪明的事。':'Store UTC, convert when you show it, and do nothing clever in between.',read:true},
+  {source:6,kind:'social',sec:20,when:ago('days',6),author:'Guillermo Rauch',handle:'@rauchg',text:zh?'上周的延迟面板。左边是迁移之前，右边是迁移之后，尾部那条长尾终于不见了。':'Last week’s latency dashboard. Before the move on the left, after it on the right; the long tail is finally gone.',images:['g8'],read:true},
 ];
 // Edge cases: feed content stays as written whatever the interface language is, so a long English title and a long
 // Chinese one without spaces both show in either language.
@@ -660,20 +715,31 @@ const pictures=list=>{
 };
 const videoCover=(e,cls)=>`<div class="pic ${cls} ${e.thumb}" role="img" aria-label="${t('duration',{d:e.duration})}"><div class="play"><span>${icon('video')}</span></div><span class="duration">${e.duration}</span></div>`;
 
-// All, Articles, Social: one column of rows
+// One column of rows. The viewer of each kind decides how its row looks (viewer, above).
+const rowDemo=['list','article-compact','social-compact','video-cover','video-list','image-card','mixed-viewers'].includes(state);
+const cardsOn=(scope==='video'&&viewer.video==='grid'||scope==='image'&&viewer.image==='grid')&&state!=='search';
+const wallOn=scope==='image'&&viewer.image==='wall'&&state!=='search';
+const stripOf=list=>{const hidden=list.length-4;return `<div class="strip">${list.slice(0,4).map((g,i)=>i===3&&hidden>0?`<div class="pic more ${g}" role="img" aria-label="${t('morePictures',{n:hidden})}"><b aria-hidden="true">+${hidden}</b></div>`:`<div class="pic ${g}">${failedPic(g)}</div>`).join('')}</div>`};
 const row=(e,i)=>{
-  const cls=`row${e.read?' read':''}${i===1&&state==='list'?' hover':''}${(i===2&&state==='menu-entry')||(i===0&&state==='menu-entry-first')?' menued':''}${(i===2&&(state==='list'||state==='sidebar-focus'))||(i===0&&state==='marked-visible'&&scope==='all')||(i===3&&state==='no-more-unread')?' chosen':''}`;
+  const cls=`row${e.read?' read':''}${i===1&&rowDemo?' hover':''}${(i===2&&state==='menu-entry')||(i===0&&state==='menu-entry-first')?' menued':''}${(i===2&&(rowDemo||state==='sidebar-focus'))||(i===0&&state==='marked-visible'&&scope==='all')||(i===3&&state==='no-more-unread')?' chosen':''}`;
   const dot=e.read?'':`<span class="unread-dot" role="img" aria-label="${copy.unread}"></span>`;
   switch(e.kind){
-    case 'article':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3><p class="summary">${highlight(e.summary)}</p></div>${e.thumb?`<div class="pic thumb ${e.thumb}">${failedPic(e.thumb)}</div>`:''}${actions(e)}</article>`;
-    case 'video':return `<article class="${cls}">${dot}${videoCover(e,'video-thumb')}<div class="content">${meta(e)}<h3 class="title">${e.title}</h3><div class="meta">${icon('video')}<span>${e.platform}</span></div></div>${actions(e)}</article>`;
-    case 'social':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<p class="text"><span class="author">${e.author}</span> <span class="handle">${e.handle}</span><br>${e.text}</p>${pictures(e.images)}</div>${actions(e)}</article>`;
+    case 'article':if(viewer.article==='compact')return `<article class="${cls} crow">${dot}${glyph(byId[e.source])}<span class="src">${byId[e.source].name}</span><h3 class="ctitle">${highlight(e.title)}</h3>${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}<span class="when">${e.when}</span>${actions(e)}</article>`;
+      return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3><p class="summary">${highlight(e.summary)}</p></div>${e.thumb?`<div class="pic thumb ${e.thumb}">${failedPic(e.thumb)}</div>`:''}${actions(e)}</article>`;
+    case 'video':if(viewer.video==='cover')return `<article class="${cls} vlarge">${dot}<div class="content">${videoCover(e,'video-thumb')}<h3 class="title">${e.title}</h3>${meta(e).replace('</div>',`<span class="sep"></span>${icon('video')}<span>${e.platform}</span></div>`)}</div>${actions(e)}</article>`;
+      return `<article class="${cls}">${dot}${videoCover(e,'video-thumb')}<div class="content">${meta(e)}<h3 class="title">${e.title}</h3><div class="meta">${icon('video')}<span>${e.platform}</span></div></div>${actions(e)}</article>`;
+    case 'social':if(viewer.social==='compact'){const one=e.images&&e.images.length===1;
+        return `<article class="${cls} scompact">${dot}<div class="content">${meta(e)}<p class="text"><span class="author">${e.author}</span> <span class="handle">${e.handle}</span> ${e.text}</p>${e.images&&!one?stripOf(e.images):''}</div>${one?`<div class="pic thumb-s ${e.images[0]}">${failedPic(e.images[0])}</div>`:''}${actions(e)}</article>`}
+      return `<article class="${cls}">${dot}<div class="content">${meta(e)}<p class="text"><span class="author">${e.author}</span> <span class="handle">${e.handle}</span><br>${e.text}</p>${pictures(e.images)}</div>${actions(e)}</article>`;
     case 'image':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${e.title}</h3><div class="pic single ${e.images[0]}">${failedPic(e.images[0])}</div></div>${actions(e)}</article>`;
   }
 };
-// Videos and Images
-const videoCard=(e,i)=>`<article class="vcard${e.read?' read':''}${i===0&&state==='list'?' hover':''}">${videoCover(e,'video-thumb')}<h3 class="title">${e.title}</h3>${meta(e,unreadDot(e))}${actions(e)}</article>`;
-const masonryTile=(e,i)=>`<figure class="mtile${e.read?' read':''}${i===0&&state==='list'?' hover':''}"><div class="pic ${e.images[0]}" style="aspect-ratio:${e.r}" role="img" aria-label="${e.title}">${failedPic(e.images[0])}</div><figcaption>${e.title}</figcaption>${meta(e,unreadDot(e))}${actions(e)}</figure>`;
+// Videos and Images in their own scope: cells that share the width (Videos, Images Grid) or a wall of columns (Images Wall).
+const cellHover=i=>i===0&&(state==='list'||state==='image-grid')?' hover':'';
+const videoCard=(e,i)=>`<article class="vcard${e.read?' read':''}${cellHover(i)}">${videoCover(e,'video-thumb')}<h3 class="title">${e.title}</h3>${meta(e,unreadDot(e))}${actions(e)}</article>`;
+const squareCard=(e,i)=>{const n=e.images.length;
+  return `<article class="vcard sq${e.read?' read':''}${cellHover(i)}"><div class="pic sqpic ${e.images[0]}" role="img" aria-label="${n>1?`${e.title}, ${t('pictureCount',{n})}`:e.title}">${failedPic(e.images[0])}${n>1?`<span class="pcount">${icon('images')}${n}</span>`:''}</div><h3 class="title">${e.title}</h3>${meta(e,unreadDot(e))}${actions(e)}</article>`};
+const masonryTile=(e,i)=>`<figure class="mtile${e.read?' read':''}${cellHover(i)}"><div class="pic ${e.images[0]}" style="aspect-ratio:${e.r}" role="img" aria-label="${e.title}">${failedPic(e.images[0])}</div><figcaption>${e.title}</figcaption>${meta(e,unreadDot(e))}${actions(e)}</figure>`;
 const skeleton=()=>Array.from({length:4},(_,i)=>`<div class="row skeleton" aria-hidden="true"><div class="content" style="gap:8px"><div class="bar m"></div><div class="bar t"></div><div class="bar s"></div></div>${i%2?'':'<div class="pic thumb"></div>'}</div>`).join('');
 const empty=(tile,title,hint,button='',cls='')=>`<div class="empty" role="status"><div class="tile ${cls}">${icon(tile)}</div><h2>${title}</h2><p>${hint}</p>${button}</div>`;
 const more=state==='more'?`<div class="footer" role="status">${icon('loader','spin')}${copy.loadingMore}</div>`:'';
@@ -687,8 +753,8 @@ else if(state==='starred-none')list=empty('star',copy.noStarred,copy.noStarredHi
 else if(state==='empty')list=empty('inbox',copy.empty,copy.emptyHint);
 else if(state==='time-empty')list=empty('clock',t('timeEmpty',{n:budget}),copy.timeEmptyHint,`<button class="button">${copy.timeClear}</button>`);
 else if(state==='search-none')list=empty('search',t('noResults',{q}),copy.noResultsHint);
-else if(scope==='video'&&state!=='search')list=`<div class="vgrid" role="feed" aria-label="${scopeName}">${shown.map(videoCard).join('')}</div>${more}`;
-else if(scope==='image'&&state!=='search')list=`<div class="masonry" role="feed" aria-label="${scopeName}">${shown.map(masonryTile).join('')}</div>${more}`;
+else if(cardsOn)list=`<div class="vgrid${scope==='image'?' sq':''}" role="feed" aria-label="${scopeName}">${shown.map(scope==='image'?squareCard:videoCard).join('')}</div>${more}`;
+else if(wallOn)list=`<div class="masonry" role="feed" aria-label="${scopeName}">${shown.map(masonryTile).join('')}</div>${more}`;
 else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map(row).join('')}${more}</div>`;
 
 const unreadInScope=kinds.includes(scope)?kindUnread(scope):scope==='source'?byId[focusId].unread:total;
@@ -699,7 +765,7 @@ const markAllName=t('markAllIn',{scope:scopeName});
 const markAll=`<button class="tool"${budget?' aria-disabled="true"':''} aria-label="${markAllName}" title="${markAllName}">${icon('checkCheck')}</button>`;
 const timeName=budget?t('timeNameUpTo',{n:budget}):copy.timeName;
 const timeBtn=`<button class="timebtn${budget?' on':''}" aria-label="${timeName}" title="${timeName}" aria-haspopup="menu" aria-expanded="${state==='time-menu'}">${icon('clock')}${budget?`<span class="lbl">${t('timeChip',{n:budget})}</span><span class="badge" aria-hidden="true"></span>`:''}</button>`;
-const columned=!((scope==='video'||scope==='image')&&state!=='search');
+const columned=!(cardsOn||wallOn);
 const toolbar=`<div class="toolbar${columned?' aligned':''}${scope==='social'?' wide':''}"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${timeBtn}${searchField}${markAll}</div>`;
 const hint=state==='search-short'?`<div class="hint" id="hint" role="status">${icon('alert')}${copy.tooShort}</div>`:'';
 const stale=state==='offline'?`<div class="stale${columned?' aligned':''}${scope==='social'?' wide':''}" role="status">${icon('wifiOff')}<span>${t('offline',{time:'10:42'})}</span></div>`:'';
