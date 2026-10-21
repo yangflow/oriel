@@ -197,7 +197,7 @@ func TestTimelineAPI(t *testing.T) {
 	defer srv.Close()
 	session := Session{Server: srv.URL, Token: "t1"}
 
-	page, err := session.Entries(ctx, Query{Kind: "video", Unread: true, Search: "go fmt", MaxMinutes: 10, Limit: 50, Cursor: "1.2"})
+	page, err := session.Entries(ctx, Query{Kind: "video", Unread: true, Search: "go fmt", MaxMinutes: 10, Oldest: true, Limit: 50, Cursor: "1.2"})
 	if err != nil || len(page.Entries) != 1 || page.Next != "" {
 		t.Fatalf("Entries = %+v, %v", page, err)
 	}
@@ -267,7 +267,7 @@ func TestTimelineAPI(t *testing.T) {
 		t.Errorf("SetSettings = %+v, %v", settings, err)
 	}
 	want := []string{
-		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&q=go+fmt&unread=1 ",
+		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&order=asc&q=go+fmt&unread=1 ",
 		"GET /api/entries?q=ab ",
 		"POST /api/entries/7/extract ",
 		"GET /api/sources ",

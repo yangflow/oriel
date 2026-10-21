@@ -36,6 +36,7 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | pane-filter | 28 high, radius 8, 10 left padding, 6 gap; toggle 28 square, 4 gap | 28 | the subscription filter field and the Unread first toggle |
 | column | `MaxWidth` 680 (720 for Social) | 680 / 720 | article, social and mixed rows in the timeline; the reader's text column is 680 at Medium and follows the Text size (Reading text) |
 | row | padding 16, gap 14, radius 12 | | an entry row; 28 on the left, where the unread dot (7, 11 from the edge) sits |
+| density-compact | row padding 16 to 10 (social compact 12 to 8), one-line article 36 to 30, gap between parts 14 to 10, text gap 3 to 2, large cover gap 8 to 6, grid and wall gap 14 to 10, wall tile gap 16 to 10 | | List density Compact; Comfortable keeps the values above |
 | row-meta | 20 high | 20 | the meta line of a row; it keeps 88 free at the right for the row actions |
 | thumbnail | 96 x 64, radius 8 | 96 x 64 | an article's picture, beside the title, below the meta line |
 | row-compact | 36 high, radius 10, padding 0 16 0 28 | 36 | an article in the Compact viewer; source field 128 (96 below 760), title takes the rest, time 56 at least |

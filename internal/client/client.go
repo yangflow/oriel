@@ -416,8 +416,10 @@ type Query struct {
 	Search  string
 	// MaxMinutes keeps the entries that take at most this many minutes and have an estimate; 0 does not filter.
 	MaxMinutes int
-	Limit      int
-	Cursor     string
+	// Oldest lists the oldest entries first; the cursor of a page then leads to newer entries.
+	Oldest bool
+	Limit  int
+	Cursor string
 }
 
 // Page is one page of entries; Next is empty on the last page.
@@ -475,6 +477,9 @@ func (s Session) Entries(ctx context.Context, q Query) (Page, error) {
 	}
 	if q.MaxMinutes != 0 {
 		values.Set("maxMinutes", strconv.Itoa(q.MaxMinutes))
+	}
+	if q.Oldest {
+		values.Set("order", "asc")
 	}
 	if q.Limit != 0 {
 		values.Set("limit", strconv.Itoa(q.Limit))

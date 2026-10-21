@@ -55,7 +55,8 @@ type EntryFilter struct {
 	Starred       bool
 	MaxReadingSec int       // only entries that take at most this many seconds; unknown ones never match; 0 does not filter
 	Query         string    // matched as one phrase in the full-text index
-	After         *Position // only entries older than this position
+	Oldest        bool      // list oldest first instead of newest first
+	After         *Position // the next page after this position: older entries, or newer ones when Oldest
 	UpTo          *Position // only this position and older ones
 	Newer         *Position // only entries newer than this position
 	OlderThan     int64     // only entries shown as before this time, in Unix milliseconds: published_at, else created_at; 0 does not filter
@@ -135,7 +136,11 @@ func (f EntryFilter) where() (string, []any) {
 		add("e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH ?)", `"`+strings.ReplaceAll(f.Query, `"`, `""`)+`"`)
 	}
 	if f.After != nil {
-		add("(e.created_at, e.id) < (?, ?)", f.After.CreatedAt, f.After.ID)
+		if f.Oldest {
+			add("(e.created_at, e.id) > (?, ?)", f.After.CreatedAt, f.After.ID)
+		} else {
+			add("(e.created_at, e.id) < (?, ?)", f.After.CreatedAt, f.After.ID)
+		}
 	}
 	if f.UpTo != nil {
 		add("(e.created_at, e.id) <= (?, ?)", f.UpTo.CreatedAt, f.UpTo.ID)
@@ -152,17 +157,21 @@ func (f EntryFilter) where() (string, []any) {
 // listAISummaryRunes is how much of an AI summary a list reads from the database; the caller trims it further.
 const listAISummaryRunes = 1000
 
-// timelineQuery selects the entries of the filter, newest first, each with the start of its ok AI summary as the
+// timelineQuery selects the entries of the filter, newest first or oldest first, each with the start of its ok AI summary as the
 // column after entryColumns. Its last parameter is the limit.
 func (f EntryFilter) timelineQuery() (string, []any) {
 	where, args := f.where()
+	order := "DESC"
+	if f.Oldest {
+		order = "ASC"
+	}
 	return "SELECT" + entryColumns + `, COALESCE(substr(a.text, 1, ` + strconv.Itoa(listAISummaryRunes) + `), '')
 		FROM entries e JOIN sources s ON s.id = e.source_id
 		LEFT JOIN entry_ai a ON a.entry_id = e.id AND a.task = '` + TaskSummary + `' AND a.status = 'ok'
-		WHERE ` + where + " ORDER BY e.created_at DESC, e.id DESC LIMIT ?", args
+		WHERE ` + where + " ORDER BY e.created_at " + order + ", e.id " + order + " LIMIT ?", args
 }
 
-// Entries returns up to limit entries of the timeline, newest first. Their AISummary is the start of the stored AI
+// Entries returns up to limit entries of the timeline, newest first or oldest first. Their AISummary is the start of the stored AI
 // summary, up to 1000 characters; it never makes one.
 func (s *Store) Entries(ctx context.Context, filter EntryFilter, limit int) ([]Entry, error) {
 	query, args := filter.timelineQuery()

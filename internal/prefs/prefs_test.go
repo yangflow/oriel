@@ -45,7 +45,7 @@ func TestChineseTypesetting(t *testing.T) {
 func TestLoadUnknownValues(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	os.WriteFile(path, []byte(`{"theme":"sepia","language":"fr","font":"Gone Sans","readingSize":"huge","lineSpacing":"relaxed","readingFont":"Gone Serif"}`), 0o600)
-	want := Preferences{Font: "Gone Sans", ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingFont: "Gone Serif", ChineseTypesetting: true,
+	want := Preferences{Font: "Gone Sans", ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingFont: "Gone Serif", ChineseTypesetting: true, Density: DensityComfortable,
 		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle}
 	if got := Load(path); got != want {
 		t.Errorf("got %+v, want %+v", got, want)
@@ -74,10 +74,32 @@ func TestViewers(t *testing.T) {
 	}
 }
 
+// TestDensityAndOrder shows the timeline starts comfortable and newest first, also in a file from before they
+// existed, and that a density the settings do not offer reads as comfortable.
+func TestDensityAndOrder(t *testing.T) {
+	path := filepath.Join(t.TempDir(), File)
+	if d := Default(); d.Density != DensityComfortable || d.OldestFirst {
+		t.Errorf("defaults: %+v", d)
+	}
+	os.WriteFile(path, []byte(`{"readingSize":"large"}`), 0o600)
+	if got := Load(path); got.Density != DensityComfortable || got.OldestFirst {
+		t.Errorf("old file: %+v", got)
+	}
+	os.WriteFile(path, []byte(`{"density":"tiny","oldestFirst":true}`), 0o600)
+	if got := Load(path); got.Density != DensityComfortable || !got.OldestFirst {
+		t.Errorf("unknown density: %+v", got)
+	}
+	os.WriteFile(path, []byte(`{"density":"compact"}`), 0o600)
+	if got := Load(path); got.Density != DensityCompact || got.OldestFirst {
+		t.Errorf("compact: %+v", got)
+	}
+}
+
 func TestSaveLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	p := Preferences{Theme: ThemeDark, Language: LanguageChinese, Font: "Georgia", ReadingSize: SizeXLarge, LineSpacing: SpacingCompact, ReadingFont: ReadingSerif, ChineseTypesetting: false,
-		ArticleViewer: ViewCompact, VideoViewer: ViewCover, SocialViewer: ViewCompact, ImageViewer: ViewGrid, SourceSort: SortUnread}
+		ArticleViewer: ViewCompact, VideoViewer: ViewCover, SocialViewer: ViewCompact, ImageViewer: ViewGrid, SourceSort: SortUnread,
+		Density: DensityCompact, OldestFirst: true}
 	if err := Save(path, p); err != nil {
 		t.Fatal(err)
 	}

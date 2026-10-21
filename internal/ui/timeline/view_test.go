@@ -61,6 +61,9 @@ func (f *fake) Entries(_ context.Context, q client.Query) (client.Page, error) {
 		}
 		found = append(found, e)
 	}
+	if q.Oldest {
+		slices.Reverse(found)
+	}
 	start, _ := strconv.Atoi(q.Cursor)
 	end := min(start+q.Limit, len(found))
 	page := client.Page{Entries: slices.Clone(found[start:end])}
@@ -1187,6 +1190,123 @@ func TestNewEntries(t *testing.T) {
 	f.settle(t, tt)
 	if len(s.entries) != 7 || tt.HasText("1 new") {
 		t.Fatalf("%d entries", len(s.entries))
+	}
+}
+
+// TestOrderToggle shows the reading-time menu offers the other order, keeps it in the preferences of the device, lists
+// the oldest entry first and tints the clock while it is oldest first.
+func TestOrderToggle(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := viewing(t, &p)
+	if s.entries[0].ID != 8 || f.queries[len(f.queries)-1].Oldest {
+		t.Fatalf("starts with %d, %+v", s.entries[0].ID, f.queries)
+	}
+	if err := tt.Click("Reading time: any length"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Oldest first"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	last := f.queries[len(f.queries)-1]
+	if !p.OldestFirst || !s.oldest || !last.Oldest || last.Cursor != "" {
+		t.Fatalf("prefs %+v, oldest %v, queries %+v", p, s.oldest, f.queries)
+	}
+	if s.entries[0].ID != 3 || s.entries[len(s.entries)-1].ID != 8 {
+		t.Fatalf("entries %v", s.entries)
+	}
+	if _, ok := tt.Find("Reading time: any length. Oldest first"); !ok {
+		t.Fatalf("the clock is not named by the order: %v", tt.Texts())
+	}
+	if !slices.Contains(tt.Announcements(), "Oldest first") {
+		t.Fatalf("announcements %v", tt.Announcements())
+	}
+	// Back to newest first: the list kept for that order is drawn again.
+	if err := tt.Click("Reading time: any length. Oldest first"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Newest first"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	if p.OldestFirst || s.oldest || s.entries[0].ID != 8 {
+		t.Fatalf("prefs %+v, first %d", p, s.entries[0].ID)
+	}
+}
+
+// TestOrderKept shows a device that chose oldest first lists that way from the start, and that polling makes no
+// "new" pill in that order, since new entries come when paging reaches the end.
+func TestOrderKept(t *testing.T) {
+	p := prefs.Default()
+	p.OldestFirst = true
+	s, f, tt := viewing(t, &p)
+	if !f.queries[0].Oldest || s.entries[0].ID != 3 {
+		t.Fatalf("queries %+v, first %d", f.queries, s.entries[0].ID)
+	}
+	f.entries = append([]client.Entry{{ID: 9, SourceID: 1, SourceTitle: "Go Blog", Kind: "article", Title: "Fresh",
+		CreatedAt: now.UnixMilli()}}, f.entries...)
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	f.settle(t, tt)
+	if s.fresh != 0 || tt.HasText("1 new") || len(s.entries) != 6 {
+		t.Fatalf("fresh %d, %d entries, texts %v", s.fresh, len(s.entries), tt.Texts())
+	}
+}
+
+// TestOrderMarks shows the marking actions cover the entries they say in the oldest-first order: those above an entry
+// are the older ones.
+func TestOrderMarks(t *testing.T) {
+	p := prefs.Default()
+	p.OldestFirst = true
+	s, f, tt := viewing(t, &p)
+	if err := tt.RightClick("Harbor at dawn"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark above as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{UpTo: 4}}) {
+		t.Fatalf("marked %v", f.marked)
+	}
+	if s.entries[0].ID != 3 || !s.entries[0].IsRead {
+		t.Fatalf("entry %d read %v", s.entries[0].ID, s.entries[0].IsRead)
+	}
+	s.markAll()
+	f.settle(t, tt)
+	if got := f.marked[len(f.marked)-1]; got.UpTo != 8 || got.Newer != 0 {
+		t.Fatalf("marked %v", f.marked)
+	}
+	for _, e := range s.entries {
+		if !e.IsRead {
+			t.Fatalf("entry %d is unread", e.ID)
+		}
+	}
+}
+
+// TestCompactDensity shows the Compact list density makes rows lower and keeps every part of them.
+func TestCompactDensity(t *testing.T) {
+	height := func(density string) (float32, bool) {
+		p := prefs.Default()
+		p.Density = density
+		s, _, tt := viewing(t, &p)
+		tt.Frame()
+		return s.rects[0].H, tt.HasText("Go 1.27 is released") && tt.HasText("The latest Go release.")
+	}
+	comfortable, ok := height(prefs.DensityComfortable)
+	if !ok {
+		t.Fatal("the comfortable row lacks its parts")
+	}
+	compact, ok := height(prefs.DensityCompact)
+	if !ok {
+		t.Fatal("the compact row lost a part")
+	}
+	if compact >= comfortable {
+		t.Fatalf("compact row %v is not lower than comfortable %v", compact, comfortable)
 	}
 }
 
@@ -2815,7 +2935,7 @@ func TestReadingTimeBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	menu := tt.Menu()
-	want := []string{"Any length", "Up to 5 minutes", "Up to 10 minutes", "Up to 15 minutes", "Up to 30 minutes"}
+	want := []string{"Any length", "Up to 5 minutes", "Up to 10 minutes", "Up to 15 minutes", "Up to 30 minutes", "-", "Newest first", "Oldest first"}
 	if !slices.Equal(menu, want) {
 		t.Fatalf("menu %q", menu)
 	}

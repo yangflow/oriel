@@ -38,6 +38,10 @@ const (
 	SpacingStandard = "standard"
 	SpacingRelaxed  = "relaxed"
 
+	// The densities of the timeline's rows; the first is the default.
+	DensityComfortable = "comfortable"
+	DensityCompact     = "compact"
+
 	// The viewers of the timeline, one set per kind of entry; the first of each set is its default.
 	ViewList    = "list"    // an article's row; a video's row
 	ViewCompact = "compact" // an article or a social post in a few lines
@@ -53,8 +57,9 @@ const (
 
 // Sizes and Spacings list the choices of the reading preferences in the order the settings show them.
 var (
-	Sizes    = []string{SizeSmall, SizeMedium, SizeLarge, SizeXLarge}
-	Spacings = []string{SpacingCompact, SpacingStandard, SpacingRelaxed}
+	Sizes     = []string{SizeSmall, SizeMedium, SizeLarge, SizeXLarge}
+	Spacings  = []string{SpacingCompact, SpacingStandard, SpacingRelaxed}
+	Densities = []string{DensityComfortable, DensityCompact}
 
 	ArticleViewers = []string{ViewList, ViewCompact}
 	VideoViewers   = []string{ViewGrid, ViewCover, ViewList}
@@ -88,6 +93,10 @@ type Preferences struct {
 	// Grids are the scopes whose list the reader switched between the list and the grid; see Grids.
 	Grids Grids `json:"grids,omitempty"`
 
+	// Density is how tight the timeline's rows sit: one of Densities. OldestFirst lists the timeline from the oldest
+	// entry down instead of from the newest.
+	Density     string `json:"density"`
+	OldestFirst bool   `json:"oldestFirst,omitempty"`
 	// SidebarHidden is set while the reader has collapsed the sidebar of the timeline; the default is shown.
 	SidebarHidden bool `json:"sidebarHidden,omitempty"`
 	// LastLooked is where the reader last looked in the timeline on this device; see Marker.
@@ -223,7 +232,7 @@ func (g *Grids) UnmarshalJSON(data []byte) error {
 // Default has every preference at its default.
 func Default() Preferences {
 	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ChineseTypesetting: true,
-		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle}
+		Density: DensityComfortable, ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle}
 }
 
 // Normalize replaces every value it does not know with the default. A font is kept as it is: it may be installed
@@ -240,6 +249,9 @@ func (p Preferences) Normalize() Preferences {
 	}
 	if !slices.Contains(Spacings, p.LineSpacing) {
 		p.LineSpacing = SpacingStandard
+	}
+	if !slices.Contains(Densities, p.Density) {
+		p.Density = DensityComfortable
 	}
 	if !slices.Contains(ArticleViewers, p.ArticleViewer) {
 		p.ArticleViewer = ViewList

@@ -142,6 +142,14 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 		}
 		filter.MaxReadingSec = n * 60
 	}
+	switch query.Get("order") {
+	case "", "desc":
+	case "asc":
+		filter.Oldest = true
+	default:
+		fail(w, http.StatusBadRequest, "invalid_order")
+		return
+	}
 	limit := defaultPage
 	if raw := query.Get("limit"); raw != "" {
 		n, err := strconv.Atoi(raw)

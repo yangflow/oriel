@@ -50,6 +50,7 @@ type copy struct {
 	CopyMarkdown, SaveMarkdown                                                                                                                            string
 	LastLooked                                                                                                                                            string
 	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                              string
+	OrderNewest, OrderOldest                                                                                                                              string
 }
 
 var translations = func() map[string]copy {
@@ -152,6 +153,7 @@ type listKey struct {
 	scope  scope
 	filter int
 	budget int
+	oldest bool // oldest first
 }
 
 // budgets are the reading-time budgets the menu offers, in minutes; 0 is any length.
@@ -186,9 +188,10 @@ type Screen struct {
 	failingOnly   bool // the sidebar lists only the subscriptions whose last fetch failed
 	sourcesLoaded bool
 	scope         scope
-	tab           int // the tab of scope.kind
-	filter        int // everything, unread or starred
-	budget        int // the most minutes an entry may take to read, 0 for any length; not kept between servers
+	tab           int  // the tab of scope.kind
+	filter        int  // everything, unread or starred
+	budget        int  // the most minutes an entry may take to read, 0 for any length; not kept between servers
+	oldest        bool // the list runs oldest first, as the preferences of this device choose
 
 	query     string    // as typed
 	searched  string    // the search in effect, trimmed
@@ -322,6 +325,7 @@ func (s *Screen) Use(api API, server string) {
 	s.gen++
 	s.sources, s.sourcesLoaded = nil, false
 	s.scope, s.tab, s.filter, s.budget = scope{}, 0, everything, 0
+	s.oldest = s.views().OldestFirst
 	s.query, s.searched, s.editing = "", "", false
 	s.lists, s.anchor = nil, 0
 	s.seen, s.atTop = prefs.Marker{}, false
@@ -421,7 +425,7 @@ func (s *Screen) loadSources() {
 
 func (s *Screen) query1(cursor string) client.Query {
 	q := client.Query{Source: s.scope.source, Unread: s.filter == unread, Starred: s.filter == starred,
-		MaxMinutes: s.budget, Search: s.searched, Limit: pageSize, Cursor: cursor}
+		MaxMinutes: s.budget, Search: s.searched, Limit: pageSize, Cursor: cursor, Oldest: s.oldest}
 	if s.scope.source == 0 {
 		q.Kind = s.scope.kind
 	}
@@ -471,7 +475,7 @@ func (s *Screen) retryPictures() {
 	}
 }
 
-func (s *Screen) key() listKey { return listKey{s.scope, s.filter, s.budget} }
+func (s *Screen) key() listKey { return listKey{s.scope, s.filter, s.budget, s.oldest} }
 
 // views are the viewers of the four kinds, as the preferences of this device choose them: the defaults where the
 // screen has no preferences to read.
@@ -654,6 +658,8 @@ func (s *Screen) restore(snap snapshot) {
 // its top, which would move what is in view; the column of rows keeps its place by the keys of its rows.
 func (s *Screen) holdsTop() bool {
 	switch {
+	case s.oldest:
+		return false
 	case s.walls():
 		return s.wall.Y > 0
 	case s.grids():
@@ -662,7 +668,7 @@ func (s *Screen) holdsTop() bool {
 	return false
 }
 
-// older tells whether a comes after b in the timeline.
+// older tells whether a is older than b.
 func older(a, b client.Entry) bool {
 	return a.CreatedAt < b.CreatedAt || a.CreatedAt == b.CreatedAt && a.ID < b.ID
 }
@@ -686,11 +692,11 @@ func (s *Screen) renew() {
 func markerOf(e client.Entry) prefs.Marker { return prefs.Marker{At: e.CreatedAt, ID: e.ID} }
 
 // movesMarker tells whether the list on screen may move the marker: only the list of everything, in the order of the
-// whole timeline, has the newest entry there is as its first. In a kind, a subscription, Unread, Starred, a reading
-// time or a search the first entry is not that, so those only read the marker.
+// whole timeline, newest first, has the newest entry there is as its first. In a kind, a subscription, Unread,
+// Starred, a reading time, a search or oldest first the first entry is not that, so those only read the marker.
 func (s *Screen) movesMarker() bool {
 	return s.api != nil && s.reading == 0 && !s.loading && !s.loadErr && len(s.entries) > 0 && s.searched == "" &&
-		s.scope == (scope{}) && s.filter == everything && s.budget == 0
+		s.scope == (scope{}) && s.filter == everything && s.budget == 0 && !s.oldest
 }
 
 // onTop tells whether the first entry was drawn whole in the last frame, or the grid or wall is at its top.
@@ -770,10 +776,10 @@ func (s *Screen) dismiss() {
 }
 
 // dividerAt is the entry the divider goes above: the first at or older than the marker, so that every entry before it
-// is newer and the count of those is its index; -1 when the divider does not show. It does not show on a first run, in a search, in a list that was
-// dismissed, with nothing newer than the marker, or while all that is loaded is newer (the marker is further down).
+// is newer and the count of those is its index; -1 when the divider does not show. It does not show on a first run, in a search, oldest first, in a list
+// that was dismissed, with nothing newer than the marker, or while all that is loaded is newer (the marker is further down).
 func (s *Screen) dividerAt() int {
-	if !s.base.Valid() || s.searched != "" || s.dismissed[s.key()] {
+	if !s.base.Valid() || s.searched != "" || s.oldest || s.dismissed[s.key()] {
 		return -1
 	}
 	i := slices.IndexFunc(s.entries, func(e client.Entry) bool { return !s.base.Newer(e.CreatedAt, e.ID) })
@@ -781,6 +787,14 @@ func (s *Screen) dividerAt() int {
 		return -1
 	}
 	return i
+}
+
+// after tells whether a comes after b in the list: older newest first, newer oldest first.
+func (s *Screen) after(a, b client.Entry) bool {
+	if s.oldest {
+		return older(b, a)
+	}
+	return older(a, b)
 }
 
 // merge puts the first page, fetched again for a list drawn from memory, in its place: the page, then the entries
@@ -821,7 +835,7 @@ func (s *Screen) merge(page client.Page) {
 		}
 		merged = slices.Clone(fresh)
 		for _, e := range cached {
-			if !have[e.ID] && (len(fresh) == 0 || older(e, fresh[len(fresh)-1])) {
+			if !have[e.ID] && (len(fresh) == 0 || s.after(e, fresh[len(fresh)-1])) {
 				merged = append(merged, e)
 			}
 		}
@@ -929,6 +943,10 @@ func (s *Screen) poll(c *ui.Context) {
 			s.offline, s.updated = false, s.deps.Now()
 			if len(s.entries) == 0 {
 				s.entries, s.next = page.Entries, page.Next
+				return
+			}
+			if s.oldest {
+				// Oldest first has no newest entry to compare with: new entries come when paging reaches the end.
 				return
 			}
 			top, n := s.entries[0], 0
@@ -1226,7 +1244,11 @@ func (s *Screen) markAll() {
 	if !s.canMarkAll() || s.api == nil {
 		return
 	}
-	scope := client.ReadScope{SourceID: s.scope.source, UpTo: s.entries[0].ID}
+	upTo := s.entries[0].ID
+	if s.oldest {
+		upTo = s.entries[len(s.entries)-1].ID
+	}
+	scope := client.ReadScope{SourceID: s.scope.source, UpTo: upTo}
 	if s.scope.source == 0 {
 		scope.Kind = s.scope.kind
 	}
@@ -1256,6 +1278,10 @@ func (s *Screen) markAbove(id int64) {
 		return
 	}
 	scope := client.ReadScope{SourceID: s.scope.source, Newer: id, UpTo: s.entries[0].ID}
+	if s.oldest {
+		// The entries above are the older ones, from the first of the timeline up to the one before id.
+		scope = client.ReadScope{SourceID: s.scope.source, UpTo: s.entries[s.index(id)-1].ID}
+	}
 	if s.scope.source == 0 {
 		scope.Kind = s.scope.kind
 	}
@@ -1295,6 +1321,12 @@ func (s *Screen) markVisible() {
 		scope := client.ReadScope{SourceID: s.scope.source, UpTo: s.entries[first].ID}
 		if end < len(s.entries) {
 			scope.Newer = s.entries[end].ID
+		}
+		if s.oldest {
+			scope = client.ReadScope{SourceID: s.scope.source, UpTo: s.entries[end-1].ID}
+			if first > 0 {
+				scope.Newer = s.entries[first-1].ID
+			}
 		}
 		if s.scope.source == 0 {
 			scope.Kind = s.scope.kind
@@ -1714,6 +1746,10 @@ func (s *Screen) View(c *ui.Context) {
 			s.pin = s.anchor
 		}
 		s.viewed = v
+	}
+	if want := s.views().OldestFirst; want != s.oldest {
+		// The order changed: the list for the new order is shown, from its top.
+		s.show(func() { s.oldest = want })
 	}
 	s.wantMore = false
 	s.look(c) // reads the rects of the last frame
@@ -2537,11 +2573,16 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 }
 
 // budgetButton is the reading-time button: a bare clock icon, or with a budget a pill saying "≤ 10 min" (only the
-// icon and a dot when narrow). Its menu lists the budgets; choosing one reloads the list from the top.
+// icon and a dot when narrow). Its menu lists the budgets, then under a hairline the two orders; choosing a budget or
+// an order reloads the list from the top. Oldest first tints the clock like a budget does, with no text beside it.
 func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 	t := c.Theme()
 	name := s.budgetName()
-	on := s.budget != 0
+	if s.oldest {
+		name += ". " + s.text.OrderOldest
+	}
+	timed := s.budget != 0
+	on := timed || s.oldest
 	b := ui.ButtonBase(c).Key("budget").Height(px(t, 32)).Shrink(0).Radius(px(t, 16)).Label(name).Tooltip(name)
 	color := toolFill(t, b)
 	if on {
@@ -2552,14 +2593,14 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 		}
 		b.Background(fill)
 	}
-	if on && !compact {
+	if timed && !compact {
 		b.Gap(px(t, 5)).Padding(0, px(t, 12), 0, px(t, 10))
 	} else {
 		b.Width(px(t, 32))
 	}
 	b.Children(func() {
 		ui.Icon(c, icons.Clock).FontSize(px(t, 16)).TextColor(color)
-		if on && !compact {
+		if timed && !compact {
 			ui.Text(c, strings.ReplaceAll(s.text.TimeChip, "{n}", strconv.Itoa(s.budget))).FontSize(px(t, 12)).
 				FontWeight(500).FontFeatures("tnum").NoWrap().TextColor(t.Accent)
 		}
@@ -2577,6 +2618,13 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 			if m.Item(label).Checked(s.budget == n).Chosen() {
 				s.setBudget(n)
 			}
+		}
+		m.Separator()
+		if m.Item(s.text.OrderNewest).Checked(!s.oldest).Chosen() && s.oldest {
+			s.switchOrder()
+		}
+		if m.Item(s.text.OrderOldest).Checked(s.oldest).Chosen() && !s.oldest {
+			s.switchOrder()
 		}
 	})
 }
@@ -2612,6 +2660,32 @@ func (s *Screen) gridButton(c *ui.Context) {
 	b.Children(func() { ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(color) })
 	if b.Clicked() {
 		s.switchGrid()
+	}
+}
+
+// tight tells whether the list density of this device is Compact.
+func (s *Screen) tight() bool { return s.views().Density == prefs.DensityCompact }
+
+// dense is a size of the mockup under the list density: comfortable, or compact where the density is Compact.
+func (s *Screen) dense(t *ui.Theme, comfortable, compact float32) float32 {
+	if s.tight() {
+		return px(t, compact)
+	}
+	return px(t, comfortable)
+}
+
+// switchOrder asks for the other order. The list follows when the preferences change, in the next frame.
+func (s *Screen) switchOrder() {
+	if s.deps.Change == nil {
+		return
+	}
+	p := s.views()
+	p.OldestFirst = !s.oldest
+	s.deps.Change(p)
+	if p.OldestFirst {
+		s.announce = s.text.OrderOldest
+	} else {
+		s.announce = s.text.OrderNewest
 	}
 }
 
@@ -3312,14 +3386,14 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	var r ui.Element
 	switch {
 	case oneLine:
-		r = ui.Row(c).Key(e.ID).FillWidth().Height(px(t, 36)).AlignItems(ui.Center).Gap(px(t, 12)).
+		r = ui.Row(c).Key(e.ID).FillWidth().Height(s.dense(t, 36, 30)).AlignItems(ui.Center).Gap(px(t, 12)).
 			Padding(0, px(t, 16), 0, px(t, 28)).Radius(px(t, 10))
 	case e.Kind == "social" && v.SocialViewer == prefs.ViewCompact:
-		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(px(t, 14)).
-			Padding(px(t, 12), px(t, 16), px(t, 12), px(t, 28)).Radius(px(t, 12))
+		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 14, 10)).
+			Padding(s.dense(t, 12, 8), px(t, 16), s.dense(t, 12, 8), px(t, 28)).Radius(px(t, 12))
 	default:
-		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(px(t, 14)).
-			Padding(px(t, 16), px(t, 16), px(t, 16), px(t, 28)).Radius(px(t, 12))
+		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 14, 10)).
+			Padding(s.dense(t, 16, 10), px(t, 16), s.dense(t, 16, 10), px(t, 28)).Radius(px(t, 12))
 	}
 	hovered, chosen := s.item(c, r, i, now, false)
 	muted := t.TextMuted
@@ -3408,7 +3482,7 @@ func (s *Screen) titleText(c *ui.Context, e client.Entry, size float32, muted ui
 
 func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
-	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
 		s.meta(c, e, now, false, px(t, 88), muted, false)
 		s.titleText(c, e, 15, muted)
 		summary, generated := strings.Join(strings.Fields(e.Summary), " "), false
@@ -3478,7 +3552,7 @@ func (s *Screen) compactRow(c *ui.Context, e client.Entry, now time.Time, narrow
 // largeRow is a video with its cover across the row, then the title and the meta line under it.
 func (s *Screen) largeRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
-	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 8)).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 8, 6)).Children(func() {
 		s.coverOf(c, e, true, true, px(t, 12), 44).FillWidth().MaxWidth(px(t, 640))
 		s.titleText(c, e, 15, muted)
 		s.meta(c, e, now, false, px(t, 88), muted, true)
@@ -3519,7 +3593,7 @@ func (s *Screen) videoRow(c *ui.Context, e client.Entry, now time.Time, compact 
 		width = px(t, 136)
 	}
 	s.cover(c, e, true, true).Width(width).Margin(px(t, 24), 0, 0, 0).AlignSelf(ui.Start)
-	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
 		s.meta(c, e, now, false, px(t, 88), muted, false)
 		s.titleText(c, e, 15, muted)
 		if e.Platform != "" {
@@ -3541,7 +3615,7 @@ func (s *Screen) socialRow(c *ui.Context, e client.Entry, now time.Time, muted u
 		s.briefPost(c, e, now, muted, color, author)
 		return
 	}
-	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
 		s.meta(c, e, now, false, px(t, 88), muted, false)
 		if e.Author != "" || e.Platform != "" {
 			ui.RichText(c, ui.Span{Text: e.Author, Weight: 500, Color: author},
@@ -3660,7 +3734,7 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 
 func (s *Screen) imageRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
-	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
 		s.meta(c, e, now, false, px(t, 88), muted, false)
 		s.titleText(c, e, 15, muted)
 		if address := firstPicture(e); address != "" {
@@ -3979,7 +4053,7 @@ func (s *Screen) cells(c *ui.Context, now time.Time, compact, square bool) {
 	} else if i := s.index(s.pin); s.pin != 0 && i >= 0 {
 		s.grid.ScrollTo(i, ui.Start)
 	}
-	gap, minWidth := px(t, 14), px(t, 200)
+	gap, minWidth := s.dense(t, 14, 10), px(t, 200)
 	if square {
 		minWidth = px(t, 170)
 	}
@@ -4047,10 +4121,14 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 	if s.toTop {
 		s.wall.Y = 0
 	}
-	gap := px(t, 14)
+	gap := s.dense(t, 14, 10)
+	tile := t.Space(4)
+	if s.tight() {
+		tile = tile * 10 / 16
+	}
 	n, width := columns(c, compact, px(t, 170), gap, 3)
 	_, viewHeight := c.Size()
-	caption := px(t, 12.5)*1.45 + px(t, 18) + 2*t.Space(1) + t.Space(4)
+	caption := px(t, 12.5)*1.45 + px(t, 18) + 2*t.Space(1) + tile
 	cols := make([][]int, n)
 	tops := make([][]float32, n)
 	heights := make([]float32, n)
@@ -4078,7 +4156,7 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 			ui.Row(c).FillWidth().Gap(gap).Padding(top, px(t, 24), t.Space(6), px(t, 24)).
 				AlignItems(ui.Start).Children(func() {
 				for k := range cols {
-					ui.Column(c).Key(k).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(4)).Children(func() {
+					ui.Column(c).Key(k).Grow(1).Basis(0).MinWidth(0).Gap(tile).Children(func() {
 						for j, i := range cols[k] {
 							at := top + tops[k][j]
 							near := at+width > s.wall.Y-wallAhead && at < s.wall.Y+viewHeight+wallAhead
