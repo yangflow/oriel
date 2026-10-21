@@ -27,7 +27,7 @@ do the wrong thing.
 main.go                  dispatches desktop and headless (`oriel serve`) modes; lifecycle, menu, window, native updater
 backend.go               opens the database, starts and stops the HTTP server; shared by both modes
 internal/store/          SQLite and all queries; migrations in internal/store/migrations/
-internal/fetch/          fetch loop, feed parsing, failure backoff, full-text extraction, retention pruning
+internal/fetch/          fetch loop, feed parsing, failure backoff, full-text extraction, retention pruning, proxied image fetch and its disk cache
 internal/ai/             AI summaries and translations: settings, OpenAI-compatible calls, background queue
 internal/tracker/        known tracking-picture addresses, shared by the reader and the image proxy
 internal/server/         HTTP API and authentication
