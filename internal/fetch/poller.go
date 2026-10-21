@@ -281,10 +281,9 @@ func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource) (int, e
 	defer resp.Body.Close()
 	etag, lastModified := resp.Header.Get("ETag"), resp.Header.Get("Last-Modified")
 	now := p.now()
-	next := now.Add(src.FetchInterval)
 	switch {
 	case resp.StatusCode == http.StatusNotModified:
-		return 0, p.store.FetchSuccess(ctx, src.ID, etag, lastModified, now, next)
+		return 0, p.recordSuccess(ctx, src, etag, lastModified, now)
 	case resp.StatusCode < 200 || resp.StatusCode > 299:
 		err := statusError(resp, src)
 		if wait := retryAfter(resp, now); wait > 0 {
@@ -327,7 +326,27 @@ func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource) (int, e
 			return 0, err
 		}
 	}
-	return created, p.store.FetchSuccess(ctx, src.ID, etag, lastModified, now, next)
+	if src.FirstSuccess {
+		if err := p.store.SuggestKind(ctx, src.ID, SuggestKind(feed.entries, src.Kind)); err != nil {
+			return 0, err
+		}
+	}
+	return created, p.recordSuccess(ctx, src, etag, lastModified, now)
+}
+
+// recordSuccess records a fetch that reached the feed and schedules the next one. An automatic source first gets its
+// interval worked out again from the entries it holds now.
+func (p *Poller) recordSuccess(ctx context.Context, src store.FeedSource, etag, lastModified string, now time.Time) error {
+	interval, stored := src.FetchInterval, time.Duration(0)
+	if src.FetchIntervalAuto {
+		published, err := p.store.RecentPublished(ctx, src.ID, now, AutoSample)
+		if err != nil {
+			return err
+		}
+		interval = AutoInterval(published)
+		stored = interval
+	}
+	return p.store.FetchSuccess(ctx, src.ID, etag, lastModified, now, now.Add(interval), stored)
 }
 
 // statusError names the likely cause for the statuses users can act on.

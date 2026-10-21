@@ -49,9 +49,10 @@ Working now:
   carries, with a note saying so and a link to the original. Keys go to the next article, star, mark read and
   return to the list.
 - **Subscription screen.** Add a subscription from a feed address, an RSSHub route, or a YouTube, Bilibili, X,
-  GitHub, Telegram or Weibo link, which is turned into its feed or route; the kind and the check interval are
-  chosen in the same dialog. Edit, pause, refresh and delete a subscription from the sidebar's right-click menu
-  or the pencil in the toolbar; deleting asks first, since its entries go too.
+  GitHub, Telegram or Weibo link, which is turned into its feed or route; the kind and the check interval (Auto
+  by default, worked out from how often the feed publishes) are chosen in the same dialog. Edit, pause, refresh and
+  delete a subscription from the sidebar's right-click menu or the pencil in the toolbar; deleting asks first, since
+  its entries go too.
 - **Settings.** Change the RSSHub instance and how long entries are kept from the gear beside the server bar or
   "Settings…" (Cmd/Ctrl+,); they are kept on the server, so every device connected to it shares them. Signed in to
   a server with a password, see each device signed in and sign out the ones you no longer use.

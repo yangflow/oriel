@@ -71,7 +71,9 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `kind` | 四种形态之一。 |
 | `etag`、`last_modified` | 条件请求用。 |
 | `last_fetched_at`、`last_success_at`、`last_error`、`consecutive_failures` | 抓取健康状况。 |
-| `fetch_interval_sec` | 默认 900。 |
+| `fetch_interval_sec` | 现在用的抓取间隔（秒）。`fetch_interval_auto` 为 0 时是用户定的固定值；为 1 时是上一次成功抓取后算出的自动间隔，没算过时是 900。 |
+| `fetch_interval_auto` | 0 或 1，新订阅默认 1：间隔「自动」，见「抓取」。迁移 0010 加这一列：`fetch_interval_sec` 恰好是 900（旧的默认值）的源改成 1，别的保持 0。 |
+| `suggested_kind` | 第一次成功抓取后，服务端觉得订阅更像哪种形态（`video` 或 `image`），空串表示没有建议。只是建议，不会自己改 `kind`。迁移 0010 加这一列。 |
 | `next_fetch_at` | 到期时间。「更新」只把它改成现在，不在请求里抓。 |
 | `prompt_summary`、`prompt_translate` | 覆盖全局 prompt，空就用全局的。 |
 | `auto_summary`、`auto_translate` | 按源开关，默认关。没有全局开关。 |
@@ -202,7 +204,13 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 
 新增订阅（`POST /api/sources`）马上到期。导入 OPML 时，新增的源把第一次抓取摊开：每个源的 `next_fetch_at` 是导入时刻加一个随机延迟，延迟在 `[0, min(10 分钟, 2 秒 × 本次导入的条数))` 内，所以几百个源不会同时到期；只导入一两个时最多等几秒。
 
-成功（含 304）后按 `fetch_interval_sec` 排下一次，清掉失败计数和 `last_error`。失败时 `consecutive_failures` 加一，原因写进 `last_error`：连续失败 `n ≤ 5` 次时 60 秒后再试，之后 `min(60 × 2^(n−5), 600)` 秒。状态码是 429 或 503 且带 `Retry-After`（秒数或 HTTP 日期）时，下一次不早于它指的时刻，即等待取 `Retry-After` 与上面的时间中较长的，最长 24 小时；值无效、为负或已过去时忽略，按上面的时间排。失败照常计数。Cloudflare 拦截和 RSSHub 路由 404 有专门的说明。
+成功（含 304）后按 `fetch_interval_sec` 排下一次，清掉失败计数和 `last_error`。
+
+间隔「自动」（`fetch_interval_auto` 为 1）的源，每次成功后先重新算间隔，写进 `fetch_interval_sec`，再排下一次：取该源发布时间（`published_at`）最新的 20 条，只算不晚于现在的，按时间排好，相邻两条的间隔取中位数（间隔个数为偶数时取中间两个的平均），再限制在 15 分钟到 1 天之间。有发布时间的条目少于 5 条（历史太少）时用 15 分钟。固定间隔的源不算，`fetch_interval_sec` 不变。
+
+第一次成功抓取（`last_success_at` 此前为空）之后，服务端看这次抓到的条目，给 `suggested_kind` 一个建议：条目不少于 3 条，其中超过一半带时长（`duration_sec`）建议 `video`；否则超过一半带 2 张以上的图建议 `image`；其余没有建议。建议等于当前形态时也不建议。以后的抓取不再改它；用户把形态改成建议的那个后，接口不再下发这个建议。服务端从不自己应用建议。
+
+失败时 `consecutive_failures` 加一，原因写进 `last_error`：连续失败 `n ≤ 5` 次时 60 秒后再试，之后 `min(60 × 2^(n−5), 600)` 秒。状态码是 429 或 503 且带 `Retry-After`（秒数或 HTTP 日期）时，下一次不早于它指的时刻，即等待取 `Retry-After` 与上面的时间中较长的，最长 24 小时；值无效、为负或已过去时忽略，按上面的时间排。失败照常计数。Cloudflare 拦截和 RSSHub 路由 404 有专门的说明。
 
 订阅地址是用户自己填的，可以指向本机或内网（例如自建的 RSSHub），不做 SSRF 检查。订阅内容带出来的地址由正文抽取检查（见下一节）。
 
@@ -256,7 +264,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 
 ## 订阅接口
 
-都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
+都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
 
 | 路由 | 作用 |
 |---|---|
@@ -267,20 +275,20 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `DELETE /api/sources/{id}` | 删源和它的全部条目，含收藏的，返回 204。 |
 | `POST /api/sources/{id}/refresh` | 「更新」：把 `next_fetch_at` 改成现在，返回 204。 |
 
-添加时的字段：`url` 和 `rsshubPath` 恰好给一个，`kind` 必填，`title` 和 `fetchIntervalSec` 可选。标题去掉首尾空白。
+添加时的字段：`url` 和 `rsshubPath` 恰好给一个，`kind` 必填，`title`、`fetchIntervalSec` 和 `fetchIntervalAuto` 可选。标题去掉首尾空白。
 
 - `url` 去掉首尾空白后必须是带主机名的 http 或 https 绝对地址，否则 `invalid_url`。可以指向本机或内网（见「抓取」）。
 - `rsshubPath` 去掉首尾空白后必须以 `/` 开头、不以 `//` 开头，否则 `invalid_rsshub_path`。
 - `url` 和 `rsshubPath` 都给或都不给时 `invalid_source`。
 - `kind` 不是四种形态之一时 `invalid_kind`。
-- `fetchIntervalSec` 是 60 到 604800（7 天）的整数，默认 900，否则 `invalid_interval`。
+- `fetchIntervalSec` 是 60 到 604800（7 天）的整数，否则 `invalid_interval`。给了它就是固定间隔；`fetchIntervalAuto` 是布尔值，缺省为 `true`，即两个都不给时间隔「自动」，起点 900。`fetchIntervalAuto` 为 `true` 又给了 `fetchIntervalSec`，返回 `invalid_interval`。
 - 同一订阅已经有了（订阅地址按「源」一节规范化后比较，末尾多一个 `/`、主机名大小写或默认端口不同都算已有），返回 409 `source_exists`。
 
-能改的字段：`title`、`kind`、`fetchIntervalSec`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`。订阅地址不能改，要换就删了重加。
+能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`。订阅地址不能改，要换就删了重加。
 
 - 标题改成空串时，下次抓取用订阅里的标题补上。
 - 改 `kind` 后条目的形态跟着变（见「数据模型」）；改成别的形态的源不再抽取正文。
-- 改 `fetchIntervalSec` 从下一次抓取之后生效；想马上抓就「更新」。
+- 改 `fetchIntervalSec` 从下一次抓取之后生效，同时把间隔改成固定（`fetchIntervalAuto` 变 `false`）；想马上抓就「更新」。`fetchIntervalAuto` 改成 `true` 后，现在用的间隔留着，下一次成功抓取时重新算；同时给 `fetchIntervalSec` 和 `true` 返回 `invalid_interval`。
 - `muteKeywords` 按行保存，每行去掉首尾空白，丢掉空行。
 - 暂停的源「更新」返回 409 `source_paused`。恢复后按原来的 `next_fetch_at` 抓，已经过了就马上抓。
 - 源不存在时 404 `not_found`，`id` 不是整数时 400 `invalid_id`。用户改字段时更新源的 `updated_at`；抓取记账不改。
@@ -379,7 +387,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - 有 `xmlUrl` 或 `orielRsshubPath` 的 `outline` 是订阅，其余是分组。分组可以嵌套，逐层往下找；分组本身不导入。
 - 有 `orielRsshubPath` 时按 RSSHub 源加，不看 `xmlUrl`；否则按 `xmlUrl` 加。没有 `orielKind` 时形态是 `article`。
 - 标题取 `title`，没有就取 `text`，去掉首尾空白；和订阅地址一样时当没给，留给抓取补上。
-- 每条按「订阅接口」添加的规则校验，抓取间隔用默认值。已经订阅了的（包括同一文件里重复出现的）计入 `existing`，不算失败。
+- 每条按「订阅接口」添加的规则校验，抓取间隔用默认值（自动）。已经订阅了的（包括同一文件里重复出现的）计入 `existing`，不算失败。
 - 新增的源不是马上都到期：第一次抓取按「抓取」里的规则摊开，每个源随机延后 `[0, min(10 分钟, 2 秒 × 本次导入的订阅条数))`。
 - 不合规则的条目不影响别的条目，放进 `failed`，每项是 `{ "title", "address", "error" }`，`error` 是添加时的错误码，比如 `invalid_url`、`invalid_kind`。
 - 文件最大 1 MiB，超了返回 413 `opml_too_large`；不是 XML、根元素不是 `opml` 时返回 400 `invalid_opml`，什么都不加。
@@ -667,7 +675,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 
 都经「订阅接口」和「设置接口」，界面不碰存储。
 
-添加：侧栏的添加按钮、没有订阅时的「添加第一个订阅」和 Cmd/Ctrl+N 打开添加对话框。字段是地址、形态、标题（可空，空就用订阅里的）和检查间隔（15 分钟、30 分钟、1 小时、3 小时、6 小时、12 小时、1 天，默认 15 分钟）。
+添加：侧栏的添加按钮、没有订阅时的「添加第一个订阅」和 Cmd/Ctrl+N 打开添加对话框。字段是地址、形态、标题（可空，空就用订阅里的）和检查间隔（自动、15 分钟、30 分钟、1 小时、3 小时、6 小时、12 小时、1 天，默认自动）。自动是默认，因为多数订阅从没人挑过间隔：更新少的订阅不必每 15 分钟被查一次，更新多的也不会查得更慢。
 
 - 地址框边输入边识别，在框下面说清会订阅什么（平台和对象，加上实际的订阅地址或路由），发请求之前就能看到；服务端照样再查一遍。识别出的平台带出形态，用户自己选过形态之后就不再改。
 - 以 `/` 开头、不以 `//` 开头的是 RSSHub 路由。以设置里的 RSSHub 根地址开头的完整地址存成路由（去掉根地址），以后换实例只改设置。
@@ -692,7 +700,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 
 X 的 `home`、`i`、`search`、`explore`、`settings`、`messages`、`notifications` 等站内页面不算用户名。路径以 `.atom`、`.rss`、`.xml` 结尾的本来就是订阅，不再转换。别的地址原样当订阅地址。
 
-修改：右键菜单的「编辑…」或工具栏的编辑按钮打开编辑对话框。最上面一行是抓取状况：「5 分钟前检查过 · 10 分钟后再查」，还没抓过时「还没检查过」，失败时「连续失败 N 次：原因」，暂停时「已暂停，恢复之前不抓取」，旁边是「更新」（失败时叫「重试」，暂停时没有）。下面是标题、检查间隔、形态、暂停开关和屏蔽词（每行一个）。「保存」只发改了的字段。订阅地址不能改。最后一组是「摘要和翻译」：「自动生成摘要」「自动翻译」两个开关（只管打开之后新到的条目），和摘要、翻译两个 prompt 框，留空就用设置里的 prompt。没配置 AI 时这一组上面多一行「还没配置 AI，暂时不会生成摘要和翻译」，带「打开设置…」。
+修改：右键菜单的「编辑…」或工具栏的编辑按钮打开编辑对话框。最上面一行是抓取状况：「5 分钟前检查过 · 10 分钟后再查」，还没抓过时「还没检查过」，失败时「连续失败 N 次：原因」，暂停时「已暂停，恢复之前不抓取」，旁边是「更新」（失败时叫「重试」，暂停时没有）。下面是标题、检查间隔（自动的订阅写成「自动 · 6 小时」，后面是现在用的间隔）、形态、暂停开关和屏蔽词（每行一个）。第一次抓取后服务端觉得形态不对时，形态下面多一行建议：「这个订阅的条目大多是视频。」带一个按钮「显示为视频」；按下只是在对话框里选了那个形态，点「保存」才生效，不按就什么都不变。「保存」只发改了的字段。订阅地址不能改。最后一组是「摘要和翻译」：「自动生成摘要」「自动翻译」两个开关（只管打开之后新到的条目），和摘要、翻译两个 prompt 框，留空就用设置里的 prompt。没配置 AI 时这一组上面多一行「还没配置 AI，暂时不会生成摘要和翻译」，带「打开设置…」。
 
 暂停和恢复：右键菜单或编辑对话框的开关，发 `PATCH` 改 `paused`。
 

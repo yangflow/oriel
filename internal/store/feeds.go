@@ -10,16 +10,20 @@ import (
 
 // FeedSource is what the fetcher reads about a source.
 type FeedSource struct {
-	ID                  int64
-	URL                 string
-	RSSHubPath          string
-	Kind                string
-	ETag                string
-	LastModified        string
-	FetchInterval       time.Duration
+	ID            int64
+	URL           string
+	RSSHubPath    string
+	Kind          string
+	ETag          string
+	LastModified  string
+	FetchInterval time.Duration
+	// FetchIntervalAuto is set when the fetcher works the interval out from the feed.
+	FetchIntervalAuto   bool
 	ConsecutiveFailures int
-	SiteURL             string
-	IconURL             string
+	// FirstSuccess is set while no fetch of the source has reached the feed yet.
+	FirstSuccess bool
+	SiteURL      string
+	IconURL      string
 	// IconCheckedSite is the site address whose homepage was last searched for an icon.
 	IconCheckedSite string
 	// AITasks are the AI tasks queued for each new entry, from the source's automatic switches.
@@ -33,6 +37,8 @@ type NewSource struct {
 	RSSHubPath    string
 	Kind          string
 	FetchInterval time.Duration
+	// FetchIntervalAuto makes the fetcher work the interval out from the feed; FetchInterval is used until it can.
+	FetchIntervalAuto bool
 	// FirstFetchDelay postpones the first fetch; zero makes the source due at once.
 	FirstFetchDelay time.Duration
 }
@@ -40,7 +46,7 @@ type NewSource struct {
 // DueSources lists unpaused sources whose next fetch time has come, the longest waiting first.
 func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]FeedSource, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, consecutive_failures,
+		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, fetch_interval_auto, last_success_at IS NULL, consecutive_failures,
 			auto_summary, auto_translate, site_url, icon_url, icon_checked_site
 		FROM sources WHERE paused = 0 AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
@@ -54,7 +60,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		var interval int64
 		var summary, translate bool
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
-			&interval, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
+			&interval, &src.FetchIntervalAuto, &src.FirstSuccess, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
 			&src.IconCheckedSite); err != nil {
 			return nil, err
 		}
@@ -71,15 +77,45 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 }
 
 // FetchSuccess records a fetch that reached the feed, including 304 Not Modified.
-// Empty validators keep the stored ones. Bookkeeping does not change the source's updated_at.
-func (s *Store) FetchSuccess(ctx context.Context, id int64, etag, lastModified string, now, next time.Time) error {
+// Empty validators keep the stored ones. A non-zero interval is stored as the interval in use when the source is
+// still automatic. Bookkeeping does not change the source's updated_at.
+func (s *Store) FetchSuccess(ctx context.Context, id int64, etag, lastModified string, now, next time.Time, interval time.Duration) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE sources SET last_fetched_at = ?1, last_success_at = ?1, consecutive_failures = 0, last_error = '',
 			etag = CASE WHEN ?2 = '' THEN etag ELSE ?2 END,
 			last_modified = CASE WHEN ?3 = '' THEN last_modified ELSE ?3 END,
-			next_fetch_at = ?4
-		WHERE id = ?5`,
-		now.UnixMilli(), etag, lastModified, next.UnixMilli(), id)
+			next_fetch_at = ?4,
+			fetch_interval_sec = CASE WHEN fetch_interval_auto = 1 AND ?5 > 0 THEN ?5 ELSE fetch_interval_sec END
+		WHERE id = ?6`,
+		now.UnixMilli(), etag, lastModified, next.UnixMilli(), int64(interval/time.Second), id)
+	return err
+}
+
+// RecentPublished returns the publication times of the source's newest dated entries, newest first, at most limit.
+// Times after now are left out: a feed that dates entries in the future says nothing about how often it publishes.
+func (s *Store) RecentPublished(ctx context.Context, id int64, now time.Time, limit int) ([]time.Time, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT published_at FROM entries WHERE source_id = ? AND published_at IS NOT NULL AND published_at <= ?
+		ORDER BY published_at DESC LIMIT ?`, id, now.UnixMilli(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var times []time.Time
+	for rows.Next() {
+		var ms int64
+		if err := rows.Scan(&ms); err != nil {
+			return nil, err
+		}
+		times = append(times, time.UnixMilli(ms))
+	}
+	return times, rows.Err()
+}
+
+// SuggestKind records the kind a source's feed looks like, "" for none. It never changes the source's kind and
+// does not change its updated_at.
+func (s *Store) SuggestKind(ctx context.Context, id int64, kind string) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE sources SET suggested_kind = ? WHERE id = ?", kind, id)
 	return err
 }
 

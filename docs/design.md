@@ -215,7 +215,10 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; title and interval share a
   row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` soft fill) or what
   the address was recognized as (`Accent` soft fill, the address in monospace). The edit dialog starts with a health line
-  (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail. It ends with "Summaries and
+  (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail. The interval offers Auto
+  first, and an automatic subscription reads "Auto · 6 h" with the interval in use. When the first fetch found the feed to look like
+  another kind, a line in the style of the health line sits under the kind picker with the kind's icon, one sentence and a small
+  button "Show as Videos"; it only chooses the kind in the dialog. It ends with "Summaries and
   translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
   Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".

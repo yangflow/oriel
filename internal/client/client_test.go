@@ -169,7 +169,7 @@ func TestTimelineAPI(t *testing.T) {
 			w.Write([]byte(`{"entries":[{"id":7,"kind":"video","title":"T","publishedAt":null,"durationSec":95,"readingSec":600,
 				"images":[{"url":"https://i/1.jpg","width":4,"height":3}],"createdAt":1700000000000}],"nextCursor":null}`))
 		case "/api/sources":
-			w.Write([]byte(`{"sources":[{"id":1,"title":"Feed","kind":"article","unreadCount":3,"lastError":"boom","fetchIntervalSec":900}]}`))
+			w.Write([]byte(`{"sources":[{"id":1,"title":"Feed","kind":"article","unreadCount":3,"lastError":"boom","fetchIntervalSec":900,"fetchIntervalAuto":true,"suggestedKind":"video"}]}`))
 		case "/api/entries/7":
 			w.Write([]byte(`{"id":7,"starred":true,"readProgress":0.5,"extractStatus":"ok","contentHtml":"<p>x</p>","extractedHtml":"<p>y</p>"}`))
 		case "/api/entries/7/extract":
@@ -213,7 +213,7 @@ func TestTimelineAPI(t *testing.T) {
 	}
 	sources, err := session.Sources(ctx)
 	if err != nil || len(sources) != 1 || sources[0].UnreadCount != 3 || sources[0].LastError != "boom" ||
-		sources[0].FetchIntervalSec != 900 {
+		sources[0].FetchIntervalSec != 900 || !sources[0].FetchIntervalAuto || sources[0].SuggestedKind != "video" {
 		t.Errorf("Sources = %+v, %v", sources, err)
 	}
 	if article, err := session.Entry(ctx, 7); err != nil || article.ID != 7 || article.ExtractStatus != "ok" ||

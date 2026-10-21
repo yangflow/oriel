@@ -30,6 +30,8 @@ type sourceJSON struct {
 	IconURL             string `json:"iconUrl"`
 	Kind                string `json:"kind"`
 	FetchIntervalSec    int64  `json:"fetchIntervalSec"`
+	FetchIntervalAuto   bool   `json:"fetchIntervalAuto"`
+	SuggestedKind       string `json:"suggestedKind"`
 	NextFetchAt         int64  `json:"nextFetchAt"`
 	LastFetchedAt       *int64 `json:"lastFetchedAt"`
 	LastSuccessAt       *int64 `json:"lastSuccessAt"`
@@ -47,7 +49,12 @@ type sourceJSON struct {
 }
 
 func toJSON(src store.Source) sourceJSON {
+	suggested := src.SuggestedKind
+	if suggested == src.Kind {
+		suggested = ""
+	}
 	return sourceJSON{
+		FetchIntervalAuto: src.FetchIntervalAuto, SuggestedKind: suggested,
 		ID: src.ID, URL: src.URL, RSSHubPath: src.RSSHubPath, Title: src.Title, SiteURL: src.SiteURL,
 		IconURL: src.IconURL, Kind: src.Kind, FetchIntervalSec: int64(src.FetchInterval / time.Second),
 		NextFetchAt: src.NextFetchAt.UnixMilli(), LastFetchedAt: millis(src.LastFetchedAt),
@@ -115,29 +122,36 @@ func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		URL              string `json:"url"`
-		RSSHubPath       string `json:"rsshubPath"`
-		Kind             string `json:"kind"`
-		Title            string `json:"title"`
-		FetchIntervalSec *int64 `json:"fetchIntervalSec"`
+		URL               string `json:"url"`
+		RSSHubPath        string `json:"rsshubPath"`
+		Kind              string `json:"kind"`
+		Title             string `json:"title"`
+		FetchIntervalSec  *int64 `json:"fetchIntervalSec"`
+		FetchIntervalAuto *bool  `json:"fetchIntervalAuto"`
 	}
 	if !readBody(w, r, &body) {
 		return
 	}
 	src := store.NewSource{
 		URL: strings.TrimSpace(body.URL), RSSHubPath: strings.TrimSpace(body.RSSHubPath), Kind: body.Kind,
-		FetchInterval: defaultInterval,
+		FetchInterval: defaultInterval, FetchIntervalAuto: true,
 	}
 	if code := checkSource(src); code != "" {
 		fail(w, http.StatusBadRequest, code)
 		return
 	}
 	if body.FetchIntervalSec != nil {
+		if body.FetchIntervalAuto != nil && *body.FetchIntervalAuto {
+			fail(w, http.StatusBadRequest, "invalid_interval")
+			return
+		}
 		d, ok := interval(w, *body.FetchIntervalSec)
 		if !ok {
 			return
 		}
-		src.FetchInterval = d
+		src.FetchInterval, src.FetchIntervalAuto = d, false
+	} else if body.FetchIntervalAuto != nil {
+		src.FetchIntervalAuto = *body.FetchIntervalAuto
 	}
 	created, err := s.store.CreateSource(r.Context(), src, strings.TrimSpace(body.Title), s.now())
 	switch {
@@ -186,15 +200,16 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Title            *string `json:"title"`
-		Kind             *string `json:"kind"`
-		FetchIntervalSec *int64  `json:"fetchIntervalSec"`
-		PromptSummary    *string `json:"promptSummary"`
-		PromptTranslate  *string `json:"promptTranslate"`
-		AutoSummary      *bool   `json:"autoSummary"`
-		AutoTranslate    *bool   `json:"autoTranslate"`
-		MuteKeywords     *string `json:"muteKeywords"`
-		Paused           *bool   `json:"paused"`
+		Title             *string `json:"title"`
+		Kind              *string `json:"kind"`
+		FetchIntervalSec  *int64  `json:"fetchIntervalSec"`
+		FetchIntervalAuto *bool   `json:"fetchIntervalAuto"`
+		PromptSummary     *string `json:"promptSummary"`
+		PromptTranslate   *string `json:"promptTranslate"`
+		AutoSummary       *bool   `json:"autoSummary"`
+		AutoTranslate     *bool   `json:"autoTranslate"`
+		MuteKeywords      *string `json:"muteKeywords"`
+		Paused            *bool   `json:"paused"`
 	}
 	if !readBody(w, r, &body) {
 		return
@@ -211,12 +226,18 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_kind")
 		return
 	}
+	patch.FetchIntervalAuto = body.FetchIntervalAuto
 	if body.FetchIntervalSec != nil {
+		if body.FetchIntervalAuto != nil && *body.FetchIntervalAuto {
+			fail(w, http.StatusBadRequest, "invalid_interval")
+			return
+		}
 		d, ok := interval(w, *body.FetchIntervalSec)
 		if !ok {
 			return
 		}
-		patch.FetchInterval = &d
+		fixed := false
+		patch.FetchInterval, patch.FetchIntervalAuto = &d, &fixed
 	}
 	if body.MuteKeywords != nil {
 		keywords := muteLines(*body.MuteKeywords)
