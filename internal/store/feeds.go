@@ -310,6 +310,25 @@ func (s *Store) SaveExtraction(ctx context.Context, id int64, html, text, langua
 	return err
 }
 
+// RetryExtraction starts the full-text extraction of a failed entry over: its attempts are cleared and its status goes
+// back to pending, so the next round picks it up with all the attempts again. An entry already pending stays as it is.
+// It returns the entry, ErrNotFound for a missing one, and ErrNotRetryable for one that is neither failed nor pending.
+func (s *Store) RetryExtraction(ctx context.Context, id int64) (Entry, error) {
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE entries SET extract_status = 'pending', extract_attempts = 0
+		WHERE id = ? AND extract_status = 'failed'`, id); err != nil {
+		return Entry{}, err
+	}
+	entry, err := s.Entry(ctx, id)
+	if err != nil {
+		return Entry{}, err
+	}
+	if entry.ExtractStatus != "pending" {
+		return Entry{}, ErrNotRetryable
+	}
+	return entry, nil
+}
+
 // PruneEntries deletes unstarred entries published, or else added, before cutoff, read or not.
 func (s *Store) PruneEntries(ctx context.Context, cutoff time.Time) (int64, error) {
 	result, err := s.db.ExecContext(ctx,

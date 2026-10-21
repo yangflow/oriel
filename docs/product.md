@@ -205,7 +205,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 
 1. 下载条目链接的网页，超时 25 秒，最大 8 MiB，按响应头和网页声明的编码解码。
 2. Discourse 论坛的帖子页只取链接指向的那一楼（`#post_N` 或 `/t/<slug>/<主题>/<N>`，没有就取一楼），并去掉引用块；其他网页用 Readability 取正文。相对链接按最终地址（跟随重定向之后）补全。
-3. 成功时 `extract_status` 为 `ok`，写 `extracted_html` 和它的纯文本 `search_text`（进全文索引）；失败为 `failed`。每次都给 `extract_attempts` 加一，满 3 次不再自动重试。
+3. 成功时 `extract_status` 为 `ok`，写 `extracted_html` 和它的纯文本 `search_text`（进全文索引）；失败为 `failed`。每次都给 `extract_attempts` 加一，满 3 次不再自动重试。用户在阅读器里点「重试」（`POST /api/entries/{id}/extract`）算重新开始：`extract_attempts` 清零、状态回到 `pending`，又有完整的 3 次，下一轮抽取照常取它，仍走同一个受限的客户端。
 4. 抽取的结果是派生内容，不改条目的 `updated_at`。
 
 条目链接来自订阅内容，不是用户填的，所以只能访问公网地址：
@@ -279,6 +279,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `GET /api/entries` | 一页条目，返回 `{ "entries": [...], "nextCursor": "..." }`；没有下一页时 `nextCursor` 为 `null`。 |
 | `GET /api/entries/{id}` | 一个条目，多带正文。 |
 | `PATCH /api/entries/{id}` | 改 `isRead`、`starred`、`readProgress`，只改请求里带的，返回改后的条目。 |
+| `POST /api/entries/{id}/extract` | 「重试」取全文：只对抽取失败（`failed`）的文章条目，把 `extract_attempts` 清零、`extract_status` 改回 `pending`，返回 202 和改后的条目（同 `GET /api/entries/{id}`），抽取在下一轮循环里做。已经是 `pending` 时不变，同样返回 202；条目不存在 404 `not_found`；已是 `ok`，或不是文章形态（`skipped`）时 409 `not_retryable`，什么都不改。 |
 | `POST /api/entries/read` | 「全部已读」「把上面的标为已读」「把订阅标为已读」，返回 `{ "marked": n, "ids": [...] }`。 |
 | `POST /api/entries/unread` | 撤销上面三种已读：把请求里的 `ids` 标回未读，返回 `{ "marked": n }`。 |
 
@@ -558,7 +559,9 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - 全文：`ok` 且抽出的正文不为空，只显示正文。
 - 只有 RSS 正文：抽取失败（或这个条目不抽），显示订阅里带的正文（没有正文就用摘要），上面一条警告色提示「这不是全文」，带「打开原文」链接。
 - 正在取全文：`pending` 时先显示 RSS 正文，提示正在取全文；连 RSS 正文也没有时显示「正在取全文」和「打开原文」按钮。每 5 秒重新取一次，`ok` 了就换成全文并播报「全文已载入」；中途取失败保持原样，不报错。
-- 抽取失败也没有 RSS 正文：显示「没有可显示的正文」和「打开原文」按钮。
+- 抽取失败也没有 RSS 正文：显示「没有可显示的正文」和「打开原文」「重试」按钮。
+- 重试：「只有 RSS 正文」的提示和上一种状态都带「重试」，点了发 `POST /api/entries/{id}/extract`，随后就是「正在取全文」，沿用上面每 5 秒重新取一次的办法等结果：`ok` 了换成全文，又失败回到原来的失败状态。请求没发成功时留在失败状态，按钮仍可再点。
+- 全文 | 原文切换：全文和订阅正文（没有正文就用摘要）都不为空时，正文上方出一个「全文 | 原文」切换，默认全文；切到「原文」显示订阅里带的内容，不加「这不是全文」的提示，两种之间切换都回到顶部。只有一种文本时不出现。选择只在这次打开里有效，不存，换一篇就回到默认；显示译文时先隐藏。阅读位置只属于默认的全文：切到「原文」时不回位置、不存位置。
 - 取不到条目：显示「这篇加载不出来」和重试按钮。会话失效（401）时打开连接界面。
 
 摘要和翻译，经「AI 摘要和翻译」的接口：

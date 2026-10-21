@@ -93,7 +93,7 @@ func (s *Screen) Leave() {
 // save stores the offset as a fraction when it differs from the stored one by saveStep or more.
 func (s *Screen) save() {
 	s.moved = false
-	if s.id == 0 || s.laid < 2 || s.scroll.MaxY <= 0 {
+	if s.id == 0 || s.bodyHow == chosen || s.laid < 2 || s.scroll.MaxY <= 0 {
 		return
 	}
 	p := float64(min(max(s.scroll.Y/s.scroll.MaxY, 0), 1))

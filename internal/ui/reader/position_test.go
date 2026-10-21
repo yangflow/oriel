@@ -206,6 +206,109 @@ func TestKeepsThePositionStoredThisSession(t *testing.T) {
 	expect(t, tt, "Back where you left off")
 }
 
+// both is a long full text with what the feed carries too.
+func both(progress *float64) client.Article {
+	a := long(progress)
+	a.ContentHTML = "<p>What the feed carries.</p>"
+	return a
+}
+
+func TestSwitchBetweenFullTextAndFeed(t *testing.T) {
+	for _, c := range []struct{ language, full, feed, note string }{
+		{"en", "Full text", "Feed", "This isn’t the full text"},
+		{"zh-Hans", "全文", "原文", "这不是全文"},
+	} {
+		s, f, tt := openLong(t, c.language, both(nil))
+		expect(t, tt, c.full, c.feed, "Paragraph ")
+		// The switch is at the top of the page: read a little, then scroll back up to it.
+		scrollDown(t, s, tt)
+		s.scroll.Y = 0
+		tt.Frame()
+		if err := tt.Click(c.feed); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		expect(t, tt, "What the feed carries.")
+		absent(t, tt, "Paragraph ", c.note)
+		if s.scroll.Y != 0 {
+			t.Fatalf("%s: the feed text opens at %v", c.language, s.scroll.Y)
+		}
+		f.wait(tt, 3*saveAfter)
+		f.settle(tt)
+		if len(f.saved) != 0 {
+			t.Fatalf("%s: stored %v for the top of the full text", c.language, f.saved)
+		}
+		if err := tt.Click(c.full); err != nil {
+			t.Fatal(err)
+		}
+		for range 4 {
+			tt.Frame()
+		}
+		expect(t, tt, "Paragraph ")
+		absent(t, tt, "carries.", "Back where you left off")
+		if s.scroll.Y != 0 {
+			t.Fatalf("%s: the full text opens at %v", c.language, s.scroll.Y)
+		}
+		f.wait(tt, 3*saveAfter)
+		f.settle(tt)
+		if len(f.saved) != 0 {
+			t.Fatalf("%s: stored %v", c.language, f.saved)
+		}
+	}
+}
+
+func TestSwitchStoresNothingForTheFeed(t *testing.T) {
+	a := both(at(0.5))
+	a.ContentHTML = strings.Repeat("<p>What the feed carries, over and over, so that it too fills the window and more.</p>", 60)
+	s, f, tt := openLong(t, "en", a)
+	expect(t, tt, "Back where you left off")
+	s.scroll.Y = 0
+	tt.Frame()
+	if err := tt.Click("Feed"); err != nil {
+		t.Fatal(err)
+	}
+	for range 4 {
+		tt.Frame()
+	}
+	f.settle(tt)
+	if len(f.saved) != 1 || f.saved[0].progress != 0 {
+		t.Fatalf("the top of the full text is stored once, got %v", f.saved)
+	}
+	if s.scroll.Y != 0 || s.scroll.MaxY <= 0 {
+		t.Fatalf("the feed text is at %v of %v", s.scroll.Y, s.scroll.MaxY)
+	}
+	scrollDown(t, s, tt)
+	f.wait(tt, 3*saveAfter)
+	f.settle(tt)
+	s.Leave()
+	f.settle(tt)
+	if len(f.saved) != 1 {
+		t.Fatalf("stored %v for the feed text", f.saved)
+	}
+	// Another article opens on the full text again, and a long one at its own position.
+	s.Open(entry())
+	f.settle(tt)
+	for range 4 {
+		tt.Frame()
+	}
+	expect(t, tt, "Back where you left off", "Paragraph ")
+	absent(t, tt, "carries")
+}
+
+func TestNoSwitchWithOneText(t *testing.T) {
+	one := long(nil)
+	one.Summary = ""
+	_, f, tt := openLong(t, "en", one)
+	absent(t, tt, "Feed")
+	a := full()
+	a.ContentHTML = "<p>What the feed carries.</p>"
+	a.ExtractStatus = "failed"
+	a.ExtractedHTML = ""
+	_, f, tt = setup(t, "en", a)
+	f.settle(tt)
+	absent(t, tt, "Full text", "Feed")
+}
+
 func TestSmallMovesAreNotStored(t *testing.T) {
 	s, f, tt := openLong(t, "en", long(at(0.5)))
 	s.scroll.Y += s.scroll.MaxY * 0.004

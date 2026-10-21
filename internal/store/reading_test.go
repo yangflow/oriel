@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -229,5 +230,68 @@ func TestBackfillReadingTime(t *testing.T) {
 	}
 	if n, err := s.backfillReadingBatch(ctx, 200); err != nil || n != 0 {
 		t.Fatalf("after the end: %d, %v", n, err)
+	}
+}
+
+func TestRetryExtraction(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	at := time.UnixMilli(1_000_000)
+	src, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "", at)
+	if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: src.Kind}, "", "", []FeedEntry{
+		{GUID: "failed", Title: "failed"}, {GUID: "done", Title: "done"}, {GUID: "waiting", Title: "waiting"},
+	}, "", time.Time{}, at); err != nil {
+		t.Fatal(err)
+	}
+	id := func(guid string) int64 {
+		var n int64
+		if err := s.db.QueryRow("SELECT id FROM entries WHERE guid = ?", guid).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	for range 3 {
+		if err := s.SaveExtraction(ctx, id("failed"), "", "", ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SaveExtraction(ctx, id("done"), "<p>x</p>", "x", ""); err != nil {
+		t.Fatal(err)
+	}
+	targets := func() int {
+		list, err := s.PendingExtractions(ctx, 10, 3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(list)
+	}
+	if targets() != 1 {
+		t.Fatalf("only the waiting entry is a target, got %d", targets())
+	}
+
+	entry, err := s.RetryExtraction(ctx, id("failed"))
+	if err != nil || entry.ExtractStatus != "pending" {
+		t.Fatalf("RetryExtraction = %+v, %v", entry, err)
+	}
+	var attempts int
+	s.db.QueryRow("SELECT extract_attempts FROM entries WHERE guid = 'failed'").Scan(&attempts)
+	if attempts != 0 || targets() != 2 {
+		t.Fatalf("attempts %d, targets %d: the retry has all its attempts again", attempts, targets())
+	}
+	// Asking again while it waits changes nothing, and is not an error.
+	if entry, err := s.RetryExtraction(ctx, id("waiting")); err != nil || entry.ExtractStatus != "pending" {
+		t.Fatalf("pending: %+v, %v", entry, err)
+	}
+	// A finished extraction is not thrown away.
+	if _, err := s.RetryExtraction(ctx, id("done")); !errors.Is(err, ErrNotRetryable) {
+		t.Fatalf("ok: %v", err)
+	}
+	var status string
+	s.db.QueryRow("SELECT extract_status FROM entries WHERE guid = 'done'").Scan(&status)
+	if status != "ok" {
+		t.Fatalf("status %q", status)
+	}
+	if _, err := s.RetryExtraction(ctx, 999); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing: %v", err)
 	}
 }
