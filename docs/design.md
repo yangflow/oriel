@@ -267,6 +267,32 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   fill with the reason and a small "Try again"; AI off has the "AI isn't set up" copy and the primary "Open
   Settings…"; a selection over 2000 characters shows "Select less text" with the limit and no button. Escape closes
   the card before it goes back to the list. The card has the group role named after the task, and the result is announced when it arrives.
+- **The lightbox.** The pictures of a social or image entry, over the whole window (`ui.DialogBase`, drawn in
+  `design/screens/timeline.html`, `lightbox`, `lightbox-failed`, with `size=min` for 640). A solid
+  layer of `RGB(20,17,13)` covers the window in both appearances, opaque so nothing of the list or the sidebar shows
+  through (a picture reads best on a dark ground, so this is the one place the light scheme is dark), sidebar and
+  corners included. Everything on it is `ChromeText` and `ChromeMuted`
+  with the pane's state fills (ink 5.5% hover, 8.5% pressed), never `Raised`. The picture is fitted: scaled down to the
+  largest size that fits between the bars and the side buttons, centered, never above its natural size, radius 8 and
+  no border or shadow. Top bar, 56 high, padded 12 to the sides: the counter, "3 / 12", centered, 13 medium in
+  `ChromeText` with tabular figures (nothing with one picture); at the right "Open in browser" (a 32 high text button:
+  the external-link icon and the label, 13 medium; the icon alone below a 760 wide window), "Open picture in browser"
+  (a 32 square bare icon, the image icon) and Close (32 square, the x icon), 8 apart. Previous and next are 44 round
+  buttons (chevron-left, chevron-right, 22 icons) in ink 10% on the dim layer, 20 from the window's sides and centered
+  vertically; the one with nowhere to go is dimmed to `Disabled` and stays in place, and neither shows with one picture.
+  A one-line caption sits under the picture, centered, 12 in `ChromeMuted`: the author and handle of a post, the title of
+  an image. While a picture loads its box keeps a 4:3 shape of ink 6% with a spinner; a picture that fails shows the same
+  box, now opaque (`RGB(42,38,33)`, 60% of the stage, at most 480 wide), with the muted image-off icon, 32, and "This picture can't be shown" in 13
+  `ChromeMuted` under it; paging and both browser buttons stay enabled (the original address may open where the proxy could not fetch it). Below 760 the bar and the side buttons keep their
+  sizes and the picture gets the rest, never less than the window's width less 144. The layer opens, closes and changes
+  pictures at once, with no motion.
+  Keys: left and right page, Home and End jump, O opens the entry in the browser, Escape or a click on the dim layer
+  closes (a click on the picture does nothing). Tab order, which is also the reading order: Open in browser, Open
+  picture in browser, Close, Previous, Next (the picture area is last, and Tab wraps within the dialog). The dialog opens with the focus on its own picture area, so the arrow keys
+  work at once and no ring is drawn there; the buttons take the focus ring (`Focus`, 2, offset 1) when reached by Tab.
+  Closing returns the focus to the row that opened it. Names: the dialog "Pictures from “{title}”"; the picture
+  "Picture {n} of {total}" (plus the caption); the buttons "Previous picture", "Next picture", "Open in browser", "Open
+  picture in browser", "Close". Opening and each page announce "Picture {n} of {total}" with `Announce`.
 
 ## Color and dark mode
 
@@ -460,7 +486,7 @@ character from the line before. Rules 1 and 2 above hold with or without them.
   and the text size automatically. Every icon has the same stroke weight, 1.6, at every size. See [Icon](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/icon.md).
 - **One set: [Lucide](https://lucide.dev)** (ISC License), recorded in `THIRD_PARTY.md`. The files of lucide-static
   are copied unchanged into `internal/ui/icons/lucide/` and parsed once in `internal/ui/icons`; add an icon there
-  before using it. Prefer an icon to a word where the icon is clearer, and keep the word where it is not.
+  before using it. The lightbox adds chevron-right and image-off (chevron-left and image are there); image-off marks a failed picture so that it is not read as the "Open picture in browser" button. Prefer an icon to a word where the icon is clearer, and keep the word where it is not.
 - **An icon needs a name when it is alone.** Icons are decoration for assistive technology unless given a `Label`.
   A button that shows only an icon or a symbol must get a readable name with `.Label()`; an icon next to a visible
   text label needs none.
@@ -519,6 +545,7 @@ What Oriel uses today:
 | `c.ToastAction` | "Mark all as read", "Mark above as read", "Mark subscription as read", "Mark older than … as read" and the V key act at once and offer Undo here, with a close button, one Undo shared by all (`marked-older`: "Marked 7 entries in “All” older than 1 week as read"); when no unread entry is that old a plain toast without Undo says so (`marked-older-none`); Cmd/Ctrl+Z undoes it while the toast shows. The toast is centered at the bottom as an `Inverse` tile with `InverseText`. |
 | Command palette | Cmd/Ctrl+K, from the timeline and the reader. `ui.DialogBase` drawn like the key sheet (scrim, `Raised`, radius 14, sheet shadow) but anchored 15% from the top, 560 wide at most (the window width less the margins when narrower). Top: a 32 high search field (search icon, label and placeholder "Go to…") with the Focus ring, focused on open. Below it the list, at most 60% of the window high, scrolling inside: small muted group headers (Actions, Kinds, Subscriptions, Settings) over rows 32 high with radius 6 and 13 type. A row has its icon (the sidebar's kind icon, the subscription's glyph, the action's or page's icon), its name, and at the right a muted tabular unread count (subscriptions and kinds) or the action's existing shortcut as key chips like the key sheet's. The highlight is a `Chosen` fill and starts on the first row; Up and Down move it and wrap, it scrolls into view, Return or a click runs the row and closes the palette, Escape or Cmd/Ctrl+K closes it. Typing filters and ranks (prefix, word start, substring, then scattered letters; case and spaces ignored) over the loaded names only, with no request; at most 50 rows, and the matches are one ranked list without headers, each row naming its group in muted text after its name. No match: one muted line, "No matches". Accessibility: the field is labeled "Go to…", rows are list items named by their group and name, the highlighted one is announced with `Announce`, and the result count is announced as the query changes. Drawn in `design/screens/timeline.html`, `palette`, `palette-query`, `palette-none`. |
 | `ui.DialogBase` (key sheet) | The keyboard shortcut sheet, drawn like the subscription dialogs: two columns (timeline, reader) and an "Anywhere" group below, each key a small chip; one column below a 760 wide window. Escape or Close dismisses it. |
+| `ui.DialogBase` (lightbox) | The pictures of a social or image entry, full window, see "The lightbox" in Layout and spacing. A click on a picture in a row opens it on that picture, Space on a chosen row on the first; the title and text still open the browser. It uses the dialog's focus return, Escape and key blocking, with its own paging keys; the pictures come through the image proxy and the decode cache like the rows' do. No video. Drawn in `design/screens/timeline.html`, `lightbox`, `lightbox-failed`. |
 
 The tables below say what to reach for as screens are added.
 
@@ -647,7 +674,7 @@ Overlays share focus and Escape behavior; see
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.
 - **Timeline keys.** J or Down and K or Up move between entries, N goes to the next unread entry below the chosen one
   (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in the
-  reader, anything else in the browser) and marks it read, S stars it, M toggles read, V marks the entries fully in view as
+  reader, anything else in the browser) and marks it read, Space opens the pictures of a chosen social or image entry in the lightbox, S stars it, M toggles read, V marks the entries fully in view as
   read and scrolls the first one below them to the top (see "Mark visible" below), `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
   window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
   Cmd/Ctrl+K opens the command palette (see Components), which goes to any subscription, kind or Settings page and runs the common actions. Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+Z undoes the last "mark as read" action while its toast shows, and `?` or Cmd/Ctrl+/
@@ -760,6 +787,7 @@ MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
       Toasts announce their text, and a router the title of a page shown while the focus stays outside it.
 - [ ] The whole UI works with the keyboard: the focus order is the standard one and follows reading order, there is
       a visible focus ring (do not remove it), shortcuts exist for frequent actions, Escape closes overlays.
+- [ ] The lightbox is a dialog named for its entry; paging announces "Picture {n} of {total}", every button has a name, the focus order is bar, then Previous and Next, and Escape closes it with the focus back on its row.
 - [ ] A row's screen-reader label reads source, title, time, reading time, unread or read, starred; the reading-time
       button's name states the current budget, and its menu items are radio items with the current one checked.
 - [ ] Text uses theme sizes (`Rem`) and scales; layouts reflow at larger text and in the longer translation.

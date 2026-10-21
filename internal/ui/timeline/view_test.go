@@ -3593,3 +3593,182 @@ func TestSourceToolsHidden(t *testing.T) {
 		t.Fatal("a filter with no subscriptions")
 	}
 }
+
+const gopherRow = "Gopher, Five pictures from the meetup, Yesterday, Unread"
+
+// A click on a picture of a post opens the lightbox on that picture, not the browser, and marks the post read.
+func TestLightboxOpensOnThePicture(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	pick(t, f, tt, "Social")
+	if err := tt.Click("Picture 3 of 5"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Frame()
+	if !s.lb.open || s.lb.entry != 6 || s.lb.at != 2 || len(tt.OpenedURLs()) != 0 {
+		t.Fatalf("lightbox %+v, opened %v", s.lb, tt.OpenedURLs())
+	}
+	if !tt.HasText("3 / 5") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if !slices.Contains(tt.Announcements(), "Picture 3 of 5") {
+		t.Fatalf("announcements %v", tt.Announcements())
+	}
+}
+
+// The title and the text of a post still open the browser.
+func TestLightboxTitleStillOpensTheBrowser(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	pick(t, f, tt, "Social")
+	if err := tt.Click("Five pictures from the meetup"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if s.lb.open || len(tt.OpenedURLs()) != 1 {
+		t.Fatalf("lightbox %+v, opened %v", s.lb, tt.OpenedURLs())
+	}
+}
+
+// The keys and buttons page, and stop at the ends.
+func TestLightboxPaging(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	pick(t, f, tt, "Social")
+	if err := tt.Click("Picture 1 of 5"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Frame()
+	tt.Key(0, ui.KeyLeft)
+	if s.lb.at != 0 {
+		t.Fatalf("Left wrapped to %d", s.lb.at)
+	}
+	tt.Key(0, ui.KeyRight)
+	tt.Key(0, ui.KeyRight)
+	if s.lb.at != 2 {
+		t.Fatalf("at %d", s.lb.at)
+	}
+	tt.Key(0, ui.KeyEnd)
+	tt.Key(0, ui.KeyRight)
+	if s.lb.at != 4 {
+		t.Fatalf("End/Right gave %d", s.lb.at)
+	}
+	tt.Key(0, ui.KeyHome)
+	if s.lb.at != 0 {
+		t.Fatalf("Home gave %d", s.lb.at)
+	}
+	if err := tt.Click("Next picture"); err != nil || s.lb.at != 1 {
+		t.Fatalf("Next: %v, %d", err, s.lb.at)
+	}
+	if err := tt.Click("Previous picture"); err != nil || s.lb.at != 0 {
+		t.Fatalf("Previous: %v, %d", err, s.lb.at)
+	}
+}
+
+// Space opens from a selected row; Escape and Close close it.
+func TestLightboxSpaceAndClose(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.openPictures(2, 0)
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Key(0, ui.KeyEscape)
+	if s.lb.open {
+		t.Fatal("Escape did not close it")
+	}
+	tt.Key(0, ui.KeySpace)
+	tt.Frame()
+	if !s.lb.open || s.lb.at != 0 {
+		t.Fatalf("Space: %+v", s.lb)
+	}
+	if err := tt.Click("Close"); err != nil || s.lb.open {
+		t.Fatalf("Close: %v, %v", err, s.lb.open)
+	}
+}
+
+// A picture that fails shows the placeholder, and paging still works.
+func TestLightboxFailedPicture(t *testing.T) {
+	sources, entries := sample()
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{},
+		imageErr: errors.New("broken")}
+	s := New("en", f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	s.openPictures(2, 3)
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	if !tt.HasText("This picture can’t be shown") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	tt.Key(0, ui.KeyRight)
+	if s.lb.at != 4 {
+		t.Fatalf("at %d", s.lb.at)
+	}
+}
+
+// A click on the dim layer closes the lightbox, a click on the picture does not, and the page buttons and the browser
+// buttons do their work.
+func TestLightboxDimLayer(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.openPictures(2, 1)
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	tt.ClickAt(550, 400)
+	if !s.lb.open {
+		t.Fatal("a click on the picture closed it")
+	}
+	tt.Key(0, ui.KeyO)
+	if got := tt.OpenedURLs(); len(got) != 1 || got[0] != "https://social.example/6" {
+		t.Fatalf("O opened %v", got)
+	}
+	if err := tt.Click("Open picture in browser"); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.OpenedURLs(); len(got) != 2 || got[1] != "https://social.example/b.jpg" {
+		t.Fatalf("opened %v", got)
+	}
+	tt.ClickAt(1095, 795)
+	if s.lb.open {
+		t.Fatal("a click on the dim layer did not close it")
+	}
+}
+
+func TestLightboxChinese(t *testing.T) {
+	s, f, tt := setup(t, "zh-Hans")
+	s.openPictures(2, 1)
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	for _, name := range []string{"「Gopher」的图片", "上一张", "下一张"} {
+		if _, ok := tt.Find(name); !ok {
+			t.Errorf("no %q in %v", name, tt.Texts())
+		}
+	}
+	if !slices.Contains(tt.Announcements(), "第 2 张，共 5 张") {
+		t.Fatalf("announcements %v", tt.Announcements())
+	}
+}
+
+// At the minimum width the controls stay inside the window and Open in browser is an icon.
+func TestLightboxMinimumWidth(t *testing.T) {
+	p := prefs.Default()
+	s, f, _ := viewing(t, &p)
+	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 640, 540)
+	tt.Frame()
+	f.settle(t, tt)
+	s.openPictures(2, 2)
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	for _, name := range []string{"Open in browser", "Open picture in browser", "Close", "Previous picture", "Next picture"} {
+		r, ok := tt.Find(name)
+		if !ok || r.X < 0 || r.X+r.W > 640 {
+			t.Fatalf("%q at %v", name, r)
+		}
+	}
+	if r, _ := tt.Find("Open in browser"); r.W > 40 {
+		t.Fatalf("Open in browser is %v wide, not an icon", r.W)
+	}
+}
