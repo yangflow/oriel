@@ -1247,9 +1247,11 @@ func chineseTypesetting(t *testing.T, scale float32) {
 	}
 	const mixed = "使用Go语言写的RSS阅读器"
 	on, off := reach("zh-Hans", "<p>"+mixed+"</p>", mixed, true), reach("zh-Hans", "<p>"+mixed+"</p>", mixed, false)
-	// Four boundaries, a quarter of the 16 body size each.
-	want := 4 * 0.25 * 16 * unit
-	if d := on - off; d < want-2 || d > want+2 {
+	// Four boundaries, a quarter of the 16 body size each; an engine that puts glyphs on whole pixels (Pango) may lose
+	// up to a pixel at each.
+	const boundaries = 4
+	want := boundaries * 0.25 * 16 * unit
+	if d := on - off; d < want-boundaries || d > want+boundaries {
 		t.Errorf("Chinese text widened by %v, want %v", d, want)
 	}
 	const coded = "使用Go语言"

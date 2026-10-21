@@ -958,9 +958,11 @@ func TestChineseTypesettingSwitch(t *testing.T) {
 	if !f.prefs.ChineseTypesetting {
 		t.Fatal("off by default")
 	}
+	// The switch ends where the Line spacing choices end, centered on the label and its help, which may wrap.
 	help, _ := tt.Find(s.text.ChineseTypesettingHelp)
+	relaxed, _ := tt.Find(s.text.SpacingRelaxed)
 	toggle := func() {
-		tt.ClickAt(help.X+help.W+20, row.Y+row.H/2)
+		tt.ClickAt(relaxed.X+relaxed.W-relaxed.H/2, (row.Y+help.Y+help.H)/2)
 		tt.Frame()
 	}
 	toggle()
