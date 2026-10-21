@@ -47,6 +47,7 @@ type copy struct {
 	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium           string
 	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed           string
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                      string
+	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                              string
 }
 
 var translations = func() map[string]copy {
@@ -148,7 +149,8 @@ type Screen struct {
 	gen      int    // counts servers used, so the results of the one before are dropped
 	loads    int    // counts loads, so a result the user moved on from is dropped
 	group    int
-	lang     string // the language of the screen
+	lang     string     // the language of the screen
+	uiFont   fontPicker // the picker of the Interface font
 
 	state       int
 	settings    client.Settings
@@ -855,7 +857,7 @@ func px(t *ui.Theme, v float32) float32 { return t.Rem(v / 13) }
 // View draws the settings; it does no disk or network work, which runs through Deps.
 func (s *Screen) View(c *ui.Context) {
 	t := c.Theme()
-	if !s.revoking {
+	if !s.revoking && !s.uiFont.open {
 		c.OnShortcut(0, ui.KeyEscape, s.deps.Back)
 	}
 	width, _ := c.Size()
@@ -1564,11 +1566,13 @@ func (s *Screen) appearancePage(c *ui.Context) {
 		})
 	}, func() {
 		labeled(c, s.text.UIFont, s.text.UIFontHelp, func() {
-			options := []choice{{value: "", name: s.text.SystemFont}}
-			for _, name := range s.deps.Fonts() {
-				options = append(options, choice{value: name, name: name, family: name})
+			// The pinned rows of the Interface font: the system's, and the family in use.
+			pinned := []choice{{value: "", name: s.text.SystemFont}}
+			fonts := s.deps.Fonts()
+			if p.Font != "" && (fonts == nil || slices.Contains(fonts, p.Font)) {
+				pinned = append(pinned, choice{value: p.Font, name: p.Font, family: p.Font})
 			}
-			if v, changed := s.pick(c, p.Font, s.text.UIFont, options); changed {
+			if v, changed := s.fontPick(c, &s.uiFont, s.text.UIFont, p.Font, pinned, fonts); changed {
 				p.Font = v
 				s.deps.Change(p)
 			}
