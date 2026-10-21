@@ -1,0 +1,41 @@
+{
+  "title": "Field Notes – A Garden Blog",
+  "siteURL": "https://garden.example.org",
+  "iconURL": "https://garden.example.org/wp-content/uploads/icon-32x32.png",
+  "entries": [
+    {
+      "guid": "https://garden.example.org/?p=1042",
+      "title": "Planting beans & peas in early spring",
+      "url": "https://garden.example.org/2026/10/planting-beans/",
+      "author": "Mira Okafor",
+      "published": "2026-10-12T07:30:00Z",
+      "summary": "Beans and peas like cool soil, but not wet soil. Here is what worked for us this year. Read the soil guide first.",
+      "contentHTML": "<p>Beans and peas like cool soil, but not wet soil. Here is what worked for us this year.</p>\n<figure class=\"wp-block-image\"><img src=\"https://garden.example.org/wp-content/uploads/beans.jpg\" alt=\"Bean seedlings\" width=\"1024\" height=\"683\" /></figure>\n<p>Read the <a href=\"https://garden.example.org/soil/\">soil guide</a> first.</p>",
+      "thumbnailURL": "https://garden.example.org/wp-content/uploads/beans.jpg",
+      "durationSec": 0,
+      "platform": "",
+      "language": "en",
+      "images": [
+        {
+          "url": "https://garden.example.org/wp-content/uploads/beans.jpg",
+          "width": 1024,
+          "height": 683
+        }
+      ]
+    },
+    {
+      "guid": "https://garden.example.org/?p=1031",
+      "title": "Compost: a short list",
+      "url": "https://garden.example.org/2026/10/compost-list/",
+      "author": "Mira Okafor",
+      "published": "2026-10-09T18:05:00Z",
+      "summary": "Green Brown Water Air",
+      "contentHTML": "<ul><li>Green</li><li>Brown</li><li>Water</li><li>Air</li></ul>",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": []
+    }
+  ]
+}

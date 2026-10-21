@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+ <link rel="self" href="http://www.youtube.com/feeds/videos.xml?channel_id=UCexample000000000000000"/>
+ <id>yt:channel:example000000000000000</id>
+ <yt:channelId>example000000000000000</yt:channelId>
+ <title>Workshop Channel</title>
+ <link rel="alternate" href="https://www.youtube.com/channel/UCexample000000000000000"/>
+ <author>
+  <name>Workshop Channel</name>
+  <uri>https://www.youtube.com/channel/UCexample000000000000000</uri>
+ </author>
+ <published>2020-01-01T00:00:00+00:00</published>
+ <entry>
+  <id>yt:video:aaaaaaaaaaa</id>
+  <yt:videoId>aaaaaaaaaaa</yt:videoId>
+  <yt:channelId>example000000000000000</yt:channelId>
+  <title>Building a workbench in one day</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=aaaaaaaaaaa"/>
+  <author>
+   <name>Workshop Channel</name>
+   <uri>https://www.youtube.com/channel/UCexample000000000000000</uri>
+  </author>
+  <published>2026-10-12T15:00:07+00:00</published>
+  <updated>2026-10-13T01:20:11+00:00</updated>
+  <media:group>
+   <media:title>Building a workbench in one day</media:title>
+   <media:content url="https://www.youtube.com/v/aaaaaaaaaaa?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg" width="480" height="360"/>
+   <media:description>Plans are linked below.
+Second line of the description.</media:description>
+   <media:community>
+    <media:starRating count="1200" average="5.00" min="1" max="5"/>
+    <media:statistics views="45000"/>
+   </media:community>
+  </media:group>
+ </entry>
+</feed>

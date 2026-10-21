@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<rss version="2.0">
+<channel>
+  <title>Café Lumière</title>
+  <link>https://cafe.example.net/</link>
+  <description>Nouvelles du café</description>
+  <item>
+    <title>Crème brûlée à la lavande</title>
+    <link>https://cafe.example.net/menu/creme-brulee</link>
+    <guid>cafe-0007</guid>
+    <pubDate>Wed, 07 Oct 2026 09:00:00 +0200</pubDate>
+    <description>Une recette de grand-mère, revisitée pour l'automne. Très crémeux, à peine sucré.</description>
+  </item>
+  <item>
+    <title>Öffnungszeiten über den Winter</title>
+    <link>https://cafe.example.net/infos/winter</link>
+    <guid>cafe-0008</guid>
+    <pubDate>Thu, 08 Oct 2026 12:00:00 +0200</pubDate>
+    <description><![CDATA[<p>Wir sind täglich von 8 bis 18 Uhr für Sie da.</p>]]></description>
+  </item>
+</channel>
+</rss>

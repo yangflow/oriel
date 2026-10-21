@@ -1,0 +1,2 @@
+# The parser corpus is compared byte for byte; keep it as committed on every platform.
+internal/fetch/testdata/** -text

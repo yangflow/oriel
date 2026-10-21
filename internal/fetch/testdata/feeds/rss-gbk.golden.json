@@ -1,0 +1,35 @@
+{
+  "title": "老城故事",
+  "siteURL": "http://oldtown.example.cn/",
+  "iconURL": "",
+  "entries": [
+    {
+      "guid": "http://oldtown.example.cn/posts/breakfast.html",
+      "title": "胡同里的早点铺",
+      "url": "http://oldtown.example.cn/posts/breakfast.html",
+      "author": "周明",
+      "published": "2026-10-09T22:30:00Z",
+      "summary": "清晨六点，胡同口的早点铺已经排起了队，豆浆的热气混着油条的香味。",
+      "contentHTML": "<p>清晨六点，胡同口的早点铺已经排起了队，豆浆的热气混着油条的香味。</p>",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "zh-Hans",
+      "images": []
+    },
+    {
+      "guid": "http://oldtown.example.cn/posts/cobbler.html",
+      "title": "最后一家修鞋摊",
+      "url": "http://oldtown.example.cn/posts/cobbler.html",
+      "author": "周明",
+      "published": "2026-10-11T12:00:00Z",
+      "summary": "老师傅在这条街上修了四十年的鞋。",
+      "contentHTML": "老师傅在这条街上修了四十年的鞋。",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "zh-Hans",
+      "images": []
+    }
+  ]
+}

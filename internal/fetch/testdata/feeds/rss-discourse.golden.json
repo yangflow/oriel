@@ -1,0 +1,49 @@
+{
+  "title": "Gardeners Forum - Latest topics",
+  "siteURL": "https://forum.example.org",
+  "iconURL": "",
+  "entries": [
+    {
+      "guid": "forum.example.org-post-215",
+      "title": "Re: Tomatoes split after rain",
+      "url": "https://forum.example.org/t/tomatoes-split-after-rain/77/3",
+      "author": "sam",
+      "published": "2026-10-13T21:10:00Z",
+      "summary": "Water deeply and evenly, and pick fruit as soon as it colors.",
+      "contentHTML": "<p>Water deeply and evenly, and pick fruit as soon as it colors.</p>",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "en",
+      "images": []
+    },
+    {
+      "guid": "forum.example.org-post-230",
+      "title": "Only a quote",
+      "url": "https://forum.example.org/t/only-a-quote/80/2",
+      "author": "kim",
+      "published": "2026-10-13T22:00:00Z",
+      "summary": "",
+      "contentHTML": "",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": []
+    },
+    {
+      "guid": "forum.example.org-topic-81",
+      "title": "Opening post of a new topic",
+      "url": "https://forum.example.org/t/opening-post/81",
+      "author": "lee",
+      "published": "2026-10-14T09:00:00Z",
+      "summary": "This post quotes nothing, but talks about a quote class in prose.",
+      "contentHTML": "<p>This post quotes nothing, but talks about a quote class in prose.</p>",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "en",
+      "images": []
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "Notes from the Bench",
+  "home_page_url": "https://bench.example.com/",
+  "feed_url": "https://bench.example.com/feed.json",
+  "description": "Short posts about woodworking",
+  "icon": "https://bench.example.com/icon.png",
+  "language": "en",
+  "authors": [{ "name": "Priya Nair", "url": "https://bench.example.com/about" }],
+  "items": [
+    {
+      "id": "2026-10-12-dovetails",
+      "url": "https://bench.example.com/2026/dovetails",
+      "title": "Hand-cut dovetails",
+      "content_html": "<p>Mark the tails first, then <em>transfer</em> them.</p><img src=\"/img/dovetail.jpg\" width=\"900\" height=\"600\">",
+      "summary": "Tails first.",
+      "image": "https://bench.example.com/img/dovetail-cover.jpg",
+      "date_published": "2026-10-12T09:30:00-07:00",
+      "date_modified": "2026-10-13T08:00:00Z",
+      "tags": ["joinery"]
+    },
+    {
+      "id": "2026-10-10-glue",
+      "url": "https://bench.example.com/2026/glue",
+      "content_text": "Hide glue or PVA?\nBoth work.",
+      "date_published": "2026-10-10T00:00:00Z",
+      "authors": [{ "name": "Guest Author" }]
+    },
+    {
+      "id": "2026-10-08-podcast",
+      "url": "https://bench.example.com/2026/podcast",
+      "title": "Audio note",
+      "summary": "Listen to the note.",
+      "date_modified": "2026-10-08T12:00:00Z",
+      "attachments": [
+        { "url": "https://bench.example.com/audio/note.mp3", "mime_type": "audio/mpeg", "duration_in_seconds": 95 }
+      ]
+    }
+  ]
+}

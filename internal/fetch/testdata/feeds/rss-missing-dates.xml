@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>Hand-written Changelog</title>
+  <link>https://changes.example.org/</link>
+  <description>Release notes without dates</description>
+  <item>
+    <title>Version 2.1</title>
+    <link>https://changes.example.org/2.1/</link>
+    <description>Faster startup.</description>
+  </item>
+  <item>
+    <title>Version 2.0</title>
+    <link>https://CHANGES.example.org/2.0</link>
+    <guid>release-2.0</guid>
+    <pubDate></pubDate>
+    <description>New editor.</description>
+  </item>
+  <item>
+    <title>Version 1.9 (unparseable date)</title>
+    <link>https://changes.example.org/1.9</link>
+    <pubDate>last Tuesday</pubDate>
+    <description>Bug fixes.</description>
+  </item>
+  <item>
+    <title>An announcement without link or guid</title>
+    <description>This item has no identity and is dropped.</description>
+  </item>
+</channel>
+</rss>

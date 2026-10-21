@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+  xmlns:media="http://search.yahoo.com/mrss/"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/">
+<channel>
+  <title>The Small Garden Show</title>
+  <link>https://show.example.org/</link>
+  <description>A weekly audio and video show</description>
+  <itunes:image href="https://show.example.org/cover.jpg"/>
+  <image>
+    <url>https://show.example.org/cover-small.png</url>
+    <title>The Small Garden Show</title>
+    <link>https://show.example.org/</link>
+  </image>
+  <item>
+    <title>Episode 12: Pruning roses</title>
+    <link>https://show.example.org/episodes/12</link>
+    <guid isPermaLink="false">show-ep-12</guid>
+    <pubDate>Sun, 11 Oct 2026 05:00:00 GMT</pubDate>
+    <description>Late-winter pruning, step by step.</description>
+    <enclosure url="https://media.example.org/ep12.mp3" length="23456789" type="audio/mpeg"/>
+    <itunes:duration>45:10</itunes:duration>
+    <itunes:image href="https://show.example.org/ep12.jpg"/>
+  </item>
+  <item>
+    <title>Episode 13: Video tour</title>
+    <link>https://show.example.org/episodes/13</link>
+    <guid isPermaLink="false">show-ep-13</guid>
+    <pubDate>Sun, 18 Oct 2026 05:00:00 GMT</pubDate>
+    <description>A tour with pictures.</description>
+    <media:group>
+      <media:content url="https://media.example.org/ep13.mp4" type="video/mp4" medium="video" duration="754"/>
+      <media:content url="https://show.example.org/ep13-a.jpg" medium="image" width="1280" height="720"/>
+      <media:content url="https://show.example.org/ep13-b.jpg" type="image/jpeg" width="640"/>
+      <media:thumbnail url="https://show.example.org/ep13-thumb.jpg" width="320" height="180"/>
+    </media:group>
+  </item>
+  <item>
+    <title>Episode 14: Photo enclosure</title>
+    <link>https://show.example.org/episodes/14</link>
+    <guid isPermaLink="false">show-ep-14</guid>
+    <pubDate>Sun, 25 Oct 2026 05:00:00 GMT</pubDate>
+    <description>Only an image enclosure and a duration in plain seconds.</description>
+    <enclosure url="https://show.example.org/ep14.png" length="1024" type="image/png"/>
+    <media:content url="https://media.example.org/ep14.mp3" type="audio/mpeg" duration="3600"/>
+  </item>
+</channel>
+</rss>

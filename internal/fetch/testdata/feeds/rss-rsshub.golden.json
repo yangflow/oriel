@@ -1,0 +1,62 @@
+{
+  "title": "Example Account - Posts",
+  "siteURL": "https://x.com/example_account",
+  "iconURL": "https://pbs.example.org/profile_images/1/avatar.jpg",
+  "entries": [
+    {
+      "guid": "https://x.com/example_account/status/1000000000000000001",
+      "title": "Shipping the new release today & a thread",
+      "url": "https://x.com/example_account/status/1000000000000000001",
+      "author": "Example Account",
+      "published": "2026-10-14T12:30:00Z",
+      "summary": "Shipping the new release today.",
+      "contentHTML": "<p>Shipping the new release today.</p><p><img src=\"https://pbs.example.org/media/aaa.jpg\" width=\"1200\" height=\"800\"><br><img src=\"https://pbs.example.org/media/bbb.jpg\"></p>",
+      "thumbnailURL": "https://pbs.example.org/media/aaa.jpg",
+      "durationSec": 0,
+      "platform": "x",
+      "language": "en",
+      "images": [
+        {
+          "url": "https://pbs.example.org/media/aaa.jpg",
+          "width": 1200,
+          "height": 800
+        },
+        {
+          "url": "https://pbs.example.org/media/bbb.jpg"
+        }
+      ]
+    },
+    {
+      "guid": "https://www.bilibili.com/video/BV1xx411c7mD",
+      "title": "【新视频】三分钟讲清楚家庭菜园",
+      "url": "https://www.bilibili.com/video/BV1xx411c7mD",
+      "author": "菜园小记",
+      "published": "2026-10-13T10:00:00Z",
+      "summary": "三分钟讲清楚家庭菜园的基本流程。",
+      "contentHTML": "<p>三分钟讲清楚家庭菜园的基本流程。</p><img src=\"https://i0.example.org/bfs/archive/cover.jpg\">",
+      "thumbnailURL": "https://i0.example.org/bfs/archive/cover.jpg",
+      "durationSec": 0,
+      "platform": "bilibili",
+      "language": "zh-Hans",
+      "images": [
+        {
+          "url": "https://i0.example.org/bfs/archive/cover.jpg"
+        }
+      ]
+    },
+    {
+      "guid": "rsshub-empty-1",
+      "title": "Item with an empty body",
+      "url": "https://x.com/example_account/status/1000000000000000003",
+      "author": "",
+      "published": "2026-10-12T08:00:00Z",
+      "summary": "",
+      "contentHTML": "",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "x",
+      "language": "",
+      "images": []
+    }
+  ]
+}

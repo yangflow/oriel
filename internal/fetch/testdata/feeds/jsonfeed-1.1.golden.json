@@ -1,0 +1,55 @@
+{
+  "title": "Notes from the Bench",
+  "siteURL": "https://bench.example.com/",
+  "iconURL": "https://bench.example.com/icon.png",
+  "entries": [
+    {
+      "guid": "2026-10-12-dovetails",
+      "title": "Hand-cut dovetails",
+      "url": "https://bench.example.com/2026/dovetails",
+      "author": "",
+      "published": "2026-10-12T16:30:00Z",
+      "summary": "Mark the tails first, then transfer them.",
+      "contentHTML": "<p>Mark the tails first, then <em>transfer</em> them.</p><img src=\"/img/dovetail.jpg\" width=\"900\" height=\"600\">",
+      "thumbnailURL": "https://bench.example.com/img/dovetail-cover.jpg",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": [
+        {
+          "url": "https://feeds.example.org/img/dovetail.jpg",
+          "width": 900,
+          "height": 600
+        }
+      ]
+    },
+    {
+      "guid": "2026-10-10-glue",
+      "title": "",
+      "url": "https://bench.example.com/2026/glue",
+      "author": "Guest Author",
+      "published": "2026-10-10T00:00:00Z",
+      "summary": "Hide glue or PVA? Both work.",
+      "contentHTML": "Hide glue or PVA?\nBoth work.",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": []
+    },
+    {
+      "guid": "2026-10-08-podcast",
+      "title": "Audio note",
+      "url": "https://bench.example.com/2026/podcast",
+      "author": "",
+      "published": "2026-10-08T12:00:00Z",
+      "summary": "Listen to the note.",
+      "contentHTML": "Listen to the note.",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": []
+    }
+  ]
+}
