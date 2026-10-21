@@ -91,13 +91,15 @@ type Deps struct {
 
 // Nav is what the timeline tells the reader each frame: the entry as the list has it, with its read and starred
 // state, its subscription's site icon once decoded, the scope Back returns to, whether there are articles before and
-// after it, and whether the keys apply, which they do not while a dialog shows.
+// after it, whether the keys apply, which they do not while a dialog shows, and whether the window controls sit over
+// the toolbar, which they do while the timeline hides its sidebar.
 type Nav struct {
 	Entry          client.Entry
 	Icon           *ui.Bitmap
 	Scope          string
 	Previous, Next bool
 	Keys           bool
+	Controls       bool
 }
 
 const (
@@ -849,7 +851,12 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready, narrow bool) {
 	if narrow {
 		left, right = px(t, 12), px(t, 16)
 	}
-	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).Padding(0, bar.Right, 0, 0).DragWindow().
+	// With the timeline's sidebar hidden the window controls sit over the toolbar, and its left leaves them room.
+	inset := float32(0)
+	if nav.Controls {
+		inset = bar.Left
+	}
+	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).Padding(0, bar.Right, 0, inset).DragWindow().
 		Children(func() {
 			ui.Row(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Height(theme.Bar).AlignItems(ui.Center).
 				Gap(px(t, 6)).Padding(0, right, 0, left).Children(func() {

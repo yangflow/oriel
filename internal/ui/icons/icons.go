@@ -57,6 +57,7 @@ var (
 	Monitor        = parse("monitor")
 	Newspaper      = parse("newspaper")
 	Palette        = parse("palette")
+	PanelLeft      = parse("panel-left")
 	Pause          = parse("pause")
 	Pencil         = parse("pencil")
 	Play           = parse("play")

@@ -92,13 +92,13 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   own light-on-dark theme (see [Glass and ink](#windows-menus-and-navigation)); its first 40 are left to the window
   buttons. Then the five kinds (All, Articles, Videos, Social, Images) as 30 high rows, each an icon, its name and its
   unread count; then the subscriptions of the chosen kind, 30 high rows; at the bottom the server bar, 40 high. The main
-  column is the paper: `Background`. It has a 52 high toolbar row (title, count, one capsule with the
+  column is the paper: `Background`. It has a 52 high toolbar row (the sidebar button, title, count, one capsule with the
   Everything/Unread/Starred segments, the reading-time button, the grid switch (only where it applies), search, mark all as read, whose name and tooltip say
   its scope: "Mark all in “Videos” as read"; right click opens its menu, see Components) with no bar and no divider: the segments are one 32 high capsule of glass floating over the
   entries, which fade under the row (the soft scroll edge); search is a flat ink fill, and the other buttons are
   bare icons. Below a 760 wide window the gap between the toolbar items is 4, the segments are padded 7 and the unread count is left out; what is
-  left gives way in this order: search shrinks first, to 72 wide at least (the magnifier and a few letters), then the
-  title is cut with an ellipsis, 56 wide at least; the buttons never shrink, so mark all as read is always inside the
+  left gives way in this order: search shrinks first, to 64 wide at least (the magnifier and a few letters), then the
+  title is cut with an ellipsis, 40 wide at least; the buttons never shrink, so mark all as read is always inside the
   window. The reading-time button is a bare 32 square clock icon right of the capsule, named "Reading time: any
   length"; its menu lists Any length (the default), Up to 5, 10, 15 and 30 minutes, each a 28 high menu row with a
   check on the current one. With a budget chosen it becomes a 32 high pill (radius 16) with the `Soft(Accent)` fill,
@@ -204,6 +204,16 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
   Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".
+- **Hiding the sidebar.** The first item of the toolbar row, before the title, is a bare 32 square icon button with
+  the Lucide `panel-left` icon (16, `toolFill` colors, radius 8), named "Hide sidebar" while the pane shows and "Show
+  sidebar" while it is hidden (that name is also its tooltip; no shortcut in the tooltip, as no other tooltip carries
+  one). Cmd+\ on macOS and Ctrl+\ elsewhere does the same, from the timeline and the reader, which share one key
+  handler, and it is in the key sheet under "Anywhere". Hidden means the pane is gone, with no icon rail, and the main
+  column takes the whole window width, so the reading area keeps its width at the 640 minimum; the failing-sources hint and
+  the add button go with the pane (1 to 5 still switch kinds; H or Left expand the pane first, then focus it). The
+  window buttons sat over the pane, so with it hidden the toolbar row's left padding grows by `TitleBar().Left`, in the
+  timeline and in the reader, to leave them room. The pane does not animate in or out. The choice is a device
+  preference and is remembered.
 - **The reader.** It takes the main column's place; the pane stays. A 52 high toolbar row over the article, as in the
   timeline: "Back to {scope}" (a chevron and the scope's name) at the left as a bare button; at the right
   [previous, next] and [star (`Star` when starred), read toggle, open in browser] as bare icon buttons, and between
@@ -594,7 +604,8 @@ Overlays share focus and Escape behavior; see
   `TrafficLightPosition` so they sit over the sidebar's top, centered in the 52 high toolbar row. The view then owns
   the room the window controls take (`c.TitleBar()`: on Windows the caption buttons at the right, which the toolbar
   leaves free) and the draggable area: the toolbar row's empty space and the sidebar's top call `DragWindow`. The
-  window's name stays set (`Title`) for the Window menu, the Dock and screen readers.
+  window's name stays set (`Title`) for the Window menu, the Dock and screen readers. With the sidebar hidden the
+  macOS buttons sit over the toolbar row, which pads its left by `TitleBar().Left` (see Hiding the sidebar).
 - **Glass and ink.** Oriel draws its toolbar controls in glass (the [glass
   plugin](https://github.com/egoist/mygo/blob/v0.5.5/docs/plugins/glass.md)) and its sidebar as an ink pane. The pane
   is not glass: it is a plain floating view with an opaque `Background` of ink (warm charcoal `#37332e` in light, deep teal `#1a2422`
@@ -651,7 +662,7 @@ Overlays share focus and Escape behavior; see
   announced, and the new chosen entry is then read by its own name; there is no extra announcement. The trackpad swipe is
   not possible in MyGo 0.5.5 (no gesture callback) and is left out.
 - **Sidebar keys.** 1 to 5 switch to All and the four kinds, in the sidebar's order, from anywhere in the timeline. H or
-  Left moves the focus to the chosen item of the sidebar (the kind, or the subscription when the scope is one), Up and
+  Left (expanding the sidebar first if it is hidden) moves the focus to the chosen item of the sidebar (the kind, or the subscription when the scope is one), Up and
   Down walk its kinds, which choose as the focus passes, and its subscriptions, which wait for Enter (one vertical
   focus group each, so Tab still goes through the sidebar in two stops, and Left and Right are not the groups' but go
   back to the list); the focus stays on the item chosen, and L, Right or Escape gives the focus back to the list, the chosen entry

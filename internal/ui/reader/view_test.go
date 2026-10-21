@@ -1456,3 +1456,27 @@ func TestReadingTime(t *testing.T) {
 		})
 	}
 }
+
+// With the sidebar hidden the window buttons sit over the reader's toolbar, which leaves them room.
+func TestToolbarInset(t *testing.T) {
+	a := full()
+	f := &fake{now: now, article: a, nav: Nav{Entry: a.Entry, Scope: "All", Keys: true}}
+	s := New("en", f.deps())
+	s.Use(f)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 640, 540)
+	s.Open(a.Entry)
+	tt.SetTitleBar(ui.TitleBar{Height: 52, Left: 78})
+	shown, ok := tt.Find("Back to All")
+	if !ok {
+		t.Fatal("no Back button")
+	}
+	f.nav.Controls = true
+	tt.Frame()
+	hidden, ok := tt.Find("Back to All")
+	if !ok {
+		t.Fatal("no Back button")
+	}
+	if hidden.X < shown.X+78 {
+		t.Fatalf("Back moved from %v to %v, want at least 78 further right", shown.X, hidden.X)
+	}
+}
