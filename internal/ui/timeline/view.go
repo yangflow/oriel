@@ -117,6 +117,9 @@ type Deps struct {
 	Active func() bool
 	// Look keeps the marker of what the reader last looked at, in the background. nil keeps nothing.
 	Look func(prefs.Marker)
+	// Remember keeps the scope and filter the timeline was left in on a server (its host, "" for this computer), in
+	// the background. nil keeps nothing.
+	Remember func(server string, place prefs.Place)
 }
 
 // scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
@@ -192,6 +195,7 @@ type Screen struct {
 	filter        int  // everything, unread or starred
 	budget        int  // the most minutes an entry may take to read, 0 for any length; not kept between servers
 	oldest        bool // the list runs oldest first, as the preferences of this device choose
+	restoring     bool // the scope is a subscription kept from the last run, to check when the sources load
 
 	query     string    // as typed
 	searched  string    // the search in effect, trimmed
@@ -325,6 +329,7 @@ func (s *Screen) Use(api API, server string) {
 	s.gen++
 	s.sources, s.sourcesLoaded = nil, false
 	s.scope, s.tab, s.filter, s.budget = scope{}, 0, everything, 0
+	s.restorePlace()
 	s.oldest = s.views().OldestFirst
 	s.query, s.searched, s.editing = "", "", false
 	s.lists, s.anchor = nil, 0
@@ -336,6 +341,40 @@ func (s *Screen) Use(api API, server string) {
 	s.reader.Use(api)
 	s.loadSources()
 	s.reload()
+}
+
+// restorePlace puts the scope and filter back to where the reader left them on this server. A subscription is taken on
+// trust until the sources load, which drop it if it is gone.
+func (s *Screen) restorePlace() {
+	s.restoring = false
+	if s.deps.Reading == nil {
+		return
+	}
+	p := s.deps.Reading().Normalize().Places.Get(s.server)
+	s.scope = scope{kind: p.Kind, source: p.Source}
+	s.tab = max(0, indexOf(kinds, p.Kind))
+	s.restoring = p.Source != 0
+	switch p.Filter {
+	case prefs.FilterUnread:
+		s.filter = unread
+	case prefs.FilterStarred:
+		s.filter = starred
+	}
+}
+
+// remember keeps the scope and filter when show changed them.
+func (s *Screen) remember() {
+	if s.deps.Remember == nil {
+		return
+	}
+	p := prefs.Place{Kind: s.scope.kind, Source: s.scope.source}
+	switch s.filter {
+	case unread:
+		p.Filter = prefs.FilterUnread
+	case starred:
+		p.Filter = prefs.FilterStarred
+	}
+	s.deps.Remember(s.server, p)
 }
 
 // Refresh loads the subscriptions and the entries again, as after an import added subscriptions.
@@ -419,8 +458,24 @@ func (s *Screen) loadSources() {
 				return
 			}
 			s.sources, s.sourcesLoaded = sources, true
+			if s.restoring {
+				s.restoring = false
+				s.checkRestored()
+			}
 		}
 	})
+}
+
+// checkRestored goes to everything when the subscription kept from the last run is gone, and takes the kind it has now
+// otherwise.
+func (s *Screen) checkRestored() {
+	if kind := s.kindOf(s.scope.source); kind != "" {
+		s.scope.kind = kind
+		s.tab = max(0, indexOf(kinds, kind))
+		return
+	}
+	s.entries = nil
+	s.show(func() { s.scope, s.tab = scope{}, 0 })
 }
 
 func (s *Screen) query1(cursor string) client.Query {
@@ -596,7 +651,12 @@ func (s *Screen) leave(old listKey) {
 // chosen again that is kept is drawn at once where it was and checked in the background, any other is loaded.
 func (s *Screen) show(change func()) {
 	s.leave(s.key())
+	before := s.scope
+	beforeFilter := s.filter
 	change()
+	if s.scope != before || s.filter != beforeFilter {
+		s.remember()
+	}
 	if s.searched == "" {
 		if i := slices.IndexFunc(s.lists, func(l snapshot) bool { return l.key == s.key() }); i >= 0 {
 			snap := s.lists[i]

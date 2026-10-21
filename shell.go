@@ -76,7 +76,7 @@ func newShell(systemLocale, path, prefsPath string, local client.Session, goAsyn
 			OpenSettingsPage: s.openSettingsPage,
 			Expired:          s.expired,
 			Reading:          func() prefs.Preferences { return s.prefs }, ReadingFont: func() string { return s.face },
-			Change: s.change, Save: s.files.Save, Active: s.active, Look: s.look})
+			Change: s.change, Save: s.files.Save, Active: s.active, Look: s.look, Remember: s.remember})
 	}
 	s.updateFace()
 	s.build()
@@ -141,6 +141,14 @@ func (s *shell) change(p prefs.Preferences) { s.save(p, true) }
 func (s *shell) look(m prefs.Marker) {
 	p := s.prefs
 	p.LastLooked = m
+	s.save(p, false)
+}
+
+// remember keeps the scope and filter the timeline was left in on a server. Like look, it is not something the reader
+// chose in the settings, so a failure to save it goes to the log only.
+func (s *shell) remember(server string, place prefs.Place) {
+	p := s.prefs
+	p.Places = p.Places.Set(server, place)
 	s.save(p, false)
 }
 

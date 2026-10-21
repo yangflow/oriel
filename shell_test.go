@@ -402,3 +402,18 @@ func TestShellReadingFace(t *testing.T) {
 		t.Fatalf("face %q when following the interface", s.face)
 	}
 }
+
+func TestShellRemember(t *testing.T) {
+	s, _, path := newTestShell(t)
+	s.use()
+	place := prefs.Place{Kind: "video", Filter: prefs.FilterUnread}
+	s.remember("home.lan:7470", place)
+	file := filepath.Join(filepath.Dir(path), prefs.File)
+	if s.prefs.Places.Get("home.lan:7470") != place || prefs.Load(file).Places.Get("home.lan:7470") != place {
+		t.Fatalf("in use %v, saved %v", s.prefs.Places, prefs.Load(file).Places)
+	}
+	s.remember("home.lan:7470", prefs.Place{})
+	if prefs.Load(file).Places != "" {
+		t.Fatalf("saved %v", prefs.Load(file).Places)
+	}
+}
