@@ -53,6 +53,8 @@ type fake struct {
 	selTitles []string // the titles sent with them
 	selReply  string   // the answer to a selection
 	selErr    error
+	saveTo    string   // the path the save dialog gives, "" when it is cancelled
+	dialogs   []string // the file name and filter the save dialog was asked for
 }
 
 // saved is a reading position the reader stored.
@@ -118,6 +120,10 @@ func (f *fake) deps() Deps {
 		Star:         func() { f.calls = append(f.calls, "star") },
 		ToggleRead:   func() { f.calls = append(f.calls, "read") },
 		OpenSettings: func() { f.calls = append(f.calls, "settings") },
+		Save: func(name, filter string) (string, error) {
+			f.dialogs = append(f.dialogs, name+" | "+filter)
+			return f.saveTo, nil
+		},
 	}
 }
 

@@ -47,6 +47,7 @@ type copy struct {
 	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, HideSidebar, ShowSidebar, KeyToggleSidebar string
 	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                        string
 	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                            string
+	CopyMarkdown, SaveMarkdown                                                                                                                            string
 }
 
 var translations = func() map[string]copy {
@@ -91,7 +92,7 @@ type API interface {
 // ("appearance", "fetching", "opml", "ai" or "devices"), from the command palette, and Expired the connect screen
 // because the server no longer takes the session. Reading gives the reading preferences of this device, for the reader, and ReadingFont the
 // font list of the article's body that they come to, "" for the interface font. Change keeps preferences the
-// screen changed itself, the list or grid of a scope.
+// screen changed itself, the list or grid of a scope. Save asks where to save a file, for the reader's export.
 type Deps struct {
 	Go               func(work func() (apply func()))
 	Now              func() time.Time
@@ -105,6 +106,7 @@ type Deps struct {
 	Reading          func() prefs.Preferences
 	ReadingFont      func() string
 	Change           func(prefs.Preferences)
+	Save             func(name, filter string) (string, error)
 }
 
 // scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
@@ -278,6 +280,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		OpenSettings: deps.OpenAISettings,
 		Reading:      deps.Reading,
 		ReadingFont:  deps.ReadingFont,
+		Save:         deps.Save,
 		Back:         s.back,
 		Move:         s.step,
 		NextUnread:   s.nextUnread,
@@ -1611,6 +1614,7 @@ func (s *Screen) View(c *ui.Context) {
 		s.toast = ""
 	}
 	s.toasts(c)
+	s.reader.Flush(c)
 }
 
 // listKeys registers the keys of the list and of the sidebar. They work wherever the focus is, but not while the search
@@ -2941,6 +2945,13 @@ func (s *Screen) entryMenu(c *ui.Context, m *ui.Menu, id int64) {
 	}
 	if m.Item(s.text.Open).Chosen() {
 		s.browse(c, s.index(id))
+	}
+	m.Separator()
+	if m.Item(s.text.CopyMarkdown).Chosen() {
+		s.reader.Export(e, false)
+	}
+	if m.Item(s.text.SaveMarkdown).Disabled(s.deps.Save == nil).Chosen() {
+		s.reader.Export(e, true)
 	}
 	m.Separator()
 	if m.Item(s.text.MarkAbove).Disabled(!s.canMarkAbove(id)).Chosen() {

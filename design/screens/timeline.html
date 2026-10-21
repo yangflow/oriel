@@ -48,7 +48,8 @@
      Undo in the same toast (marked-older: it says how old and how many); when none is that old a plain toast says so (marked-older-none), without Undo.
      They are off where Mark all as read is.
      Right click opens a menu. On an entry (menu-entry): Star, Mark as read or unread and Open in browser, as the row's
-     actions have them, then Mark above as read, which marks the unread entries listed above this one (not this one)
+     actions have them, then Copy as Markdown and Save as Markdown… (the same two as the reader's More menu; Copy puts
+     the article on the clipboard and says "Copied", Save asks where to put the .md file), then Mark above as read, which marks the unread entries listed above this one (not this one)
      and is dimmed when there are none (menu-entry-first) or under Starred and search. On a subscription (menu-feed,
      the sidebar keeps the existing menu of subscriptions.html): Mark subscription as read sits under Refresh and is
      dimmed when it has nothing unread (menu-feed-none); the three Mark older than ... as read items follow it and are dimmed with it. All act at once and offer Undo in the same toast as Mark all
@@ -571,7 +572,7 @@ const copy={
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
     unreadCount:'{n} unread', results:'{n} found',
-    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', markAbove:'Mark above as read', markFeed:'Mark subscription as read', markOlder1:'Mark older than 1 day as read', markOlder7:'Mark older than 1 week as read', markOlder30:'Mark older than 1 month as read', refresh:'Refresh', edit:'Edit…', pause:'Pause', remove:'Delete…',
+    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', markAbove:'Mark above as read', copyMd:'Copy as Markdown', saveMd:'Save as Markdown…', markFeed:'Mark subscription as read', markOlder1:'Mark older than 1 day as read', markOlder7:'Mark older than 1 week as read', markOlder30:'Mark older than 1 month as read', refresh:'Refresh', edit:'Edit…', pause:'Pause', remove:'Delete…',
     failing:'Last fetch failed', failingName:'{name}, last fetch failed', failingUnread:'{name}, {n} unread, last fetch failed',
     failedOnce:'Last fetch failed: {error}', failedTimes:'Failed {n} times in a row: {error}',
     failingCount:'{n} failing', failingShow:'Show only the {n} failing subscriptions', failingTitle:'Failing', showAll:'Show all',
@@ -602,7 +603,7 @@ const copy={
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
     unreadCount:'{n} 条未读', results:'找到 {n} 条',
-    markAllRead:'全部标为已读', markAllIn:'把「{scope}」全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', markAbove:'把上面的标为已读', markFeed:'把订阅标为已读', markOlder1:'把 1 天前的标为已读', markOlder7:'把 1 周前的标为已读', markOlder30:'把 1 个月前的标为已读', refresh:'更新', edit:'编辑…', pause:'暂停', remove:'删除…',
+    markAllRead:'全部标为已读', markAllIn:'把「{scope}」全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', markAbove:'把上面的标为已读', copyMd:'复制为 Markdown', saveMd:'存为 Markdown…', markFeed:'把订阅标为已读', markOlder1:'把 1 天前的标为已读', markOlder7:'把 1 周前的标为已读', markOlder30:'把 1 个月前的标为已读', refresh:'更新', edit:'编辑…', pause:'暂停', remove:'删除…',
     failing:'上次抓取失败', failingName:'{name}，上次抓取失败', failingUnread:'{name}，{n} 条未读，上次抓取失败',
     failedOnce:'上次抓取失败：{error}', failedTimes:'连续失败 {n} 次：{error}',
     failingCount:'{n} 个失败', failingShow:'只显示 {n} 个抓取失败的订阅', failingTitle:'抓取失败', showAll:'显示全部',
@@ -919,7 +920,7 @@ const place=(html,anchor,dx,dy)=>{const w=document.getElementById('window'),a=an
   m.style.left=Math.min(a.left-b.left+dx,b.width-m.offsetWidth-8)+'px';m.style.top=Math.min(a.top-b.top+dy,b.height-m.offsetHeight-8)+'px'};
 if(state==='menu-entry'||state==='menu-entry-first'){
   const e=entries[state==='menu-entry'?2:0],first=state==='menu-entry-first';
-  place(`<div class="menu" role="menu" aria-label="${e.title||e.author}">${menuItem('star',e.starred?copy.unstar:copy.star,{key:'S'})}${menuItem(e.read?'mail':'mailOpen',e.read?copy.markUnread:copy.markRead,{key:'M'})}${menuItem('external',copy.open,{key:'O'})}<hr>${menuItem('arrowUpToLine',copy.markAbove,{cls:first?'':'hover',off:first})}</div>`,document.querySelector('.row.menued'),300,36);
+  place(`<div class="menu" role="menu" aria-label="${e.title||e.author}">${menuItem('star',e.starred?copy.unstar:copy.star,{key:'S'})}${menuItem(e.read?'mail':'mailOpen',e.read?copy.markUnread:copy.markRead,{key:'M'})}${menuItem('external',copy.open,{key:'O'})}<hr>${menuItem('copy',copy.copyMd)}${menuItem('fileDown',copy.saveMd)}<hr>${menuItem('arrowUpToLine',copy.markAbove,{cls:first?'':'hover',off:first})}</div>`,document.querySelector('.row.menued'),300,36);
 }
 if(state==='menu-markall'){
   place(`<div class="menu" role="menu" aria-label="${markAllName}">${menuItem('checkCheck',markAllName,{cls:'hover'})}<hr>${[1,7,30].map(n=>menuItem('calendar',copy['markOlder'+n])).join('')}</div>`,document.querySelector('.toolbar .tool'),-200,36);

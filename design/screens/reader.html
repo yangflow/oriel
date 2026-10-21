@@ -27,6 +27,10 @@
      glass capsule; the other controls are bare icons (docs/design.md, Title bar).
      The header line ends with the reading time after the date ("6 min read"), the same label as in the timeline row.
      The bar above the window only switches the mockup.
+     Export (docs/product.md, Export as Markdown): the last toolbar button is More (ellipsis), a menu button whose menu,
+     the platform's own with text only, holds Copy as Markdown and Save as Markdown… (more-menu). Copy puts the article on
+     the clipboard and a toast says "Copied" (copied), which screen readers also hear; Save opens the system save dialog.
+     More is dimmed with the other article buttons while the article is not loaded.
      Reading preferences (Settings, Appearance, kept per device): textsize=small|medium|large|xlarge (default medium)
      scales the body, h2, h3, code, the gaps and the column: the column is 680 x the text size scale (634 / 680 /
      771 / 861, rounded; scale 14/15, 1, 17/15, 19/15), never wider than the window leaves it, and the toolbar's ends
@@ -275,6 +279,10 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 :root[data-scheme=dark] .selcard.error { background:linear-gradient(var(--danger-soft),var(--danger-soft)),var(--track) }
 .selcard.error .head { color:var(--danger) }
 .selcard.plain .head { color:var(--text2) }
+.more-menu { position:absolute; z-index:5; min-width:208px; padding:4px; border-radius:10px; background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 12px 32px rgba(var(--shadow),.22); font-size:13px }
+:root[data-scheme=dark] .more-menu { box-shadow:0 0 0 1px rgba(255,255,255,.08), 0 12px 32px rgba(0,0,0,.55) }
+.more-menu button { width:100%; height:28px; display:flex; align-items:center; padding:0 8px; border-radius:6px; text-align:left; white-space:nowrap }
+.more-menu button:hover, .more-menu button.hover { background:var(--sel) }
 .toast .msg { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 </style>
 <div class="switcher" aria-hidden="true">
@@ -288,7 +296,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long'];
+const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
@@ -347,6 +355,7 @@ const icons={
   settings:'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
   mail:'<path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/>',
   mailOpen:'<path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6Z"/><path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"/>',
+  ellipsis:'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
   fileText:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
 };
 
@@ -361,7 +370,7 @@ const copy={
   en:{
     all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
     back:'Back to {scope}', previous:'Previous entry', next:'Next entry',
-    star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser',
+    star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', more:'More', copyMd:'Copy as Markdown', saveMd:'Save as Markdown…', copied:'Copied',
     feedNote:'This isn’t the full text: the page could not be extracted, so this is what the feed carries.',
     extractingNote:'Getting the full text. Until then, this is what the feed carries.',
     openOriginal:'Open the original', tryAgain:'Try again', textSwitch:'Text to read', fullText:'Full text', feedText:'Feed',
@@ -383,7 +392,7 @@ const copy={
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
     back:'回到{scope}', previous:'上一篇', next:'下一篇',
-    star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开',
+    star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', more:'更多', copyMd:'复制为 Markdown', saveMd:'存为 Markdown…', copied:'已复制',
     feedNote:'这不是全文：网页抽不出正文，下面是订阅里带的内容。',
     extractingNote:'正在取全文，先显示订阅里带的内容。',
     openOriginal:'打开原文', tryAgain:'重试', textSwitch:'要读的正文', fullText:'全文', feedText:'原文',
@@ -424,7 +433,8 @@ const tools=`<button class="back" aria-label="${t('back',{scope:'Simon Willison'
 <button class="tool labeled${translated?' pressed':''}"${off} aria-pressed="${translated}" aria-label="${translated?copy.showOriginal:copy.translate}" title="${translated?copy.showOriginal:copy.translate}">${icon('languages')}<span>${copy.translate}</span></button></div><div class="bare">
 <button class="tool${starred?' on':''}"${off} aria-pressed="${starred}" aria-label="${starred?copy.unstar:copy.star}" title="${starred?copy.unstar:copy.star} (S)">${icon('star',starred?'filled':'')}</button>
 <button class="tool"${off} aria-label="${read?copy.markUnread:copy.markRead}" title="${read?copy.markUnread:copy.markRead} (M)">${icon(read?'mail':'mailOpen')}</button>
-<button class="tool"${off} aria-label="${copy.open}" title="${copy.open} (O)">${icon('external')}</button></div>`;
+<button class="tool"${off} aria-label="${copy.open}" title="${copy.open} (O)">${icon('external')}</button>
+<button class="tool"${off} aria-haspopup="menu" aria-expanded="${state==='more-menu'}" aria-label="${copy.more}" title="${copy.more}">${icon('ellipsis')}</button></div>`;
 
 // Chinese typesetting (docs/design.md). Han and Latin letters or digits: 0.25em after the character before the
 // boundary. Full-width punctuation: -0.5em after the first of a pair with a blank half between the two. Code is
@@ -533,7 +543,7 @@ switch(state){
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
-  case 'full':case 'no-more-unread':case 'resumed':page=article('',full);break;
+  case 'full':case 'no-more-unread':case 'resumed':case 'more-menu':case 'copied':page=article('',full);break;
   case 'full-switch':page=article(switcher(false),full);break;
   case 'feed-text':page=article(switcher(true),feed);break;
   case 'feed':page=article(note('warn','triangle',copy.feedNote),feed);break;
@@ -543,7 +553,12 @@ switch(state){
   case 'loading':page=`<div class="page skeleton" aria-busy="true"><div class="bar m"></div><div class="bar h"></div>${'<div class="bar s"></div>'.repeat(3)}<div class="bar e"></div><br>${'<div class="bar s"></div>'.repeat(2)}<div class="bar e"></div></div>`;break;
   case 'error':page=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');break;
 }
-document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${selMenu}${isSel?selCard():''}${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}${state==='resumed'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${copy.resumed}</span></div>`:''}</section>`;
+document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${selMenu}${isSel?selCard():''}${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}${state==='copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.copied}</span></div>`:''}${state==='resumed'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${copy.resumed}</span></div>`:''}</section>`;
+if(state==='more-menu'){
+  const w=document.getElementById('window'),a=document.querySelector('.toolbar .tool[aria-haspopup]').getBoundingClientRect(),b=w.getBoundingClientRect();
+  w.insertAdjacentHTML('beforeend',`<div class="more-menu" role="menu" aria-label="${copy.more}"><button role="menuitem" class="hover">${copy.copyMd}</button><button role="menuitem">${copy.saveMd}</button></div>`);
+  const m=w.lastElementChild;m.style.left=Math.min(a.left-b.left,b.width-m.offsetWidth-8)+'px';m.style.top=(a.bottom-b.top+4)+'px';
+}
 if(state==='resumed'){const box=document.querySelector('.scroll');box.scrollTop=(box.scrollHeight-box.clientHeight)*.4}
 </script>
 </html>

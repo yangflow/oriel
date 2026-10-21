@@ -75,7 +75,7 @@ func newShell(systemLocale, path, prefsPath string, local client.Session, goAsyn
 			OpenSettingsPage: s.openSettingsPage,
 			Expired:          s.expired,
 			Reading:          func() prefs.Preferences { return s.prefs }, ReadingFont: func() string { return s.face },
-			Change: s.change})
+			Change: s.change, Save: s.files.Save})
 	}
 	s.updateFace()
 	s.build()
