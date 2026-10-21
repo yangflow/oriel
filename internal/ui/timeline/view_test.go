@@ -3283,19 +3283,108 @@ func TestGridSwitchSourceKeys(t *testing.T) {
 // At the minimum width the toolbar keeps every button inside the window, the mark-all button above all, even in a
 // subscription that adds the edit and grid buttons. It runs at 14, the text size of Linux and Windows, the widest.
 func TestToolbarMinimumWidth(t *testing.T) {
-	p := prefs.Default()
-	s, f, _ := viewing(t, &p)
-	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 640, 540)
-	tt.Frame()
-	f.settle(t, tt)
-	tt.Frame()
-	chooseSource(t, s, f, tt, "image", 4)
-	for _, name := range []string{"Mark all in “Photos” as read", "Show as grid", "Show as list", "Edit subscription"} {
-		if r, ok := tt.Find(name); ok && (r.X+r.W > 640 || r.W < 32) {
-			t.Fatalf("%q at %v is cut off by the 640 wide window", name, r)
+	for _, hidden := range []bool{false, true} {
+		p := prefs.Default()
+		p.SidebarHidden = hidden
+		s, f, _ := viewing(t, &p)
+		tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 640, 540)
+		tt.Frame()
+		f.settle(t, tt)
+		tt.Frame()
+		if !hidden {
+			chooseSource(t, s, f, tt, "image", 4)
+		} else {
+			tt.Key(0, ui.Key5)
+			f.settle(t, tt)
+			tt.Frame()
+		}
+		for _, name := range []string{"Mark all in “Photos” as read", "Mark all in “Images” as read", "Show as grid", "Show as list", "Edit subscription",
+			"Hide sidebar", "Show sidebar"} {
+			if r, ok := tt.Find(name); ok && (r.X+r.W > 640 || r.W < 32) {
+				t.Fatalf("hidden %v: %q at %v is cut off by the 640 wide window", hidden, name, r)
+			}
+		}
+		if _, ok := tt.Find("Mark all in “Photos” as read"); !ok && !hidden {
+			t.Fatal("no mark-all button")
 		}
 	}
-	if _, ok := tt.Find("Mark all in “Photos” as read"); !ok {
-		t.Fatal("no mark-all button")
+}
+
+// The sidebar button and Cmd+\ hide the sidebar and show it again; the choice goes through Deps.Change.
+func TestSidebarToggle(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := viewing(t, &p)
+	if _, ok := tt.Find("Hide sidebar"); !ok {
+		t.Fatal("no Hide sidebar button")
+	}
+	if _, ok := tt.Find("Kinds"); !ok {
+		t.Fatal("the sidebar is not shown by default")
+	}
+	if err := tt.Click("Hide sidebar"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !p.SidebarHidden {
+		t.Fatal("the choice was not passed to Change")
+	}
+	if _, ok := tt.Find("Kinds"); ok {
+		t.Fatal("the sidebar is still shown")
+	}
+	bar, ok := tt.Find("Show sidebar")
+	if !ok || bar.W != bar.H {
+		t.Fatalf("Show sidebar button %v, %v", bar, ok)
+	}
+	if err := tt.Click("Show sidebar"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if p.SidebarHidden {
+		t.Fatal("showing the sidebar was not passed to Change")
+	}
+	if _, ok := tt.Find("Kinds"); !ok {
+		t.Fatal("the sidebar is not back")
+	}
+
+	tt.Key(ui.Cmd, ui.KeyBackslash)
+	tt.Frame()
+	if !p.SidebarHidden {
+		t.Fatal("the shortcut does not hide the sidebar")
+	}
+	// Kinds stay reachable by number with the pane hidden.
+	tt.Key(0, ui.Key3)
+	f.settle(t, tt)
+	if s.scope.kind != "video" {
+		t.Fatalf("scope %v", s.scope)
+	}
+	// H expands the sidebar and focuses it.
+	tt.Key(0, ui.KeyH)
+	tt.Frame()
+	if p.SidebarHidden || !s.inSide {
+		t.Fatalf("H: hidden %v, in sidebar %v", p.SidebarHidden, s.inSide)
+	}
+	tt.Key(ui.Cmd, ui.KeyBackslash)
+	tt.Frame()
+	if !p.SidebarHidden || s.inSide {
+		t.Fatalf("hiding keeps the sidebar focus: hidden %v, in sidebar %v", p.SidebarHidden, s.inSide)
+	}
+}
+
+// With the sidebar hidden the window buttons sit over the toolbar, so the toolbar's left starts after them.
+func TestSidebarHiddenInset(t *testing.T) {
+	p := prefs.Default()
+	p.SidebarHidden = true
+	_, _, tt := viewing(t, &p)
+	tt.SetTitleBar(ui.TitleBar{Height: 52, Left: 78})
+	hidden, ok := tt.Find("Show sidebar")
+	if !ok {
+		t.Fatal("no Show sidebar button")
+	}
+	if hidden.X < 78 {
+		t.Fatalf("the button starts at %v, under the window buttons", hidden.X)
+	}
+	p.SidebarHidden = false
+	tt.Frame()
+	if shown, ok := tt.Find("Hide sidebar"); !ok || shown.X < 216 {
+		t.Fatalf("with the pane shown the button is at %v, %v", shown, ok)
 	}
 }

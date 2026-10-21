@@ -29,22 +29,22 @@ import (
 var catalog []byte
 
 type copy struct {
-	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show                                       string
-	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                  string
-	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                   string
-	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                          string
-	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                           string
-	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                          string
-	MorePictures, Pictures, AISummary, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                        string
-	AddSource, EditSource, AddFirst, ImportOPML, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu               string
-	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                  string
-	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                        string
-	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                      string
-	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                       string
-	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                      string
-	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteActions, PaletteUnreadOnly, PaletteShowAll string
-	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices                         string
-	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                    string
+	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show                                                           string
+	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                      string
+	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                                       string
+	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                              string
+	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                               string
+	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                              string
+	MorePictures, Pictures, AISummary, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                                            string
+	AddSource, EditSource, AddFirst, ImportOPML, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                   string
+	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                                      string
+	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                            string
+	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                          string
+	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                           string
+	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                          string
+	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteActions, PaletteUnreadOnly, PaletteShowAll                     string
+	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, HideSidebar, ShowSidebar, KeyToggleSidebar string
+	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                        string
 }
 
 var translations = func() map[string]copy {
@@ -1544,6 +1544,7 @@ func (s *Screen) View(c *ui.Context) {
 		})
 		c.OnShortcut(ui.Cmd, ui.KeyN, s.subs.Add)
 		c.OnShortcut(ui.Cmd, ui.KeySlash, s.ShowKeys)
+		c.OnShortcut(ui.Cmd, ui.KeyBackslash, s.toggleSidebar)
 		if m := s.undoable; m != nil && !s.typing {
 			c.OnShortcut(ui.Cmd, ui.KeyZ, func() {
 				c.CloseToast(markedToast)
@@ -1557,6 +1558,7 @@ func (s *Screen) View(c *ui.Context) {
 	width, height := c.Size()
 	compact := width < 760
 	s.height = height
+	hidden := s.views().SidebarHidden
 	if v := s.viewerSet(); v != s.viewed {
 		// A viewer changed in Settings: the list is drawn again in place, at the entry that was first in view.
 		if s.viewed != (viewerSet{}) {
@@ -1567,11 +1569,13 @@ func (s *Screen) View(c *ui.Context) {
 	s.wantMore = false
 	clear(s.rects)
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
-		s.sidebar(c, compact)
+		if !hidden {
+			s.sidebar(c, compact)
+		}
 		if s.reading != 0 {
 			e := s.entries[s.index(s.reading)]
 			s.reader.View(c, reader.Nav{Entry: e, Icon: s.bitmap(s.iconOf(e.SourceID)), Scope: s.scopeName(),
-				Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "", Keys: !open})
+				Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "", Keys: !open, Controls: hidden})
 			return
 		}
 		// The toolbar row floats over the content, which scrolls under it and fades under the scroll edge.
@@ -1580,7 +1584,7 @@ func (s *Screen) View(c *ui.Context) {
 			s.stale(c)
 			s.content(c, now, compact)
 			theme.Edge(c)
-			s.toolbar(c, compact)
+			s.toolbar(c, compact, hidden)
 			s.pill(c)
 		})
 	})
@@ -1649,8 +1653,30 @@ func (s *Screen) pickKind(i int) {
 	s.announce = say
 }
 
-// toSidebar gives the focus to the subscription chosen, else the kind chosen.
-func (s *Screen) toSidebar() { s.sideFocus, s.inSide, s.sideKeyed = true, true, true }
+// toSidebar gives the focus to the subscription chosen, else the kind chosen; a sidebar that is hidden shows first.
+func (s *Screen) toSidebar() {
+	if s.views().SidebarHidden {
+		s.toggleSidebar()
+		if s.views().SidebarHidden {
+			return
+		}
+	}
+	s.sideFocus, s.inSide, s.sideKeyed = true, true, true
+}
+
+// toggleSidebar hides the sidebar if it shows and shows it if it is hidden, and keeps the choice on this device. The
+// focus that was in the sidebar goes with it.
+func (s *Screen) toggleSidebar() {
+	if s.deps.Change == nil {
+		return
+	}
+	p := s.views()
+	p.SidebarHidden = !p.SidebarHidden
+	if p.SidebarHidden {
+		s.sideFocus, s.inSide, s.sideKeyed = false, false, false
+	}
+	s.deps.Change(p)
+}
 
 // toList gives the focus back to the entry chosen, the first one when none is.
 func (s *Screen) toList() {
@@ -1750,7 +1776,7 @@ func (s *Screen) keySheet(c *ui.Context) {
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyStar, one("S")}, {s.text.KeyRead, one("M")},
 		{s.text.KeyOpenBrowser, one("O")}, {s.text.KeyBack, one("Esc")}}
 	anywhere := []key{{s.text.KeyPalette, [][]string{{cmd, "K"}}}, {s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
-		{s.text.KeyKeys, one("?")}}
+		{s.text.KeyToggleSidebar, [][]string{{cmd, "\\"}}}, {s.text.KeyKeys, one("?")}}
 	ui.DialogBase(c, &s.keys, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Padding(t.Space(4))
 		panel.Column().Width(min(px(t, 560), width-t.Space(8))).MaxHeight(height-t.Space(8)).Radius(px(t, 14)).
@@ -2151,17 +2177,23 @@ func (s *Screen) serverBar(c *ui.Context) {
 	})
 }
 
-func (s *Screen) toolbar(c *ui.Context, compact bool) {
+func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 	t := c.Theme()
 	bar := c.TitleBar()
+	// The window controls sit over the pane; with the pane hidden they sit over the toolbar, whose left gives them room.
+	left := t.Space(3)
+	if hidden {
+		left += bar.Left
+	}
 	gap := px(t, 10)
 	if compact {
 		gap = px(t, 4)
 	}
 	// Keyed, so the search field keeps its focus when the hint above it in the column comes and goes.
 	ui.Row(c).Key("toolbar").Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(gap).
-		Padding(0, t.Space(3)+bar.Right, 0, t.Space(5)).DragWindow().Children(func() {
-		ui.Text(c, s.scopeName()).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(px(t, 56)).Shrink(1).
+		Padding(0, t.Space(3)+bar.Right, 0, left).DragWindow().Children(func() {
+		s.sidebarButton(c, hidden)
+		ui.Text(c, s.scopeName()).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(px(t, 40)).Shrink(1).
 			Role(ui.RoleHeading).Level(1)
 		sub := ""
 		switch {
@@ -2275,6 +2307,21 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 	})
 }
 
+// sidebarButton hides the sidebar or shows it: a bare 32 square icon button with the panel icon, named by what it does.
+func (s *Screen) sidebarButton(c *ui.Context, hidden bool) {
+	t := c.Theme()
+	name := s.text.HideSidebar
+	if hidden {
+		name = s.text.ShowSidebar
+	}
+	b := ui.ButtonBase(c).Key("sidebar").Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 8)).Label(name).Tooltip(name)
+	color := toolFill(t, b)
+	b.Children(func() { ui.Icon(c, icons.PanelLeft).FontSize(px(t, 16)).TextColor(color) })
+	if b.Clicked() {
+		s.toggleSidebar()
+	}
+}
+
 // gridButton switches the list between rows and a grid: a bare 32 square icon button, the grid icon while the list
 // shows rows and the list icon while it shows the grid, named by what it does. It is offered only where a grid is.
 func (s *Screen) gridButton(c *ui.Context) {
@@ -2311,7 +2358,7 @@ func (s *Screen) searchField(c *ui.Context, compact bool) {
 		width = px(t, 136)
 	}
 	_, short := s.trimmed()
-	box := ui.Row(c).Key("search").Width(width).MinWidth(px(t, 72)).Shrink(100).Height(px(t, 32)).Gap(px(t, 6)).Padding(0, px(t, 6), 0, px(t, 12)).
+	box := ui.Row(c).Key("search").Width(width).MinWidth(px(t, 64)).Shrink(100).Height(px(t, 32)).Gap(px(t, 6)).Padding(0, px(t, 6), 0, px(t, 12)).
 		Radius(px(t, 16))
 	focused := s.typing
 	switch {

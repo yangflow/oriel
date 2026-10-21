@@ -66,6 +66,10 @@
      entry (menu-feed and menu-entry look the same); a Mac has no Menu key, so there it is Shift+F10 (fn on laptops).
      All of them are listed in the key sheet (keys) and are off while the search field has the focus, a dialog is
      open or the reader shows. A switch made from the keyboard is announced ("Videos, 12 unread").
+     The sidebar button is the first item of the toolbar, before the title: a bare 32 square panel-left icon, "Hide sidebar" while
+     the pane shows, "Show sidebar" once it is hidden (sidebar-hidden; Cmd+\\ or Ctrl+\\ does the same, listed under Anywhere in
+     the keys sheet). Hidden, the pane is gone with no rail, the main column takes the whole width (also at size=min) and
+     the toolbar pads its left by the width of the window buttons, which then sit over it. The choice is remembered.
      Edge cases (long-titles, many-feeds, broken-images; the rules are in docs/design.md, The timeline). A title stops
      at two lines in a row and in a video card, at one in a picture's caption, a subscription's name in the sidebar, the
      source name in the meta line and the screen title, each with an ellipsis; a Chinese title breaks between any two
@@ -183,10 +187,14 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
    control is the one glass capsule; search is a flat ink fill and the tools are bare icons. */
 .main { flex:1; min-width:0; display:flex; flex-direction:column; position:relative }
 .main::after { content:""; position:absolute; top:0; left:0; right:0; height:76px; background:linear-gradient(var(--edge) 52px,transparent); pointer-events:none; z-index:1 }
-.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:10px; padding:0 12px 0 20px }
-.toolbar.aligned { --col:680px; padding-left:max(20px,calc((100% - var(--col))/2 + 36px)); padding-right:max(12px,calc((100% - var(--col))/2 + 20px)) }
+.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:10px; padding:0 12px 0 12px }
+.toolbar.nopane { padding-left:80px }
+.toolbar.aligned { --col:680px; padding-left:max(12px,calc((100% - var(--col))/2 - 6px)); padding-right:max(12px,calc((100% - var(--col))/2 + 20px)) }
 .toolbar.aligned.wide { --col:720px }
-.toolbar h1 { margin:0; min-width:56px; font-size:15px; font-weight:600; letter-spacing:-.005em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.toolbar.aligned.nopane { padding-left:max(80px,calc((100% - var(--col))/2 - 6px)) }
+.sbtn { width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:8px; color:var(--muted) }
+.sbtn:hover { background:var(--hover); color:var(--text) }
+.toolbar h1 { margin:0; min-width:40px; font-size:15px; font-weight:600; letter-spacing:-.005em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .toolbar .sub { font-size:12px; letter-spacing:.01em; white-space:nowrap; font-variant-numeric:tabular-nums; color:var(--muted) }
 .toolbar > :not(h1):not(.search):not(.spacer) { flex-shrink:0 }
 .min .toolbar { gap:4px }
@@ -201,7 +209,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .min .segmented button span { display:none }
 .search { width:200px; height:32px; display:flex; align-items:center; gap:6px; padding:0 6px 0 12px; border-radius:16px; background:rgba(var(--ink),.055); color:var(--muted); transition:background-color var(--t), box-shadow var(--t) }
 .search:hover { background:rgba(var(--ink),.075) }
-.search { flex-shrink:1000; min-width:72px }
+.search { flex-shrink:1000; min-width:64px }
 .min .search { width:136px }
 .search.focused { background:var(--raised); box-shadow:0 0 0 2px var(--focus), 0 2px 10px rgba(var(--ink),.08) }
 .search.invalid { box-shadow:inset 0 0 0 1.5px var(--warning) }
@@ -460,7 +468,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
+const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -475,6 +483,7 @@ const viewer={article:'list',video:'grid',social:'card',image:'wall',...{
   'image-grid':{image:'grid'},'image-card':{image:'card'},
   'mixed-viewers':{article:'compact',video:'cover',social:'compact'},
 }[state]};
+const hidden=state==='sidebar-hidden';
 const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
 const size=pick('size',options.size,'default');
@@ -490,6 +499,7 @@ for(const [id,list] of Object.entries(options)){
 }
 
 const icons={
+  panelLeft:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
   layoutGrid:'<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
   list:'<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
   inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
@@ -560,7 +570,7 @@ const copy={
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
     kSummarize:'Summarize', kTranslate:'Translate', kBack:'Back to the list', kAdd:'Add subscription', kSettings:'Settings', kKeys:'Keyboard shortcuts',
     kPalette:'Command palette', pGoTo:'Go to…', pActions:'Actions', pSettings:'Settings', pNone:'No matches', pUnreadOnly:'Show unread only', pOpenSettings:'Open settings',
-    pAppearance:'Appearance', pFetching:'Fetching', pOpml:'Import and export', pAi:'AI', pDevices:'Devices', kMarkVisible:'Mark visible as read', kScope:'Switch kind', kSidebar:'Go to the sidebar', kMenu:'Context menu',
+    pAppearance:'Appearance', pFetching:'Fetching', pOpml:'Import and export', pAi:'AI', pDevices:'Devices', kMarkVisible:'Mark visible as read', kScope:'Switch kind', kSidebar:'Go to the sidebar', hideSidebar:'Hide sidebar', showSidebar:'Show sidebar', kToggleSidebar:'Hide or show the sidebar', kMenu:'Context menu',
     thisComputer:'This computer', settings:'Settings', duration:'Duration {d}', play:'Video', morePictures:'{n} more pictures', pictureCount:'{n} pictures', aiSummary:'AI summary',
     ago:{m:'{n} min',h:'{n} h',d:'Yesterday',days:'{n} days'},
   },
@@ -591,7 +601,7 @@ const copy={
     kSummarize:'摘要', kTranslate:'翻译', kBack:'回到列表', kAdd:'添加订阅', kSettings:'设置', kKeys:'键盘快捷键',
     kPalette:'命令面板', pGoTo:'前往…', pActions:'操作', pSettings:'设置', pNone:'没有匹配', pUnreadOnly:'只看未读', pOpenSettings:'打开设置',
     pAppearance:'外观', pFetching:'抓取', pOpml:'导入和导出', pAi:'AI', pDevices:'设备',
-    kMarkVisible:'把可见的标为已读', kScope:'切换形态', kSidebar:'到侧边栏', kMenu:'右键菜单',
+    kMarkVisible:'把可见的标为已读', kScope:'切换形态', kSidebar:'到侧边栏', hideSidebar:'隐藏侧栏', showSidebar:'显示侧栏', kToggleSidebar:'隐藏或显示侧栏', kMenu:'右键菜单',
     thisComputer:'本机', settings:'设置', duration:'时长 {d}', play:'视频', morePictures:'还有 {n} 张图', pictureCount:'{n} 张图', aiSummary:'AI 摘要',
     ago:{m:'{n} 分钟前',h:'{n} 小时前',d:'昨天',days:'{n} 天前'},
   },
@@ -823,7 +833,8 @@ const timeBtn=`<button class="timebtn${budget?' on':''}" aria-label="${timeName}
 const switchName=gridOn?copy.showList:copy.showGrid;
 const switchBtn=switchable?`<button class="timebtn" aria-label="${switchName}" title="${switchName}">${icon(gridOn?'list':'layoutGrid')}</button>`:'';
 const columned=!(cardsOn||wallOn);
-const toolbar=`<div class="toolbar${switchable?' switch':''}${columned?' aligned':''}${scope==='social'?' wide':''}"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${timeBtn}${switchBtn}${searchField}${markAll}</div>`;
+const sbtn=`<button class="sbtn" aria-label="${hidden?copy.showSidebar:copy.hideSidebar}" title="${hidden?copy.showSidebar:copy.hideSidebar}">${icon('panelLeft')}</button>`;
+const toolbar=`<div class="toolbar${switchable?' switch':''}${columned?' aligned':''}${scope==='social'?' wide':''}${hidden?' nopane':''}">${sbtn}<h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${timeBtn}${switchBtn}${searchField}${markAll}</div>`;
 const hint=state==='search-short'?`<div class="hint" id="hint" role="status">${icon('alert')}${copy.tooShort}</div>`:'';
 const stale=state==='offline'?`<div class="stale${columned?' aligned':''}${scope==='social'?' wide':''}" role="status">${icon('wifiOff')}<span>${t('offline',{time:'10:42'})}</span></div>`:'';
 const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries',{n:3})}</button>`:'';
@@ -840,7 +851,7 @@ const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${
 const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="kt"><header><h2 id="kt">${copy.keysTitle}</h2><button class="close" aria-label="${copy.close}">${icon('x')}</button></header><div class="cols"><div>
   <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kStar','S'],['kRead','M'],['kMarkVisible','V'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kScope','1–5'],['kSidebar','H','←'],['kBack','L','→','Esc'],['kMenu',[shift,'F10'],...(mac?[]:['Menu'])],['kUndo',[mod,'Z']]])}</div><div>
   <h3>${copy.inReader}</h3>${keyList([['kNextArticle','J'],['kPrevArticle','K'],['kNextUnread','N'],['kStar','S'],['kRead','M'],['kOpenBrowser','O'],['kBack','Esc']])}
-  <h3>${copy.anywhere}</h3>${keyList([['kPalette',[mod,'K']],['kAdd',[mod,'N']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
+  <h3>${copy.anywhere}</h3>${keyList([['kPalette',[mod,'K']],['kAdd',[mod,'N']],['kToggleSidebar',[mod,'\\']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
 
 // Command palette. The ranking is the one the code uses: spaces and case ignored; prefix, then the start of a word,
 // then a substring, then scattered letters; inside a rank the group order, then the original order; 50 rows at most.
@@ -871,7 +882,7 @@ const paletteDialog=()=>{
   const body=rows.length?`<div class="plist" role="listbox" aria-label="${copy.pGoTo}">${flat}</div>`:`<div class="none" role="status">${copy.pNone}</div>`;
   return `<div class="scrim top"><div class="palette" role="dialog" aria-modal="true" aria-label="${copy.kPalette}"><div class="field">${icon('search')}<input value="${paletteQuery}" placeholder="${copy.pGoTo}" aria-label="${copy.pGoTo}"></div>${body}</div></div>`};
 const paletteOn=state.startsWith('palette');
-document.getElementById('app').innerHTML=`${sidebar()}<section class="main">${toolbar}${hint}${stale}${pill}<div class="scroll">${list}</div>${toast}</section>${paletteOn?paletteDialog():dialog}`;
+document.getElementById('app').innerHTML=`${hidden?'':sidebar()}<section class="main">${toolbar}${hint}${stale}${pill}<div class="scroll">${list}</div>${toast}</section>${paletteOn?paletteDialog():dialog}`;
 const menuItem=(g,label,{key='',cls='',off=false}={})=>`<button role="menuitem"${cls?` class="${cls}"`:''}${off?' aria-disabled="true"':''}>${label}</button>`;
 const place=(html,anchor,dx,dy)=>{const w=document.getElementById('window'),a=anchor.getBoundingClientRect(),b=w.getBoundingClientRect();
   w.insertAdjacentHTML('beforeend',html);const m=w.lastElementChild;

@@ -1,6 +1,7 @@
 // Package prefs holds the appearance preferences of this device: the theme, the interface language and font, and the
-// font, size, line spacing and Chinese typesetting of an article, and how the timeline views each kind of entry. They live in a file of the data directory beside the session file and never
-// go through the server.
+// font, size, line spacing and Chinese typesetting of an article, how the timeline views each kind of entry, and
+// whether its sidebar shows. They live in a file of the data directory beside the session file and never go through
+// the server.
 package prefs
 
 import (
@@ -79,6 +80,9 @@ type Preferences struct {
 
 	// Grids are the scopes whose list the reader switched between the list and the grid; see Grids.
 	Grids Grids `json:"grids,omitempty"`
+
+	// SidebarHidden is set while the reader has collapsed the sidebar of the timeline; the default is shown.
+	SidebarHidden bool `json:"sidebarHidden,omitempty"`
 }
 
 // Grids remembers, per scope, that the list was switched to the grid (ViewGrid) or to the list (ViewList) against what

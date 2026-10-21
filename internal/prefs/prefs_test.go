@@ -228,3 +228,28 @@ func TestGrids(t *testing.T) {
 		t.Errorf("bad shape: %+v", got)
 	}
 }
+
+func TestSidebarHidden(t *testing.T) {
+	if Default().SidebarHidden {
+		t.Fatal("the sidebar is hidden by default")
+	}
+	path := filepath.Join(t.TempDir(), File)
+	p := Default()
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(path); strings.Contains(string(data), "sidebarHidden") {
+		t.Errorf("the default is written: %s", data)
+	}
+	p.SidebarHidden = true
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load(path); !got.SidebarHidden {
+		t.Errorf("round trip: %+v", got)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), `"sidebarHidden":true`) {
+		t.Errorf("file %s", data)
+	}
+}
