@@ -74,9 +74,9 @@ Notes:
 ## Reading text
 
 The reader's article text is set in the interface font by default, never a serif: Song and other thin serifs blur at
-screen sizes and tire the eye over a long read. Three per-device preferences (Settings, Appearance, the Reading card)
-change the article's body: the font, the size and the line height. The default is Follow interface, Medium and
-Standard. The choice of a serif is the reader's; the default does not change.
+screen sizes and tire the eye over a long read. Four per-device preferences (Settings, Appearance, the Reading card)
+change the article's text: the font, the size, the line height and Chinese typesetting. The default is Follow
+interface, Medium, Standard and Chinese typesetting on. The choice of a serif is the reader's; the default does not change.
 
 | Part | Value |
 |---|---|
@@ -90,6 +90,20 @@ Standard. The choice of a serif is the reader's; the default does not change.
 | Reading font | Follow interface / Serif / an installed family | Follow interface (default): the reading face above. Serif: the platform serif set below. A family: that family, with the interface font behind it for the glyphs it lacks |
 | Text size | Small / Medium / Large / Extra large | body 14.9 / 16 / 18.1 / 20.3 in every language, scale 0.933 / 1 / 1.133 / 1.267 (exactly 14/15, 1, 17/15, 19/15); column 635 / 680 / 771 / 861 |
 | Line spacing | Compact / Standard / Relaxed | line height 1.55 / 1.7 / 1.85; Simplified Chinese 1.7 / 1.85 / 2.0 |
+
+| Chinese typesetting | on / off | on (default). On: rules 1 and 2 below, for text that is Chinese (docs/design.md, Chinese typesetting). Off: text as the font gives it. Line height and paragraph spacing are the same either way |
+
+Chinese typesetting values, in the em of the text they are drawn on, the same at every Text size and applied as letter
+spacing on a character, never as inserted characters:
+
+| Rule | Value | Where |
+|---|---|---|
+| Han and Latin letter or digit | +0.25em | after the last character before the boundary, in either direction; not beside a space, punctuation, symbol or code |
+| Compression of full-width punctuation | -0.5em | after the first mark of a pair, when it is a closing mark followed by a closing or an opening mark, or an opening mark followed by an opening mark (pair 2em to 1.5em) |
+| Reach | title, h2, h3, paragraphs, lists, quotes, captions, notes, AI summary and translation in the reader | not code, not the timeline or other interface text |
+
+The Chinese line heights in the Line spacing row (1.7 / 1.85 / 2.0) and the 1.05em between paragraphs are the Chinese
+values; they do not depend on the switch.
 
 The scale multiplies the article's other sizes with the body: h2 (19) and h3 (16), code (13), and the spaces,
 which are in em: 1.05em between paragraphs, 0.3em between list items, 1.9em above and 0.6em below h2. The list marker

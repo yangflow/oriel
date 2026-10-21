@@ -28,7 +28,14 @@
      title, notes, h2, h3, captions and the toolbar stay in the interface font. Serif is the platform serif set (here
      macOS: New York and Songti SC). Use size=wide to see the two largest columns whole; the default window is
      narrower than they are, so the window limits them.
-     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font. -->
+     Chinese typesetting (Settings, Appearance, Reading, kept per device; docs/design.md, Chinese typesetting):
+     cjk=on|off (default on). On, text that is Chinese gets 0.25em between a Han character and a Latin letter or digit
+     (extra letter spacing on the character before the boundary, no space inserted) and -0.5em on the first of two
+     full-width punctuation marks that leave half an em blank between them. Here the transformation is done in script
+     with spans (.cjk-gap, .cjk-tight); in the app it is layout and the text is unchanged. Off, text is set as the font
+     gives it; the browser's own trimming and autospacing are turned off so on and off differ only by these rules.
+     Try lang=zh-Hans&cjk=off against lang=zh-Hans (on).
+     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
   --background:#fdfcfa; --surface:#f6f3ee; --raised:#ffffff; --track:#ece8e0; --disabled:#b3ada1;
@@ -55,6 +62,10 @@ body { margin:0; padding:24px; font:13px/1.5 system-ui,-apple-system,"SF Pro Tex
 :root:lang(zh-Hans) body { line-height:1.65 }
 svg.icon { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round }
 svg.icon.filled { fill:currentColor }
+/* The mockup applies the Chinese typesetting rules itself, so the browser's own are off. */
+body { text-autospace:no-autospace; text-spacing-trim:space-all }
+.cjk-gap { letter-spacing:.25em }
+.cjk-tight { letter-spacing:-.5em }
 button { font:inherit; color:inherit; border:0; background:none; padding:0; cursor:default; transition:background-color var(--t), color var(--t), opacity var(--t) }
 button:focus-visible { outline:2px solid var(--focus); outline-offset:1px }
 
@@ -235,19 +246,21 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
   <label>size <select id="size"></select></label>
   <label>textsize <select id="textsize"></select></label>
   <label>font <select id="font"></select></label>
+  <label>cjk <select id="cjk"></select></label>
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
 const states=['full','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
-const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif']};
+const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
 const state=pick('state',states,'full');
 const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
 const size=pick('size',options.size,'default');
 const textsize=pick('textsize',options.textsize,'medium');
 const font=pick('font',options.font,'interface');
+const cjkOn=pick('cjk',options.cjk,'on')==='on';
 const scale={small:14/15,medium:1,large:17/15,xlarge:19/15}[textsize];
 const root=document.documentElement.style;
 root.setProperty('--scale',scale);
@@ -260,7 +273,7 @@ document.getElementById('window').classList.toggle('wide',size==='wide');
 for(const [id,list] of Object.entries(options)){
   const select=document.getElementById(id);
   select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
-  select.value={state,scheme,lang,size,textsize,font}[id];
+  select.value={state,scheme,lang,size,textsize,font,cjk:cjkOn?'on':'off'}[id];
   select.onchange=()=>{query.set(id,select.value);location.search=query};
 }
 
@@ -370,20 +383,51 @@ const tools=`<button class="back" aria-label="${t('back',{scope:'Simon Willison'
 <button class="tool"${off} aria-label="${read?copy.markUnread:copy.markRead}" title="${read?copy.markUnread:copy.markRead} (M)">${icon(read?'mail':'mailOpen')}</button>
 <button class="tool"${off} aria-label="${copy.open}" title="${copy.open} (O)">${icon('external')}</button></div>`;
 
-const titleOf=zh=>zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer';
+// Chinese typesetting (docs/design.md). Han and Latin letters or digits: 0.25em after the character before the
+// boundary. Full-width punctuation: -0.5em after the first of a pair with a blank half between the two. Code is
+// skipped and breaks adjacency; tags other than code are transparent; a space breaks adjacency.
+const han=c=>/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(c);
+const latin=c=>/[A-Za-z0-9\u00c0-\u024f]/.test(c);
+const closing=c=>'，。、；：！？）」』》〉】'.includes(c);
+const opening=c=>'（「『《〈【'.includes(c);
+const cjk=html=>{
+  if(!cjkOn)return html;
+  const out=[]; let prev=-1;
+  for(const part of html.split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>|<[^>]+>)/)){
+    if(/^<(pre|code)/.test(part)){out.push(part);prev=-1;continue}
+    if(part[0]==='<'&&part.length>1){out.push(part);continue}
+    for(const c of part){
+      const me={c,cls:''};
+      if(/\s/.test(c))prev=-1;
+      else{
+        if(prev>=0){
+          const p=out[prev].c;
+          if((han(p)&&latin(c))||(latin(p)&&han(c)))out[prev].cls='cjk-gap';
+          else if(((closing(p))&&(closing(c)||opening(c)))||(opening(p)&&opening(c)))out[prev].cls='cjk-tight';
+        }
+        prev=out.length;
+      }
+      out.push(me);
+    }
+  }
+  return out.map(o=>typeof o==='string'?o:o.cls?`<span class="${o.cls}">${o.c}</span>`:o.c).join('');
+};
+
+const titleOf=zh=>zh?cjk('用SQLite做全文检索：trigram分词的取舍'):'Full-text search in SQLite: the trade-offs of the trigram tokenizer';
 const meta=`<div class="meta"><span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${favs.simon}</svg></span><span class="src">Simon Willison</span><span class="sep"></span><span>${zh?'10月18日 11:34':'Oct 18, 11:34'}</span></div>`;
-const fullOf=zh=>zh?`
+const fullOf=zh=>zh?cjk(`
 <p>SQLite 的 FTS5 自带三种分词器。<code>unicode61</code> 按空白和标点切词，对英文够用，对中文就不行了：一整句话会被当成一个词。<a href="#">trigram 分词器</a>换了个思路，把文本切成所有连续的三个字符。</p>
+<p>我用Go写了个RSS阅读器，数据放在SQLite里，全文检索靠FTS5的trigram，支持2种主题和3档行距（见「设置」）。</p>
 <h2>它换来了什么</h2>
 <p>任意子串都能命中，不需要词典，也不关心语言：</p>
 <ul><li>中文、日文和英文混在一起也能搜；</li><li><code>LIKE</code> 和 <code>GLOB</code> 查询可以走索引；</li><li>不用维护停用词表。</li></ul>
 <figure><div class="pic g1" style="aspect-ratio:16/9" role="img" aria-label="索引大小对比图"></div><figcaption>同一份语料在三种分词器下的索引大小。</figcaption></figure>
 <h2>它的代价</h2>
-<blockquote>短于三个字符的查询用不上索引——这是 trigram 的定义决定的，不是实现的缺陷。</blockquote>
+<blockquote>短于三个字符的查询用不上索引——这是 trigram 的定义决定的，不是实现的缺陷。官方文档写的是「trigram要求至少3个字符」，所以『双字词』（如「分词」）要另想办法。</blockquote>
 <pre><code>CREATE VIRTUAL TABLE entries_fts USING fts5(
   title, body, tokenize = 'trigram'
 );</code></pre>
-<p>索引大约是原文的三倍。对一个个人阅读器来说，这通常可以接受。</p>`:`
+<p>索引大约是原文的三倍。对一个个人阅读器来说，这通常可以接受。</p>`):`
 <p>SQLite’s FTS5 ships with three tokenizers. <code>unicode61</code> splits on whitespace and punctuation, which is fine for English and useless for Chinese, where a whole sentence becomes one token. The <a href="#">trigram tokenizer</a> takes another route: it indexes every run of three characters.</p>
 <h2>What it buys you</h2>
 <p>Any substring matches, with no dictionary and no idea of language:</p>
@@ -396,14 +440,14 @@ const fullOf=zh=>zh?`
 );</code></pre>
 <p>The index ends up about three times the size of the text. For a personal reader that is usually fine.</p>`;
 const title=titleOf(zh), full=fullOf(zh);
-const feed=zh?`<p>trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。</p><p><a href="#">继续阅读 →</a></p>`:`<p>The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.</p><p><a href="#">Continue reading →</a></p>`;
+const feed=zh?cjk(`<p>trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。</p><p><a href="#">继续阅读 →</a></p>`):`<p>The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.</p><p><a href="#">Continue reading →</a></p>`;
 const note=(cls,glyph,text)=>`<div class="note ${cls}" role="note">${icon(glyph,glyph==='loader'?'spin':'')}<span>${text} ${cls?`<a class="link" href="#">${copy.openOriginal}</a>`:''}</span></div>`;
 const article=(extra,html)=>`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1>${extra}<div class="prose">${html}</div></article>`;
 const empty=(tile,heading,hint,buttons,cls='')=>`<div class="empty" role="status"><div class="tile ${cls}">${icon(tile,tile==='loader'?'spin':'')}</div><h2>${heading}</h2><p>${hint}</p><div class="buttons">${buttons}</div></div>`;
 const openButton=(cls='')=>`<button class="button ${cls}">${icon('external')}${copy.openOriginal}</button>`;
 
 const model='gpt-4o-mini';
-const summaryText=zh?'SQLite FTS5 的 trigram 分词器把文本切成所有连续的三个字符，任意子串都能命中，不需要词典，中英文混排也能搜，LIKE 和 GLOB 查询还能走索引。代价是索引约为原文的三倍，短于三个字符的查询用不上索引。作者认为对个人阅读器来说，这个取舍值得。'
+const summaryText=zh?cjk('SQLite FTS5的trigram分词器把文本切成所有连续的3个字符，任意子串都能命中，不需要词典，中英文混排也能搜，LIKE和GLOB查询还能走索引。代价是索引约为原文的三倍，短于三个字符的查询用不上索引。作者认为对个人阅读器来说，这个取舍值得（见「它的代价」）。')
   :'The trigram tokenizer in SQLite’s FTS5 indexes every run of three characters, so any substring matches without a dictionary, Chinese and English alike, and LIKE and GLOB queries can use the index. The price is an index about three times the size of the text, and no index for queries shorter than three characters. For a personal reader, the author finds the trade worth it.';
 const close=`<button class="mini" aria-label="${copy.hideSummary}" title="${copy.hideSummary}">${icon('x')}</button>`;
 const card={
@@ -420,7 +464,7 @@ let page;
 switch(state){
   case 'summarizing':case 'summary':case 'summary-failed':case 'ai-off':page=article(card[state],full);break;
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
-  case 'translation':page=article(lens,plain(full));break;
+  case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
   case 'full':case 'no-more-unread':page=article('',full);break;
   case 'feed':page=article(note('warn','triangle',copy.feedNote),feed);break;

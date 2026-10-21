@@ -22,10 +22,30 @@ func TestLoadDefaults(t *testing.T) {
 	}
 }
 
+// TestChineseTypesetting shows the setting is on by default, also in a file from before it existed, and that off is kept.
+func TestChineseTypesetting(t *testing.T) {
+	if !Default().ChineseTypesetting {
+		t.Error("off by default")
+	}
+	path := filepath.Join(t.TempDir(), File)
+	os.WriteFile(path, []byte(`{"readingSize":"large"}`), 0o600)
+	if got := Load(path); !got.ChineseTypesetting || got.ReadingSize != SizeLarge {
+		t.Errorf("old file: %+v", got)
+	}
+	off := Default()
+	off.ChineseTypesetting = false
+	if err := Save(path, off); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load(path); got.ChineseTypesetting {
+		t.Errorf("off came back on: %+v", got)
+	}
+}
+
 func TestLoadUnknownValues(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	os.WriteFile(path, []byte(`{"theme":"sepia","language":"fr","font":"Gone Sans","readingSize":"huge","lineSpacing":"relaxed","readingFont":"Gone Serif"}`), 0o600)
-	want := Preferences{Font: "Gone Sans", ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingFont: "Gone Serif"}
+	want := Preferences{Font: "Gone Sans", ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingFont: "Gone Serif", ChineseTypesetting: true}
 	if got := Load(path); got != want {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
@@ -33,7 +53,7 @@ func TestLoadUnknownValues(t *testing.T) {
 
 func TestSaveLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
-	p := Preferences{Theme: ThemeDark, Language: LanguageChinese, Font: "Georgia", ReadingSize: SizeXLarge, LineSpacing: SpacingCompact, ReadingFont: ReadingSerif}
+	p := Preferences{Theme: ThemeDark, Language: LanguageChinese, Font: "Georgia", ReadingSize: SizeXLarge, LineSpacing: SpacingCompact, ReadingFont: ReadingSerif, ChineseTypesetting: false}
 	if err := Save(path, p); err != nil {
 		t.Fatal(err)
 	}

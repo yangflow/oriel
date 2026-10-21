@@ -918,7 +918,7 @@ func TestAppearanceShows(t *testing.T) {
 	s, _, tt := openAppearance(t, "en")
 	for _, want := range []string{s.text.AppearanceLead, s.text.Theme, s.text.ThemeSystem, s.text.UILanguage,
 		s.text.SystemChoice, s.text.UIFont, s.text.SystemFont, s.text.Reading, s.text.TextSize, s.text.SizeMedium,
-		s.text.LineSpacing, s.text.SpacingStandard, s.text.PreviewText} {
+		s.text.LineSpacing, s.text.SpacingStandard, s.text.ChineseTypesetting, s.text.PreviewText} {
 		if !tt.HasText(want) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
 		}
@@ -933,13 +933,43 @@ func TestAppearanceChoices(t *testing.T) {
 	press(t, tt, s.text.ThemeDark)
 	press(t, tt, s.text.SizeXLarge)
 	press(t, tt, s.text.SpacingRelaxed)
-	want := prefs.Preferences{Theme: prefs.ThemeDark, ReadingSize: prefs.SizeXLarge, LineSpacing: prefs.SpacingRelaxed}
+	want := prefs.Preferences{Theme: prefs.ThemeDark, ReadingSize: prefs.SizeXLarge, LineSpacing: prefs.SpacingRelaxed,
+		ChineseTypesetting: true}
 	if len(f.changes) != 3 || f.prefs != want {
 		t.Fatalf("changes %v", f.changes)
 	}
 	press(t, tt, s.text.ThemeSystem)
 	if f.prefs.Theme != "" {
 		t.Fatalf("theme %q", f.prefs.Theme)
+	}
+}
+
+// TestChineseTypesettingSwitch shows the switch follows Line spacing and flips the setting.
+func TestChineseTypesettingSwitch(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	spacing, ok := tt.Find(s.text.LineSpacing)
+	if !ok {
+		t.Fatalf("no %q in %v", s.text.LineSpacing, tt.Texts())
+	}
+	row, ok := tt.Find(s.text.ChineseTypesetting)
+	if !ok || row.Y <= spacing.Y {
+		t.Fatalf("switch %v after line spacing %v: %v", row, spacing, ok)
+	}
+	if !f.prefs.ChineseTypesetting {
+		t.Fatal("off by default")
+	}
+	help, _ := tt.Find(s.text.ChineseTypesettingHelp)
+	toggle := func() {
+		tt.ClickAt(help.X+help.W+20, row.Y+row.H/2)
+		tt.Frame()
+	}
+	toggle()
+	if len(f.changes) != 1 || f.prefs.ChineseTypesetting {
+		t.Fatalf("changes %v, prefs %+v", f.changes, f.prefs)
+	}
+	toggle()
+	if !f.prefs.ChineseTypesetting {
+		t.Fatalf("not back on: %+v", f.prefs)
 	}
 }
 

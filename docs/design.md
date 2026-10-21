@@ -27,15 +27,16 @@ Related files: [design/README.md](../design/README.md) (mockups and how a UI cha
 2. [Layout and spacing](#layout-and-spacing)
 3. [Color and dark mode](#color-and-dark-mode)
 4. [Typography](#typography)
-5. [Icons and images](#icons-and-images)
-6. [Component guide](#component-guide)
-7. [Windows, menus and navigation](#windows-menus-and-navigation)
-8. [Accessibility checklist](#accessibility-checklist)
-9. [Motion](#motion)
-10. [Localization](#localization)
-11. [Design acceptance checklist](#design-acceptance-checklist)
-12. [Polish checklist](#polish-checklist)
-13. [References](#references)
+5. [Chinese typesetting](#chinese-typesetting)
+6. [Icons and images](#icons-and-images)
+7. [Component guide](#component-guide)
+8. [Windows, menus and navigation](#windows-menus-and-navigation)
+9. [Accessibility checklist](#accessibility-checklist)
+10. [Motion](#motion)
+11. [Localization](#localization)
+12. [Design acceptance checklist](#design-acceptance-checklist)
+13. [Polish checklist](#polish-checklist)
+14. [References](#references)
 
 ## Principles
 
@@ -264,7 +265,8 @@ values are in [design/tokens.md](../design/tokens.md). See
   row titles 1.5 instead of 1.35, the title 1.42 instead of 1.28, the reading body 1.85 instead of 1.7. The reader tells by the language stored for the entry (Chinese and
   Japanese run taller) and by the characters of the title and body only when none is stored; Chinese
   tracking is 0 except small labels. The reading font, text size and line spacing preferences change the reader's body
-  text only, by the steps in [design/tokens.md](../design/tokens.md).
+  text only, by the steps in [design/tokens.md](../design/tokens.md). Chinese text in the reader is also set by the
+  rules of Chinese typesetting (below).
 - **Long font lists.** A font menu with hundreds of families is the font picker (Components), never a plain menu.
 - **The reading face.** The article's body is set in the interface font by default, as clean as the rest of the screen:
   Song and other thin serifs look faint and fuzzy at screen sizes and tire the eye over a long read, so the default
@@ -280,6 +282,72 @@ values are in [design/tokens.md](../design/tokens.md). See
 - **Do not truncate silently.** Prefer wrapping. Where a single line is needed (`SingleLine`, `MaxLines`), for
   example an entry title in the timeline, make the full text available in a tooltip or in the reader.
 - **Numbers and dates.** Show counts and dates in the user's language when they are data, not identifiers.
+
+## Chinese typesetting
+
+Rules for Chinese text in the reader, written without reference to the toolkit so that the iOS reader (#153) follows the
+same ones. They change how text is laid out, never the text: no character is inserted or removed, so copying, search
+and accessibility see the original string. Values are in [design/tokens.md](../design/tokens.md), Reading text; drawn in
+`design/screens/reader.html` (`cjk=on|off`) and `design/screens/settings.html` (`appearance`, `reading-cjk-off`).
+
+**Where and when.** One per-device switch, Chinese typesetting (Settings, Appearance, Reading, after Line spacing),
+on by default. It applies to text that is Chinese, decided as the reader already decides Han text: the language stored
+for the entry starts with `zh`, and when none is stored, the text contains Han characters. It covers everything the
+reader sets as prose: the article title, h2 and h3, paragraphs, list items, quotes, captions, the notes above the
+text, and AI summaries and translations (a translation by its target language). It does not cover code blocks or inline
+code, and nothing in the timeline, the pane or the rest of the interface. Off, text is set as the font gives it.
+
+**Terms.** Han characters are the CJK ideographs (U+3400 to U+4DBF, U+4E00 to U+9FFF, U+F900 to U+FAFF and the
+supplementary planes). Latin text is the letters (with accents) and the digits 0 to 9. The em is the em of the text
+the rule is drawn on. Full-width punctuation sets each mark in a one-em cell with the ink on one side, so half of
+the cell is blank:
+
+| Class | Marks | Blank half |
+|---|---|---|
+| Closing | `，` `。` `、` `；` `：` `！` `？` `）` `」` `』` `》` `〉` `】` | right |
+| Opening | `（` `「` `『` `《` `〈` `【` | left |
+
+Other marks are in neither class and are never changed: the curly quotes `“` `”` `‘` `’` (their width depends on the
+font), the middle dot `·`, and the two-em dashes and ellipses `——` `……`.
+
+**Rule 1, the gap between Han and Latin text.** Where a Han character is directly followed by a Latin letter or
+digit, or a Latin letter or digit by a Han character, add 0.25em of letter spacing after the first of the two (the
+last Han character, or the last Latin letter or digit). Examples: "使用Go语言写的RSS阅读器" gets the gap after 用, after
+o, after 的 and after S; "支持2种主题" after 持 and after 2.
+- Not between Han and punctuation, a symbol (`%`, `$`, `#`) or another Han character.
+- Not next to a space: when a real space already separates the two, nothing is added; the author's space stays.
+- Not next to inline code or a code block: it has its own padding. Code also ends any run, so the characters on its two
+  sides are not paired.
+- A link, emphasis or any other inline style does not interrupt a run: the characters on its two sides are paired as
+  if the markup were absent, and a link's own text follows the rules as prose.
+- The gap is spacing, not a character: it can sit at the end of a line, and nothing is inserted into the text.
+
+**Rule 2, compressing punctuation.** Take each two adjacent characters that are both full-width punctuation marks of
+the classes above, in the order they are read. If the first is a closing mark and the second is a closing or an
+opening mark, or if both are opening marks, add -0.5em of letter spacing after the first, so the pair takes 1.5em
+instead of 2em. The blank half that goes is the first mark's own right half when it is a closing mark, and the second
+mark's left half when both are opening marks. Examples: `」。` `）、` `，「` `。」` `（「`. No other pair changes: an
+opening mark followed by a closing mark (`「」`) has no blank half between them, and a mark next to a Han or Latin
+character keeps its cell. Each pair is judged on its own and a blank half is used at most once, so in a run such as
+`」）。` each mark gives up its half to the next one. Markup (a link, emphasis) between the two marks does not
+matter; a space or code does, because they are not adjacent.
+
+**Fixed values.** The gap is 0.25em and the compression is -0.5em, in the text's em, at every text size. Line height
+and paragraph spacing do not change with the switch; the Chinese values already in Typography and Reading text apply
+(line height 1.7, 1.85 or 2.0 by Line spacing, 1.05em between paragraphs).
+
+**Known gap: the ends of lines.** The platform's text engine breaks the lines and the toolkit (MyGo) does not expose
+where it broke them, so the rules that depend on line ends are left to that engine and are not implemented in Oriel
+yet:
+- Hanging and compression at line ends and starts: an opening mark at the start of a line and a closing mark at the end
+  should not leave their blank half, so the text should be set flush at the edge. Today the half stays.
+- Line-break rules (kinsoku): no closing mark, `！` or `？`, and no `、` `。` `，` at the start of a line; no opening
+  mark at the end of a line; no break inside `——` or `……`. Today the engine's own rules apply, which differ between
+  platforms and fonts.
+
+A toolkit that knows its line breaks (the iOS reader, #153) implements these in full: each line is laid out first,
+then the closing mark at its end is hung or compressed, and a line that would start with a closing mark takes one
+character from the line before. Rules 1 and 2 above hold with or without them.
 
 ## Icons and images
 
@@ -544,7 +612,7 @@ Overlays share focus and Escape behavior; see
   language; chosen, it applies at once and the screens are rebuilt), Interface font (a button that opens the font picker
   below: "System font" and the current family first, then the installed families, each set in its own face) and, in a second card titled "Reading", Reading font
   (a button like Interface font that opens the same font picker, with "Follow interface" (the default) and "Serif" pinned above a hairline, each drawn in its own face, then the current family if it is one, then the installed families; its value shows the current choice in its own face), Text size
-  (segmented: Small, Medium, Large, Extra large) and Line spacing (segmented: Compact, Standard, Relaxed). A sample paragraph on `Surface` under them shows the result, set in the chosen Reading font (the column width is not shown there). Drawn in `design/screens/settings.html`, `reading-font` and `reading-font-open`, and in `design/screens/reader.html` with `textsize` and `font`. Every control
+  (segmented: Small, Medium, Large, Extra large) and Line spacing (segmented: Compact, Standard, Relaxed) and Chinese typesetting (a switch, on by default; see Chinese typesetting). A sample paragraph on `Surface` under them shows the result, set in the chosen Reading font (the column width is not shown there). Drawn in `design/screens/settings.html`, `reading-font`, `reading-font-open` and `reading-cjk-off`, and in `design/screens/reader.html` with `textsize`, `font` and `cjk`. Every control
   is saved and applied as soon as it is chosen; there is no Save button. The page starts 32 below the toolbar; rows are padded 16 by 20, help
   sits 4 under its label and the control 12 under that; cards and section titles are 28 apart.
 

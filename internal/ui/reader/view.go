@@ -20,6 +20,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/typeset"
 )
 
 //go:embed copy.json
@@ -142,7 +143,7 @@ type Screen struct {
 
 	scroll ui.ScrollState
 	focus  bool   // give the page the focus in the next frame
-	han    bool   // the article is Chinese, so its text runs taller
+	han    bool   // the article is Chinese, so its text runs taller and is typeset by the Chinese rules
 	target string // the language translations are made in, "" until the server says
 
 	pictures  map[string]*loaded
@@ -161,8 +162,26 @@ type Screen struct {
 	fetching map[int64]bool // the articles being got ahead
 	epoch    int            // counts the servers and lists the cache is for, so an answer for one before is dropped
 
+	// The pieces of the texts drawn as one string, for Chinese typesetting.
+	titleSet, summarySet, noteSet, translatedSet memo
+
 	announce string
 	toast    string
+}
+
+// memo is the pieces of a text that is drawn as one string, kept while the text stays the same, so that the
+// typesetting is not worked out again each frame.
+type memo struct {
+	text   string
+	pieces []typeset.Piece
+	ok     bool
+}
+
+func (m *memo) of(text string) []typeset.Piece {
+	if !m.ok || m.text != text {
+		m.text, m.pieces, m.ok = text, typeset.Text(text), true
+	}
+	return m.pieces
 }
 
 // New selects the best available translation, falling back to English. The reader shows nothing until Open.
@@ -897,8 +916,8 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 				if theme.Han(title) {
 					tracking = 0
 				}
-				ui.Text(c, title).FontSize(size).FontWeight(600).LineHeight(line).LetterSpacing(tracking).
-					TextColor(t.Text).Wrap().Margin(px(t, 12), 0, 0, 0).Role(ui.RoleHeading).Level(1)
+				s.plain(c, &s.titleSet, title, s.han, size, tracking).FontSize(size).FontWeight(600).LineHeight(line).
+					LetterSpacing(tracking).TextColor(t.Text).Wrap().Margin(px(t, 12), 0, 0, 0).Role(ui.RoleHeading).Level(1)
 				if s.jobs[translation].on {
 					s.translationNote(c)
 				}
@@ -995,12 +1014,12 @@ func (s *Screen) note(c *ui.Context, warn bool, text string) {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 14)).TextColor(icon).Margin(2, 0, 0, 0)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 		}
-		ui.RichText(c, ui.Span{Text: text + " "}).Grow(1).MinWidth(0).FontSize(px(t, 12.5)).TextColor(color).Wrap().
-			Children(func() {
-				if s.article.URL != "" {
-					ui.Link(c, s.text.OpenOriginal, s.article.URL).TextColor(color).Underline().FontWeight(500)
-				}
-			})
+		ui.RichText(c).Grow(1).MinWidth(0).FontSize(px(t, 12.5)).TextColor(color).Wrap().Children(func() {
+			s.pieces(c, &s.noteSet, text+" ", s.han, px(t, 12.5), 0)
+			if s.article.URL != "" {
+				ui.Link(c, s.text.OpenOriginal, s.article.URL).TextColor(color).Underline().FontWeight(500)
+			}
+		})
 	})
 }
 
@@ -1135,7 +1154,8 @@ func (s *Screen) summaryCard(c *ui.Context) {
 				}
 			})
 			text := strings.TrimSpace(j.text)
-			ui.Text(c, text).Margin(px(t, 6), 0, 0, 0).FontSize(px(t, 13)).LineHeight(cardLine(text)).TextColor(t.Text).Wrap()
+			s.plain(c, &s.summarySet, text, theme.Han(text), px(t, 13), 0).Margin(px(t, 6), 0, 0, 0).FontSize(px(t, 13)).
+				LineHeight(cardLine(text)).TextColor(t.Text).Wrap()
 		})
 	}
 }
@@ -1190,7 +1210,8 @@ func (s *Screen) translationNote(c *ui.Context) {
 		row.Background(theme.Soft(t, t.Accent)).Children(func() {
 			ui.Icon(c, icons.Languages).FontSize(px(t, 14)).TextColor(t.Accent)
 			by := strings.ReplaceAll(s.text.Translated, "{model}", j.model)
-			ui.Text(c, by).Grow(1).MinWidth(0).FontSize(px(t, 12.5)).TextColor(text2).Wrap()
+			s.plain(c, &s.translatedSet, by, s.han, px(t, 12.5), 0).Grow(1).MinWidth(0).FontSize(px(t, 12.5)).
+				TextColor(text2).Wrap()
 			seg := ui.SegmentedBase(c, &s.shown, 2)
 			seg.Track.Margin(-4, -6, -4, 0).Padding(2).Gap(2).Radius(px(t, 8)).Background(theme.Ink(t, 0.07)).
 				Label(s.text.Translate).Children(func() {
@@ -1317,6 +1338,9 @@ func gap(t *ui.Theme, blocks []block, i int, scale float32) float32 {
 
 func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 	t := c.Theme()
+	if s.typeset() && !blocks[i].laid {
+		blocks[i].set, blocks[i].laid = s.layout(blocks[i].spans), true
+	}
 	b := blocks[i]
 	scale := s.scale()
 	top := gap(t, blocks, i, scale)
@@ -1347,14 +1371,14 @@ func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 			if b.quote == 0 {
 				color = t.Text
 			}
-			s.inline(c, b.spans, color).FontSize(size).FontWeight(600).LineHeight(line).LetterSpacing(tracking * size).
+			s.inline(c, b, color, size).FontSize(size).FontWeight(600).LineHeight(line).LetterSpacing(tracking * size).
 				Role(ui.RoleHeading).Level(b.level)
 		case caption:
-			s.inline(c, b.spans, t.TextMuted).FontSize(px(t, 12)).LineHeight(1.5)
+			s.inline(c, b, t.TextMuted, px(t, 12)).FontSize(px(t, 12)).LineHeight(1.5)
 		default:
 			line := float32(s.reading().Leading(s.han))
 			if b.depth == 0 {
-				s.prose(c, b.spans, color).FontSize(px(t, 16) * scale).LineHeight(line)
+				s.prose(c, b, color, px(t, 16)*scale).FontSize(px(t, 16) * scale).LineHeight(line)
 				return
 			}
 			ui.Row(c).FillWidth().AlignItems(ui.Start).Children(func() {
@@ -1363,7 +1387,7 @@ func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 				if face := s.face(); face != "" {
 					marker.Font(face)
 				}
-				s.prose(c, b.spans, color).Grow(1).MinWidth(0).FontSize(px(t, 16) * scale).LineHeight(line)
+				s.prose(c, b, color, px(t, 16)*scale).Grow(1).MinWidth(0).FontSize(px(t, 16) * scale).LineHeight(line)
 			})
 		}
 	})
@@ -1393,8 +1417,8 @@ func (s *Screen) face() string {
 }
 
 // prose draws spans as the article's body, in the reading font; the interface font where it is "".
-func (s *Screen) prose(c *ui.Context, spans []span, color ui.Color) ui.Element {
-	e := s.inline(c, spans, color)
+func (s *Screen) prose(c *ui.Context, b block, color ui.Color, size float32) ui.Element {
+	e := s.inline(c, b, color, size)
 	if face := s.face(); face != "" {
 		e.Font(face)
 	}
@@ -1419,31 +1443,109 @@ func (s *Screen) leading(latin, han float32) float32 {
 	return latin
 }
 
-// inline is a paragraph of spans, their links opening in the browser.
-func (s *Screen) inline(c *ui.Context, spans []span, color ui.Color) ui.Element {
+// typeset reports whether the text of the article is set by the rules of Chinese typesetting: the preference is on
+// and the article is Chinese.
+func (s *Screen) typeset() bool { return s.han && s.reading().ChineseTypesetting }
+
+// layout is the pieces of spans that typesetting spaces, nil when none needs it. Code spans are left alone.
+func (s *Screen) layout(spans []span) [][]typeset.Piece {
+	runs := make([]typeset.Run, len(spans))
+	for k, sp := range spans {
+		runs[k] = typeset.Run{Text: sp.text, Code: sp.mono}
+	}
+	return typeset.Layout(runs)
+}
+
+// plain is a text drawn as one element: a Text, or when the text is Chinese, typesetting is on and it needs spacing, a
+// RichText of its pieces. size is the font size and base the letter spacing the caller gives the element.
+func (s *Screen) plain(c *ui.Context, m *memo, text string, chinese bool, size, base float32) ui.Element {
+	if !chinese || !s.reading().ChineseTypesetting || m.of(text) == nil {
+		return ui.Text(c, text)
+	}
+	return ui.RichText(c).Children(func() { s.pieces(c, m, text, true, size, base) })
+}
+
+// pieces draws a text as Text children of a RichText, the spacing of Chinese typesetting after the characters that
+// need it when chinese is set and the preference is on.
+func (s *Screen) pieces(c *ui.Context, m *memo, text string, chinese bool, size, base float32) {
+	var pieces []typeset.Piece
+	if chinese && s.reading().ChineseTypesetting {
+		pieces = m.of(text)
+	}
+	if pieces == nil {
+		ui.Text(c, text)
+		return
+	}
+	for n, p := range pieces {
+		e := ui.Text(c, p.Text).Key(n)
+		if p.Em != 0 {
+			e.LetterSpacing(base + p.Em*size)
+		}
+	}
+}
+
+// inline is a paragraph of spans, their links opening in the browser. size is the font size it will have, the em of
+// the spacing of Chinese typesetting, whose pieces b has when it is set.
+func (s *Screen) inline(c *ui.Context, b block, color ui.Color, size float32) ui.Element {
 	t := c.Theme()
 	return ui.RichText(c).TextColor(color).Wrap().Children(func() {
-		for k, sp := range spans {
-			var e ui.Element
-			if sp.link != "" {
-				e = ui.Link(c.Key(k), sp.text, sp.link).TextColor(t.Accent).Underline()
-			} else {
-				e = ui.Text(c, sp.text).Key(k)
+		n := 0
+		for k, sp := range b.spans {
+			pieces := []typeset.Piece{{Text: sp.text}}
+			if b.set != nil && len(b.set[k]) > 0 {
+				pieces = b.set[k]
 			}
-			if sp.bold {
-				e.FontWeight(600)
-			}
-			if sp.italic {
-				e.Italic()
-			}
-			if sp.mono {
-				e.Font("monospace").FontSize(px(t, 16*0.86) * s.scale()).TextColor(t.Text).TextBackground(theme.Ink(t, 0.055))
-			}
-			if sp.gone {
-				e.Strikethrough()
+			n++
+			plain := len(pieces) == 1 && pieces[0].Em == 0
+			switch {
+			case sp.link != "" && plain:
+				s.style(c, ui.Link(c.Key(n), sp.text, sp.link).TextColor(t.Accent).Underline(), sp)
+			case sp.link != "":
+				// One link holds all the pieces of its text, so it stays one tab stop named by the whole text.
+				e := ui.Link(c.Key(n), "", sp.link).TextColor(t.Accent).Underline()
+				e.Children(func() { s.runs(c, pieces, size) })
+				s.style(c, e, sp)
+			case plain:
+				s.style(c, ui.Text(c, sp.text).Key(n), sp)
+			default:
+				for _, piece := range pieces {
+					n++
+					e := ui.Text(c, piece.Text).Key(n)
+					if piece.Em != 0 {
+						e.LetterSpacing(piece.Em * size)
+					}
+					s.style(c, e, sp)
+				}
 			}
 		}
 	})
+}
+
+// runs draws the pieces of a span as texts, the spaced ones with their letter spacing.
+func (s *Screen) runs(c *ui.Context, pieces []typeset.Piece, size float32) {
+	for n, p := range pieces {
+		e := ui.Text(c, p.Text).Key(n)
+		if p.Em != 0 {
+			e.LetterSpacing(p.Em * size)
+		}
+	}
+}
+
+// style gives a span's emphasis to the element that draws it.
+func (s *Screen) style(c *ui.Context, e ui.Element, sp span) {
+	t := c.Theme()
+	if sp.bold {
+		e.FontWeight(600)
+	}
+	if sp.italic {
+		e.Italic()
+	}
+	if sp.mono {
+		e.Font("monospace").FontSize(px(t, 16*0.86) * s.scale()).TextColor(t.Text).TextBackground(theme.Ink(t, 0.055))
+	}
+	if sp.gone {
+		e.Strikethrough()
+	}
 }
 
 // picture is a picture of the text on the Surface color until it loads, as wide as the page says or the text,
