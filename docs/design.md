@@ -673,7 +673,9 @@ Overlays share focus and Escape behavior; see
   contrast is the one switch). The plugin draws the same glass on Windows and Linux, so the look is one on every
   platform; no system vibrancy is used.
 - **Menus.** The macOS menu bar belongs to the app. Oriel's menu has an app menu (About, check for updates, Quit),
-  the Edit menu (`RoleEditMenu`, so copy and paste work) and the Window menu (`RoleWindowMenu`); "Connect to
+  the Edit menu (`RoleEditMenu`, so copy and paste work), the Timeline menu (the commands that have a single key:
+  show unread only, show all entries, show starred only, mark all as read, load new entries; no accelerators, see
+  Timeline keys) and the Window menu (`RoleWindowMenu`); "Connect to
   Server…" in the app menu opens the connect screen and "Settings…" (Cmd/Ctrl+,) the settings. Use roles
   (`RoleAbout`, `RoleQuit` and the others) for standard items: they carry the right label and shortcut, and items
   that only macOS has are left out elsewhere. Give custom items an accelerator with `CmdOrCtrl`. Every command
@@ -697,6 +699,13 @@ Overlays share focus and Escape behavior; see
   window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
   Cmd/Ctrl+K opens the command palette (see Components), which goes to any subscription, kind or Settings page and runs the common actions. Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+Z undoes the last "mark as read" action while its toast shows, and `?` or Cmd/Ctrl+/
   opens the key sheet, which the Help menu also lists as "Keyboard Shortcuts".
+  Four more keys act on the list, under the same rules (not while the search field has the focus, a dialog is open
+  or the reader shows): U shows unread only, A shows all entries, `*` (Shift+8) shows starred only, Shift+A marks
+  everything in the scope as read, with the same toast and Cmd/Ctrl+Z undo as the toolbar button (inert where the
+  button is disabled), and R loads the entries the "N new" pill offers and goes to the top (inert when there is no
+  pill). Single keys cannot be menu accelerators, as they would fire while a field has the focus, so each of the five
+  commands is an item without accelerator in the Timeline menu, and the key sheet and the command palette show the
+  keys. The key sheet's Timeline column lists them after "Mark visible as read".
   Every entry is also a focusable element with its own name, so Tab reaches it.
 - **Mark visible (V).** One key clears a screenful: it marks the entries fully inside the list area as read, then
   scrolls so the first entry below them is at the top, chosen and focused. "Fully inside" counts a row (a card in the video

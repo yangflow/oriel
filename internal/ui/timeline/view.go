@@ -51,6 +51,7 @@ type copy struct {
 	LastLooked                                                                                                                                            string
 	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                              string
 	OrderNewest, OrderOldest                                                                                                                              string
+	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                   string
 }
 
 var translations = func() map[string]copy {
@@ -1886,9 +1887,13 @@ func (s *Screen) listKeys(c *ui.Context, open bool) {
 		{ui.KeySpace, func() { s.openPictures(s.selected, 0) }},
 		{ui.KeyS, func() { s.toggleStar(s.selected) }}, {ui.KeyM, func() { s.toggleRead(s.selected) }},
 		{ui.KeyN, s.nextUnread}, {ui.KeyV, s.markVisible},
+		{ui.KeyU, func() { s.Run(ShowUnread) }}, {ui.KeyA, func() { s.Run(ShowAll) }},
+		{ui.KeyR, func() { s.Run(LoadNew) }},
 	} {
 		c.OnShortcut(0, k.key, k.do)
 	}
+	c.OnShortcut(ui.Shift, ui.Key8, func() { s.Run(ShowStarred) })
+	c.OnShortcut(ui.Shift, ui.KeyA, func() { s.Run(MarkAllRead) })
 }
 
 // pickKind shows the kind at index i of the sidebar and says which and how many unread entries it has.
@@ -1976,12 +1981,71 @@ func modifier() string {
 	return "Ctrl+"
 }
 
+// shiftKey is how the key sheet writes Shift: ⇧ on macOS, Shift+ elsewhere.
+func shiftKey() string {
+	if runtime.GOOS == "darwin" {
+		return "⇧"
+	}
+	return "Shift+"
+}
+
 // ShowKeys shows the key sheet, from the menu or ?.
 func (s *Screen) ShowKeys() {
 	if s.subs.Open() || s.pal.open {
 		return
 	}
 	s.keys = true
+}
+
+// Command is an action of the timeline that has a key and a menu item.
+type Command int
+
+const (
+	ShowUnread Command = iota
+	ShowAll
+	ShowStarred
+	MarkAllRead
+	LoadNew
+)
+
+// Run does the command, as its key or menu item does. Nothing happens while a dialog shows, and the commands that
+// act on the list are inert where the button would be, as for mark all read in a search or under Starred.
+func (s *Screen) Run(cmd Command) {
+	if s.api == nil || s.keys || s.subs.Open() || s.pal.open || s.lb.open {
+		return
+	}
+	switch cmd {
+	case ShowUnread:
+		s.setFilter(unread)
+	case ShowAll:
+		s.setFilter(everything)
+	case ShowStarred:
+		s.setFilter(starred)
+	case MarkAllRead:
+		if s.reading == 0 {
+			s.markAll()
+		}
+	case LoadNew:
+		if s.fresh > 0 && s.reading == 0 {
+			s.renew()
+			s.reload()
+		}
+	}
+}
+
+// MenuItem is an item of the Timeline menu.
+type MenuItem struct {
+	Label   string
+	Command Command
+}
+
+// TimelineMenu is the Timeline menu and its items, in the language of the system locale. The items have no
+// accelerator: the single keys they show in the key sheet must not fire while a text field has the focus, which a
+// menu accelerator cannot tell.
+func TimelineMenu(systemLocale string) (name string, items []MenuItem) {
+	text := translations[locale.Language(systemLocale)]
+	return text.TimelineMenu, []MenuItem{{text.KeyUnread, ShowUnread}, {text.KeyAll, ShowAll},
+		{text.KeyStarred, ShowStarred}, {text.KeyMarkAll, MarkAllRead}, {text.KeyLoadNew, LoadNew}}
 }
 
 // MenuLabels are the Help menu and its item that shows the key sheet, in the language of the system locale.
@@ -2019,6 +2083,8 @@ func (s *Screen) keySheet(c *ui.Context) {
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyOpen, one("O", "↩")}, {s.text.KeyPictures, one("Space")},
 		{s.text.KeyStar, one("S")},
 		{s.text.KeyRead, one("M")}, {s.text.KeyMarkVisible, one("V")},
+		{s.text.KeyMarkAll, [][]string{{shiftKey(), "A"}}}, {s.text.KeyUnread, one("U")}, {s.text.KeyAll, one("A")},
+		{s.text.KeyStarred, one("*")}, {s.text.KeyLoadNew, one("R")},
 		{s.text.KeySearch, [][]string{{"/"}, {cmd, "F"}}},
 		{s.text.KeyEscape, one("Esc")}, {s.text.KeyScope, one("1–5")}, {s.text.KeySidebar, one("H", "←")},
 		{s.text.KeyBack, one("L", "→", "Esc")}, {s.text.KeyMenu, menu}, {s.text.KeyUndo, [][]string{{cmd, "Z"}}}}

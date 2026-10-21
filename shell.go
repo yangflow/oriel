@@ -28,6 +28,7 @@ type home interface {
 	SetLanguage(language string)
 	Refresh()
 	ShowKeys()
+	Run(cmd timeline.Command)
 	View(c *ui.Context)
 }
 
@@ -287,6 +288,14 @@ func (s *shell) showKeys() {
 		return
 	}
 	s.home.ShowKeys()
+}
+
+// run does a command of the Timeline menu, when the timeline shows.
+func (s *shell) run(cmd timeline.Command) {
+	if s.showing || s.setting {
+		return
+	}
+	s.home.Run(cmd)
 }
 
 // openSettings shows the settings, from the menu or the timeline, unless the connect screen shows.

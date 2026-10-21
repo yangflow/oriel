@@ -172,6 +172,13 @@ func desktop() {
 			client.Session{Server: "http://" + b.addr}, goAsync, files)
 		setMenu := func(language string) {
 			help, keys := timeline.MenuLabels(language)
+			view, commands := timeline.TimelineMenu(language)
+			var items []*mygo.MenuItem
+			for _, it := range commands {
+				items = append(items, &mygo.MenuItem{Label: it.Label, Click: func(*mygo.MenuItem, *mygo.Window) {
+					window.Update(func() { root.run(it.Command) })
+				}})
+			}
 			mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 				{Label: "Oriel", Submenu: []*mygo.MenuItem{
 					{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
@@ -188,7 +195,7 @@ func desktop() {
 						}},
 					mygo.Separator(), {Role: mygo.RoleQuit},
 				}},
-				{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
+				{Role: mygo.RoleEditMenu}, {Label: view, Submenu: items}, {Role: mygo.RoleWindowMenu},
 				{Label: help, Submenu: []*mygo.MenuItem{
 					{Label: keys, Accelerator: "CmdOrCtrl+/", Click: func(*mygo.MenuItem, *mygo.Window) {
 						window.Update(root.showKeys)

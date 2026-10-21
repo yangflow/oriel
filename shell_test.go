@@ -47,6 +47,7 @@ type fakeHome struct {
 	used      []string
 	refreshed int
 	keys      int
+	ran       []timeline.Command
 	languages []string
 }
 
@@ -59,6 +60,8 @@ func (h *fakeHome) SetLanguage(language string) { h.languages = append(h.languag
 func (h *fakeHome) Refresh() { h.refreshed++ }
 
 func (h *fakeHome) ShowKeys() { h.keys++ }
+
+func (h *fakeHome) Run(cmd timeline.Command) { h.ran = append(h.ran, cmd) }
 
 func (h *fakeHome) View(c *ui.Context) { ui.Text(c, "Home") }
 
@@ -269,6 +272,20 @@ func TestShellShowKeys(t *testing.T) {
 	s.showKeys()
 	if home.keys != 1 {
 		t.Fatal("the key sheet opened over the connect screen")
+	}
+}
+
+func TestShellRunsMenuCommands(t *testing.T) {
+	s, _, _ := newTestShell(t)
+	home := s.home.(*fakeHome)
+	s.run(timeline.MarkAllRead)
+	if !slices.Equal(home.ran, []timeline.Command{timeline.MarkAllRead}) {
+		t.Fatalf("ran %v", home.ran)
+	}
+	s.openConnect()
+	s.run(timeline.LoadNew)
+	if len(home.ran) != 1 {
+		t.Fatal("a command ran over the connect screen")
 	}
 }
 

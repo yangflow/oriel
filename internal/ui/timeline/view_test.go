@@ -3933,3 +3933,140 @@ func TestSidebarAddAlignsWithRows(t *testing.T) {
 		t.Errorf("icon ends at %v, the counts at %v", got, want)
 	}
 }
+
+// TestFilterKeys shows U, A and * pick the filter the buttons pick.
+func TestFilterKeys(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	for _, c := range []struct {
+		mod  ui.Modifiers
+		key  ui.Key
+		want int
+	}{{0, ui.KeyU, unread}, {ui.Shift, ui.Key8, starred}, {0, ui.KeyA, everything}} {
+		tt.Key(c.mod, c.key)
+		f.settle(t, tt)
+		if s.filter != c.want {
+			t.Fatalf("key %v: filter %d, want %d", c.key, s.filter, c.want)
+		}
+	}
+	q := len(f.queries)
+	tt.Key(0, ui.KeyA)
+	f.settle(t, tt)
+	if len(f.queries) != q {
+		t.Fatal("the filter in use was loaded again")
+	}
+}
+
+// TestMarkAllReadKey shows Shift+A marks the scope read and offers the undo, which Cmd+Z takes back.
+func TestMarkAllReadKey(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	tt.Key(0, ui.KeyA)
+	if len(f.marked) != 0 {
+		t.Fatalf("plain A marked %v", f.marked)
+	}
+	tt.Key(ui.Shift, ui.KeyA)
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{UpTo: 8}}) || s.canMarkAll() {
+		t.Fatalf("marked %v", f.marked)
+	}
+	tt.Key(ui.Cmd, ui.KeyZ)
+	f.settle(t, tt)
+	if len(f.unmarked) != 1 || s.unreadIn(s.scope) != 5 {
+		t.Fatalf("unmarked %v", f.unmarked)
+	}
+}
+
+// TestLoadNewKey shows R loads the entries the "N new" pill offers and does nothing without the pill.
+func TestLoadNewKey(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	q := len(f.queries)
+	tt.Key(0, ui.KeyR)
+	f.settle(t, tt)
+	if len(f.queries) != q {
+		t.Fatal("R loaded without new entries")
+	}
+	f.entries = append([]client.Entry{{ID: 9, SourceID: 1, SourceTitle: "Go Blog", Kind: "article", Title: "Fresh",
+		CreatedAt: now.UnixMilli()}}, f.entries...)
+	f.sources[0].UnreadCount++
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	f.settle(t, tt)
+	if !tt.HasText("1 new") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	tt.Key(0, ui.KeyR)
+	f.settle(t, tt)
+	if len(s.entries) != 7 || tt.HasText("1 new") {
+		t.Fatalf("%d entries", len(s.entries))
+	}
+}
+
+// TestCommandKeysWhileTyping shows the new keys type into the search and do nothing else, and that a dialog takes
+// them too.
+func TestCommandKeysWhileTyping(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.entries = append([]client.Entry{{ID: 9, SourceID: 1, SourceTitle: "Go Blog", Kind: "article", Title: "Fresh",
+		CreatedAt: now.UnixMilli()}}, f.entries...)
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Key(0, ui.KeySlash)
+	if !tt.Focused("Search entries") {
+		t.Fatal("/ does not focus the search")
+	}
+	q := len(f.queries)
+	tt.Type("uar")
+	tt.Key(ui.Shift, ui.KeyA)
+	tt.Key(ui.Shift, ui.Key8)
+	f.settle(t, tt)
+	if s.filter != everything || len(f.marked) != 0 || s.fresh != 1 || s.query != "uar" || len(f.queries) != q {
+		t.Fatalf("filter %d, marked %v, fresh %d, query %q", s.filter, f.marked, s.fresh, s.query)
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Key(0, ui.KeyEscape)
+	s.ShowKeys()
+	tt.Frame()
+	tt.Key(0, ui.KeyU)
+	tt.Key(ui.Shift, ui.KeyA)
+	tt.Key(0, ui.KeyR)
+	f.settle(t, tt)
+	if s.filter != everything || len(f.marked) != 0 || s.fresh != 1 {
+		t.Fatalf("the key sheet let the keys through: filter %d, marked %v", s.filter, f.marked)
+	}
+}
+
+// TestRunCommands shows the Timeline menu's commands do what the keys do, and the key sheet lists the keys.
+func TestRunCommands(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.Run(ShowUnread)
+	f.settle(t, tt)
+	if s.filter != unread {
+		t.Fatalf("filter %d", s.filter)
+	}
+	s.Run(ShowStarred)
+	f.settle(t, tt)
+	s.Run(ShowAll)
+	f.settle(t, tt)
+	if s.filter != everything {
+		t.Fatalf("filter %d", s.filter)
+	}
+	s.Run(MarkAllRead)
+	f.settle(t, tt)
+	if len(f.marked) != 1 {
+		t.Fatalf("marked %v", f.marked)
+	}
+	name, items := TimelineMenu("en")
+	if name != "Timeline" || len(items) != 5 || items[3].Label != "Mark all as read" {
+		t.Fatalf("menu %q %v", name, items)
+	}
+	if name, _ := TimelineMenu("zh-Hans"); name != "时间线" {
+		t.Fatalf("menu %q", name)
+	}
+	s.ShowKeys()
+	tt.Frame()
+	for _, text := range []string{"Mark all as read", "Show unread only", "Show all entries", "Show starred only",
+		"Load new entries"} {
+		if !tt.HasText(text) {
+			t.Fatalf("the key sheet lacks %q", text)
+		}
+	}
+}
