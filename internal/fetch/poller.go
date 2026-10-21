@@ -163,7 +163,7 @@ func (p *Poller) take(ctx context.Context) (queued, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := p.now()
-	if len(p.queue) == 0 || now.Sub(p.loaded) >= refillEvery {
+	if p.loaded.IsZero() || now.Sub(p.loaded) >= refillEvery {
 		p.refill(ctx, now)
 	}
 	for i, job := range p.queue {
