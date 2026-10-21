@@ -89,6 +89,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `guid`、`title`、`url`、`author`、`published_at` | 来自订阅。`published_at` 只用来展示，会被重新发布覆盖。 |
 | `rss_summary`、`rss_content_html` | 订阅里的摘要和正文。 |
 | `extracted_html`、`extract_status`、`extract_attempts` | 抽取的正文。状态 `pending` → `ok` / `failed`；非文章形态为 `skipped`。 |
+| `kind` | 所属源的 `kind` 的副本，只为让「按形态」和「未读」的时间线走索引；数据库触发器在新条目写入和源改形态时同步，不由接口读写。 |
 | `thumbnail_url`、`duration_sec`、`platform` | 视频和社交的展示信息。 |
 | `language` | 条目文字的语言，BCP 47 码：ISO 639-1 的两个字母（`en`、`de`、`ja`……），中文分 `zh-Hans` 和 `zh-Hant`，没有两字母码的语言用三字母码。可为空（`NULL`）：文字太短或检测没有把握时不写，不猜。见「语言检测」。 |
 | `images` | JSON 数组，每项 `{ "url", "width"?, "height"? }`，没有图为 `[]`。 |

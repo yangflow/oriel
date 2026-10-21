@@ -1,11 +1,14 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +40,7 @@ func TestMigrationsAreRepeatable(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 4 {
+	if version != 5 {
 		t.Fatalf("user_version = %d", version)
 	}
 	var mode string
@@ -505,5 +508,174 @@ func TestMigrationAddsLanguageColumn(t *testing.T) {
 	var notNull int
 	if err := rows.Scan(&name, &kind, &notNull); err != nil || kind != "TEXT" || notNull != 0 {
 		t.Fatalf("language column: %s %d %v", kind, notNull, err)
+	}
+}
+
+type timelineEntry struct {
+	id      int64
+	kind    string
+	unread  bool
+	muted   bool
+	created int64
+}
+
+// timelineFixture holds 120 entries across an article, an image and a video source, listed from the newest. Every
+// third entry is unread, and the video source mutes the keyword "spam".
+func timelineFixture(t *testing.T, s *Store) (sources map[string]Source, entries []timelineEntry) {
+	t.Helper()
+	ctx := context.Background()
+	now := time.UnixMilli(1_000)
+	sources = map[string]Source{}
+	for _, kind := range []string{"article", "image", "video"} {
+		src, err := s.CreateSource(ctx, NewSource{URL: "https://example.org/" + kind, Kind: kind, FetchInterval: time.Hour}, kind, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sources[kind] = src
+	}
+	spam := "spam"
+	if _, err := s.UpdateSource(ctx, sources["video"].ID, SourcePatch{MuteKeywords: &spam}, now); err != nil {
+		t.Fatal(err)
+	}
+	kinds := []string{"article", "article", "image", "video", "article"}
+	for i := range 120 {
+		kind := kinds[i%len(kinds)]
+		title := "entry"
+		if kind == "video" && i%2 == 0 {
+			title = "spam entry"
+		}
+		created := int64(1_000_000 - i/2*10) // pairs share created_at, so the ID breaks the tie
+		unread := i%3 == 0
+		result, err := s.db.ExecContext(ctx, "INSERT INTO entries (source_id, guid, title, is_read, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+			sources[kind].ID, strconv.Itoa(i), title, !unread, created, created)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := result.LastInsertId()
+		entries = append(entries, timelineEntry{id, kind, unread, title != "entry", created})
+	}
+	slices.SortFunc(entries, func(a, b timelineEntry) int {
+		return cmp.Or(cmp.Compare(b.created, a.created), cmp.Compare(b.id, a.id))
+	})
+	return sources, entries
+}
+
+// pages reads the whole timeline of filter in pages of size, the way a client pages with After.
+func pages(t *testing.T, s *Store, filter EntryFilter, size int) (got []int64) {
+	t.Helper()
+	for {
+		page, err := s.Entries(context.Background(), filter, size)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range page {
+			got = append(got, e.ID)
+		}
+		if len(page) < size {
+			return got
+		}
+		last := page[len(page)-1]
+		filter.After = &Position{last.CreatedAt.UnixMilli(), last.ID}
+	}
+}
+
+func TestTimelineFilters(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	sources, entries := timelineFixture(t, s)
+	want := func(keep func(timelineEntry) bool) (ids []int64) {
+		for _, e := range entries {
+			if !e.muted && keep(e) {
+				ids = append(ids, e.id)
+			}
+		}
+		return ids
+	}
+	for _, c := range []struct {
+		name   string
+		filter EntryFilter
+		keep   func(timelineEntry) bool
+	}{
+		{"all", EntryFilter{}, func(timelineEntry) bool { return true }},
+		{"unread", EntryFilter{Unread: true}, func(e timelineEntry) bool { return e.unread }},
+		{"image", EntryFilter{Kind: "image"}, func(e timelineEntry) bool { return e.kind == "image" }},
+		{"video", EntryFilter{Kind: "video"}, func(e timelineEntry) bool { return e.kind == "video" }},
+		{"unread image", EntryFilter{Kind: "image", Unread: true}, func(e timelineEntry) bool { return e.kind == "image" && e.unread }},
+		{"source", EntryFilter{SourceID: sources["article"].ID}, func(e timelineEntry) bool { return e.kind == "article" }},
+		{"source unread", EntryFilter{SourceID: sources["article"].ID, Unread: true}, func(e timelineEntry) bool { return e.kind == "article" && e.unread }},
+	} {
+		for _, size := range []int{1, 7, 50, 500} {
+			if got := pages(t, s, c.filter, size); !slices.Equal(got, want(c.keep)) {
+				t.Errorf("%s, pages of %d: got %v, want %v", c.name, size, got, want(c.keep))
+			}
+		}
+	}
+}
+
+func TestEntryKindFollowsSource(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	sources, _ := timelineFixture(t, s)
+	before, _ := s.Entries(ctx, EntryFilter{Kind: "image"}, 500)
+	if len(before) == 0 {
+		t.Fatal("no image entries")
+	}
+	video := "video"
+	if _, err := s.UpdateSource(ctx, sources["image"].ID, SourcePatch{Kind: &video}, time.UnixMilli(2_000)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Entries(ctx, EntryFilter{Kind: "image"}, 500); len(got) != 0 {
+		t.Fatalf("%d entries stayed image after the source changed", len(got))
+	}
+	moved, _ := s.Entries(ctx, EntryFilter{Kind: "video", SourceID: sources["image"].ID}, 500)
+	if len(moved) != len(before) || moved[0].Kind != "video" {
+		t.Fatalf("moved %d of %d entries", len(moved), len(before))
+	}
+	if _, err := s.SaveFeed(ctx, FeedSource{ID: sources["image"].ID, Kind: "video"}, "", "", []FeedEntry{{GUID: "new", Title: "new"}}, "", time.Time{}, time.UnixMilli(3_000)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Entries(ctx, EntryFilter{Kind: "video", SourceID: sources["image"].ID}, 500); len(got) != len(before)+1 {
+		t.Fatalf("a new entry did not take the source's kind: %d", len(got))
+	}
+}
+
+func TestTimelineQueriesUseIndexes(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	after := &Position{CreatedAt: 500, ID: 5}
+	for _, c := range []struct {
+		name   string
+		filter EntryFilter
+		index  string
+	}{
+		{"all", EntryFilter{}, "entries_timeline"},
+		{"all, later page", EntryFilter{After: after}, "entries_timeline"},
+		{"unread", EntryFilter{Unread: true}, "entries_unread_timeline"},
+		{"unread, later page", EntryFilter{Unread: true, After: after}, "entries_unread_timeline"},
+		{"kind", EntryFilter{Kind: "image"}, "entries_kind_timeline"},
+		{"kind, later page", EntryFilter{Kind: "image", After: after}, "entries_kind_timeline"},
+		{"unread kind", EntryFilter{Kind: "image", Unread: true}, "entries_kind_unread_timeline"},
+		{"unread kind, later page", EntryFilter{Kind: "image", Unread: true, After: after}, "entries_kind_unread_timeline"},
+		{"source", EntryFilter{SourceID: 1}, "entries_source_timeline"},
+		{"source unread", EntryFilter{SourceID: 1, Unread: true}, "entries_source_timeline"},
+	} {
+		query, args := c.filter.timelineQuery()
+		rows, err := s.db.QueryContext(ctx, "EXPLAIN QUERY PLAN "+query, append(args, 50)...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var plan []string
+		for rows.Next() {
+			var id, parent, unused int
+			var detail string
+			if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+				t.Fatal(err)
+			}
+			plan = append(plan, detail)
+		}
+		rows.Close()
+		text := strings.Join(plan, "\n")
+		if !strings.Contains(text, "INDEX "+c.index) || strings.Contains(text, "TEMP B-TREE") || strings.Contains(text, "SCAN s") {
+			t.Errorf("%s: want %s and no sorting, got\n%s", c.name, c.index, text)
+		}
 	}
 }

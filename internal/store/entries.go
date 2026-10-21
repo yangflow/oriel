@@ -104,11 +104,19 @@ func (f EntryFilter) where() (string, []any) {
 	if f.SourceID != 0 {
 		add("e.source_id = ?", f.SourceID)
 	}
+	// Inside one source the source index already gives the order. The unary plus keeps the kind and unread
+	// conditions from drawing the planner to an index over every source, which reads far more rows.
+	column := func(name string) string {
+		if f.SourceID != 0 {
+			return "+" + name
+		}
+		return name
+	}
 	if f.Kind != "" {
-		add("s.kind = ?", f.Kind)
+		add(column("e.kind")+" = ?", f.Kind)
 	}
 	if f.Unread {
-		add("e.is_read = 0")
+		add(column("e.is_read") + " = 0")
 	}
 	if f.Starred {
 		add("e.starred = 1")
@@ -128,12 +136,18 @@ func (f EntryFilter) where() (string, []any) {
 	return strings.Join(conditions, " AND "), args
 }
 
+// timelineQuery selects the entries of the filter, newest first. Its last parameter is the limit.
+func (f EntryFilter) timelineQuery() (string, []any) {
+	where, args := f.where()
+	return "SELECT" + entryColumns + `
+		FROM entries e JOIN sources s ON s.id = e.source_id
+		WHERE ` + where + " ORDER BY e.created_at DESC, e.id DESC LIMIT ?", args
+}
+
 // Entries returns up to limit entries of the timeline, newest first.
 func (s *Store) Entries(ctx context.Context, filter EntryFilter, limit int) ([]Entry, error) {
-	where, args := filter.where()
-	rows, err := s.db.QueryContext(ctx, "SELECT"+entryColumns+`
-		FROM entries e JOIN sources s ON s.id = e.source_id
-		WHERE `+where+" ORDER BY e.created_at DESC, e.id DESC LIMIT ?", append(args, limit)...)
+	query, args := filter.timelineQuery()
+	rows, err := s.db.QueryContext(ctx, query, append(args, limit)...)
 	if err != nil {
 		return nil, err
 	}
