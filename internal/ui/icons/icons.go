@@ -34,6 +34,7 @@ var (
 	Clock          = parse("clock")
 	Database       = parse("database")
 	Download       = parse("download")
+	Ellipsis       = parse("ellipsis")
 	ExternalLink   = parse("external-link")
 	Eye            = parse("eye")
 	EyeOff         = parse("eye-off")

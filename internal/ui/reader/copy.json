@@ -64,7 +64,14 @@
     "SelectLess": "Select less text",
     "SelectLessHint": "Up to 2000 characters can be translated or explained at a time.",
     "SelectionAIOff": "Translating and explaining use an AI endpoint of your choosing. Set one up in Settings first.",
-    "ExplanationReady": "Explanation ready"
+    "ExplanationReady": "Explanation ready",
+    "More": "More",
+    "CopyMarkdown": "Copy as Markdown",
+    "SaveMarkdown": "Save as Markdown…",
+    "Saved": "Saved as {file}",
+    "SaveFailed": "Couldn’t save {file}",
+    "ExportFailed": "Couldn’t get this entry. Check the connection.",
+    "MarkdownFiles": "Markdown"
   },
   "zh-Hans": {
     "Back": "回到{scope}",
@@ -131,6 +138,13 @@
     "SelectLess": "请少选一些文字",
     "SelectLessHint": "一次最多翻译或解释 2000 个字。",
     "SelectionAIOff": "翻译和解释使用你自己选定的 AI 接口，请先在设置里配置。",
-    "ExplanationReady": "解释已生成"
+    "ExplanationReady": "解释已生成",
+    "More": "更多",
+    "CopyMarkdown": "复制为 Markdown",
+    "SaveMarkdown": "存为 Markdown…",
+    "Saved": "已保存为 {file}",
+    "SaveFailed": "没能保存 {file}",
+    "ExportFailed": "没能取到这篇文章，检查一下连接。",
+    "MarkdownFiles": "Markdown"
   }
 }

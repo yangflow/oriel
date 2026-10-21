@@ -123,6 +123,13 @@ func desktop() {
 				window.Update(apply)
 			}()
 		}
+		// The files asked for are OPML (the settings) or Markdown (the reader), told by the name offered.
+		filters := func(name, label string) []mygo.FileFilter {
+			if filepath.Ext(name) == ".md" {
+				return []mygo.FileFilter{{Name: label, Extensions: []string{"md"}}}
+			}
+			return []mygo.FileFilter{{Name: label, Extensions: []string{"opml", "xml"}}}
+		}
 		opml := func(name string) []mygo.FileFilter {
 			return []mygo.FileFilter{{Name: name, Extensions: []string{"opml", "xml"}}}
 		}
@@ -139,7 +146,7 @@ func desktop() {
 			},
 			Save: func(name, filter string) (string, error) {
 				path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: window, DefaultPath: name,
-					Filters: opml(filter), CreateDirectories: true})
+					Filters: filters(name, filter), CreateDirectories: true})
 				if err != nil {
 					slog.Error("Cannot show the save dialog", "error", err)
 				}

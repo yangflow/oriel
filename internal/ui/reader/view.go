@@ -10,6 +10,8 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -38,6 +40,7 @@ type copy struct {
 	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                 string
 	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint  string
 	SelectionAIOff, ExplanationReady                                                                       string
+	More, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles                       string
 }
 
 var translations = func() map[string]copy {
@@ -73,7 +76,8 @@ type API interface {
 // ToggleRead change the entry read. OpenSettings opens the AI group of the settings. Reading gives the preferences
 // of this device for the article's text size and line spacing, each frame; nil means the defaults. ReadingFont gives
 // the font list of the article's body, "" (and nil) for the interface font; the shell works it out when the
-// preferences or the installed fonts change.
+// preferences or the installed fonts change. Save asks where to save a file, offered under name and with the filter
+// label, and returns the path chosen, "" when none was; it runs off the UI thread.
 type Deps struct {
 	Go           func(work func() (apply func()))
 	Now          func() time.Time
@@ -87,6 +91,7 @@ type Deps struct {
 	OpenSettings func()
 	Reading      func() prefs.Preferences
 	ReadingFont  func() string
+	Save         func(name, filter string) (string, error)
 }
 
 // Nav is what the timeline tells the reader each frame: the entry as the list has it, with its read and starred
@@ -202,6 +207,8 @@ type Screen struct {
 
 	announce string
 	toast    string
+	clip     string // text for the clipboard, once converted
+	clipped  bool
 }
 
 // write is a reading position to store for an entry.
@@ -831,14 +838,7 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	s.track(c)
 	s.toasts(c)
 	s.download()
-	if s.announce != "" {
-		c.Announce(s.announce)
-		s.announce = ""
-	}
-	if s.toast != "" {
-		c.Toast(s.toast)
-		s.toast = ""
-	}
+	s.Flush(c)
 }
 
 func (s *Screen) toolbar(c *ui.Context, nav Nav, ready, narrow bool) {
@@ -942,6 +942,86 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 	}
 	if s.tool(c, icons.ExternalLink, s.text.Open, "O", t.TextMuted, !ready || e.URL == "").Clicked() {
 		s.openOriginal(c)
+	}
+	s.tool(c, icons.Ellipsis, s.text.More, "", t.TextMuted, !ready).Menu(func(m *ui.Menu) {
+		if m.Item(s.text.CopyMarkdown).Chosen() {
+			s.Export(e, false)
+		}
+		if m.Item(s.text.SaveMarkdown).Disabled(s.deps.Save == nil).Chosen() {
+			s.Export(e, true)
+		}
+	})
+}
+
+// Export copies the entry e as Markdown to the clipboard, or with save asks where to save it and writes the file. The
+// open article is converted as it shows; any other is got from the server first. The work runs in the background,
+// and the clipboard and the messages follow in the next frame (see Flush). See docs/product.md, Export as Markdown.
+func (s *Screen) Export(e client.Entry, save bool) {
+	if s.api == nil || s.deps.Save == nil && save {
+		return
+	}
+	api, id, at := s.api, e.ID, time.Local
+	a, blocks, have := s.article, []block(nil), e.ID == s.id && !s.loading && !s.failed
+	if have {
+		blocks, _ = s.body() // the original, also while a translation shows
+	}
+	s.deps.Go(func() func() {
+		var err error
+		if !have {
+			a, err = api.Entry(context.Background(), id)
+			blocks = exported(article(a))
+		}
+		if err != nil {
+			return func() {
+				if !s.deps.Expired(err) {
+					s.toast = s.text.ExportFailed
+				}
+			}
+		}
+		text := markdown(a.Entry, blocks, at)
+		if !save {
+			return func() { s.clip, s.clipped, s.announce, s.toast = text, true, s.text.Copied, s.text.Copied }
+		}
+		path, err := s.deps.Save(fileName(a.Title), s.text.MarkdownFiles)
+		if err != nil || path == "" {
+			return func() {}
+		}
+		name := filepath.Base(path)
+		written := os.WriteFile(path, []byte(text), 0o644) == nil
+		return func() {
+			if written {
+				s.announce = strings.ReplaceAll(s.text.Saved, "{file}", name)
+				s.toast = s.announce
+			} else {
+				s.toast = strings.ReplaceAll(s.text.SaveFailed, "{file}", name)
+			}
+		}
+	})
+}
+
+// exported is the text of an article that goes into its Markdown: the full text when it was extracted, else what the
+// feed carries, as the reader shows it.
+func exported(c cached) []block {
+	if c.article.ExtractStatus == "ok" && len(c.full) > 0 {
+		return c.full
+	}
+	return c.feed
+}
+
+// Flush puts the clipboard text, announcement and toast left by the last frame's work in place. View does it, and the
+// timeline does it while the list shows and the reader does not, for an export started from the list.
+func (s *Screen) Flush(c *ui.Context) {
+	if s.clipped {
+		c.WriteClipboard(s.clip)
+		s.clip, s.clipped = "", false
+	}
+	if s.announce != "" {
+		c.Announce(s.announce)
+		s.announce = ""
+	}
+	if s.toast != "" {
+		c.Toast(s.toast)
+		s.toast = ""
 	}
 }
 

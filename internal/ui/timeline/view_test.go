@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -27,6 +29,7 @@ func ago(d time.Duration) int64 { return now.Add(-d).UnixMilli() }
 
 // fake stands in for the server and the background: work waits in a queue until step runs it.
 type fake struct {
+	saveTo   string
 	queue    []func() func()
 	now      time.Time
 	entries  []client.Entry // newest first
@@ -220,6 +223,7 @@ func (f *fake) deps() Deps {
 		OpenImport:       func() { f.imports++ },
 		OpenSettingsPage: func(page string) { f.pages = append(f.pages, page) },
 		Expired:          func() { f.expired++ },
+		Save:             func(string, string) (string, error) { return f.saveTo, nil },
 	}
 }
 
@@ -1455,7 +1459,7 @@ func TestMarkAbove(t *testing.T) {
 	if err := tt.RightClick("Harbor at dawn"); err != nil {
 		t.Fatal(err)
 	}
-	if menu := tt.Menu(); !slices.Equal(menu, []string{"Star", "Mark as read", "Open in browser", "-", "Mark above as read"}) {
+	if menu := tt.Menu(); !slices.Equal(menu, []string{"Star", "Mark as read", "Open in browser", "-", "Copy as Markdown", "Save as Markdown…", "-", "Mark above as read"}) {
 		t.Fatalf("menu %q", menu)
 	}
 	if err := tt.ChooseMenuItem("Mark above as read"); err != nil {
@@ -1489,6 +1493,32 @@ func TestMarkAbove(t *testing.T) {
 	f.settle(t, tt)
 	if !reflect.DeepEqual(f.unmarked, [][]int64{{8, 7, 6}}) || s.unreadIn(s.scope) != 5 || s.undoable != nil {
 		t.Fatalf("unmarked %v, unread %d", f.unmarked, s.unreadIn(s.scope))
+	}
+}
+
+func TestExportMarkdownFromMenu(t *testing.T) {
+	_, f, tt := setup(t, "en")
+	if err := tt.RightClick("Harbor at dawn"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Copy as Markdown"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	copied := tt.Clipboard()
+	if !strings.HasPrefix(copied, "# Harbor at dawn\n") || !strings.HasSuffix(copied, "\n\nThe text of Harbor at dawn.\n") || !slices.Contains(tt.Announcements(), "Copied") {
+		t.Fatalf("clipboard %q, announcements %v", copied, tt.Announcements())
+	}
+	f.saveTo = filepath.Join(t.TempDir(), "out.md")
+	if err := tt.RightClick("Harbor at dawn"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Save as Markdown…"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if data, err := os.ReadFile(f.saveTo); err != nil || string(data) != copied {
+		t.Fatalf("file %q (%v), want %q", data, err, copied)
 	}
 }
 
