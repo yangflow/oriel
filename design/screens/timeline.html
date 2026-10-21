@@ -182,7 +182,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .toolbar h1 { margin:0; min-width:56px; font-size:15px; font-weight:600; letter-spacing:-.005em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .toolbar .sub { font-size:12px; letter-spacing:.01em; white-space:nowrap; font-variant-numeric:tabular-nums; color:var(--muted) }
 .toolbar > :not(h1):not(.search):not(.spacer) { flex-shrink:0 }
-.min .toolbar { gap:6px }
+.min .toolbar { gap:4px }
 .min .toolbar .sub { display:none }
 .spacer { flex:1 }
 .segmented { flex:none; display:flex; height:32px; padding:3px; gap:2px; border-radius:16px; background:var(--glass); box-shadow:var(--glass-rim); -webkit-backdrop-filter:blur(22px) saturate(1.5); backdrop-filter:blur(22px) saturate(1.5) }
@@ -190,6 +190,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .segmented button:hover { background:var(--hover); color:var(--text) }
 .segmented button.on { background:rgba(var(--ink),.10); color:var(--text) }
 .segmented button svg.icon { width:14px; height:14px }
+.min .segmented button { padding:0 7px }
 .min .segmented button span { display:none }
 .search { width:200px; height:32px; display:flex; align-items:center; gap:6px; padding:0 6px 0 12px; border-radius:16px; background:rgba(var(--ink),.055); color:var(--muted); transition:background-color var(--t), box-shadow var(--t) }
 .search:hover { background:rgba(var(--ink),.075) }

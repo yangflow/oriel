@@ -3076,11 +3076,11 @@ func TestGridSwitchSourceKeys(t *testing.T) {
 }
 
 // At the minimum width the toolbar keeps every button inside the window, the mark-all button above all, even in a
-// subscription that adds the edit and grid buttons.
+// subscription that adds the edit and grid buttons. It runs at 14, the text size of Linux and Windows, the widest.
 func TestToolbarMinimumWidth(t *testing.T) {
 	p := prefs.Default()
 	s, f, _ := viewing(t, &p)
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 640, 540)
+	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 640, 540)
 	tt.Frame()
 	f.settle(t, tt)
 	tt.Frame()

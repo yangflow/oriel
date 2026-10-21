@@ -2088,7 +2088,7 @@ func (s *Screen) toolbar(c *ui.Context, compact bool) {
 	bar := c.TitleBar()
 	gap := px(t, 10)
 	if compact {
-		gap = px(t, 6)
+		gap = px(t, 4)
 	}
 	// Keyed, so the search field keeps its focus when the hint above it in the column comes and goes.
 	ui.Row(c).Key("toolbar").Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(gap).
@@ -2132,7 +2132,11 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 				name string
 			}{{icons.Inbox, s.text.Everything}, {icons.CircleDot, s.text.Unread}, {icons.Star, s.text.Starred}} {
 				on := i == s.filter
-				b := seg.Segment(i).Height(px(t, 26)).Gap(px(t, 4)).PaddingX(px(t, 11)).Radius(px(t, 13)).
+				pad := px(t, 11)
+				if compact {
+					pad = px(t, 7)
+				}
+				b := seg.Segment(i).Height(px(t, 26)).Gap(px(t, 4)).PaddingX(pad).Radius(px(t, 13)).
 					Label(item.name).Tooltip(item.name)
 				color := t.TextMuted
 				switch {

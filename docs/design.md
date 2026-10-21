@@ -96,7 +96,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   Everything/Unread/Starred segments, the reading-time button, the grid switch (only where it applies), search, mark all as read, whose name and tooltip say
   its scope: "Mark all in “Videos” as read") with no bar and no divider: the segments are one 32 high capsule of glass floating over the
   entries, which fade under the row (the soft scroll edge); search is a flat ink fill, and the other buttons are
-  bare icons. Below a 760 wide window the gap between the toolbar items is 6 and the unread count is left out; what is
+  bare icons. Below a 760 wide window the gap between the toolbar items is 4, the segments are padded 7 and the unread count is left out; what is
   left gives way in this order: search shrinks first, to 72 wide at least (the magnifier and a few letters), then the
   title is cut with an ellipsis, 56 wide at least; the buttons never shrink, so mark all as read is always inside the
   window. The reading-time button is a bare 32 square clock icon right of the capsule, named "Reading time: any
