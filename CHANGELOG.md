@@ -23,6 +23,45 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.6.0](https://github.com/yangflow/oriel/compare/v0.5.0...v0.6.0) (2026-10-21)
+
+
+### Added
+
+* detect the language of each entry and skip translating entries already in the target language ([#225](https://github.com/yangflow/oriel/issues/225)) ([f9e06d2](https://github.com/yangflow/oriel/commit/f9e06d2abe0e0318d653f1c5aa3af674e22e1a63))
+* **reader:** choose a reading font and widen the column with the text size ([#231](https://github.com/yangflow/oriel/issues/231)) ([2de2795](https://github.com/yangflow/oriel/commit/2de2795473e3c5c6387ac63f0e832c6a0b07a393))
+* **reader:** copy or save an article as Markdown ([#245](https://github.com/yangflow/oriel/issues/245)) ([9255a87](https://github.com/yangflow/oriel/commit/9255a8742095a4ea6b03b94317981275c0a2946f))
+* **reader:** fetch the full text again and switch between full text and feed text ([#238](https://github.com/yangflow/oriel/issues/238)) ([c845775](https://github.com/yangflow/oriel/commit/c845775401cfbcca3e7dd50971529d339f5bcdb2))
+* **reader:** reopen a long article where you left off ([#235](https://github.com/yangflow/oriel/issues/235)) ([91002f1](https://github.com/yangflow/oriel/commit/91002f12667628992761ee7571bf0083861bcf91))
+* **reader:** space Chinese and Latin text apart and tighten runs of punctuation ([#232](https://github.com/yangflow/oriel/issues/232)) ([17c7661](https://github.com/yangflow/oriel/commit/17c76615363fcefc0778821055058a9f25bdccc0))
+* **reader:** translate or explain the selected text ([#239](https://github.com/yangflow/oriel/issues/239)) ([83512b0](https://github.com/yangflow/oriel/commit/83512b098cd2bec19c53e55c0aefa99ca1e1af21))
+* **settings:** find an interface font by typing, with each name shown in its own face ([#230](https://github.com/yangflow/oriel/issues/230)) ([59630f9](https://github.com/yangflow/oriel/commit/59630f95be36fab0caf384a54e5a451c1c4a2ece))
+* **timeline:** choose how each kind of entry is shown ([#234](https://github.com/yangflow/oriel/issues/234)) ([254d3fe](https://github.com/yangflow/oriel/commit/254d3feed6778cf94586a124d809760728c642e4))
+* **timeline:** collapse the sidebar with a button or Cmd/Ctrl+\ ([#242](https://github.com/yangflow/oriel/issues/242)) ([80a7fe2](https://github.com/yangflow/oriel/commit/80a7fe2795eefad62cdc0619ed8d3f40166678c7))
+* **timeline:** filter subscriptions by name and sort unread first ([#244](https://github.com/yangflow/oriel/issues/244)) ([a763075](https://github.com/yangflow/oriel/commit/a7630752ce4a2114c200b6ce6e63c58244622cb5))
+* **timeline:** jump to any subscription, kind or setting from a command palette ([#240](https://github.com/yangflow/oriel/issues/240)) ([74f4f9f](https://github.com/yangflow/oriel/commit/74f4f9f7757596b7fb24c0b4796907c07ff14d14))
+* **timeline:** keep the list, scroll position and selection when switching back to a recent scope or filter ([#227](https://github.com/yangflow/oriel/issues/227)) ([8dadf66](https://github.com/yangflow/oriel/commit/8dadf668ce2275b14fbb3d692d4ca8f77747a4e4))
+* **timeline:** mark entries older than a day, a week or a month as read ([#241](https://github.com/yangflow/oriel/issues/241)) ([4296656](https://github.com/yangflow/oriel/commit/42966560b178af01f40eca6fedc7fd00c0afe74c))
+* **timeline:** mark where you last looked with a divider and a count of new entries ([#246](https://github.com/yangflow/oriel/issues/246)) ([3f92a0c](https://github.com/yangflow/oriel/commit/3f92a0c9ff41079b9829781ce404174489141758))
+* **timeline:** read oldest first and choose a compact list density ([#248](https://github.com/yangflow/oriel/issues/248)) ([61ba1d8](https://github.com/yangflow/oriel/commit/61ba1d872d0ae96abf9861044258ff303cd1d29b))
+* **timeline:** show how long each entry takes to read and filter by a time budget ([#233](https://github.com/yangflow/oriel/issues/233)) ([e5abe62](https://github.com/yangflow/oriel/commit/e5abe620760f497e71c0acce4cd7c07fbb7f17a4))
+* **timeline:** show the AI summary in an article's row when one exists ([#237](https://github.com/yangflow/oriel/issues/237)) ([063f155](https://github.com/yangflow/oriel/commit/063f1558c002a2252073a40f9dfaa1a4cc2a9663))
+* **timeline:** switch videos and image sources between a list and a grid ([#236](https://github.com/yangflow/oriel/issues/236)) ([6646a8b](https://github.com/yangflow/oriel/commit/6646a8b07fa60f5afb5ca54e9722a5f28426e5a8))
+* **timeline:** view the pictures of a social or image entry inside the app ([#247](https://github.com/yangflow/oriel/issues/247)) ([d322f93](https://github.com/yangflow/oriel/commit/d322f93658924361948e4462f221e202cc36f44a))
+
+
+### Fixed
+
+* **reader:** skip hidden pictures and known tracking pixels in entries ([#163](https://github.com/yangflow/oriel/issues/163)) ([f3711e2](https://github.com/yangflow/oriel/commit/f3711e28b6a722713674288768880ab1582b7744))
+* **ui:** stop long titles at two lines and show full subscription names on hover ([#121](https://github.com/yangflow/oriel/issues/121)) ([abeba62](https://github.com/yangflow/oriel/commit/abeba621caad81bf0e663817fba0375fabe56772))
+
+
+### Performance
+
+* **reader:** prefetch the previous and next entries so J and K open at once ([#228](https://github.com/yangflow/oriel/issues/228)) ([8ea326c](https://github.com/yangflow/oriel/commit/8ea326c0598a101db4263d5617843ae14d210a3d))
+* **server:** keep proxied images on disk so scrolling back does not fetch them again ([#229](https://github.com/yangflow/oriel/issues/229)) ([c87926f](https://github.com/yangflow/oriel/commit/c87926f0496e8b37cd53d8dfc5dda6d330e0e0d7))
+* **store:** read about one page for the unread and kind timelines ([#226](https://github.com/yangflow/oriel/issues/226)) ([6f4deaf](https://github.com/yangflow/oriel/commit/6f4deaf2baa2a66ae0894aedc0bc1332eb0f75d1))
+
 ## [0.5.0](https://github.com/yangflow/oriel/compare/v0.4.0...v0.5.0) (2026-10-20)
 
 
