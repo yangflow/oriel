@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+
+	"github.com/yangflow/oriel/internal/tracker"
 )
 
 // ErrNotImage reports a response that is not a picture the interface can decode.
@@ -23,22 +25,46 @@ var imageTypes = map[string]bool{
 type Images struct {
 	guarded   *http.Client
 	userAgent string
+	cache     *imageCache
 }
 
-// NewImages returns an image fetcher that identifies itself as Oriel/version.
-func NewImages(version string) *Images {
-	return &Images{
+// NewImages returns an image fetcher that identifies itself as Oriel/version. A non-empty cacheDir keeps the
+// pictures it downloads there, up to 256 MiB for 30 days; an empty one downloads every time.
+func NewImages(version, cacheDir string) *Images {
+	im := &Images{
 		guarded:   guardedClient(func(a netip.AddrPort) bool { return blocked(a.Addr()) }),
 		userAgent: "Oriel/" + version,
 	}
+	if cacheDir != "" {
+		im.cache = newImageCache(cacheDir)
+	}
+	return im
 }
 
-// Get downloads the picture at address and returns its sniffed content type and bytes.
+// Get returns the picture at address as its sniffed content type and bytes, from the cache when it holds a
+// fresh copy and from the origin otherwise. Known trackers are refused before the cache is read.
 func (im *Images) Get(ctx context.Context, address string) (string, []byte, error) {
 	link, err := url.Parse(address)
 	if err != nil || (link.Scheme != "http" && link.Scheme != "https") || link.Host == "" {
 		return "", nil, fmt.Errorf("not a web address: %q", address)
 	}
+	if tracker.KnownAddress(address) {
+		return "", nil, ErrBlockedAddress
+	}
+	if im.cache != nil {
+		if kind, body, ok := im.cache.get(address); ok {
+			return kind, body, nil
+		}
+	}
+	kind, body, err := im.download(ctx, address)
+	if err == nil && im.cache != nil {
+		im.cache.put(address, kind, body)
+	}
+	return kind, body, err
+}
+
+// download fetches the picture from the origin through the guarded client.
+func (im *Images) download(ctx context.Context, address string) (string, []byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 	if err != nil {
 		return "", nil, err

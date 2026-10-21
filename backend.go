@@ -50,7 +50,7 @@ func start(ctx context.Context, dataDir, password string, port int) (*backend, e
 		return nil, err
 	}
 	worker := ai.New(st, version)
-	api, err := server.New(st, server.Config{Password: password, Version: version, Images: fetch.NewImages(version), AI: worker})
+	api, err := server.New(st, server.Config{Password: password, Version: version, Images: fetch.NewImages(version, filepath.Join(dataDir, "image-cache")), AI: worker})
 	if err != nil {
 		st.Close()
 		return nil, err

@@ -33,7 +33,7 @@ func TestImagesSniffAndRefuse(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	im := NewImages("test")
+	im := NewImages("test", "")
 	im.guarded = guardedClient(func(netip.AddrPort) bool { return false })
 	ctx := context.Background()
 
@@ -60,7 +60,7 @@ func TestImagesSniffAndRefuse(t *testing.T) {
 func TestImagesStayOutside(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(pngHeader) }))
 	defer srv.Close()
-	if _, _, err := NewImages("test").Get(context.Background(), srv.URL); !errors.Is(err, ErrBlockedAddress) {
+	if _, _, err := NewImages("test", "").Get(context.Background(), srv.URL); !errors.Is(err, ErrBlockedAddress) {
 		t.Fatalf("loopback image: %v", err)
 	}
 }
