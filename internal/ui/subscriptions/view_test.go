@@ -34,7 +34,8 @@ type fake struct {
 	removed []int64
 	shown   []int64
 	marked  []int64
-	opened  int // the AI settings
+	older   [][2]int64 // subscription and days of each "Mark older than"
+	opened  int        // the AI settings
 	expired int
 }
 
@@ -99,6 +100,7 @@ func (f *fake) deps() Deps {
 		Removed:      func(id int64) { f.removed = append(f.removed, id) },
 		Show:         func(id int64) { f.shown = append(f.shown, id) },
 		MarkRead:     func(src client.Source) { f.marked = append(f.marked, src.ID) },
+		MarkOlder:    func(src client.Source, days int) { f.older = append(f.older, [2]int64{src.ID, int64(days)}) },
 		OpenSettings: func() { f.opened++ },
 		Expired:      func() { f.expired++ },
 	}
@@ -570,9 +572,27 @@ func TestMenu(t *testing.T) {
 	if err := tt.RightClick("Go Blog"); err != nil {
 		t.Fatal(err)
 	}
-	if menu := tt.Menu(); !slices.Equal(menu, []string{"Refresh", "Mark subscription as read", "Edit…", "Pause", "-", "Delete…"}) {
+	if menu := tt.Menu(); !slices.Equal(menu, []string{"Refresh", "Mark subscription as read", "Mark older than 1 day as read",
+		"Mark older than 1 week as read", "Mark older than 1 month as read", "Edit…", "Pause", "-", "Delete…"}) {
 		t.Fatalf("menu %q", menu)
 	}
+	// Nothing unread: the older-than items are dimmed with "Mark subscription as read".
+	if err := tt.ChooseMenuItem("Mark older than 1 week as read"); err == nil {
+		t.Fatal("marked a subscription with nothing unread")
+	}
+	tt.CloseMenu()
+	f.sources[0].UnreadCount = 3
+	tt.Frame()
+	tt.RightClick("Go Blog")
+	if err := tt.ChooseMenuItem("Mark older than 1 week as read"); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(f.older, [][2]int64{{1, 7}}) {
+		t.Fatalf("older %v", f.older)
+	}
+	f.sources[0].UnreadCount = 0
+	tt.Frame()
+	tt.RightClick("Go Blog")
 	if err := tt.ChooseMenuItem("Refresh"); err != nil {
 		t.Fatal(err)
 	}

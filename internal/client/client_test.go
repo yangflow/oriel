@@ -232,6 +232,9 @@ func TestTimelineAPI(t *testing.T) {
 	if err != nil || len(ids) != 2 || ids[0] != 7 || ids[1] != 8 {
 		t.Errorf("MarkRead = %v, %v", ids, err)
 	}
+	if ids, err := session.MarkRead(ctx, ReadScope{SourceID: 5, OlderThan: 1700000000000}); err != nil || len(ids) != 2 {
+		t.Errorf("MarkRead older = %v, %v", ids, err)
+	}
 	if marked, err := session.MarkUnread(ctx, ids); err != nil || marked != 2 {
 		t.Errorf("MarkUnread = %d, %v", marked, err)
 	}
@@ -272,6 +275,7 @@ func TestTimelineAPI(t *testing.T) {
 		`PATCH /api/entries/7 {"starred":true}`,
 		`PATCH /api/entries/7 {"readProgress":0.5}`,
 		`POST /api/entries/read {"kind":"video","upTo":7}`,
+		`POST /api/entries/read {"sourceId":5,"olderThan":1700000000000}`,
 		`POST /api/entries/unread {"ids":[7,8]}`,
 		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",
 		`POST /api/sources {"rsshubPath":"/x/y","kind":"social"}`,

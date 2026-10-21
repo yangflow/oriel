@@ -43,11 +43,15 @@
      With no subscription yet (no-subscriptions) the empty state offers two ways in: the primary "Add your first
      subscription" opens the add dialog, and the quiet "Import OPML…" beside it opens Settings on Import and export.
      The hint adds one line saying that links to YouTube, X, GitHub and the like work too.
+     Mark all as read has a menu of its own on right click (menu-markall): Mark all as read, as the click, a hairline, then Mark older than 1 day,
+     1 week, 1 month as read. They mark the unread entries of the scope whose time, the one the row shows, is before now minus that long, act at once and offer
+     Undo in the same toast (marked-older: it says how old and how many); when none is that old a plain toast says so (marked-older-none), without Undo.
+     They are off where Mark all as read is.
      Right click opens a menu. On an entry (menu-entry): Star, Mark as read or unread and Open in browser, as the row's
      actions have them, then Mark above as read, which marks the unread entries listed above this one (not this one)
      and is dimmed when there are none (menu-entry-first) or under Starred and search. On a subscription (menu-feed,
      the sidebar keeps the existing menu of subscriptions.html): Mark subscription as read sits under Refresh and is
-     dimmed when it has nothing unread (menu-feed-none). Both act at once and offer Undo in the same toast as Mark all
+     dimmed when it has nothing unread (menu-feed-none); the three Mark older than ... as read items follow it and are dimmed with it. All act at once and offer Undo in the same toast as Mark all
      as read (marked-above, marked-feed).
      V marks the entries fully in view as read and scrolls so the first entry below them is at the top, the keyboard choice
      on it (marked-visible, drawn after the press: eight entries were in view, five of them unread, so the toast says 5; the next one is chosen).
@@ -456,7 +460,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
+const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -535,7 +539,7 @@ const copy={
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
     unreadCount:'{n} unread', results:'{n} found',
-    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', markAbove:'Mark above as read', markFeed:'Mark subscription as read', refresh:'Refresh', edit:'Edit…', pause:'Pause', remove:'Delete…',
+    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', markAbove:'Mark above as read', markFeed:'Mark subscription as read', markOlder1:'Mark older than 1 day as read', markOlder7:'Mark older than 1 week as read', markOlder30:'Mark older than 1 month as read', refresh:'Refresh', edit:'Edit…', pause:'Pause', remove:'Delete…',
     failing:'Last fetch failed', failingName:'{name}, last fetch failed', failingUnread:'{name}, {n} unread, last fetch failed',
     failedOnce:'Last fetch failed: {error}', failedTimes:'Failed {n} times in a row: {error}',
     failingCount:'{n} failing', failingShow:'Show only the {n} failing subscriptions', failingTitle:'Failing', showAll:'Show all',
@@ -550,7 +554,7 @@ const copy={
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', importOpml:'Import OPML…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
-    marked:'Marked {n} entries in “{scope}” as read', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below',
+    marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
     kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
@@ -565,7 +569,7 @@ const copy={
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
     unreadCount:'{n} 条未读', results:'找到 {n} 条',
-    markAllRead:'全部标为已读', markAllIn:'把「{scope}」全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', markAbove:'把上面的标为已读', markFeed:'把订阅标为已读', refresh:'更新', edit:'编辑…', pause:'暂停', remove:'删除…',
+    markAllRead:'全部标为已读', markAllIn:'把「{scope}」全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', markAbove:'把上面的标为已读', markFeed:'把订阅标为已读', markOlder1:'把 1 天前的标为已读', markOlder7:'把 1 周前的标为已读', markOlder30:'把 1 个月前的标为已读', refresh:'更新', edit:'编辑…', pause:'暂停', remove:'删除…',
     failing:'上次抓取失败', failingName:'{name}，上次抓取失败', failingUnread:'{name}，{n} 条未读，上次抓取失败',
     failedOnce:'上次抓取失败：{error}', failedTimes:'连续失败 {n} 次：{error}',
     failingCount:'{n} 个失败', failingShow:'只显示 {n} 个抓取失败的订阅', failingTitle:'抓取失败', showAll:'显示全部',
@@ -580,7 +584,7 @@ const copy={
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', importOpml:'导入 OPML…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
-    marked:'已把「{scope}」里的 {n} 条标为已读', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了',
+    marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
     kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
     kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
@@ -700,12 +704,15 @@ const edge=state==='long-titles'?longEntries:state==='broken-images'?brokenEntri
 const inScope=s=>scope==='all'||s.kind===scope||(scope==='source'&&s.id===focusId);
 const markedCount=sources.filter(inScope).reduce((a,s)=>a+s.unread,0);
 const markedFeedCount=12;
+const olderCut=3;
+const markedOlderCount=entries.slice(olderCut).filter(e=>!e.read&&inScope(byId[e.source])).length;
 const feedMenu=state.startsWith('menu-feed');
 const menuSource=byId[state==='menu-feed-none'?3:2];
 const markedVisibleCount=entries.slice(0,8).filter(e=>!e.read).length;
 if(state==='marked-visible'){entries.slice(0,8).forEach(e=>{if(!e.read){e.read=true;byId[e.source].unread--}})}
 if(state==='marked-above'){entries.slice(0,2).forEach(e=>{e.read=true;byId[e.source].unread--})}
 if(state==='marked-feed'){entries.forEach(e=>{if(e.source===2)e.read=true});byId[2].unread=0}
+if(state==='marked-older'){entries.slice(olderCut).forEach(e=>{if(!e.read&&inScope(byId[e.source])){e.read=true;byId[e.source].unread=Math.max(0,byId[e.source].unread-1)}})}
 if(state==='marked-read'){entries.forEach(e=>{if(inScope(byId[e.source]))e.read=true});sources.filter(inScope).forEach(s=>s.unread=0)}
 total=sources.reduce((a,s)=>a+s.unread,0);
 const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[focusId].name:copy.all;
@@ -825,6 +832,8 @@ const toast=state==='marked-read'?`<div class="toast" role="status">${icon('chec
   :state==='marked-above'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedAbove',{n:2})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-visible'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedVisible',{n:markedVisibleCount})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-feed'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedFeedCount,scope:byId[2].name})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
+  :state==='marked-older'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedOlder',{n:markedOlderCount,scope:scopeName,age:copy.age7})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
+  :state==='marked-older-none'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('noneOlder',{age:copy.age7})}</span></div>`
   :state==='no-more-unread'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:'';
 const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
 const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${keys(...k)}</dd>`).join('')}</dl>`;
@@ -871,6 +880,9 @@ if(state==='menu-entry'||state==='menu-entry-first'){
   const e=entries[state==='menu-entry'?2:0],first=state==='menu-entry-first';
   place(`<div class="menu" role="menu" aria-label="${e.title||e.author}">${menuItem('star',e.starred?copy.unstar:copy.star,{key:'S'})}${menuItem(e.read?'mail':'mailOpen',e.read?copy.markUnread:copy.markRead,{key:'M'})}${menuItem('external',copy.open,{key:'O'})}<hr>${menuItem('arrowUpToLine',copy.markAbove,{cls:first?'':'hover',off:first})}</div>`,document.querySelector('.row.menued'),300,36);
 }
+if(state==='menu-markall'){
+  place(`<div class="menu" role="menu" aria-label="${markAllName}">${menuItem('checkCheck',markAllName,{cls:'hover'})}<hr>${[1,7,30].map(n=>menuItem('calendar',copy['markOlder'+n])).join('')}</div>`,document.querySelector('.toolbar .tool'),-200,36);
+}
 if(state==='time-menu'){
   const item=(label,n)=>`<button role="menuitemradio" aria-checked="${n===0}"${n===10?' class="hover"':''}>${icon('check',n===0?'tick':'tick none')}<span>${label}</span></button>`;
   place(`<div class="menu" role="menu" aria-label="${copy.timeTitle}">${item(copy.timeAny,0)}${[5,10,15,30].map(n=>item(t('timeUpTo',{n}),n)).join('')}</div>`,document.querySelector('.timebtn'),0,36);
@@ -879,7 +891,7 @@ if(feedMenu){
   const s=menuSource,none=s.unread===0;
   const anchor=[...document.querySelectorAll('.nav .item')].find(i=>i.querySelector('.name').textContent===s.name);
   anchor.classList.add('menued');
-  place(`<div class="menu" role="menu" aria-label="${s.name}">${menuItem('refresh',s.failing?copy.retry:copy.refresh)}${menuItem('checkCheck',copy.markFeed,{cls:none?'':'hover',off:none})}${menuItem('pencil',copy.edit)}${menuItem('pause',copy.pause)}<hr>${menuItem('trash',copy.remove,{cls:'danger'})}</div>`,anchor,150,24);
+  place(`<div class="menu" role="menu" aria-label="${s.name}">${menuItem('refresh',s.failing?copy.retry:copy.refresh)}${menuItem('checkCheck',copy.markFeed,{cls:none?'':'hover',off:none})}${[1,7,30].map(n=>menuItem('calendar',copy['markOlder'+n],{off:none})).join('')}${menuItem('pencil',copy.edit)}${menuItem('pause',copy.pause)}<hr>${menuItem('trash',copy.remove,{cls:'danger'})}</div>`,anchor,150,24);
 }
 if(state==='sidebar-focus')document.querySelector(scope==='source'?'.nav .item.chosen':'.kind-list .item.chosen').classList.add('kfocus');
 if(state==='no-more-unread')document.querySelector('.row.chosen').scrollIntoView({block:'center'});

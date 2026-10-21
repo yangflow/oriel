@@ -34,7 +34,7 @@ type copy struct {
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody      string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                string
 	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff        string
-	OpenSettings, MarkRead                                                                                         string
+	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30                                                    string
 }
 
 var translations = func() map[string]copy {
@@ -77,6 +77,7 @@ type Deps struct {
 	Removed      func(id int64)
 	Show         func(id int64)
 	MarkRead     func(src client.Source)
+	MarkOlder    func(src client.Source, days int)
 	OpenSettings func()
 	Expired      func()
 }
@@ -526,6 +527,14 @@ func (s *Screen) Menu(m *ui.Menu, src client.Source) {
 	}
 	if m.Item(s.text.MarkRead).Disabled(src.UnreadCount == 0).Chosen() {
 		s.deps.MarkRead(src)
+	}
+	for _, o := range []struct {
+		label string
+		days  int
+	}{{s.text.MarkOlder1, 1}, {s.text.MarkOlder7, 7}, {s.text.MarkOlder30, 30}} {
+		if m.Item(o.label).Disabled(src.UnreadCount == 0).Chosen() {
+			s.deps.MarkOlder(src, o.days)
+		}
 	}
 	if m.Item(s.text.Edit).Chosen() {
 		s.Edit(src)

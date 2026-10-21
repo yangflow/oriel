@@ -456,3 +456,59 @@ func TestRetryExtractionAPI(t *testing.T) {
 		t.Fatalf("done: %d %s", w.Code, w.Body)
 	}
 }
+
+func TestMarkReadOlderThan(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	article := seed(t, s, "article", 3, c.t)
+	video := seed(t, s, "video", 2, c.t.Add(time.Hour))
+	cut := func(d time.Duration) string { return strconv.FormatInt(c.t.Add(d).UnixMilli(), 10) }
+	mark := func(body string) map[string]any {
+		t.Helper()
+		w := do(s, "POST", "/api/entries/read", body, bearer(token))
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", body, w.Code, w.Body)
+		}
+		return decode(t, w)
+	}
+
+	if w := do(s, "POST", "/api/entries/read", `{"olderThan":1}`, nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without session: %d", w.Code)
+	}
+	// The cut is strict: entries shown exactly at it stay unread.
+	if got := mark(`{"olderThan":` + cut(0) + `}`); got["marked"] != 0.0 {
+		t.Fatalf("nothing is older than the oldest: %v", got)
+	}
+	// The video is newer than the cut, so the scope narrows nothing it does not already exclude.
+	if got := mark(fmt.Sprintf(`{"olderThan":%s,"kind":"video"}`, cut(30*time.Minute))); got["marked"] != 0.0 {
+		t.Fatalf("kind scope: %v", got)
+	}
+	if got := mark(fmt.Sprintf(`{"olderThan":%s,"sourceId":%d}`, cut(2*time.Hour), video)); got["marked"] != 2.0 {
+		t.Fatalf("source scope: %v", got)
+	}
+	if got := titles(t, decode(t, do(s, "GET", "/api/entries?unread=1", "", bearer(token)))); len(got) != 3 {
+		t.Fatalf("unread after source scope: %v", got)
+	}
+	got := mark(`{"olderThan":` + cut(30*time.Minute) + `}`)
+	ids := got["ids"].([]any)
+	if got["marked"] != 3.0 || len(ids) != 3 {
+		t.Fatalf("all scope: %v", got)
+	}
+	undo, _ := json.Marshal(map[string]any{"ids": ids})
+	if w := do(s, "POST", "/api/entries/unread", string(undo), bearer(token)); decode(t, w)["marked"] != 3.0 {
+		t.Fatalf("undo: %s", w.Body)
+	}
+	if got := mark(fmt.Sprintf(`{"olderThan":%s,"sourceId":%d,"kind":"article"}`, cut(30*time.Minute), article)); got["marked"] != 3.0 {
+		t.Fatalf("source and kind: %v", got)
+	}
+
+	for _, bad := range []string{`{"olderThan":0}`, `{"olderThan":-5}`, `{"olderThan":"yesterday"}`, `{"olderThan":1.5}`} {
+		w := do(s, "POST", "/api/entries/read", bad, bearer(token))
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("%s: %d", bad, w.Code)
+		}
+	}
+	if w := do(s, "POST", "/api/entries/read", `{"olderThan":0}`, bearer(token)); decode(t, w)["error"] != "invalid_older_than" {
+		t.Errorf("error code: %s", w.Body)
+	}
+}

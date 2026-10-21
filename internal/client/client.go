@@ -434,12 +434,16 @@ type EntryPatch struct {
 	ReadProgress *float64 `json:"readProgress,omitempty"`
 }
 
-// ReadScope says which entries "mark as read" marks: a source, a kind, and those up to an entry and newer than another.
+// ReadScope says which entries "mark as read" marks: a source, a kind, those up to an entry and newer than another, and
+// those shown as older than a time.
 type ReadScope struct {
 	SourceID int64  `json:"sourceId,omitempty"`
 	Kind     string `json:"kind,omitempty"`
 	UpTo     int64  `json:"upTo,omitempty"`
 	Newer    int64  `json:"newerThan,omitempty"`
+	// OlderThan is a time in Unix milliseconds; the server compares it with the time a row shows and refuses zero or less
+	// with invalid_older_than.
+	OlderThan int64 `json:"olderThan,omitempty"`
 }
 
 // maxImage is the largest picture the server relays.

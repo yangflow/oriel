@@ -244,6 +244,7 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 		Kind     string `json:"kind"`
 		UpTo     int64  `json:"upTo"`
 		Newer    int64  `json:"newerThan"`
+		Older    *int64 `json:"olderThan"`
 	}
 	if r.ContentLength != 0 && !readBody(w, r, &body) {
 		return
@@ -253,6 +254,13 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filter := store.EntryFilter{SourceID: body.SourceID, Kind: body.Kind}
+	if body.Older != nil {
+		if *body.Older <= 0 {
+			fail(w, http.StatusBadRequest, "invalid_older_than")
+			return
+		}
+		filter.OlderThan = *body.Older
+	}
 	for _, bound := range []struct {
 		id  int64
 		set **store.Position

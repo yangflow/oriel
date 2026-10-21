@@ -58,6 +58,7 @@ type EntryFilter struct {
 	After         *Position // only entries older than this position
 	UpTo          *Position // only this position and older ones
 	Newer         *Position // only entries newer than this position
+	OlderThan     int64     // only entries shown as before this time, in Unix milliseconds: published_at, else created_at; 0 does not filter
 }
 
 // EntryPatch holds the reading state a user may change; nil leaves it as it is.
@@ -141,6 +142,9 @@ func (f EntryFilter) where() (string, []any) {
 	}
 	if f.Newer != nil {
 		add("(e.created_at, e.id) > (?, ?)", f.Newer.CreatedAt, f.Newer.ID)
+	}
+	if f.OlderThan > 0 {
+		add("coalesce(nullif(e.published_at, 0), e.created_at) < ?", f.OlderThan)
 	}
 	return strings.Join(conditions, " AND "), args
 }

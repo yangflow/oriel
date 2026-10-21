@@ -44,6 +44,7 @@ type copy struct {
 	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                      string
 	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteActions, PaletteUnreadOnly, PaletteShowAll string
 	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices                         string
+	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                    string
 }
 
 var translations = func() map[string]copy {
@@ -155,8 +156,9 @@ type snapshot struct {
 
 // The IDs of the toasts the screen replaces rather than stacks.
 const (
-	markedToast = "timeline.marked"
-	noMoreToast = "timeline.no-more-unread"
+	markedToast    = "timeline.marked"
+	noMoreToast    = "timeline.no-more-unread"
+	noneOlderToast = "timeline.none-older"
 )
 
 // Screen keeps the timeline: the scope, the entries loaded, and the work under way.
@@ -223,6 +225,7 @@ type Screen struct {
 	undoable *marking              // the last "mark as read", until its toast closes
 	seeking  bool                  // N found no unread entry loaded and waits for the next page
 	noMore   bool                  // show that no unread entry is below
+	noOlder  string                // show that no unread entry is older than this age, in words
 	keys     bool                  // the key sheet shows
 	pal      paletteState          // the command palette
 	subs     *subscriptions.Screen // the dialogs that add and edit subscriptions
@@ -252,6 +255,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		Removed:      s.removed,
 		Show:         func(id int64) { s.choose(scope{kind: s.kindOf(id), source: id}) },
 		MarkRead:     s.markSource,
+		MarkOlder:    s.markSourceOlder,
 		OpenSettings: deps.OpenAISettings,
 		Expired: func() {
 			s.gen++
@@ -1174,8 +1178,56 @@ func (s *Screen) markSource(src client.Source) {
 	s.markScope(client.ReadScope{SourceID: src.ID}, s.text.Marked, subscriptions.Name(src))
 }
 
+// olderDays are the ages of the "Mark older than" items, in days.
+var olderDays = []int{1, 7, 30}
+
+// olderText is the label of the item that marks what is older than days read, and age that span in words.
+func (s *Screen) olderText(days int) (label, age string) {
+	switch days {
+	case 1:
+		return s.text.MarkOlder1, s.text.Age1
+	case 7:
+		return s.text.MarkOlder7, s.text.Age7
+	}
+	return s.text.MarkOlder30, s.text.Age30
+}
+
+// markOlder marks the entries of scope that are older than days read, whatever the timeline shows, and offers to undo
+// it. When none is, it says so and leaves the last undo as it was.
+func (s *Screen) markOlder(scope client.ReadScope, days int, name string) {
+	_, age := s.olderText(days)
+	scope.OlderThan = s.deps.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
+	s.markScopeText(scope, strings.ReplaceAll(s.text.MarkedOlder, "{age}", age), name, age)
+}
+
+// markAllOlder is markOlder for the scope of the timeline, under the same conditions as markAll.
+func (s *Screen) markAllOlder(days int) {
+	if !s.canMarkAll() || s.api == nil {
+		return
+	}
+	scope := client.ReadScope{SourceID: s.scope.source}
+	if s.scope.source == 0 {
+		scope.Kind = s.scope.kind
+	}
+	s.markOlder(scope, days, s.scopeName())
+}
+
+// markSourceOlder is markOlder for a subscription, from its menu in the sidebar.
+func (s *Screen) markSourceOlder(src client.Source, days int) {
+	if src.UnreadCount == 0 || s.api == nil {
+		return
+	}
+	s.markOlder(client.ReadScope{SourceID: src.ID}, days, subscriptions.Name(src))
+}
+
 // markScope marks the entries of scope read; text is the toast, with {n} for how many were marked and {scope} for name.
 func (s *Screen) markScope(scope client.ReadScope, text, name string) {
+	s.markScopeText(scope, text, name, "")
+}
+
+// markScopeText is markScope; when none is not empty and no entry was marked, the toast says that none is older than
+// that age instead.
+func (s *Screen) markScopeText(scope client.ReadScope, text, name, none string) {
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		ids, err := api.MarkRead(context.Background(), scope)
@@ -1185,6 +1237,10 @@ func (s *Screen) markScope(scope client.ReadScope, text, name string) {
 			}
 			if err != nil {
 				s.toast = s.text.ActionFailed
+				return
+			}
+			if len(ids) == 0 && none != "" {
+				s.noOlder = none
 				return
 			}
 			s.setRead(ids, true)
@@ -1623,6 +1679,12 @@ func (s *Screen) toasts(c *ui.Context) {
 				}
 			},
 			Data: theme.ToastLook{Icon: icons.CheckCheck, Keys: modifier() + "Z", Close: s.text.Dismiss}})
+	}
+	if s.noOlder != "" {
+		age := s.noOlder
+		s.noOlder = ""
+		c.AddToast(ui.Toast{ID: noneOlderToast, Title: strings.ReplaceAll(s.text.NoneOlder, "{age}", age),
+			Data: theme.ToastLook{Icon: icons.CircleCheckBig}})
 	}
 	if s.noMore {
 		s.noMore = false
@@ -2358,6 +2420,18 @@ func (s *Screen) markAllButton(c *ui.Context) {
 	if b.Clicked() {
 		s.markAll()
 	}
+	b.ContextMenu(func(m *ui.Menu) {
+		if m.Item(label).Disabled(!can).Chosen() {
+			s.markAll()
+		}
+		m.Separator()
+		for _, days := range olderDays {
+			text, _ := s.olderText(days)
+			if m.Item(text).Disabled(!can).Chosen() {
+				s.markAllOlder(days)
+			}
+		}
+	})
 }
 
 func (s *Screen) hint(c *ui.Context) {
