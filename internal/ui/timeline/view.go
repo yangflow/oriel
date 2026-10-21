@@ -2239,7 +2239,10 @@ func (s *Screen) section(c *ui.Context, failing int) {
 	if theme.Han(name) {
 		size, tracking = px(t, 12), px(t, 12)*0.02
 	}
-	ui.Row(c).FillWidth().Height(px(t, 22)).AlignItems(ui.Center).Margin(px(t, 14), 0, px(t, 4), px(t, 10)).
+	// The label follows the icons of the rows (10 in); the 14 icon of the button follows their counts (10 in), so the
+	// 22 square button sits 6 in, the 4 around its icon making up the rest.
+	ui.Row(c).FillWidth().Height(px(t, 22)).AlignItems(ui.Center).Margin(px(t, 14), 0, px(t, 4), 0).
+		Padding(0, px(t, 6), 0, px(t, 10)).
 		Children(func() {
 			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(size).FontWeight(500).
 				LetterSpacing(tracking).TextColor(t.TextMuted)
@@ -2254,7 +2257,7 @@ func (s *Screen) section(c *ui.Context, failing int) {
 					s.failingOnly = true
 				}
 			}
-			b := ui.ButtonBase(c).Size(px(t, 22), px(t, 22)).Radius(px(t, 8)).Label(s.text.AddSource).
+			b := ui.ButtonBase(c).Size(px(t, 22), px(t, 22)).Shrink(0).Radius(px(t, 8)).Label(s.text.AddSource).
 				Tooltip(s.text.AddSource)
 			color := t.TextMuted
 			if b.Hovered() {

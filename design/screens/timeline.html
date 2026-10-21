@@ -166,8 +166,11 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .nav::-webkit-scrollbar { width:10px }
 .nav::-webkit-scrollbar-thumb { border:3px solid transparent; border-radius:5px; background:rgba(var(--ink),.28) padding-box }
 .section { margin:14px 10px 4px; font-size:11px; font-weight:500; letter-spacing:.04em; color:var(--muted) }
-.section.with { display:flex; align-items:center; gap:6px; margin-right:4px }
-.section.with span { flex:1; min-width:0 }
+.section { display:flex; align-items:center; gap:6px; height:22px; margin-right:6px }
+.section span { flex:1; min-width:0 }
+.section .add { width:22px; height:22px; flex:none; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
+.section .add:hover { background:var(--hover); color:var(--text) }
+.section .add svg.icon { width:14px; height:14px }
 .section .link { display:flex; align-items:center; gap:4px; height:20px; padding:0 6px; border-radius:6px; font:inherit; letter-spacing:inherit; color:var(--warning) }
 .section .link.plain { color:var(--text2) }
 .section .link:hover, .section .link.hover { background:var(--hover) }
@@ -644,7 +647,7 @@ const copy={
     orderNewest:'Newest first', orderOldest:'Oldest first',
     showGrid:'Show as grid', showList:'Show as list', timeName:'Reading time: any length', timeNameUpTo:'Reading time: up to {n} minutes',
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
-    noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', importOpml:'Import OPML…',
+    noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
     marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
@@ -677,7 +680,7 @@ const copy={
     orderNewest:'最新的在前', orderOldest:'最旧的在前',
     showGrid:'以网格显示', showList:'以列表显示', timeName:'阅读时长：不限', timeNameUpTo:'阅读时长：{n} 分钟内',
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
-    noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', importOpml:'导入 OPML…',
+    noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
     marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
@@ -847,9 +850,10 @@ function sidebar(){
   const tools=`<div class="side-tools"><div class="side-filter${word?' focused':''}">${icon('search')}<input aria-label="${copy.filterSources}" placeholder="${copy.filterSources}" value="${word}">${word?`<button class="clear" aria-label="${copy.clearFilter}">${icon('x')}</button>`:''}</div><button class="sort" aria-pressed="${unreadFirst}" aria-label="${copy.unreadFirst}" title="${copy.unreadFirst}">${icon('sort')}</button></div>`;
   const body=list.length?list.map(sourceItem).join(''):`<div class="side-none" role="status">${copy.noMatchingSources}</div>`;
   const n=failingSources.length;
-  const heading=only?`<div class="section with"><span>${copy.failingTitle}</span><button class="link plain">${copy.showAll}</button></div>`
-    :n?`<div class="section with"><span>${tabKind==='all'?copy.sources:copy[tabKind]}</span><button class="link" aria-label="${t('failingShow',{n})}" title="${t('failingShow',{n})}">${icon('alert')}${t('failingCount',{n})}</button></div>`
-    :`<div class="section">${tabKind==='all'?copy.sources:copy[tabKind]}</div>`;
+  const addSource=`<button class="add" aria-label="${copy.addSource}" title="${copy.addSource}">${icon('plus')}</button>`;
+  const heading=only?`<div class="section"><span>${copy.failingTitle}</span><button class="link plain">${copy.showAll}</button>${addSource}</div>`
+    :n?`<div class="section"><span>${tabKind==='all'?copy.sources:copy[tabKind]}</span><button class="link" aria-label="${t('failingShow',{n})}" title="${t('failingShow',{n})}">${icon('alert')}${t('failingCount',{n})}</button>${addSource}</div>`
+    :`<div class="section"><span>${tabKind==='all'?copy.sources:copy[tabKind]}</span>${addSource}</div>`;
   return `<aside>${tabs(true)}<nav class="nav" aria-label="${copy.sources}">${heading}${tools}${body}</nav>${serverBar()}</aside>`;
 }
 function serverBar(){return `<div class="server-bar"><button class="server" aria-label="${copy.thisComputer}">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot${state==='offline'?' off':''}" aria-hidden="true"></span></button><button class="gear" aria-label="${copy.settings}" title="${copy.settings} (Ctrl+,)">${icon('settings')}</button></div>`}
