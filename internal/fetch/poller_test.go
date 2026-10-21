@@ -41,6 +41,7 @@ func newFixture(t *testing.T) *fixture {
 	f.poller = New(st, "0.1.0")
 	f.poller.now = func() time.Time { return f.now }
 	f.poller.guarded = &http.Client{Transport: offline{}}
+	f.poller.spacing = 0 // tests share one local host; the spacing has its own tests
 	return f
 }
 
@@ -287,6 +288,7 @@ func TestPollRetryAfter(t *testing.T) {
 		if _, err := f.db.Exec("UPDATE sources SET consecutive_failures = 0, next_fetch_at = 0 WHERE id = ?", id); err != nil {
 			t.Fatal(err)
 		}
+		f.poller.hosts = hostGate{}
 		f.poller.fetchDue(context.Background())
 		next := time.UnixMilli(f.int("SELECT next_fetch_at FROM sources WHERE id = ?", id))
 		if got := next.Sub(f.now); got != c.want {
@@ -300,6 +302,7 @@ func TestPollRetryAfter(t *testing.T) {
 	// A later failure never waits less than the schedule says.
 	status, header = http.StatusTooManyRequests, "30"
 	f.db.Exec("UPDATE sources SET consecutive_failures = 7, next_fetch_at = 0 WHERE id = ?", id)
+	f.poller.hosts = hostGate{}
 	f.poller.fetchDue(context.Background())
 	if got := time.UnixMilli(f.int("SELECT next_fetch_at FROM sources WHERE id = ?", id)).Sub(f.now); got != retryDelay(8) {
 		t.Errorf("long schedule: waits %s, want %s", got, retryDelay(8))

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yangflow/oriel/internal/fetch"
 )
@@ -97,5 +98,51 @@ func TestOPMLRoundTrip(t *testing.T) {
 	}
 	if got, want := subscriptions(t, again, nil), subscriptions(t, s, nil); !slices.Equal(got, want) {
 		t.Fatalf("round trip:\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestOPMLImportSpreadsFirstFetches(t *testing.T) {
+	s, c := newServer(t, "")
+	var file strings.Builder
+	file.WriteString(`<opml version="2.0"><body>`)
+	for i := range 300 {
+		fmt.Fprintf(&file, `<outline text="s%d" xmlUrl="https://example.org/%d"/>`, i, i)
+	}
+	file.WriteString(`</body></opml>`)
+	if w := do(s, "POST", "/api/opml/import", file.String(), nil); w.Code != http.StatusOK {
+		t.Fatalf("import: %d", w.Code)
+	}
+	sources, err := s.store.Sources(context.Background())
+	if err != nil || len(sources) != 300 {
+		t.Fatalf("%d sources, %v", len(sources), err)
+	}
+	// A file of 300 spreads over the ten minute maximum: not all due at once, none later than the window.
+	due, latest := 0, time.Duration(0)
+	for _, src := range sources {
+		delay := src.NextFetchAt.Sub(c.now())
+		if delay < 0 || delay >= importSpreadMax {
+			t.Fatalf("first fetch in %s", delay)
+		}
+		if delay == 0 {
+			due++
+		}
+		latest = max(latest, delay)
+	}
+	if due > 10 || latest < importSpreadMax/2 {
+		t.Errorf("%d due at once, the latest in %s", due, latest)
+	}
+
+	// A source added by hand is fetched at once, and a file of one waits only a moment.
+	one := `<opml version="2.0"><body><outline text="x" xmlUrl="https://example.org/single"/></body></opml>`
+	do(s, "POST", "/api/opml/import", one, nil)
+	do(s, "POST", "/api/sources", `{"url":"https://example.org/manual","kind":"article"}`, nil)
+	sources, _ = s.store.Sources(context.Background())
+	for _, src := range sources {
+		if strings.HasSuffix(src.URL, "/manual") && !src.NextFetchAt.Equal(c.now()) {
+			t.Errorf("a source added by hand is due in %s", src.NextFetchAt.Sub(c.now()))
+		}
+		if strings.HasSuffix(src.URL, "/single") && src.NextFetchAt.Sub(c.now()) >= importSpreadEach {
+			t.Errorf("a one-source file waits %s", src.NextFetchAt.Sub(c.now()))
+		}
 	}
 }

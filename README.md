@@ -27,8 +27,8 @@ features.
 
 Working now:
 
-- **Scheduled fetching.** Due subscriptions are fetched every 15 seconds with conditional requests (ETag and
-  Last-Modified) and backoff after failures. RSS, Atom and JSON Feed are supported, as well as RSSHub routes.
+- **Scheduled fetching.** A few workers keep fetching due subscriptions, with conditional requests (ETag and
+  Last-Modified), backoff after failures and a limit on concurrent requests to one host. RSS, Atom and JSON Feed are supported, as well as RSSHub routes.
 - **Full text for articles.** Article pages are reduced to their main content with Readability, including the
   linked post of a Discourse topic. Links found in feeds cannot reach loopback or private addresses.
 - **Retention.** Unstarred entries older than a chosen number of days are pruned hourly; 0 keeps everything.
