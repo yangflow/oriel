@@ -888,3 +888,74 @@ func toolbarNames(t *testing.T, scale float32) {
 		t.Fatalf("narrow: %v %v", narrow, ok)
 	}
 }
+
+// TestLineHeightFollowsLanguage shows the stored language of an entry picks the Chinese or the Latin line height,
+// and that the characters decide only when no language is stored.
+func TestLineHeightFollowsLanguage(t *testing.T) {
+	for _, scale := range textScales {
+		t.Run(fmt.Sprint("text=", scale), func(t *testing.T) {
+			var unit float32
+			line := func(language string, han bool) float32 {
+				art := full()
+				art.Language = language
+				text := "Faster builds"
+				if han {
+					art.Title = "Go 1.27 发布"
+					text = "今天 Go 团队很高兴发布新版本。"
+					art.ExtractedHTML = `<p>` + text + `</p>`
+				}
+				f := &fake{now: now, article: art, nav: Nav{Entry: art.Entry, Scope: "All"}}
+				s := New("en", f.deps())
+				s.Use(f)
+				tt := ui.NewTester(func(c *ui.Context) { unit = px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 2000)
+				tt.SetPreferences(ui.Preferences{TextScale: scale})
+				s.Open(art.Entry)
+				tt.Frame()
+				f.settle(tt)
+				r, ok := tt.Find(text)
+				if !ok {
+					t.Fatalf("texts %v", tt.Texts())
+				}
+				return r.H
+			}
+			near := func(got, want float32) bool { return got > want-0.6*unit && got < want+0.6*unit }
+			tall, short := float32(16*1.85), float32(16*1.7)
+			for _, tc := range []struct {
+				name, language string
+				han            bool
+				want           float32
+			}{
+				{"Latin text stored as Chinese", "zh-Hans", false, tall},
+				{"Latin text stored as Traditional Chinese", "zh-Hant", false, tall},
+				{"Latin text stored as Japanese", "ja", false, tall},
+				{"Chinese text stored as English", "en", true, short},
+				{"Chinese text stored as German", "de", true, short},
+				{"Latin text without a language", "", false, short},
+				{"Chinese text without a language", "", true, tall},
+			} {
+				if got := line(tc.language, tc.han); !near(got, tc.want*unit) {
+					t.Errorf("%s: line %v, want %v", tc.name, got, tc.want*unit)
+				}
+			}
+		})
+	}
+}
+
+// TestTranslateHiddenInTargetLanguage shows an entry already in the language of the translations has no Translate
+// button, and one in another language, or in none known, keeps it.
+func TestTranslateHiddenInTargetLanguage(t *testing.T) {
+	for _, tc := range []struct {
+		language string
+		shows    bool
+	}{{"zh-Hans", false}, {"en", true}, {"zh-Hant", true}, {"", true}} {
+		art := full()
+		art.Language = tc.language
+		_, f, tt := setup(t, "en", art)
+		f.ai = client.AIResults{TargetLanguage: "zh-Hans"}
+		f.settle(tt)
+		if tt.HasText("Translate") != tc.shows {
+			t.Errorf("language %q: Translate shows = %v, want %v", tc.language, !tc.shows, tc.shows)
+		}
+		expect(t, tt, "Summarize")
+	}
+}

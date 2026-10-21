@@ -317,3 +317,14 @@ func TestCapsuleOpaqueInHighContrast(t *testing.T) {
 		t.Errorf("high contrast fill %v, want Surface %v", solid, rgba(th.Surface))
 	}
 }
+
+func TestHanLanguage(t *testing.T) {
+	for code, want := range map[string][2]bool{
+		"zh-Hans": {true, true}, "zh-Hant": {true, true}, "zh": {true, true}, "ja": {true, true},
+		"en": {false, true}, "de": {false, true}, "kor": {false, true}, "": {false, false},
+	} {
+		if han, known := HanLanguage(code); han != want[0] || known != want[1] {
+			t.Errorf("%q: han %v known %v", code, han, known)
+		}
+	}
+}

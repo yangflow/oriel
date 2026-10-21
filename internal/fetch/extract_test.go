@@ -93,7 +93,7 @@ func TestExtract(t *testing.T) {
 	for _, path := range []string{"/article", "/moved", "/t/topic/42", "/t/topic/42/2", "/gbk", "/empty", "/missing"} {
 		entries = append(entries, store.FeedEntry{GUID: path, URL: srv.URL + path})
 	}
-	if _, err := f.store.SaveFeed(ctx, src, "", "", entries, time.Time{}, f.now); err != nil {
+	if _, err := f.store.SaveFeed(ctx, src, "", "", entries, "", time.Time{}, f.now); err != nil {
 		t.Fatal(err)
 	}
 	for range 2 {
@@ -142,7 +142,7 @@ func TestExtractSkipsOtherKinds(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	id := f.add(store.NewSource{URL: "https://example.org/feed"})
-	f.store.SaveFeed(ctx, store.FeedSource{ID: id, Kind: "article"}, "", "", []store.FeedEntry{{GUID: "a", URL: "https://example.org/a"}}, time.Time{}, f.now)
+	f.store.SaveFeed(ctx, store.FeedSource{ID: id, Kind: "article"}, "", "", []store.FeedEntry{{GUID: "a", URL: "https://example.org/a"}}, "", time.Time{}, f.now)
 	f.db.Exec("UPDATE sources SET kind = 'video'")
 	if targets, _ := f.store.PendingExtractions(ctx, 10, maxExtractAttempts); len(targets) != 0 {
 		t.Fatalf("a video source's entry is waiting for extraction: %+v", targets)

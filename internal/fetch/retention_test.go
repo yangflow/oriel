@@ -32,7 +32,7 @@ func TestPrune(t *testing.T) {
 	src := store.FeedSource{ID: id, Kind: "video"}
 	old, recent := f.now.Add(-40*day), f.now.Add(-5*day)
 	save := func(added time.Time, entries ...store.FeedEntry) {
-		if _, err := f.store.SaveFeed(ctx, src, "", "", entries, time.Time{}, added); err != nil {
+		if _, err := f.store.SaveFeed(ctx, src, "", "", entries, "", time.Time{}, added); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -92,7 +92,7 @@ func TestExpiredItemsAreNotFetchedAgain(t *testing.T) {
 	defer srv.Close()
 	id := f.add(store.NewSource{URL: srv.URL, Kind: "social"})
 	// An entry stored before the retention period was set stays until pruning removes it.
-	f.store.SaveFeed(ctx, store.FeedSource{ID: id, Kind: "social"}, "", "", []store.FeedEntry{{GUID: "kept", PublishedAt: f.now.Add(-90 * day)}}, time.Time{}, f.now)
+	f.store.SaveFeed(ctx, store.FeedSource{ID: id, Kind: "social"}, "", "", []store.FeedEntry{{GUID: "kept", PublishedAt: f.now.Add(-90 * day)}}, "", time.Time{}, f.now)
 
 	if n := f.poller.fetchDue(ctx); n != 2 {
 		t.Fatalf("created %d entries, want fresh and undated", n)

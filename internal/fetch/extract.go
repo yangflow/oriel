@@ -42,7 +42,8 @@ func (p *Poller) extractAll(ctx context.Context) {
 				slog.Info("Extraction failed", "entry", target.ID, "error", err)
 				content = ""
 			}
-			if err := p.store.SaveExtraction(ctx, target.ID, content, text(content)); err != nil {
+			plain := text(content)
+			if err := p.store.SaveExtraction(ctx, target.ID, content, plain, entryLanguage(target.Title, plain)); err != nil {
 				slog.Error("Cannot save an extraction", "entry", target.ID, "error", err)
 			}
 		})

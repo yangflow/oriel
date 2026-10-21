@@ -4,6 +4,7 @@
 package theme
 
 import (
+	"strings"
 	"time"
 	"unicode"
 
@@ -271,6 +272,16 @@ func Han(text string) bool {
 		}
 	}
 	return false
+}
+
+// HanLanguage reports whether text in the language, a BCP 47 code, runs taller: Chinese and Japanese do. Known is
+// false for "" and the codes it cannot tell by.
+func HanLanguage(code string) (han, known bool) {
+	if code == "" {
+		return false, false
+	}
+	base, _, _ := strings.Cut(code, "-")
+	return base == "zh" || base == "ja", true
 }
 
 func light(t *ui.Theme) {

@@ -248,19 +248,21 @@ type Image struct {
 
 // Entry is an entry of the timeline. Times are Unix milliseconds, 0 when unknown.
 type Entry struct {
-	ID           int64   `json:"id"`
-	SourceID     int64   `json:"sourceId"`
-	SourceTitle  string  `json:"sourceTitle"`
-	Kind         string  `json:"kind"`
-	Title        string  `json:"title"`
-	URL          string  `json:"url"`
-	Author       string  `json:"author"`
-	PublishedAt  int64   `json:"publishedAt"`
-	Summary      string  `json:"summary"`
-	ThumbnailURL string  `json:"thumbnailUrl"`
-	DurationSec  int     `json:"durationSec"`
-	Platform     string  `json:"platform"`
-	Images       []Image `json:"images"`
+	ID           int64  `json:"id"`
+	SourceID     int64  `json:"sourceId"`
+	SourceTitle  string `json:"sourceTitle"`
+	Kind         string `json:"kind"`
+	Title        string `json:"title"`
+	URL          string `json:"url"`
+	Author       string `json:"author"`
+	PublishedAt  int64  `json:"publishedAt"`
+	Summary      string `json:"summary"`
+	ThumbnailURL string `json:"thumbnailUrl"`
+	DurationSec  int    `json:"durationSec"`
+	Platform     string `json:"platform"`
+	// Language is the BCP 47 code of the entry's language, "" when it is unknown.
+	Language string  `json:"language"`
+	Images   []Image `json:"images"`
 	// ExtractStatus is how getting the full text of an article went: "pending", "ok", "failed", or "skipped" for
 	// the other kinds.
 	ExtractStatus string `json:"extractStatus"`
@@ -363,10 +365,11 @@ type AIResult struct {
 	Model  string `json:"model"`
 }
 
-// AIResults are the results of an entry, nil when there is none.
+// AIResults are the results of an entry, nil when there is none, and the language translations are made in.
 type AIResults struct {
-	Summary     *AIResult `json:"summary"`
-	Translation *AIResult `json:"translation"`
+	Summary        *AIResult `json:"summary"`
+	Translation    *AIResult `json:"translation"`
+	TargetLanguage string    `json:"targetLanguage"`
 }
 
 // Device is a session signed in to the server, named by the User-Agent it signed in with. Times are Unix

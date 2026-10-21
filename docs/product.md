@@ -90,11 +90,23 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `rss_summary`、`rss_content_html` | 订阅里的摘要和正文。 |
 | `extracted_html`、`extract_status`、`extract_attempts` | 抽取的正文。状态 `pending` → `ok` / `failed`；非文章形态为 `skipped`。 |
 | `thumbnail_url`、`duration_sec`、`platform` | 视频和社交的展示信息。 |
+| `language` | 条目文字的语言，BCP 47 码：ISO 639-1 的两个字母（`en`、`de`、`ja`……），中文分 `zh-Hans` 和 `zh-Hant`，没有两字母码的语言用三字母码。可为空（`NULL`）：文字太短或检测没有把握时不写，不猜。见「语言检测」。 |
 | `images` | JSON 数组，每项 `{ "url", "width"?, "height"? }`，没有图为 `[]`。 |
 | `is_read`、`read_at`、`starred` | 阅读状态。收藏的条目不被保留期限清理。 |
 | `search_text` | 抽取正文的纯文本，进全文索引。 |
 
 时间线按 `created_at, id` 排序和分页，不用 `published_at`。
+
+### 语言检测
+
+抓取写入条目时，用纯 Go 的检测库（`github.com/abadojack/whatlanggo`，MIT）判断条目的语言，不联网：
+
+- 样本是标题加上订阅里摘要或正文的纯文本，最多取前 3000 个字符。字母少于 20 个，或检测库认为不可靠（置信度不高于 0.8），语言就留空。
+- 检测成中文时，数只有繁体或只有简体才用的常用字：繁体字更多为 `zh-Hant`，否则（含相等）为 `zh-Hans`。
+- 文章形态抽取到全文后，用全文重新检测一次，检测出来才覆盖；检测不出来保留原值。
+- 订阅内容之后变了，条目被重新写入时语言一并更新；检测不出来保留原值。已有的旧条目不补，语言保持为空，直到内容变化。
+
+语言用在两处：目标语言（`aiLanguage`）和条目语言相同的条目，自动翻译不排队（摘要照常）；阅读界面不显示这样的条目的「翻译」按钮，并按条目语言选正文的行高：中文和日文用较高的行高，其他已知语言用拉丁文的；语言为空时按标题和正文有没有汉字判断。语言为空的条目照旧可以翻译。
 
 ### AI 结果
 
@@ -231,7 +243,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `POST /api/entries/read` | 「全部已读」「把上面的标为已读」「把订阅标为已读」，返回 `{ "marked": n, "ids": [...] }`。 |
 | `POST /api/entries/unread` | 撤销上面三种已读：把请求里的 `ids` 标回未读，返回 `{ "marked": n }`。 |
 
-列表里的条目：`id`、`sourceId`、`sourceTitle`（源的标题，空就用地址）、`kind`（源的形态）、`title`、`url`、`author`、`publishedAt`、`summary`（订阅里的摘要）、`thumbnailUrl`、`durationSec`、`platform`、`images`、`extractStatus`、`isRead`、`readAt`、`starred`、`createdAt`。没有的时间和时长为 `null`。单个条目再多带 `contentHtml`（订阅里的正文）和 `extractedHtml`（抽取的正文，没有为空串）。
+列表里的条目：`id`、`sourceId`、`sourceTitle`（源的标题，空就用地址）、`kind`（源的形态）、`title`、`url`、`author`、`publishedAt`、`summary`（订阅里的摘要）、`thumbnailUrl`、`durationSec`、`platform`、`images`、`language`（没有为空串）、`extractStatus`、`isRead`、`readAt`、`starred`、`createdAt`。没有的时间和时长为 `null`。单个条目再多带 `contentHtml`（订阅里的正文）和 `extractedHtml`（抽取的正文，没有为空串）。
 
 `GET /api/entries` 的查询参数，都可选，可以组合：
 
@@ -323,7 +335,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 
 | 路由 | 作用 |
 |---|---|
-| `GET /api/entries/{id}/ai` | 条目的两种结果：`{ "summary": ..., "translation": ... }`，没有的为 `null`。 |
+| `GET /api/entries/{id}/ai` | 条目的两种结果和当前的目标语言：`{ "summary": ..., "translation": ..., "targetLanguage": "zh-Hans" }`，没有的结果为 `null`。 |
 | `POST /api/entries/{id}/summary` | 要摘要，返回这一种结果。 |
 | `POST /api/entries/{id}/translation` | 要翻译，返回这一种结果。 |
 | `POST /api/ai/test` | 用当前设置发一个很短的请求，成功返回 `{ "model": "..." }`；没配置好时 409，上游失败时 502，带下面的错误码。 |
@@ -367,7 +379,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 
 自动处理：
 
-- 源开了 `autoSummary` / `autoTranslate` 时，抓取写入的新条目自动排队（`requested` 为 `0`）。只管打开开关之后新到的条目，不补旧条目。没配置好时不排。
+- 源开了 `autoSummary` / `autoTranslate` 时，抓取写入的新条目自动排队（`requested` 为 `0`）。只管打开开关之后新到的条目，不补旧条目。没配置好时不排。条目的语言已知且等于目标语言时不排自动翻译（见「语言检测」）；文章的语言要等抽取到全文才可能得知，之前排下的翻译照做。
 - 后台一个处理器，同时最多 2 个请求。先做用户要的（新的在前），再做自动的（新的在前）。`POST` 排队后马上唤醒它，此外每 15 秒看一次队列。
 - 自动的失败了按「满 3 次不再自动重试」处理，每次之间至少隔 5 分钟；不影响抓取和抽取。
 - 设置改了之后，已有的结果不重做；下次用户要时指纹变了才重做。
@@ -460,6 +472,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 
 - 打开文章时取一次 `GET /api/entries/{id}/ai`，已有的摘要直接显示，已有的译文不自动换上。
 - 「摘要」是开关：按下发 `POST .../summary`，标题下面出一张卡片；再按收起。卡片在生成时显示「正在生成摘要…」和「取消」，生成好显示摘要和「由〈模型〉生成」，失败显示原因（按错误码，见「AI 接口」）和「重试」。
+- 条目的语言（`language`）等于目标语言（`targetLanguage`）时没有「翻译」按钮，已经开始的翻译除外；语言为空或不同则照常显示。目标语言取自第一次 `GET .../ai` 的回答，回答到之前按钮先显示。
 - 「翻译」也是开关：按下发 `POST .../translation`。生成时原文照常显示，标题下面一条提示「正在翻译，好了之前先看原文」和「取消」；好了之后标题和正文换成译文，提示「由〈模型〉翻译」，带「译文 | 原文」切换；失败时原文不动，提示原因和「重试」。译文是纯文本段落，第一行是标题；图片和链接只在原文里。
 - 进行中时每 2 秒取一次 `GET .../ai`。「取消」和离开这篇文章只是不再等，服务端的处理照常做完，下次打开时就有结果。
 - 没配置 AI（`ai_not_configured`）时，按摘要或翻译出一张卡片「还没配置 AI」，带「打开设置…」，打开设置的 AI 组。

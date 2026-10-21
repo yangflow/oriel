@@ -16,6 +16,12 @@ type aiResultJSON struct {
 	UpdatedAt *int64 `json:"updatedAt"`
 }
 
+type aiResultsJSON struct {
+	Summary        *aiResultJSON `json:"summary"`
+	Translation    *aiResultJSON `json:"translation"`
+	TargetLanguage string        `json:"targetLanguage"`
+}
+
 func aiResultToJSON(r store.AIResult) *aiResultJSON {
 	return &aiResultJSON{Status: r.Status, Text: r.Text, Error: r.Error, Model: r.Model, UpdatedAt: millis(r.UpdatedAt)}
 }
@@ -34,9 +40,17 @@ func (s *Server) getAI(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
-	body := map[string]*aiResultJSON{"summary": nil, "translation": nil}
-	for task, result := range results {
-		body[task] = aiResultToJSON(result)
+	cfg, err := ai.Load(r.Context(), s.store)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	body := aiResultsJSON{TargetLanguage: cfg.Language}
+	if result, ok := results[store.TaskSummary]; ok {
+		body.Summary = aiResultToJSON(result)
+	}
+	if result, ok := results[store.TaskTranslation]; ok {
+		body.Translation = aiResultToJSON(result)
 	}
 	reply(w, http.StatusOK, body)
 }

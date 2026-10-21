@@ -107,7 +107,7 @@ func (f *fixture) entry(kind string, item store.FeedEntry, tasks ...string) int6
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	if _, err := f.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: kind, AITasks: tasks}, "", "", []store.FeedEntry{item}, time.Time{}, f.now); err != nil {
+	if _, err := f.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: kind, AITasks: tasks}, "", "", []store.FeedEntry{item}, "", time.Time{}, f.now); err != nil {
 		f.t.Fatal(err)
 	}
 	entries, err := f.store.Entries(ctx, store.EntryFilter{SourceID: src.ID}, 1)
@@ -366,7 +366,7 @@ func TestAutomaticQueue(t *testing.T) {
 
 	// A user request is not held back by the cap, and comes before automatic work.
 	failing = false
-	f.store.SaveExtraction(ctx, waiting, "", "")
+	f.store.SaveExtraction(ctx, waiting, "", "", "")
 	if _, err := f.worker.Request(ctx, auto, store.TaskSummary); err != nil {
 		t.Fatal(err)
 	}
