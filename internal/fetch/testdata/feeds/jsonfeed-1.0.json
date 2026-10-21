@@ -1,0 +1,31 @@
+{
+  "version": "https://jsonfeed.org/version/1",
+  "title": "Old Style JSON Feed",
+  "home_page_url": "https://old.example.com",
+  "feed_url": "https://old.example.com/feed.json",
+  "author": { "name": "Tomas Berg" },
+  "items": [
+    {
+      "id": "1",
+      "url": "https://old.example.com/posts/1",
+      "title": "A post with an image attachment",
+      "content_html": "<p>Single author object on the feed, not a list.</p>",
+      "banner_image": "https://old.example.com/banner.jpg",
+      "date_published": "2026-10-05T10:00:00+02:00",
+      "attachments": [
+        { "url": "https://old.example.com/photo.jpg", "mime_type": "image/jpeg", "size_in_bytes": 2048 }
+      ]
+    },
+    {
+      "id": "2",
+      "title": "No url",
+      "content_text": "An item with an id but no web address."
+    },
+    {
+      "id": "3",
+      "url": "https://old.example.com/posts/3",
+      "content_html": "<aside class=\"quote\"><p>quoted</p></aside><p>Untitled post.</p>",
+      "date_published": "not a date"
+    }
+  ]
+}

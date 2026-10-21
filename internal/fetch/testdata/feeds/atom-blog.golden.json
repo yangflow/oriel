@@ -1,0 +1,55 @@
+{
+  "title": "Tide Tables",
+  "siteURL": "https://tides.example.net/",
+  "iconURL": "https://tides.example.net/favicon.png",
+  "entries": [
+    {
+      "guid": "tag:tides.example.net,2026:spring-tides",
+      "title": "Spring tides & wind",
+      "url": "https://tides.example.net/2026/spring-tides",
+      "author": "",
+      "published": "2026-10-09T10:00:00Z",
+      "summary": "The water rose because of the moon .",
+      "contentHTML": "<p>The water rose because of the <em>moon</em>.</p><img src=\"/img/tide.png\" width=\"800\" height=\"400\"/>",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": [
+        {
+          "url": "https://feeds.example.org/img/tide.png",
+          "width": 800,
+          "height": 400
+        }
+      ]
+    },
+    {
+      "guid": "tag:tides.example.net,2026:updated-only",
+      "title": "Updated only",
+      "url": "https://feeds.example.org/2026/updated-only",
+      "author": "Guest Writer",
+      "published": "2026-10-07T15:00:00Z",
+      "summary": "Written as XHTML .",
+      "contentHTML": "<p>Written as <b>XHTML</b>.</p>",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "en",
+      "images": []
+    },
+    {
+      "guid": "https://tides.example.net/2026/no-id",
+      "title": "No id, no dates",
+      "url": "https://tides.example.net/2026/no-id/",
+      "author": "",
+      "published": "",
+      "summary": "Identity comes from the link.",
+      "contentHTML": "Identity comes from the link.",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": []
+    }
+  ]
+}

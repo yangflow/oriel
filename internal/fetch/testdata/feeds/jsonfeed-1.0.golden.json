@@ -1,0 +1,53 @@
+{
+  "title": "Old Style JSON Feed",
+  "siteURL": "https://old.example.com",
+  "iconURL": "",
+  "entries": [
+    {
+      "guid": "1",
+      "title": "A post with an image attachment",
+      "url": "https://old.example.com/posts/1",
+      "author": "",
+      "published": "2026-10-05T08:00:00Z",
+      "summary": "Single author object on the feed, not a list.",
+      "contentHTML": "<p>Single author object on the feed, not a list.</p>",
+      "thumbnailURL": "https://old.example.com/banner.jpg",
+      "durationSec": 0,
+      "platform": "",
+      "language": "en",
+      "images": [
+        {
+          "url": "https://old.example.com/photo.jpg"
+        }
+      ]
+    },
+    {
+      "guid": "2",
+      "title": "No url",
+      "url": "",
+      "author": "",
+      "published": "",
+      "summary": "An item with an id but no web address.",
+      "contentHTML": "An item with an id but no web address.",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": []
+    },
+    {
+      "guid": "3",
+      "title": "",
+      "url": "https://old.example.com/posts/3",
+      "author": "",
+      "published": "",
+      "summary": "Untitled post.",
+      "contentHTML": "<p>Untitled post.</p>",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": []
+    }
+  ]
+}

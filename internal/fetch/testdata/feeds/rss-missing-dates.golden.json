@@ -1,0 +1,49 @@
+{
+  "title": "Hand-written Changelog",
+  "siteURL": "https://changes.example.org/",
+  "iconURL": "",
+  "entries": [
+    {
+      "guid": "https://changes.example.org/2.1",
+      "title": "Version 2.1",
+      "url": "https://changes.example.org/2.1/",
+      "author": "",
+      "published": "",
+      "summary": "Faster startup.",
+      "contentHTML": "Faster startup.",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": []
+    },
+    {
+      "guid": "release-2.0",
+      "title": "Version 2.0",
+      "url": "https://CHANGES.example.org/2.0",
+      "author": "",
+      "published": "",
+      "summary": "New editor.",
+      "contentHTML": "New editor.",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": []
+    },
+    {
+      "guid": "https://changes.example.org/1.9",
+      "title": "Version 1.9 (unparseable date)",
+      "url": "https://changes.example.org/1.9",
+      "author": "",
+      "published": "",
+      "summary": "Bug fixes.",
+      "contentHTML": "Bug fixes.",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "",
+      "images": []
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "title": "Café Lumière",
+  "siteURL": "https://cafe.example.net/",
+  "iconURL": "",
+  "entries": [
+    {
+      "guid": "cafe-0007",
+      "title": "Crème brûlée à la lavande",
+      "url": "https://cafe.example.net/menu/creme-brulee",
+      "author": "",
+      "published": "2026-10-07T07:00:00Z",
+      "summary": "Une recette de grand-mère, revisitée pour l'automne. Très crémeux, à peine sucré.",
+      "contentHTML": "Une recette de grand-mère, revisitée pour l'automne. Très crémeux, à peine sucré.",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "fr",
+      "images": []
+    },
+    {
+      "guid": "cafe-0008",
+      "title": "Öffnungszeiten über den Winter",
+      "url": "https://cafe.example.net/infos/winter",
+      "author": "",
+      "published": "2026-10-08T10:00:00Z",
+      "summary": "Wir sind täglich von 8 bis 18 Uhr für Sie da.",
+      "contentHTML": "<p>Wir sind täglich von 8 bis 18 Uhr für Sie da.</p>",
+      "thumbnailURL": "",
+      "durationSec": 0,
+      "platform": "",
+      "language": "de",
+      "images": []
+    }
+  ]
+}

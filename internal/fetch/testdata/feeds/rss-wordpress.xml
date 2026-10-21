@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/">
+<channel>
+	<title>Field Notes &#8211; A Garden Blog</title>
+	<atom:link href="https://garden.example.org/feed/" rel="self" type="application/rss+xml" />
+	<link>https://garden.example.org</link>
+	<description>Notes from a small garden</description>
+	<lastBuildDate>Tue, 13 Oct 2026 08:15:00 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>hourly</sy:updatePeriod>
+	<sy:updateFrequency>1</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.6</generator>
+	<image>
+		<url>https://garden.example.org/wp-content/uploads/icon-32x32.png</url>
+		<title>Field Notes</title>
+		<link>https://garden.example.org</link>
+	</image>
+	<item>
+		<title>Planting beans &amp; peas in early spring</title>
+		<link>https://garden.example.org/2026/10/planting-beans/</link>
+		<comments>https://garden.example.org/2026/10/planting-beans/#respond</comments>
+		<dc:creator><![CDATA[Mira Okafor]]></dc:creator>
+		<pubDate>Mon, 12 Oct 2026 07:30:00 +0000</pubDate>
+		<category><![CDATA[Vegetables]]></category>
+		<guid isPermaLink="false">https://garden.example.org/?p=1042</guid>
+		<description><![CDATA[Beans and peas like cool soil, but not wet soil. Here is what worked for us [&#8230;]]]></description>
+		<content:encoded><![CDATA[
+<p>Beans and peas like cool soil, but not wet soil. Here is what worked for us this year.</p>
+<figure class="wp-block-image"><img src="https://garden.example.org/wp-content/uploads/beans.jpg" alt="Bean seedlings" width="1024" height="683" /></figure>
+<p>Read the <a href="https://garden.example.org/soil/">soil guide</a> first.</p>
+]]></content:encoded>
+		<wfw:commentRss>https://garden.example.org/2026/10/planting-beans/feed/</wfw:commentRss>
+		<slash:comments>3</slash:comments>
+	</item>
+	<item>
+		<title>Compost: a short list</title>
+		<link>https://garden.example.org/2026/10/compost-list/</link>
+		<dc:creator><![CDATA[Mira Okafor]]></dc:creator>
+		<pubDate>Fri, 09 Oct 2026 18:05:00 +0000</pubDate>
+		<guid isPermaLink="false">https://garden.example.org/?p=1031</guid>
+		<description><![CDATA[<p>Green, brown, water, air.</p>]]></description>
+		<content:encoded><![CDATA[<ul><li>Green</li><li>Brown</li><li>Water</li><li>Air</li></ul>]]></content:encoded>
+	</item>
+</channel>
+</rss>

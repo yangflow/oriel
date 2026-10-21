@@ -1,0 +1,62 @@
+{
+  "title": "The Small Garden Show",
+  "siteURL": "https://show.example.org/",
+  "iconURL": "https://show.example.org/cover-small.png",
+  "entries": [
+    {
+      "guid": "show-ep-12",
+      "title": "Episode 12: Pruning roses",
+      "url": "https://show.example.org/episodes/12",
+      "author": "",
+      "published": "2026-10-11T05:00:00Z",
+      "summary": "Late-winter pruning, step by step.",
+      "contentHTML": "Late-winter pruning, step by step.",
+      "thumbnailURL": "https://show.example.org/ep12.jpg",
+      "durationSec": 2710,
+      "platform": "",
+      "language": "",
+      "images": []
+    },
+    {
+      "guid": "show-ep-13",
+      "title": "Episode 13: Video tour",
+      "url": "https://show.example.org/episodes/13",
+      "author": "",
+      "published": "2026-10-18T05:00:00Z",
+      "summary": "A tour with pictures.",
+      "contentHTML": "A tour with pictures.",
+      "thumbnailURL": "https://show.example.org/ep13-thumb.jpg",
+      "durationSec": 754,
+      "platform": "",
+      "language": "",
+      "images": [
+        {
+          "url": "https://show.example.org/ep13-a.jpg",
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "url": "https://show.example.org/ep13-b.jpg"
+        }
+      ]
+    },
+    {
+      "guid": "show-ep-14",
+      "title": "Episode 14: Photo enclosure",
+      "url": "https://show.example.org/episodes/14",
+      "author": "",
+      "published": "2026-10-25T05:00:00Z",
+      "summary": "Only an image enclosure and a duration in plain seconds.",
+      "contentHTML": "Only an image enclosure and a duration in plain seconds.",
+      "thumbnailURL": "https://show.example.org/ep14.png",
+      "durationSec": 3600,
+      "platform": "",
+      "language": "",
+      "images": [
+        {
+          "url": "https://show.example.org/ep14.png"
+        }
+      ]
+    }
+  ]
+}

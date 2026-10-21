@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:discourse="http://www.discourse.org/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Gardeners Forum - Latest topics</title>
+    <link>https://forum.example.org</link>
+    <description>Latest topics</description>
+    <lastBuildDate>Wed, 14 Oct 2026 10:00:00 +0000</lastBuildDate>
+    <atom:link href="https://forum.example.org/latest.rss" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Re: Tomatoes split after rain</title>
+      <dc:creator><![CDATA[sam]]></dc:creator>
+      <category>Vegetables</category>
+      <description><![CDATA[
+        <aside class="quote no-group" data-username="lee" data-post="1" data-topic="77">
+          <div class="title"><div class="quote-controls"></div>lee:</div>
+          <blockquote><p>My tomatoes split every time it rains. Any idea?</p></blockquote>
+        </aside>
+        <p>Water deeply and evenly, and pick fruit as soon as it colors.</p>
+      ]]></description>
+      <link>https://forum.example.org/t/tomatoes-split-after-rain/77/3</link>
+      <pubDate>Tue, 13 Oct 2026 21:10:00 +0000</pubDate>
+      <discourse:topicPinned>No</discourse:topicPinned>
+      <guid isPermaLink="false">forum.example.org-post-215</guid>
+    </item>
+    <item>
+      <title>Only a quote</title>
+      <dc:creator><![CDATA[kim]]></dc:creator>
+      <description><![CDATA[<aside class="quote"><blockquote><p>Nothing but a quoted post.</p></blockquote></aside>]]></description>
+      <link>https://forum.example.org/t/only-a-quote/80/2</link>
+      <pubDate>Tue, 13 Oct 2026 22:00:00 +0000</pubDate>
+      <guid isPermaLink="false">forum.example.org-post-230</guid>
+    </item>
+    <item>
+      <title>Opening post of a new topic</title>
+      <dc:creator><![CDATA[lee]]></dc:creator>
+      <description><![CDATA[<p>This post quotes nothing, but talks about a quote class in prose.</p>]]></description>
+      <link>https://forum.example.org/t/opening-post/81</link>
+      <pubDate>Wed, 14 Oct 2026 09:00:00 +0000</pubDate>
+      <guid isPermaLink="false">forum.example.org-topic-81</guid>
+    </item>
+  </channel>
+</rss>

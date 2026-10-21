@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="GBK"?>
+<rss version="2.0">
+<channel>
+  <title>老城故事</title>
+  <link>http://oldtown.example.cn/</link>
+  <description>讲讲老城的故事</description>
+  <item>
+    <title>胡同里的早点铺</title>
+    <link>http://oldtown.example.cn/posts/breakfast.html</link>
+    <author>zhou@example.cn (周明)</author>
+    <pubDate>Sat, 10 Oct 2026 06:30:00 +0800</pubDate>
+    <description><![CDATA[<p>清晨六点，胡同口的早点铺已经排起了队，豆浆的热气混着油条的香味。</p>]]></description>
+  </item>
+  <item>
+    <title>最后一家修鞋摊</title>
+    <link>http://oldtown.example.cn/posts/cobbler.html</link>
+    <author>zhou@example.cn (周明)</author>
+    <pubDate>Sun, 11 Oct 2026 20:00:00 +0800</pubDate>
+    <description>老师傅在这条街上修了四十年的鞋。</description>
+  </item>
+</channel>
+</rss>

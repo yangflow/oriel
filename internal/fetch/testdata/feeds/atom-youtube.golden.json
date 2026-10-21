@@ -1,0 +1,21 @@
+{
+  "title": "Workshop Channel",
+  "siteURL": "https://www.youtube.com/channel/UCexample000000000000000",
+  "iconURL": "",
+  "entries": [
+    {
+      "guid": "yt:video:aaaaaaaaaaa",
+      "title": "Building a workbench in one day",
+      "url": "https://www.youtube.com/watch?v=aaaaaaaaaaa",
+      "author": "Workshop Channel",
+      "published": "2026-10-12T15:00:07Z",
+      "summary": "",
+      "contentHTML": "",
+      "thumbnailURL": "https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg",
+      "durationSec": 0,
+      "platform": "youtube",
+      "language": "",
+      "images": []
+    }
+  ]
+}
