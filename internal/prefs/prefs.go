@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -74,6 +76,105 @@ type Preferences struct {
 	VideoViewer   string `json:"videoViewer"`
 	SocialViewer  string `json:"socialViewer"`
 	ImageViewer   string `json:"imageViewer"`
+
+	// Grids are the scopes whose list the reader switched between the list and the grid; see Grids.
+	Grids Grids `json:"grids,omitempty"`
+}
+
+// Grids remembers, per scope, that the list was switched to the grid (ViewGrid) or to the list (ViewList) against what
+// the viewers choose. A scope is "kind:video", "kind:image" or "source:<id>"; one that was never switched, or whose
+// switch was undone, has no entry, so the set stays small. It is a string inside, so that Preferences stays comparable,
+// and a JSON object outside: {"kind:video":"list","source:12":"grid"}.
+type Grids string
+
+// GridScope names a scope of the timeline for Grids: the subscription when there is one, else the kind.
+func GridScope(kind string, source int64) string {
+	if source != 0 {
+		return "source:" + strconv.FormatInt(source, 10)
+	}
+	return "kind:" + kind
+}
+
+func validGridScope(scope string) bool {
+	switch scope {
+	case "kind:video", "kind:image":
+		return true
+	}
+	id, ok := strings.CutPrefix(scope, "source:")
+	n, err := strconv.ParseInt(id, 10, 64)
+	return ok && err == nil && n > 0 && strconv.FormatInt(n, 10) == id
+}
+
+// Get is the switch of a scope: ViewGrid, ViewList, or "" when it was not switched.
+func (g Grids) Get(scope string) string {
+	for rest := string(g); rest != ""; {
+		var entry string
+		entry, rest, _ = strings.Cut(rest, ",")
+		if key, value, _ := strings.Cut(entry, "="); key == scope {
+			return value
+		}
+	}
+	return ""
+}
+
+// Set returns g with the scope switched to value, which is dropped instead when it is what the viewers choose anyway,
+// def (ViewGrid or ViewList); a scope or value it does not know changes nothing.
+func (g Grids) Set(scope, value, def string) Grids {
+	if !validGridScope(scope) || (value != ViewGrid && value != ViewList) {
+		return g
+	}
+	m := g.entries()
+	if value == def {
+		delete(m, scope)
+	} else {
+		m[scope] = value
+	}
+	return encodeGrids(m)
+}
+
+func (g Grids) entries() map[string]string {
+	m := map[string]string{}
+	for rest := string(g); rest != ""; {
+		var entry string
+		entry, rest, _ = strings.Cut(rest, ",")
+		if key, value, _ := strings.Cut(entry, "="); validGridScope(key) && (value == ViewGrid || value == ViewList) {
+			m[key] = value
+		}
+	}
+	return m
+}
+
+func encodeGrids(m map[string]string) Grids {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for i, k := range keys {
+		keys[i] = k + "=" + m[k]
+	}
+	return Grids(strings.Join(keys, ","))
+}
+
+// MarshalJSON writes the switches as an object.
+func (g Grids) MarshalJSON() ([]byte, error) { return json.Marshal(g.entries()) }
+
+// UnmarshalJSON reads the object and keeps the switches it knows; anything else reads as no switches, so a bad value
+// never costs the other preferences.
+func (g *Grids) UnmarshalJSON(data []byte) error {
+	var m map[string]string
+	if json.Unmarshal(data, &m) != nil {
+		*g = ""
+		return nil
+	}
+	known := map[string]string{}
+	for k, v := range m {
+		if validGridScope(k) && (v == ViewGrid || v == ViewList) {
+			known[k] = v
+		}
+	}
+	*g = encodeGrids(known)
+	return nil
 }
 
 // Default has every preference at its default.
@@ -108,6 +209,9 @@ func (p Preferences) Normalize() Preferences {
 	}
 	if !slices.Contains(ImageViewers, p.ImageViewer) {
 		p.ImageViewer = ViewWall
+	}
+	if p.Grids != "" {
+		p.Grids = encodeGrids(p.Grids.entries())
 	}
 	return p
 }

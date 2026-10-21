@@ -2694,6 +2694,7 @@ func viewing(t *testing.T, p *prefs.Preferences) (*Screen, *fake, *ui.Tester) {
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	d := f.deps()
 	d.Reading = func() prefs.Preferences { return *p }
+	d.Change = func(n prefs.Preferences) { *p = n }
 	s := New("en", d)
 	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
@@ -2870,5 +2871,226 @@ func TestViewerLive(t *testing.T) {
 	}
 	if s.selected < 0 || s.entries[s.selected].ID != id {
 		t.Fatalf("selected %d, want entry %d", s.selected, id)
+	}
+}
+
+// chooseSource opens one subscription as the sidebar does.
+func chooseSource(t *testing.T, s *Screen, f *fake, tt *ui.Tester, kind string, id int64) {
+	t.Helper()
+	s.choose(scope{kind: kind, source: id})
+	tt.Frame()
+	f.settle(t, tt)
+	f.settle(t, tt)
+	tt.Frame()
+}
+
+func clickSwitch(t *testing.T, f *fake, tt *ui.Tester, name string) {
+	t.Helper()
+	if err := tt.Click(name); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+}
+
+// The switch is in the toolbar where a grid is possible: the Videos and Images scopes and one subscription of those
+// kinds, and not in the mixed timeline, the other kinds, their subscriptions or a search.
+func TestGridSwitchOffered(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := viewing(t, &p)
+	offered := func() bool {
+		_, grid := tt.Find("Show as grid")
+		_, list := tt.Find("Show as list")
+		return grid || list
+	}
+	if offered() {
+		t.Fatal("offered in the mixed timeline")
+	}
+	pick(t, f, tt, "Articles")
+	if offered() {
+		t.Fatal("offered in Articles")
+	}
+	pick(t, f, tt, "Videos")
+	if _, ok := tt.Find("Show as list"); !ok {
+		t.Fatal("Videos shows the grid by default and offers the list")
+	}
+	chooseSource(t, s, f, tt, "video", 2)
+	if _, ok := tt.Find("Show as grid"); !ok {
+		t.Fatal("a video subscription shows the list by default and offers the grid")
+	}
+	chooseSource(t, s, f, tt, "social", 3)
+	if offered() {
+		t.Fatal("offered in a social subscription")
+	}
+	chooseSource(t, s, f, tt, "article", 1)
+	if offered() {
+		t.Fatal("offered in an article subscription")
+	}
+	pick(t, f, tt, "Images")
+	if !offered() {
+		t.Fatal("not offered in Images")
+	}
+	s.query = "harbor"
+	s.search()
+	f.settle(t, tt)
+	tt.Frame()
+	if s.searched == "" || offered() {
+		t.Fatalf("searched %q, offered %v", s.searched, offered())
+	}
+}
+
+// The switch turns the Images scope from the wall to the list of cards and back, and keeps the choice in the
+// preferences; a subscription's list becomes the wall, or the square grid when that is the Images viewer.
+func TestGridSwitchImages(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := viewing(t, &p)
+	pick(t, f, tt, "Images")
+	if s.layout() != wallLayout {
+		t.Fatalf("layout %v", s.layout())
+	}
+	clickSwitch(t, f, tt, "Show as list")
+	if s.layout() != columnLayout || p.Grids.Get("kind:image") != prefs.ViewList {
+		t.Fatalf("layout %v, grids %q", s.layout(), p.Grids)
+	}
+	rowRect(t, tt, "Photos, Harbor at dawn, 3 days, Unread")
+	clickSwitch(t, f, tt, "Show as grid")
+	if s.layout() != wallLayout || p.Grids != "" {
+		t.Fatalf("layout %v, grids %q: a switch back to the default is not kept", s.layout(), p.Grids)
+	}
+
+	chooseSource(t, s, f, tt, "image", 4)
+	if s.layout() != columnLayout {
+		t.Fatalf("a subscription starts as a list: %v", s.layout())
+	}
+	clickSwitch(t, f, tt, "Show as grid")
+	if s.layout() != wallLayout || p.Grids.Get("source:4") != prefs.ViewGrid {
+		t.Fatalf("layout %v, grids %q", s.layout(), p.Grids)
+	}
+	p.ImageViewer = prefs.ViewGrid
+	tt.Frame()
+	if s.layout() != squareLayout {
+		t.Fatalf("with the Grid viewer: %v", s.layout())
+	}
+	rowRect(t, tt, "Harbor at dawn, 3 pictures")
+	clickSwitch(t, f, tt, "Show as list")
+	if s.layout() != columnLayout || p.Grids != "" {
+		t.Fatalf("layout %v, grids %q", s.layout(), p.Grids)
+	}
+}
+
+// A video subscription as a grid is the cover grid, whatever the Videos viewer is; and the choice for it does not
+// touch the Videos scope, and is there again when the scope is chosen again.
+func TestGridSwitchRememberedPerScope(t *testing.T) {
+	p := prefs.Default()
+	p.VideoViewer = prefs.ViewCover
+	s, f, tt := viewing(t, &p)
+	pick(t, f, tt, "Videos")
+	if s.layout() != columnLayout {
+		t.Fatalf("Videos with the cover viewer: %v", s.layout())
+	}
+	clickSwitch(t, f, tt, "Show as grid")
+	if s.layout() != gridLayout || p.Grids.Get("kind:video") != prefs.ViewGrid {
+		t.Fatalf("layout %v, grids %q", s.layout(), p.Grids)
+	}
+	chooseSource(t, s, f, tt, "video", 2)
+	if s.layout() != columnLayout {
+		t.Fatalf("the subscription follows its own choice: %v", s.layout())
+	}
+	clickSwitch(t, f, tt, "Show as grid")
+	if s.layout() != gridLayout {
+		t.Fatalf("subscription %v", s.layout())
+	}
+	pick(t, f, tt, "Images")
+	if s.layout() != wallLayout {
+		t.Fatalf("Images %v", s.layout())
+	}
+	pick(t, f, tt, "Videos")
+	if s.layout() != gridLayout {
+		t.Fatalf("Videos %v", s.layout())
+	}
+	chooseSource(t, s, f, tt, "video", 2)
+	if s.layout() != gridLayout {
+		t.Fatalf("the subscription again %v", s.layout())
+	}
+	if p.Grids != "kind:video=grid,source:2=grid" {
+		t.Fatalf("grids %q", p.Grids)
+	}
+	// The mixed timeline and a search are columns whatever was chosen.
+	pick(t, f, tt, "All")
+	if s.layout() != columnLayout {
+		t.Fatalf("All %v", s.layout())
+	}
+}
+
+// Switching keeps the entry chosen and the scope.
+func TestGridSwitchKeepsSelection(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := viewing(t, &p)
+	pick(t, f, tt, "Videos")
+	tt.Key(0, ui.KeyJ)
+	tt.Frame()
+	id := s.entries[s.selected].ID
+	clickSwitch(t, f, tt, "Show as list")
+	if s.scope.kind != "video" || s.selected < 0 || s.entries[s.selected].ID != id {
+		t.Fatalf("scope %v, selected %d, want entry %d", s.scope, s.selected, id)
+	}
+}
+
+// In a subscription shown as a grid the keys move one picture at a time, V marks the one chosen, and the rest of
+// the grid works as in the Images scope.
+func TestGridSwitchSourceKeys(t *testing.T) {
+	p := prefs.Default()
+	p.ImageViewer = prefs.ViewGrid
+	s, f, tt := viewing(t, &p)
+	for i := 0; i < 11; i++ {
+		f.entries = append(f.entries, client.Entry{ID: int64(20 + i), SourceID: 4, SourceTitle: "Photos", Kind: "image",
+			Title: fmt.Sprintf("Shot %d", i), URL: fmt.Sprintf("https://photos.example/%d", i),
+			Images:    []client.Image{{URL: fmt.Sprintf("https://photos.example/%d.jpg", i)}},
+			CreatedAt: ago(time.Duration(i+1) * time.Hour)})
+	}
+	chooseSource(t, s, f, tt, "image", 4)
+	clickSwitch(t, f, tt, "Show as grid")
+	if s.layout() != squareLayout || len(s.entries) < 8 {
+		t.Fatalf("layout %v, %d pictures", s.layout(), len(s.entries))
+	}
+	tt.Key(0, ui.KeyJ)
+	tt.Frame()
+	first := s.selected
+	tt.Key(0, ui.KeyJ)
+	tt.Frame()
+	if s.selected != first+1 {
+		t.Fatalf("selected %d after %d", s.selected, first)
+	}
+	tt.Key(0, ui.KeyK)
+	tt.Frame()
+	if s.selected != first {
+		t.Fatalf("selected %d, want %d", s.selected, first)
+	}
+	tt.Key(0, ui.KeyV)
+	f.settle(t, tt)
+	tt.Frame()
+	if len(f.marked) != 1 || f.marked[0].SourceID != 4 || f.marked[0].UpTo != s.entries[0].ID {
+		t.Fatalf("marked %v", f.marked)
+	}
+}
+
+// At the minimum width the toolbar keeps every button inside the window, the mark-all button above all, even in a
+// subscription that adds the edit and grid buttons.
+func TestToolbarMinimumWidth(t *testing.T) {
+	p := prefs.Default()
+	s, f, _ := viewing(t, &p)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 640, 540)
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	chooseSource(t, s, f, tt, "image", 4)
+	for _, name := range []string{"Mark all in “Photos” as read", "Show as grid", "Show as list", "Edit subscription"} {
+		if r, ok := tt.Find(name); ok && (r.X+r.W > 640 || r.W < 32) {
+			t.Fatalf("%q at %v is cut off by the 640 wide window", name, r)
+		}
+	}
+	if _, ok := tt.Find("Mark all in “Photos” as read"); !ok {
+		t.Fatal("no mark-all button")
 	}
 }

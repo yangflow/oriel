@@ -73,7 +73,8 @@ func newShell(systemLocale, path, prefsPath string, local client.Session, goAsyn
 		return timeline.New(language, timeline.Deps{Go: goAsync, OpenConnect: s.openConnect,
 			OpenSettings: s.openSettings, OpenAISettings: s.openAISettings, OpenImport: s.openImportSettings,
 			Expired: s.expired,
-			Reading: func() prefs.Preferences { return s.prefs }, ReadingFont: func() string { return s.face }})
+			Reading: func() prefs.Preferences { return s.prefs }, ReadingFont: func() string { return s.face },
+			Change: s.change})
 	}
 	s.updateFace()
 	s.build()
