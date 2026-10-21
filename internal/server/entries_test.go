@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,6 +53,10 @@ func TestEntryQueryValidation(t *testing.T) {
 		"limit=101":            "invalid_limit",
 		"cursor=abc":           "invalid_cursor",
 		"cursor=1.0":           "invalid_cursor",
+		"maxMinutes=0":         "invalid_max_minutes",
+		"maxMinutes=1441":      "invalid_max_minutes",
+		"maxMinutes=x":         "invalid_max_minutes",
+		"maxMinutes=2.5":       "invalid_max_minutes",
 	} {
 		w := do(s, "GET", "/api/entries?"+query, "", nil)
 		if w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
@@ -287,6 +292,53 @@ func TestEntryLanguageField(t *testing.T) {
 		t.Fatalf("languages: %v", got)
 	}
 	if one := decode(t, do(s, "GET", "/api/entries/"+id, "", bearer(token))); one["language"] != "zh-Hant" {
+		t.Fatalf("entry: %v", one)
+	}
+}
+
+func TestReadingTime(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/read", Kind: "article", FetchInterval: time.Hour}, "", c.t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []store.FeedEntry{
+		{GUID: "long", Title: "Long", ContentHTML: strings.Repeat("字", 4400)},
+		{GUID: "short", Title: "Short", ContentHTML: strings.Repeat("字", 800)},
+		{GUID: "empty", Title: "Empty"},
+	}
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "article"}, "", "", items, "", time.Time{}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	list := func(query string) map[string]any {
+		out := map[string]any{}
+		for _, item := range decode(t, do(s, "GET", "/api/entries"+query, "", bearer(token)))["entries"].([]any) {
+			m := item.(map[string]any)
+			sec, present := m["readingSec"]
+			if !present {
+				t.Fatalf("%s has no readingSec key", m["title"])
+			}
+			out[m["title"].(string)] = sec
+		}
+		return out
+	}
+	all := list("")
+	if len(all) != 3 || all["Long"] != 660.0 || all["Short"] != 120.0 || all["Empty"] != nil {
+		t.Fatalf("readingSec: %v", all)
+	}
+	if got := list("?maxMinutes=10"); len(got) != 1 || got["Short"] != 120.0 {
+		t.Fatalf("maxMinutes=10: %v", got)
+	}
+	if got := list("?maxMinutes=11"); len(got) != 2 || got["Long"] != 660.0 {
+		t.Fatalf("maxMinutes=11: %v", got)
+	}
+	if got := list("?maxMinutes=1440&unread=1&kind=video"); len(got) != 0 {
+		t.Fatalf("stacked filters: %v", got)
+	}
+	id := strconv.Itoa(int(decode(t, do(s, "GET", "/api/entries?q=Short", "", bearer(token)))["entries"].([]any)[0].(map[string]any)["id"].(float64)))
+	if one := decode(t, do(s, "GET", "/api/entries/"+id, "", bearer(token))); one["readingSec"] != 120.0 {
 		t.Fatalf("entry: %v", one)
 	}
 }

@@ -109,7 +109,16 @@
     "KeySettings": "Settings",
     "KeyKeys": "Keyboard shortcuts",
     "KeysMenu": "Keyboard Shortcuts",
-    "HelpMenu": "Help"
+    "HelpMenu": "Help",
+    "TimeAny": "Any length",
+    "TimeUpTo": "Up to {n} minutes",
+    "TimeChip": "≤ {n} min",
+    "TimeNameAny": "Reading time: any length",
+    "TimeNameUpTo": "Reading time: up to {n} minutes",
+    "ReadingTime": "{n} min read",
+    "NothingFits": "Nothing fits in {n} minutes",
+    "NothingFitsHint": "Entries with no estimate, like pictures, are left out.",
+    "AnyLength": "Show any length"
   },
   "zh-Hans": {
     "All": "全部",
@@ -221,6 +230,15 @@
     "KeySettings": "设置",
     "KeyKeys": "键盘快捷键",
     "KeysMenu": "键盘快捷键",
-    "HelpMenu": "帮助"
+    "HelpMenu": "帮助",
+    "TimeAny": "不限时长",
+    "TimeUpTo": "{n} 分钟内",
+    "TimeChip": "≤ {n} 分钟",
+    "TimeNameAny": "阅读时长：不限",
+    "TimeNameUpTo": "阅读时长：{n} 分钟内",
+    "ReadingTime": "{n} 分钟阅读",
+    "NothingFits": "{n} 分钟内读得完的没有了",
+    "NothingFitsHint": "没有时长估计的条目（例如图片）不在其中。",
+    "AnyLength": "不限时长"
   }
 }

@@ -52,7 +52,7 @@ func (f *fake) Entries(_ context.Context, q client.Query) (client.Page, error) {
 	var found []client.Entry
 	for _, e := range f.entries {
 		if q.Kind != "" && e.Kind != q.Kind || q.Source != 0 && e.SourceID != q.Source || q.Unread && e.IsRead ||
-			q.Starred && !e.Starred || q.Search != "" && !strings.Contains(strings.ToLower(e.Title), q.Search) {
+			q.Starred && !e.Starred || q.MaxMinutes > 0 && (e.ReadingSec == 0 || e.ReadingSec > q.MaxMinutes*60) || q.Search != "" && !strings.Contains(strings.ToLower(e.Title), q.Search) {
 			continue
 		}
 		found = append(found, e)
@@ -2555,5 +2555,132 @@ func TestUseClearsKeptLists(t *testing.T) {
 	}
 	if len(s.entries) != 0 || !s.loading {
 		t.Fatalf("Alpha shows %d entries from before Use", len(s.entries))
+	}
+}
+
+// readingSample gives some entries of the sample a reading time: 8 takes 6 minutes, 4 takes 20 and 3 half a minute.
+func readingSample(f *fake) {
+	f.entries[0].ReadingSec = 360
+	f.entries[4].ReadingSec = 1200
+	f.entries[5].ReadingSec = 30
+}
+
+func TestReadingTimeBudget(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	readingSample(f)
+	s.reload()
+	f.settle(t, tt)
+	if !tt.HasText("6 min read") || !tt.HasText("20 min read") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if !tt.HasText("5 unread") {
+		t.Fatalf("no unread count: %v", tt.Texts())
+	}
+	if err := tt.Click("Reading time: any length"); err != nil {
+		t.Fatal(err)
+	}
+	menu := tt.Menu()
+	want := []string{"Any length", "Up to 5 minutes", "Up to 10 minutes", "Up to 15 minutes", "Up to 30 minutes"}
+	if !slices.Equal(menu, want) {
+		t.Fatalf("menu %q", menu)
+	}
+	if err := tt.ChooseMenuItem("Up to 10 minutes"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if q := f.queries[len(f.queries)-1]; q.MaxMinutes != 10 {
+		t.Fatalf("query %+v", q)
+	}
+	if len(s.entries) != 2 || s.entries[0].ID != 8 || s.entries[1].ID != 3 {
+		t.Fatalf("entries %v", s.entries)
+	}
+	if _, ok := tt.Find("Reading time: up to 10 minutes"); !ok || !tt.HasText("≤ 10 min") {
+		t.Fatalf("no pill: %v", tt.Texts())
+	}
+	if tt.HasText("5 unread") {
+		t.Fatalf("the unread count shows with a budget: %v", tt.Texts())
+	}
+	if s.canMarkAll() || s.canMarkAbove(3) {
+		t.Fatal("marking is offered with a budget")
+	}
+	s.markVisible()
+	if len(f.marked) != 0 {
+		t.Fatalf("marked %v", f.marked)
+	}
+	// The budget stays across the filters and the scopes.
+	if err := tt.Click("Unread"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if q := f.queries[len(f.queries)-1]; q.MaxMinutes != 10 || !q.Unread {
+		t.Fatalf("query %+v", q)
+	}
+	// Chosen again, "Any length" clears it.
+	if err := tt.Click("Reading time: up to 10 minutes"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Any length"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if s.budget != 0 || f.queries[len(f.queries)-1].MaxMinutes != 0 {
+		t.Fatalf("budget %d", s.budget)
+	}
+}
+
+func TestReadingTimeEmpty(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.show(func() { s.budget = 5 })
+	f.settle(t, tt)
+	for _, text := range []string{"Nothing fits in 5 minutes", "Entries with no estimate, like pictures, are left out."} {
+		if !tt.HasText(text) {
+			t.Fatalf("no %q: %v", text, tt.Texts())
+		}
+	}
+	if err := tt.Click("Show any length"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if s.budget != 0 || len(s.entries) != 6 {
+		t.Fatalf("budget %d, %d entries", s.budget, len(s.entries))
+	}
+}
+
+func TestReadingTimeLabel(t *testing.T) {
+	s, f, _ := setup(t, "en")
+	readingSample(f)
+	article, short := f.entries[0], f.entries[5]
+	if got := s.readLabel(article); got != "6 min read" {
+		t.Fatalf("label %q", got)
+	}
+	if got := s.label(article, now); !strings.Contains(got, "6 min read, Unread") {
+		t.Fatalf("accessibility label %q", got)
+	}
+	if got := s.readLabel(short); got != "" {
+		t.Fatalf("a half minute reads %q", got)
+	}
+	if got := s.label(short, now); strings.Contains(got, "min read") {
+		t.Fatalf("accessibility label %q", got)
+	}
+	podcast := article
+	podcast.DurationSec = 3000
+	video := article
+	video.Kind = "video"
+	if s.readLabel(podcast) != "" || s.readLabel(video) != "" {
+		t.Fatal("an entry with a duration has a reading time")
+	}
+	s.text = translations["zh-Hans"]
+	if got := s.readLabel(article); got != "6 分钟阅读" {
+		t.Fatalf("label %q", got)
+	}
+}
+
+func TestReadingTimeReset(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.show(func() { s.budget = 15 })
+	f.settle(t, tt)
+	s.Use(f, "other")
+	if s.budget != 0 {
+		t.Fatalf("budget %d", s.budget)
 	}
 }

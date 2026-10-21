@@ -20,6 +20,7 @@
      The window has no title bar: the window buttons sit over the sidebar's top; the sidebar is a floating pane of
      warm ink glass in both schemes, the article is paper set in the system sans, and Summarize and Translate are the one
      glass capsule; the other controls are bare icons (docs/design.md, Title bar).
+     The header line ends with the reading time after the date ("6 min read"), the same label as in the timeline row.
      The bar above the window only switches the mockup.
      Reading preferences (Settings, Appearance, kept per device): textsize=small|medium|large|xlarge (default medium)
      scales the body, h2, h3, code, the gaps and the column: the column is 680 x the text size scale (634 / 680 /
@@ -414,7 +415,7 @@ const cjk=html=>{
 };
 
 const titleOf=zh=>zh?cjk('用SQLite做全文检索：trigram分词的取舍'):'Full-text search in SQLite: the trade-offs of the trigram tokenizer';
-const meta=`<div class="meta"><span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${favs.simon}</svg></span><span class="src">Simon Willison</span><span class="sep"></span><span>${zh?'10月18日 11:34':'Oct 18, 11:34'}</span></div>`;
+const meta=`<div class="meta"><span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${favs.simon}</svg></span><span class="src">Simon Willison</span><span class="sep"></span><span>${zh?'10月18日 11:34':'Oct 18, 11:34'}</span><span class="sep"></span><span>${zh?'6 分钟阅读':'6 min read'}</span></div>`;
 const fullOf=zh=>zh?cjk(`
 <p>SQLite 的 FTS5 自带三种分词器。<code>unicode61</code> 按空白和标点切词，对英文够用，对中文就不行了：一整句话会被当成一个词。<a href="#">trigram 分词器</a>换了个思路，把文本切成所有连续的三个字符。</p>
 <p>我用Go写了个RSS阅读器，数据放在SQLite里，全文检索靠FTS5的trigram，支持2种主题和3档行距（见「设置」）。</p>

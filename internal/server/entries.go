@@ -16,6 +16,8 @@ const (
 	maxPage     = 100
 	// minQuery is the shortest text the trigram index can match.
 	minQuery = 3
+	// maxBudgetMinutes is the longest reading-time budget a client may ask for: one day.
+	maxBudgetMinutes = 1440
 )
 
 type entryJSON struct {
@@ -32,6 +34,7 @@ type entryJSON struct {
 	DurationSec   *int          `json:"durationSec"`
 	Platform      string        `json:"platform"`
 	Language      string        `json:"language"`
+	ReadingSec    *int          `json:"readingSec"`
 	Images        []store.Image `json:"images"`
 	ExtractStatus string        `json:"extractStatus"`
 	IsRead        bool          `json:"isRead"`
@@ -66,7 +69,7 @@ func entryToJSON(e store.Entry) entryJSON {
 	return entryJSON{
 		ID: e.ID, SourceID: e.SourceID, SourceTitle: e.SourceTitle, Kind: e.Kind, Title: e.Title, URL: e.URL,
 		Author: e.Author, PublishedAt: millis(e.PublishedAt), Summary: e.Summary, ThumbnailURL: e.ThumbnailURL,
-		DurationSec: duration, Platform: e.Platform, Language: e.Language, Images: images, ExtractStatus: e.ExtractStatus,
+		DurationSec: duration, Platform: e.Platform, Language: e.Language, ReadingSec: e.ReadingSec, Images: images, ExtractStatus: e.ExtractStatus,
 		IsRead: e.IsRead, ReadAt: millis(e.ReadAt), Starred: e.Starred, CreatedAt: e.CreatedAt.UnixMilli(),
 	}
 }
@@ -109,6 +112,14 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 	if filter.Query != "" && utf8.RuneCountInString(filter.Query) < minQuery {
 		fail(w, http.StatusBadRequest, "query_too_short")
 		return
+	}
+	if raw := query.Get("maxMinutes"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > maxBudgetMinutes {
+			fail(w, http.StatusBadRequest, "invalid_max_minutes")
+			return
+		}
+		filter.MaxReadingSec = n * 60
 	}
 	limit := defaultPage
 	if raw := query.Get("limit"); raw != "" {

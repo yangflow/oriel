@@ -41,6 +41,7 @@ type copy struct {
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                          string
 	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                        string
 	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu         string
+	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength        string
 }
 
 var translations = func() map[string]copy {
@@ -126,11 +127,15 @@ type marking struct {
 // keepLists is how many lists the screen keeps to draw again at once.
 const keepLists = 8
 
-// listKey is what defines a list: the scope and the filter. A search is not kept.
+// listKey is what defines a list: the scope, the filter and the reading-time budget. A search is not kept.
 type listKey struct {
 	scope  scope
 	filter int
+	budget int
 }
+
+// budgets are the reading-time budgets the menu offers, in minutes; 0 is any length.
+var budgets = []int{5, 10, 15, 30}
 
 // snapshot is a list left, kept to draw again, where it was, when it is chosen again.
 type snapshot struct {
@@ -162,6 +167,7 @@ type Screen struct {
 	scope         scope
 	tab           int // the tab of scope.kind
 	filter        int // everything, unread or starred
+	budget        int // the most minutes an entry may take to read, 0 for any length; not kept between servers
 
 	query     string    // as typed
 	searched  string    // the search in effect, trimmed
@@ -275,7 +281,7 @@ func (s *Screen) Use(api API, server string) {
 	s.api, s.server = api, server
 	s.gen++
 	s.sources, s.sourcesLoaded = nil, false
-	s.scope, s.tab, s.filter = scope{}, 0, everything
+	s.scope, s.tab, s.filter, s.budget = scope{}, 0, everything, 0
 	s.query, s.searched, s.editing = "", "", false
 	s.lists, s.anchor = nil, 0
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
@@ -373,7 +379,7 @@ func (s *Screen) loadSources() {
 
 func (s *Screen) query1(cursor string) client.Query {
 	q := client.Query{Source: s.scope.source, Unread: s.filter == unread, Starred: s.filter == starred,
-		Search: s.searched, Limit: pageSize, Cursor: cursor}
+		MaxMinutes: s.budget, Search: s.searched, Limit: pageSize, Cursor: cursor}
 	if s.scope.source == 0 {
 		q.Kind = s.scope.kind
 	}
@@ -422,7 +428,7 @@ func (s *Screen) retryPictures() {
 	}
 }
 
-func (s *Screen) key() listKey { return listKey{s.scope, s.filter} }
+func (s *Screen) key() listKey { return listKey{s.scope, s.filter, s.budget} }
 
 // grids and walls tell whether the list is drawn as the Videos grid or the Images wall, which keep their place
 // differently from the column of rows.
@@ -963,7 +969,7 @@ func (s *Screen) kindName(kind string) string {
 }
 
 func (s *Screen) canMarkAll() bool {
-	return s.filter != starred && s.searched == "" && len(s.entries) > 0 && s.unreadIn(s.scope) > 0
+	return s.filter != starred && s.budget == 0 && s.searched == "" && len(s.entries) > 0 && s.unreadIn(s.scope) > 0
 }
 
 // markAll marks the entries of the scope read, up to the newest loaded, and offers to undo it.
@@ -981,7 +987,7 @@ func (s *Screen) markAll() {
 // canMarkAbove says whether an unread entry is loaded above the entry id, where "Mark above as read" can apply: not
 // under Starred or a search, which the server's scopes do not know.
 func (s *Screen) canMarkAbove(id int64) bool {
-	if s.filter == starred || s.searched != "" {
+	if s.filter == starred || s.budget != 0 || s.searched != "" {
 		return false
 	}
 	for _, e := range s.entries {
@@ -1019,7 +1025,7 @@ func (s *Screen) fullyShown(i int) bool {
 // stays unread and is the one scrolled to. At the end of the list it moves the choice to the last entry marked and does
 // not scroll. Under Starred or a search, which the server's scopes do not know, it does nothing.
 func (s *Screen) markVisible() {
-	if s.filter == starred || s.searched != "" || s.loading || s.api == nil {
+	if s.filter == starred || s.budget != 0 || s.searched != "" || s.loading || s.api == nil {
 		return
 	}
 	first := 0
@@ -1235,14 +1241,36 @@ func title(e client.Entry) string {
 
 // label is how assistive technology reads an entry: source, title, time, read or not, starred.
 func (s *Screen) label(e client.Entry, now time.Time) string {
-	parts := []string{e.SourceTitle, title(e), s.when(e, now), s.text.Unread}
+	parts := []string{e.SourceTitle, title(e), s.when(e, now)}
+	if reading := s.readLabel(e); reading != "" {
+		parts = append(parts, reading)
+	}
 	if e.IsRead {
-		parts[3] = s.text.Read
+		parts = append(parts, s.text.Read)
+	} else {
+		parts = append(parts, s.text.Unread)
 	}
 	if e.Starred {
 		parts = append(parts, s.text.Starred)
 	}
 	return strings.Join(parts, s.text.Separator)
+}
+
+// readLabel is "6 min read" for an entry that is read and takes a minute or more; podcasts and videos, which have a
+// duration of their own, and entries with no estimate have none.
+func (s *Screen) readLabel(e client.Entry) string {
+	if e.ReadingSec < 60 || e.DurationSec > 0 || e.Kind == "video" {
+		return ""
+	}
+	return strings.ReplaceAll(s.text.ReadingTime, "{n}", strconv.Itoa(e.ReadingSec/60))
+}
+
+// budgetName is the name of the reading-time button, which states the budget.
+func (s *Screen) budgetName() string {
+	if s.budget == 0 {
+		return s.text.TimeNameAny
+	}
+	return strings.ReplaceAll(s.text.TimeNameUpTo, "{n}", strconv.Itoa(s.budget))
 }
 
 func duration(sec int) string {
@@ -1968,7 +1996,7 @@ func (s *Screen) toolbar(c *ui.Context, compact bool) {
 			if s.next != "" {
 				sub = s.format(s.text.MoreResults, len(s.entries))
 			}
-		case s.searched == "" && s.sourcesLoaded:
+		case s.searched == "" && s.budget == 0 && s.sourcesLoaded:
 			if n := s.unreadIn(s.scope); n > 0 {
 				sub = s.format(s.text.UnreadCount, n)
 			}
@@ -1979,6 +2007,7 @@ func (s *Screen) toolbar(c *ui.Context, compact bool) {
 		s.editButton(c)
 		ui.Box(c).Grow(1)
 		s.filters(c, compact)
+		s.budgetButton(c, compact)
 		s.searchField(c, compact)
 		s.markAllButton(c)
 	})
@@ -2019,6 +2048,59 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 		s.filter = before
 		s.show(func() { s.filter = after })
 	}
+}
+
+// budgetButton is the reading-time button: a bare clock icon, or with a budget a pill saying "≤ 10 min" (only the
+// icon and a dot when narrow). Its menu lists the budgets; choosing one reloads the list from the top.
+func (s *Screen) budgetButton(c *ui.Context, compact bool) {
+	t := c.Theme()
+	name := s.budgetName()
+	on := s.budget != 0
+	b := ui.ButtonBase(c).Key("budget").Height(px(t, 32)).Radius(px(t, 16)).Label(name).Tooltip(name)
+	color := toolFill(t, b)
+	if on {
+		color = t.Accent
+		fill := theme.Soft(t, t.Accent)
+		if b.Hovered() || b.Pressed() {
+			fill = fill.Mix(t.Accent, 0.12)
+		}
+		b.Background(fill)
+	}
+	if on && !compact {
+		b.Gap(px(t, 5)).Padding(0, px(t, 12), 0, px(t, 10))
+	} else {
+		b.Width(px(t, 32))
+	}
+	b.Children(func() {
+		ui.Icon(c, icons.Clock).FontSize(px(t, 16)).TextColor(color)
+		if on && !compact {
+			ui.Text(c, strings.ReplaceAll(s.text.TimeChip, "{n}", strconv.Itoa(s.budget))).FontSize(px(t, 12)).
+				FontWeight(500).FontFeatures("tnum").NoWrap().TextColor(t.Accent)
+		}
+		if on && compact {
+			ui.Box(c).Absolute().Top(px(t, 4)).Right(px(t, 4)).Size(px(t, 7), px(t, 7)).Radius(px(t, 3.5)).
+				Background(t.Accent)
+		}
+	})
+	b.Menu(func(m *ui.Menu) {
+		if m.Item(s.text.TimeAny).Checked(s.budget == 0).Chosen() {
+			s.setBudget(0)
+		}
+		for _, n := range budgets {
+			label := strings.ReplaceAll(s.text.TimeUpTo, "{n}", strconv.Itoa(n))
+			if m.Item(label).Checked(s.budget == n).Chosen() {
+				s.setBudget(n)
+			}
+		}
+	})
+}
+
+// setBudget limits the list to entries that take at most n minutes, 0 for any length, and shows it from the top.
+func (s *Screen) setBudget(n int) {
+	if n == s.budget {
+		return
+	}
+	s.show(func() { s.budget = n })
 }
 
 // searchField is a search field whose text input takes the focus from Cmd+F and /, which ui.SearchField does not
@@ -2233,6 +2315,9 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 			case s.searched != "":
 				s.empty(c, icons.Search, strings.ReplaceAll(s.text.NoResults, "{q}", s.searched), s.text.NoResultsHint,
 					false)
+			case s.budget != 0:
+				s.empty(c, icons.Clock, strings.ReplaceAll(s.text.NothingFits, "{n}", strconv.Itoa(s.budget)),
+					s.text.NothingFitsHint, false)
 			case s.filter == unread:
 				s.empty(c, icons.CircleCheckBig, s.text.UnreadDone, s.text.UnreadDoneHint, false)
 			case s.filter == starred:
@@ -2332,6 +2417,19 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed b
 					s.loadSources()
 				}
 				s.reload()
+			}
+		}
+		if s.budget != 0 && !failed && icon == icons.Clock {
+			b := ui.ButtonBase(c).Height(px(t, 32)).PaddingX(px(t, 14)).Radius(px(t, 10)).Background(theme.Track(t))
+			if b.Pressed() {
+				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
+			} else if b.Hovered() {
+				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
+			}
+			theme.Fade(b)
+			b.Children(func() { ui.Text(c, s.text.AnyLength).NoWrap().FontWeight(500) })
+			if b.Clicked() {
+				s.setBudget(0)
 			}
 		}
 		if title == s.text.NoSubscriptions {
@@ -2535,6 +2633,10 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 				TextColor(source)
 			ui.Text(c, "·").FontSize(px(t, 12)).TextColor(muted).Opacity(0.7)
 			ui.Text(c, s.when(e, now)).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(muted).NoWrap()
+			if reading := s.readLabel(e); reading != "" {
+				ui.Text(c, "·").FontSize(px(t, 12)).TextColor(muted).Opacity(0.7)
+				ui.Text(c, reading).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(muted).NoWrap()
+			}
 			if e.Starred {
 				ui.Icon(c, icons.Star).FontSize(px(t, 13)).TextColor(theme.Star(t))
 			}
