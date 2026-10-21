@@ -1,7 +1,7 @@
 // Package prefs holds the appearance preferences of this device: the theme, the interface language and font, and the
-// font, size, line spacing and Chinese typesetting of an article, how the timeline views each kind of entry, and
-// whether its sidebar shows. They live in a file of the data directory beside the session file and never go through
-// the server.
+// font, size, line spacing and Chinese typesetting of an article, how the timeline views each kind of entry, whether
+// its sidebar shows, and the order of the sidebar's subscriptions. They live in a file of the data directory beside the
+// session file and never go through the server.
 package prefs
 
 import (
@@ -45,6 +45,10 @@ const (
 	ViewCover   = "cover"   // a video as a large cover
 	ViewCard    = "card"    // a social post's card; an image's card
 	ViewWall    = "wall"    // the masonry wall of Images
+
+	// The orders of the sidebar's subscriptions; the first is the default.
+	SortTitle  = "title"  // by name
+	SortUnread = "unread" // unread count descending, then by name
 )
 
 // Sizes and Spacings list the choices of the reading preferences in the order the settings show them.
@@ -77,6 +81,9 @@ type Preferences struct {
 	VideoViewer   string `json:"videoViewer"`
 	SocialViewer  string `json:"socialViewer"`
 	ImageViewer   string `json:"imageViewer"`
+
+	// SourceSort is the order of the subscriptions in the sidebar: SortTitle or SortUnread.
+	SourceSort string `json:"sourceSort"`
 
 	// Grids are the scopes whose list the reader switched between the list and the grid; see Grids.
 	Grids Grids `json:"grids,omitempty"`
@@ -184,7 +191,7 @@ func (g *Grids) UnmarshalJSON(data []byte) error {
 // Default has every preference at its default.
 func Default() Preferences {
 	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ChineseTypesetting: true,
-		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall}
+		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle}
 }
 
 // Normalize replaces every value it does not know with the default. A font is kept as it is: it may be installed
@@ -213,6 +220,9 @@ func (p Preferences) Normalize() Preferences {
 	}
 	if !slices.Contains(ImageViewers, p.ImageViewer) {
 		p.ImageViewer = ViewWall
+	}
+	if p.SourceSort != SortTitle && p.SourceSort != SortUnread {
+		p.SourceSort = SortTitle
 	}
 	if p.Grids != "" {
 		p.Grids = encodeGrids(p.Grids.entries())

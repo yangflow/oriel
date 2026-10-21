@@ -3,6 +3,7 @@
 package timeline
 
 import (
+	"cmp"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -45,6 +46,7 @@ type copy struct {
 	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteActions, PaletteUnreadOnly, PaletteShowAll                     string
 	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, HideSidebar, ShowSidebar, KeyToggleSidebar string
 	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                        string
+	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                            string
 }
 
 var translations = func() map[string]copy {
@@ -184,6 +186,10 @@ type Screen struct {
 	searchBox bool // give the search field the focus in the next frame
 	typing    bool // the search field has the focus
 	clearing  bool // Escape cleared the search field
+
+	sideQuery  string // the sidebar's filter of subscriptions, as typed; not kept between runs
+	filtering  bool   // the sidebar's filter field has the focus
+	firstFocus bool   // give the first matching subscription the focus in the next frame
 
 	entries  []client.Entry
 	next     string // the cursor of the next page, "" at the end
@@ -1530,7 +1536,7 @@ func (s *Screen) View(c *ui.Context) {
 		s.reading = 0
 	}
 	if s.reading != 0 {
-		s.typing = false
+		s.typing, s.filtering = false, false
 	}
 	if s.seeking && !s.more {
 		s.nextUnread()
@@ -1545,14 +1551,14 @@ func (s *Screen) View(c *ui.Context) {
 		c.OnShortcut(ui.Cmd, ui.KeyN, s.subs.Add)
 		c.OnShortcut(ui.Cmd, ui.KeySlash, s.ShowKeys)
 		c.OnShortcut(ui.Cmd, ui.KeyBackslash, s.toggleSidebar)
-		if m := s.undoable; m != nil && !s.typing {
+		if m := s.undoable; m != nil && !s.typing && !s.filtering {
 			c.OnShortcut(ui.Cmd, ui.KeyZ, func() {
 				c.CloseToast(markedToast)
 				s.undo(m)
 			})
 		}
 	}
-	if !open && !s.typing {
+	if !open && !s.typing && !s.filtering {
 		c.OnShortcut(ui.Shift, ui.KeySlash, s.ShowKeys)
 	}
 	width, height := c.Size()
@@ -1614,7 +1620,7 @@ func (s *Screen) View(c *ui.Context) {
 // Escape, L and Right go back to the list. Focus a click put on a kind or subscription does not count: the keys of
 // the entries act on the list at once.
 func (s *Screen) listKeys(c *ui.Context, open bool) {
-	if s.typing || open || s.reading != 0 {
+	if s.typing || s.filtering || open || s.reading != 0 {
 		return
 	}
 	c.OnShortcut(0, ui.KeySlash, func() { s.searchBox = true })
@@ -1864,7 +1870,7 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 		// The first 40 are the window buttons' and drag the window.
 		ui.Box(c).FillWidth().Height(40).DragWindow()
 		onSource := slices.ContainsFunc(s.sources, func(src client.Source) bool {
-			return src.ID == s.scope.source && (!s.failingOnly || failed(src))
+			return src.ID == s.scope.source && (!s.failingOnly || failed(src)) && s.named(src)
 		})
 		s.tabs(c, s.sideFocus && !onSource)
 		list := s.sources
@@ -1888,13 +1894,22 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 		if s.failingOnly {
 			list = slices.DeleteFunc(slices.Clone(list), func(src client.Source) bool { return !failed(src) })
 		}
+		list = s.arranged(list)
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			ui.Column(c).FillWidth().Padding(px(t, 4), px(t, 8), px(t, 6)).Label(s.text.Sources).Children(func() {
 				s.section(c, failing)
+				s.sourceTools(c)
+				if len(list) == 0 && strings.TrimSpace(s.sideQuery) != "" {
+					ui.Box(c).FillWidth().Padding(px(t, 6), px(t, 10)).Role(ui.RoleStatus).Label(s.text.NoMatchingSources).
+						Children(func() {
+							ui.Text(c, s.text.NoMatchingSources).FontSize(px(t, 13)).TextColor(t.TextMuted)
+						})
+				}
 				ui.Column(c).FillWidth().FocusGroup(ui.Vertical).Children(func() {
-					for _, src := range list {
-						s.sourceItem(c, src)
+					for i, src := range list {
+						s.sourceItem(c, src, i == 0 && s.firstFocus)
 					}
+					s.firstFocus = false
 				})
 			})
 		})
@@ -2009,6 +2024,116 @@ func (s *Screen) section(c *ui.Context, failing int) {
 		})
 }
 
+// named reports whether src matches the sidebar's filter: its name holds the text typed, ignoring case, anywhere.
+func (s *Screen) named(src client.Source) bool {
+	q := strings.ToLower(strings.TrimSpace(s.sideQuery))
+	return q == "" || strings.Contains(strings.ToLower(subscriptions.Name(src)), q)
+}
+
+// arranged narrows list to the subscriptions the filter matches and, with Unread first on, orders it by unread count
+// descending and then by name, ignoring case; a paused subscription counts as none. The store's order is by name.
+func (s *Screen) arranged(list []client.Source) []client.Source {
+	if strings.TrimSpace(s.sideQuery) != "" {
+		list = slices.DeleteFunc(slices.Clone(list), func(src client.Source) bool { return !s.named(src) })
+	}
+	if s.views().SourceSort != prefs.SortUnread {
+		return list
+	}
+	unread := func(src client.Source) int {
+		if src.Paused {
+			return 0
+		}
+		return src.UnreadCount
+	}
+	list = slices.Clone(list)
+	slices.SortStableFunc(list, func(a, b client.Source) int {
+		if c := cmp.Compare(unread(b), unread(a)); c != 0 {
+			return c
+		}
+		return strings.Compare(strings.ToLower(subscriptions.Name(a)), strings.ToLower(subscriptions.Name(b)))
+	})
+	return list
+}
+
+// sourceTools is the row under the section header: the filter field of the subscriptions, which grows, and the toggle
+// that puts those with unread entries first. It is not there while there are no subscriptions.
+func (s *Screen) sourceTools(c *ui.Context) {
+	if len(s.sources) == 0 {
+		return
+	}
+	t := c.Theme()
+	unreadFirst := s.views().SourceSort == prefs.SortUnread
+	ui.Row(c).FillWidth().Height(px(t, 28)).Gap(px(t, 4)).Margin(0, 0, px(t, 6), 0).Children(func() {
+		box := ui.Row(c).Key("filter").Grow(1).MinWidth(0).Height(px(t, 28)).Gap(px(t, 6)).
+			Padding(0, px(t, 4), 0, px(t, 10)).Radius(px(t, 8)).AlignItems(ui.Center)
+		switch {
+		case s.filtering:
+			box.Background(theme.Ink(t, 0.085)).Shadow(0, 0, 0, 2, t.Focus)
+		case box.Hovered():
+			box.Background(theme.Ink(t, 0.085))
+		default:
+			box.Background(theme.Ink(t, 0.055))
+		}
+		theme.Fade(box)
+		var input ui.Element
+		cleared := false
+		box.Children(func() {
+			ui.Icon(c, icons.Search).FontSize(px(t, 14)).TextColor(t.TextMuted)
+			input = ui.TextInputBase(c, &s.sideQuery).Grow(1).MinWidth(0).TextColor(t.Text).Label(s.text.FilterSources).
+				Placeholder(s.text.FilterSources)
+			input.OnShortcut(0, ui.KeyEscape, func() {
+				if s.sideQuery != "" {
+					s.sideQuery = ""
+					return
+				}
+				s.toSidebar()
+			})
+			for _, k := range []ui.Key{ui.KeyDown, ui.KeyEnter} {
+				input.OnShortcut(0, k, func() { s.firstFocus = true })
+			}
+			if s.sideQuery != "" {
+				clear := ui.ButtonBase(c).Size(px(t, 20), px(t, 20)).Radius(px(t, 6)).Label(s.text.ClearFilter).
+					Tooltip(s.text.ClearFilter)
+				if clear.Hovered() {
+					clear.Background(t.SurfaceHover)
+				}
+				clear.Children(func() { ui.Icon(c, icons.X).FontSize(px(t, 12)).TextColor(t.TextMuted) })
+				cleared = clear.Clicked()
+			}
+		})
+		if box.Clicked() {
+			input.Focus()
+		}
+		s.filtering = input.Focused()
+		if cleared {
+			s.sideQuery = ""
+			input.Focus()
+		}
+
+		b := ui.ButtonBase(c).Key("unread-first").Size(px(t, 28), px(t, 28)).Shrink(0).Radius(px(t, 8)).
+			Role(ui.RoleToggleButton).Label(s.text.UnreadFirst).Tooltip(s.text.UnreadFirst).Checked(unreadFirst)
+		color := t.TextMuted
+		switch {
+		case unreadFirst:
+			b.Background(theme.Chosen(t))
+			color = t.Accent
+		case b.Hovered():
+			b.Background(t.SurfaceHover)
+			color = theme.Text2(t)
+		}
+		theme.Fade(b)
+		b.Children(func() { ui.Icon(c, icons.ArrowUpDown).FontSize(px(t, 14)).TextColor(color) })
+		if b.Clicked() && s.deps.Change != nil {
+			p := s.views()
+			p.SourceSort = prefs.SortUnread
+			if unreadFirst {
+				p.SourceSort = prefs.SortTitle
+			}
+			s.deps.Change(p)
+		}
+	})
+}
+
 // link is a small text button in the sidebar's section header, with an optional icon; it reports a click.
 func (s *Screen) link(c *ui.Context, icon *ui.SVG, text, label string, color ui.Color) bool {
 	t := c.Theme()
@@ -2026,7 +2151,7 @@ func (s *Screen) link(c *ui.Context, icon *ui.SVG, text, label string, color ui.
 	return b.Clicked()
 }
 
-func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
+func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 	t := c.Theme()
 	chosen := s.scope.source == src.ID
 	name := subscriptions.Name(src)
@@ -2051,8 +2176,9 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source) {
 		count = theme.Text2(t)
 	}
 	theme.Fade(item)
-	if chosen && s.sideFocus {
+	if (chosen && s.sideFocus) || first {
 		item.Focus()
+		s.sideKeyed = s.sideKeyed || first
 	}
 	s.sideKeyed = s.sideKeyed || item.FocusVisible()
 	item.Children(func() {

@@ -46,7 +46,7 @@ func TestLoadUnknownValues(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	os.WriteFile(path, []byte(`{"theme":"sepia","language":"fr","font":"Gone Sans","readingSize":"huge","lineSpacing":"relaxed","readingFont":"Gone Serif"}`), 0o600)
 	want := Preferences{Font: "Gone Sans", ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingFont: "Gone Serif", ChineseTypesetting: true,
-		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall}
+		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle}
 	if got := Load(path); got != want {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
@@ -77,7 +77,7 @@ func TestViewers(t *testing.T) {
 func TestSaveLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	p := Preferences{Theme: ThemeDark, Language: LanguageChinese, Font: "Georgia", ReadingSize: SizeXLarge, LineSpacing: SpacingCompact, ReadingFont: ReadingSerif, ChineseTypesetting: false,
-		ArticleViewer: ViewCompact, VideoViewer: ViewCover, SocialViewer: ViewCompact, ImageViewer: ViewGrid}
+		ArticleViewer: ViewCompact, VideoViewer: ViewCover, SocialViewer: ViewCompact, ImageViewer: ViewGrid, SourceSort: SortUnread}
 	if err := Save(path, p); err != nil {
 		t.Fatal(err)
 	}
@@ -251,5 +251,24 @@ func TestSidebarHidden(t *testing.T) {
 	data, _ := os.ReadFile(path)
 	if !strings.Contains(string(data), `"sidebarHidden":true`) {
 		t.Errorf("file %s", data)
+	}
+}
+
+func TestSourceSort(t *testing.T) {
+	if got := Default().SourceSort; got != SortTitle {
+		t.Fatalf("default %q", got)
+	}
+	path := filepath.Join(t.TempDir(), File)
+	for body, want := range map[string]string{
+		`{"sourceSort":"unread"}`:   SortUnread,
+		`{"sourceSort":"sideways"}`: SortTitle,
+		`{}`:                        SortTitle,
+	} {
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if got := Load(path).SourceSort; got != want {
+			t.Errorf("%s loads as %q, want %q", body, got, want)
+		}
 	}
 }

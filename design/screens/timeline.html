@@ -58,6 +58,12 @@
      It marks from the first entry fully in view to the last one fully in view; a row cut at the top or bottom edge stays
      unread. It offers Undo in the same toast as Mark all as read, and is off under Starred and search. With nothing
      unread in view it only scrolls, without a toast.
+     A filter field sits under the Subscriptions heading (side-filter): a flat ink fill, the magnifier, the input and a clear
+     button once there is text, and beside it the Unread first toggle, an arrow-up-down icon button that is a fill plus an
+     Accent icon while on (side-unread-first: unread count descending, then name). The field narrows the list by name as
+     you type, ignoring case; when nothing matches the list gives way to one muted line (side-filter-none). It is hidden
+     while there are no subscriptions. Esc clears the text, then a second Esc hands the focus to the sidebar; Down or
+     Enter hands it to the first match.
      The keyboard reaches the sidebar too (sidebar-focus, the focus ring on the chosen item): 1 to 5 switch to All and
      the four kinds from anywhere in the timeline; H or Left moves the focus to the chosen item of the sidebar, Up and
      Down walk its kinds and subscriptions, Enter chooses one and the focus stays on it, and L, Right or Escape
@@ -152,6 +158,21 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .section .link.plain { color:var(--text2) }
 .section .link:hover, .section .link.hover { background:var(--hover) }
 .section .link svg.icon { width:12px; height:12px }
+.side-tools { display:flex; align-items:center; gap:4px; margin:0 2px 6px }
+.side-filter { flex:1; min-width:0; height:28px; display:flex; align-items:center; gap:6px; padding:0 4px 0 10px; border-radius:8px; background:var(--hover); color:var(--muted); transition:background-color var(--t), box-shadow var(--t) }
+.side-filter:hover { background:var(--pressed) }
+.side-filter.focused { background:var(--pressed); box-shadow:0 0 0 2px rgba(124,201,187,.55) }
+.side-filter svg.icon { width:14px; height:14px; flex:none }
+.side-filter input { flex:1; min-width:0; border:0; outline:0; background:none; font:inherit; color:var(--text) }
+.side-filter input::placeholder { color:var(--muted) }
+.side-filter .clear { width:20px; height:20px; flex:none; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
+.side-filter .clear:hover { background:var(--hover); color:var(--text) }
+.side-filter .clear svg.icon { width:12px; height:12px }
+.sort { width:28px; height:28px; flex:none; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
+.sort:hover { background:var(--hover); color:var(--text2) }
+.sort[aria-pressed=true] { background:var(--sel); color:var(--accent) }
+.sort svg.icon { width:14px; height:14px }
+.side-none { margin:6px 10px; font-size:13px; color:var(--muted) }
 .tip { position:absolute; z-index:5; max-width:260px; padding:5px 9px; border-radius:6px; font-size:12px; line-height:1.4; color:var(--text); background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--shadow),.18),0 4px 14px rgba(var(--shadow),.16) }
 :root:lang(zh-Hans) .section { font-size:12px; letter-spacing:.02em }
 .item { width:100%; height:30px; display:flex; align-items:center; gap:10px; padding:0 10px; border-radius:8px; color:var(--text); text-align:left }
@@ -468,7 +489,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
+const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -527,6 +548,7 @@ const icons={
   plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
   upload:'<path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>',
   refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  sort:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
   x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
   arrowUp:'<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
@@ -553,6 +575,7 @@ const copy={
     failing:'Last fetch failed', failingName:'{name}, last fetch failed', failingUnread:'{name}, {n} unread, last fetch failed',
     failedOnce:'Last fetch failed: {error}', failedTimes:'Failed {n} times in a row: {error}',
     failingCount:'{n} failing', failingShow:'Show only the {n} failing subscriptions', failingTitle:'Failing', showAll:'Show all',
+    filterSources:'Filter subscriptions', clearFilter:'Clear filter', unreadFirst:'Unread first', noMatchingSources:'No matching subscriptions',
     newEntries:'{n} new', loadingMore:'Loading more', offline:'Can’t reach the server · last updated {time}',
     tooShort:'Type at least 3 characters to search',
     noResults:'Nothing matches “{q}”', noResultsHint:'Search looks at titles, summaries and full text.',
@@ -583,6 +606,7 @@ const copy={
     failing:'上次抓取失败', failingName:'{name}，上次抓取失败', failingUnread:'{name}，{n} 条未读，上次抓取失败',
     failedOnce:'上次抓取失败：{error}', failedTimes:'连续失败 {n} 次：{error}',
     failingCount:'{n} 个失败', failingShow:'只显示 {n} 个抓取失败的订阅', failingTitle:'抓取失败', showAll:'显示全部',
+    filterSources:'筛选订阅', clearFilter:'清空筛选', unreadFirst:'未读优先', noMatchingSources:'没有匹配的订阅',
     newEntries:'{n} 条新内容', loadingMore:'正在加载', offline:'连不上服务端 · 上次更新于 {time}',
     tooShort:'至少输入 3 个字才能搜索',
     noResults:'没有找到「{q}」', noResultsHint:'搜索范围包括标题、摘要和全文。',
@@ -748,12 +772,18 @@ const tabs=counts=>`<nav class="kind-list" aria-label="${copy.kinds}">${kindList
 function sidebar(){
   if(state==='no-subscriptions')return `<aside>${tabs(false)}<nav class="nav"></nav>${serverBar()}</aside>`;
   const only=state==='failing-only';
-  const list=only?failingSources:tabKind==='all'?sources:sources.filter(s=>s.kind===tabKind);
+  const base=only?failingSources:tabKind==='all'?sources:sources.filter(s=>s.kind===tabKind);
+  const word=state==='side-filter'?(zh?'数':'bl'):state==='side-filter-none'?'kubernetes':'';
+  const unreadFirst=state==='side-unread-first';
+  let list=base.filter(s=>s.name.toLowerCase().includes(word));
+  if(unreadFirst)list=[...list].sort((a,b)=>b.unread-a.unread||(a.name.toLowerCase()<b.name.toLowerCase()?-1:1));
+  const tools=`<div class="side-tools"><div class="side-filter${word?' focused':''}">${icon('search')}<input aria-label="${copy.filterSources}" placeholder="${copy.filterSources}" value="${word}">${word?`<button class="clear" aria-label="${copy.clearFilter}">${icon('x')}</button>`:''}</div><button class="sort" aria-pressed="${unreadFirst}" aria-label="${copy.unreadFirst}" title="${copy.unreadFirst}">${icon('sort')}</button></div>`;
+  const body=list.length?list.map(sourceItem).join(''):`<div class="side-none" role="status">${copy.noMatchingSources}</div>`;
   const n=failingSources.length;
   const heading=only?`<div class="section with"><span>${copy.failingTitle}</span><button class="link plain">${copy.showAll}</button></div>`
     :n?`<div class="section with"><span>${tabKind==='all'?copy.sources:copy[tabKind]}</span><button class="link" aria-label="${t('failingShow',{n})}" title="${t('failingShow',{n})}">${icon('alert')}${t('failingCount',{n})}</button></div>`
     :`<div class="section">${tabKind==='all'?copy.sources:copy[tabKind]}</div>`;
-  return `<aside>${tabs(true)}<nav class="nav" aria-label="${copy.sources}">${heading}${list.map(sourceItem).join('')}</nav>${serverBar()}</aside>`;
+  return `<aside>${tabs(true)}<nav class="nav" aria-label="${copy.sources}">${heading}${tools}${body}</nav>${serverBar()}</aside>`;
 }
 function serverBar(){return `<div class="server-bar"><button class="server" aria-label="${copy.thisComputer}">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot${state==='offline'?' off':''}" aria-hidden="true"></span></button><button class="gear" aria-label="${copy.settings}" title="${copy.settings} (Ctrl+,)">${icon('settings')}</button></div>`}
 

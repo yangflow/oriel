@@ -147,7 +147,11 @@
     "PageAI": "AI",
     "PageDevices": "Devices",
     "HideSidebar": "Hide sidebar",
-    "ShowSidebar": "Show sidebar"
+    "ShowSidebar": "Show sidebar",
+    "FilterSources": "Filter subscriptions",
+    "ClearFilter": "Clear filter",
+    "UnreadFirst": "Unread first",
+    "NoMatchingSources": "No matching subscriptions"
   },
   "zh-Hans": {
     "All": "全部",
@@ -297,6 +301,10 @@
     "PageAI": "AI",
     "PageDevices": "设备",
     "HideSidebar": "隐藏侧栏",
-    "ShowSidebar": "显示侧栏"
+    "ShowSidebar": "显示侧栏",
+    "FilterSources": "筛选订阅",
+    "ClearFilter": "清除筛选",
+    "UnreadFirst": "未读优先",
+    "NoMatchingSources": "没有匹配的订阅"
   }
 }
