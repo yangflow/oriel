@@ -202,7 +202,9 @@ type Screen struct {
 	height    float32         // of the window in the last frame
 	rects     map[int]ui.Rect // where the entries were drawn in the last frame, in window DIPs
 	toTop     bool
-	anchor    int64 // the first entry in view in the last frame, 0 for none
+	anchor    int64     // the first entry in view in the last frame, 0 for none
+	viewed    viewerSet // the viewers the last frame drew with
+	pin       int64     // the entry to scroll to in the next draw, after a viewer changed; 0 for none
 	list      ui.ListState
 	grid      ui.GridState
 	wall      ui.ScrollState
@@ -430,14 +432,58 @@ func (s *Screen) retryPictures() {
 
 func (s *Screen) key() listKey { return listKey{s.scope, s.filter, s.budget} }
 
-// grids and walls tell whether the list is drawn as the Videos grid or the Images wall, which keep their place
-// differently from the column of rows.
+// views are the viewers of the four kinds, as the preferences of this device choose them: the defaults where the
+// screen has no preferences to read.
+func (s *Screen) views() prefs.Preferences {
+	if s.deps.Reading == nil {
+		return prefs.Default()
+	}
+	return s.deps.Reading().Normalize()
+}
+
+// viewerSet is the viewers in force, to tell when one changes.
+type viewerSet [4]string
+
+func (s *Screen) viewerSet() viewerSet {
+	v := s.views()
+	return viewerSet{v.ArticleViewer, v.VideoViewer, v.SocialViewer, v.ImageViewer}
+}
+
+// layout is how the list is laid out, which the viewers of Videos and Images and the scope decide.
+type layout int
+
+const (
+	columnLayout layout = iota // one column of rows
+	gridLayout                 // the Videos grid of covers
+	squareLayout               // the Images grid of squares
+	wallLayout                 // the Images wall
+)
+
+// layout tells how the list is laid out. The grid and the wall are used only in the Videos and Images scopes without
+// a search; everywhere else, and for the other viewers of those kinds, entries are rows or cards in a column.
+func (s *Screen) layout() layout {
+	if s.scope.source != 0 || s.searched != "" {
+		return columnLayout
+	}
+	v := s.views()
+	switch {
+	case s.scope.kind == "video" && v.VideoViewer == prefs.ViewGrid:
+		return gridLayout
+	case s.scope.kind == "image" && v.ImageViewer == prefs.ViewWall:
+		return wallLayout
+	case s.scope.kind == "image" && v.ImageViewer == prefs.ViewGrid:
+		return squareLayout
+	}
+	return columnLayout
+}
+
+// grids and walls tell whether the list is drawn as a grid of cells (the Videos grid or the Images grid) or as the
+// Images wall, which keep their place differently from the column of rows.
 func (s *Screen) grids() bool {
-	return s.scope.kind == "video" && s.scope.source == 0 && s.searched == ""
+	l := s.layout()
+	return l == gridLayout || l == squareLayout
 }
-func (s *Screen) walls() bool {
-	return s.scope.kind == "image" && s.scope.source == 0 && s.searched == ""
-}
+func (s *Screen) walls() bool { return s.layout() == wallLayout }
 
 // leave keeps the list on screen, which has the key old, to draw it again, where it was, when it is chosen again.
 // Lists not loaded, empty or failed and searches are not kept.
@@ -1058,9 +1104,9 @@ func (s *Screen) markVisible() {
 	}
 	s.selected, s.focusRow = end, end
 	switch {
-	case s.scope.kind == "video" && s.scope.source == 0:
+	case s.grids():
 		s.grid.ScrollTo(end, ui.Start)
-	case s.scope.kind == "image" && s.scope.source == 0:
+	case s.walls():
 		s.wall.Y = min(max(s.rects[end].Y+s.wall.Y-s.top(), 0), s.wall.MaxY)
 	default:
 		s.list.ScrollTo(end, ui.Start)
@@ -1401,6 +1447,13 @@ func (s *Screen) View(c *ui.Context) {
 	width, height := c.Size()
 	compact := width < 760
 	s.height = height
+	if v := s.viewerSet(); v != s.viewed {
+		// A viewer changed in Settings: the list is drawn again in place, at the entry that was first in view.
+		if s.viewed != (viewerSet{}) {
+			s.pin = s.anchor
+		}
+		s.viewed = v
+	}
 	s.wantMore = false
 	clear(s.rects)
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
@@ -2274,7 +2327,7 @@ func (s *Screen) stale(c *ui.Context) {
 
 // inColumn tells whether the entries sit in the centered column, not in the video grid or the picture wall.
 func (s *Screen) inColumn() bool {
-	return s.searched != "" || s.scope.source != 0 || s.scope.kind != "video" && s.scope.kind != "image"
+	return s.layout() == columnLayout
 }
 
 func (s *Screen) pill(c *ui.Context) {
@@ -2325,15 +2378,17 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 			default:
 				s.empty(c, icons.Inbox, s.text.Empty, s.text.EmptyHint, false)
 			}
-		case s.scope.kind == "video" && s.scope.source == 0 && s.searched == "":
-			s.videoGrid(c, now, compact)
-		case s.scope.kind == "image" && s.scope.source == 0 && s.searched == "":
+		case s.layout() == gridLayout:
+			s.cells(c, now, compact, false)
+		case s.layout() == squareLayout:
+			s.cells(c, now, compact, true)
+		case s.layout() == wallLayout:
 			s.wallOf(c, now, compact)
 		default:
 			s.rows(c, now, compact)
 		}
 	})
-	s.toTop = false
+	s.toTop, s.pin = false, 0
 	s.anchor = s.firstInView()
 }
 
@@ -2565,15 +2620,30 @@ func (s *Screen) entryMenu(c *ui.Context, m *ui.Menu, id int64) {
 // actionFade fades the actions of a row in and out, opacity only.
 var actionFade = ui.ElementTransition{Duration: 120 * time.Millisecond, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
 
-// actions are the bare icons of a row, in its meta line at the right: the row's own meta line has room for them. A
-// card has its meta line at the bottom of the card.
-func (s *Screen) actions(c *ui.Context, i int, card bool) {
+// place is where the actions sit on an entry.
+type place int
+
+const (
+	inMeta    place = iota // in the meta line of a row, at the right
+	onCard                 // at the bottom right of a card, where its meta line is
+	centered               // centered vertically at the right, in place of the time of a compact row
+	belowMeta              // at the right of the meta line under a large cover, at the bottom of the row
+)
+
+// actions are the bare icons of an entry, at the place given: a row's own meta line has room for them at the top,
+// a card has its meta line at the bottom of the card.
+func (s *Screen) actions(c *ui.Context, i int, at place) {
 	t := c.Theme()
 	e := s.entries[i]
 	bar := ui.Row(c).Key("actions").Gap(px(t, 1)).Transition(actionFade)
-	if card {
+	switch at {
+	case onCard:
 		bar.Attach(ui.AnchorBottomRight, ui.AnchorBottomRight)
-	} else {
+	case centered:
+		bar.Attach(ui.AnchorRight, ui.AnchorRight).Right(px(t, 10))
+	case belowMeta:
+		bar.Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).Bottom(px(t, 14)).Right(px(t, 10))
+	default:
 		bar.Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(px(t, 14)).Right(px(t, 10))
 	}
 	bar.Children(func() {
@@ -2616,8 +2686,10 @@ func (s *Screen) action(c *ui.Context, label string, icon *ui.SVG, color ui.Colo
 }
 
 // meta is the line of the source, the time and the star, 20 high; right is the room kept at its right for the
-// actions, and lead comes first, as the unread dot of a card. The source is Text2, TextMuted once read.
-func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, right float32, muted ui.Color) {
+// actions, and lead comes first, as the unread dot of a card. The source is Text2, TextMuted once read. The platform
+// of a video ends it when it is asked for, as under a large cover.
+func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, right float32, muted ui.Color,
+	platform bool) {
 	t := c.Theme()
 	source := theme.Text2(t)
 	if e.IsRead {
@@ -2639,6 +2711,11 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 			}
 			if e.Starred {
 				ui.Icon(c, icons.Star).FontSize(px(t, 13)).TextColor(theme.Star(t))
+			}
+			if platform && e.Platform != "" {
+				ui.Text(c, "·").FontSize(px(t, 12)).TextColor(muted).Opacity(0.7)
+				ui.Icon(c, icons.Play).FontSize(px(t, 13)).TextColor(muted)
+				ui.Text(c, e.Platform).FontSize(px(t, 12)).SingleLine().MinWidth(0).Shrink(1).TextColor(muted)
 			}
 		})
 }
@@ -2681,6 +2758,8 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 	}
 	if s.toTop {
 		s.list.ScrollTo(0, ui.Start)
+	} else if i := s.index(s.pin); s.pin != 0 && i >= 0 {
+		s.list.ScrollTo(i, ui.Start)
 	}
 	maxWidth := px(t, 680)
 	if s.scope.kind == "social" {
@@ -2705,12 +2784,24 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 
 // row is one entry: hover, pressed and chosen are the three steps of one fill, and the chosen row carries the marker.
 // The separator above it and the one above the next go while the row is hovered or chosen, and TextMuted text steps to
-// Text2 on the chosen fill.
+// Text2 on the chosen fill. A compact article is one line, 36 high; the rest of the rows are as high as their parts.
 func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	t := c.Theme()
 	e := s.entries[i]
-	r := ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(px(t, 14)).
-		Padding(px(t, 16), px(t, 16), px(t, 16), px(t, 28)).Radius(px(t, 12))
+	v := s.views()
+	oneLine := e.Kind == "article" && v.ArticleViewer == prefs.ViewCompact
+	var r ui.Element
+	switch {
+	case oneLine:
+		r = ui.Row(c).Key(e.ID).FillWidth().Height(px(t, 36)).AlignItems(ui.Center).Gap(px(t, 12)).
+			Padding(0, px(t, 16), 0, px(t, 28)).Radius(px(t, 10))
+	case e.Kind == "social" && v.SocialViewer == prefs.ViewCompact:
+		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(px(t, 14)).
+			Padding(px(t, 12), px(t, 16), px(t, 12), px(t, 28)).Radius(px(t, 12))
+	default:
+		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(px(t, 14)).
+			Padding(px(t, 16), px(t, 16), px(t, 16), px(t, 28)).Radius(px(t, 12))
+	}
 	hovered, chosen := s.item(c, r, i, now, false)
 	muted := t.TextMuted
 	switch {
@@ -2724,30 +2815,51 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	}
 	theme.Fade(r)
 	quiet := hovered || chosen || i > 0 && (s.hovered == i-1 || s.selected == i-1)
+	showing := hovered || chosen || r.Focused()
 	r.Children(func() {
 		if i > 0 && !quiet {
 			ui.Box(c).Absolute().Top(0).Left(px(t, 28)).Right(px(t, 16)).Height(1).Background(t.Border)
 		}
 		if chosen {
-			ui.Box(c).Attach(ui.AnchorLeft, ui.AnchorLeft).Left(8).Size(2.5, 18).Radius(2).
+			marker := float32(18)
+			if oneLine {
+				marker = 14
+			}
+			ui.Box(c).Attach(ui.AnchorLeft, ui.AnchorLeft).Left(8).Size(2.5, marker).Radius(2).
 				Background(theme.Marker(t))
 		}
 		if !e.IsRead {
-			ui.Box(c).Absolute().Left(px(t, 14)).Top(px(t, 23)).Size(px(t, 7), px(t, 7)).Radius(px(t, 3.5)).
+			dot := ui.Box(c).Absolute().Left(px(t, 14)).Size(px(t, 7), px(t, 7)).Radius(px(t, 3.5)).
 				Background(t.Accent)
+			if oneLine {
+				dot.Top(px(t, 18) - px(t, 3.5))
+			} else {
+				dot.Top(px(t, 23))
+			}
 		}
+		at := inMeta
 		switch e.Kind {
 		case "video":
-			s.videoRow(c, e, now, compact, muted)
+			if v.VideoViewer == prefs.ViewCover {
+				s.largeRow(c, e, now, muted)
+				at = belowMeta
+			} else {
+				s.videoRow(c, e, now, compact, muted)
+			}
 		case "social":
-			s.socialRow(c, e, now, muted)
+			s.socialRow(c, e, now, muted, v.SocialViewer == prefs.ViewCompact)
 		case "image":
 			s.imageRow(c, e, now, muted)
 		default:
-			s.articleRow(c, e, now, muted)
+			if oneLine {
+				s.compactRow(c, e, now, compact, showing, muted)
+				at = centered
+			} else {
+				s.articleRow(c, e, now, muted)
+			}
 		}
-		if hovered || chosen || r.Focused() {
-			s.actions(c, i, false)
+		if showing {
+			s.actions(c, i, at)
 		}
 	})
 }
@@ -2773,7 +2885,7 @@ func (s *Screen) titleText(c *ui.Context, e client.Entry, size float32, muted ui
 func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
 	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
-		s.meta(c, e, now, false, px(t, 88), muted)
+		s.meta(c, e, now, false, px(t, 88), muted, false)
 		s.titleText(c, e, 15, muted)
 		if summary := strings.Join(strings.Fields(e.Summary), " "); summary != "" {
 			color := theme.Text2(t)
@@ -2793,15 +2905,58 @@ func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted 
 	}
 }
 
+// compactRow is an article in one line: the site icon, the source in a field of its own, the title, the star when
+// starred and the time, which the actions take the place of while they show.
+func (s *Screen) compactRow(c *ui.Context, e client.Entry, now time.Time, narrow, acting bool, muted ui.Color) {
+	t := c.Theme()
+	source, color, weight := theme.Text2(t), t.Text, 600
+	if e.IsRead {
+		source, color, weight = muted, muted, 500
+	}
+	field := px(t, 128)
+	if narrow {
+		field = px(t, 96)
+	}
+	s.glyph(c, e.SourceTitle, s.iconOf(e.SourceID), 16)
+	ui.Text(c, e.SourceTitle).FontSize(px(t, 12)).FontWeight(500).SingleLine().Width(field).Shrink(0).TextColor(source)
+	ui.RichText(c, s.marked(c, title(e), color)...).FontSize(px(t, 13)).FontWeight(weight).SingleLine().Grow(1).
+		MinWidth(0)
+	if e.Starred {
+		ui.Icon(c, icons.Star).FontSize(px(t, 13)).TextColor(theme.Star(t))
+	}
+	when, width := ui.Color(muted), px(t, 56)
+	if acting {
+		when, width = ui.RGBA(0, 0, 0, 0), px(t, 84)
+	}
+	ui.Text(c, s.when(e, now)).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(when).NoWrap().MinWidth(width).
+		TextAlign(ui.End)
+}
+
+// largeRow is a video with its cover across the row, then the title and the meta line under it.
+func (s *Screen) largeRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
+	t := c.Theme()
+	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 8)).Children(func() {
+		s.coverOf(c, e, true, true, px(t, 12), 44).FillWidth().MaxWidth(px(t, 640))
+		s.titleText(c, e, 15, muted)
+		s.meta(c, e, now, false, px(t, 88), muted, true)
+	})
+}
+
 func (s *Screen) cover(c *ui.Context, e client.Entry, load, play bool) ui.Element {
+	return s.coverOf(c, e, load, play, px(c.Theme(), 10), 36)
+}
+
+// coverOf is the 16:9 cover of a video with the given corner radius; play is the diameter of the disc of its play
+// mark when that shows.
+func (s *Screen) coverOf(c *ui.Context, e client.Entry, load, play bool, radius, disc float32) ui.Element {
 	t := c.Theme()
 	label := ""
 	if e.DurationSec > 0 {
 		label = strings.ReplaceAll(s.text.Duration, "{d}", duration(e.DurationSec))
 	}
-	return s.picture(c, e.ThumbnailURL, load, px(t, 10), func() {
+	return s.picture(c, e.ThumbnailURL, load, radius, func() {
 		if play {
-			ui.Box(c).Attach(ui.AnchorCenter, ui.AnchorCenter).Size(36, 36).Radius(18).Center().
+			ui.Box(c).Attach(ui.AnchorCenter, ui.AnchorCenter).Size(disc, disc).Radius(disc / 2).Center().
 				Background(ui.RGBA(28, 24, 18, 0.4)).Children(func() {
 				ui.Icon(c, icons.Play).FontSize(16).TextColor(ui.Hex("#ffffff")).Margin(0, 0, 0, 2)
 			})
@@ -2822,7 +2977,7 @@ func (s *Screen) videoRow(c *ui.Context, e client.Entry, now time.Time, compact 
 	}
 	s.cover(c, e, true, true).Width(width).Margin(px(t, 24), 0, 0, 0).AlignSelf(ui.Start)
 	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
-		s.meta(c, e, now, false, px(t, 88), muted)
+		s.meta(c, e, now, false, px(t, 88), muted, false)
 		s.titleText(c, e, 15, muted)
 		if e.Platform != "" {
 			ui.Row(c).AlignItems(ui.Center).Gap(px(t, 6)).Children(func() {
@@ -2833,14 +2988,18 @@ func (s *Screen) videoRow(c *ui.Context, e client.Entry, now time.Time, compact 
 	})
 }
 
-func (s *Screen) socialRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
+func (s *Screen) socialRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color, brief bool) {
 	t := c.Theme()
 	color, author := t.Text, t.Text
 	if e.IsRead {
 		color, author = muted, theme.Text2(t)
 	}
+	if brief {
+		s.briefPost(c, e, now, muted, color, author)
+		return
+	}
 	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
-		s.meta(c, e, now, false, px(t, 88), muted)
+		s.meta(c, e, now, false, px(t, 88), muted, false)
 		if e.Author != "" || e.Platform != "" {
 			ui.RichText(c, ui.Span{Text: e.Author, Weight: 500, Color: author},
 				ui.Span{Text: " " + e.Platform, Color: muted}).FontSize(px(t, 13)).SingleLine()
@@ -2855,6 +3014,60 @@ func (s *Screen) socialRow(c *ui.Context, e client.Entry, now time.Time, muted u
 		}
 		s.gallery(c, e)
 	})
+}
+
+// briefPost is a post in the Compact viewer: the meta line, the author and the text in two lines at most, and the
+// pictures as thumbnails: one is a square at the right of the text, two or more are a strip under it.
+func (s *Screen) briefPost(c *ui.Context, e client.Entry, now time.Time, muted, color, author ui.Color) {
+	t := c.Theme()
+	text := strings.TrimSpace(e.Summary)
+	if text == "" {
+		text = e.Title
+	}
+	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 4)).Children(func() {
+		s.meta(c, e, now, false, px(t, 88), muted, false)
+		spans := []ui.Span{{Text: e.Author, Weight: 500, Color: author}, {Text: " " + e.Platform + " ", Color: muted}}
+		if e.Author == "" && e.Platform == "" {
+			spans = nil
+		}
+		body := ui.RichText(c, append(spans, s.marked(c, text, color)...)...).FontSize(px(t, 13)).MaxLines(2).Wrap().
+			LineHeight(1.55)
+		if theme.Han(text) {
+			body.LineHeight(1.7)
+		}
+		if n := len(e.Images); n > 1 {
+			s.strip(c, e)
+		}
+	})
+	if len(e.Images) == 1 {
+		// Under the meta line, so the row's actions never cover it, as an article's thumbnail is.
+		s.pictureOf(c, e.Images[0].URL, true, px(t, 8), 16, nil).Size(px(t, 56), px(t, 56)).AlignSelf(ui.Start).
+			Margin(px(t, 24), 0, 0, 0).Label(s.format(s.text.Pictures, 1)).Role(ui.RoleImage)
+	}
+}
+
+// strip is the pictures of a post as a row of at most four small squares, the last saying how many more follow.
+func (s *Screen) strip(c *ui.Context, e client.Entry) {
+	t := c.Theme()
+	n := len(e.Images)
+	shown := min(n, 4)
+	ui.Row(c).Gap(px(t, 4)).Margin(px(t, 4), 0, 0, 0).Label(s.format(s.text.Pictures, n)).Role(ui.RoleImage).
+		Children(func() {
+			for k, img := range e.Images[:shown] {
+				var over func()
+				if k == shown-1 && n > shown {
+					more := s.format(s.text.MorePictures, n-shown)
+					over = func() {
+						ui.Box(c).Fill().Absolute().Center().Background(ui.RGBA(28, 24, 18, 0.5)).Label(more).
+							Children(func() {
+								ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(px(t, 11)).FontWeight(600).
+									FontFeatures("tnum").TextColor(ui.Hex("#ffffff"))
+							})
+					}
+				}
+				s.pictureOf(c, img.URL, true, px(t, 6), 16, over).Key(k).Size(px(t, 40), px(t, 40))
+			}
+		})
 }
 
 // gallery is the grid of the pictures of a post, never taller than one row of them: one picture keeps its shape, two
@@ -2904,7 +3117,7 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 func (s *Screen) imageRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
 	ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 3)).Children(func() {
-		s.meta(c, e, now, false, px(t, 88), muted)
+		s.meta(c, e, now, false, px(t, 88), muted, false)
 		s.titleText(c, e, 15, muted)
 		if address := firstPicture(e); address != "" {
 			s.picture(c, address, true, px(t, 12), nil).FillWidth().AspectRatio(1.5).MaxHeight(px(t, 320)).
@@ -2932,6 +3145,11 @@ func aspect(e client.Entry) float32 {
 // then, and a hairline outline of ink over it; load false leaves it unasked, for those far from the view. over draws
 // on it.
 func (s *Screen) picture(c *ui.Context, address string, load bool, radius float32, over func()) ui.Element {
+	return s.pictureOf(c, address, load, radius, 20, over)
+}
+
+// pictureOf is picture with a failed mark of the given size.
+func (s *Screen) pictureOf(c *ui.Context, address string, load bool, radius, mark float32, over func()) ui.Element {
 	t := c.Theme()
 	var bitmap *ui.Bitmap
 	if load {
@@ -2946,7 +3164,7 @@ func (s *Screen) picture(c *ui.Context, address string, load bool, radius float3
 		}
 		if failed {
 			ui.Box(c).Fill().Absolute().Center().PassThrough().Children(func() {
-				ui.Icon(c, icons.Image).FontSize(px(t, 20)).TextColor(t.TextMuted)
+				ui.Icon(c, icons.Image).FontSize(px(t, mark)).TextColor(t.TextMuted)
 			})
 		}
 		if over != nil {
@@ -2969,27 +3187,42 @@ func columns(c *ui.Context, compact bool, minWidth, gap, most float32) (int, flo
 	return n, (width - gap*float32(n-1)) / float32(n)
 }
 
-// videoGrid is the Videos tab: a grid of covers.
-func (s *Screen) videoGrid(c *ui.Context, now time.Time, compact bool) {
+// cells is the Videos tab, a grid of covers, or with square the Images tab as a grid of square pictures.
+func (s *Screen) cells(c *ui.Context, now time.Time, compact, square bool) {
 	t := c.Theme()
 	s.grid.Key = func(i int) any { return s.entries[i].ID }
 	s.grid.Label = func(i int) string { return s.label(s.entries[i], now) }
 	if s.toTop {
 		s.grid.ScrollTo(0, ui.Start)
+	} else if i := s.index(s.pin); s.pin != 0 && i >= 0 {
+		s.grid.ScrollTo(i, ui.Start)
 	}
-	gap := px(t, 14)
-	_, cell := columns(c, compact, px(t, 200), gap, 0)
+	gap, minWidth := px(t, 14), px(t, 200)
+	if square {
+		minWidth = px(t, 170)
+	}
+	_, cell := columns(c, compact, minWidth, gap, 0)
 	height := cell*9/16 + px(t, 13.5)*2.9 + px(t, 18) + t.Space(3) + px(t, 20)
-	ui.GridView(c, &s.grid, len(s.entries), px(t, 200), height, func(i int) {
+	if square {
+		height = cell + px(t, 13)*1.5 + px(t, 20) + t.Space(3)
+	}
+	ui.GridView(c, &s.grid, len(s.entries), minWidth, height, func(i int) {
 		e := s.entries[i]
 		card := ui.Column(c).Fill().Gap(px(t, 8)).Radius(px(t, 10))
+		if square {
+			card.Gap(px(t, 4))
+		}
 		hovered, chosen := s.item(c, card, i, now, true)
 		card.Children(func() {
-			s.cover(c, e, true, hovered).FillWidth()
-			s.titleText(c, e, 13, t.TextMuted)
-			s.meta(c, e, now, true, 0, t.TextMuted)
+			if square {
+				s.square(c, e)
+			} else {
+				s.cover(c, e, true, hovered).FillWidth()
+				s.titleText(c, e, 13, t.TextMuted)
+			}
+			s.meta(c, e, now, true, 0, t.TextMuted, false)
 			if hovered || chosen || card.Focused() {
-				s.actions(c, i, true)
+				s.actions(c, i, onCard)
 			}
 		})
 	}).Grow(1).FillWidth().Gap(gap).Padding(s.top()+t.Space(4), px(t, 24), t.Space(6), px(t, 24)).
@@ -2997,6 +3230,32 @@ func (s *Screen) videoGrid(c *ui.Context, now time.Time, compact bool) {
 	if s.hasFooter() {
 		s.footer(c)
 	}
+}
+
+// square is the picture of an entry in the Images grid, square before it arrives, with the count of its pictures
+// when there are several, and the title in one line under it.
+func (s *Screen) square(c *ui.Context, e client.Entry) {
+	t := c.Theme()
+	label := title(e)
+	var over func()
+	if n := len(e.Images); n > 1 {
+		label += s.text.Separator + s.format(s.text.Pictures, n)
+		over = func() {
+			ui.Row(c).Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(px(t, 6)).Right(px(t, 6)).
+				AlignItems(ui.Center).Gap(px(t, 3)).Padding(px(t, 1), px(t, 6), px(t, 1), px(t, 5)).Radius(5).
+				Background(ui.RGBA(28, 24, 18, 0.62)).Children(func() {
+				ui.Icon(c, icons.Images).FontSize(px(t, 11)).TextColor(ui.Hex("#ffffff"))
+				ui.Text(c, strconv.Itoa(n)).FontSize(px(t, 11)).FontWeight(500).FontFeatures("tnum").
+					TextColor(ui.Hex("#ffffff"))
+			})
+		}
+	}
+	s.picture(c, firstPicture(e), true, px(t, 10), over).FillWidth().AspectRatio(1).Label(label).Role(ui.RoleImage)
+	color, weight := t.Text, 600
+	if e.IsRead {
+		color, weight = t.TextMuted, 500
+	}
+	ui.Text(c, title(e)).FontSize(px(t, 13)).FontWeight(weight).SingleLine().MinWidth(0).TextColor(color)
 }
 
 // wallOf is the Images tab: a masonry wall, each picture in the shortest column.
@@ -3024,6 +3283,13 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 		heights[k] += width/aspect(e) + caption
 	}
 	top := s.top() + t.Space(4)
+	if i := s.index(s.pin); s.pin != 0 && !s.toTop && i >= 0 {
+		for k := range cols {
+			if j := slices.Index(cols[k], i); j >= 0 {
+				s.wall.Y = max(tops[k][j], 0)
+			}
+		}
+	}
 	ui.Scroll(c).TrackScroll(&s.wall).Grow(1).FillWidth().ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName()).
 		Children(func() {
 			ui.Row(c).FillWidth().Gap(gap).Padding(top, px(t, 24), t.Space(6), px(t, 24)).
@@ -3059,9 +3325,9 @@ func (s *Screen) tile(c *ui.Context, i int, now time.Time, near bool) {
 			color = t.TextMuted
 		}
 		ui.Text(c, title(e)).FontSize(px(t, 12.5)).FontWeight(500).SingleLine().TextColor(color)
-		s.meta(c, e, now, true, 0, t.TextMuted)
+		s.meta(c, e, now, true, 0, t.TextMuted, false)
 		if hovered || chosen || tile.Focused() {
-			s.actions(c, i, true)
+			s.actions(c, i, onCard)
 		}
 	})
 }

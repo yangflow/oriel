@@ -52,6 +52,8 @@ type copy struct {
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                      string
 	ChineseTypesetting, ChineseTypesettingHelp                                                                     string
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                              string
+	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid           string
+	ViewWall, ViewCard, ViewAsHelp                                                                                 string
 }
 
 var translations = func() map[string]copy {
@@ -1151,7 +1153,9 @@ func labeled(c *ui.Context, label, help string, control func()) {
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 			ui.Text(c, label).FontWeight(500)
-			ui.Text(c, help).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(px(t, 4), 0, 0, 0)
+			if help != "" {
+				ui.Text(c, help).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(px(t, 4), 0, 0, 0)
+			}
 		})
 		control()
 	})
@@ -1646,6 +1650,62 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	})
+	ui.Text(c, s.text.ViewAs).FontSize(px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
+		Margin(px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+	card(c, func() {
+		labeled(c, s.text.ViewArticles, "", func() {
+			if v, changed := s.viewer(c, s.text.ViewArticles, p.ArticleViewer, prefs.ArticleViewers); changed {
+				p.ArticleViewer = v
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		labeled(c, s.text.ViewVideos, "", func() {
+			if v, changed := s.viewer(c, s.text.ViewVideos, p.VideoViewer, prefs.VideoViewers); changed {
+				p.VideoViewer = v
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		labeled(c, s.text.ViewSocial, "", func() {
+			if v, changed := s.viewer(c, s.text.ViewSocial, p.SocialViewer, prefs.SocialViewers); changed {
+				p.SocialViewer = v
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		labeled(c, s.text.ViewImages, "", func() {
+			if v, changed := s.viewer(c, s.text.ViewImages, p.ImageViewer, prefs.ImageViewers); changed {
+				p.ImageViewer = v
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		ui.Text(c, s.text.ViewAsHelp).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap()
+	})
+}
+
+// viewer is the segmented control of one kind's viewer; it returns the viewer chosen and whether the user just chose it.
+func (s *Screen) viewer(c *ui.Context, label, current string, viewers []string) (string, bool) {
+	names := make([]string, len(viewers))
+	for i, v := range viewers {
+		switch v {
+		case prefs.ViewList:
+			names[i] = s.text.ViewList
+		case prefs.ViewCompact:
+			names[i] = s.text.ViewCompact
+		case prefs.ViewCover:
+			names[i] = s.text.ViewCover
+		case prefs.ViewGrid:
+			names[i] = s.text.ViewGrid
+		case prefs.ViewWall:
+			names[i] = s.text.ViewWall
+		case prefs.ViewCard:
+			names[i] = s.text.ViewCard
+		}
+	}
+	i, changed := s.segments(c, label, names, slices.Index(viewers, current))
+	return viewers[i], changed
 }
 
 // sample is the sample paragraph of the Reading card, spaced by the rules of Chinese typesetting when chinese is set,

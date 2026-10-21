@@ -2684,3 +2684,191 @@ func TestReadingTimeReset(t *testing.T) {
 		t.Fatalf("budget %d", s.budget)
 	}
 }
+
+// viewing is the screen with the viewers of p, which the test may change while the screen is up.
+func viewing(t *testing.T, p *prefs.Preferences) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	sources, entries := sample()
+	entries[3].Images = append(entries[3].Images, client.Image{URL: "https://photos.example/5b.jpg"},
+		client.Image{URL: "https://photos.example/5c.jpg"})
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	d := f.deps()
+	d.Reading = func() prefs.Preferences { return *p }
+	s := New("en", d)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	return s, f, tt
+}
+
+func pick(t *testing.T, f *fake, tt *ui.Tester, kind string) {
+	t.Helper()
+	if err := tt.Click(kind); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	f.settle(t, tt)
+	tt.Frame()
+}
+
+// The defaults draw what the timeline drew before the viewers: rows, the Videos grid and the Images wall.
+func TestViewersDefault(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := viewing(t, &p)
+	if s.layout() != columnLayout {
+		t.Fatalf("the mixed timeline is laid out as %v", s.layout())
+	}
+	pick(t, f, tt, "Videos")
+	if s.layout() != gridLayout {
+		t.Fatalf("Videos is laid out as %v", s.layout())
+	}
+	pick(t, f, tt, "Images")
+	if s.layout() != wallLayout {
+		t.Fatalf("Images is laid out as %v", s.layout())
+	}
+}
+
+// A compact article is one line: the source, the title and the time, in a row lower than the default one.
+func TestViewerCompactArticle(t *testing.T) {
+	p := prefs.Default()
+	_, _, tt := viewing(t, &p)
+	label := "Go Blog, Go 1.27 is released, 5 min, Unread"
+	before := rowRect(t, tt, label)
+	p.ArticleViewer = prefs.ViewCompact
+	tt.Frame()
+	tt.Frame()
+	after := rowRect(t, tt, label)
+	if after.H >= before.H {
+		t.Fatalf("the compact row is %v high, the default one %v", after.H, before.H)
+	}
+	if tt.HasText("The latest Go release.") {
+		t.Fatal("the summary shows in a compact row")
+	}
+}
+
+// A compact social post has no pictures of its own in the row beyond a small strip, and is lower than a card.
+func TestViewerCompactSocial(t *testing.T) {
+	p := prefs.Default()
+	_, _, tt := viewing(t, &p)
+	label := "Gopher, Five pictures from the meetup, Yesterday, Unread"
+	before := rowRect(t, tt, label)
+	p.SocialViewer = prefs.ViewCompact
+	tt.Frame()
+	tt.Frame()
+	after := rowRect(t, tt, label)
+	if after.H >= before.H {
+		t.Fatalf("the compact post is %v high, the card %v", after.H, before.H)
+	}
+}
+
+// A large cover video shows its cover across the row, in the mixed timeline as well, and is higher than the row.
+func TestViewerLargeCover(t *testing.T) {
+	p := prefs.Default()
+	_, _, tt := viewing(t, &p)
+	label := "Talks, Profiling in practice, 2 h, Unread"
+	before := rowRect(t, tt, label)
+	p.VideoViewer = prefs.ViewCover
+	tt.Frame()
+	tt.Frame()
+	after := rowRect(t, tt, label)
+	if after.H <= before.H {
+		t.Fatalf("the cover row is %v high, the default one %v", after.H, before.H)
+	}
+}
+
+// With the list or the cover as the video viewer the Videos scope is a column, not a grid.
+func TestViewerVideoListNoGrid(t *testing.T) {
+	for _, v := range []string{prefs.ViewList, prefs.ViewCover} {
+		p := prefs.Default()
+		p.VideoViewer = v
+		s, f, tt := viewing(t, &p)
+		pick(t, f, tt, "Videos")
+		if s.layout() != columnLayout || s.grids() {
+			t.Fatalf("%s: Videos is laid out as %v", v, s.layout())
+		}
+		rowRect(t, tt, "Talks, Profiling in practice, 2 h, Unread")
+	}
+}
+
+// The square grid shows the Images scope as squares, with the count of pictures in the name of a cell.
+func TestViewerImageGrid(t *testing.T) {
+	p := prefs.Default()
+	p.ImageViewer = prefs.ViewGrid
+	s, f, tt := viewing(t, &p)
+	pick(t, f, tt, "Images")
+	if s.layout() != squareLayout || !s.grids() {
+		t.Fatalf("Images is laid out as %v", s.layout())
+	}
+	r := rowRect(t, tt, "Harbor at dawn, 3 pictures")
+	if r.W < 100 || r.H < r.W-1 || r.H > r.W+1 {
+		t.Fatalf("the cell is %vx%v", r.W, r.H)
+	}
+	// The mixed timeline keeps cards.
+	pick(t, f, tt, "All")
+	if s.layout() != columnLayout {
+		t.Fatalf("the mixed timeline is laid out as %v", s.layout())
+	}
+}
+
+// The card viewer shows the Images scope as cards.
+func TestViewerImageCard(t *testing.T) {
+	p := prefs.Default()
+	p.ImageViewer = prefs.ViewCard
+	s, f, tt := viewing(t, &p)
+	pick(t, f, tt, "Images")
+	if s.layout() != columnLayout {
+		t.Fatalf("Images is laid out as %v", s.layout())
+	}
+	rowRect(t, tt, "Photos, Harbor at dawn, 3 days, Unread")
+}
+
+// The keys move through the square grid one picture at a time, and the picture chosen is the one with the focus.
+func TestViewerImageGridKeys(t *testing.T) {
+	p := prefs.Default()
+	p.ImageViewer = prefs.ViewGrid
+	s, f, tt := viewing(t, &p)
+	for i := 0; i < 11; i++ {
+		f.entries = append(f.entries, client.Entry{ID: int64(20 + i), SourceID: 4, SourceTitle: "Photos", Kind: "image",
+			Title: fmt.Sprintf("Shot %d", i), URL: fmt.Sprintf("https://photos.example/%d", i),
+			Images:    []client.Image{{URL: fmt.Sprintf("https://photos.example/%d.jpg", i)}},
+			CreatedAt: ago(time.Duration(i+1) * time.Hour)})
+	}
+	pick(t, f, tt, "Images")
+	if len(s.entries) < 8 {
+		t.Fatalf("%d pictures", len(s.entries))
+	}
+	tt.Key(0, ui.KeyJ)
+	tt.Frame()
+	first := s.selected
+	tt.Key(0, ui.KeyJ)
+	tt.Frame()
+	if s.selected != first+1 {
+		t.Fatalf("selected %d after %d", s.selected, first)
+	}
+	tt.Key(0, ui.KeyK)
+	tt.Frame()
+	if s.selected != first {
+		t.Fatalf("selected %d, want %d", s.selected, first)
+	}
+}
+
+// A change of viewer redraws the list in place: the scope and the entry chosen stay.
+func TestViewerLive(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := viewing(t, &p)
+	pick(t, f, tt, "Videos")
+	tt.Key(0, ui.KeyJ)
+	tt.Frame()
+	id := s.entries[s.selected].ID
+	p.VideoViewer = prefs.ViewList
+	tt.Frame()
+	tt.Frame()
+	if s.scope.kind != "video" || s.layout() != columnLayout {
+		t.Fatalf("scope %v, layout %v", s.scope, s.layout())
+	}
+	if s.selected < 0 || s.entries[s.selected].ID != id {
+		t.Fatalf("selected %d, want entry %d", s.selected, id)
+	}
+}
