@@ -177,7 +177,7 @@ func (s *shell) apply(p prefs.Preferences) {
 // listFonts lists the font families of the system in the background; the first listing takes a while.
 func (s *shell) listFonts() {
 	s.goAsync(func() func() {
-		var names []string
+		names := []string{} // empty, not nil: nil means not listed yet
 		for _, f := range ui.FontFamilies() {
 			names = append(names, f.Name)
 		}

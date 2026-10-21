@@ -16,7 +16,18 @@
      importing, imported (with failures), import-error, exported, devices (a remote server and its sessions),
      devices-local (this computer's server, no sessions), revoke (confirming a revocation), loading, error;
      ai (not set up), ai-configured (saved, the key only shown as set), ai-edited (changed, not saved; testing waits
-     for the save), ai-invalid (the server refused the address), ai-testing, ai-tested, ai-test-failed.
+     for the save), ai-invalid (the server refused the address), ai-testing, ai-tested, ai-test-failed;
+     font-open (the Interface font picker open, the keyboard highlight on a row below the current choice),
+     font-filtered ("sans" typed: the matches, the current choice still pinned on top if it matches),
+     font-empty (nothing matches), font-loading (the family list is still being read).
+     The font picker is a popup anchored under its control, right edges aligned: a search field, a hairline, then the
+     list. It is built to be reused (the Reading font of #101 fills the same popup with its own pinned rows: Follow
+     interface and Serif). The caller supplies the pinned rows; the popup supplies the search, the list, the keys and
+     the states. Rules (docs/design.md, Font picker): 300 wide at least and as wide as the control; at most 360 high,
+     the list scrolls inside; rows 32 high; every family is drawn in its own face; the pinned rows ("System font" and
+     the current choice) sit above a hairline and are searched with the rest; the keyboard highlight starts on the
+     current choice and moves with Up and Down; the current choice has a check; a match is not marked inside a name,
+     so the preview stays true. The popup takes the room the window leaves, below the control or above it, whichever is larger, up to 360.
      The window has no title bar: the window buttons sit over the sidebar's top, the sidebar is a floating pane of
      glass and the toolbar's title sits bare over the content (docs/design.md, Title bar).
      The bar above the window only switches the mockup.
@@ -141,6 +152,24 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .select:hover { background:color-mix(in srgb,var(--track),rgba(var(--ink),.06)) }
 .select span { flex:1; text-align:left }
 .select svg.icon { width:14px; height:14px; color:var(--muted) }
+.select.open { background:var(--chosen) }
+/* Font picker: a popup on Raised over the page, anchored under its control. Search on top, a hairline, the list. */
+.picker { position:absolute; z-index:4; width:300px; max-height:360px; display:flex; flex-direction:column; border-radius:12px; background:var(--raised); box-shadow:var(--sheet-shadow) }
+.picker .search { flex:none; display:flex; align-items:center; gap:8px; margin:8px 8px 0; height:32px; padding:0 10px; border-radius:8px; background:var(--surface); box-shadow:0 0 0 2px var(--focus); color:var(--muted) }
+.picker .search svg.icon { width:15px; height:15px }
+.picker .search .typed { flex:1; min-width:0; color:var(--text); white-space:nowrap; overflow:hidden }
+.picker .search .typed.placeholder { color:var(--muted) }
+.picker .search .caret { display:inline-block; width:1px; height:15px; margin-left:1px; vertical-align:-3px; background:var(--text) }
+.picker .search .typed.placeholder .caret { margin:0 -1px 0 0 }
+.picker .list { flex:1; min-height:0; overflow-y:auto; padding:6px 8px 8px; margin-top:6px }
+.picker .opt { width:100%; height:32px; display:flex; align-items:center; gap:8px; padding:0 8px 0 10px; border-radius:6px; text-align:left; color:var(--text); font-size:13px }
+.picker .opt:hover { background:var(--hover) }
+.picker .opt.hl { background:var(--chosen) }
+.picker .opt .face { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.picker .opt svg.icon { width:14px; height:14px; color:var(--accent) }
+.picker .rule { height:1px; margin:6px 2px; background:var(--border) }
+.picker .none, .picker .wait { display:flex; align-items:center; justify-content:center; gap:8px; min-height:56px; padding:12px; text-align:center; color:var(--muted) }
+.picker .wait svg.icon { width:14px; height:14px }
 .segmented { display:inline-flex; flex:none; gap:2px; padding:3px; border-radius:9px; background:var(--track) }
 .segmented button { height:26px; padding:0 12px; border-radius:7px; color:var(--muted); white-space:nowrap }
 .segmented button:hover { color:var(--text) }
@@ -224,7 +253,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','fetching','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','ai','ai-configured','ai-edited','ai-invalid','ai-testing','ai-tested','ai-test-failed','fetching','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -294,6 +323,8 @@ const copy={
     theme:'Theme', themeHelp:'Light or dark. Teal stays the accent in both.', themeSystem:'System', themeLight:'Light', themeDark:'Dark',
     uiLanguage:'Interface language', uiLanguageHelp:'Applies at once.', systemChoice:'System',
     uiFont:'Interface font', uiFontHelp:'The text size follows your system’s text size.', systemFont:'System font',
+    fontSearch:'Search fonts', fontList:'Fonts', fontNone:'No fonts match “{q}”', fontLoading:'Loading fonts…',
+    fontCountOne:'1 font', fontCount:'{n} fonts', fontCurrent:'selected',
     reading:'Reading', textSize:'Text size', textSizeHelp:'The text of an article in the reader.',
     sizeSmall:'Small', sizeMedium:'Medium', sizeLarge:'Large', sizeXLarge:'Extra large',
     lineSpacing:'Line spacing', lineSpacingHelp:'The space between the lines of an article.',
@@ -338,6 +369,8 @@ const copy={
     theme:'主题', themeHelp:'浅色或深色。两种主题下强调色都是青绿。', themeSystem:'跟随系统', themeLight:'浅色', themeDark:'深色',
     uiLanguage:'界面语言', uiLanguageHelp:'选了立即生效。', systemChoice:'跟随系统',
     uiFont:'界面字体', uiFontHelp:'文字大小跟随系统的文字大小。', systemFont:'系统字体',
+    fontSearch:'搜索字体', fontList:'字体', fontNone:'没有匹配「{q}」的字体', fontLoading:'正在读取字体…',
+    fontCountOne:'1 个字体', fontCount:'{n} 个字体', fontCurrent:'当前选择',
     reading:'阅读', textSize:'文字大小', textSizeHelp:'阅读窗格里文章正文的大小。',
     sizeSmall:'小', sizeMedium:'中', sizeLarge:'大', sizeXLarge:'特大',
     lineSpacing:'行距', lineSpacingHelp:'文章正文的行与行之间的距离。',
@@ -379,7 +412,7 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state==='appearance'?'appearance':state.startsWith('ai')?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
+const group=state==='appearance'||state.startsWith('font-')?'appearance':state.startsWith('ai')?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
 
 const groups=[['appearance','palette'],['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
@@ -393,12 +426,13 @@ let status='';
 if(state==='invalid')status=`<div class="status error" role="alert">${icon('alert')}${copy.invalidBase}</div>`;
 if(state==='saved')status=`<div class="status ok" role="status">${icon('check')}${copy.saved}</div>`;
 const seg=(label,items,on)=>`<div class="segmented" role="radiogroup" aria-label="${label}">${items.map(([k,name])=>`<button role="radio" aria-checked="${k===on}"${k===on?' class="on"':''}>${name}</button>`).join('')}</div>`;
-const menu=(label,value,style='')=>`<button class="select" aria-haspopup="listbox" aria-label="${label}"><span${style?` style="${style}"`:''}>${value}</span>${icon('chevronDown')}</button>`;
+const fontOpen=state.startsWith('font-');
+const menu=(label,value,style='',open=false)=>`<button class="select${open?' open':''}" aria-haspopup="listbox"${open?' aria-expanded="true"':''} aria-label="${label}"><span${style?` style="${style}"`:''}>${value}</span>${icon('chevronDown')}</button>`;
 const setting=(label,help,control)=>`<div class="row"><div class="device"><div class="text"><span class="label">${label}</span><p class="help">${help}</p></div>${control}</div></div>`;
 const appearance=`<p class="lead">${copy.appearanceLead}</p><div class="card">
 ${setting(copy.theme,copy.themeHelp,seg(copy.theme,[['system',copy.themeSystem],['light',copy.themeLight],['dark',copy.themeDark]],'system'))}
 ${setting(copy.uiLanguage,copy.uiLanguageHelp,menu(copy.uiLanguage,copy.systemChoice))}
-${setting(copy.uiFont,copy.uiFontHelp,menu(copy.uiFont,copy.systemFont))}
+${setting(copy.uiFont,copy.uiFontHelp,menu(copy.uiFont,fontOpen?'Avenir Next':copy.systemFont,fontOpen?`font-family:'Avenir Next'`:'',fontOpen))}
 </div><h2 class="section-title">${copy.reading}</h2><div class="card">
 ${setting(copy.textSize,copy.textSizeHelp,seg(copy.textSize,[['s',copy.sizeSmall],['m',copy.sizeMedium],['l',copy.sizeLarge],['xl',copy.sizeXLarge]],'m'))}
 ${setting(copy.lineSpacing,copy.lineSpacingHelp,seg(copy.lineSpacing,[['c',copy.spacingCompact],['s',copy.spacingStandard],['r',copy.spacingRelaxed]],'s'))}
@@ -472,7 +506,39 @@ else if(state==='error')page=`<div class="empty" role="status"><div class="tile"
 else page=`<div class="page${group==='devices'&&remote?' list':group==='ai'?' split':''}">${{appearance,fetching,opml,ai,devices}[group]}</div>`;
 
 let overlay='';
+// Font picker. pinned: the rows the caller supplies, [name, face]; the current one has the check. families: the
+// installed ones, which the picker sorts and searches. The Reading font passes Follow interface and Serif as pinned.
+const picker=(pinned,current,families,query,loading,hl)=>{
+  const q=query.toLowerCase(), hit=n=>!q||n.toLowerCase().includes(q);
+  const pin=pinned.filter(([n])=>hit(n)), rest=loading?[]:families.filter(n=>n!==current&&hit(n));
+  const opt=(n,face)=>`<button class="opt${n===hl?' hl':''}" role="option" aria-selected="${n===current}"${n===hl?' id="hl"':''}><span class="face" style="font-family:${face}">${n}</span>${n===current?icon('check')+`<span class="sr">, ${copy.fontCurrent}</span>`:''}</button>`;
+  const total=pin.length+rest.length;
+  let body=pin.map(([n,f])=>opt(n,f)).join('');
+  if(pin.length&&(rest.length||loading))body+='<div class="rule" role="separator"></div>';
+  if(loading)body+=`<div class="wait" role="status">${icon('loader','spin')}${copy.fontLoading}</div>`;
+  body+=rest.map(n=>opt(n,`'${n}'`)).join('');
+  if(!total)body=`<div class="none" role="status">${t('fontNone',{q:query})}</div>`;
+  const count=loading?'':total===1?copy.fontCountOne:t('fontCount',{n:total});
+  return `<div class="picker" id="picker"><div class="search">${icon('search')}<span class="typed${query?'':' placeholder'}">${query?query:copy.fontSearch}<i class="caret"></i></span></div>
+<div class="list" role="listbox" aria-label="${copy.fontList}">${body}</div><span class="sr" role="status">${total?count:t('fontNone',{q:query})}</span></div>`;
+};
+if(fontOpen){
+  const families=['Andale Mono','Arial','Arial Narrow','Baskerville','Big Caslon','Charter','Courier New','Didot','Futura','Georgia','Gill Sans','Helvetica Neue','Hiragino Sans','Hiragino Sans GB','Hoefler Text','Iowan Old Style','Lucida Sans Unicode','Menlo','Noto Sans','Noto Sans SC','Open Sans','Optima','Palatino','PingFang SC','Songti SC','Trebuchet MS','Verdana'];
+  const query={'font-filtered':'sans','font-empty':'Fraktur'}[state]||'';
+  overlay=picker([[copy.systemFont,'inherit'],['Avenir Next',"'Avenir Next'"]],'Avenir Next',families,query,state==='font-loading',{'font-open':'Arial','font-filtered':'Hiragino Sans'}[state]);
+}
 if(state==='revoke')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${t('revokeTitle',{name:'Safari · iPhone'})}</h2><p id="ab">${copy.revokeBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.revokeConfirm}</button></div></div></div>`;
 document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar"><h1>${copy[group]}</h1></div><div class="scroll">${page}</div></section>${overlay}`;
+if(fontOpen){
+  // Anchor under the control, right edges aligned; use the larger side when 360 does not fit.
+  const win=document.getElementById('window').getBoundingClientRect(), box=document.getElementById('picker');
+  const at=document.querySelector('.select.open').getBoundingClientRect();
+  const w=Math.max(300,at.width), room=win.height-8-(at.bottom-win.top+4), roomUp=at.top-win.top-4-8, up=room<Math.min(box.offsetHeight,360)&&roomUp>room;
+  box.style.width=w+'px';
+  box.style.left=(at.right-win.left-w)+'px';
+  box.style.maxHeight=Math.min(360,up?roomUp:room)+'px';
+  box.style.top=(up?at.top-win.top-4-box.offsetHeight:at.bottom-win.top+4)+'px';
+  document.getElementById('hl')?.scrollIntoView({block:'nearest'});
+}
 </script>
 </html>

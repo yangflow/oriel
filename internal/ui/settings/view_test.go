@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ const (
 type fake struct {
 	prefs    prefs.Preferences
 	fonts    []string
+	later    time.Duration // how far the clock has moved on from now
 	changes  []prefs.Preferences
 	queue    []func() func()
 	settings client.Settings
@@ -109,7 +111,7 @@ func (f *fake) TestAI(context.Context) (string, error) {
 func (f *fake) deps() Deps {
 	return Deps{
 		Go:  func(work func() func()) { f.queue = append(f.queue, work) },
-		Now: func() time.Time { return now },
+		Now: func() time.Time { return now.Add(f.later) },
 		Open: func(filter string) (string, error) {
 			f.filters = append(f.filters, filter)
 			return f.open, nil
@@ -952,19 +954,239 @@ func TestAppearanceLanguage(t *testing.T) {
 	}
 }
 
-func TestAppearanceFonts(t *testing.T) {
+// pickerFonts is the family list of the font picker tests: Menlo is installed twice over as far as case goes.
+var pickerFonts = []string{"Arial", "Georgia", "Hiragino Sans", "Menlo", "Noto Sans", "Noto Sans SC", "Songti SC"}
+
+// openFonts opens the Interface font picker with the families known.
+func openFonts(t *testing.T, fonts []string) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
 	s, f, tt := openAppearance(t, "en")
-	press(t, tt, s.text.SystemFont)
-	if tt.HasText("Georgia") {
-		t.Fatalf("a font shows before the list loads: %v", tt.Texts())
-	}
-	tt.Key(0, ui.KeyEscape)
-	f.fonts = []string{"Georgia", "Menlo"}
+	f.fonts = fonts
 	tt.Frame()
 	press(t, tt, s.text.SystemFont)
+	if !s.uiFont.open {
+		t.Fatalf("not open: %v", tt.Texts())
+	}
+	return s, f, tt
+}
+
+func TestFontPickerOpens(t *testing.T) {
+	s, _, tt := openFonts(t, pickerFonts)
+	if !tt.Focused(s.text.FontSearch) {
+		t.Fatalf("focus is not in the search field")
+	}
+	for _, name := range pickerFonts {
+		if !tt.HasText(name) {
+			t.Errorf("missing %q in %v", name, tt.Texts())
+		}
+	}
+	if s.uiFont.pinned != 1 || len(s.uiFont.shown) != 1+len(pickerFonts) || s.uiFont.hl != 0 {
+		t.Fatalf("pinned %d, shown %d, highlight %d", s.uiFont.pinned, len(s.uiFont.shown), s.uiFont.hl)
+	}
+}
+
+func TestFontPickerFilters(t *testing.T) {
+	s, _, tt := openFonts(t, pickerFonts)
+	tt.Type("SANS")
+	tt.Frame()
+	var got []string
+	for _, o := range s.uiFont.shown {
+		got = append(got, o.name)
+	}
+	if !slices.Equal(got, []string{"Hiragino Sans", "Noto Sans", "Noto Sans SC"}) {
+		t.Fatalf("shown %v", got)
+	}
+	if tt.HasText("Menlo") || tt.HasText(s.text.FontNone) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	// A pinned row that does not match goes, a substring of a name anywhere matches.
+	tt.Type("zz")
+	tt.Frame()
+	if len(s.uiFont.shown) != 0 || s.uiFont.hl != -1 {
+		t.Fatalf("shown %v", s.uiFont.shown)
+	}
+}
+
+func TestFontPickerNoRepeat(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	f.prefs.Font = "Georgia"
+	f.fonts = pickerFonts
+	tt.Frame()
+	press(t, tt, "Georgia")
+	seen := map[string]bool{}
+	for _, o := range s.uiFont.shown {
+		if seen[o.value] {
+			t.Fatalf("%q twice in %v", o.value, s.uiFont.shown)
+		}
+		seen[o.value] = true
+	}
+	if s.uiFont.pinned != 2 || len(s.uiFont.shown) != 1+len(pickerFonts) {
+		t.Fatalf("pinned %d, shown %d", s.uiFont.pinned, len(s.uiFont.shown))
+	}
+}
+
+func TestFontPickerEmpty(t *testing.T) {
+	s, _, tt := openFonts(t, pickerFonts)
+	tt.Type("Fraktur")
+	tt.Frame()
+	if want := "No fonts match “Fraktur”"; !tt.HasText(want) {
+		t.Fatalf("want %q in %v", want, tt.Texts())
+	}
+	if rule, status := s.uiFont.layout(true); rule || !status || s.uiFont.rows(true) != 1 {
+		t.Fatalf("rule %v, status %v", rule, status)
+	}
+	zh := &Screen{text: translations["zh-Hans"]}
+	if got := zh.fill(zh.text.FontNone, "{q}", "Fraktur"); got != "没有匹配「Fraktur」的字体" {
+		t.Fatalf("zh %q", got)
+	}
+}
+
+func TestFontPickerKeys(t *testing.T) {
+	s, f, tt := openFonts(t, pickerFonts)
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyDown)
+	if s.uiFont.hl != 2 {
+		t.Fatalf("highlight %d", s.uiFont.hl)
+	}
+	tt.Key(0, ui.KeyEnd)
+	if s.uiFont.hl != len(pickerFonts) {
+		t.Fatalf("highlight %d", s.uiFont.hl)
+	}
+	tt.Key(0, ui.KeyDown)
+	if s.uiFont.hl != len(pickerFonts) {
+		t.Fatalf("it wrapped to %d", s.uiFont.hl)
+	}
+	tt.Key(0, ui.KeyHome)
+	tt.Key(0, ui.KeyUp)
+	if s.uiFont.hl != 0 {
+		t.Fatalf("it wrapped to %d", s.uiFont.hl)
+	}
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter)
+	if s.uiFont.open || f.prefs.Font != "Georgia" || len(f.changes) != 1 {
+		t.Fatalf("open %v, font %q, changes %d", s.uiFont.open, f.prefs.Font, len(f.changes))
+	}
+	if f.back != 0 {
+		t.Fatalf("back %d", f.back)
+	}
+	if !tt.Focused(s.text.UIFont) {
+		t.Fatalf("focus did not return to the control")
+	}
+}
+
+func TestFontPickerEscape(t *testing.T) {
+	s, f, tt := openFonts(t, pickerFonts)
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEscape)
+	if s.uiFont.open || len(f.changes) != 0 || f.back != 0 {
+		t.Fatalf("open %v, changes %d, back %d", s.uiFont.open, len(f.changes), f.back)
+	}
+	if !tt.Focused(s.text.UIFont) {
+		t.Fatalf("focus did not return to the control")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if f.back != 1 {
+		t.Fatalf("back %d", f.back)
+	}
+}
+
+func TestFontPickerFilterThenChoose(t *testing.T) {
+	s, f, tt := openFonts(t, pickerFonts)
+	tt.Type("songti")
+	tt.Key(0, ui.KeyEnter)
+	if f.prefs.Font != "Songti SC" || s.uiFont.open {
+		t.Fatalf("font %q, open %v", f.prefs.Font, s.uiFont.open)
+	}
+	// System font is the first row again, and chooses the empty family.
+	press(t, tt, "Songti SC")
+	tt.Key(0, ui.KeyHome)
+	tt.Key(0, ui.KeyEnter)
+	if f.prefs.Font != "" {
+		t.Fatalf("font %q", f.prefs.Font)
+	}
+}
+
+func TestFontPickerClick(t *testing.T) {
+	_, f, tt := openFonts(t, pickerFonts)
 	press(t, tt, "Georgia")
 	if f.prefs.Font != "Georgia" {
 		t.Fatalf("font %q", f.prefs.Font)
+	}
+}
+
+func TestFontPickerLoading(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	press(t, tt, s.text.SystemFont)
+	if !tt.HasText(s.text.FontLoading) || tt.HasText("Georgia") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	tt.Type("geo")
+	tt.Frame()
+	if !tt.HasText(s.text.FontLoading) || s.uiFont.pinned != 0 {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	f.fonts = pickerFonts
+	tt.Frame()
+	if tt.HasText(s.text.FontLoading) || !tt.HasText("Georgia") || tt.HasText("Menlo") || s.uiFont.query != "geo" {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEnter)
+	if f.prefs.Font != "Georgia" {
+		t.Fatalf("font %q", f.prefs.Font)
+	}
+}
+
+func TestFontPickerAnnounces(t *testing.T) {
+	_, f, tt := openFonts(t, pickerFonts)
+	told := func() []string { return tt.Announcements() }
+	if slices.Contains(told(), "8 fonts") {
+		t.Fatalf("announced before the pause: %v", told())
+	}
+	f.later = 400 * time.Millisecond
+	tt.Frame()
+	if !slices.Contains(told(), "8 fonts") {
+		t.Fatalf("announcements %v", told())
+	}
+	tt.Type("georgia")
+	f.later = 500 * time.Millisecond
+	tt.Frame()
+	f.later = 900 * time.Millisecond
+	tt.Frame()
+	if !slices.Contains(told(), "1 font") {
+		t.Fatalf("announcements %v", told())
+	}
+}
+
+func TestFontPickerSize(t *testing.T) {
+	for _, scale := range []float32{1, 2} {
+		s, _, tt := openAppearance(t, "en")
+		tt.SetScale(scale)
+		many := make([]string, 400)
+		for i := range many {
+			many[i] = "Family " + strconv.Itoa(1000+i)
+		}
+		slices.Sort(many)
+		s.deps.Fonts = func() []string { return many }
+		tt.Frame()
+		control := rect(t, tt, s.text.SystemFont)
+		press(t, tt, s.text.SystemFont)
+		field, ok := tt.Find("Search fonts")
+		if !ok {
+			t.Fatalf("texts %v", tt.Texts())
+		}
+		if field.X > control.X+control.W+2*scale {
+			t.Fatalf("scale %v: search field at %v, control at %v", scale, field, control)
+		}
+		built := 0
+		for _, text := range tt.Texts() {
+			if strings.HasPrefix(text, "Family ") {
+				built++
+			}
+		}
+		if built == 0 || built > 40 {
+			t.Fatalf("scale %v: %d of 400 families built", scale, built)
+		}
 	}
 }
 

@@ -139,6 +139,13 @@
     "SpacingStandard": "Standard",
     "SpacingRelaxed": "Relaxed",
     "PreviewText": "The quick brown fox jumps over the lazy dog. A good feed reader gets out of the way and lets the words do the work.",
+    "FontSearch": "Search fonts",
+    "FontList": "Fonts",
+    "FontNone": "No fonts match “{q}”",
+    "FontLoading": "Loading fonts…",
+    "FontCountOne": "1 font",
+    "FontCount": "{n} fonts",
+    "FontCurrent": "selected",
     "PreferenceFailed": "Couldn’t save that choice. It went back to what it was."
   },
   "zh-Hans": {
@@ -281,6 +288,13 @@
     "SpacingStandard": "标准",
     "SpacingRelaxed": "宽松",
     "PreviewText": "好的阅读器不抢戏，让文字自己说话。长时间读下去，字号和行距合不合适，眼睛最先知道。",
+    "FontSearch": "搜索字体",
+    "FontList": "字体",
+    "FontNone": "没有匹配「{q}」的字体",
+    "FontLoading": "正在读取字体…",
+    "FontCountOne": "1 个字体",
+    "FontCount": "{n} 个字体",
+    "FontCurrent": "当前选择",
     "PreferenceFailed": "没能保存这项选择，已退回原来的值。"
   }
 }
