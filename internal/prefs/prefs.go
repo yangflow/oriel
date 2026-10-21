@@ -99,6 +99,8 @@ type Preferences struct {
 	OldestFirst bool   `json:"oldestFirst,omitempty"`
 	// SidebarHidden is set while the reader has collapsed the sidebar of the timeline; the default is shown.
 	SidebarHidden bool `json:"sidebarHidden,omitempty"`
+	// Places are the scope and filter the timeline was left in, per server; see Places.
+	Places Places `json:"places,omitempty"`
 	// LastLooked is where the reader last looked in the timeline on this device; see Marker.
 	LastLooked Marker `json:"lastLooked,omitzero"`
 }
@@ -229,6 +231,89 @@ func (g *Grids) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Place is where the timeline was left on one server: the scope the sidebar chose and the filter of the toolbar. Kind
+// is "", "article", "video", "social" or "image"; Source is the subscription chosen, 0 for none, and Kind then its
+// kind; Filter is "" for everything, "unread" or "starred". The zero Place is the whole timeline.
+type Place struct {
+	Kind   string `json:"kind,omitempty"`
+	Source int64  `json:"source,omitempty"`
+	Filter string `json:"filter,omitempty"`
+}
+
+// The filters of a Place.
+const (
+	FilterUnread  = "unread"
+	FilterStarred = "starred"
+)
+
+func (p Place) valid() bool {
+	switch p.Kind {
+	case "", "article", "video", "social", "image":
+	default:
+		return false
+	}
+	return p.Source >= 0 && (p.Filter == "" || p.Filter == FilterUnread || p.Filter == FilterStarred)
+}
+
+// Places remembers the Place of each server, keyed by the address the app shows the server by ("" for this computer).
+// A server left in the whole timeline has no entry, so the set stays small. It is a string inside, so that Preferences
+// stays comparable, and a JSON object outside: {"home.lan:7470":{"kind":"video","filter":"unread"}}.
+type Places string
+
+func (g Places) entries() map[string]Place {
+	var m map[string]Place
+	if json.Unmarshal([]byte(g), &m) != nil {
+		return map[string]Place{}
+	}
+	for k, v := range m {
+		if !v.valid() || v == (Place{}) {
+			delete(m, k)
+		}
+	}
+	return m
+}
+
+func encodePlaces(m map[string]Place) Places {
+	if len(m) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(m) // sorted by key
+	if err != nil {
+		return ""
+	}
+	return Places(data)
+}
+
+// Get is the place of a server, the zero Place when none was kept.
+func (g Places) Get(server string) Place { return g.entries()[server] }
+
+// Set returns g with the place of the server kept, or dropped when it is the whole timeline; a place it does not know
+// changes nothing.
+func (g Places) Set(server string, p Place) Places {
+	if !p.valid() {
+		return g
+	}
+	m := g.entries()
+	if p == (Place{}) {
+		delete(m, server)
+	} else {
+		m[server] = p
+	}
+	return encodePlaces(m)
+}
+
+// MarshalJSON writes the places as an object.
+func (g Places) MarshalJSON() ([]byte, error) { return json.Marshal(g.entries()) }
+
+// UnmarshalJSON reads the object and keeps the places it knows; anything else reads as none, so a bad value never costs
+// the other preferences.
+func (g *Places) UnmarshalJSON(data []byte) error {
+	*g = Places(data).normalized()
+	return nil
+}
+
+func (g Places) normalized() Places { return encodePlaces(g.entries()) }
+
 // Default has every preference at its default.
 func Default() Preferences {
 	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ChineseTypesetting: true,
@@ -270,6 +355,9 @@ func (p Preferences) Normalize() Preferences {
 	}
 	if p.Grids != "" {
 		p.Grids = encodeGrids(p.Grids.entries())
+	}
+	if p.Places != "" {
+		p.Places = p.Places.normalized()
 	}
 	if p.LastLooked.At <= 0 || p.LastLooked.ID < 0 {
 		p.LastLooked = Marker{}

@@ -331,3 +331,48 @@ func TestLastLooked(t *testing.T) {
 		}
 	}
 }
+
+// TestPlaces shows the place of each server survives a save and a load, is left out for a server in the whole
+// timeline, that an old file without the field loads, and that a value that cannot be a place is dropped without
+// costing the other preferences.
+func TestPlaces(t *testing.T) {
+	path := filepath.Join(t.TempDir(), File)
+	os.WriteFile(path, []byte(`{"theme":"dark"}`), 0o600)
+	if got := Load(path); got.Theme != ThemeDark || got.Places != "" || got.Places.Get("") != (Place{}) {
+		t.Fatalf("an old file: %+v", got)
+	}
+	p := Default()
+	p.Places = p.Places.Set("home.lan:7470", Place{Kind: "video", Filter: FilterUnread})
+	p.Places = p.Places.Set("", Place{Kind: "article", Source: 12})
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	got := Load(path)
+	if got != p {
+		t.Errorf("round trip: %+v, want %+v", got, p)
+	}
+	if got.Places.Get("home.lan:7470") != (Place{Kind: "video", Filter: FilterUnread}) ||
+		got.Places.Get("") != (Place{Kind: "article", Source: 12}) || got.Places.Get("other") != (Place{}) {
+		t.Errorf("places %s", got.Places)
+	}
+	if data, _ := os.ReadFile(path); !strings.Contains(string(data), `"places":{"":{"kind":"article","source":12},"home.lan:7470":{"kind":"video","filter":"unread"}}`) {
+		t.Errorf("file %s", data)
+	}
+	// Back to the whole timeline drops the entry; the last one drops the field.
+	p.Places = p.Places.Set("home.lan:7470", Place{}).Set("", Place{})
+	Save(path, p)
+	if data, _ := os.ReadFile(path); strings.Contains(string(data), "places") || Load(path).Places != "" {
+		t.Errorf("empty places written: %s", data)
+	}
+	// A place it does not know changes nothing.
+	if q := p.Places.Set("x", Place{Kind: "podcast"}).Set("x", Place{Source: -1}).Set("x", Place{Filter: "all"}); q != p.Places {
+		t.Errorf("unknown place kept: %s", q)
+	}
+	for _, bad := range []string{`"x"`, `[]`, `7`, `null`, `{"a":"x"}`, `{"a":{"kind":"podcast"}}`, `{"a":{"source":-1}}`, `{"a":{"filter":"x"}}`} {
+		os.WriteFile(path, []byte(`{"theme":"dark","places":`+bad+`}`), 0o600)
+		got := Load(path)
+		if got.Places != "" || got.Theme != ThemeDark {
+			t.Errorf("%s: %+v", bad, got)
+		}
+	}
+}
