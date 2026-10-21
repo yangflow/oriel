@@ -22,7 +22,7 @@ import (
 var catalog []byte
 
 type copy struct {
-	Title, Address, Password, PasswordLabel, Show, Hide, Reachable, UseLocal, Connect, Connecting               string
+	Title, Address, Password, PasswordLabel, Show, Reachable, UseLocal, Connect, Connecting                     string
 	Unreachable, NotOriel, PasswordRequired, WrongPassword, TooManyAttempts, ServerError, Failed, Expired, Menu string
 }
 
@@ -320,12 +320,13 @@ func (s *Screen) passwordField(c *ui.Context, busy bool) {
 			in.Password()
 		}
 	}, func() {
-		label, icon := s.text.Show, icons.Eye
+		icon := icons.Eye
 		if s.shown {
-			label, icon = s.text.Hide, icons.EyeOff
+			icon = icons.EyeOff
 		}
-		eye := theme.Fade(ui.ButtonBase(c).Size(t.Space(6), t.Space(6)).Radius(t.Space(1.5)).Label(label).
-			Tooltip(label).Disabled(busy))
+		// The name stays the same and the pressed state says whether the password shows.
+		eye := theme.Fade(ui.ButtonBase(c).Size(t.Space(6), t.Space(6)).Radius(t.Space(1.5)).Label(s.text.Show).
+			Tooltip(s.text.Show).Role(ui.RoleToggleButton).Checked(s.shown).Disabled(busy))
 		color := t.TextMuted
 		switch {
 		case eye.Pressed():

@@ -86,7 +86,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
 - **The connect screen.** A sheet at most `Space(80)` (320) wide, centered in a scroll view with outer padding
   `Space(6)`; `Space(6)` between the header, the form and the buttons, `Space(2)` between fields, `Space(1.5)` (6)
   between a field and its error. Fields and buttons are `Space(8)` (32) high; the two buttons share the width
-  equally.
+  equally. The password field's eye button is a toggle button: its name stays "Show password" and its pressed
+  state says whether the password shows, while its icon flips between eye and eye-off.
 - **The timeline.** An ink pane and the main column. The pane is 216 wide (184 below a 760 wide window), an opaque
   pane of ink (warm charcoal in light, deep teal in dark) floating 8 from the window's top, bottom and left edges, radius 14, with no divider; it is drawn with its
   own light-on-dark theme (see [Glass and ink](#windows-menus-and-navigation)); its first 40 are left to the window
