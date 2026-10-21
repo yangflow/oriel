@@ -959,3 +959,141 @@ func TestTranslateHiddenInTargetLanguage(t *testing.T) {
 		expect(t, tt, "Summarize")
 	}
 }
+
+// several serves one article for each id, and counts what it is asked.
+type several struct {
+	*fake
+	bodies  []int64
+	reads   []int64
+	failing map[int64]bool
+}
+
+func (a *several) Entry(_ context.Context, id int64) (client.Article, error) {
+	a.bodies = append(a.bodies, id)
+	if a.failing[id] {
+		return client.Article{}, errors.New("unreachable")
+	}
+	article := full()
+	article.ID = id
+	article.Title = fmt.Sprintf("Article %d", id)
+	article.ExtractedHTML = fmt.Sprintf("<p>Text %d.</p>", id)
+	return article, nil
+}
+
+func (a *several) AI(_ context.Context, id int64) (client.AIResults, error) {
+	a.reads = append(a.reads, id)
+	return client.AIResults{TargetLanguage: "en", Summary: &client.AIResult{Status: "ok", Text: fmt.Sprintf("Short %d.", id)}}, nil
+}
+
+func prefetching(t *testing.T) (*Screen, *several, *ui.Tester) {
+	t.Helper()
+	a := &several{fake: &fake{now: now}, failing: map[int64]bool{}}
+	s := New("en", a.deps())
+	s.Use(a)
+	tt := ui.NewTester(func(c *ui.Context) {
+		s.View(c, Nav{Entry: s.article.Entry, Scope: "All", Previous: true, Next: true, Keys: true})
+	}, 1100, 800)
+	s.Open(client.Entry{ID: 10, Kind: "article", Title: "Article 10"})
+	tt.Frame()
+	a.settle(tt)
+	return s, a, tt
+}
+
+func TestPrefetchHit(t *testing.T) {
+	s, a, tt := prefetching(t)
+	s.Prefetch(9, 11)
+	a.settle(tt)
+	if !slices.Equal(a.bodies, []int64{10, 9, 11}) || len(a.requests) != 0 {
+		t.Fatalf("bodies %v, reads %v, requests %v", a.bodies, a.reads, a.requests)
+	}
+	s.Open(client.Entry{ID: 11, Kind: "article", Title: "Article 11"})
+	tt.Frame()
+	if s.loading {
+		t.Fatal("a prefetched article shows the wait")
+	}
+	expect(t, tt, "Text 11.", "Short 11.")
+	if len(a.bodies) != 3 {
+		t.Fatalf("bodies %v", a.bodies)
+	}
+	// The summary is read again, as it may have changed.
+	reads := len(a.reads)
+	if len(a.queue) != 1 {
+		t.Fatalf("%d jobs queued", len(a.queue))
+	}
+	a.settle(tt)
+	if len(a.reads) != reads+1 || len(a.requests) != 0 {
+		t.Fatalf("reads %v, requests %v", a.reads, a.requests)
+	}
+	// A miss waits as before.
+	s.Open(client.Entry{ID: 40, Kind: "article", Title: "Article 40"})
+	tt.Frame()
+	if !s.loading {
+		t.Fatal("an article not got ahead shows at once")
+	}
+	absent(t, tt, "Text 40.")
+}
+
+func TestPrefetchBounded(t *testing.T) {
+	s, a, tt := prefetching(t)
+	s.Prefetch(9, 11, 12, 13)
+	a.settle(tt)
+	if len(s.cache) > keepCached {
+		t.Fatalf("%d articles kept", len(s.cache))
+	}
+	// Only the article read and its neighbours are kept.
+	s.Prefetch(9, 11)
+	a.settle(tt)
+	for _, c := range s.cache {
+		if c.id != 10 && c.id != 9 && c.id != 11 {
+			t.Fatalf("kept %d", c.id)
+		}
+	}
+	s.Prefetch(9, 11)
+	if len(a.queue) != 0 {
+		t.Fatal("articles kept are got again")
+	}
+}
+
+func TestPrefetchDropped(t *testing.T) {
+	s, a, tt := prefetching(t)
+	s.Prefetch(9, 11)
+	a.settle(tt)
+	s.Use(a)
+	if len(s.cache) != 0 {
+		t.Fatalf("%d articles kept for the server before", len(s.cache))
+	}
+	// An answer for the server before comes after Use and is dropped.
+	s.Open(client.Entry{ID: 10, Kind: "article"})
+	s.Prefetch(11)
+	s.Use(a)
+	a.settle(tt)
+	if len(s.cache) != 0 || len(s.fetching) != 0 {
+		t.Fatalf("kept %d, getting %d", len(s.cache), len(s.fetching))
+	}
+	s.Open(client.Entry{ID: 10, Kind: "article"})
+	a.settle(tt)
+	s.Prefetch(11)
+	s.Forget()
+	a.settle(tt)
+	if len(s.cache) != 0 {
+		t.Fatal("an answer for the list before is kept")
+	}
+	s.Open(client.Entry{ID: 11, Kind: "article"})
+	if !s.loading {
+		t.Fatal("an article from the list before shows at once")
+	}
+}
+
+func TestPrefetchFailsSilently(t *testing.T) {
+	s, a, tt := prefetching(t)
+	a.failing[11] = true
+	s.Prefetch(11)
+	a.settle(tt)
+	if s.failed || len(s.cache) != 1 || len(a.requests) != 0 {
+		t.Fatalf("failed %v, kept %d", s.failed, len(s.cache))
+	}
+	s.Open(client.Entry{ID: 11, Kind: "article"})
+	if !s.loading {
+		t.Fatal("a failed prefetch shows as a hit")
+	}
+}

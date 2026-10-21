@@ -389,6 +389,7 @@ func (s *Screen) reload() {
 	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = -1, -1, -1, true, 0, false
 	s.checking = false
 	s.retryPictures()
+	s.reader.Forget()
 	s.deps.Go(func() func() {
 		page, err := api.Entries(context.Background(), q)
 		return func() {
@@ -475,6 +476,7 @@ func (s *Screen) restore(snap snapshot) {
 	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = s.index(snap.selected), -1, -1, false, 0, false
 	s.polledAt = s.deps.Now()
 	s.retryPictures()
+	s.reader.Forget()
 	switch i := s.index(snap.anchor); {
 	case s.walls():
 		s.wall.Y = snap.wallY
@@ -853,10 +855,22 @@ func (s *Screen) read(i int) {
 	e := s.entries[i]
 	s.selected, s.reading = i, e.ID
 	s.reader.Open(e)
+	s.prefetch()
 	s.markRead(e)
 	if i >= len(s.entries)-nearEnd {
 		s.loadMore()
 	}
+}
+
+// prefetch has the reader get the articles beside the one read, so the step to them shows at once.
+func (s *Screen) prefetch() {
+	var ids []int64
+	for _, by := range []int{-1, 1} {
+		if i := s.article(by); i >= 0 {
+			ids = append(ids, s.entries[i].ID)
+		}
+	}
+	s.reader.Prefetch(ids...)
 }
 
 // article returns the article by entries from the one read, -1 when there is none loaded.
