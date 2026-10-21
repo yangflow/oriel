@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -3911,5 +3912,24 @@ func TestCopyLinkFromMenu(t *testing.T) {
 				t.Fatalf("clipboard %q, announcements %v", tt.Clipboard(), tt.Announcements())
 			}
 		})
+	}
+}
+
+// TestSidebarAddAlignsWithRows checks that the icon of the add button in the Subscriptions header ends where the counts
+// of the rows below it end, 10 in from the edge of the row highlight.
+func TestSidebarAddAlignsWithRows(t *testing.T) {
+	f := newPlaceFake()
+	_, tt := newKept().open(t, f, "")
+	add, ok := tt.Find("Add subscription")
+	if !ok {
+		t.Fatalf("no add button: %v", tt.Texts())
+	}
+	count, ok := tt.Find("2")
+	if !ok {
+		t.Fatalf("no count: %v", tt.Texts())
+	}
+	// The width of the count's text depends on the fonts of the platform, so allow less than half a pixel.
+	if got, want := add.X+add.W-4, count.X+count.W; math.Abs(float64(got-want)) >= 0.5 {
+		t.Errorf("icon ends at %v, the counts at %v", got, want)
 	}
 }

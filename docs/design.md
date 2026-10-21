@@ -137,7 +137,9 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   200 wide, 16:9 covers; Images are a masonry wall of up to three columns at least 170 wide, each picture at its own
   aspect ratio. These are the defaults; the View as preference (the next bullet) changes them. Below a 760 wide window the segments show icons only. Sizes taken from the mockup are written
   `px(t, n)`, which is `t.Rem(n / 13)`, so they follow the text size. The pane's section header, 22 high, ends in a 22
-  square + button that adds a subscription; it shows even when there are none. A paused subscription has its name in
+  square + button that adds a subscription; it shows even when there are none. The label starts where the row icons
+  do (10 in) and the button's 14 icon ends where the row counts do (10 in), so the button sits 6 in from the row
+  highlight's edge (`pane-add` in the tokens), centered on the label; drawn in `design/screens/timeline.html`. A paused subscription has its name in
   `TextMuted`, a pause mark instead of the failure mark, and no count. With one subscription chosen, a pencil button
   after the count edits it. A row is chosen with a fill (ink 6.5%) and the selection marker; see
   [States](#color-and-dark-mode).
