@@ -4,8 +4,10 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/store"
@@ -13,6 +15,25 @@ import (
 
 // maxOPML is the largest OPML file an import accepts.
 const maxOPML = 1 << 20
+
+// An import spreads the first fetches of its sources over importSpreadEach per subscription in the file, at most
+// importSpreadMax, so that hundreds of new sources do not all become due at once.
+const (
+	importSpreadEach = 2 * time.Second
+	importSpreadMax  = 10 * time.Minute
+)
+
+// countOutlines counts the outlines that are subscriptions, in groups too.
+func countOutlines(outlines []opmlOutline) int {
+	n := 0
+	for _, o := range outlines {
+		if o.XMLURL != "" || o.RSSHubPath != "" {
+			n++
+		}
+		n += countOutlines(o.Outlines)
+	}
+	return n
+}
 
 type opmlDocument struct {
 	XMLName xml.Name      `xml:"opml"`
@@ -77,6 +98,7 @@ func (s *Server) importOPML(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	added, existing, failed := 0, 0, []importFailure{}
+	spread := min(importSpreadMax, time.Duration(countOutlines(doc.Body))*importSpreadEach)
 	var walk func([]opmlOutline) error
 	walk = func(outlines []opmlOutline) error {
 		for _, o := range outlines {
@@ -86,6 +108,7 @@ func (s *Server) importOPML(w http.ResponseWriter, r *http.Request) {
 				case code != "":
 					failed = append(failed, importFailure{Title: title, Address: src.URL + src.RSSHubPath, Error: code})
 				default:
+					src.FirstFetchDelay = time.Duration(rand.Int64N(int64(max(spread, 1))))
 					_, err := s.store.CreateSource(r.Context(), src, title, s.now())
 					switch {
 					case errors.Is(err, store.ErrExists):

@@ -62,7 +62,8 @@ const sourceColumns = `
 	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused,
 	(SELECT count(*) FROM entries e WHERE e.source_id = s.id AND e.is_read = 0 AND ` + shown + `), s.created_at, s.updated_at`
 
-// CreateSource adds a subscription with a title, which may be empty, and returns it.
+// CreateSource adds a subscription with a title, which may be empty, and returns it. The source is due at once
+// unless src.FirstFetchDelay says otherwise.
 // It returns ErrExists when the same feed is already subscribed.
 // Feed addresses are compared by feedURLKey, so a trailing slash, a capitalised host or a default port does not make
 // a second subscription; the address is stored as given.
@@ -78,7 +79,7 @@ func (s *Store) CreateSource(ctx context.Context, src NewSource, title string, n
 		INSERT INTO sources (url, rsshub_path, title, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		src.URL, src.RSSHubPath, title, src.Kind, int64(src.FetchInterval/time.Second),
-		now.UnixMilli(), now.UnixMilli(), now.UnixMilli())
+		now.Add(max(src.FirstFetchDelay, 0)).UnixMilli(), now.UnixMilli(), now.UnixMilli())
 	if err != nil {
 		var sqliteErr *sqlite.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {

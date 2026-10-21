@@ -33,6 +33,8 @@ type NewSource struct {
 	RSSHubPath    string
 	Kind          string
 	FetchInterval time.Duration
+	// FirstFetchDelay postpones the first fetch; zero makes the source due at once.
+	FirstFetchDelay time.Duration
 }
 
 // DueSources lists unpaused sources whose next fetch time has come, the longest waiting first.

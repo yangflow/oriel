@@ -31,6 +31,9 @@ const (
 	// hostSpacing is the least time between two extraction requests to one site.
 	hostSpacing = 5 * time.Second
 
+	// extractBatch is how many articles one round extracts at once.
+	extractBatch = 4
+
 	// candidates is how many waiting articles one round looks at, so that sites held back by hostSpacing
 	// do not keep the others from running.
 	candidates = 50
@@ -61,25 +64,50 @@ func retryAt(err error, attempt int, now time.Time) time.Time {
 	return now.Add(max(extractDelays[min(attempt, len(extractDelays))-1], failure.wait))
 }
 
-// hostGate spaces out the requests to one site.
+// hostGate limits and spaces out the requests to one site. Feed fetches and article extractions share it, so a
+// site never sees more than hostLimit requests at once from either.
 type hostGate struct {
-	mu   sync.Mutex
-	next map[string]time.Time
+	mu     sync.Mutex
+	next   map[string]time.Time // the earliest start of the next request
+	active map[string]int       // requests in flight
 }
 
-// reserve takes the host's turn when it is free at now, and holds the host for hostSpacing.
-func (g *hostGate) reserve(host string, now time.Time) bool {
+// acquire takes a place at the host when one is free and the host is not held until later, and holds the host for
+// spacing from now. Every acquire that succeeded must be released. An empty host is never limited.
+func (g *hostGate) acquire(host string, now time.Time, spacing time.Duration) bool {
+	if host == "" {
+		return true
+	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if now.Before(g.next[host]) {
+	if now.Before(g.next[host]) || g.active[host] >= hostLimit {
 		return false
 	}
-	g.holdLocked(host, now.Add(hostSpacing))
+	if g.active == nil {
+		g.active = map[string]int{}
+	}
+	g.active[host]++
+	g.holdLocked(host, now.Add(spacing))
 	return true
+}
+
+// release gives back a place taken by acquire.
+func (g *hostGate) release(host string) {
+	if host == "" {
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.active[host]--; g.active[host] <= 0 {
+		delete(g.active, host)
+	}
 }
 
 // holdUntil keeps requests to the host back until at.
 func (g *hostGate) holdUntil(host string, at time.Time) {
+	if host == "" {
+		return
+	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.holdLocked(host, at)
@@ -94,7 +122,7 @@ func (g *hostGate) holdLocked(host string, at time.Time) {
 	}
 }
 
-// extractAll extracts up to four waiting articles at once, at most one per site in a round.
+// extractAll extracts up to extractBatch waiting articles at once, at most one per site in a round, and waits for them.
 func (p *Poller) extractAll(ctx context.Context) {
 	now := p.now()
 	waiting, err := p.store.PendingExtractions(ctx, now, candidates)
@@ -104,19 +132,29 @@ func (p *Poller) extractAll(ctx context.Context) {
 		}
 		return
 	}
-	var targets []store.ExtractTarget
+	type job struct {
+		target store.ExtractTarget
+		host   string
+	}
+	var jobs []job
 	for _, target := range waiting {
-		if len(targets) == concurrency {
+		if len(jobs) == extractBatch {
 			break
 		}
-		if u, err := url.Parse(target.URL); err == nil && u.Host != "" && !p.hosts.reserve(u.Host, now) {
+		var host string
+		if u, err := url.Parse(target.URL); err == nil {
+			host = u.Host
+		}
+		if !p.hosts.acquire(host, now, hostSpacing) {
 			continue
 		}
-		targets = append(targets, target)
+		jobs = append(jobs, job{target, host})
 	}
 	var wg sync.WaitGroup
-	for _, target := range targets {
+	for _, j := range jobs {
+		target := j.target
 		wg.Go(func() {
+			defer p.hosts.release(j.host)
 			content, err := p.extract(ctx, target.URL)
 			if ctx.Err() != nil {
 				return // shutting down: the attempt does not count
@@ -124,8 +162,8 @@ func (p *Poller) extractAll(ctx context.Context) {
 			if err != nil {
 				slog.Info("Extraction failed", "entry", target.ID, "error", err)
 				var failure *extractError
-				if u, perr := url.Parse(target.URL); perr == nil && errors.As(err, &failure) && failure.wait > 0 {
-					p.hosts.holdUntil(u.Host, now.Add(failure.wait))
+				if errors.As(err, &failure) && failure.wait > 0 {
+					p.hosts.holdUntil(j.host, now.Add(failure.wait))
 				}
 				if err := p.store.FailExtraction(ctx, target.ID, retryAt(err, target.Attempts+1, now)); err != nil {
 					slog.Error("Cannot save an extraction", "entry", target.ID, "error", err)
