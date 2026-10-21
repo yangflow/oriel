@@ -95,6 +95,7 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("POST /api/entries/read", s.authed(s.markRead))
 	mux.HandleFunc("POST /api/entries/unread", s.authed(s.markUnread))
 	mux.HandleFunc("GET /api/entries/{id}/ai", s.authed(s.getAI))
+	mux.HandleFunc("POST /api/entries/{id}/extract", s.authed(s.retryExtraction))
 	mux.HandleFunc("POST /api/entries/{id}/summary", s.authed(s.requestSummary))
 	mux.HandleFunc("POST /api/entries/{id}/translation", s.authed(s.requestTranslation))
 	mux.HandleFunc("POST /api/ai/test", s.authed(s.testAI))

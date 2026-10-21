@@ -51,7 +51,11 @@
     "OpenSettings": "Open Settings…",
     "Close": "Close",
     "ReadingTime": "{n} min read",
-    "Resumed": "Back where you left off"
+    "Resumed": "Back where you left off",
+    "TextSwitch": "Text to read",
+    "ShowFull": "Full text",
+    "ShowFeed": "Feed",
+    "RetryFailed": "Couldn’t try again. Check the connection."
   },
   "zh-Hans": {
     "Back": "回到{scope}",
@@ -105,6 +109,10 @@
     "OpenSettings": "打开设置…",
     "Close": "关闭",
     "ReadingTime": "{n} 分钟阅读",
-    "Resumed": "回到上次读到的位置"
+    "Resumed": "回到上次读到的位置",
+    "TextSwitch": "要读的正文",
+    "ShowFull": "全文",
+    "ShowFeed": "原文",
+    "RetryFailed": "没能重试，检查一下连接。"
   }
 }

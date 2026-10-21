@@ -192,6 +192,10 @@ func (f *fake) RequestAI(context.Context, int64, string) (client.AIResult, error
 	return client.AIResult{}, &client.APIError{Status: 409, Code: "ai_not_configured"}
 }
 
+func (f *fake) RetryExtraction(context.Context, int64) (client.Article, error) {
+	return client.Article{}, nil
+}
+
 func (f *fake) deps() Deps {
 	return Deps{
 		Go:             func(work func() func()) { f.queue = append(f.queue, work) },

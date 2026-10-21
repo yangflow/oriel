@@ -43,6 +43,10 @@ type fake struct {
 	requests []string
 	polls    int
 
+	retried  int // requests to get the full text again
+	retryTo  client.Article
+	retryErr error
+
 	saved []saved // the reading positions stored, in order
 }
 
@@ -82,6 +86,15 @@ func (f *fake) SetEntry(_ context.Context, id int64, patch client.EntryPatch) (c
 		f.saved = append(f.saved, saved{id, *patch.ReadProgress})
 	}
 	return client.Entry{ID: id}, nil
+}
+
+func (f *fake) RetryExtraction(_ context.Context, id int64) (client.Article, error) {
+	f.retried++
+	if f.retryErr != nil {
+		return client.Article{}, f.retryErr
+	}
+	f.article = f.retryTo
+	return f.retryTo, nil
 }
 
 func (f *fake) deps() Deps {
@@ -303,6 +316,85 @@ func TestNothing(t *testing.T) {
 	}
 	f.settle(tt)
 	expect(t, tt, "Couldn’t open the link")
+}
+
+func TestRetryExtraction(t *testing.T) {
+	for _, c := range []struct {
+		language, retry, note, gettingNote, whole, notice string
+	}{
+		{"en", "Try again", "This isn’t the full text: the page could not be extracted, so this is what the feed carries. ",
+			"Getting the full text. Until then, this is what the feed carries. ", "Full text loaded",
+			"Couldn’t try again. Check the connection."},
+		{"zh-Hans", "重试", "这不是全文：网页抽不出正文，下面是订阅里带的内容。", "正在取全文，先显示订阅里带的内容。",
+			"全文已载入", "没能重试，检查一下连接。"},
+	} {
+		a := client.Article{Entry: entry(), ContentHTML: "<p>What the feed carries.</p>"}
+		a.ExtractStatus = "failed"
+		s, f, tt := setup(t, c.language, a)
+		f.settle(tt)
+		expect(t, tt, c.note, c.retry)
+		// A request that fails leaves the failed state, and the button can be pressed again.
+		f.retryErr = errors.New("status 502")
+		if err := tt.Click(c.retry); err != nil {
+			t.Fatal(err)
+		}
+		expect(t, tt, c.gettingNote)
+		absent(t, tt, c.retry)
+		f.settle(tt)
+		expect(t, tt, c.note, c.retry, c.notice)
+		if f.retried != 1 || s.article.ExtractStatus != "failed" {
+			t.Fatalf("retried %d times, status %q", f.retried, s.article.ExtractStatus)
+		}
+		// The server takes it: the extracting state shows, then the full text once the reader's polling finds it.
+		f.retryErr = nil
+		f.retryTo = a
+		f.retryTo.ExtractStatus = "pending"
+		if err := tt.Click(c.retry); err != nil {
+			t.Fatal(err)
+		}
+		f.settle(tt)
+		expect(t, tt, c.gettingNote, "What the feed ", "carries")
+		absent(t, tt, c.note)
+		asked := f.asked
+		f.now = f.now.Add(pollEvery - time.Second)
+		tt.Frame()
+		if len(f.queue) != 0 {
+			t.Fatal("asked for the result before five seconds")
+		}
+		f.article.ExtractStatus, f.article.ExtractedHTML = "ok", "<p>The whole article.</p>"
+		f.now = f.now.Add(time.Second)
+		tt.Frame()
+		f.settle(tt)
+		if f.asked != asked+1 || f.retried != 2 {
+			t.Fatalf("asked %d times after the retry, retried %d", f.asked-asked, f.retried)
+		}
+		expect(t, tt, "The whole article.")
+		absent(t, tt, c.gettingNote)
+		if !slices.Contains(tt.Announcements(), c.whole) {
+			t.Fatalf("announcements %v", tt.Announcements())
+		}
+	}
+}
+
+func TestRetryFromNothing(t *testing.T) {
+	a := client.Article{Entry: entry()}
+	a.Summary, a.ExtractStatus = "", "failed"
+	_, f, tt := setup(t, "en", a)
+	f.settle(tt)
+	expect(t, tt, "No text to show", "Open the original", "Try again")
+	f.retryTo = a
+	f.retryTo.ExtractStatus = "pending"
+	if err := tt.Click("Try again"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	expect(t, tt, "Getting the full text", "The article will show here once the page has been read.")
+	absent(t, tt, "No text to show", "Try again")
+	// Only a failed extraction offers it: a skipped one has nothing to try.
+	a.ExtractStatus = "skipped"
+	_, f, tt = setup(t, "en", a)
+	f.settle(tt)
+	absent(t, tt, "Try again")
 }
 
 func TestError(t *testing.T) {

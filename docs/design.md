@@ -215,8 +215,10 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   the last button ends at its right edge. Under the toolbar the article scrolls, a column at most 680 wide at Medium (680 times the Reading text size scale: 635, 680, 771, 861, tokens.md; the window can limit it further), centered,
   padded 28/32/48 (20 below a 760 wide window): the source's monogram, name, full date and, after a dot, the reading time ("6 min read") at 12; the title at 24 (20
   when narrow) weight 600 in `Text`; the note on where the text comes from (`Warning` soft fill when it is the feed's,
-  `Surface` with a spinner while the full text is being got), 12, its "Open the original" link underlined; then the
-  text 22 below. The body is set in the Reading font (the interface font unless the reader chose a serif or a family, tokens.md) at 16 and line height 1.7 (1.85 in
+  `Surface` with a spinner while the full text is being got), 12, its "Open the original" link underlined and, when the
+  full text failed, a "Try again" text button at its end; when both the full text and the feed's text exist, the
+  Full text | Feed switch, the segmented control of the translation note (24 high segments in a 2 padded `Track` of ink 7%, the chosen one
+  `Raised`) on its own row, left aligned, 18 below the title and the notes; then the text 22 below. The body is set in the Reading font (the interface font unless the reader chose a serif or a family, tokens.md) at 16 and line height 1.7 (1.85 in
   Chinese) by default, in `theme.Prose`; the Reading font, text size and Line spacing preferences change it, and the text size changes the column's width too, and h2, h3, the
   gaps between paragraphs and list items and code scale in step with the size. The Reading font sets the body only: h2 and h3 use the interface font,
   19 and 16 semibold, 1.9em and 1.3em above, 0.6em below; 1.05em between paragraphs, 0.3em between list items, a 22
@@ -224,7 +226,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   scrolling sideways, inline code on an ink 5.5% fill, radius 4; links in `Accent` with a 1 DIP underline 3 below in
   `Accent` at 38%; pictures at their own aspect ratio (16:9 until known), radius 12 with a 0.5 DIP ink 10% outline,
   at most their own width, captions 12 in `TextMuted`. Loading is a skeleton of `Surface` bars; the empty states
-  (getting the text, no text, can't load) are a 48 tile, a 15 semibold heading, a hint at most 320 wide and a button.
+  (getting the text, no text, can't load) are a 48 tile, a 15 semibold heading, a hint at most 320 wide and a button; "no text" has two, the primary "Open the original" and "Try again", which runs the extraction again and shows the getting state meanwhile.
   The whole text is one selection.
 - **Summary and translation in the reader.** The summary is a card under the title, radius 14, padded 14/16/16, text
   13 at line height 1.65 (1.75 in Chinese), its head 12 medium: while it is made, `Soft(Accent)` with a spinner,

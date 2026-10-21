@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
@@ -34,7 +35,7 @@ type copy struct {
 	Summarize, HideSummary, Translate, ShowOriginal, Summary, By, Summarizing, Cancel, SummaryFailed       string
 	Translating, Translated, Translation, Original, TranslationFailed, SummaryReady, TranslationReady      string
 	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AIUpstream, AIEmpty, AIOff, AIOffTitle        string
-	OpenSettings, Close, ReadingTime, Resumed                                                              string
+	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                 string
 }
 
 var translations = func() map[string]copy {
@@ -59,6 +60,7 @@ type API interface {
 	AI(ctx context.Context, id int64) (client.AIResults, error)
 	RequestAI(ctx context.Context, id int64, task string) (client.AIResult, error)
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
+	RetryExtraction(ctx context.Context, id int64) (client.Article, error)
 }
 
 // Deps is what the reader does outside itself. Go runs work away from the UI thread and then the function it returns
@@ -142,6 +144,8 @@ type Screen struct {
 	feed     []block // what the feed carries, or its summary
 	polledAt time.Time
 	polling  bool
+	retrying bool // a request to get the full text again is under way
+	feedText int  // 0 shows the full text, 1 what the feed carries, when the entry has both
 
 	scroll ui.ScrollState
 	focus  bool   // give the page the focus in the next frame
@@ -304,7 +308,7 @@ func (s *Screen) remember(c cached) {
 func (s *Screen) Open(e client.Entry) {
 	s.Leave()
 	s.gen++
-	s.id, s.loading, s.failed, s.polling = e.ID, true, false, false
+	s.id, s.loading, s.failed, s.polling, s.retrying, s.feedText = e.ID, true, false, false, false, 0
 	s.article, s.full, s.feed = client.Article{Entry: e}, nil, nil
 	s.scroll.X, s.scroll.Y = 0, 0
 	s.startPosition(e)
@@ -364,9 +368,49 @@ func (s *Screen) load(poll bool) {
 	})
 }
 
+// retry asks the server to get the full text again, and shows the article as being got meanwhile; the reader's
+// polling then waits for the result. When the request fails the state it had comes back.
+func (s *Screen) retry() {
+	if s.api == nil || s.id == 0 || s.retrying || s.article.ExtractStatus != "failed" {
+		return
+	}
+	gen, epoch, api, id := s.gen, s.epoch, s.api, s.id
+	s.retrying, s.polledAt = true, s.deps.Now()
+	s.article.ExtractStatus = "pending"
+	s.announce = s.text.Extracting
+	s.deps.Go(func() func() {
+		a, err := api.RetryExtraction(context.Background(), id)
+		var c cached
+		if err == nil {
+			c = article(a)
+		}
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			s.retrying, s.polledAt = false, s.deps.Now()
+			if s.deps.Expired(err) {
+				return
+			}
+			if err != nil {
+				s.article.ExtractStatus, s.toast = "failed", s.text.RetryFailed
+				var failure *client.APIError
+				if errors.As(err, &failure) && failure.Status == http.StatusConflict {
+					s.load(true) // the text was got in the meantime: show where it stands
+				}
+				return
+			}
+			s.article, s.full, s.feed = a, c.full, c.feed
+			if epoch == s.epoch {
+				s.remember(c)
+			}
+		}
+	})
+}
+
 // poll asks for the article every pollEvery while its text is being got.
 func (s *Screen) poll(c *ui.Context) {
-	if s.loading || s.failed || s.polling || s.article.ExtractStatus != "pending" {
+	if s.loading || s.failed || s.polling || s.retrying || s.article.ExtractStatus != "pending" {
 		return
 	}
 	if wait := pollEvery - s.deps.Now().Sub(s.polledAt); wait > 0 {
@@ -569,11 +613,37 @@ const (
 	getting        // what the feed carries, the text being got
 	waiting        // nothing yet, the text being got
 	nothing        // nothing to show
+	chosen         // what the feed carries, as the reader chose it over the full text
 )
+
+// switchable reports whether the article has both the full text and what the feed carries, so that the reader can
+// choose between them.
+func (s *Screen) switchable() bool {
+	return s.article.ExtractStatus == "ok" && len(s.full) > 0 && len(s.feed) > 0
+}
+
+// chosenFeed reports whether the reader chose what the feed carries; a translation, made of the full text, takes
+// the place of both.
+func (s *Screen) chosenFeed() bool {
+	return s.feedText == 1 && s.switchable() && !s.translating()
+}
+
+// switched goes to the top of the text now shown, after the reader chose the other one. The position of the full
+// text is stored first; it belongs to that text alone and is not restored for the next choice.
+func (s *Screen) switched(c *ui.Context, from int) {
+	if from == 0 && s.moved {
+		s.save()
+	}
+	s.scroll.X, s.scroll.Y = 0, 0
+	s.lastY, s.moved, s.resume = 0, false, -1
+	c.Invalidate()
+}
 
 // body is what the article shows, and how.
 func (s *Screen) body() ([]block, int) {
 	switch {
+	case s.chosenFeed():
+		return s.feed, chosen
 	case s.article.ExtractStatus == "ok" && len(s.full) > 0:
 		return s.full, whole
 	case s.article.ExtractStatus == "pending" && len(s.feed) > 0:
@@ -974,6 +1044,9 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 				case carried:
 					s.note(c, true, s.text.FeedNote)
 				}
+				if s.switchable() && !s.translating() {
+					s.textSwitch(c)
+				}
 				if len(blocks) > 0 {
 					ui.Column(c).FillWidth().Margin(px(t, 22), 0, 0, 0).Children(func() { s.blocks(c, blocks) })
 				}
@@ -989,6 +1062,9 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 			s.empty(c, icons.FileText, t.TextMuted, s.text.Failed, s.text.FailedHint, func() {
 				if s.button(c, icons.ExternalLink, s.text.OpenOriginal, true) {
 					s.openOriginal(c)
+				}
+				if s.article.ExtractStatus == "failed" && s.button(c, icons.RefreshCw, s.text.Retry, false) {
+					s.retry()
 				}
 			}).FillWidth().Padding(t.Space(6), t.Space(6), t.Space(6), t.Space(6))
 		}
@@ -1062,7 +1138,37 @@ func (s *Screen) note(c *ui.Context, warn bool, text string) {
 				ui.Link(c, s.text.OpenOriginal, s.article.URL).TextColor(color).Underline().FontWeight(500)
 			}
 		})
+		if warn && s.article.ExtractStatus == "failed" && s.textButton(c, s.text.Retry, color) {
+			s.retry()
+		}
 	})
+}
+
+// textSwitch is the choice between the full text and what the feed carries, under the title and its notes.
+func (s *Screen) textSwitch(c *ui.Context) {
+	t := c.Theme()
+	from := s.feedText
+	ui.Row(c).FillWidth().Margin(px(t, 18), 0, 0, 0).Children(func() {
+		seg := ui.SegmentedBase(c, &s.feedText, 2)
+		seg.Track.Padding(2).Gap(2).Radius(px(t, 8)).Background(theme.Ink(t, 0.07)).Label(s.text.TextSwitch).
+			Children(func() {
+				for i, name := range []string{s.text.ShowFull, s.text.ShowFeed} {
+					b := seg.Segment(i).Height(px(t, 24)).PaddingX(px(t, 9)).Radius(px(t, 6)).Label(name)
+					color := t.TextMuted
+					switch {
+					case i == s.feedText:
+						theme.Raised(t, b)
+						color = t.Text
+					case b.Hovered():
+						color = t.Text
+					}
+					b.Children(func() { ui.Text(c, name).FontSize(px(t, 12)).NoWrap().TextColor(color) })
+				}
+			})
+	})
+	if s.feedText != from {
+		s.switched(c, from)
+	}
 }
 
 // card is the box under the title holding the summary, or saying AI is not set up: a head line, then the rest.

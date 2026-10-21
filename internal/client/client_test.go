@@ -172,6 +172,9 @@ func TestTimelineAPI(t *testing.T) {
 			w.Write([]byte(`{"sources":[{"id":1,"title":"Feed","kind":"article","unreadCount":3,"lastError":"boom","fetchIntervalSec":900}]}`))
 		case "/api/entries/7":
 			w.Write([]byte(`{"id":7,"starred":true,"readProgress":0.5,"extractStatus":"ok","contentHtml":"<p>x</p>","extractedHtml":"<p>y</p>"}`))
+		case "/api/entries/7/extract":
+			w.WriteHeader(http.StatusAccepted)
+			w.Write([]byte(`{"id":7,"extractStatus":"pending","contentHtml":"<p>x</p>"}`))
 		case "/api/entries/read":
 			w.Write([]byte(`{"marked":2,"ids":[7,8]}`))
 		case "/api/entries/unread":
@@ -204,6 +207,9 @@ func TestTimelineAPI(t *testing.T) {
 	var apiErr *APIError
 	if _, err := session.Entries(ctx, Query{Search: "ab"}); !errors.As(err, &apiErr) || apiErr.Code != "query_too_short" {
 		t.Errorf("short query: %v", err)
+	}
+	if article, err := session.RetryExtraction(ctx, 7); err != nil || article.ID != 7 || article.ExtractStatus != "pending" {
+		t.Errorf("RetryExtraction = %+v, %v", article, err)
 	}
 	sources, err := session.Sources(ctx)
 	if err != nil || len(sources) != 1 || sources[0].UnreadCount != 3 || sources[0].LastError != "boom" ||
@@ -260,6 +266,7 @@ func TestTimelineAPI(t *testing.T) {
 	want := []string{
 		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&q=go+fmt&unread=1 ",
 		"GET /api/entries?q=ab ",
+		"POST /api/entries/7/extract ",
 		"GET /api/sources ",
 		"GET /api/entries/7 ",
 		`PATCH /api/entries/7 {"starred":true}`,

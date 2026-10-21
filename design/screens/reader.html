@@ -8,8 +8,11 @@
      and the sidebar return to the list where it was. Colors are the Oriel palette of design/tokens.md; icons are
      Lucide (ISC License). Pictures are drawn as gradients here; in the app they load in the background through the
      image proxy and show the Surface color, at their own aspect ratio when the page gives it, until then.
-     States: full (extracted text), feed (no full text, the feed's content), extracting (full text not tried yet,
-     the feed's content meanwhile), extracting-empty, failed (no full text and no feed content), loading, error.
+     States: full (extracted text), full-switch (the same, with the Full text | Feed switch, shown when the feed carries text
+     too), feed-text (the switch on Feed: the feed's content, no note), feed (no full text, the feed's content; "Try again"
+     in the note), extracting (full text not tried yet, or being tried again after "Try again"; the feed's content
+     meanwhile), extracting-empty (the same with no feed content), failed (no full text and no feed content; "Try again"
+     beside "Open the original"), loading, error.
      AI states: summarizing, summary, summary-failed, translating (the original stays readable), translation (the
      translated text, with a switch back to the original), translation-failed, ai-off (AI is not set up: the
      summary or translate button leads to Settings instead of failing). no-more-unread: N found no unread article
@@ -194,10 +197,12 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .note .grow { flex:1 }
 .note .link, .note .textlink { color:inherit; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:3px; text-decoration-color:color-mix(in srgb,currentColor 40%,transparent); font-weight:500 }
 .note .textlink { white-space:nowrap }
-.note .segmented { display:flex; padding:2px; gap:2px; margin:-4px -6px -4px 0; border-radius:8px; background:rgba(var(--ink),.07) }
-.note .segmented button { height:24px; padding:0 9px; border-radius:6px; color:var(--muted) }
-.note .segmented button.on { background:var(--raised); color:var(--text); box-shadow:0 1px 2px rgba(var(--shadow),.14) }
-:root[data-scheme=dark] .note .segmented button.on { background:var(--track); box-shadow:none }
+.note .segmented, .switch .segmented { display:flex; padding:2px; gap:2px; margin:-4px -6px -4px 0; border-radius:8px; background:rgba(var(--ink),.07) }
+.note .segmented button, .switch .segmented button { height:24px; padding:0 9px; border-radius:6px; color:var(--muted) }
+.note .segmented button.on, .switch .segmented button.on { background:var(--raised); color:var(--text); box-shadow:0 1px 2px rgba(var(--shadow),.14) }
+:root[data-scheme=dark] .note .segmented button.on, :root[data-scheme=dark] .switch .segmented button.on { background:var(--track); box-shadow:none }
+.switch { display:flex; margin:18px 0 0 }
+.switch .segmented { margin:0 }
 
 .ai { margin:18px 0 0; padding:14px 16px 16px; border-radius:14px; background:var(--accent-soft); font-size:13.5px; line-height:1.65 }
 :root:lang(zh-Hans) .ai { line-height:1.8 }
@@ -253,7 +258,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['full','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread','resumed'];
+const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread','resumed'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
@@ -329,7 +334,7 @@ const copy={
     star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser',
     feedNote:'This isn’t the full text: the page could not be extracted, so this is what the feed carries.',
     extractingNote:'Getting the full text. Until then, this is what the feed carries.',
-    openOriginal:'Open the original',
+    openOriginal:'Open the original', tryAgain:'Try again', textSwitch:'Text to read', fullText:'Full text', feedText:'Feed',
     extracting:'Getting the full text', extractingHint:'The article will show here once the page has been read.',
     failed:'No text to show', failedHint:'The page could not be extracted, and the feed carries no text for this entry.',
     error:'Can’t load this entry', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
@@ -349,7 +354,7 @@ const copy={
     star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开',
     feedNote:'这不是全文：网页抽不出正文，下面是订阅里带的内容。',
     extractingNote:'正在取全文，先显示订阅里带的内容。',
-    openOriginal:'打开原文',
+    openOriginal:'打开原文', tryAgain:'重试', textSwitch:'要读的正文', fullText:'全文', feedText:'原文',
     extracting:'正在取全文', extractingHint:'读完网页后，文章会显示在这里。',
     failed:'没有可显示的正文', failedHint:'网页抽不出正文，订阅里也没有这篇的内容。',
     error:'这篇加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
@@ -445,7 +450,8 @@ const fullOf=zh=>zh?cjk(`
 <p>The index ends up about three times the size of the text. For a personal reader that is usually fine.</p>`;
 const title=titleOf(zh), full=fullOf(zh);
 const feed=zh?cjk(`<p>trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。</p><p><a href="#">继续阅读 →</a></p>`):`<p>The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.</p><p><a href="#">Continue reading →</a></p>`;
-const note=(cls,glyph,text)=>`<div class="note ${cls}" role="note">${icon(glyph,glyph==='loader'?'spin':'')}<span>${text} ${cls?`<a class="link" href="#">${copy.openOriginal}</a>`:''}</span></div>`;
+const note=(cls,glyph,text)=>`<div class="note ${cls}" role="note">${icon(glyph,glyph==='loader'?'spin':'')}<span>${text} ${cls?`<a class="link" href="#">${copy.openOriginal}</a>`:''}</span>${cls==='warn'?`<a class="textlink" href="#">${copy.tryAgain}</a>`:''}</div>`;
+const switcher=feedOn=>`<div class="switch"><div class="segmented" role="radiogroup" aria-label="${copy.textSwitch}"><button role="radio" aria-checked="${!feedOn}" class="${feedOn?'':'on'}">${copy.fullText}</button><button role="radio" aria-checked="${feedOn}" class="${feedOn?'on':''}">${copy.feedText}</button></div></div>`;
 const article=(extra,html)=>`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1>${extra}<div class="prose">${html}</div></article>`;
 const empty=(tile,heading,hint,buttons,cls='')=>`<div class="empty" role="status"><div class="tile ${cls}">${icon(tile,tile==='loader'?'spin':'')}</div><h2>${heading}</h2><p>${hint}</p><div class="buttons">${buttons}</div></div>`;
 const openButton=(cls='')=>`<button class="button ${cls}">${icon('external')}${copy.openOriginal}</button>`;
@@ -471,10 +477,12 @@ switch(state){
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
   case 'full':case 'no-more-unread':case 'resumed':page=article('',full);break;
+  case 'full-switch':page=article(switcher(false),full);break;
+  case 'feed-text':page=article(switcher(true),feed);break;
   case 'feed':page=article(note('warn','triangle',copy.feedNote),feed);break;
   case 'extracting':page=article(note('','loader',copy.extractingNote),feed);break;
   case 'extracting-empty':page=`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1></article>`+empty('loader',copy.extracting,copy.extractingHint,openButton()).replace('class="empty"','class="empty" style="min-height:0;padding-top:24px"');break;
-  case 'failed':page=`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1></article>`+empty('fileText',copy.failed,copy.failedHint,openButton('primary')).replace('class="empty"','class="empty" style="min-height:0;padding-top:24px"');break;
+  case 'failed':page=`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1></article>`+empty('fileText',copy.failed,copy.failedHint,openButton('primary')+`<button class="button">${icon('refresh')}${copy.tryAgain}</button>`).replace('class="empty"','class="empty" style="min-height:0;padding-top:24px"');break;
   case 'loading':page=`<div class="page skeleton" aria-busy="true"><div class="bar m"></div><div class="bar h"></div>${'<div class="bar s"></div>'.repeat(3)}<div class="bar e"></div><br>${'<div class="bar s"></div>'.repeat(2)}<div class="bar e"></div></div>`;break;
   case 'error':page=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');break;
 }

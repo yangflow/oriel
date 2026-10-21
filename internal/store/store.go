@@ -24,6 +24,9 @@ var migrations embed.FS
 // ErrNotFound reports that no row matched.
 var ErrNotFound = errors.New("not found")
 
+// ErrNotRetryable reports that an entry's full text cannot be fetched again: it already has it, or it is not an article.
+var ErrNotRetryable = errors.New("not retryable")
+
 // ErrLocked reports that another process already serves the same database.
 var ErrLocked = errors.New("the database is in use by another Oriel process")
 

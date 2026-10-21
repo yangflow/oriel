@@ -211,6 +211,22 @@ func (s *Server) updateEntry(w http.ResponseWriter, r *http.Request) {
 	replyEntry(w, entry, err)
 }
 
+func (s *Server) retryExtraction(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	entry, err := s.store.RetryExtraction(r.Context(), id)
+	switch {
+	case errors.Is(err, store.ErrNotRetryable):
+		fail(w, http.StatusConflict, "not_retryable")
+	case err == nil:
+		reply(w, http.StatusAccepted, fullEntryJSON{entryToJSON(entry), entry.ContentHTML, entry.ExtractedHTML})
+	default:
+		replyEntry(w, entry, err)
+	}
+}
+
 func replyEntry(w http.ResponseWriter, entry store.Entry, err error) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):

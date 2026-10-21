@@ -579,6 +579,14 @@ func (s Session) Entry(ctx context.Context, id int64) (Article, error) {
 	return article, err
 }
 
+// RetryExtraction asks the server to get an entry's full text again, with all the attempts back, and returns the
+// entry as it now stands. The text arrives later: the entry's ExtractStatus is "pending" until then.
+func (s Session) RetryExtraction(ctx context.Context, id int64) (Article, error) {
+	var article Article
+	err := s.call(ctx, http.MethodPost, "/api/entries/"+strconv.FormatInt(id, 10)+"/extract", nil, &article)
+	return article, err
+}
+
 // SetEntry changes whether an entry is read or starred, or how far it was read, and returns it as changed.
 func (s Session) SetEntry(ctx context.Context, id int64, patch EntryPatch) (Entry, error) {
 	var entry Entry

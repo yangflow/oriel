@@ -419,3 +419,40 @@ func TestListCarriesOkAISummary(t *testing.T) {
 		t.Errorf("a single entry carries aiSummary: %v", one)
 	}
 }
+
+func TestRetryExtractionAPI(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "test")
+	seed(t, s, "article", 2, time.UnixMilli(1_700_000_000_000))
+	list := decode(t, do(s, "GET", "/api/entries?kind=article", "", bearer(token)))["entries"].([]any)
+	failed := strconv.Itoa(int(list[0].(map[string]any)["id"].(float64)))
+	waiting := strconv.Itoa(int(list[1].(map[string]any)["id"].(float64)))
+	id, _ := strconv.ParseInt(failed, 10, 64)
+	if err := s.store.SaveExtraction(context.Background(), id, "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	if w := do(s, "POST", "/api/entries/"+failed+"/extract", "", nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without a token: %d", w.Code)
+	}
+	w := do(s, "POST", "/api/entries/"+failed+"/extract", "", bearer(token))
+	if body := decode(t, w); w.Code != http.StatusAccepted || body["extractStatus"] != "pending" || body["contentHtml"] != "<p>body</p>" {
+		t.Fatalf("retry: %d %v", w.Code, body)
+	}
+	if got := decode(t, do(s, "GET", "/api/entries/"+failed, "", bearer(token))); got["extractStatus"] != "pending" {
+		t.Fatalf("stored: %v", got)
+	}
+	if w := do(s, "POST", "/api/entries/"+waiting+"/extract", "", bearer(token)); w.Code != http.StatusAccepted {
+		t.Fatalf("pending: %d", w.Code)
+	}
+	if w := do(s, "POST", "/api/entries/999/extract", "", bearer(token)); w.Code != http.StatusNotFound {
+		t.Fatalf("missing: %d", w.Code)
+	}
+	if err := s.store.SaveExtraction(context.Background(), id, "<p>x</p>", "x", ""); err != nil {
+		t.Fatal(err)
+	}
+	w = do(s, "POST", "/api/entries/"+failed+"/extract", "", bearer(token))
+	if w.Code != http.StatusConflict || decode(t, w)["error"] != "not_retryable" {
+		t.Fatalf("done: %d %s", w.Code, w.Body)
+	}
+}
