@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/draw"
 	"image/png"
 	"net/url"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -1095,5 +1097,106 @@ func TestPrefetchFailsSilently(t *testing.T) {
 	s.Open(client.Entry{ID: 11, Kind: "article"})
 	if !s.loading {
 		t.Fatal("a failed prefetch shows as a hit")
+	}
+}
+
+// otherFace is an installed font family that draws sample wider or narrower than the default, so a test can tell it
+// from the interface font; the test skips where there is none.
+func otherFace(t *testing.T, sample string) string {
+	t.Helper()
+	base, _ := ui.ShapeText(sample, ui.Font{Size: 16}, 0).Size()
+	for _, family := range ui.FontFamilies() {
+		if w, _ := ui.ShapeText(sample, ui.Font{Family: family.Name, Size: 16}, 0).Size(); w != base {
+			return family.Name
+		}
+	}
+	t.Skip("no installed font differs from the default")
+	return ""
+}
+
+// lead stands for the head of the page in shots: the text of the first paragraph marks where it ends.
+const lead = "Today the Go team is happy to release Go 1.27."
+
+// shots opens article with the reading font face and gives the pixels of each of texts as the window draws them.
+func shots(t *testing.T, face string, article client.Article, texts ...string) []*image.RGBA {
+	t.Helper()
+	f := &fake{now: now, article: article, nav: Nav{Entry: article.Entry, Scope: "All"}}
+	deps := f.deps()
+	deps.ReadingFont = func() string { return face }
+	s := New("en", deps)
+	s.Use(f)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1100, 2000)
+	s.Open(article.Entry)
+	tt.Frame()
+	f.settle(tt)
+	var out []*image.RGBA
+	for _, text := range texts {
+		r, ok := tt.Find(text)
+		if !ok {
+			t.Fatalf("no %q in %v", text, tt.Texts())
+		}
+		box := image.Rect(int(r.X), int(r.Y), int(r.X+r.W)+1, int(r.Y+r.H)+1)
+		if text == lead {
+			box = image.Rect(0, 0, 1100, int(r.Y)) // everything above the first paragraph: toolbar, title, byline
+		}
+		shot := image.NewRGBA(image.Rect(0, 0, box.Dx(), box.Dy()))
+		draw.Draw(shot, shot.Bounds(), tt.Image(), box.Min, draw.Src)
+		out = append(out, shot)
+	}
+	return out
+}
+
+// TestReadingFont shows the body, the paragraphs and the list items, takes the reading font, while the title, the
+// headings and the code keep the interface or the monospace font.
+func TestReadingFont(t *testing.T) {
+	art := full()
+	art.ExtractedHTML += `<p>Plain paragraph</p><pre><code>go build ./...</code></pre>`
+	texts := []string{lead, "Tools", "Faster builds", "Plain paragraph", "go build ./..."}
+	plain := shots(t, "", art, texts...)
+	got := shots(t, otherFace(t, "Faster builds Plain paragraph"), art, texts...)
+	for i, text := range texts {
+		same := bytes.Equal(got[i].Pix, plain[i].Pix)
+		if body := text == "Faster builds" || text == "Plain paragraph"; body == same {
+			t.Errorf("%q: drawn as without the reading font is %v, want %v", text, same, !body)
+		}
+	}
+}
+
+// TestReadingColumn shows the text column is 680 at the medium text size and 635, 771 and 861 at the others, scaled
+// with the theme's text size, and that the toolbar's ends follow it.
+func TestReadingColumn(t *testing.T) {
+	for _, scale := range textScales {
+		for size, column := range map[string]float32{prefs.SizeSmall: 635, prefs.SizeMedium: 680, prefs.SizeLarge: 771,
+			prefs.SizeXLarge: 861} {
+			t.Run(fmt.Sprint("text=", scale, " ", size), func(t *testing.T) {
+				art := full()
+				art.ExtractedHTML = `<p>` + strings.Repeat("word ", 400) + `</p>`
+				f := &fake{now: now, article: art, nav: Nav{Entry: art.Entry, Scope: "All"}}
+				deps := f.deps()
+				deps.Reading = func() prefs.Preferences { return prefs.Preferences{ReadingSize: size} }
+				s := New("en", deps)
+				s.Use(f)
+				var unit float32
+				tt := ui.NewTester(func(c *ui.Context) { unit = px(c.Theme(), 1); s.View(c, f.nav) }, 1800, 1200)
+				tt.SetPreferences(ui.Preferences{TextScale: scale})
+				s.Open(art.Entry)
+				tt.Frame()
+				f.settle(tt)
+				body := ""
+				for _, text := range tt.Texts() {
+					if strings.HasPrefix(text, "word word") {
+						body = text
+					}
+				}
+				b, ok := tt.Find(body)
+				if !ok {
+					t.Fatalf("no body in %v", tt.Texts())
+				}
+				want := (column - 64) * unit // the column less its padding of 32 on each side
+				if b.W < want-unit || b.W > want+unit {
+					t.Errorf("body %v wide, want %v", b.W, want)
+				}
+			})
+		}
 	}
 }

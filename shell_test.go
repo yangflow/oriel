@@ -322,3 +322,25 @@ func TestShellFont(t *testing.T) {
 		t.Fatal("a listed font was dropped")
 	}
 }
+
+func TestShellReadingFace(t *testing.T) {
+	s, _, _ := newTestShell(t)
+	s.apply(prefs.Preferences{ReadingFont: "Gone Serif"})
+	if s.face != "Gone Serif" {
+		t.Fatalf("face %q before the fonts are listed", s.face)
+	}
+	s.fonts, s.fontsListed = []string{"Inter"}, true
+	s.updateFace()
+	if s.face != "" || s.prefs.ReadingFont != "Gone Serif" {
+		t.Fatalf("face %q, kept %q", s.face, s.prefs.ReadingFont)
+	}
+	s.fonts = append(s.fonts, "Gone Serif")
+	s.updateFace()
+	if s.face != "Gone Serif" {
+		t.Fatalf("face %q once installed", s.face)
+	}
+	s.apply(prefs.Preferences{})
+	if s.face != "" {
+		t.Fatalf("face %q when following the interface", s.face)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/url"
+	"runtime"
 	"slices"
 	"sync"
 
@@ -51,6 +52,7 @@ type shell struct {
 	prefs        prefs.Preferences
 	fonts        []string // the font families of the system, empty until they are listed
 	fontsListed  bool
+	face         string // the font list of an article's body, "" for the interface font; see updateFace
 
 	writes  int        // counts changes of the session file, on the UI thread
 	file    sync.Mutex // guards written and the file
@@ -71,8 +73,9 @@ func newShell(systemLocale, path, prefsPath string, local client.Session, goAsyn
 		return timeline.New(language, timeline.Deps{Go: goAsync, OpenConnect: s.openConnect,
 			OpenSettings: s.openSettings, OpenAISettings: s.openAISettings, OpenImport: s.openImportSettings,
 			Expired: s.expired,
-			Reading: func() prefs.Preferences { return s.prefs }})
+			Reading: func() prefs.Preferences { return s.prefs }, ReadingFont: func() string { return s.face }})
 	}
+	s.updateFace()
 	s.build()
 	return s
 }
@@ -90,6 +93,7 @@ func (s *shell) build() {
 		Expired:     s.expired,
 		Preferences: func() prefs.Preferences { return s.prefs },
 		Fonts:       func() []string { return s.fonts },
+		ReadingFont: func() string { return s.face },
 		Change:      s.change,
 	})
 	s.connect = connect.New(language, connect.Deps{
@@ -163,6 +167,7 @@ func (s *shell) apply(p prefs.Preferences) {
 	language := locale.Resolve(p.Language, s.systemLocale)
 	changed := language != locale.Resolve(s.prefs.Language, s.systemLocale)
 	s.prefs = p
+	s.updateFace()
 	if !changed {
 		return
 	}
@@ -181,8 +186,17 @@ func (s *shell) listFonts() {
 		for _, f := range ui.FontFamilies() {
 			names = append(names, f.Name)
 		}
-		return func() { s.fonts, s.fontsListed = names, true }
+		return func() {
+			s.fonts, s.fontsListed = names, true
+			s.updateFace()
+		}
 	})
+}
+
+// updateFace works out the font of an article's body again. It reads the font list, so it runs when the preferences or
+// the list change and not for each frame: the screens only read the result.
+func (s *shell) updateFace() {
+	s.face = s.prefs.ReadingFace(runtime.GOOS, s.fonts, s.font())
 }
 
 // font is the family to draw with: the one chosen, unless the system no longer has it.

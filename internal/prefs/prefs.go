@@ -1,13 +1,15 @@
 // Package prefs holds the appearance preferences of this device: the theme, the interface language and font, and the
-// size and line spacing of an article. They live in a file of the data directory beside the session file and never
+// font, size and line spacing of an article. They live in a file of the data directory beside the session file and never
 // go through the server.
 package prefs
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 // File is the name of the preferences file in the data directory.
@@ -20,6 +22,9 @@ const (
 
 	LanguageEnglish = "en"
 	LanguageChinese = "zh-Hans"
+
+	// ReadingSerif is the value of ReadingFont that stands for the platform's serif set; any other value is a family.
+	ReadingSerif = "serif"
 
 	SizeSmall  = "small"
 	SizeMedium = "medium"
@@ -39,11 +44,12 @@ var (
 
 // Preferences are the choices of this device. Use Normalize before relying on the reading choices.
 type Preferences struct {
-	Theme       string `json:"theme,omitempty"`    // "" follows the system, else ThemeLight or ThemeDark
-	Language    string `json:"language,omitempty"` // "" follows the system, else LanguageEnglish or LanguageChinese
-	Font        string `json:"font,omitempty"`     // "" is the system font, else an installed family
-	ReadingSize string `json:"readingSize"`        // one of Sizes
-	LineSpacing string `json:"lineSpacing"`        // one of Spacings
+	Theme       string `json:"theme,omitempty"`       // "" follows the system, else ThemeLight or ThemeDark
+	Language    string `json:"language,omitempty"`    // "" follows the system, else LanguageEnglish or LanguageChinese
+	Font        string `json:"font,omitempty"`        // "" is the system font, else an installed family
+	ReadingFont string `json:"readingFont,omitempty"` // "" follows the interface font, else ReadingSerif or an installed family
+	ReadingSize string `json:"readingSize"`           // one of Sizes
+	LineSpacing string `json:"lineSpacing"`           // one of Spacings
 }
 
 // Default has every preference at its default.
@@ -81,17 +87,67 @@ func (p Preferences) Dark(system bool) bool {
 }
 
 // Scale is the factor of an article's sizes: 1 for the medium text size, whose body is 16. The bodies of the four
-// sizes are 14.9, 16, 18.1 and 20.3 in every language.
+// sizes are about 14.9, 16, 18.1 and 20.3 in every language: the factors are 14/15, 1, 17/15 and 19/15.
 func (p Preferences) Scale() float64 {
 	switch p.ReadingSize {
 	case SizeSmall:
-		return 14.9 / 16
+		return 14.0 / 15
 	case SizeLarge:
-		return 18.1 / 16
+		return 17.0 / 15
 	case SizeXLarge:
-		return 20.3 / 16
+		return 19.0 / 15
 	}
 	return 1
+}
+
+// Column is the greatest width of the reader's text column, in the units of the mockup: 680 times the Scale, rounded
+// to a whole unit, so 635, 680, 771 and 861.
+func (p Preferences) Column() float64 { return math.Round(680 * p.Scale()) }
+
+// SystemSerif is how MyGo names New York, the serif face of macOS. It is a system font, not a family the font list
+// has, and MyGo finds it by this name and not by "New York".
+const SystemSerif = ".AppleSystemUIFontSerif"
+
+// SerifFamilies are the families that make up Serif on a platform (a runtime.GOOS), a Latin face first and a
+// Simplified Chinese one behind it.
+func SerifFamilies(goos string) []string {
+	switch goos {
+	case "darwin":
+		return []string{SystemSerif, "Songti SC"}
+	case "windows":
+		return []string{"Georgia", "SimSun"}
+	}
+	return []string{"Noto Serif", "Noto Serif CJK SC"}
+}
+
+// ReadingFace is the font list of an article's body, comma separated as the MyGo Font takes it, or "" when the body is
+// drawn in the interface font. goos is the platform and installed the font families of the system, nil until they are
+// known; a family chosen but not installed (and a Serif of which no family is) gives "". The interface font, if there
+// is one, comes last, for the glyphs the others lack. It reads the list of families: call it when the preferences or
+// the families change, not for each text.
+func (p Preferences) ReadingFace(goos string, installed []string, interfaceFont string) string {
+	var faces []string
+	switch p.ReadingFont {
+	case "":
+		return ""
+	case ReadingSerif:
+		for _, f := range SerifFamilies(goos) {
+			if installed == nil || f == SystemSerif || slices.Contains(installed, f) {
+				faces = append(faces, f)
+			}
+		}
+	default:
+		if installed == nil || slices.Contains(installed, p.ReadingFont) {
+			faces = append(faces, p.ReadingFont)
+		}
+	}
+	if len(faces) == 0 {
+		return ""
+	}
+	if interfaceFont != "" {
+		faces = append(faces, interfaceFont)
+	}
+	return strings.Join(faces, ",")
 }
 
 // Leading is the line height of an article's paragraphs; han is for Simplified Chinese text, which needs more.

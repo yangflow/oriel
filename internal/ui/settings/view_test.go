@@ -1237,3 +1237,72 @@ func TestPalettes(t *testing.T) {
 		}
 	}
 }
+
+// openReadingFonts opens the Reading font picker with the families known.
+func openReadingFonts(t *testing.T, p prefs.Preferences) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	s, f, tt := openAppearance(t, "en")
+	f.fonts, f.prefs = pickerFonts, p
+	tt.Frame()
+	label := s.text.FollowInterface
+	switch p.ReadingFont {
+	case "":
+	case "serif":
+		label = s.text.Serif
+	default:
+		label = p.ReadingFont
+	}
+	press(t, tt, label)
+	if !s.rdFont.open || s.uiFont.open {
+		t.Fatalf("reading picker %v, interface picker %v: %v", s.rdFont.open, s.uiFont.open, tt.Texts())
+	}
+	return s, f, tt
+}
+
+func TestReadingFontFirst(t *testing.T) {
+	s, _, tt := openAppearance(t, "en")
+	font, ok1 := tt.Find(s.text.ReadingFont)
+	size, ok2 := tt.Find(s.text.TextSize)
+	if !ok1 || !ok2 || font.Y >= size.Y || !tt.HasText(s.text.FollowInterface) {
+		t.Fatalf("font %v (%v), size %v (%v), texts %v", font, ok1, size, ok2, tt.Texts())
+	}
+}
+
+func TestReadingFontPicker(t *testing.T) {
+	s, f, tt := openReadingFonts(t, prefs.Default())
+	if s.rdFont.pinned != 2 || len(s.rdFont.shown) != 2+len(pickerFonts) {
+		t.Fatalf("pinned %d, shown %d", s.rdFont.pinned, len(s.rdFont.shown))
+	}
+	if !tt.HasText(s.text.Serif) {
+		t.Fatalf("no Serif row in %v", tt.Texts())
+	}
+	press(t, tt, s.text.Serif)
+	if f.prefs.ReadingFont != prefs.ReadingSerif || s.rdFont.open || len(f.changes) != 1 {
+		t.Fatalf("font %q, open %v, changes %d", f.prefs.ReadingFont, s.rdFont.open, len(f.changes))
+	}
+	press(t, tt, s.text.Serif)
+	press(t, tt, "Georgia")
+	if f.prefs.ReadingFont != "Georgia" || f.prefs.Font != "" {
+		t.Fatalf("reading font %q, interface font %q", f.prefs.ReadingFont, f.prefs.Font)
+	}
+	press(t, tt, "Georgia")
+	if s.rdFont.pinned != 3 {
+		t.Fatalf("the family in use is not pinned: %d", s.rdFont.pinned)
+	}
+	press(t, tt, s.text.FollowInterface)
+	if f.prefs.ReadingFont != "" {
+		t.Fatalf("reading font %q", f.prefs.ReadingFont)
+	}
+}
+
+func TestReadingFontEscape(t *testing.T) {
+	s, f, tt := openReadingFonts(t, prefs.Default())
+	tt.Key(0, ui.KeyEscape)
+	if s.rdFont.open || f.back != 0 || len(f.changes) != 0 {
+		t.Fatalf("open %v, back %d, changes %d", s.rdFont.open, f.back, len(f.changes))
+	}
+	tt.Key(0, ui.KeyEscape)
+	if f.back != 1 {
+		t.Fatalf("back %d", f.back)
+	}
+}
