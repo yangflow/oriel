@@ -62,7 +62,11 @@ func start(ctx context.Context, dataDir, password string, port int) (*backend, e
 	}
 	backgroundCtx, stopBackground := context.WithCancel(context.Background())
 	b := &backend{
-		store: st, http: &http.Server{Handler: api, ReadHeaderTimeout: 10 * time.Second}, addr: listener.Addr().String(),
+		store: st, http: &http.Server{
+			Handler: api, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: time.Minute,
+			// Longer than the slowest answer, an AI test call of up to two minutes.
+			WriteTimeout: 150 * time.Second, IdleTimeout: 2 * time.Minute,
+		}, addr: listener.Addr().String(),
 		stopBackground: stopBackground,
 	}
 	go func() {

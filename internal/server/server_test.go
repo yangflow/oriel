@@ -186,3 +186,87 @@ func TestUnknownRoute(t *testing.T) {
 		t.Fatalf("%d %s", w.Code, w.Body)
 	}
 }
+
+func TestLoginLockout(t *testing.T) {
+	s, c := newServer(t, "secret")
+	wrong := func() *httptest.ResponseRecorder { return do(s, "POST", "/auth/login", `{"password":"wrong"}`, nil) }
+	// The free attempts and the one that starts the lockout all answer 401.
+	for i := 0; i <= freeAttempts; i++ {
+		if w := wrong(); w.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d: %d", i+1, w.Code)
+		}
+	}
+	// Locked out: even the right password is turned away, without deriving a key.
+	w := do(s, "POST", "/auth/login", `{"password":"secret"}`, nil)
+	if w.Code != http.StatusTooManyRequests || w.Header().Get("Retry-After") != "1" || decode(t, w)["error"] != "too_many_attempts" {
+		t.Fatalf("locked: %d %v %s", w.Code, w.Header(), w.Body)
+	}
+	// Another address is not affected.
+	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader(`{"password":"secret"}`))
+	r.RemoteAddr = "192.0.2.77:4000"
+	other := httptest.NewRecorder()
+	s.ServeHTTP(other, r)
+	if other.Code != http.StatusOK {
+		t.Fatalf("other address: %d", other.Code)
+	}
+	// After the lockout one more failure doubles it.
+	c.t = c.t.Add(time.Second)
+	if w := wrong(); w.Code != http.StatusUnauthorized {
+		t.Fatalf("after lockout: %d", w.Code)
+	}
+	if w := wrong(); w.Code != http.StatusTooManyRequests || w.Header().Get("Retry-After") != "2" {
+		t.Fatalf("doubled: %d %v", w.Code, w.Header())
+	}
+	// The lockout is capped.
+	for i := 0; i < 40; i++ {
+		c.t = c.t.Add(maxLockout)
+		wrong()
+	}
+	if w := wrong(); w.Header().Get("Retry-After") != strconv.Itoa(int(maxLockout/time.Second)) {
+		t.Fatalf("cap: %d %v", w.Code, w.Header())
+	}
+}
+
+func TestLoginSuccessResetsFailures(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	for round := 0; round < 3; round++ {
+		for i := 0; i < freeAttempts-1; i++ {
+			do(s, "POST", "/auth/login", `{"password":"wrong"}`, nil)
+		}
+		login(t, s, "agent")
+	}
+	if len(s.throttle.failures) != 0 {
+		t.Fatalf("records left: %d", len(s.throttle.failures))
+	}
+}
+
+func TestLoginDerivationCap(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	for i := 0; i < maxDerivations; i++ {
+		if !s.throttle.acquire() {
+			t.Fatalf("slot %d busy", i)
+		}
+	}
+	w := do(s, "POST", "/auth/login", `{"password":"secret"}`, nil)
+	if w.Code != http.StatusTooManyRequests || w.Header().Get("Retry-After") == "" {
+		t.Fatalf("full: %d %v", w.Code, w.Header())
+	}
+	s.throttle.release()
+	login(t, s, "agent")
+}
+
+func TestThrottlePrunesOldRecords(t *testing.T) {
+	th := newThrottle()
+	now := time.UnixMilli(1_700_000_000_000)
+	th.fail("192.0.2.1", now)
+	th.fail("192.0.2.2", now.Add(2*forgetAfter))
+	if _, ok := th.failures["192.0.2.1"]; ok || len(th.failures) != 1 {
+		t.Fatalf("records: %v", th.failures)
+	}
+	for i := 0; i < 2*maxTracked; i++ {
+		th.fail(strconv.Itoa(i), now.Add(2*forgetAfter))
+	}
+	if len(th.failures) > maxTracked {
+		t.Fatalf("%d records", len(th.failures))
+	}
+}

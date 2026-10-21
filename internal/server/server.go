@@ -52,19 +52,20 @@ type Images interface {
 
 // Server serves the HTTP API on top of a store.
 type Server struct {
-	store   *store.Store
-	images  Images
-	ai      *ai.Worker
-	version string
-	salt    []byte
-	derived []byte // nil when no password is set
-	now     func() time.Time
-	handler http.Handler
+	store    *store.Store
+	images   Images
+	ai       *ai.Worker
+	version  string
+	salt     []byte
+	derived  []byte // nil when no password is set
+	now      func() time.Time
+	throttle *throttle
+	handler  http.Handler
 }
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, ai: cfg.AI, version: cfg.Version, now: time.Now}
+	s := &Server{store: st, images: cfg.Images, ai: cfg.AI, version: cfg.Version, now: time.Now, throttle: newThrottle()}
 	if s.ai == nil {
 		s.ai = ai.New(st, cfg.Version)
 	}
@@ -142,20 +143,33 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "auth_disabled")
 		return
 	}
+	key, now := clientKey(r), s.now()
+	if wait := s.throttle.wait(key, now); wait > 0 {
+		tooMany(w, wait)
+		return
+	}
 	var body struct {
 		Password string `json:"password"`
 	}
 	// A malformed body is treated as a wrong password, never as a field validation error.
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil {
+		s.throttle.fail(key, now)
 		fail(w, http.StatusUnauthorized, "wrong_password")
+		return
+	}
+	// Deriving the key is slow on purpose, so only a few run at once; the rest are turned away, not queued.
+	if !s.throttle.acquire() {
+		tooMany(w, time.Second)
 		return
 	}
 	derived, err := derive(body.Password, s.salt)
+	s.throttle.release()
 	if err != nil || subtle.ConstantTimeCompare(derived, s.derived) != 1 {
+		s.throttle.fail(key, now)
 		fail(w, http.StatusUnauthorized, "wrong_password")
 		return
 	}
-	now := s.now()
+	s.throttle.succeed(key)
 	if err := s.store.DeleteSessionsIdleSince(r.Context(), now.Add(-sessionIdle)); err != nil {
 		internal(w, err)
 		return

@@ -81,7 +81,7 @@ button.trail:hover:not(:disabled) { background:var(--hover); color:var(--text) }
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><main id="app"></main></div>
 <script>
-const states=['connect','connecting','unreachable','not-oriel','password-required','wrong-password','server-error','expired'];
+const states=['connect','connecting','unreachable','not-oriel','password-required','wrong-password','too-many-attempts','server-error','expired'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const state=pick('state',states,'connect');
@@ -130,6 +130,7 @@ const copy={
     notOriel:'Not an Oriel server',
     passwordRequired:'Password required',
     wrongPassword:'Wrong password',
+    tooManyAttempts:'Too many attempts. Try again in a moment',
     serverError:'The server can’t open its data',
     expired:'Signed out of <strong>{server}</strong>',
   },
@@ -147,6 +148,7 @@ const copy={
     notOriel:'这里不是 Oriel',
     passwordRequired:'需要口令',
     wrongPassword:'口令不对',
+    tooManyAttempts:'尝试次数太多，请稍后再试',
     serverError:'服务端打不开它的数据',
     expired:'<strong>{server}</strong> 的登录已失效',
   },
@@ -157,13 +159,14 @@ const server='home.example:7470';
 const busy=state==='connecting';
 const address={connect:'',unreachable:'https://oriel.example:7470','not-oriel':'https://home.example:8080'}[state]??`https://${server}`;
 const addressInvalid=['unreachable','not-oriel'].includes(state);
-const passwordInvalid=['password-required','wrong-password'].includes(state);
-const password=['wrong-password','connecting','server-error'].includes(state)?'correct-horse':'';
+const passwordInvalid=['password-required','wrong-password','too-many-attempts'].includes(state);
+const password=['wrong-password','too-many-attempts','connecting','server-error'].includes(state)?'correct-horse':'';
 const error={
   unreachable:['address','wifiOff',t('unreachable')],
   'not-oriel':['address','server',t('notOriel')],
   'password-required':['password','lockKeyhole',t('passwordRequired')],
   'wrong-password':['password','alert',t('wrongPassword')],
+  'too-many-attempts':['password','clock',t('tooManyAttempts')],
   'server-error':['form','database',t('serverError')],
 }[state];
 const errorLine=field=>error?.[0]===field?`<div class="error" id="${field}-error" role="alert">${icon(error[1])}${error[2]}</div>`:'';

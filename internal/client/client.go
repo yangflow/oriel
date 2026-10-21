@@ -32,6 +32,7 @@ var (
 	ErrPasswordRequired = errors.New("password required")
 	ErrWrongPassword    = errors.New("wrong password")
 	ErrUnauthorized     = errors.New("session expired")
+	ErrTooManyAttempts  = errors.New("too many sign-in attempts")
 )
 
 // Server is an Oriel server found at an address.
@@ -153,6 +154,8 @@ func Login(ctx context.Context, server Server, password string) (Session, error)
 		return Session{Server: server.URL, Token: reply.Token}, nil
 	case reply.Error == "wrong_password":
 		return Session{}, ErrWrongPassword
+	case resp.StatusCode == http.StatusTooManyRequests:
+		return Session{}, ErrTooManyAttempts
 	case reply.Error == "auth_disabled":
 		return Session{Server: server.URL}, nil
 	}
