@@ -1200,3 +1200,107 @@ func TestReadingColumn(t *testing.T) {
 		}
 	}
 }
+
+// TestChineseTypesetting shows the gap between Chinese and Latin text only when the switch is on and the text is
+// Chinese, and never in code. The toolkit offers no letter spacing to read back, so the test measures how far the ink of
+// the paragraph reaches.
+func TestChineseTypesetting(t *testing.T) {
+	for _, scale := range textScales {
+		t.Run(fmt.Sprint("text=", scale), func(t *testing.T) { chineseTypesetting(t, scale) })
+	}
+}
+
+func chineseTypesetting(t *testing.T, scale float32) {
+	var unit float32
+	// reach is the right edge of the ink of the paragraph with the text.
+	reach := func(language, html, text string, on bool) float32 {
+		art := full()
+		art.Language = language
+		art.ExtractedHTML = html
+		f := &fake{now: now, article: art, nav: Nav{Entry: art.Entry, Scope: "All"}}
+		deps := f.deps()
+		p := prefs.Default()
+		p.ChineseTypesetting = on
+		deps.Reading = func() prefs.Preferences { return p }
+		s := New("en", deps)
+		s.Use(f)
+		tt := ui.NewTester(func(c *ui.Context) { unit = px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 2000)
+		tt.SetPreferences(ui.Preferences{TextScale: scale})
+		s.Open(art.Entry)
+		tt.Frame()
+		f.settle(tt)
+		r, ok := tt.Find(text)
+		if !ok {
+			t.Fatalf("%q not found", text)
+		}
+		img := tt.Image()
+		bg := img.At(int(r.X+r.W)-1, int(r.Y)+2)
+		right := 0
+		for y := int(r.Y); y < int(r.Y+r.H); y++ {
+			for x := int(r.X); x < int(r.X+r.W); x++ {
+				if img.At(x, y) != bg {
+					right = max(right, x)
+				}
+			}
+		}
+		return float32(right)
+	}
+	const mixed = "使用Go语言写的RSS阅读器"
+	on, off := reach("zh-Hans", "<p>"+mixed+"</p>", mixed, true), reach("zh-Hans", "<p>"+mixed+"</p>", mixed, false)
+	// Four boundaries, a quarter of the 16 body size each; an engine that puts glyphs on whole pixels (Pango) may lose
+	// up to a pixel at each.
+	const boundaries = 4
+	want := boundaries * 0.25 * 16 * unit
+	if d := on - off; d < want-boundaries || d > want+boundaries {
+		t.Errorf("Chinese text widened by %v, want %v", d, want)
+	}
+	const coded = "使用Go语言"
+	html := "<p>使用<code>Go</code>语言</p>"
+	if on, off := reach("zh-Hans", html, coded, true), reach("zh-Hans", html, coded, false); on != off {
+		t.Errorf("code reached %v with the switch on and %v off", on, off)
+	}
+	if on, off := reach("en", "<p>"+mixed+"</p>", mixed, true), reach("en", "<p>"+mixed+"</p>", mixed, false); on != off {
+		t.Errorf("English reached %v with the switch on and %v off", on, off)
+	}
+}
+
+// TestChineseTypesettingLink shows a link whose text is spaced stays one link: as many stops of the Tab key as the same
+// link unspaced, the whole text as its name, and one click opens it.
+func TestChineseTypesettingLink(t *testing.T) {
+	const text = "trigram分词器"
+	stops := map[bool]int{}
+	for _, on := range []bool{false, true} {
+		art := full()
+		art.Language = "zh-Hans"
+		art.ExtractedHTML = `<p>支持<a href="https://example.com/trigram">` + text + `</a>的搜索</p>`
+		f := &fake{now: now, article: art, nav: Nav{Entry: art.Entry, Scope: "All"}}
+		deps := f.deps()
+		p := prefs.Default()
+		p.ChineseTypesetting = on
+		deps.Reading = func() prefs.Preferences { return p }
+		s := New("en", deps)
+		s.Use(f)
+		tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1100, 2000)
+		s.Open(art.Entry)
+		tt.Frame()
+		f.settle(tt)
+		if _, ok := tt.Find(text); !ok {
+			t.Fatalf("the link is not named %q in %v", text, tt.Texts())
+		}
+		for range 40 {
+			tt.Key(0, ui.KeyTab)
+			if tt.Focused(text) {
+				stops[on]++
+			}
+		}
+		if err := tt.Click(text); err != nil {
+			t.Fatal(err)
+		}
+		if opened := tt.OpenedURLs(); !slices.Equal(opened, []string{"https://example.com/trigram"}) {
+			t.Fatalf("switch %v: opened %v", on, opened)
+		}
+	}
+	if stops[true] == 0 || stops[true] != stops[false] {
+		t.Errorf("stops of the Tab key on the link: %d spaced, %d unspaced", stops[true], stops[false])
+	}
+}

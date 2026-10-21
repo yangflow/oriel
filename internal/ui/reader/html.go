@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/yangflow/oriel/internal/tracker"
+	"github.com/yangflow/oriel/internal/ui/typeset"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
@@ -43,6 +44,11 @@ type block struct {
 	alt    string
 	width  int // of a picture, 0 when the page does not say
 	height int
+
+	// laid is set once set holds the pieces of spans that Chinese typesetting spaces (nil when none needs it); it is
+	// worked out when the block is first drawn as Chinese text and never changes, as the spans do not.
+	set  [][]typeset.Piece
+	laid bool
 }
 
 // style is what the elements around a text make of it.

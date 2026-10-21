@@ -26,6 +26,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/typeset"
 )
 
 //go:embed copy.json
@@ -49,6 +50,7 @@ type copy struct {
 	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium           string
 	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed           string
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                      string
+	ChineseTypesetting, ChineseTypesettingHelp                                                                     string
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                              string
 }
 
@@ -156,6 +158,11 @@ type Screen struct {
 	lang     string     // the language of the screen
 	uiFont   fontPicker // the picker of the Interface font
 	rdFont   fontPicker // the picker of the Reading font
+	preview  struct {
+		text   string
+		pieces []typeset.Piece
+		ok     bool
+	} // the sample's pieces under Chinese typesetting, for the text they were made from
 
 	state       int
 	settings    client.Settings
@@ -1621,13 +1628,46 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
+		labeled(c, s.text.ChineseTypesetting, s.text.ChineseTypesettingHelp, func() {
+			on := p.ChineseTypesetting
+			ui.Switch(c, &on).Label(s.text.ChineseTypesetting).Description(s.text.ChineseTypesettingHelp)
+			if on != p.ChineseTypesetting {
+				p.ChineseTypesetting = on
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
 		ui.Column(c).FillWidth().Padding(px(t, 12), px(t, 14)).Radius(8).Background(t.Background).Children(func() {
-			sample := ui.Text(c, s.text.PreviewText).FontSize(16 * float32(p.Scale())).TextColor(theme.Prose(t)).
-				LineHeight(float32(p.Leading(s.lang == prefs.LanguageChinese))).Wrap()
+			size := 16 * float32(p.Scale())
+			sample := s.sample(c, p.ChineseTypesetting && s.lang == prefs.LanguageChinese, size).FontSize(size).
+				TextColor(theme.Prose(t)).LineHeight(float32(p.Leading(s.lang == prefs.LanguageChinese))).Wrap()
 			if face := s.deps.ReadingFont(); face != "" {
 				sample.Font(face)
 			}
 		})
+	})
+}
+
+// sample is the sample paragraph of the Reading card, spaced by the rules of Chinese typesetting when chinese is set,
+// which is when it is Chinese and the switch is on; size is the font size it will have.
+func (s *Screen) sample(c *ui.Context, chinese bool, size float32) ui.Element {
+	text := s.text.PreviewText
+	if !chinese {
+		return ui.Text(c, text)
+	}
+	if !s.preview.ok || s.preview.text != text {
+		s.preview.text, s.preview.pieces, s.preview.ok = text, typeset.Text(text), true
+	}
+	if s.preview.pieces == nil {
+		return ui.Text(c, text)
+	}
+	return ui.RichText(c).Children(func() {
+		for n, piece := range s.preview.pieces {
+			e := ui.Text(c, piece.Text).Key(n)
+			if piece.Em != 0 {
+				e.LetterSpacing(piece.Em * size)
+			}
+		}
 	})
 }
 

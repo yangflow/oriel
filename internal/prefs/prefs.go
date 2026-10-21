@@ -1,5 +1,5 @@
 // Package prefs holds the appearance preferences of this device: the theme, the interface language and font, and the
-// font, size and line spacing of an article. They live in a file of the data directory beside the session file and never
+// font, size, line spacing and Chinese typesetting of an article. They live in a file of the data directory beside the session file and never
 // go through the server.
 package prefs
 
@@ -50,11 +50,15 @@ type Preferences struct {
 	ReadingFont string `json:"readingFont,omitempty"` // "" follows the interface font, else ReadingSerif or an installed family
 	ReadingSize string `json:"readingSize"`           // one of Sizes
 	LineSpacing string `json:"lineSpacing"`           // one of Spacings
+
+	// ChineseTypesetting sets Chinese text in the reader by the rules of docs/design.md. A file without the field
+	// reads as on, because Load starts from Default.
+	ChineseTypesetting bool `json:"chineseTypesetting"`
 }
 
 // Default has every preference at its default.
 func Default() Preferences {
-	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard}
+	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ChineseTypesetting: true}
 }
 
 // Normalize replaces every value it does not know with the default. A font is kept as it is: it may be installed
