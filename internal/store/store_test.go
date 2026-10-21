@@ -382,6 +382,59 @@ func TestEntries(t *testing.T) {
 	}
 }
 
+func TestMarkReadOlderThan(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	start := time.UnixMilli(1_700_000_000_000)
+	blog, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "Blog", start)
+	tube, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/videos", Kind: "video", FetchInterval: time.Hour}, "Tube", start)
+	feed := func(src Source, items ...FeedEntry) {
+		t.Helper()
+		if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: src.Kind}, "", "", items, "", time.Time{}, start); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// "dated" was fetched just now but published long ago: the cut follows the shown time, not the fetch time.
+	feed(blog, FeedEntry{GUID: "dated", Title: "Dated", PublishedAt: start.Add(-48 * time.Hour)},
+		FeedEntry{GUID: "undated", Title: "Undated"}, FeedEntry{GUID: "fresh", Title: "Fresh", PublishedAt: start.Add(time.Hour)})
+	feed(tube, FeedEntry{GUID: "v", Title: "Video", PublishedAt: start.Add(-72 * time.Hour)})
+
+	titlesOf := func(ids []int64) string {
+		var got []string
+		for _, id := range ids {
+			e, err := s.Entry(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, e.Title)
+		}
+		slices.Sort(got)
+		return strings.Join(got, "|")
+	}
+	at := start.Add(2 * time.Hour)
+	cut := start.Add(-24 * time.Hour).UnixMilli()
+	got, err := s.MarkRead(ctx, EntryFilter{OlderThan: cut}, at)
+	if err != nil || titlesOf(got) != "Dated|Video" {
+		t.Fatalf("older than a day = %s, %v", titlesOf(got), err)
+	}
+	if n, err := s.MarkUnread(ctx, got); err != nil || n != 2 {
+		t.Fatalf("undo = %d, %v", n, err)
+	}
+	if got, err := s.MarkRead(ctx, EntryFilter{OlderThan: cut, Kind: "video"}, at); err != nil || titlesOf(got) != "Video" {
+		t.Fatalf("kind scope = %s, %v", titlesOf(got), err)
+	}
+	if got, err := s.MarkRead(ctx, EntryFilter{OlderThan: cut, SourceID: blog.ID}, at); err != nil || titlesOf(got) != "Dated" {
+		t.Fatalf("source scope = %s, %v", titlesOf(got), err)
+	}
+	// Strictly before: an entry shown exactly at the cut stays.
+	if got, err := s.MarkRead(ctx, EntryFilter{OlderThan: start.UnixMilli()}, at); err != nil || len(got) != 0 {
+		t.Fatalf("strict cut = %s, %v", titlesOf(got), err)
+	}
+	if got, err := s.MarkRead(ctx, EntryFilter{OlderThan: start.UnixMilli() + 1}, at); err != nil || titlesOf(got) != "Undated" {
+		t.Fatalf("undated entry shows its fetch time = %s, %v", titlesOf(got), err)
+	}
+}
+
 func TestMuted(t *testing.T) {
 	for _, c := range []struct {
 		keywords, title, summary string

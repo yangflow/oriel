@@ -79,6 +79,14 @@ func (f *fake) SetEntry(_ context.Context, id int64, patch client.EntryPatch) (c
 	return client.Entry{}, f.setErr
 }
 
+// shownAt is the time a row shows: when it was published, else when it arrived.
+func shownAt(e client.Entry) int64 {
+	if e.PublishedAt != 0 {
+		return e.PublishedAt
+	}
+	return e.CreatedAt
+}
+
 func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) ([]int64, error) {
 	f.marked = append(f.marked, scope)
 	if f.markErr != nil {
@@ -87,7 +95,8 @@ func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) ([]int64, err
 	var ids []int64
 	for i, e := range f.entries {
 		if !e.IsRead && (scope.UpTo == 0 || e.ID <= scope.UpTo) && e.ID > scope.Newer &&
-			(scope.SourceID == 0 || e.SourceID == scope.SourceID) && (scope.Kind == "" || e.Kind == scope.Kind) {
+			(scope.SourceID == 0 || e.SourceID == scope.SourceID) && (scope.Kind == "" || e.Kind == scope.Kind) &&
+			(scope.OlderThan == 0 || shownAt(e) < scope.OlderThan) {
 			f.entries[i].IsRead = true
 			ids = append(ids, e.ID)
 		}
@@ -1307,6 +1316,137 @@ func TestMarkAllRead(t *testing.T) {
 	}
 	if s.unreadIn(s.scope) != 5 || tt.HasText("Undo") || s.undoable != nil {
 		t.Fatalf("unread %d, texts %v", s.unreadIn(s.scope), tt.Texts())
+	}
+}
+
+func TestMarkOlder(t *testing.T) {
+	for language, c := range map[string]struct {
+		items                        []string
+		all, one, week, marked, none string
+	}{
+		"en": {[]string{"Mark all in “All” as read", "-", "Mark older than 1 day as read", "Mark older than 1 week as read",
+			"Mark older than 1 month as read"}, "Mark all in “All” as read", "Mark older than 1 day as read",
+			"Mark older than 1 week as read", "Marked 3 entries in “All” older than 1 day as read",
+			"No unread entries older than 1 week"},
+		"zh-Hans": {[]string{"把「全部」全部标为已读", "-", "把 1 天前的标为已读", "把 1 周前的标为已读", "把 1 个月前的标为已读"},
+			"把「全部」全部标为已读", "把 1 天前的标为已读", "把 1 周前的标为已读", "已把「全部」里 1 天前的 3 条标为已读",
+			"没有 1 周前的未读条目"},
+	} {
+		t.Run(language, func(t *testing.T) {
+			s, f, tt := setup(t, language)
+			if err := tt.RightClick(c.all); err != nil {
+				t.Fatal(err)
+			}
+			if menu := tt.Menu(); !slices.Equal(menu, c.items) {
+				t.Fatalf("menu %q", menu)
+			}
+			if err := tt.ChooseMenuItem(c.one); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(t, tt)
+			day := now.Add(-24 * time.Hour).UnixMilli()
+			if !reflect.DeepEqual(f.marked, []client.ReadScope{{OlderThan: day}}) {
+				t.Fatalf("marked %v, want a cut at %d", f.marked, day)
+			}
+			if !slices.Contains(tt.Announcements(), c.marked) || s.unreadIn(s.scope) != 2 {
+				t.Fatalf("announcements %v, unread %d", tt.Announcements(), s.unreadIn(s.scope))
+			}
+			// The entries of the newest days stay unread.
+			for _, e := range s.entries {
+				if want := e.ID == 8 || e.ID == 7; !e.IsRead != want && e.ID != 4 {
+					t.Fatalf("entry %d read %v", e.ID, e.IsRead)
+				}
+			}
+			if err := tt.Click(s.text.Undo); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(t, tt)
+			if !reflect.DeepEqual(f.unmarked, [][]int64{{6, 5, 3}}) || s.unreadIn(s.scope) != 5 {
+				t.Fatalf("unmarked %v, unread %d", f.unmarked, s.unreadIn(s.scope))
+			}
+
+			// A week back only the oldest unread entry is left: one is marked, then none is, with no undo.
+			if err := tt.RightClick(c.all); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.ChooseMenuItem(c.week); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(t, tt)
+			if err := tt.RightClick(c.all); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.ChooseMenuItem(c.week); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(t, tt)
+			week := now.Add(-7 * 24 * time.Hour).UnixMilli()
+			if len(f.marked) != 3 || f.marked[2].OlderThan != week {
+				t.Fatalf("marked %v", f.marked)
+			}
+			if !tt.HasText(c.none) {
+				t.Fatalf("texts %v", tt.Texts())
+			}
+		})
+	}
+}
+
+func TestMarkOlderScopeAndLimits(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	// Under a kind the scope follows, and the month item reaches back 30 days.
+	if err := tt.Click("Articles"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.RightClick("Mark all in “Articles” as read"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark older than 1 month as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	month := now.Add(-30 * 24 * time.Hour).UnixMilli()
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{Kind: "article", OlderThan: month}}) {
+		t.Fatalf("marked %v", f.marked)
+	}
+	// A search or Starred has no scope the server knows: the menu is dimmed.
+	if err := tt.Click("Starred"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.RightClick("Mark all in “Articles” as read"); err == nil {
+		if err := tt.ChooseMenuItem("Mark older than 1 day as read"); err == nil {
+			t.Fatal("marked under Starred")
+		}
+		tt.CloseMenu()
+	}
+	if len(f.marked) != 1 || s.canMarkAll() {
+		t.Fatalf("marked %v", f.marked)
+	}
+}
+
+func TestMarkSourceOlder(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.RightClick("Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark older than 1 week as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	week := now.Add(-7 * 24 * time.Hour).UnixMilli()
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{SourceID: 1, OlderThan: week}}) {
+		t.Fatalf("marked %v", f.marked)
+	}
+	if !slices.Contains(tt.Announcements(), "Marked 1 entries in “Go Blog” older than 1 week as read") || s.sources[0].UnreadCount != 1 {
+		t.Fatalf("announcements %v, sources %v", tt.Announcements(), s.sources)
+	}
+	if err := tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.unmarked, [][]int64{{3}}) || s.sources[0].UnreadCount != 2 {
+		t.Fatalf("unmarked %v, sources %v", f.unmarked, s.sources)
 	}
 }
 
