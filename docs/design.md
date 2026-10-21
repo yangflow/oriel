@@ -133,6 +133,13 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `TextMuted`, a pause mark instead of the failure mark, and no count. With one subscription chosen, a pencil button
   after the count edits it. A row is chosen with a fill (ink 6.5%) and the selection marker; see
   [States](#color-and-dark-mode).
+- **"Last looked" divider.** In the column of rows only, a 28 high row of its own between two entries, in the row
+  column (at most 680, the same side padding): a 1 high `Border` hairline across it with the label centered on the
+  hairline, 12 medium `Accent` on the `Background` with 10 of padding at each side, tabular numerals: "12 new since you
+  last looked" / "上次看到这里 · 新增 12 条" ("50+" over 50). It is a button, named by its label (the accessible
+  name is the label); hover steps the label to `AccentHover`, the keyboard ring is the row's, and a click closes it with
+  no animation, the list below keeping its place. It has no fill and no actions, and the hairline stands in for the
+  separator of the row below. Drawn in `design/screens/timeline.html`, `last-looked`.
 - **Viewers (View as).** Each kind has a viewer the reader chooses in Settings, Appearance (the settings row is
   described under Settings below; the rule for which entries use it is in `docs/product.md`, Viewers). The default of
   each kind is the look described in the timeline bullet above (Articles List, Videos Grid, Social Card, Images Wall); the others are:

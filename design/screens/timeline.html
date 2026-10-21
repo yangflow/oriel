@@ -268,6 +268,10 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .column { max-width:680px; margin:0 auto; padding:6px 24px 40px }
 .column.wide { max-width:720px }
 .row { position:relative; display:flex; gap:14px; padding:16px 16px 16px 28px; margin:0 -16px; border-radius:12px; transition:background-color var(--t) }
+.looked { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:28px; margin:0; padding:0; border:0; background:transparent; font:inherit }
+.looked::before { content:""; position:absolute; left:0; right:0; top:50%; border-top:1px solid var(--border) }
+.looked span { position:relative; padding:0 10px; background:var(--background); color:var(--accent); font-size:12px; font-weight:500; font-variant-numeric:tabular-nums }
+.looked:hover span { color:var(--accent-hover) }
 .row + .row::before { content:""; position:absolute; top:0; left:28px; right:16px; border-top:1px solid var(--border) }
 .row:hover, .row.hover { background:var(--hover) }
 .row:active { background:var(--pressed) }
@@ -490,7 +494,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
+const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -577,7 +581,7 @@ const copy={
     failedOnce:'Last fetch failed: {error}', failedTimes:'Failed {n} times in a row: {error}',
     failingCount:'{n} failing', failingShow:'Show only the {n} failing subscriptions', failingTitle:'Failing', showAll:'Show all',
     filterSources:'Filter subscriptions', clearFilter:'Clear filter', unreadFirst:'Unread first', noMatchingSources:'No matching subscriptions',
-    newEntries:'{n} new', loadingMore:'Loading more', offline:'Can’t reach the server · last updated {time}',
+    newEntries:'{n} new', lastLooked:'{n} new since you last looked', loadingMore:'Loading more', offline:'Can’t reach the server · last updated {time}',
     tooShort:'Type at least 3 characters to search',
     noResults:'Nothing matches “{q}”', noResultsHint:'Search looks at titles, summaries and full text.',
     unreadDone:'All caught up', unreadDoneHint:'No unread entries here.',
@@ -608,7 +612,7 @@ const copy={
     failedOnce:'上次抓取失败：{error}', failedTimes:'连续失败 {n} 次：{error}',
     failingCount:'{n} 个失败', failingShow:'只显示 {n} 个抓取失败的订阅', failingTitle:'抓取失败', showAll:'显示全部',
     filterSources:'筛选订阅', clearFilter:'清空筛选', unreadFirst:'未读优先', noMatchingSources:'没有匹配的订阅',
-    newEntries:'{n} 条新内容', loadingMore:'正在加载', offline:'连不上服务端 · 上次更新于 {time}',
+    newEntries:'{n} 条新内容', lastLooked:'上次看到这里 · 新增 {n} 条', loadingMore:'正在加载', offline:'连不上服务端 · 上次更新于 {time}',
     tooShort:'至少输入 3 个字才能搜索',
     noResults:'没有找到「{q}」', noResultsHint:'搜索范围包括标题、摘要和全文。',
     unreadDone:'都读完了', unreadDoneHint:'这里没有未读条目。',
@@ -851,7 +855,7 @@ else if(state==='time-empty')list=empty('clock',t('timeEmpty',{n:budget}),copy.t
 else if(state==='search-none')list=empty('search',t('noResults',{q}),copy.noResultsHint);
 else if(cardsOn)list=`<div class="vgrid${gridKind==='image'?' sq':''}" role="feed" aria-label="${scopeName}">${shown.map(gridKind==='image'?squareCard:videoCard).join('')}</div>${more}`;
 else if(wallOn)list=`<div class="masonry" role="feed" aria-label="${scopeName}">${shown.map(masonryTile).join('')}</div>${more}`;
-else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map(row).join('')}${more}</div>`;
+else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map((e,i)=>(state==='last-looked'&&i===3?`<button class="looked" aria-label="${t('lastLooked',{n:3})}"><span aria-hidden="true">${t('lastLooked',{n:3})}</span></button>`:'')+row(e,i)).join('')}${more}</div>`;
 
 const unreadInScope=kinds.includes(scope)?kindUnread(scope):scope==='source'?byId[focusId].unread:total;
 const sub=state==='no-subscriptions'||state==='error'?'':state==='search'?t('results',{n:1}):state==='unread-done'||state==='starred-none'||state==='empty'||state==='marked-read'||budget?'':t('unreadCount',{n:unreadInScope});

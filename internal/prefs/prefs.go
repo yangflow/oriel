@@ -90,6 +90,38 @@ type Preferences struct {
 
 	// SidebarHidden is set while the reader has collapsed the sidebar of the timeline; the default is shown.
 	SidebarHidden bool `json:"sidebarHidden,omitempty"`
+	// LastLooked is where the reader last looked in the timeline on this device; see Marker.
+	LastLooked Marker `json:"lastLooked,omitzero"`
+}
+
+// Marker is the newest entry the reader has seen: its created_at (Unix milliseconds) and id, which orders entries of
+// the same time. The zero Marker means none, as on a first run.
+type Marker struct {
+	At int64 `json:"at"`
+	ID int64 `json:"id"`
+}
+
+// Valid tells whether m marks an entry.
+func (m Marker) Valid() bool { return m.At > 0 }
+
+// Newer tells whether the entry made at at with id is newer than the marker, in the order of the timeline: later
+// creation first, and for the same time the greater id.
+func (m Marker) Newer(at, id int64) bool {
+	return at > m.At || at == m.At && id > m.ID
+}
+
+// UnmarshalJSON reads a marker and drops what it does not understand, so that a bad value never costs the other
+// preferences.
+func (m *Marker) UnmarshalJSON(data []byte) error {
+	var v struct {
+		At int64 `json:"at"`
+		ID int64 `json:"id"`
+	}
+	*m = Marker{}
+	if json.Unmarshal(data, &v) == nil && v.At > 0 && v.ID >= 0 {
+		*m = Marker{At: v.At, ID: v.ID}
+	}
+	return nil
 }
 
 // Grids remembers, per scope, that the list was switched to the grid (ViewGrid) or to the list (ViewList) against what
@@ -226,6 +258,9 @@ func (p Preferences) Normalize() Preferences {
 	}
 	if p.Grids != "" {
 		p.Grids = encodeGrids(p.Grids.entries())
+	}
+	if p.LastLooked.At <= 0 || p.LastLooked.ID < 0 {
+		p.LastLooked = Marker{}
 	}
 	return p
 }

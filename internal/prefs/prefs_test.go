@@ -272,3 +272,40 @@ func TestSourceSort(t *testing.T) {
 		}
 	}
 }
+
+// TestLastLooked shows the marker survives a save and a load, is left out while there is none, and that a value that
+// cannot be a marker is dropped without costing the other preferences.
+func TestLastLooked(t *testing.T) {
+	path := filepath.Join(t.TempDir(), File)
+	p := Default()
+	Save(path, p)
+	if data, _ := os.ReadFile(path); strings.Contains(string(data), "lastLooked") {
+		t.Errorf("no marker written: %s", data)
+	}
+	p.LastLooked = Marker{At: 1700000000000, ID: 812}
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load(path); got != p {
+		t.Errorf("round trip: %+v, want %+v", got, p)
+	}
+	if data, _ := os.ReadFile(path); !strings.Contains(string(data), `"lastLooked":{"at":1700000000000,"id":812}`) {
+		t.Errorf("file %s", data)
+	}
+	for _, bad := range []string{`"x"`, `{"at":"x"}`, `{"at":-5,"id":1}`, `{"at":5,"id":-1}`, `[]`, `7`, `null`} {
+		os.WriteFile(path, []byte(`{"theme":"dark","lastLooked":`+bad+`}`), 0o600)
+		got := Load(path)
+		if got.LastLooked.Valid() || got.Theme != ThemeDark {
+			t.Errorf("%s: %+v", bad, got)
+		}
+	}
+	m := Marker{At: 10, ID: 5}
+	for _, c := range []struct {
+		at, id int64
+		newer  bool
+	}{{11, 1, true}, {10, 6, true}, {10, 5, false}, {10, 4, false}, {9, 9, false}} {
+		if got := m.Newer(c.at, c.id); got != c.newer {
+			t.Errorf("Newer(%d, %d) = %v", c.at, c.id, got)
+		}
+	}
+}

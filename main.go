@@ -189,6 +189,12 @@ func desktop() {
 			TitleBarStyle: mygo.TitleBarHidden, TrafficLightPosition: &mygo.Point{X: 19, Y: 19},
 			Content: ui.View(root.View),
 		})
+		// The marker of what the reader last looked at moves only while the window is in front.
+		focus := func(on bool) func() { return func() { window.Update(func() { root.focus(on) }) } }
+		window.OnFocus(focus(true))
+		window.OnBlur(focus(false))
+		window.OnHide(focus(false))
+		window.OnMinimize(focus(false))
 		root.restore()
 	})
 	mygo.App.OnSecondInstance(func([]string, string) {

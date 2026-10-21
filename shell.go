@@ -50,6 +50,7 @@ type shell struct {
 	showing      bool            // whether the connect screen shows
 	setting      bool            // whether the settings show, under the connect screen
 	prefs        prefs.Preferences
+	unfocused    bool     // the window is not the one in front; see focus
 	fonts        []string // the font families of the system, empty until they are listed
 	fontsListed  bool
 	face         string // the font list of an article's body, "" for the interface font; see updateFace
@@ -75,7 +76,7 @@ func newShell(systemLocale, path, prefsPath string, local client.Session, goAsyn
 			OpenSettingsPage: s.openSettingsPage,
 			Expired:          s.expired,
 			Reading:          func() prefs.Preferences { return s.prefs }, ReadingFont: func() string { return s.face },
-			Change: s.change, Save: s.files.Save})
+			Change: s.change, Save: s.files.Save, Active: s.active, Look: s.look})
 	}
 	s.updateFace()
 	s.build()
@@ -133,7 +134,25 @@ func (s *shell) attach() {
 
 // change applies the preferences the settings chose at once and saves them in the background; when the latest
 // change cannot be saved, the preferences go back to what they were and the settings say so.
-func (s *shell) change(p prefs.Preferences) {
+func (s *shell) change(p prefs.Preferences) { s.save(p, true) }
+
+// look keeps where the reader last looked in the timeline. The reader did not choose it, so a failure to save it goes
+// to the log and nowhere else.
+func (s *shell) look(m prefs.Marker) {
+	p := s.prefs
+	p.LastLooked = m
+	s.save(p, false)
+}
+
+// focus tells the shell whether the window is the one in front; the marker of what the reader last looked at moves
+// only while it is. It runs on the UI thread.
+func (s *shell) focus(on bool) { s.unfocused = !on }
+
+// active tells whether the timeline is what the reader has in front of them.
+func (s *shell) active() bool { return !s.unfocused && !s.showing && !s.setting }
+
+// save applies p and saves it; tell says whether a failure is shown in the settings.
+func (s *shell) save(p prefs.Preferences, tell bool) {
 	p = p.Normalize()
 	before := s.prefs
 	if p == before {
@@ -157,7 +176,9 @@ func (s *shell) change(p prefs.Preferences) {
 			slog.Error("Cannot save the preferences", "error", err)
 			if n == s.changes { // a later change decides for itself
 				s.apply(before)
-				s.settings.PreferenceFailed()
+				if tell {
+					s.settings.PreferenceFailed()
+				}
 			}
 		}
 	})
