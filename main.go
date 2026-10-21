@@ -90,6 +90,21 @@ func serve(args []string) int {
 	return 0
 }
 
+// windowStateKey names the main window's remembered position, size and maximized state (window-state.json in the
+// user data directory). MyGo captures it after the window settles, in memory, and writes it when the window closes.
+const windowStateKey = "oriel-main"
+
+// mainWindowOptions is the main window: 960x640 centered the first time, never below 640x480, and back where the reader
+// left it. A saved position that no display shows any more falls back to centered on the primary display.
+func mainWindowOptions(content mygo.Content) mygo.WindowOptions {
+	return mygo.WindowOptions{
+		Title: "Oriel", Width: 960, Height: 640, MinWidth: 640, MinHeight: 480, StateKey: windowStateKey,
+		// The view draws its own toolbar row, 52 high: the window buttons (14 high) sit centered in it.
+		TitleBarStyle: mygo.TitleBarHidden, TrafficLightPosition: &mygo.Point{X: 19, Y: 19},
+		Content: content,
+	}
+}
+
 // desktop serves on a free loopback port without a password and opens the window. Signed in to a remote server, it
 // shows that server's data instead.
 func desktop() {
@@ -183,12 +198,7 @@ func desktop() {
 		}
 		root.language = setMenu
 		setMenu(locale.Resolve(root.prefs.Language, systemLocale))
-		window = mygo.NewWindow(mygo.WindowOptions{
-			Title: "Oriel", Width: 960, Height: 640, MinWidth: 640, MinHeight: 480,
-			// The view draws its own toolbar row, 52 high: the window buttons (14 high) sit centered in it.
-			TitleBarStyle: mygo.TitleBarHidden, TrafficLightPosition: &mygo.Point{X: 19, Y: 19},
-			Content: ui.View(root.View),
-		})
+		window = mygo.NewWindow(mainWindowOptions(ui.View(root.View)))
 		// The marker of what the reader last looked at moves only while the window is in front.
 		focus := func(on bool) func() { return func() { window.Update(func() { root.focus(on) }) } }
 		window.OnFocus(focus(true))
