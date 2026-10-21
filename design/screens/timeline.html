@@ -14,7 +14,11 @@
      (social-compact), Images Wall, Grid or Card (image-grid, image-card). The defaults, Grid for Videos and Wall for
      Images, are what Videos and Images show with no state. Grid, Wall and the square image Grid are used only in the
      Videos and Images scopes without a search; everywhere else those kinds draw their row or card, and Compact and
-     Large cover apply everywhere (mixed-viewers). The kinds sit on
+     Large cover apply everywhere (mixed-viewers). In Videos, Images and a single video or image subscription a bare
+     icon right of the clock switches that scope between the list and the grid (the grid icon while the list shows,
+     the list icon while the grid shows); it is never there in a search. Images switched to the list is image-switch,
+     one image subscription as a grid is source-grid. The choice is kept per scope on this device and wins over
+     the viewer; the grid is never suggested. The kinds sit on
      top of the sidebar as named items with counts; the sidebar then lists only that kind's subscriptions. The server bar at the
      bottom opens the connect screen; the gear beside it opens the settings.
      A social post's pictures stay low: one keeps its own ratio up to 240 high, two sit side by side, three or more
@@ -175,18 +179,22 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:10px; padding:0 12px 0 20px }
 .toolbar.aligned { --col:680px; padding-left:max(20px,calc((100% - var(--col))/2 + 36px)); padding-right:max(12px,calc((100% - var(--col))/2 + 20px)) }
 .toolbar.aligned.wide { --col:720px }
-.toolbar h1 { margin:0; min-width:0; font-size:15px; font-weight:600; letter-spacing:-.005em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.toolbar h1 { margin:0; min-width:56px; font-size:15px; font-weight:600; letter-spacing:-.005em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .toolbar .sub { font-size:12px; letter-spacing:.01em; white-space:nowrap; font-variant-numeric:tabular-nums; color:var(--muted) }
+.toolbar > :not(h1):not(.search):not(.spacer) { flex-shrink:0 }
+.min .toolbar { gap:4px }
+.min .toolbar .sub { display:none }
 .spacer { flex:1 }
 .segmented { flex:none; display:flex; height:32px; padding:3px; gap:2px; border-radius:16px; background:var(--glass); box-shadow:var(--glass-rim); -webkit-backdrop-filter:blur(22px) saturate(1.5); backdrop-filter:blur(22px) saturate(1.5) }
 .segmented button { flex:none; white-space:nowrap; height:26px; display:flex; align-items:center; gap:4px; padding:0 11px; border-radius:13px; font-size:12px; font-weight:500; letter-spacing:.01em; color:var(--muted) }
 .segmented button:hover { background:var(--hover); color:var(--text) }
 .segmented button.on { background:rgba(var(--ink),.10); color:var(--text) }
 .segmented button svg.icon { width:14px; height:14px }
+.min .segmented button { padding:0 7px }
 .min .segmented button span { display:none }
 .search { width:200px; height:32px; display:flex; align-items:center; gap:6px; padding:0 6px 0 12px; border-radius:16px; background:rgba(var(--ink),.055); color:var(--muted); transition:background-color var(--t), box-shadow var(--t) }
 .search:hover { background:rgba(var(--ink),.075) }
-.search { flex-shrink:1000; min-width:112px }
+.search { flex-shrink:1000; min-width:72px }
 .min .search { width:136px }
 .search.focused { background:var(--raised); box-shadow:0 0 0 2px var(--focus), 0 2px 10px rgba(var(--ink),.08) }
 .search.invalid { box-shadow:inset 0 0 0 1.5px var(--warning) }
@@ -423,14 +431,14 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','long-titles','many-feeds','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers'];
+const states=['list','offline','failing','failing-only','loading','more','new','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','long-titles','many-feeds','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
 const options={state:states,scope:['all',...kinds,'source'],scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
 const state=pick('state',states,'list');
 // Each viewer state is drawn in the scope that shows it best; the scope menu still switches it.
-const stateScope={'article-compact':'article','social-compact':'social','video-cover':'video','video-list':'video','image-grid':'image','image-card':'image'};
+const stateScope={'article-compact':'article','social-compact':'social','video-cover':'video','video-list':'video','image-grid':'image','image-card':'image','image-switch':'image','source-grid':'source'};
 const scope=pick('scope',options.scope,stateScope[state]||'all');
 // The viewers, as Settings > Appearance > View as keeps them. The first value of each kind is the default.
 const viewer={article:'list',video:'grid',social:'card',image:'wall',...{
@@ -453,6 +461,8 @@ for(const [id,list] of Object.entries(options)){
 }
 
 const icons={
+  layoutGrid:'<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+  list:'<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
   inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
   article:'<path d="M15 18h-5"/><path d="M18 14h-8"/><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="10" y="6" rx="1"/>',
   video:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
@@ -508,7 +518,7 @@ const copy={
     noStarred:'No starred entries', noStarredHint:'Star an entry to keep it here.',
     empty:'Nothing here yet', emptyHint:'New entries show up after the next fetch.',
     readMin:'{n} min read', timeTitle:'Reading time', timeAny:'Any length', timeUpTo:'Up to {n} minutes', timeChip:'≤ {n} min',
-    timeName:'Reading time: any length', timeNameUpTo:'Reading time: up to {n} minutes',
+    showGrid:'Show as grid', showList:'Show as list', timeName:'Reading time: any length', timeNameUpTo:'Reading time: up to {n} minutes',
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', importOpml:'Import OPML…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
@@ -537,7 +547,7 @@ const copy={
     noStarred:'还没有收藏', noStarredHint:'收藏的条目会留在这里。',
     empty:'这里还没有条目', emptyHint:'下次抓取之后，新条目会出现在这里。',
     readMin:'{n} 分钟阅读', timeTitle:'阅读时长', timeAny:'不限时长', timeUpTo:'{n} 分钟内', timeChip:'≤ {n} 分钟',
-    timeName:'阅读时长：不限', timeNameUpTo:'阅读时长：{n} 分钟内',
+    showGrid:'以网格显示', showList:'以列表显示', timeName:'阅读时长：不限', timeNameUpTo:'阅读时长：{n} 分钟内',
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', importOpml:'导入 OPML…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
@@ -595,7 +605,7 @@ const bigFeeds=[
   ['image','Pexels'],['image','500px Popular'],['image','Wikimedia Picture of the Day'],['image','National Geographic Photo of the Day'],['image','Behance Featured'],
   ['image','ArtStation'],['image','Pixiv Daily Ranking'],['image','Flickr Explore'],['image','花瓣'],['image','Dribbble Popular'],
 ];
-const focusId=state==='long-titles'?2:1;
+const focusId=state==='long-titles'?2:state==='source-grid'?8:1;
 if(state==='many-feeds'){
   bigFeeds.forEach(([kind,name],i)=>sources.push({id:11+i,kind,name,mono:[...name.replace(/^[@#· ]+/,'')][0].toUpperCase(),unread:i%7===0?0:(i*5)%9+1}));
   sources.sort((a,b)=>a.name.toLowerCase()<b.name.toLowerCase()?-1:1);
@@ -683,7 +693,7 @@ const failedText=s=>s.failing>1?t('failedTimes',{n:s.failing,error:s.error}):t('
 const failingName=s=>s.unread?t('failingUnread',{name:s.name,n:s.unread}):t('failingName',{name:s.name});
 const sourceItem=s=>navItem(glyph(s),s.name,s.unread,scope==='source'&&s.id===focusId,s.failing?`<span class="warn" role="img" aria-label="${failedText(s)}" title="${failedText(s)}"${state==='failing'&&s.id===3?' id="tipped"':''}>${icon('alert')}</span>`:'',s.failing?failingName(s):'');
 const failingSources=sources.filter(s=>s.failing);
-const tabKind=scope==='source'?'article':scope;
+const tabKind=scope==='source'?byId[focusId].kind:scope;
 const kindList=[['all','inbox'],...kinds.map(k=>[k,k])];
 const kindCount=(k,counts)=>counts?(k==='all'?total:kindUnread(k)):0;
 const tabs=counts=>`<nav class="kind-list" aria-label="${copy.kinds}">${kindList.map(([k,g])=>navItem(icon(g),k==='all'?copy.all:copy[k],kindCount(k,counts),k===tabKind)).join('')}</nav>`;
@@ -716,9 +726,16 @@ const pictures=list=>{
 const videoCover=(e,cls)=>`<div class="pic ${cls} ${e.thumb}" role="img" aria-label="${t('duration',{d:e.duration})}"><div class="play"><span>${icon('video')}</span></div><span class="duration">${e.duration}</span></div>`;
 
 // One column of rows. The viewer of each kind decides how its row looks (viewer, above).
+// The grid switch: offered in Videos, Images and a single video or image subscription, never in a search. The grid
+// is the default of the two kind scopes (the viewers say which), and a single subscription starts as a list;
+// image-switch is Images switched to the list, source-grid one image subscription switched to the grid.
+const gridKind=kinds.includes(scope)?scope:scope==='source'?byId[focusId].kind:'';
+const switchable=(gridKind==='video'||gridKind==='image')&&!searching;
+const gridDefault=scope!=='source'&&(gridKind==='video'?viewer.video==='grid':viewer.image!=='card');
+const gridOn=switchable&&(state==='image-switch'?false:state==='source-grid'?true:gridDefault);
 const rowDemo=['list','article-compact','social-compact','video-cover','video-list','image-card','mixed-viewers'].includes(state);
-const cardsOn=(scope==='video'&&viewer.video==='grid'||scope==='image'&&viewer.image==='grid')&&state!=='search';
-const wallOn=scope==='image'&&viewer.image==='wall'&&state!=='search';
+const cardsOn=gridOn&&(gridKind==='video'||gridKind==='image'&&viewer.image==='grid');
+const wallOn=gridOn&&gridKind==='image'&&viewer.image!=='grid';
 const stripOf=list=>{const hidden=list.length-4;return `<div class="strip">${list.slice(0,4).map((g,i)=>i===3&&hidden>0?`<div class="pic more ${g}" role="img" aria-label="${t('morePictures',{n:hidden})}"><b aria-hidden="true">+${hidden}</b></div>`:`<div class="pic ${g}">${failedPic(g)}</div>`).join('')}</div>`};
 const row=(e,i)=>{
   const cls=`row${e.read?' read':''}${i===1&&rowDemo?' hover':''}${(i===2&&state==='menu-entry')||(i===0&&state==='menu-entry-first')?' menued':''}${(i===2&&(rowDemo||state==='sidebar-focus'))||(i===0&&state==='marked-visible'&&scope==='all')||(i===3&&state==='no-more-unread')?' chosen':''}`;
@@ -753,7 +770,7 @@ else if(state==='starred-none')list=empty('star',copy.noStarred,copy.noStarredHi
 else if(state==='empty')list=empty('inbox',copy.empty,copy.emptyHint);
 else if(state==='time-empty')list=empty('clock',t('timeEmpty',{n:budget}),copy.timeEmptyHint,`<button class="button">${copy.timeClear}</button>`);
 else if(state==='search-none')list=empty('search',t('noResults',{q}),copy.noResultsHint);
-else if(cardsOn)list=`<div class="vgrid${scope==='image'?' sq':''}" role="feed" aria-label="${scopeName}">${shown.map(scope==='image'?squareCard:videoCard).join('')}</div>${more}`;
+else if(cardsOn)list=`<div class="vgrid${gridKind==='image'?' sq':''}" role="feed" aria-label="${scopeName}">${shown.map(gridKind==='image'?squareCard:videoCard).join('')}</div>${more}`;
 else if(wallOn)list=`<div class="masonry" role="feed" aria-label="${scopeName}">${shown.map(masonryTile).join('')}</div>${more}`;
 else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map(row).join('')}${more}</div>`;
 
@@ -765,8 +782,10 @@ const markAllName=t('markAllIn',{scope:scopeName});
 const markAll=`<button class="tool"${budget?' aria-disabled="true"':''} aria-label="${markAllName}" title="${markAllName}">${icon('checkCheck')}</button>`;
 const timeName=budget?t('timeNameUpTo',{n:budget}):copy.timeName;
 const timeBtn=`<button class="timebtn${budget?' on':''}" aria-label="${timeName}" title="${timeName}" aria-haspopup="menu" aria-expanded="${state==='time-menu'}">${icon('clock')}${budget?`<span class="lbl">${t('timeChip',{n:budget})}</span><span class="badge" aria-hidden="true"></span>`:''}</button>`;
+const switchName=gridOn?copy.showList:copy.showGrid;
+const switchBtn=switchable?`<button class="timebtn" aria-label="${switchName}" title="${switchName}">${icon(gridOn?'list':'layoutGrid')}</button>`:'';
 const columned=!(cardsOn||wallOn);
-const toolbar=`<div class="toolbar${columned?' aligned':''}${scope==='social'?' wide':''}"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${timeBtn}${searchField}${markAll}</div>`;
+const toolbar=`<div class="toolbar${switchable?' switch':''}${columned?' aligned':''}${scope==='social'?' wide':''}"><h1>${scopeName}</h1><span class="sub">${sub}</span><span class="spacer"></span><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div>${timeBtn}${switchBtn}${searchField}${markAll}</div>`;
 const hint=state==='search-short'?`<div class="hint" id="hint" role="status">${icon('alert')}${copy.tooShort}</div>`:'';
 const stale=state==='offline'?`<div class="stale${columned?' aligned':''}${scope==='social'?' wide':''}" role="status">${icon('wifiOff')}<span>${t('offline',{time:'10:42'})}</span></div>`:'';
 const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries',{n:3})}</button>`:'';

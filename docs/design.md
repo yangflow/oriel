@@ -93,10 +93,13 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   buttons. Then the five kinds (All, Articles, Videos, Social, Images) as 30 high rows, each an icon, its name and its
   unread count; then the subscriptions of the chosen kind, 30 high rows; at the bottom the server bar, 40 high. The main
   column is the paper: `Background`. It has a 52 high toolbar row (title, count, one capsule with the
-  Everything/Unread/Starred segments, the reading-time button, search, mark all as read, whose name and tooltip say
+  Everything/Unread/Starred segments, the reading-time button, the grid switch (only where it applies), search, mark all as read, whose name and tooltip say
   its scope: "Mark all in “Videos” as read") with no bar and no divider: the segments are one 32 high capsule of glass floating over the
   entries, which fade under the row (the soft scroll edge); search is a flat ink fill, and the other buttons are
-  bare icons. The reading-time button is a bare 32 square clock icon right of the capsule, named "Reading time: any
+  bare icons. Below a 760 wide window the gap between the toolbar items is 4, the segments are padded 7 and the unread count is left out; what is
+  left gives way in this order: search shrinks first, to 72 wide at least (the magnifier and a few letters), then the
+  title is cut with an ellipsis, 56 wide at least; the buttons never shrink, so mark all as read is always inside the
+  window. The reading-time button is a bare 32 square clock icon right of the capsule, named "Reading time: any
   length"; its menu lists Any length (the default), Up to 5, 10, 15 and 30 minutes, each a 28 high menu row with a
   check on the current one. With a budget chosen it becomes a 32 high pill (radius 16) with the `Soft(Accent)` fill,
   "≤ 10 min" in `Accent` at 12 medium beside the icon, tabular numerals, named "Reading time: up to 10 minutes"; below
@@ -152,7 +155,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   **Video, List** and **Image, Card** are the rows the other scopes draw today, now also in Videos and Images: the
   video row (a 16:9 thumbnail with the duration, the meta line and the title beside it) and the image card (the
   3:2 picture); the grid and the wall are not used for that kind.
-  **Image, Grid.** Used only in the Images scope without a search, as the wall is. It is the Videos grid with square
+  **Image, Grid.** Used by default only in the Images scope without a search, as the wall is. It is the Videos grid with square
   pictures, so it follows the same layout: the grid fills the column, padded 16 at the top, 24 at the sides and 32 at the
   bottom, cells at least 170 wide (the wall's column width) sharing the width, 16 across and 24 down, aligned
   at the top. A cell: a square picture (radius 10, 0.5 outline, centered and cropped), 4 below it the title in 13
@@ -168,13 +171,24 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   **Unread dot.** A grid card, a wall tile and the square image cell carry the 7 `Accent` dot inline at the start of
   the meta line. A row, including the Large cover and the video row, carries it in the 28 left gutter, level with the top of
   the row's first line (on the Large cover, with the top of the cover).
-  **Where each applies.** Grid, Wall and the square Grid only in the Videos or Images scope with no search; in All,
-  Articles, Social, a single subscription and a search the kind draws its row or card, so a subscription keeps the
-  column (a per-source choice is a later change). Compact and Large cover apply wherever the kind appears, so a Compact
+  **Where each applies.** Grid, Wall and the square Grid by default only in the Videos or Images scope with no search; in All,
+  Articles, Social, a single subscription and a search the kind draws its row or card, so a subscription starts as
+  a column. The grid switch (below) can turn the grid on for one video or image subscription. Compact and Large cover apply wherever the kind appears, so a Compact
   article row, a Large cover video and a Compact social post can sit one under another in All. Drawn in
   `design/screens/timeline.html`: `article-compact`, `social-compact`, `video-cover`, `video-list`, `image-grid`,
   `image-card` and `mixed-viewers`; with no state, `scope=video` and `scope=image` are the defaults, the grid and the
   wall.
+  **Grid switch.** A bare 32 square icon button right of the reading-time button, shown only in the Videos and Images
+  scopes and in a single video or image subscription, never while searching. It is one toggle: while the list shows it
+  draws the layout-grid icon, named and tooltipped "Show as grid"; while the grid shows it draws the list icon, named
+  "Show as list". Same states as the other bare tool buttons (hover fill, focus ring), 16 icon in `TextMuted`. It does
+  not show a pressed state, since its icon already says which look comes next. At the minimum width it stays, as the
+  reading-time icon does. The grid it asks for is the kind's: the cover grid for videos, the wall for images, or the
+  square grid when the Images viewer is Grid; the list is the kind's other look. The choice belongs to the scope it was
+  made in, overrides the viewer of Settings there, and is kept on this device. The app never suggests the grid. Drawn in
+  `design/screens/timeline.html`: `image-switch` (Images switched to the list, so the switch shows the grid icon) and
+  `source-grid` (one image subscription as a grid, so the switch shows the list icon); every other state of Images and
+  Videos shows the list icon.
 - **The subscription dialogs.** Dialogs over the timeline on a `RGBA(28,24,18,.32)` backdrop: 440 wide to add, 480 to
   edit, radius 16, `theme.RaisedFill` and a soft shadow, at most the window's height less `Space(8)`. A header (a 32 square
   tile or monogram, the title 15 semibold, a 28 square bare close button), a form that scrolls when the window is too low while the header and the buttons stay (a `Border` line appears under

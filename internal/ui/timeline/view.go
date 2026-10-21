@@ -42,6 +42,7 @@ type copy struct {
 	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                        string
 	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu         string
 	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength        string
+	ShowGrid, ShowList                                                                                                  string
 }
 
 var translations = func() map[string]copy {
@@ -84,7 +85,8 @@ type API interface {
 // points of summaries and translations while AI is not set up, OpenImport the settings on the import and export
 // group, from the empty timeline of a first run, and Expired the connect screen because the server no
 // longer takes the session. Reading gives the reading preferences of this device, for the reader, and ReadingFont the
-// font list of the article's body that they come to, "" for the interface font.
+// font list of the article's body that they come to, "" for the interface font. Change keeps preferences the
+// screen changed itself, the list or grid of a scope.
 type Deps struct {
 	Go             func(work func() (apply func()))
 	Now            func() time.Time
@@ -96,6 +98,7 @@ type Deps struct {
 	Expired        func()
 	Reading        func() prefs.Preferences
 	ReadingFont    func() string
+	Change         func(prefs.Preferences)
 }
 
 // scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
@@ -459,22 +462,67 @@ const (
 	wallLayout                 // the Images wall
 )
 
-// layout tells how the list is laid out. The grid and the wall are used only in the Videos and Images scopes without
-// a search; everywhere else, and for the other viewers of those kinds, entries are rows or cards in a column.
+// layout tells how the list is laid out. The grid and the wall are used only where a grid is offered (see gridable)
+// and chosen, by the switch of the toolbar or else by the viewers; everywhere else, and in a list chosen, entries are
+// rows or cards in a column.
 func (s *Screen) layout() layout {
-	if s.scope.source != 0 || s.searched != "" {
+	if !s.gridable() || !s.gridOn() {
 		return columnLayout
 	}
-	v := s.views()
 	switch {
-	case s.scope.kind == "video" && v.VideoViewer == prefs.ViewGrid:
+	case s.scope.kind == "video":
 		return gridLayout
-	case s.scope.kind == "image" && v.ImageViewer == prefs.ViewWall:
-		return wallLayout
-	case s.scope.kind == "image" && v.ImageViewer == prefs.ViewGrid:
+	case s.views().ImageViewer == prefs.ViewGrid:
 		return squareLayout
 	}
-	return columnLayout
+	return wallLayout
+}
+
+// gridable tells whether the list could be a grid: in the Videos and Images scopes and in one subscription of those
+// kinds, and not in a search.
+func (s *Screen) gridable() bool {
+	return s.searched == "" && (s.scope.kind == "video" || s.scope.kind == "image")
+}
+
+// gridDefault is whether the scope is a grid before the reader switches it: the Videos and Images scopes follow the
+// viewers of Settings (a grid for Videos Grid, for Images Wall and Grid), a subscription is a list.
+func (s *Screen) gridDefault() bool {
+	if s.scope.source != 0 {
+		return false
+	}
+	v := s.views()
+	return s.scope.kind == "video" && v.VideoViewer == prefs.ViewGrid ||
+		s.scope.kind == "image" && (v.ImageViewer == prefs.ViewWall || v.ImageViewer == prefs.ViewGrid)
+}
+
+// gridOn is whether the scope shows the grid: the switch the reader made on this device, else the default.
+func (s *Screen) gridOn() bool {
+	switch s.views().Grids.Get(prefs.GridScope(s.scope.kind, s.scope.source)) {
+	case prefs.ViewGrid:
+		return true
+	case prefs.ViewList:
+		return false
+	}
+	return s.gridDefault()
+}
+
+// switchGrid shows the scope as a grid if it is a list and the other way round, and keeps the choice on this device.
+// The list is drawn again in place, at the entry that was first in view.
+func (s *Screen) switchGrid() {
+	if s.deps.Change == nil || !s.gridable() {
+		return
+	}
+	want, def := prefs.ViewGrid, prefs.ViewList
+	if s.gridOn() {
+		want = prefs.ViewList
+	}
+	if s.gridDefault() {
+		def = prefs.ViewGrid
+	}
+	p := s.views()
+	p.Grids = p.Grids.Set(prefs.GridScope(s.scope.kind, s.scope.source), want, def)
+	s.pin = s.anchor
+	s.deps.Change(p)
 }
 
 // grids and walls tell whether the list is drawn as a grid of cells (the Videos grid or the Images grid) or as the
@@ -2038,10 +2086,14 @@ func (s *Screen) serverBar(c *ui.Context) {
 func (s *Screen) toolbar(c *ui.Context, compact bool) {
 	t := c.Theme()
 	bar := c.TitleBar()
+	gap := px(t, 10)
+	if compact {
+		gap = px(t, 4)
+	}
 	// Keyed, so the search field keeps its focus when the hint above it in the column comes and goes.
-	ui.Row(c).Key("toolbar").Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(px(t, 10)).
+	ui.Row(c).Key("toolbar").Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(gap).
 		Padding(0, t.Space(3)+bar.Right, 0, t.Space(5)).DragWindow().Children(func() {
-		ui.Text(c, s.scopeName()).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(0).Shrink(1).
+		ui.Text(c, s.scopeName()).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(px(t, 56)).Shrink(1).
 			Role(ui.RoleHeading).Level(1)
 		sub := ""
 		switch {
@@ -2055,13 +2107,15 @@ func (s *Screen) toolbar(c *ui.Context, compact bool) {
 				sub = s.format(s.text.UnreadCount, n)
 			}
 		}
-		if sub != "" {
+		// At the minimum width the count gives way before the title does.
+		if sub != "" && !compact {
 			ui.Text(c, sub).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
 		}
 		s.editButton(c)
 		ui.Box(c).Grow(1)
 		s.filters(c, compact)
 		s.budgetButton(c, compact)
+		s.gridButton(c)
 		s.searchField(c, compact)
 		s.markAllButton(c)
 	})
@@ -2071,14 +2125,18 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 	t := c.Theme()
 	before := s.filter
 	seg := ui.SegmentedBase(c, &s.filter, 3)
-	theme.Capsule(c, seg.Track.Height(px(t, 32)).Padding(px(t, 3)).Gap(2).Radius(px(t, 16)), false).Label(s.text.Show).
+	theme.Capsule(c, seg.Track.Height(px(t, 32)).Shrink(0).Padding(px(t, 3)).Gap(2).Radius(px(t, 16)), false).Label(s.text.Show).
 		Children(func() {
 			for i, item := range []struct {
 				icon *ui.SVG
 				name string
 			}{{icons.Inbox, s.text.Everything}, {icons.CircleDot, s.text.Unread}, {icons.Star, s.text.Starred}} {
 				on := i == s.filter
-				b := seg.Segment(i).Height(px(t, 26)).Gap(px(t, 4)).PaddingX(px(t, 11)).Radius(px(t, 13)).
+				pad := px(t, 11)
+				if compact {
+					pad = px(t, 7)
+				}
+				b := seg.Segment(i).Height(px(t, 26)).Gap(px(t, 4)).PaddingX(pad).Radius(px(t, 13)).
 					Label(item.name).Tooltip(item.name)
 				color := t.TextMuted
 				switch {
@@ -2110,7 +2168,7 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 	t := c.Theme()
 	name := s.budgetName()
 	on := s.budget != 0
-	b := ui.ButtonBase(c).Key("budget").Height(px(t, 32)).Radius(px(t, 16)).Label(name).Tooltip(name)
+	b := ui.ButtonBase(c).Key("budget").Height(px(t, 32)).Shrink(0).Radius(px(t, 16)).Label(name).Tooltip(name)
 	color := toolFill(t, b)
 	if on {
 		color = t.Accent
@@ -2149,6 +2207,25 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 	})
 }
 
+// gridButton switches the list between rows and a grid: a bare 32 square icon button, the grid icon while the list
+// shows rows and the list icon while it shows the grid, named by what it does. It is offered only where a grid is.
+func (s *Screen) gridButton(c *ui.Context) {
+	if !s.gridable() {
+		return
+	}
+	t := c.Theme()
+	icon, name := icons.LayoutGrid, s.text.ShowGrid
+	if s.gridOn() {
+		icon, name = icons.List, s.text.ShowList
+	}
+	b := ui.ButtonBase(c).Key("grid").Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 16)).Label(name).Tooltip(name)
+	color := toolFill(t, b)
+	b.Children(func() { ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(color) })
+	if b.Clicked() {
+		s.switchGrid()
+	}
+}
+
 // setBudget limits the list to entries that take at most n minutes, 0 for any length, and shows it from the top.
 func (s *Screen) setBudget(n int) {
 	if n == s.budget {
@@ -2166,7 +2243,7 @@ func (s *Screen) searchField(c *ui.Context, compact bool) {
 		width = px(t, 136)
 	}
 	_, short := s.trimmed()
-	box := ui.Row(c).Key("search").Width(width).Height(px(t, 32)).Gap(px(t, 6)).Padding(0, px(t, 6), 0, px(t, 12)).
+	box := ui.Row(c).Key("search").Width(width).MinWidth(px(t, 72)).Shrink(100).Height(px(t, 32)).Gap(px(t, 6)).Padding(0, px(t, 6), 0, px(t, 12)).
 		Radius(px(t, 16))
 	focused := s.typing
 	switch {
@@ -2234,7 +2311,7 @@ func (s *Screen) editButton(c *ui.Context) {
 		return
 	}
 	t := c.Theme()
-	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Radius(px(t, 8)).Label(s.text.EditSource).
+	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 8)).Label(s.text.EditSource).
 		Tooltip(s.text.EditSource)
 	color := toolFill(t, b)
 	b.Children(func() { ui.Icon(c, icons.Pencil).FontSize(px(t, 16)).TextColor(color) })
@@ -2266,7 +2343,7 @@ func (s *Screen) markAllButton(c *ui.Context) {
 	t := c.Theme()
 	can := s.canMarkAll()
 	label := s.markAllLabel()
-	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Radius(px(t, 8)).Label(label).Tooltip(label).Disabled(!can)
+	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 8)).Label(label).Tooltip(label).Disabled(!can)
 	color := theme.Disabled(t)
 	if can {
 		color = toolFill(t, b)

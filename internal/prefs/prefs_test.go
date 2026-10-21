@@ -171,3 +171,60 @@ func TestReadingFace(t *testing.T) {
 		t.Errorf("unknown list: %q", got)
 	}
 }
+
+// TestGrids covers the per-scope switch between the list and the grid: a round trip through the file, that a switch
+// equal to the default is removed, and that scopes and values it does not know are ignored.
+func TestGrids(t *testing.T) {
+	if got := GridScope("video", 0); got != "kind:video" {
+		t.Errorf("kind scope %q", got)
+	}
+	if got := GridScope("image", 12); got != "source:12" {
+		t.Errorf("source scope %q", got)
+	}
+	var g Grids
+	g = g.Set("source:12", ViewGrid, ViewList)
+	g = g.Set("kind:video", ViewList, ViewGrid)
+	if g.Get("source:12") != ViewGrid || g.Get("kind:video") != ViewList || g.Get("kind:image") != "" {
+		t.Fatalf("got %q", g)
+	}
+	path := filepath.Join(t.TempDir(), File)
+	p := Default()
+	p.Grids = g
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load(path); got != p {
+		t.Errorf("round trip: %+v, want %+v", got, p)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), `"grids":{"kind:video":"list","source:12":"grid"}`) {
+		t.Errorf("file %s", data)
+	}
+	// Back to what the viewers choose: the entry goes.
+	g = g.Set("source:12", ViewList, ViewList).Set("kind:video", ViewGrid, ViewGrid)
+	if g != "" {
+		t.Errorf("defaults left %q", g)
+	}
+	p.Grids = g
+	Save(path, p)
+	if data, _ := os.ReadFile(path); strings.Contains(string(data), "grids") {
+		t.Errorf("empty switches written: %s", data)
+	}
+	// Unknown scopes and values never get in.
+	for _, scope := range []string{"kind:article", "kind:", "source:0", "source:-1", "source:x", "source:07", "all"} {
+		if got := (Grids("")).Set(scope, ViewGrid, ViewList); got != "" {
+			t.Errorf("%q accepted: %q", scope, got)
+		}
+	}
+	if got := (Grids("")).Set("kind:image", "wall", ViewList); got != "" {
+		t.Errorf("value accepted: %q", got)
+	}
+	os.WriteFile(path, []byte(`{"grids":{"kind:video":"cover","kind:image":"grid","source:3":"list","source:z":"grid","tag:a":"grid"}}`), 0o600)
+	if got := Load(path).Grids; got != "kind:image=grid,source:3=list" {
+		t.Errorf("unknown entries kept: %q", got)
+	}
+	os.WriteFile(path, []byte(`{"readingSize":"large","grids":["kind:image"]}`), 0o600)
+	if got := Load(path); got.Grids != "" || got.ReadingSize != SizeLarge {
+		t.Errorf("bad shape: %+v", got)
+	}
+}
