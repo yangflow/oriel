@@ -21,6 +21,7 @@ type fake struct {
 	queue    []func() func()
 	sources  []client.Source
 	settings client.Settings
+	health   client.Health
 
 	added   []client.NewSource
 	patches map[int64][]client.SourcePatch
@@ -28,7 +29,7 @@ type fake struct {
 	fetched []int64
 	set     []client.SettingsPatch
 
-	addErr, updateErr, deleteErr, refreshErr, settingsErr, setErr error
+	addErr, updateErr, deleteErr, refreshErr, settingsErr, setErr, healthErr error
 
 	changed []client.Source
 	removed []int64
@@ -75,6 +76,10 @@ func (f *fake) DeleteSource(_ context.Context, id int64) error {
 func (f *fake) RefreshSource(_ context.Context, id int64) error {
 	f.fetched = append(f.fetched, id)
 	return f.refreshErr
+}
+
+func (f *fake) SourcesHealth(context.Context) (client.Health, error) {
+	return f.health, f.healthErr
 }
 
 func (f *fake) Settings(context.Context) (client.Settings, error) {
@@ -854,6 +859,145 @@ func TestEditSuggestionChinese(t *testing.T) {
 	for _, text := range []string{"这个订阅的条目大多是图片。", "显示为图片", "自动 · 15 分钟"} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())
+		}
+	}
+}
+
+// flagged is what the server lists for the health dialog: the first two subscriptions of setup and one more.
+func flagged() client.Health {
+	return client.Health{WindowDays: 30, Sources: []client.SourceHealth{
+		{ID: 1, Title: "Go Blog", Kind: "article", State: client.HealthDead, Cause: client.HealthCauseSilent, Days: 143},
+		{ID: 2, RSSHubPath: "/telegram/channel/golang", Kind: "social", State: client.HealthFailing, ConsecutiveFailures: 5,
+			LastError: "status 503", Recent: 48, RecentRead: 6},
+		{ID: 3, Title: "Firehose", Kind: "article", State: client.HealthRarelyRead, Recent: 120, RecentRead: 3, RecentStarred: 1},
+		{ID: 4, Title: "Haiku", Kind: "article", State: client.HealthDead, Cause: "failing", Days: 41,
+			ConsecutiveFailures: 9, LastError: "HTTP 404"},
+	}}
+}
+
+func TestHealthDialog(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.health = flagged()
+	s.Health()
+	tt.Frame()
+	if !s.Open() || !slices.Contains(tt.Texts(), "Checking…") {
+		t.Fatalf("loading: open %v, texts %v", s.Open(), tt.Texts())
+	}
+	f.settle(tt)
+	for _, want := range []string{
+		"No new entries for 143 days", "Last 30 days: 0 new, 0 read, 0 starred",
+		"Failed 5 times in a row: status 503", "Last 30 days: 48 new, 6 read, 0 starred",
+		"Read 3 of 120 new entries in the last 30 days", "Last 30 days: 120 new, 3 read, 1 starred",
+		"Failing for 41 days: HTTP 404",
+	} {
+		if !slices.Contains(tt.Texts(), want) {
+			t.Errorf("no %q in %v", want, tt.Texts())
+		}
+	}
+	if err := tt.Click("Pause Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if len(f.patches[1]) != 1 || f.patches[1][0].Paused == nil || !*f.patches[1][0].Paused || len(f.changed) != 1 {
+		t.Fatalf("patches %v, changed %v", f.patches, f.changed)
+	}
+	if slices.Contains(tt.Texts(), "No new entries for 143 days") || len(s.report.items) != 3 {
+		t.Fatalf("the paused subscription is still listed: %v", tt.Texts())
+	}
+	if err := tt.Click("Unsubscribe from Haiku"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.deleting || len(f.deleted) != 0 {
+		t.Fatalf("deleting %v, deleted %v", s.deleting, f.deleted)
+	}
+	tt.Key(0, ui.KeyEscape)
+	if !s.report.open || len(f.deleted) != 0 || len(s.report.items) != 3 {
+		t.Fatalf("cancel: open %v, deleted %v", s.report.open, f.deleted)
+	}
+	if err := tt.Click("Unsubscribe from Haiku"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Delete"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !slices.Equal(f.deleted, []int64{4}) || len(s.report.items) != 2 || !s.report.open {
+		t.Fatalf("deleted %v, items %v, open %v", f.deleted, s.report.items, s.report.open)
+	}
+	if err := tt.Click(s.text.Close); err != nil {
+		t.Fatal(err)
+	}
+	if s.Open() {
+		t.Fatal("Close leaves the dialog open")
+	}
+}
+
+func TestHealthDialogEmpty(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.health = client.Health{WindowDays: 30}
+	s.Health()
+	f.settle(tt)
+	if !slices.Contains(tt.Texts(), "All your subscriptions look healthy") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestHealthDialogFails(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.healthErr = client.ErrUnreachable
+	s.Health()
+	f.settle(tt)
+	if !slices.Contains(tt.Texts(), s.text.HealthError) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	f.healthErr, f.health = nil, flagged()
+	if err := tt.Click(s.text.Retry); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !slices.Contains(tt.Texts(), "Checking…") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	f.settle(tt)
+	if !slices.Contains(tt.Texts(), "No new entries for 143 days") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestHealthDialogExpired(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.healthErr = client.ErrUnauthorized
+	s.Health()
+	f.settle(tt)
+	if s.Open() || f.expired != 1 {
+		t.Fatalf("open %v, expired %d", s.Open(), f.expired)
+	}
+	s.Health()
+	if s.Open() {
+		t.Fatal("opens without a server")
+	}
+}
+
+func TestHealthDialogDropsAnAnswerFromAnotherServer(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.health = flagged()
+	s.Health()
+	s.Use(f)
+	f.settle(tt)
+	if s.Open() || len(s.report.items) != 0 {
+		t.Fatalf("open %v, items %v", s.Open(), s.report.items)
+	}
+}
+
+func TestHealthDialogChinese(t *testing.T) {
+	s, f, tt := setup(t, "zh-Hans")
+	f.health = flagged()
+	s.Health()
+	f.settle(tt)
+	for _, want := range []string{"已有 143 天没有新条目", "已连续失败 5 次：status 503", "近 30 天新增 120 条，只读了 3 条",
+		"已连续失败 41 天：HTTP 404", "近 30 天：新增 48 条，已读 6 条，收藏 0 条"} {
+		if !slices.Contains(tt.Texts(), want) {
+			t.Errorf("no %q in %v", want, tt.Texts())
 		}
 	}
 }

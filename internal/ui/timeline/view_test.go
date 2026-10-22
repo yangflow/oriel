@@ -35,6 +35,7 @@ type fake struct {
 	now      time.Time
 	entries  []client.Entry // newest first
 	sources  []client.Source
+	health   client.Health
 	queries  []client.Query
 	patches  map[int64][]client.EntryPatch
 	marked   []client.ReadScope
@@ -198,6 +199,8 @@ func (f *fake) RefreshAll(context.Context) (client.RefreshResult, error) {
 	f.refreshes++
 	return f.refreshed, f.refreshErr
 }
+
+func (f *fake) SourcesHealth(context.Context) (client.Health, error) { return f.health, nil }
 
 func (f *fake) Settings(context.Context) (client.Settings, error) {
 	return client.Settings{RSSHubBaseURL: "https://rsshub.example.com"}, nil

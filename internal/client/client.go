@@ -518,6 +518,49 @@ func (s Session) Sources(ctx context.Context) ([]Source, error) {
 	return reply.Sources, err
 }
 
+// Health reasons a subscription can be listed for, and the causes of a dead one.
+const (
+	HealthDead        = "dead"
+	HealthFailing     = "failing"
+	HealthRarelyRead  = "rarelyRead"
+	HealthCauseSilent = "silent"
+)
+
+// SourceHealth is a subscription the server flags as dead, failing or rarely read.
+type SourceHealth struct {
+	ID         int64  `json:"id"`
+	URL        string `json:"url"`
+	RSSHubPath string `json:"rsshubPath"`
+	Title      string `json:"title"`
+	IconURL    string `json:"iconUrl"`
+	Kind       string `json:"kind"`
+	// State is HealthDead, HealthFailing or HealthRarelyRead; Cause tells a dead one that kept failing ("failing")
+	// from one that fetches fine but has nothing new (HealthCauseSilent).
+	State string `json:"state"`
+	Cause string `json:"cause"`
+	// Days counts the days without a success or without a new entry; ConsecutiveFailures the failed fetches in a row.
+	Days                int    `json:"days"`
+	ConsecutiveFailures int    `json:"consecutiveFailures"`
+	LastError           string `json:"lastError"`
+	// Recent, RecentRead and RecentStarred count the entries of the last window days.
+	Recent        int `json:"recent"`
+	RecentRead    int `json:"recentRead"`
+	RecentStarred int `json:"recentStarred"`
+}
+
+// Health is the list of subscriptions worth a second look, and the length of the window its counts cover.
+type Health struct {
+	WindowDays int            `json:"windowDays"`
+	Sources    []SourceHealth `json:"sources"`
+}
+
+// SourcesHealth asks the server which subscriptions are dead, failing or rarely read.
+func (s Session) SourcesHealth(ctx context.Context) (Health, error) {
+	var health Health
+	err := s.call(ctx, http.MethodGet, "/api/sources/health", nil, &health)
+	return health, err
+}
+
 // AddSource subscribes to a feed or an RSSHub route and returns the subscription.
 func (s Session) AddSource(ctx context.Context, src NewSource) (Source, error) {
 	var added Source

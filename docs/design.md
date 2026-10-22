@@ -226,6 +226,21 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
   Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".
+- **Subscription health.** A dialog 480 wide like the edit dialog opened from the command palette action
+  "Subscription health…"; the sidebar has no entry for it. Header: the `heart-pulse` icon, the title and a muted line,
+  "Sources that need a decision. Nothing changes until you choose." Body, one state at a time: loading is a muted line
+  with a spinning `loader-circle`, "Checking…"; an error is an `errorLine` with a small "Try again"; empty is a centered
+  `circle-check-big` in `Success` over "All your subscriptions look healthy"; otherwise the list, scrolling inside the
+  dialog. A row has the source's glyph (16, as in the sidebar) and name (13 medium, one line) at the left, under it the reason in 12 on
+  `Warning` (`dead` and `failing`) or `TextMuted` (`rarelyRead`) with a 14 icon (`circle-alert`, `triangle-alert`,
+  `eye`), and a second muted 12 tabular line with the last 30 days' numbers; at the right two small buttons, "Pause"
+  (`pause`, quiet) and "Unsubscribe…" (`trash2`, `Danger` text, no fill). Rows are separated by a hairline, 12 high
+  paddings, no card around them. A failing reason shows the last error on a second line, one line truncated. A row
+  leaves the list as soon as its action succeeds; the footer has one "Close" button. Unsubscribe opens the same
+  confirmation as Delete. Drawn in `design/screens/subscriptions.html`, `health`, `health-loading`, `health-error`,
+  `health-empty`. Accessibility: the dialog is labeled by its title, each row is a list item named by the source and
+  its reason, the buttons carry the source's name ("Pause {name}", "Unsubscribe {name}"), and the loaded count is
+  announced with `Announce`.
 - **Hiding the sidebar.** The first item of the toolbar row, before the title, is a bare 32 square icon button with
   the Lucide `panel-left` icon (16, `toolFill` colors, radius 8), named "Hide sidebar" while the pane shows and "Show
   sidebar" while it is hidden (that name is also its tooltip; no shortcut in the tooltip, as no other tooltip carries

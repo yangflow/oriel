@@ -41,6 +41,7 @@ var (
 	EyeOff         = parse("eye-off")
 	FileText       = parse("file-text")
 	Globe          = parse("globe")
+	HeartPulse     = parse("heart-pulse")
 	Image          = parse("image")
 	ImageOff       = parse("image-off")
 	Images         = parse("images")

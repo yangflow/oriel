@@ -137,3 +137,41 @@ func TestSourceLifecycle(t *testing.T) {
 		t.Fatalf("bad id: %d %s", w.Code, w.Body)
 	}
 }
+
+func TestSourcesHealthRoute(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	if w := do(s, "GET", "/api/sources/health", "", nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without session: %d", w.Code)
+	}
+	w := do(s, "GET", "/api/sources/health", "", bearer(token))
+	if body := decode(t, w); w.Code != http.StatusOK || body["windowDays"] != 30.0 || len(body["sources"].([]any)) != 0 {
+		t.Fatalf("empty: %d %s", w.Code, w.Body)
+	}
+
+	created := decode(t, do(s, "POST", "/api/sources", `{"url":"https://example.org/feed","kind":"video","title":"Quiet"}`, bearer(token)))
+	id := strconv.Itoa(int(created["id"].(float64)))
+	do(s, "POST", "/api/sources", `{"rsshubPath":"/x/y","kind":"social","title":"Young"}`, bearer(token))
+	c.t = c.t.Add(100 * 24 * time.Hour)
+	token = login(t, s, "laptop")
+	do(s, "POST", "/api/sources", `{"rsshubPath":"/new/one","kind":"social","title":"New"}`, bearer(token))
+
+	w = do(s, "GET", "/api/sources/health", "", bearer(token))
+	list := decode(t, w)["sources"].([]any)
+	if w.Code != http.StatusOK || len(list) != 2 {
+		t.Fatalf("health: %d %s", w.Code, w.Body)
+	}
+	first := list[0].(map[string]any)
+	if first["title"] != "Quiet" || first["state"] != "dead" || first["cause"] != "silent" || first["days"] != 100.0 ||
+		first["kind"] != "video" || first["url"] != "https://example.org/feed" || first["recent"] != 0.0 || first["lastError"] != "" {
+		t.Fatalf("first = %v", first)
+	}
+	if _, ok := first["etag"]; ok {
+		t.Fatalf("first = %v", first)
+	}
+
+	do(s, "PATCH", "/api/sources/"+id, `{"paused":true}`, bearer(token))
+	if list := decode(t, do(s, "GET", "/api/sources/health", "", bearer(token)))["sources"].([]any); len(list) != 1 || list[0].(map[string]any)["title"] != "Young" {
+		t.Fatalf("paused source listed: %v", list)
+	}
+}

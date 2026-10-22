@@ -43,7 +43,7 @@ type copy struct {
 	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                          string
 	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                           string
 	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                          string
-	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteActions, PaletteUnreadOnly, PaletteShowAll                     string
+	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteActions, PaletteUnreadOnly, PaletteShowAll      string
 	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, HideSidebar, ShowSidebar, KeyToggleSidebar string
 	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                        string
 	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                            string

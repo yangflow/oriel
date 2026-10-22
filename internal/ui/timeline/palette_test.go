@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/yangflow/oriel/internal/client"
 )
 
 // openPalette presses the shortcut and returns once the palette has its field.
@@ -211,6 +212,16 @@ func TestPaletteActions(t *testing.T) {
 	t.Run("add", func(t *testing.T) {
 		s, _, tt := setup(t, "en")
 		run(t, s, tt, s.text.AddSource)
+		if s.pal.open || !s.subs.Open() {
+			t.Fatalf("palette %v, subscriptions %v", s.pal.open, s.subs.Open())
+		}
+	})
+	t.Run("health", func(t *testing.T) {
+		s, f, tt := setup(t, "en")
+		f.health = client.Health{WindowDays: 30, Sources: []client.SourceHealth{{ID: 1, Title: "Old", State: client.HealthDead,
+			Cause: client.HealthCauseSilent, Days: 120}}}
+		run(t, s, tt, "subscription health")
+		f.settle(t, tt)
 		if s.pal.open || !s.subs.Open() {
 			t.Fatalf("palette %v, subscriptions %v", s.pal.open, s.subs.Open())
 		}

@@ -25,17 +25,19 @@ import (
 var catalog []byte
 
 type copy struct {
-	Add, AddShort, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs              string
-	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute        string
-	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo               string
-	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder                string
-	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added              string
-	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn    string
-	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody         string
-	ServedBy, ServedByBackup                                                                                          string
-	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                   string
-	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff           string
-	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind string
+	Add, AddShort, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs               string
+	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute         string
+	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo                string
+	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder                 string
+	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added               string
+	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn     string
+	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody          string
+	ServedBy, ServedByBackup                                                                                           string
+	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                    string
+	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff            string
+	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind  string
+	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare string
+	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                              string
 }
 
 var translations = func() map[string]copy {
@@ -58,6 +60,7 @@ type API interface {
 	UpdateSource(ctx context.Context, id int64, patch client.SourcePatch) (client.Source, error)
 	DeleteSource(ctx context.Context, id int64) error
 	RefreshSource(ctx context.Context, id int64) error
+	SourcesHealth(ctx context.Context) (client.Health, error)
 	Settings(ctx context.Context) (client.Settings, error)
 	SetSettings(ctx context.Context, patch client.SettingsPatch) (client.Settings, error)
 }
@@ -139,6 +142,23 @@ type editing struct {
 	focus    bool
 }
 
+// The states of the health dialog's list.
+const (
+	healthLoading = iota
+	healthLoaded
+	healthFailed
+)
+
+// reporting is the health dialog: the subscriptions the server flags as dead, failing or rarely read.
+type reporting struct {
+	open  bool
+	form  ui.ScrollState
+	state int
+	days  int // the window the counts of each row cover
+	items []client.SourceHealth
+	err   string
+}
+
 // Screen keeps the dialogs and the work they started.
 type Screen struct {
 	deps     Deps
@@ -147,6 +167,7 @@ type Screen struct {
 	gen      int // counts servers used, so the results of the one before are dropped
 	add      adding
 	edit     editing
+	report   reporting
 	deleting bool
 	doomed   client.Source // the subscription being deleted
 	announce string
@@ -170,11 +191,11 @@ func (s *Screen) SetLanguage(systemLocale string) {
 func (s *Screen) Use(api API) {
 	s.api = api
 	s.gen++
-	s.add, s.edit, s.deleting = adding{}, editing{}, false
+	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
 }
 
 // Open reports whether a dialog shows, which takes the keys from the timeline.
-func (s *Screen) Open() bool { return s.add.open || s.edit.open || s.deleting }
+func (s *Screen) Open() bool { return s.add.open || s.edit.open || s.report.open || s.deleting }
 
 // Name is what names a subscription: its title, which is empty until the first fetch, else the host of its address,
 // else its route.
@@ -203,7 +224,7 @@ func (s *Screen) expired(err error) bool {
 	}
 	s.gen++
 	s.api = nil
-	s.add, s.edit, s.deleting = adding{}, editing{}, false
+	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
 	s.deps.Expired()
 	return true
 }
@@ -430,6 +451,7 @@ func (s *Screen) gone(id int64) {
 	if s.edit.src.ID == id {
 		s.edit.open = false
 	}
+	s.dropHealth(id)
 	s.toast = s.text.Gone
 	s.deps.Removed(id)
 }
@@ -486,6 +508,9 @@ func (s *Screen) SetPaused(src client.Source, paused bool) {
 			switch {
 			case err == nil:
 				s.deps.Changed(changed)
+				if paused {
+					s.dropHealth(src.ID) // a paused subscription is not in the list
+				}
 				s.toast = s.fill(s.text.Resumed, Name(changed))
 				if paused {
 					s.toast = s.fill(s.text.PausedNow, Name(changed))
@@ -522,6 +547,7 @@ func (s *Screen) remove() {
 			switch {
 			case err == nil:
 				s.toast = s.fill(s.text.Deleted, Name(src))
+				s.dropHealth(src.ID)
 				s.deps.Removed(src.ID)
 			case code(err) == "not_found":
 				s.gone(src.ID)
@@ -571,6 +597,9 @@ func (s *Screen) View(c *ui.Context) {
 	}
 	if s.edit.open {
 		s.editDialog(c)
+	}
+	if s.report.open && !s.deleting {
+		s.healthDialog(c)
 	}
 	if s.deleting {
 		name := Name(s.doomed)
@@ -1367,5 +1396,178 @@ func (s *Screen) muteField(c *ui.Context) {
 			area.Background(theme.RaisedFill(t))
 		}
 		help(c, s.text.MuteHelp)
+	})
+}
+
+// Health opens the health dialog and asks the server for the subscriptions it lists.
+func (s *Screen) Health() {
+	if s.api == nil {
+		return
+	}
+	s.report = reporting{open: true}
+	s.loadHealth()
+}
+
+func (s *Screen) loadHealth() {
+	s.report.state, s.report.err = healthLoading, ""
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		health, err := api.SourcesHealth(context.Background())
+		return func() {
+			if gen != s.gen || s.expired(err) || !s.report.open {
+				return
+			}
+			r := &s.report
+			if err != nil {
+				r.state, r.err = healthFailed, s.text.HealthError
+				s.announce = r.err
+				return
+			}
+			r.state, r.days, r.items = healthLoaded, health.WindowDays, health.Sources
+			if len(r.items) == 0 {
+				s.announce = s.text.HealthOk
+			}
+		}
+	})
+}
+
+// dropHealth takes a subscription off the health list, which it leaves once paused or deleted.
+func (s *Screen) dropHealth(id int64) {
+	s.report.items = slices.DeleteFunc(s.report.items, func(h client.SourceHealth) bool { return h.ID == id })
+}
+
+// healthSource is the subscription a row of the health list stands for.
+func healthSource(h client.SourceHealth) client.Source {
+	return client.Source{ID: h.ID, URL: h.URL, RSSHubPath: h.RSSHubPath, Title: h.Title, IconURL: h.IconURL, Kind: h.Kind}
+}
+
+// healthReason says why h is listed, with the last error when the fetch is what fails.
+func (s *Screen) healthReason(h client.SourceHealth) string {
+	switch {
+	case h.State == client.HealthRarelyRead:
+		text := strings.ReplaceAll(s.count(s.text.HealthRare, h.Recent), "{days}", strconv.Itoa(s.report.days))
+		return strings.ReplaceAll(text, "{read}", strconv.Itoa(h.RecentRead))
+	case h.State == client.HealthDead && h.Cause == client.HealthCauseSilent:
+		return s.count(s.text.HealthSilent, h.Days)
+	}
+	reason := s.count(s.text.HealthFailing, h.ConsecutiveFailures)
+	if h.State == client.HealthDead {
+		reason = s.count(s.text.HealthDead, h.Days)
+	}
+	if h.LastError == "" {
+		return reason
+	}
+	return strings.ReplaceAll(strings.ReplaceAll(s.text.HealthWhy, "{reason}", reason), "{error}", h.LastError)
+}
+
+func (s *Screen) healthNumbers(h client.SourceHealth) string {
+	text := strings.ReplaceAll(s.text.HealthNumbers, "{days}", strconv.Itoa(s.report.days))
+	text = strings.ReplaceAll(text, "{recent}", strconv.Itoa(h.Recent))
+	text = strings.ReplaceAll(text, "{read}", strconv.Itoa(h.RecentRead))
+	return strings.ReplaceAll(text, "{starred}", strconv.Itoa(h.RecentStarred))
+}
+
+func (s *Screen) healthDialog(c *ui.Context) {
+	r := &s.report
+	s.dialog(c, &r.open, &r.form, 480, s.text.HealthTitle, func() {
+		s.header(c, &r.open, func() { tile(c, icons.HeartPulse) }, s.text.HealthTitle, s.text.HealthSub)
+	}, func() {
+		t := c.Theme()
+		switch {
+		case r.state == healthLoading:
+			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(8), 0).Role(ui.RoleStatus).
+				Label(s.text.HealthChecking).Children(func() {
+				spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 20)).TextColor(t.TextMuted)
+				spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+				ui.Text(c, s.text.HealthChecking).TextColor(t.TextMuted)
+			})
+		case r.state == healthFailed:
+			ui.Column(c).FillWidth().Padding(t.Space(6), 0).Children(func() {
+				if errorLine(c, r.err, s.text.Retry) {
+					s.loadHealth()
+				}
+			})
+		case len(r.items) == 0:
+			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(8), 0).Role(ui.RoleStatus).
+				Label(s.text.HealthOk).Children(func() {
+				ui.Icon(c, icons.CircleCheckBig).FontSize(px(t, 28)).TextColor(t.Success)
+				ui.Text(c, s.text.HealthOk).FontWeight(500)
+			})
+		default:
+			ui.Column(c).FillWidth().Children(func() {
+				for i, h := range r.items {
+					if i > 0 {
+						ui.Box(c).FillWidth().Height(1).Background(t.Border)
+					}
+					s.healthRow(c, h)
+				}
+			})
+		}
+	}, func() {
+		ui.Box(c).Grow(1)
+		closeButton := button(c, secondary, false)
+		textButton(c, closeButton, secondary, nil, s.text.Close, false)
+		if closeButton.Clicked() {
+			r.open = false
+		}
+	})
+}
+
+func (s *Screen) healthRow(c *ui.Context, h client.SourceHealth) {
+	t := c.Theme()
+	src := healthSource(h)
+	name := Name(src)
+	icon, color := icons.CircleAlert, t.Warning
+	switch h.State {
+	case client.HealthRarelyRead:
+		icon, color = icons.Eye, t.TextMuted
+	case client.HealthFailing:
+		icon = icons.TriangleAlert
+	}
+	ui.Row(c).Key("health"+strconv.FormatInt(h.ID, 10)).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).
+		Padding(t.Space(3), 0).Children(func() {
+		s.smallGlyph(c, src)
+		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(0.5)).Children(func() {
+			ui.Text(c, name).FontWeight(500).SingleLine()
+			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(1.5)).Children(func() {
+				ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(color).Margin(2, 0, 0, 0)
+				ui.Text(c, s.healthReason(h)).FontSize(px(t, 12)).TextColor(color).Shrink(1).MinWidth(0).Wrap()
+			})
+			ui.Text(c, s.healthNumbers(h)).FontSize(px(t, 12)).TextColor(t.TextMuted).SingleLine()
+		})
+		ui.Row(c).Gap(t.Space(1)).Children(func() {
+			pause := button(c, small, false).Label(s.fill(s.text.PauseSource, name))
+			textButton(c, pause, small, icons.Pause, s.text.Pause, false)
+			if pause.Clicked() {
+				s.SetPaused(src, true)
+			}
+			remove := button(c, quiet, false).Height(px(t, 26)).Label(s.fill(s.text.UnsubscribeSource, name))
+			textButton(c, remove, small, icons.Trash2, s.text.Unsubscribe, false)
+			if remove.Clicked() {
+				s.AskDelete(src)
+			}
+		})
+	})
+}
+
+// smallGlyph is the site icon of src at 16 DIP, or its monogram while the icon is not decoded or when it has none.
+func (s *Screen) smallGlyph(c *ui.Context, src client.Source) {
+	t := c.Theme()
+	var icon *ui.Bitmap
+	if src.IconURL != "" && s.deps.Icon != nil {
+		icon = s.deps.Icon(src.IconURL)
+	}
+	if icon != nil {
+		ui.Box(c).Size(px(t, 16), px(t, 16)).Radius(4).Clip().Children(func() {
+			ui.Image(c, icon).Fit(ui.Cover).Fill()
+		})
+		return
+	}
+	letter := "·"
+	if r, _ := utf8.DecodeRuneInString(strings.TrimLeft(Name(src), "@#·/ ")); r != utf8.RuneError {
+		letter = strings.ToUpper(string(r))
+	}
+	ui.Box(c).Size(px(t, 16), px(t, 16)).Radius(4).Center().Background(t.SurfacePressed).Children(func() {
+		ui.Text(c, letter).FontSize(px(t, 10)).FontWeight(600)
 	})
 }
