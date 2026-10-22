@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -43,6 +44,7 @@ type sourceJSON struct {
 	AutoTranslate       bool   `json:"autoTranslate"`
 	MuteKeywords        string `json:"muteKeywords"`
 	Paused              bool   `json:"paused"`
+	KeepDays            int    `json:"keepDays"`
 	RSSHubInstance      string `json:"rsshubInstance"`
 	WebSubHub           string `json:"websubHub"`
 	WebSubActive        bool   `json:"websubActive"`
@@ -64,7 +66,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, RSSHubInstance: src.RSSHubInstance, WebSubHub: src.WebSubHub,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, RSSHubInstance: src.RSSHubInstance, WebSubHub: src.WebSubHub,
 		WebSubActive: src.WebSubUntil.After(time.Now()), UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
@@ -245,6 +247,7 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		AutoTranslate     *bool   `json:"autoTranslate"`
 		MuteKeywords      *string `json:"muteKeywords"`
 		Paused            *bool   `json:"paused"`
+		KeepDays          *int    `json:"keepDays"`
 	}
 	if !readBody(w, r, &body) {
 		return
@@ -273,6 +276,13 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		}
 		fixed := false
 		patch.FetchInterval, patch.FetchIntervalAuto = &d, &fixed
+	}
+	if body.KeepDays != nil {
+		if days := *body.KeepDays; days < -1 || days > fetch.MaxRetentionDays {
+			fail(w, http.StatusBadRequest, "invalid_keep_days")
+			return
+		}
+		patch.KeepDays = body.KeepDays
 	}
 	if body.MuteKeywords != nil {
 		keywords := muteLines(*body.MuteKeywords)

@@ -72,15 +72,17 @@ func TestSourceLifecycle(t *testing.T) {
 	}
 
 	c.t = c.t.Add(time.Minute)
-	w = do(s, "PATCH", "/api/sources/"+id, `{"title":"","kind":"image","muteKeywords":" ad \n\n  sponsor\r\n","paused":true}`, bearer(token))
+	w = do(s, "PATCH", "/api/sources/"+id, `{"title":"","kind":"image","muteKeywords":" ad \n\n  sponsor\r\n","paused":true,"keepDays":90}`, bearer(token))
 	patched := decode(t, w)
 	if w.Code != http.StatusOK || patched["title"] != "" || patched["kind"] != "image" || patched["muteKeywords"] != "ad\nsponsor" ||
-		patched["paused"] != true || patched["updatedAt"] != float64(c.t.UnixMilli()) || patched["fetchIntervalSec"] != 900.0 {
+		patched["paused"] != true || patched["keepDays"] != 90.0 || patched["updatedAt"] != float64(c.t.UnixMilli()) || patched["fetchIntervalSec"] != 900.0 {
 		t.Fatalf("patch: %d %v", w.Code, patched)
 	}
 	for body, code := range map[string]string{
 		`{"kind":"link"}`:           "invalid_kind",
 		`{"fetchIntervalSec":30}`:   "invalid_interval",
+		`{"keepDays":-2}`:           "invalid_keep_days",
+		`{"keepDays":3651}`:         "invalid_keep_days",
 		`{"url":"https://a.org/x"}`: "invalid_body",
 	} {
 		if w := do(s, "PATCH", "/api/sources/"+id, body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
