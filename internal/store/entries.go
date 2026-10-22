@@ -43,6 +43,21 @@ type Entry struct {
 	// zero for a read or starred entry and for a source without a pace.
 	FadesAt   time.Time
 	ExpiresAt time.Time
+	// Group lists the other visible entries with the same link, earliest arrival first, when the caller asked for them
+	// (AttachGroups); IsRead and Starred then say so for the whole group. See docs/product.md "同一篇文章只显示一次".
+	Group []GroupMember
+}
+
+// GroupMember is another copy of an article, carried by another source or by the same one.
+type GroupMember struct {
+	ID          int64
+	SourceID    int64
+	SourceTitle string
+	Title       string
+	URL         string
+	IsRead      bool
+	Starred     bool
+	CreatedAt   time.Time
 }
 
 // Position is a place on the timeline, which runs from the newest created_at and ID to the oldest.
@@ -64,6 +79,9 @@ type EntryFilter struct {
 	UpTo          *Position // only this position and older ones
 	Newer         *Position // only entries newer than this position
 	OlderThan     int64     // only entries shown as before this time, in Unix milliseconds: published_at, else created_at; 0 does not filter
+	// Group shows entries with the same link once: only the earliest visible one of them matches, and read and starred are
+	// those of the whole group. It has no effect with SourceID or Query set.
+	Group bool
 }
 
 // EntryPatch holds the reading state a user may change; nil leaves it as it is.
@@ -71,6 +89,7 @@ type EntryPatch struct {
 	IsRead       *bool
 	Starred      *bool
 	ReadProgress *float64 // 0 to 1; the caller checks the range
+	Group        bool     // IsRead and Starred apply to every visible entry with the same link, not only this one
 }
 
 const entryColumns = `
@@ -89,6 +108,15 @@ const shown = "(s.deleted_at IS NULL AND (e.starred = 1 OR s.mute_keywords = '' 
 // time the entry was fetched, plus the pace; read and starred entries never expire. See docs/product.md "节奏".
 const live = "(s.pace_sec = 0 OR e.is_read = 1 OR e.starred = 1 OR " +
 	"coalesce(nullif(e.published_at, 0), e.created_at) + s.pace_sec * 1000 > CAST(unixepoch('subsec') * 1000 AS INTEGER))"
+
+// copyOf rewrites a condition on entries e and sources s to one on entries m and sources ms.
+var copyOf = strings.NewReplacer("e.", "m.", "s.", "ms.").Replace
+
+// visibleCopy keeps the entries m that the timeline can show: not muted, source not deleted, not expired.
+var visibleCopy = copyOf(shown + " AND " + live)
+
+// otherCopies selects the visible entries m (of source ms) that share the link of entry e and are not e.
+const otherCopies = "FROM entries m JOIN sources ms ON ms.id = m.source_id WHERE m.link_key = e.link_key AND m.link_key <> '' AND m.id <> e.id"
 
 func init() {
 	sqlite.MustRegisterDeterministicScalarFunction("muted", 3, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
@@ -138,11 +166,24 @@ func (f EntryFilter) where() (string, []any) {
 	if f.Kind != "" {
 		add(column("e.kind")+" = ?", f.Kind)
 	}
+	grouped := f.Group && f.SourceID == 0 && f.Query == ""
+	visible := " AND " + visibleCopy
+	if grouped {
+		// Only the earliest visible copy of an article is a row.
+		add("(e.link_key = '' OR NOT EXISTS (SELECT 1 " + otherCopies + " AND (m.created_at, m.id) < (e.created_at, e.id)" + visible + "))")
+	}
 	if f.Unread {
 		add(column("e.is_read") + " = 0")
+		if grouped {
+			add("(e.link_key = '' OR NOT EXISTS (SELECT 1 " + otherCopies + " AND m.is_read = 1" + visible + "))")
+		}
 	}
 	if f.Starred {
-		add("e.starred = 1")
+		if grouped {
+			add("(e.starred = 1 OR (e.link_key <> '' AND EXISTS (SELECT 1 " + otherCopies + " AND m.starred = 1" + visible + ")))")
+		} else {
+			add("e.starred = 1")
+		}
 	}
 	if f.MaxReadingSec > 0 {
 		add("e.reading_sec <= ?", f.MaxReadingSec) // NULL never compares true
@@ -205,7 +246,79 @@ func (s *Store) Entries(ctx context.Context, filter EntryFilter, limit int) ([]E
 		entry.AISummary = ai
 		entries = append(entries, entry)
 	}
-	return entries, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	if filter.Group && filter.SourceID == 0 && filter.Query == "" {
+		err = s.AttachGroups(ctx, entries)
+	}
+	return entries, err
+}
+
+// AttachGroups fills Group of each entry with the other visible entries that share its link, earliest arrival first, and
+// makes IsRead and Starred those of the whole group: read if any copy is read, starred if any is starred. Entries
+// without copies are left as they are.
+func (s *Store) AttachGroups(ctx context.Context, entries []Entry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	at := make(map[int64]int, len(entries))
+	args := make([]any, len(entries))
+	for i, entry := range entries {
+		at[entry.ID] = i
+		args[i] = entry.ID
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT e.id, m.id, m.source_id, CASE WHEN ms.title <> '' THEN ms.title WHEN ms.url <> '' THEN ms.url ELSE ms.rsshub_path END, m.title, m.url, m.is_read, m.starred, m.created_at
+		FROM entries e JOIN entries m ON m.link_key = e.link_key AND m.link_key <> '' AND m.id <> e.id
+		JOIN sources ms ON ms.id = m.source_id
+		WHERE e.id IN (?`+strings.Repeat(", ?", len(entries)-1)+") AND "+visibleCopy+`
+		ORDER BY e.id, m.created_at, m.id`, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var of, created int64
+		var member GroupMember
+		if err := rows.Scan(&of, &member.ID, &member.SourceID, &member.SourceTitle, &member.Title, &member.URL, &member.IsRead, &member.Starred, &created); err != nil {
+			return err
+		}
+		member.CreatedAt = time.UnixMilli(created)
+		entry := &entries[at[of]]
+		entry.Group = append(entry.Group, member)
+		entry.IsRead = entry.IsRead || member.IsRead
+		entry.Starred = entry.Starred || member.Starred
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range entries {
+		if entries[i].IsRead || entries[i].Starred {
+			entries[i].FadesAt, entries[i].ExpiresAt = time.Time{}, time.Time{}
+		}
+	}
+	return nil
+}
+
+// UnreadTotal counts the rows of the timeline's Unread view, entries with the same link counted once when group is set.
+// Without grouping it is the sum of the sources' unread counts.
+func (s *Store) UnreadTotal(ctx context.Context, group bool) (int, error) {
+	where, args := EntryFilter{Unread: true, Group: group}.where()
+	var n int
+	err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM entries e JOIN sources s ON s.id = e.source_id WHERE "+where, args...).Scan(&n)
+	return n, err
+}
+
+// GroupSameLinkSetting is the setting that says whether entries with the same link show once; "0" is off, anything else
+// on.
+const GroupSameLinkSetting = "group_same_link"
+
+// GroupSameLink reports whether the timeline shows entries with the same link once.
+func (s *Store) GroupSameLink(ctx context.Context) (bool, error) {
+	value, err := s.Setting(ctx, GroupSameLinkSetting)
+	return value != "0", err
 }
 
 // Entry returns one entry with its feed and extracted HTML.
@@ -226,7 +339,9 @@ func (s *Store) UpdateEntry(ctx context.Context, id int64, patch EntryPatch, now
 				is_read = coalesce(?1, is_read),
 				read_at = CASE WHEN ?1 IS NULL THEN read_at WHEN ?1 = 0 THEN NULL ELSE coalesce(read_at, ?2) END,
 				starred = coalesce(?3, starred)
-			WHERE id = ?4 AND source_id IN (SELECT id FROM sources WHERE deleted_at IS NULL)`, nullBool(patch.IsRead), now.UnixMilli(), nullBool(patch.Starred), id)
+			WHERE id IN (SELECT e.id FROM entries e JOIN sources s ON s.id = e.source_id WHERE s.deleted_at IS NULL AND
+				(e.id = ?4 OR (?5 AND e.link_key <> '' AND e.link_key = (SELECT link_key FROM entries WHERE id = ?4) AND `+shown+" AND "+live+`)))`,
+			nullBool(patch.IsRead), now.UnixMilli(), nullBool(patch.Starred), id, patch.Group)
 		if err != nil {
 			return Entry{}, err
 		}
@@ -250,15 +365,27 @@ func (s *Store) UpdateEntry(ctx context.Context, id int64, patch EntryPatch, now
 	return s.Entry(ctx, id)
 }
 
+// WithGroup returns the entry with its group attached (AttachGroups).
+func (s *Store) WithGroup(ctx context.Context, entry Entry) (Entry, error) {
+	list := []Entry{entry}
+	err := s.AttachGroups(ctx, list)
+	return list[0], err
+}
+
 // MarkRead marks every unread entry matching the filter as read and returns the IDs it changed, so the change can be
-// undone with MarkUnread.
+// undone with MarkUnread. With a grouping filter the rows it matches are marked together with the other visible entries
+// of their groups, and those IDs are returned too.
 func (s *Store) MarkRead(ctx context.Context, filter EntryFilter, now time.Time) ([]int64, error) {
 	filter.Unread = true
 	where, args := filter.where()
-	rows, err := s.db.QueryContext(ctx, `
-		UPDATE entries SET is_read = 1, read_at = ? WHERE id IN (
-			SELECT e.id FROM entries e JOIN sources s ON s.id = e.source_id WHERE `+where+") RETURNING id",
-		append([]any{now.UnixMilli()}, args...)...)
+	query := "SELECT e.id FROM entries e JOIN sources s ON s.id = e.source_id WHERE " + where
+	args = append([]any{now.UnixMilli()}, args...)
+	if filter.Group && filter.SourceID == 0 && filter.Query == "" {
+		query += " UNION SELECT m.id FROM entries e JOIN sources s ON s.id = e.source_id JOIN entries m ON m.link_key = e.link_key AND m.link_key <> '' " +
+			"JOIN sources ms ON ms.id = m.source_id WHERE " + where + " AND " + visibleCopy
+		args = append(args, args[1:]...)
+	}
+	rows, err := s.db.QueryContext(ctx, "UPDATE entries SET is_read = 1, read_at = ? WHERE is_read = 0 AND id IN ("+query+") RETURNING id", args...)
 	if err != nil {
 		return nil, err
 	}

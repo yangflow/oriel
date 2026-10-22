@@ -3,8 +3,12 @@ package store
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"net/url"
+	"sort"
 	"strings"
+
+	"modernc.org/sqlite"
 )
 
 // linkKey is how two entry links of one source are compared: lowercase scheme and host, no fragment, no trailing
@@ -21,6 +25,87 @@ func linkKey(link string) string {
 	u.Path = strings.TrimRight(u.Path, "/")
 	u.RawPath = ""
 	return u.String()
+}
+
+func init() {
+	sqlite.MustRegisterDeterministicScalarFunction("group_key", 2, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+		link, _ := args[0].(string)
+		guid, _ := args[1].(string)
+		return groupKey(link, guid), nil
+	})
+}
+
+// trackingParams are the query parameters that only say where a click came from; they never name another page.
+var trackingParams = map[string]bool{
+	"fbclid": true, "gclid": true, "dclid": true, "msclkid": true, "yclid": true, "mc_cid": true, "mc_eid": true,
+	"igshid": true, "_hsenc": true, "_hsmi": true,
+}
+
+// groupKey is how entries of any sources are compared to show one article once (docs/product.md "同一篇文章只显示一次").
+// It is the link, or the GUID when there is no link and the GUID is an http or https address, with the scheme ignored,
+// the host lowercase without "www." and the default port, no fragment, no trailing slash on the path, tracking
+// parameters dropped and the other parameters sorted. It is empty when there is nothing to compare: no usable link, or
+// only a host (a homepage), which many feeds give to every item.
+func groupKey(link, guid string) string {
+	link = strings.TrimSpace(link)
+	if link == "" {
+		guid = strings.TrimSpace(guid)
+		if lower := strings.ToLower(guid); strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+			link = guid
+		}
+	}
+	u, err := url.Parse(link)
+	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return ""
+	}
+	host, port := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www."), u.Port()
+	if (u.Scheme == "http" && port == "80") || (u.Scheme == "https" && port == "443") {
+		port = ""
+	}
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	if port != "" {
+		host += ":" + port
+	}
+	path := strings.TrimRight(u.Path, "/")
+	query := url.Values{}
+	for name, values := range u.Query() {
+		if lower := strings.ToLower(name); strings.HasPrefix(lower, "utm_") || trackingParams[lower] {
+			continue
+		}
+		query[name] = values
+	}
+	if path == "" && len(query) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(query))
+	for name := range query {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	b.WriteString(host)
+	b.WriteString(path)
+	for i, name := range names {
+		if i == 0 {
+			b.WriteByte('?')
+		} else {
+			b.WriteByte('&')
+		}
+		b.WriteString(url.QueryEscape(name))
+		values := query[name]
+		sort.Strings(values)
+		for j, value := range values {
+			if j > 0 {
+				b.WriteByte('&')
+				b.WriteString(url.QueryEscape(name))
+			}
+			b.WriteByte('=')
+			b.WriteString(url.QueryEscape(value))
+		}
+	}
+	return b.String()
 }
 
 // feedURLKey is how two feed addresses are compared: lowercase scheme and host, default port dropped, no fragment,

@@ -152,8 +152,8 @@ func (s *Store) ImportEntries(ctx context.Context, sourceID int64, entries []Imp
 			}
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO entries (source_id, guid, title, url, author, published_at, rss_summary, rss_content_html,
-					extract_status, images, reading_sec, is_read, read_at, starred, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, 1, ?, ?)
+					extract_status, images, reading_sec, is_read, read_at, starred, created_at, updated_at, link_key)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, 1, ?, ?, group_key(?4, ?2))
 				ON CONFLICT (source_id, guid) DO NOTHING`,
 				sourceID, guid, e.Title, link, e.Author, nullTime(e.PublishedAt), e.Summary, e.ContentHTML, extract,
 				readingValue(kind, 0, "", e.ContentHTML, e.Summary), e.Read, readAt, created.UnixMilli(), now.UnixMilli(),
