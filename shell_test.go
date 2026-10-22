@@ -49,6 +49,7 @@ type fakeHome struct {
 	keys      int
 	ran       []timeline.Command
 	all       int
+	checks    int
 	languages []string
 }
 
@@ -64,6 +65,7 @@ func (h *fakeHome) ShowKeys() { h.keys++ }
 
 func (h *fakeHome) Run(cmd timeline.Command) { h.ran = append(h.ran, cmd) }
 func (h *fakeHome) RefreshAll()              { h.all++ }
+func (h *fakeHome) Check()                   { h.checks++ }
 
 func (h *fakeHome) View(c *ui.Context) { ui.Text(c, "Home") }
 
@@ -379,6 +381,19 @@ func TestShellLook(t *testing.T) {
 	s.focus(false)
 	if s.active() {
 		t.Fatal("a window that lost focus is active")
+	}
+	home := s.home.(*fakeHome)
+	s.focus(true)
+	if home.checks != 1 {
+		t.Fatalf("bringing the window forward checked the server %d times, want 1", home.checks)
+	}
+	s.focus(false)
+	if home.checks != 1 {
+		t.Fatalf("losing focus checked the server, %d checks", home.checks)
+	}
+	s.wake()
+	if home.checks != 2 {
+		t.Fatalf("waking checked the server %d times in all, want 2", home.checks)
 	}
 	s.focus(true)
 	s.openSettings()

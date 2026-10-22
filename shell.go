@@ -30,6 +30,7 @@ type home interface {
 	ShowKeys()
 	Run(cmd timeline.Command)
 	RefreshAll()
+	Check()
 	View(c *ui.Context)
 }
 
@@ -156,7 +157,16 @@ func (s *shell) remember(server string, place prefs.Place) {
 
 // focus tells the shell whether the window is the one in front; the marker of what the reader last looked at moves
 // only while it is. It runs on the UI thread.
-func (s *shell) focus(on bool) { s.unfocused = !on }
+func (s *shell) focus(on bool) {
+	s.unfocused = !on
+	if on {
+		s.home.Check()
+	}
+}
+
+// wake runs when the computer wakes from sleep: the timeline checks the server at once, as it does when the window
+// comes to the front. It runs on the UI thread.
+func (s *shell) wake() { s.home.Check() }
 
 // active tells whether the timeline is what the reader has in front of them.
 func (s *shell) active() bool { return !s.unfocused && !s.showing && !s.setting }
