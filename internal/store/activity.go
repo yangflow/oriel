@@ -64,7 +64,8 @@ func (s *Store) LogFetch(ctx context.Context, a FetchAttempt) error {
 // first. Two queries (the attempts, the sources) are merged here, so there is no subquery per source.
 func (s *Store) RecentFetches(ctx context.Context) ([]SourceAttempts, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT source_id, at, duration_ms, ok, status, new_entries, error FROM fetch_log ORDER BY id DESC`)
+		SELECT l.source_id, l.at, l.duration_ms, l.ok, l.status, l.new_entries, l.error
+		FROM fetch_log l JOIN sources s ON s.id = l.source_id WHERE s.deleted_at IS NULL ORDER BY l.id DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +99,7 @@ func (s *Store) fillIdentity(ctx context.Context, list []SourceAttempts, index m
 	if len(list) == 0 {
 		return nil
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, url, rsshub_path, title, paused FROM sources`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, url, rsshub_path, title, paused FROM sources WHERE deleted_at IS NULL`)
 	if err != nil {
 		return err
 	}
@@ -127,7 +128,7 @@ func (s *Store) SourceIdentities(ctx context.Context, ids []int64) ([]SourceAtte
 		args[i] = id
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, url, rsshub_path, title, paused FROM sources WHERE id IN (?`+strings.Repeat(",?", len(ids)-1)+`) ORDER BY id`, args...)
+		SELECT id, url, rsshub_path, title, paused FROM sources WHERE deleted_at IS NULL AND id IN (?`+strings.Repeat(",?", len(ids)-1)+`) ORDER BY id`, args...)
 	if err != nil {
 		return nil, err
 	}

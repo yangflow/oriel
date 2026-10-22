@@ -82,7 +82,7 @@ func TestDeletingASourceDropsItsAttempts(t *testing.T) {
 	if err := s.LogFetch(ctx, FetchAttempt{SourceID: src.ID, At: time.Now(), OK: true}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.DeleteSource(ctx, src.ID); err != nil {
+	if err := s.DeleteSource(ctx, src.ID, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if list, err := s.RecentFetches(ctx); err != nil || len(list) != 0 {
@@ -121,9 +121,7 @@ func TestStorageAndVacuum(t *testing.T) {
 	if err != nil || full.Entries != 300 || full.DatabaseBytes <= 0 {
 		t.Fatalf("%+v %v", full, err)
 	}
-	if err := s.DeleteSource(ctx, src.ID); err != nil {
-		t.Fatal(err)
-	}
+	deleteForGood(t, s, src.ID)
 	freed, err := s.Storage(ctx)
 	if err != nil || freed.Entries != 0 || freed.ReclaimableBytes <= 0 {
 		t.Fatalf("after delete: %+v %v", freed, err)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
 var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
@@ -23,14 +24,16 @@ type fake struct {
 	settings client.Settings
 	health   client.Health
 
-	added   []client.NewSource
-	patches map[int64][]client.SourcePatch
-	deleted []int64
-	fetched []int64
-	set     []client.SettingsPatch
-	looked  []string // the addresses Discover was asked for
-	found   []client.Candidate
-	lateBy  time.Duration // how far the clock is past now
+	added       []client.NewSource
+	patches     map[int64][]client.SourcePatch
+	deleted     []int64
+	restoredIDs []int64
+	restoreErr  error
+	fetched     []int64
+	set         []client.SettingsPatch
+	looked      []string // the addresses Discover was asked for
+	found       []client.Candidate
+	lateBy      time.Duration // how far the clock is past now
 
 	searched   []string // the queries FindRoutes was asked for
 	routes     client.Routes
@@ -45,13 +48,14 @@ type fake struct {
 	hiddenErr error    // why it cannot say
 	asked     []string // the keywords it was asked about
 
-	changed []client.Source
-	removed []int64
-	shown   []int64
-	marked  []int64
-	older   [][2]int64 // subscription and days of each "Mark older than"
-	opened  int        // the AI settings
-	expired int
+	changed  []client.Source
+	removed  []int64
+	restored []client.Source
+	shown    []int64
+	marked   []int64
+	older    [][2]int64 // subscription and days of each "Mark older than"
+	opened   int        // the AI settings
+	expired  int
 }
 
 func (f *fake) AddSource(_ context.Context, src client.NewSource) (client.Source, error) {
@@ -85,6 +89,14 @@ func (f *fake) UpdateSource(_ context.Context, id int64, patch client.SourcePatc
 func (f *fake) DeleteSource(_ context.Context, id int64) error {
 	f.deleted = append(f.deleted, id)
 	return f.deleteErr
+}
+
+func (f *fake) RestoreSource(_ context.Context, id int64) (client.Source, error) {
+	f.restoredIDs = append(f.restoredIDs, id)
+	if f.restoreErr != nil {
+		return client.Source{}, f.restoreErr
+	}
+	return client.Source{ID: id, Title: "Back"}, nil
 }
 
 func (f *fake) RefreshSource(_ context.Context, id int64) error {
@@ -137,6 +149,7 @@ func (f *fake) deps() Deps {
 		Added:        func(src client.Source) { f.sources = append(f.sources, src) },
 		Changed:      func(src client.Source) { f.changed = append(f.changed, src) },
 		Removed:      func(id int64) { f.removed = append(f.removed, id) },
+		Restored:     func(src client.Source) { f.restored = append(f.restored, src) },
 		Show:         func(id int64) { f.shown = append(f.shown, id) },
 		MarkRead:     func(src client.Source) { f.marked = append(f.marked, src.ID) },
 		MarkOlder:    func(src client.Source, days int) { f.older = append(f.older, [2]int64{src.ID, int64(days)}) },
@@ -797,6 +810,55 @@ func TestMenu(t *testing.T) {
 	f.settle(tt)
 	if !slices.Equal(f.deleted, []int64{2}) || !slices.Equal(f.removed, []int64{2}) {
 		t.Fatalf("deleted %v, removed %v", f.deleted, f.removed)
+	}
+}
+
+func TestUndoDelete(t *testing.T) {
+	for language, texts := range map[string][2]string{"en": {"Deleted “/telegram/channel/golang”", "Undo"}, "zh-Hans": {"已删除「/telegram/channel/golang」", "撤销"}} {
+		t.Run(language, func(t *testing.T) {
+			s, f, _ := setup(t, language)
+			tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 760)
+			tt.Frame()
+			s.AskDelete(f.sources[1])
+			tt.Frame()
+			if err := tt.Click(s.text.ConfirmDelete); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(tt)
+			tt.Frame()
+			if !tt.HasText(texts[0]) || !tt.HasText(texts[1]) {
+				t.Fatalf("no Deleted toast with Undo in %v", tt.Texts())
+			}
+			if err := tt.Click(texts[1]); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(tt)
+			if !slices.Equal(f.restoredIDs, []int64{2}) || len(f.restored) != 1 || f.restored[0].ID != 2 {
+				t.Fatalf("restore asked for %v, the timeline got %v", f.restoredIDs, f.restored)
+			}
+		})
+	}
+}
+
+func TestUndoDeleteTooLate(t *testing.T) {
+	s, f, _ := setup(t, "en")
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 760)
+	tt.Frame()
+	s.AskDelete(f.sources[1])
+	tt.Frame()
+	if err := tt.Click(s.text.ConfirmDelete); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	tt.Frame()
+	f.restoreErr = &client.APIError{Status: 404, Code: "not_found"}
+	if err := tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	tt.Frame()
+	if len(f.restored) != 0 || !tt.HasText(s.text.UndoFailed) {
+		t.Fatalf("restored %v, texts %v", f.restored, tt.Texts())
 	}
 }
 

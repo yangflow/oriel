@@ -15,6 +15,18 @@ import (
 	"time"
 )
 
+// deleteForGood deletes a subscription and lets its undo window pass, so that its rows are gone.
+func deleteForGood(t *testing.T, s *Store, id int64) {
+	t.Helper()
+	ctx, now := context.Background(), time.Now()
+	if err := s.DeleteSource(ctx, id, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PurgeDeletedSources(ctx, now.Add(DeleteUndoWindow+time.Second)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func open(t *testing.T, file string) *Store {
 	t.Helper()
 	s, err := Open(context.Background(), file)
@@ -41,7 +53,7 @@ func TestMigrationsAreRepeatable(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 16 {
+	if version != 17 {
 		t.Fatalf("user_version = %d", version)
 	}
 	var mode string
@@ -245,15 +257,13 @@ func TestSources(t *testing.T) {
 	}
 
 	s.db.Exec("UPDATE entries SET starred = 1")
-	if err := s.DeleteSource(ctx, hub.ID); err != nil {
-		t.Fatal(err)
-	}
+	deleteForGood(t, s, hub.ID)
 	var entries int
 	s.db.QueryRow("SELECT count(*) FROM entries").Scan(&entries)
 	if entries != 0 {
 		t.Fatalf("%d entries survived their source", entries)
 	}
-	if err := s.DeleteSource(ctx, hub.ID); !errors.Is(err, ErrNotFound) {
+	if err := s.DeleteSource(ctx, hub.ID, start); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second delete: %v", err)
 	}
 	if _, err := s.Source(ctx, hub.ID); !errors.Is(err, ErrNotFound) {
@@ -563,9 +573,7 @@ func TestAIResults(t *testing.T) {
 	if results, _ := s.AIResults(ctx, id); len(results) != 1 {
 		t.Fatal("an existing entry was queued again")
 	}
-	if err := s.DeleteSource(ctx, src.ID); err != nil {
-		t.Fatal(err)
-	}
+	deleteForGood(t, s, src.ID)
 	var n int
 	s.db.QueryRow("SELECT count(*) FROM entry_ai").Scan(&n)
 	if n != 0 {

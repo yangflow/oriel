@@ -78,6 +78,58 @@ func TestPrune(t *testing.T) {
 	}
 }
 
+func TestPurgeRemovesDeletedSourcesAfterTheUndoWindow(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	id := f.add(store.NewSource{URL: "https://example.org/feed", Kind: "video"})
+	if _, err := f.store.SaveFeed(ctx, store.FeedSource{ID: id, Kind: "video"}, "", "", []store.FeedEntry{{GUID: "a"}}, "", time.Time{}, f.now); err != nil {
+		t.Fatal(err)
+	}
+	f.db.Exec("UPDATE entries SET starred = 1")
+	if err := f.store.DeleteSource(ctx, id, f.now); err != nil {
+		t.Fatal(err)
+	}
+	count := func(table string) (n int) {
+		f.db.QueryRow("SELECT count(*) FROM " + table).Scan(&n)
+		return n
+	}
+
+	f.now = f.now.Add(store.DeleteUndoWindow - time.Second)
+	f.poller.prune(ctx)
+	if count("sources") != 1 {
+		t.Fatal("purged a deleted source inside its undo window")
+	}
+	f.now = f.now.Add(time.Hour) // the next hourly pass, long after the window
+	f.poller.prune(ctx)
+	if count("sources") != 0 || count("entries") != 0 {
+		t.Fatalf("%d sources and %d entries left after the window", count("sources"), count("entries"))
+	}
+}
+
+func TestDeletedSourcesAreNotFetched(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	id := f.add(store.NewSource{URL: "https://example.org/feed"})
+	if err := f.store.DeleteSource(ctx, id, f.now); err != nil {
+		t.Fatal(err)
+	}
+	f.now = f.now.Add(time.Hour)
+	f.poller.fetchDue(ctx)
+	var attempts int
+	f.db.QueryRow("SELECT count(*) FROM fetch_log").Scan(&attempts)
+	if attempts != 0 {
+		t.Fatalf("%d fetches of a deleted source", attempts)
+	}
+	if _, err := f.store.RestoreSource(ctx, id, f.now.Add(-time.Hour+time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	f.poller.fetchDue(ctx)
+	f.db.QueryRow("SELECT count(*) FROM fetch_log").Scan(&attempts)
+	if attempts != 1 {
+		t.Fatalf("%d fetches after the restore, want 1", attempts)
+	}
+}
+
 func TestExpiredItemsAreNotFetchedAgain(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()

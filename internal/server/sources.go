@@ -376,7 +376,7 @@ func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	switch err := s.store.DeleteSource(r.Context(), id); {
+	switch err := s.store.DeleteSource(r.Context(), id, s.now()); {
 	case errors.Is(err, store.ErrNotFound):
 		fail(w, http.StatusNotFound, "not_found")
 	case err != nil:
@@ -384,6 +384,16 @@ func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// restoreSource answers POST /api/sources/{id}/restore: it undoes a delete within store.DeleteUndoWindow.
+func (s *Server) restoreSource(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	src, err := s.store.RestoreSource(r.Context(), id, s.now())
+	replySource(w, src, err)
 }
 
 func (s *Server) refreshSource(w http.ResponseWriter, r *http.Request) {

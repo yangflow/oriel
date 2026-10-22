@@ -47,6 +47,10 @@
      ("Subscription health…"); the sidebar has no entry for it. It lists unpaused sources that are dead, keep failing
      or are rarely read, each with its reason, the last 30 days in numbers and two buttons, Pause and Unsubscribe….
      Nothing changes until one is pressed; Unsubscribe… opens the delete confirmation (health-delete).
+     Deleting acts at once after the confirmation, which says the delete can be undone for a few seconds. The
+     subscription leaves the sidebar and a toast at the bottom (deleted) says "Deleted “The Go Blog”" with Undo and a
+     close button; it shows for about 8 seconds, is announced to screen readers and takes no focus. Undo brings the
+     subscription back with its entries.
      The bar above the window only switches the mockup.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min. -->
 <style>
@@ -234,6 +238,13 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 .group-title svg.icon { width:14px; height:14px }
 
 /* Dialogs and the menu. A tall dialog scrolls only its form; a hairline marks an edge where content hides. */
+.toast { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:4; display:flex; align-items:center; gap:10px; max-width:calc(100% - 40px); min-height:40px; padding:6px 6px 6px 14px; border-radius:14px; background:#2a2620; color:#f4efe6; font-size:12.5px; box-shadow:0 10px 30px rgba(var(--ink),.28), 0 0 0 .5px rgba(255,248,235,.08) }
+:root[data-scheme=dark] .toast { background:#333837 }
+.toast svg.icon { flex:none }
+.toast .msg { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.toast .act { height:28px; padding:0 10px; border-radius:8px; color:inherit; font-weight:600; white-space:nowrap; background:rgba(255,248,235,.12) }
+.toast .x { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; color:inherit; opacity:.7 }
+.toast .x svg.icon { width:14px; height:14px }
 .scrim { position:absolute; inset:0; background:var(--scrim); display:grid; place-items:center; z-index:3; padding:16px }
 .dialog { width:440px; max-height:100%; overflow:hidden; border-radius:16px; background:var(--raised); box-shadow:var(--sheet-shadow); display:flex; flex-direction:column }
 .dialog.wide { width:480px }
@@ -287,7 +298,7 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','add-searching','add-found-list','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-extract','edit-suggest','edit-backup','edit-mute-none','delete','health','health-loading','health-error','health-empty','health-delete'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','add-searching','add-found-list','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-extract','edit-suggest','edit-backup','edit-mute-none','delete','deleted','health','health-loading','health-error','health-empty','health-delete'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -364,7 +375,7 @@ const copy={
     pauseLabel:'Pause fetching', pauseHelp:'Entries already fetched stay.',
     mute:'Mute keywords', muteHelp:'One per line. Entries whose title or summary contains one are hidden; starred ones stay.',
     muteHidden:'{n} hidden now.', muteNone:'Nothing hidden now.',
-    deleteTitle:'Delete “The Go Blog”?', deleteBody:'All its entries go too, starred ones included. This can’t be undone.', confirmDelete:'Delete',
+    deleteTitle:'Delete “The Go Blog”?', deleteBody:'All its entries go too, starred ones included. You can undo this for a few seconds.', confirmDelete:'Delete', deleted:'Deleted “The Go Blog”', undo:'Undo', dismiss:'Dismiss',
     aiGroup:'Summaries and translations', autoSummary:'Summarize new entries', autoTranslate:'Translate new entries',
     autoHelp:'Only entries that arrive after you turn it on.', promptSummary:'Summary prompt', promptTranslate:'Translation prompt',
     promptPlaceholder:'Empty uses the prompt in Settings', aiOff:'AI isn’t set up, so nothing is summarized or translated yet.', openSettings:'Open Settings…',
@@ -405,7 +416,7 @@ const copy={
     pauseLabel:'暂停抓取', pauseHelp:'已经抓到的条目保留。',
     mute:'屏蔽词', muteHelp:'每行一个。标题或摘要里有的条目会隐藏，收藏的除外。',
     muteHidden:'现在隐藏了 {n} 条。', muteNone:'现在没有隐藏的条目。',
-    deleteTitle:'删除「The Go Blog」？', deleteBody:'它的条目会一起删掉，收藏的也是。删了不能恢复。', confirmDelete:'删除',
+    deleteTitle:'删除「The Go Blog」？', deleteBody:'它的条目会一起删掉，收藏的也是。删除后几秒内可以撤销。', confirmDelete:'删除', deleted:'已删除「The Go Blog」', undo:'撤销', dismiss:'关闭',
     aiGroup:'摘要和翻译', autoSummary:'新条目自动摘要', autoTranslate:'新条目自动翻译',
     autoHelp:'只管打开之后新到的条目。', promptSummary:'摘要 prompt', promptTranslate:'翻译 prompt',
     promptPlaceholder:'留空就用设置里的 prompt', aiOff:'还没配置 AI，暂时不会摘要或翻译。', openSettings:'打开设置…',
@@ -435,12 +446,12 @@ const empty=state==='empty';
 const editing=['menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-extract','edit-suggest','edit-backup','edit-mute-none','delete'].includes(state);
 const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
 const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
-const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
+const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.filter((s,i)=>!(state==='deleted'&&i===1)).map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
 const rows=Array.from({length:5},(_,i)=>`<div class="bars"><div class="bar" style="width:${30+i%3*6}%"></div><div class="bar" style="width:${74-i*5}%;height:14px"></div><div class="bar" style="width:${90-i*3}%"></div></div>`).join('');
 const toolbar=`<div class="toolbar"><h1>${editing?'The Go Blog':copy.all}</h1><span class="sub">${empty?'':copy.unread}</span>${editing?`<button class="tool${state==='edit'?' hover':''}" aria-label="${copy.editSource}" title="${copy.editSource}">${icon('pencil')}</button>`:''}<span class="spacer"></span><div class="ghost"></div></div>`;
 const main=empty
   ?`<section class="main">${toolbar}<div class="empty" role="status"><div class="tile">${icon('rss')}</div><h2>${copy.noSubscriptions}</h2><p>${copy.noSubscriptionsHint}</p><button class="button primary">${icon('plus')}${copy.addHere}</button></div></section>`
-  :`<section class="main">${toolbar}<div class="column" aria-hidden="true">${rows}</div></section>`;
+  :`<section class="main">${toolbar}<div class="column" aria-hidden="true">${rows}</div>${state==='deleted'?`<div class="toast" role="status">${icon('trash')}<span class="msg">${copy.deleted}</span><button class="act">${copy.undo}</button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`:''}</section>`;
 
 const kindPicker=on=>`<div class="field"><span class="label" id="kind">${copy.showAs}</span><div class="kinds" role="radiogroup" aria-labelledby="kind">${['article','video','social','image'].map(k=>`<button role="radio" aria-checked="${k===on}" class="${k===on?'on':''}" aria-label="${copy[k]}">${icon(k)}<span>${copy[k]}</span></button>`).join('')}</div></div>`;
 const select=(label,value)=>`<div class="field"><label>${label}</label><div class="box select" role="combobox" aria-label="${label}"><span>${value}</span>${icon('chevron')}</div></div>`;

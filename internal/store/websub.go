@@ -76,7 +76,7 @@ func (s *Store) SetWebSubFeed(ctx context.Context, id int64, hub, topic string) 
 func (s *Store) WebSubDue(ctx context.Context, now time.Time, base string, limit int) ([]WebSub, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+webSubColumns+` FROM sources
-		WHERE paused = 0 AND websub_hub <> '' AND (websub_next_at <= ?1 OR (websub_state <> '' AND websub_base <> ?2))
+		WHERE paused = 0 AND deleted_at IS NULL AND websub_hub <> '' AND (websub_next_at <= ?1 OR (websub_state <> '' AND websub_base <> ?2))
 		ORDER BY websub_next_at, id LIMIT ?3`, now.UnixMilli(), base, limit)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func (s *Store) WebSubByKey(ctx context.Context, key string) (WebSub, error) {
 	if key == "" {
 		return WebSub{}, ErrNotFound
 	}
-	return scanWebSub(s.db.QueryRowContext(ctx, "SELECT "+webSubColumns+" FROM sources WHERE websub_key = ?", key))
+	return scanWebSub(s.db.QueryRowContext(ctx, "SELECT "+webSubColumns+" FROM sources WHERE websub_key = ? AND deleted_at IS NULL", key))
 }
 
 // WebSubRequest records that a subscription request to the hub of the source goes out now, with a callback under the
