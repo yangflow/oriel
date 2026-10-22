@@ -4413,3 +4413,5 @@ func TestFetchResultInChinese(t *testing.T) {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 }
+
+func (f *fake) MutedCount(context.Context, int64, string) (int, error) { return 0, nil }

@@ -31,6 +31,10 @@ type fake struct {
 
 	addErr, updateErr, deleteErr, refreshErr, settingsErr, setErr, healthErr error
 
+	hidden    int      // what the server says the mute keywords hide
+	hiddenErr error    // why it cannot say
+	asked     []string // the keywords it was asked about
+
 	changed []client.Source
 	removed []int64
 	shown   []int64
@@ -80,6 +84,11 @@ func (f *fake) RefreshSource(_ context.Context, id int64) error {
 
 func (f *fake) SourcesHealth(context.Context) (client.Health, error) {
 	return f.health, f.healthErr
+}
+
+func (f *fake) MutedCount(_ context.Context, _ int64, keywords string) (int, error) {
+	f.asked = append(f.asked, keywords)
+	return f.hidden, f.hiddenErr
 }
 
 func (f *fake) Settings(context.Context) (client.Settings, error) {
@@ -135,6 +144,7 @@ func setup(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 		patches:  map[int64][]client.SourcePatch{},
 	}
 	s := New(language, f.deps())
+	s.muteWait = 0
 	s.Use(f)
 	tt := ui.NewTester(s.View, 1000, 760)
 	tt.Frame()

@@ -575,6 +575,18 @@ func (s Session) UpdateSource(ctx context.Context, id int64, patch SourcePatch) 
 	return changed, err
 }
 
+// MutedCount is how many entries of a subscription the keywords, one per line, would hide now; they are not saved.
+func (s Session) MutedCount(ctx context.Context, id int64, keywords string) (int, error) {
+	var reply struct {
+		Count int `json:"count"`
+	}
+	body := struct {
+		MuteKeywords string `json:"muteKeywords"`
+	}{keywords}
+	err := s.call(ctx, http.MethodPost, "/api/sources/"+strconv.FormatInt(id, 10)+"/muted-count", body, &reply)
+	return reply.Count, err
+}
+
 // DeleteSource removes a subscription with all its entries, starred ones included.
 func (s Session) DeleteSource(ctx context.Context, id int64) error {
 	return s.call(ctx, http.MethodDelete, "/api/sources/"+strconv.FormatInt(id, 10), nil, nil)

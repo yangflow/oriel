@@ -180,6 +180,20 @@ func (s *Store) UpdateSource(ctx context.Context, id int64, patch SourcePatch, n
 	return s.Source(ctx, id)
 }
 
+// MutedCount is how many entries of a source the keywords, one per line, would hide now: the same rule as the
+// timeline's, so starred entries do not count. They need not be the saved keywords, so a dialog can show the effect
+// of an edit before it is saved.
+func (s *Store) MutedCount(ctx context.Context, id int64, keywords string) (int, error) {
+	if _, err := s.Source(ctx, id); err != nil {
+		return 0, err
+	}
+	var n int
+	err := s.db.QueryRowContext(ctx,
+		"SELECT count(*) FROM entries e WHERE e.source_id = ? AND e.starred = 0 AND muted(?, e.title, e.rss_summary)",
+		id, keywords).Scan(&n)
+	return n, err
+}
+
 // DeleteSource removes a subscription and, through the foreign key, all its entries, starred or not.
 func (s *Store) DeleteSource(ctx context.Context, id int64) error {
 	result, err := s.db.ExecContext(ctx, "DELETE FROM sources WHERE id = ?", id)

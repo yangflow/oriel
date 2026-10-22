@@ -282,6 +282,29 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 	replySource(w, src, err)
 }
 
+// mutedCount says how many entries of a source the given keywords would hide, without saving them.
+func (s *Server) mutedCount(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		MuteKeywords string `json:"muteKeywords"`
+	}
+	if !readBody(w, r, &body) {
+		return
+	}
+	n, err := s.store.MutedCount(r.Context(), id, muteLines(body.MuteKeywords))
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		fail(w, http.StatusNotFound, "not_found")
+	case err != nil:
+		internal(w, err)
+	default:
+		reply(w, http.StatusOK, map[string]int{"count": n})
+	}
+}
+
 func replySource(w http.ResponseWriter, src store.Source, err error) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):

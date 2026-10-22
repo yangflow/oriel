@@ -320,6 +320,70 @@ func TestMuteKeywords(t *testing.T) {
 	}
 }
 
+func TestMutedCount(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "", c.t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []store.FeedEntry{
+		{GUID: "1", Title: "Go release notes"},
+		{GUID: "2", Title: "Weekly digest", Summary: "Sponsored by ACME"},
+		{GUID: "3", Title: "Rust news"},
+	}
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "article"}, "", "", items, "", time.Time{}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	target := "/api/sources/" + strconv.FormatInt(src.ID, 10) + "/muted-count"
+	count := func(body string) float64 {
+		t.Helper()
+		w := do(s, "POST", target, body, bearer(token))
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", body, w.Code, w.Body)
+		}
+		return decode(t, w)["count"].(float64)
+	}
+	if w := do(s, "POST", target, `{"muteKeywords":"rust"}`, nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without a token: %d", w.Code)
+	}
+
+	// Keywords that are not saved yet are counted as the timeline would; blank lines and padding do not matter.
+	if n := count(`{"muteKeywords":" acme \n\n RUST "}`); n != 2 {
+		t.Fatalf("count = %v", n)
+	}
+	if n := count(`{"muteKeywords":"python"}`); n != 0 {
+		t.Fatalf("count = %v", n)
+	}
+	if n := count(`{"muteKeywords":" \n "}`); n != 0 {
+		t.Fatalf("count = %v", n)
+	}
+
+	// Starred entries are not hidden, so they are not counted.
+	var rust string
+	for _, item := range decode(t, do(s, "GET", "/api/entries", "", bearer(token)))["entries"].([]any) {
+		if entry := item.(map[string]any); entry["title"] == "Rust news" {
+			rust = strconv.Itoa(int(entry["id"].(float64)))
+		}
+	}
+	if w := do(s, "PATCH", "/api/entries/"+rust, `{"starred":true}`, bearer(token)); w.Code != http.StatusOK {
+		t.Fatalf("star: %d", w.Code)
+	}
+	if n := count(`{"muteKeywords":"acme\nrust"}`); n != 1 {
+		t.Fatalf("count with a starred entry = %v", n)
+	}
+
+	// Asking saves nothing.
+	got := decode(t, do(s, "GET", "/api/sources/"+strconv.FormatInt(src.ID, 10), "", bearer(token)))
+	if got["muteKeywords"] != "" {
+		t.Fatalf("saved keywords: %v", got["muteKeywords"])
+	}
+	if w := do(s, "POST", "/api/sources/999/muted-count", `{"muteKeywords":"rust"}`, bearer(token)); w.Code != http.StatusNotFound || decode(t, w)["error"] != "not_found" {
+		t.Fatalf("unknown source: %d %s", w.Code, w.Body)
+	}
+}
+
 func TestEntryLanguageField(t *testing.T) {
 	s, c := newServer(t, "secret")
 	token := login(t, s, "laptop")

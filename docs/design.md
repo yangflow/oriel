@@ -226,6 +226,11 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
   Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".
+  Under the mute keywords, after their help, a second 12 `TextMuted` line (tabular figures, a status text) says how many
+  entries the keywords hide now: "{n} hidden now." (「现在隐藏了 {n} 条。」) or "Nothing hidden now." (「现在没有隐藏的条目。」).
+  It follows the box as keywords are typed, after a short pause; until the new number arrives the old one stays, with
+  no spinner. With no keywords, or if the count cannot be read, the line is not drawn. Drawn in
+  `design/screens/subscriptions.html`, `edit` and `edit-mute-none`.
 - **Subscription health.** A dialog 480 wide like the edit dialog opened from the command palette action
   "Subscription health…"; the sidebar has no entry for it. Header: the `heart-pulse` icon, the title and a muted line,
   "Sources that need a decision. Nothing changes until you choose." Body, one state at a time: loading is a muted line

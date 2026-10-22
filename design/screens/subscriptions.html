@@ -10,7 +10,9 @@
      design/tokens.md; icons are Lucide (ISC License). The edit dialog ends with the subscription's summaries and
      translations: switches that queue new entries, and prompts that replace the global ones in Settings; edit-ai
      shows that part scrolled into view, edit-ai-off the same while AI is not set up. edit-backup is the dialog of an RSSHub route whose last fetch
-     was served by a backup instance: a muted line under the status names the host and "(backup)". A dialog taller than the window
+     was served by a backup instance: a muted line under the status names the host and "(backup)". Under the mute
+     keywords a second muted line says how many entries they hide now (edit; edit-mute-none when none) and follows the
+     keywords as they are typed. A dialog taller than the window
      keeps its header and buttons in place and scrolls only the form, with a divider under the header once scrolled
      and above the buttons while more is below.
      The window has no title bar: the window buttons sit over the sidebar's top, the sidebar is a floating ink pane
@@ -166,6 +168,7 @@ aside { width:216px; flex:none; margin:8px 0 8px 8px; padding-top:40px; display:
 textarea { width:100%; min-height:72px; resize:none; padding:7px 10px; border:0; outline:0; border-radius:8px; background:var(--surface); box-shadow:inset 0 0 0 .5px var(--edge-line); font:inherit; color:var(--text); line-height:1.5 }
 textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace }
 .help { font-size:12px; color:var(--muted) }
+.help.count { font-variant-numeric:tabular-nums }
 .error { display:flex; gap:6px; font-size:12px; color:var(--danger) }
 .error svg.icon { width:14px; height:14px; margin-top:2px }
 .added { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px; background:color-mix(in srgb,var(--success) 12%,transparent); font-weight:500 }
@@ -252,7 +255,7 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','delete','health','health-loading','health-error','health-empty','health-delete'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','edit-mute-none','delete','health','health-loading','health-error','health-empty','health-delete'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -318,6 +321,7 @@ const copy={
     servedBy:'Served by {host}', servedByBackup:'Served by {host} (backup)',
     pauseLabel:'Pause fetching', pauseHelp:'Entries already fetched stay.',
     mute:'Mute keywords', muteHelp:'One per line. Entries whose title or summary contains one are hidden; starred ones stay.',
+    muteHidden:'{n} hidden now.', muteNone:'Nothing hidden now.',
     deleteTitle:'Delete “The Go Blog”?', deleteBody:'All its entries go too, starred ones included. This can’t be undone.', confirmDelete:'Delete',
     aiGroup:'Summaries and translations', autoSummary:'Summarize new entries', autoTranslate:'Translate new entries',
     autoHelp:'Only entries that arrive after you turn it on.', promptSummary:'Summary prompt', promptTranslate:'Translation prompt',
@@ -348,6 +352,7 @@ const copy={
     servedBy:'由 {host} 提供', servedByBackup:'由 {host} 提供（备用）',
     pauseLabel:'暂停抓取', pauseHelp:'已经抓到的条目保留。',
     mute:'屏蔽词', muteHelp:'每行一个。标题或摘要里有的条目会隐藏，收藏的除外。',
+    muteHidden:'现在隐藏了 {n} 条。', muteNone:'现在没有隐藏的条目。',
     deleteTitle:'删除「The Go Blog」？', deleteBody:'它的条目会一起删掉，收藏的也是。删了不能恢复。', confirmDelete:'删除',
     aiGroup:'摘要和翻译', autoSummary:'新条目自动摘要', autoTranslate:'新条目自动翻译',
     autoHelp:'只管打开之后新到的条目。', promptSummary:'摘要 prompt', promptTranslate:'翻译 prompt',
@@ -375,7 +380,7 @@ const sources=[
   {kind:'image',name:'NASA APOD',mono:'N',unread:1,fav:favs.nasa},
 ];
 const empty=state==='empty';
-const editing=['menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','delete'].includes(state);
+const editing=['menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','edit-mute-none','delete'].includes(state);
 const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
 const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
@@ -429,7 +434,7 @@ function editDialog(){
       ${kindPicker('article')}
       ${state==='edit-suggest'?`<div class="health" role="status">${icon('video')}<span>${copy.suggest}</span><button class="button small">${copy.suggestUse}</button></div>`:''}
       <div class="switch-row"><div class="text"><span class="label">${copy.pauseLabel}</span><span class="help">${copy.pauseHelp}</span></div><span class="switch${paused?' on':''}" role="switch" aria-checked="${paused}" aria-label="${copy.pauseLabel}"></span></div>
-      <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" aria-describedby="mh">${lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span></div>
+      <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" aria-describedby="mh mc">${state==='edit-mute-none'?(lang==='en'?'giveaway':'抽奖'):lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span><span class="help count" id="mc" role="status">${state==='edit-mute-none'?copy.muteNone:copy.muteHidden.replace('{n}','7')}</span></div>
       <h3 class="group-title">${icon('sparkles')}${copy.aiGroup}</h3>
       ${state==='edit-ai-off'?`<div class="health" role="status">${icon('alert')}<span>${copy.aiOff}</span><button class="button small">${copy.openSettings}</button></div>`:''}
       <div class="switch-row"><div class="text"><span class="label">${copy.autoSummary}</span><span class="help">${copy.autoHelp}</span></div><span class="switch${ai?' on':''}" role="switch" aria-checked="${ai}" aria-label="${copy.autoSummary}"></span></div>

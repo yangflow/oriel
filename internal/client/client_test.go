@@ -190,6 +190,8 @@ func TestTimelineAPI(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
+		case "/api/sources/5/muted-count":
+			w.Write([]byte(`{"count":4}`))
 		case "/api/sources/refresh":
 			w.Write([]byte(`{"queued":3,"at":1700000000000}`))
 		case "/api/sources/6/refresh":
@@ -259,6 +261,9 @@ func TestTimelineAPI(t *testing.T) {
 		src.Title != "New" || !src.Paused || src.LastFetchedAt != 0 {
 		t.Errorf("UpdateSource = %+v, %v", src, err)
 	}
+	if n, err := session.MutedCount(ctx, 5, "ad\nspam"); err != nil || n != 4 {
+		t.Errorf("MutedCount = %d, %v", n, err)
+	}
 	if err := session.RefreshSource(ctx, 5); err != nil {
 		t.Errorf("RefreshSource: %v", err)
 	}
@@ -294,6 +299,7 @@ func TestTimelineAPI(t *testing.T) {
 		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",
 		`POST /api/sources {"rsshubPath":"/x/y","kind":"social"}`,
 		`PATCH /api/sources/5 {"title":"New","paused":true}`,
+		`POST /api/sources/5/muted-count {"muteKeywords":"ad\nspam"}`,
 		"POST /api/sources/5/refresh ",
 		"POST /api/sources/6/refresh ",
 		"POST /api/sources/refresh ",
