@@ -9,13 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/store"
 )
 
 func TestBackend(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
-	b, err := start(ctx, dir, "", 0)
+	b, err := start(ctx, dir, "", diag.ModeHeadless, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +34,7 @@ func TestBackend(t *testing.T) {
 		t.Fatalf("health: %d %+v", resp.StatusCode, health)
 	}
 
-	if _, err := start(ctx, dir, "", 0); !errors.Is(err, store.ErrLocked) {
+	if _, err := start(ctx, dir, "", diag.ModeHeadless, 0); !errors.Is(err, store.ErrLocked) {
 		t.Fatalf("second backend on the same data: %v", err)
 	}
 	if err := b.close(ctx); err != nil {
@@ -42,7 +43,7 @@ func TestBackend(t *testing.T) {
 	if _, err := http.Get("http://" + b.addr + "/health"); err == nil {
 		t.Fatal("still serving after close")
 	}
-	again, err := start(ctx, dir, "", 0)
+	again, err := start(ctx, dir, "", diag.ModeHeadless, 0)
 	if err != nil {
 		t.Fatalf("restart after close: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestBackend(t *testing.T) {
 }
 
 func TestServerTimeouts(t *testing.T) {
-	b, err := start(context.Background(), t.TempDir(), "", 0)
+	b, err := start(context.Background(), t.TempDir(), "", diag.ModeHeadless, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

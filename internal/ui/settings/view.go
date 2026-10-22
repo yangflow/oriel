@@ -60,6 +60,8 @@ type copy struct {
 	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Compact, Compacting            string
 	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep               string
 	NewCount, NothingNew, FailedWord, ShowAttempts                                                                 string
+	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported   string
+	DiagnosticsFailed, DiagnosticsMenu                                                                             string
 
 	ReaderLabel, ReaderHelp, ReaderButton, ReaderTitle, ReaderService, ReaderAddress, ReaderAddressHint    string
 	ReaderUser, ReaderToken, ReaderPassword, ReaderMemory, ReaderConnect, ReaderClose, ReaderCancel        string
@@ -82,6 +84,11 @@ var translations = func() map[string]copy {
 
 // MenuLabel is the menu item that opens the screen, in the language of the system locale.
 func MenuLabel(systemLocale string) string { return translations[locale.Language(systemLocale)].Menu }
+
+// DiagnosticsMenuLabel is the Help menu item that exports the diagnostics file, in the language of the system locale.
+func DiagnosticsMenuLabel(systemLocale string) string {
+	return translations[locale.Language(systemLocale)].DiagnosticsMenu
+}
 
 // retentions are the days entries are kept that the picker offers, 0 for forever.
 var retentions = []int{0, 7, 30, 90, 180, 365}
@@ -123,6 +130,7 @@ type API interface {
 	RevokeDevice(ctx context.Context, id int64) error
 	ImportOPML(ctx context.Context, opml []byte) (client.Imported, error)
 	ExportOPML(ctx context.Context) ([]byte, error)
+	Diagnostics(ctx context.Context) ([]byte, error)
 	TestAI(ctx context.Context) (client.AITest, error)
 	StartImport(ctx context.Context, req client.ImportRequest) (client.ImportStatus, error)
 	ImportStatus(ctx context.Context) (client.ImportStatus, error)
@@ -225,6 +233,8 @@ type Screen struct {
 	actOpen     int64     // the subscription whose attempts are shown, 0 for none
 	vacStarting bool      // the request to compact is under way
 	vacError    string    // why the request to compact failed
+	diagBusy    bool      // the diagnostics file is being chosen and written
+	diagStatus  status    // how the last export of it went
 
 	aiBase, aiModel, aiKey string // as typed; the key saved is never sent back
 	aiLanguage             string

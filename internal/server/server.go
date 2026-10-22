@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/ai"
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/importer"
 	"github.com/yangflow/oriel/internal/store"
@@ -52,6 +53,10 @@ type Config struct {
 	AI *ai.Worker
 	// Fetching returns the ids of the sources being fetched now, for GET /api/activity; nil means none are.
 	Fetching func() []int64
+	// Log holds the recent warnings and errors for GET /api/diagnostics; nil says the file has none to show.
+	Log *diag.Handler
+	// Mode is diag.ModeDesktop or diag.ModeHeadless.
+	Mode string
 }
 
 // Images downloads a picture found inside a feed and returns its content type and bytes.
@@ -86,6 +91,8 @@ type Server struct {
 	throttle *throttle
 	handler  http.Handler
 	fetching func() []int64
+	log      *diag.Handler
+	mode     string
 
 	imports      importState
 	importClient func() *importer.Client // makes the client of one import; tests replace it
@@ -96,7 +103,7 @@ type Server struct {
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
+	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, log: cfg.Log, mode: cfg.Mode, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
 	if s.routes == nil {
 		s.routes = fetch.NewRoutes(cfg.Version)
 	}
@@ -152,6 +159,7 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("GET /api/activity", s.authed(s.activity))
 	mux.HandleFunc("GET /api/storage", s.authed(s.storage))
 	mux.HandleFunc("POST /api/storage/vacuum", s.authed(s.startVacuum))
+	mux.HandleFunc("GET /api/diagnostics", s.authed(s.diagnostics))
 	mux.HandleFunc("GET /api/discover", s.authed(s.findFeeds))
 	mux.HandleFunc("GET /api/routes", s.authed(s.findRoutes))
 	mux.HandleFunc("GET /api/routes/preview", s.authed(s.previewRoute))

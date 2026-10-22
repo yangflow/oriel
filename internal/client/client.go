@@ -840,6 +840,20 @@ func (s Session) ExportOPML(ctx context.Context) ([]byte, error) {
 	return body, nil
 }
 
+// Diagnostics returns the diagnostics file of the server: text without secrets, full addresses or entry content.
+func (s Session) Diagnostics(ctx context.Context) ([]byte, error) {
+	resp, err := s.send(ctx, httpClient, http.MethodGet, "/api/diagnostics", "", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrUnreachable, err)
+	}
+	return body, nil
+}
+
 // StartImport has the server read another reader's subscriptions, stars and read state into a preview. Nothing is
 // written until ConfirmImport.
 func (s Session) StartImport(ctx context.Context, req ImportRequest) (ImportStatus, error) {

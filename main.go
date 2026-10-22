@@ -17,6 +17,7 @@ import (
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/store"
 	"github.com/yangflow/oriel/internal/ui/connect"
@@ -29,19 +30,26 @@ import (
 // defaultPort is where `oriel serve` listens unless -port says otherwise.
 const defaultPort = 7470
 
+// logs keeps the recent warnings and errors of this process for the diagnostics file.
+var logs *diag.Handler
+
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+	logs = diag.NewHandler(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		ReplaceAttr: func(_ []string, attr slog.Attr) slog.Attr {
 			if attr.Key == slog.TimeKey {
 				return slog.Time(attr.Key, attr.Value.Time().UTC())
 			}
 			return attr
 		},
-	})))
+	}), diag.Keep)
+	slog.SetDefault(slog.New(logs))
 	// The name decides the user data directory: ~/Library/Application Support/Oriel, %AppData%\Oriel, ~/.config/Oriel.
 	mygo.App.SetName("Oriel")
 	if len(os.Args) > 1 && os.Args[1] == "serve" {
 		os.Exit(serve(os.Args[2:]))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "diagnostics" {
+		os.Exit(diagnostics(os.Args[2:], os.Stdout))
 	}
 	desktop()
 }
@@ -74,7 +82,7 @@ func serve(args []string) int {
 	password := os.Getenv("ORIEL_PASSWORD")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	b, err := start(ctx, *dataDir, password, *port)
+	b, err := start(ctx, *dataDir, password, diag.ModeHeadless, *port)
 	if err != nil {
 		slog.Error("Cannot start", "error", err, "data", *dataDir)
 		return 1
@@ -117,7 +125,7 @@ func desktop() {
 	var b *backend
 	dataDir, err := mygo.App.Path(mygo.PathUserData)
 	if err == nil {
-		b, err = start(context.Background(), dataDir, "", 0)
+		b, err = start(context.Background(), dataDir, "", diag.ModeDesktop, 0)
 	}
 	if err != nil {
 		slog.Error("Cannot start", "error", err, "data", dataDir)
@@ -138,10 +146,14 @@ func desktop() {
 				window.Update(apply)
 			}()
 		}
-		// The files asked for are OPML (the settings) or Markdown (the reader), told by the name offered.
+		// The files asked for are OPML or the diagnostics text (the settings) or Markdown (the reader), told by the
+		// name offered.
 		filters := func(name, label string) []mygo.FileFilter {
-			if filepath.Ext(name) == ".md" {
+			switch filepath.Ext(name) {
+			case ".md":
 				return []mygo.FileFilter{{Name: label, Extensions: []string{"md"}}}
+			case ".txt":
+				return []mygo.FileFilter{{Name: label, Extensions: []string{"txt"}}}
 			}
 			return []mygo.FileFilter{{Name: label, Extensions: []string{"opml", "xml"}}}
 		}
@@ -206,6 +218,11 @@ func desktop() {
 				{Label: help, Submenu: []*mygo.MenuItem{
 					{Label: keys, Accelerator: "CmdOrCtrl+/", Click: func(*mygo.MenuItem, *mygo.Window) {
 						window.Update(root.showKeys)
+					}},
+					{Label: settings.DiagnosticsMenuLabel(language), Click: func(*mygo.MenuItem, *mygo.Window) {
+						window.Update(root.exportDiagnostics)
+						window.Restore()
+						window.Focus()
 					}},
 				}},
 			}))
