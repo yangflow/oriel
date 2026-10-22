@@ -736,6 +736,8 @@ func openAI(t *testing.T, language string, configured bool) (*Screen, *fake, *ui
 		f.settings.AIBaseURL, f.settings.AIModel, f.settings.AIAPIKeySet = "https://api.example.com/v1", "small", true
 	}
 	f.model = "small"
+	// The AI page is longer than the default window; fonts differ by platform, so leave room for all of it.
+	tt.SetSize(1000, 1400)
 	s.OpenAI()
 	f.settle(tt)
 	return s, f, tt
