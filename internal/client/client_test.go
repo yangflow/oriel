@@ -170,6 +170,9 @@ func TestTimelineAPI(t *testing.T) {
 				"images":[{"url":"https://i/1.jpg","width":4,"height":3}],"createdAt":1700000000000}],"nextCursor":null}`))
 		case "/api/sources":
 			w.Write([]byte(`{"sources":[{"id":1,"title":"Feed","kind":"article","unreadCount":3,"lastError":"boom","fetchIntervalSec":900,"fetchIntervalAuto":true,"suggestedKind":"video"}]}`))
+		case "/api/sources/health":
+			w.Write([]byte(`{"windowDays":30,"sources":[{"id":2,"title":"Old","state":"dead","cause":"silent","days":143,"recent":0},
+				{"id":3,"title":"Busy","state":"rarelyRead","recent":120,"recentRead":3,"recentStarred":1}]}`))
 		case "/api/entries/7":
 			w.Write([]byte(`{"id":7,"starred":true,"readProgress":0.5,"extractStatus":"ok","contentHtml":"<p>x</p>","extractedHtml":"<p>y</p>"}`))
 		case "/api/entries/7/extract":
@@ -217,6 +220,11 @@ func TestTimelineAPI(t *testing.T) {
 	if err != nil || len(sources) != 1 || sources[0].UnreadCount != 3 || sources[0].LastError != "boom" ||
 		sources[0].FetchIntervalSec != 900 || !sources[0].FetchIntervalAuto || sources[0].SuggestedKind != "video" {
 		t.Errorf("Sources = %+v, %v", sources, err)
+	}
+	if health, err := session.SourcesHealth(ctx); err != nil || health.WindowDays != 30 || len(health.Sources) != 2 ||
+		health.Sources[0].State != HealthDead || health.Sources[0].Cause != HealthCauseSilent || health.Sources[0].Days != 143 ||
+		health.Sources[1].State != HealthRarelyRead || health.Sources[1].Recent != 120 || health.Sources[1].RecentRead != 3 {
+		t.Errorf("SourcesHealth = %+v, %v", health, err)
 	}
 	if article, err := session.Entry(ctx, 7); err != nil || article.ID != 7 || article.ExtractStatus != "ok" ||
 		article.ContentHTML != "<p>x</p>" || article.ExtractedHTML != "<p>y</p>" {
@@ -276,6 +284,7 @@ func TestTimelineAPI(t *testing.T) {
 		"GET /api/entries?q=ab ",
 		"POST /api/entries/7/extract ",
 		"GET /api/sources ",
+		"GET /api/sources/health ",
 		"GET /api/entries/7 ",
 		`PATCH /api/entries/7 {"starred":true}`,
 		`PATCH /api/entries/7 {"readProgress":0.5}`,

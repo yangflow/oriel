@@ -121,6 +121,37 @@ func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, map[string]any{"sources": items})
 }
 
+type healthJSON struct {
+	ID                  int64  `json:"id"`
+	URL                 string `json:"url"`
+	RSSHubPath          string `json:"rsshubPath"`
+	Title               string `json:"title"`
+	IconURL             string `json:"iconUrl"`
+	Kind                string `json:"kind"`
+	State               string `json:"state"`
+	Cause               string `json:"cause"`
+	Days                int    `json:"days"`
+	ConsecutiveFailures int    `json:"consecutiveFailures"`
+	LastError           string `json:"lastError"`
+	Recent              int    `json:"recent"`
+	RecentRead          int    `json:"recentRead"`
+	RecentStarred       int    `json:"recentStarred"`
+}
+
+// sourcesHealth lists the sources that are dead, failing or rarely read (docs/product.md, "订阅健康").
+func (s *Server) sourcesHealth(w http.ResponseWriter, r *http.Request) {
+	list, err := s.store.SourcesHealth(r.Context(), s.now())
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	items := make([]healthJSON, len(list))
+	for i, h := range list {
+		items[i] = healthJSON(h)
+	}
+	reply(w, http.StatusOK, map[string]any{"windowDays": store.HealthWindowDays, "sources": items})
+}
+
 func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		URL               string `json:"url"`

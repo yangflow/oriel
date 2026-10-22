@@ -94,7 +94,21 @@
     "PromptTranslate": "Translation prompt",
     "PromptPlaceholder": "Empty uses the prompt in Settings",
     "AIOff": "AI isn’t set up, so nothing is summarized or translated yet.",
-    "OpenSettings": "Open Settings…"
+    "OpenSettings": "Open Settings…",
+    "HealthTitle": "Subscription health",
+    "HealthSub": "Sources that need a decision. Nothing changes until you choose.",
+    "HealthChecking": "Checking…",
+    "HealthError": "Couldn’t check your subscriptions. Try again.",
+    "HealthOk": "All your subscriptions look healthy",
+    "HealthSilent": "No new entries for {n} days",
+    "HealthDead": "Failing for {n} days",
+    "HealthFailing": "Failed {n} times in a row",
+    "HealthRare": "Read {read} of {n} new entries in the last {days} days",
+    "HealthWhy": "{reason}: {error}",
+    "HealthNumbers": "Last {days} days: {recent} new, {read} read, {starred} starred",
+    "PauseSource": "Pause {name}",
+    "Unsubscribe": "Unsubscribe…",
+    "UnsubscribeSource": "Unsubscribe from {name}"
   },
   "zh-Hans": {
     "Add": "添加订阅",
@@ -191,6 +205,20 @@
     "PromptTranslate": "翻译 prompt",
     "PromptPlaceholder": "留空就用设置里的 prompt",
     "AIOff": "还没配置 AI，暂时不会摘要或翻译。",
-    "OpenSettings": "打开设置…"
+    "OpenSettings": "打开设置…",
+    "HealthTitle": "订阅健康",
+    "HealthSub": "这些订阅需要你来决定。你不选，什么都不会变。",
+    "HealthChecking": "正在检查…",
+    "HealthError": "没能检查订阅，再试一次。",
+    "HealthOk": "订阅都很健康",
+    "HealthSilent": "已有 {n} 天没有新条目",
+    "HealthDead": "已连续失败 {n} 天",
+    "HealthFailing": "已连续失败 {n} 次",
+    "HealthRare": "近 {days} 天新增 {n} 条，只读了 {read} 条",
+    "HealthWhy": "{reason}：{error}",
+    "HealthNumbers": "近 {days} 天：新增 {recent} 条，已读 {read} 条，收藏 {starred} 条",
+    "PauseSource": "暂停 {name}",
+    "Unsubscribe": "退订…",
+    "UnsubscribeSource": "退订 {name}"
   }
 }
