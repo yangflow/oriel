@@ -55,6 +55,15 @@ func (s *Server) backup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// maintenance reports that a restore or a vacuum is under way, when an automatic backup must not start.
+func (s *Server) maintenance() bool {
+	if !s.restoring.TryLock() {
+		return true
+	}
+	s.restoring.Unlock()
+	return s.vacuumNow().State == "running"
+}
+
 type restoreJSON struct {
 	Sources int `json:"sources"`
 	Entries int `json:"entries"`

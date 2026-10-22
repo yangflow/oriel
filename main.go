@@ -188,6 +188,16 @@ func desktop() {
 				}
 				return paths[0], nil
 			},
+			Folder: func() (string, error) {
+				paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: window, Directory: true})
+				if err != nil {
+					slog.Error("Cannot show the folder dialog", "error", err)
+				}
+				if err != nil || len(paths) == 0 {
+					return "", err
+				}
+				return paths[0], nil
+			},
 			Save: func(name, filter string) (string, error) {
 				path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: window, DefaultPath: name,
 					Filters: filters(name, filter), CreateDirectories: true})

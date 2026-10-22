@@ -1,13 +1,16 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/yangflow/oriel/internal/ai"
+	"github.com/yangflow/oriel/internal/autobackup"
 	"github.com/yangflow/oriel/internal/fetch"
 )
 
@@ -39,6 +42,15 @@ type settingsJSON struct {
 	// The built-in prompts, so a client can tell a changed prompt and restore it.
 	DefaultPromptSummary   string `json:"defaultPromptSummary"`
 	DefaultPromptTranslate string `json:"defaultPromptTranslate"`
+	// Automatic backup: what was chosen, and how the last tries went (Unix milliseconds, 0 for never).
+	AutoBackupEnabled   bool   `json:"autoBackupEnabled"`
+	AutoBackupFolder    string `json:"autoBackupFolder"`
+	AutoBackupFrequency string `json:"autoBackupFrequency"`
+	AutoBackupKeep      int    `json:"autoBackupKeep"`
+	AutoBackupLastAt    int64  `json:"autoBackupLastAt"`
+	AutoBackupLastFile  string `json:"autoBackupLastFile"`
+	AutoBackupFailedAt  int64  `json:"autoBackupFailedAt"`
+	AutoBackupError     string `json:"autoBackupError"`
 }
 
 func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
@@ -67,6 +79,11 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	backup, status, err := autobackup.Load(r.Context(), s.store)
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	instances := fetch.Instances(root)
 	if instances == nil {
 		instances = []string{}
@@ -82,6 +99,9 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		DefaultAIChunkLimit: ai.DefaultChunk, PromptSummary: cfg.PromptSummary,
 		PromptTranslate: cfg.PromptTranslate, DefaultPromptSummary: ai.DefaultPromptSummary,
 		DefaultPromptTranslate: ai.DefaultPromptTranslate,
+		AutoBackupEnabled:      backup.Enabled, AutoBackupFolder: backup.Folder, AutoBackupFrequency: backup.Frequency,
+		AutoBackupKeep: backup.Keep, AutoBackupLastAt: status.LastAt, AutoBackupLastFile: status.LastFile,
+		AutoBackupFailedAt: status.FailedAt, AutoBackupError: status.Error,
 	})
 }
 
@@ -99,6 +119,11 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		AIChunkLimit    *int      `json:"aiChunkLimit"`
 		PromptSummary   *string   `json:"promptSummary"`
 		PromptTranslate *string   `json:"promptTranslate"`
+
+		AutoBackupEnabled   *bool   `json:"autoBackupEnabled"`
+		AutoBackupFolder    *string `json:"autoBackupFolder"`
+		AutoBackupFrequency *string `json:"autoBackupFrequency"`
+		AutoBackupKeep      *int    `json:"autoBackupKeep"`
 	}
 	if !readBody(w, r, &body) {
 		return
@@ -194,11 +219,24 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		changes = append(changes, [2]string{field.key, stored})
 	}
+	backupChanges, code, err := s.autoBackupChanges(r.Context(), body.AutoBackupEnabled, body.AutoBackupFolder, body.AutoBackupFrequency, body.AutoBackupKeep)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	if code != "" {
+		fail(w, http.StatusBadRequest, code)
+		return
+	}
+	changes = append(changes, backupChanges...)
 	for _, change := range changes {
 		if err := s.store.SetSetting(r.Context(), change[0], change[1]); err != nil {
 			internal(w, err)
 			return
 		}
+	}
+	if len(backupChanges) > 0 && s.auto != nil {
+		s.auto.Poke()
 	}
 	s.getSettings(w, r)
 }
@@ -230,4 +268,57 @@ func websubBase(root string) bool {
 	u, err := url.Parse(root)
 	return err == nil && u.Scheme == "https" && u.Hostname() != "" && u.User == nil && u.RawQuery == "" &&
 		u.Fragment == "" && !strings.ContainsAny(root, "\r\n ")
+}
+
+// autoBackupChanges validates the automatic backup fields of a settings update against what is stored, and returns the
+// settings to write or the error code. The folder is checked on the spot when it changes or the switch is turned on,
+// not when the switch is only turned off.
+func (s *Server) autoBackupChanges(ctx context.Context, enabled *bool, folder, frequency *string, keep *int) ([][2]string, string, error) {
+	if enabled == nil && folder == nil && frequency == nil && keep == nil {
+		return nil, "", nil
+	}
+	current, _, err := autobackup.Load(ctx, s.store)
+	if err != nil {
+		return nil, "", err
+	}
+	var changes [][2]string
+	if frequency != nil {
+		if *frequency != autobackup.Daily && *frequency != autobackup.Weekly {
+			return nil, "invalid_backup_frequency", nil
+		}
+		changes = append(changes, [2]string{autobackup.FrequencySetting, *frequency})
+	}
+	if keep != nil {
+		if *keep < autobackup.MinKeep || *keep > autobackup.MaxKeep {
+			return nil, "invalid_backup_keep", nil
+		}
+		changes = append(changes, [2]string{autobackup.KeepSetting, strconv.Itoa(*keep)})
+	}
+	path := current.Folder
+	if folder != nil {
+		path = strings.TrimSpace(*folder)
+		if path != "" && !filepath.IsAbs(path) {
+			return nil, "invalid_backup_folder", nil
+		}
+		changes = append(changes, [2]string{autobackup.FolderSetting, path})
+	}
+	on := current.Enabled
+	if enabled != nil {
+		on = *enabled
+		value := ""
+		if on {
+			value = "1"
+		}
+		changes = append(changes, [2]string{autobackup.EnabledSetting, value})
+	}
+	turnedOn := enabled != nil && *enabled
+	if on && path == "" && (turnedOn || folder != nil) {
+		return nil, "invalid_backup_folder", nil
+	}
+	if path != "" && (turnedOn || folder != nil) {
+		if code := autobackup.ValidateFolder(path); code != "" {
+			return nil, "backup_" + code, nil
+		}
+	}
+	return changes, "", nil
 }

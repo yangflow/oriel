@@ -378,6 +378,16 @@ type Settings struct {
 	PromptTranslate        string   `json:"promptTranslate"`
 	DefaultPromptSummary   string   `json:"defaultPromptSummary"`
 	DefaultPromptTranslate string   `json:"defaultPromptTranslate"`
+	// Automatic backup: the choices, and the outcome of the last tries in Unix milliseconds (0 for never) with the
+	// code of the last failure.
+	AutoBackupEnabled   bool   `json:"autoBackupEnabled"`
+	AutoBackupFolder    string `json:"autoBackupFolder"`
+	AutoBackupFrequency string `json:"autoBackupFrequency"`
+	AutoBackupKeep      int    `json:"autoBackupKeep"`
+	AutoBackupLastAt    int64  `json:"autoBackupLastAt"`
+	AutoBackupLastFile  string `json:"autoBackupLastFile"`
+	AutoBackupFailedAt  int64  `json:"autoBackupFailedAt"`
+	AutoBackupError     string `json:"autoBackupError"`
 }
 
 // AIConfigured reports whether the settings name an AI endpoint and a model.
@@ -397,6 +407,11 @@ type SettingsPatch struct {
 	AIChunkLimit    *int      `json:"aiChunkLimit,omitempty"`
 	PromptSummary   *string   `json:"promptSummary,omitempty"`
 	PromptTranslate *string   `json:"promptTranslate,omitempty"`
+
+	AutoBackupEnabled   *bool   `json:"autoBackupEnabled,omitempty"`
+	AutoBackupFolder    *string `json:"autoBackupFolder,omitempty"`
+	AutoBackupFrequency *string `json:"autoBackupFrequency,omitempty"`
+	AutoBackupKeep      *int    `json:"autoBackupKeep,omitempty"`
 }
 
 // AIResult is a summary or translation of an entry: Status is "pending", "ok" or "failed", Error the code of a
