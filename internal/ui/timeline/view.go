@@ -227,13 +227,15 @@ type Screen struct {
 	oldest        bool // the list runs oldest first, as the preferences of this device choose
 	restoring     bool // the scope is a subscription kept from the last run, to check when the sources load
 
-	query     string    // as typed
-	searched  string    // the search in effect, trimmed
-	editedAt  time.Time // when the query last changed, for the debounce
-	editing   bool
-	searchBox bool // give the search field the focus in the next frame
-	typing    bool // the search field has the focus
-	clearing  bool // Escape cleared the search field
+	query      string    // as typed
+	searched   string    // the search in effect, trimmed
+	editedAt   time.Time // when the query last changed, for the debounce
+	editing    bool
+	searchBox  bool // give the search field the focus in the next frame
+	focusSeen  bool // the search field had the focus in the last frame
+	searchOpen bool // the search icon of a narrow toolbar was opened and stays a field until it loses the focus
+	typing     bool // the search field has the focus
+	clearing   bool // Escape cleared the search field
 
 	sideQuery  string // the sidebar's filter of subscriptions, as typed; not kept between runs
 	filtering  bool   // the sidebar's filter field has the focus
@@ -2442,8 +2444,10 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 	defer c.SetTheme(main)
 	pane.Children(func() {
 		t := c.Theme()
-		// The first 40 are the window buttons' and drag the window.
-		ui.Box(c).FillWidth().Height(40).DragWindow()
+		// The top 40 are the window buttons' at the left and the button that hides the pane at the right, centered
+		// on the toolbar row's middle line (the pane floats 8 from the top); the rest of it drags the window.
+		ui.Row(c).FillWidth().Height(40).AlignItems(ui.Start).Justify(ui.End).
+			Padding(theme.Bar/2-8-px(t, 32)/2, px(t, 8), 0, 0).DragWindow().Children(func() { s.sidebarButton(c, false) })
 		onSource := slices.ContainsFunc(s.sources, func(src client.Source) bool {
 			return src.ID == s.scope.source && (!s.failingOnly || failed(src)) && s.named(src)
 		})
@@ -2904,6 +2908,18 @@ func (s *Screen) serverBar(c *ui.Context) {
 	})
 }
 
+// narrowColumn is the main column width under which the toolbar spends less: the segments are padded 7, the
+// gap between the items is 4 and the unread count is left out. fieldColumn is the width from which search is a field;
+// under it search is an icon that expands when it is clicked. Both are about the column, not the window, so hiding the
+// sidebar gives the toolbar its room back.
+const (
+	narrowColumn = 580
+	fieldColumn  = 736
+)
+
+// toolbar is three parts on one 52 high row: the title at the leading end, the segments in the middle, and at the
+// trailing end a group of icon buttons with search last. The title's and the trailing part's boxes grow equally from
+// nothing, so the segments sit in the middle of the column however long the title is.
 func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 	t := c.Theme()
 	bar := c.TitleBar()
@@ -2912,39 +2928,64 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 	if hidden {
 		left += bar.Left
 	}
+	width, _ := c.Size()
+	column := float32(width)
+	if !hidden {
+		column -= sideWidth(t, compact) + 8
+	}
+	narrow := column < narrowColumn
+	field := column >= fieldColumn
 	gap := px(t, 10)
-	if compact {
+	if narrow {
 		gap = px(t, 4)
 	}
 	// Keyed, so the search field keeps its focus when the hint above it in the column comes and goes.
 	ui.Row(c).Key("toolbar").Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(gap).
 		Padding(0, t.Space(3)+bar.Right, 0, left).DragWindow().Children(func() {
-		s.sidebarButton(c, hidden)
-		ui.Text(c, s.scopeName()).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(px(t, 40)).Shrink(1).
-			Role(ui.RoleHeading).Level(1)
-		sub := ""
-		switch {
-		case s.searched != "" && !s.loading && !s.loadErr:
-			sub = s.format(s.text.Results, len(s.entries))
-			if s.next != "" {
-				sub = s.format(s.text.MoreResults, len(s.entries))
+		ui.Row(c).Grow(1).Basis(0).MinWidth(0).AlignItems(ui.Center).Gap(gap).Children(func() {
+			if hidden {
+				s.sidebarButton(c, true)
 			}
-		case s.searched == "" && s.budget == 0 && s.sourcesLoaded:
-			if n := s.unreadIn(s.scope); n > 0 {
-				sub = s.format(s.text.UnreadCount, n)
+			ui.Text(c, s.scopeName()).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(px(t, 40)).Shrink(1).
+				Role(ui.RoleHeading).Level(1)
+			sub := ""
+			switch {
+			case s.searched != "" && !s.loading && !s.loadErr:
+				sub = s.format(s.text.Results, len(s.entries))
+				if s.next != "" {
+					sub = s.format(s.text.MoreResults, len(s.entries))
+				}
+			case s.searched == "" && s.budget == 0 && s.sourcesLoaded:
+				if n := s.unreadIn(s.scope); n > 0 {
+					sub = s.format(s.text.UnreadCount, n)
+				}
 			}
-		}
-		// At the minimum width the count gives way before the title does.
-		if sub != "" && !compact {
-			ui.Text(c, sub).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
-		}
-		s.editButton(c)
-		ui.Box(c).Grow(1)
-		s.filters(c, compact)
-		s.budgetButton(c, compact)
-		s.gridButton(c)
-		s.searchField(c, compact)
-		s.markAllButton(c)
+			// In a narrow column the count gives way before the title does.
+			if sub != "" && !narrow {
+				ui.Text(c, sub).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
+			}
+			s.editButton(c)
+		})
+		s.filters(c, narrow)
+		ui.Row(c).Grow(1).Basis(0).MinWidth(0).AlignItems(ui.Center).Justify(ui.End).Gap(gap).Children(func() {
+			// Where search is only an icon, it takes the room of the other buttons while it is open.
+			open := field || s.searchOpen || s.searchBox || s.typing || s.query != ""
+			if open && !field {
+				s.searchField(c, true)
+				return
+			}
+			// The icon buttons are one group with the same gap between them, whatever the column.
+			ui.Row(c).AlignItems(ui.Center).Gap(px(t, 4)).Shrink(0).Children(func() {
+				s.budgetButton(c, !field)
+				s.gridButton(c)
+				s.markAllButton(c)
+			})
+			if field {
+				s.searchField(c, false)
+				return
+			}
+			s.searchIcon(c)
+		})
 	})
 }
 
@@ -3115,15 +3156,13 @@ func (s *Screen) setBudget(n int) {
 }
 
 // searchField is a search field whose text input takes the focus from Cmd+F and /, which ui.SearchField does not
-// let it: the magnifier, the input, and a button clearing it, as Escape does.
-func (s *Screen) searchField(c *ui.Context, compact bool) {
+// let it: the magnifier, the input, and a button clearing it, as Escape does. It is 200 wide and gives room before
+// anything else does; opened from the icon of a narrow toolbar (opened) it stays until it loses the focus with no
+// text in it.
+func (s *Screen) searchField(c *ui.Context, opened bool) {
 	t := c.Theme()
-	width := px(t, 200)
-	if compact {
-		width = px(t, 136)
-	}
 	_, short := s.trimmed()
-	box := ui.Row(c).Key("search").Width(width).MinWidth(px(t, 64)).Shrink(100).Height(px(t, 32)).Gap(px(t, 6)).Padding(0, px(t, 6), 0, px(t, 12)).
+	box := ui.Row(c).Key("search").Width(px(t, 200)).MinWidth(px(t, 48)).Shrink(100).Height(px(t, 32)).Gap(px(t, 6)).Padding(0, px(t, 6), 0, px(t, 12)).
 		Radius(px(t, 16))
 	focused := s.typing
 	switch {
@@ -3162,8 +3201,13 @@ func (s *Screen) searchField(c *ui.Context, compact bool) {
 	if box.Clicked() || s.searchBox {
 		input.Focus()
 		s.searchBox = false
+		s.searchOpen = opened
 	}
 	s.typing = input.Focused()
+	if opened && s.searchOpen && !s.typing && s.focusSeen {
+		s.searchOpen = false
+	}
+	s.focusSeen = s.typing
 	if short {
 		box.InsetShadow(0, 0, 0, 1.5, t.Warning)
 	}
@@ -3181,6 +3225,18 @@ func (s *Screen) searchField(c *ui.Context, compact bool) {
 	}
 	if input.Submitted() {
 		s.search()
+	}
+}
+
+// searchIcon is search in a toolbar too narrow for the field: a bare 32 square icon button that opens the field.
+func (s *Screen) searchIcon(c *ui.Context) {
+	t := c.Theme()
+	b := ui.ButtonBase(c).Key("search").Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 16)).Label(s.text.Search).
+		Tooltip(s.text.Search)
+	color := toolFill(t, b)
+	b.Children(func() { ui.Icon(c, icons.Search).FontSize(px(t, 16)).TextColor(color) })
+	if b.Clicked() {
+		s.searchBox = true
 	}
 }
 
@@ -3223,7 +3279,7 @@ func (s *Screen) markAllButton(c *ui.Context) {
 	t := c.Theme()
 	can := s.canMarkAll()
 	label := s.markAllLabel()
-	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 8)).Label(label).Tooltip(label).Disabled(!can)
+	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 16)).Label(label).Tooltip(label).Disabled(!can)
 	color := theme.Disabled(t)
 	if can {
 		color = toolFill(t, b)

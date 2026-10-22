@@ -27,6 +27,8 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | symbol-button | `t.Space(11)` | 44 | width of square symbol buttons |
 | radius | `Theme.Radius` | 8 | corners of controls |
 | toolbar | `t.Space(13)` | 52 | the toolbar row; the window buttons are centered in it |
+| sidebar button | top 40 of the pane, right inset `t.Space(8)` | 32 | centered on the toolbar row's middle line |
+| search | width 200 (min 48) from a 736 wide column, else a 32 square icon | 32 | flat ink field at the far right of the toolbar |
 | capsule | `t.Space(8)`, radius 16 | 32 | glass toolbar controls: the segmented control, the Summarize/Translate capsule |
 | segment | 26 high, radius 13 | 26 | a segment inside the capsule, 3 from its edge, 2 apart |
 | pane-inset | `t.Space(2)` | 8 | the ink pane's distance from the window's edges |
