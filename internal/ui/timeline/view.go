@@ -55,6 +55,8 @@ type copy struct {
 	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu                            string
 	Retrying, Pending                                                                                                                                                   string
 	Fetching, FetchedEntries, FetchedEntry, FetchedNone, FetchFailed, FreshEntries, FreshEntry, NothingNewIn                                                            string
+	PacksLabel, PacksAdding, PackAdded, PackOne, PackSome, PackNone                                                                                                     string
+	Packs                                                                                                                                                               map[string]packText
 }
 
 var translations = func() map[string]copy {
@@ -314,6 +316,7 @@ type Screen struct {
 	toast     string
 	refresh   *refreshing // "refresh all" from the request to the result, nil for none
 	result    *refreshed  // the result to show as a toast
+	packing   string      // the starter pack being added, "" for none
 }
 
 // refreshing is "refresh all" under way: the server queued queued subscriptions at the time at, and each one that was
@@ -400,7 +403,7 @@ func (s *Screen) Use(api API, server string) {
 	s.renew()
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
 	s.undoable, s.seeking, s.keys, s.pal = nil, false, false, paletteState{}
-	s.refresh, s.result = nil, nil
+	s.refresh, s.result, s.packing = nil, nil, ""
 	s.queue, s.sending, s.failures = nil, false, 0
 	s.watching, s.watchBusy, s.notes = nil, false, nil
 	s.subs.Use(api)
@@ -3742,6 +3745,7 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed b
 					s.deps.OpenImport()
 				}
 			})
+			s.packCards(c)
 		}
 	})
 }
