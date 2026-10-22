@@ -465,6 +465,55 @@ func TestMuted(t *testing.T) {
 	}
 }
 
+func TestMutedCount(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	ctx := context.Background()
+	at := time.UnixMilli(1_700_000_000_000)
+	src, err := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "", at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []FeedEntry{
+		{GUID: "a", Title: "Rust news"},
+		{GUID: "b", Title: "Weekly", Summary: "Sponsored by ACME"},
+		{GUID: "c", Title: "Rust again"},
+		{GUID: "d", Title: "Other"},
+	}
+	if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: src.Kind}, "", "", items, "", time.Time{}, at); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := s.Entries(ctx, EntryFilter{}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Title == "Rust again" {
+			star := true
+			if _, err := s.UpdateEntry(ctx, e.ID, EntryPatch{Starred: &star}, at); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for _, c := range []struct {
+		keywords string
+		want     int
+	}{
+		{"", 0},
+		{"python", 0},
+		{"rust", 1}, // the starred one stays
+		{"rust\nacme", 2},
+		{"ACME", 1},
+	} {
+		got, err := s.MutedCount(ctx, src.ID, c.keywords)
+		if err != nil || got != c.want {
+			t.Errorf("MutedCount(%q) = %d, %v; want %d", c.keywords, got, err, c.want)
+		}
+	}
+	if _, err := s.MutedCount(ctx, src.ID+1, "rust"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown source: %v", err)
+	}
+}
+
 func TestAIResults(t *testing.T) {
 	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
 	ctx := context.Background()

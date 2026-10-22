@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -34,7 +35,7 @@ type copy struct {
 	AddedSoFar                                                                                                                              string
 	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn                          string
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                               string
-	ServedBy, ServedByBackup                                                                                                                string
+	ServedBy, ServedByBackup, MuteHidden, MuteNone                                                                                          string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                         string
 	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                 string
 	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                       string
@@ -63,6 +64,7 @@ type API interface {
 	DeleteSource(ctx context.Context, id int64) error
 	RefreshSource(ctx context.Context, id int64) error
 	SourcesHealth(ctx context.Context) (client.Health, error)
+	MutedCount(ctx context.Context, id int64, keywords string) (int, error)
 	Settings(ctx context.Context) (client.Settings, error)
 	SetSettings(ctx context.Context, patch client.SettingsPatch) (client.Settings, error)
 }
@@ -137,6 +139,9 @@ type editing struct {
 	interval int64
 	paused   bool
 	mute     string
+	counted  string // the keywords the count was asked for
+	hidden   int    // how many entries the keywords hide, once known
+	known    bool
 	auto     [2]bool   // summarize and translate new entries
 	prompts  [2]string // the summary and translation prompts of the subscription, "" for the ones in the settings
 	aiOff    bool      // the settings have no AI endpoint, so the switches do nothing yet
@@ -173,6 +178,8 @@ type Screen struct {
 	edit     editing
 	report   reporting
 	deleting bool
+	muteSeq  atomic.Int64  // counts the questions about the mute keywords, so the work of an older one gives up
+	muteWait time.Duration // the pause after typing before the count is asked for
 	doomed   client.Source // the subscription being deleted
 	announce string
 	toast    string
@@ -183,7 +190,7 @@ func New(systemLocale string, deps Deps) *Screen {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
-	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)]}
+	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)], muteWait: 300 * time.Millisecond}
 }
 
 // SetLanguage shows the screen in the language of systemLocale, keeping what it shows.
@@ -1462,6 +1469,43 @@ func (s *Screen) muteField(c *ui.Context) {
 			area.Background(theme.RaisedFill(t))
 		}
 		help(c, s.text.MuteHelp)
+		s.syncMuted()
+		if e := s.edit; e.known {
+			text := s.text.MuteNone
+			if e.hidden > 0 {
+				text = s.count(s.text.MuteHidden, e.hidden)
+			}
+			ui.Text(c, text).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).Wrap().Role(ui.RoleStatus)
+		}
+	})
+}
+
+// syncMuted asks the server how many entries the keywords in the box hide, once the box has changed and stayed so
+// for muteWait. The answer of an older question is dropped. Nothing is asked for an empty box: it hides nothing.
+func (s *Screen) syncMuted() {
+	e := &s.edit
+	if e.mute == e.counted || s.api == nil {
+		return
+	}
+	e.counted = e.mute
+	seq := s.muteSeq.Add(1)
+	if strings.TrimSpace(e.mute) == "" {
+		e.known = false
+		return
+	}
+	gen, api, id, keywords, wait := s.gen, s.api, e.src.ID, e.mute, s.muteWait
+	s.deps.Go(func() func() {
+		time.Sleep(wait)
+		if s.muteSeq.Load() != seq {
+			return func() {}
+		}
+		n, err := api.MutedCount(context.Background(), id, keywords)
+		return func() {
+			if gen != s.gen || s.expired(err) || !s.edit.open || s.edit.src.ID != id || s.muteSeq.Load() != seq {
+				return
+			}
+			s.edit.hidden, s.edit.known = n, err == nil
+		}
 	})
 }
 
