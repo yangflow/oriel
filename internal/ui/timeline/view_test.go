@@ -37,6 +37,7 @@ type fake struct {
 	sources     []client.Source
 	health      client.Health
 	queries     []client.Query
+	setReply    client.Entry // what the server answers to a change
 	patches     map[int64][]client.EntryPatch
 	marked      []client.ReadScope
 	unmarked    [][]int64
@@ -103,7 +104,7 @@ func (f *fake) Sources(context.Context) (client.SourceList, error) {
 
 func (f *fake) SetEntry(_ context.Context, id int64, patch client.EntryPatch) (client.Entry, error) {
 	f.patches[id] = append(f.patches[id], patch)
-	return client.Entry{}, f.setErr
+	return f.setReply, f.setErr
 }
 
 // shownAt is the time a row shows: when it was published, else when it arrived.
@@ -5064,5 +5065,56 @@ func TestGroupedReadCountsEveryCopy(t *testing.T) {
 	f.settle(t, tt)
 	if f.sourceLoads == before {
 		t.Fatal("the counts were not read again after changing a group")
+	}
+}
+
+func TestChangeReadsCountsWhenServerChangedOtherCopies(t *testing.T) {
+	// One subscription shows the row alone, but the server answers with the other copies it changed too.
+	s, f, tt := setup(t, "en")
+	f.setReply = client.Entry{ID: 8, Group: &client.Group{By: "link", Entries: []client.GroupMember{
+		{ID: 18, SourceID: 3, SourceTitle: "Gopher"}}}}
+	before := f.sourceLoads
+	tt.Key(0, ui.KeyJ)
+	tt.Key(0, ui.KeyM)
+	f.settle(t, tt)
+	if f.sourceLoads == before {
+		t.Fatal("the counts of the other copies' sources were not read again")
+	}
+	// An answer without other copies needs no reload.
+	f.setReply = client.Entry{ID: 8}
+	before = f.sourceLoads
+	tt.Key(0, ui.KeyM)
+	f.settle(t, tt)
+	if f.sourceLoads != before {
+		t.Fatalf("the counts were read again for a row alone: %d -> %d", before, f.sourceLoads)
+	}
+	_ = s
+}
+
+func TestGroupedChangeFailsRestoresEachCopy(t *testing.T) {
+	s, f, tt := setupGrouped(t, "en")
+	// One copy was read already, the other not.
+	m := s.entries[0].Group.Entries
+	m[0].IsRead, m[1].IsRead, m[1].Starred = true, false, true
+	count := func(id int64) int {
+		for _, src := range s.sources {
+			if src.ID == id {
+				return src.UnreadCount
+			}
+		}
+		return -1
+	}
+	n3, n4 := count(3), count(4)
+	f.setErr = &client.APIError{Status: 500, Code: "internal"}
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	g := s.entries[0].Group.Entries
+	if s.entries[0].IsRead || !g[0].IsRead || g[1].IsRead || !g[1].Starred {
+		t.Fatalf("the copies are not as they were: read %v, %+v", s.entries[0].IsRead, g)
+	}
+	if count(3) != n3 || count(4) != n4 {
+		t.Fatalf("counts %d %d, were %d %d", count(3), count(4), n3, n4)
 	}
 }

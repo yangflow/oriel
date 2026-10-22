@@ -1429,18 +1429,20 @@ func (s *Screen) change(id int64, patch client.EntryPatch) {
 	}
 	if s.offline || s.waitingFor(id) >= 0 {
 		// The server is out of reach, or an earlier change of this entry is still waiting and must go first.
-		s.enqueue(id, patch, back)
+		s.enqueue(id, patch, back, before.Group)
 		return
 	}
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
-		_, err := api.SetEntry(context.Background(), id, patch)
+		reply, err := api.SetEntry(context.Background(), id, patch)
 		return func() {
 			if gen != s.gen {
 				return
 			}
 			if err == nil {
-				if before.Group != nil {
+				// The server changes every copy of an article, also when this view shows the row alone (one
+				// subscription, a search): the reply lists the copies, and the counts of their sources are read again.
+				if before.Group != nil || reply.Group != nil && len(reply.Group.Entries) > 0 {
 					s.loadSources()
 				}
 				return
@@ -1449,19 +1451,32 @@ func (s *Screen) change(id int64, patch client.EntryPatch) {
 				return
 			}
 			if unreached(err) {
-				s.enqueue(id, patch, back)
+				s.enqueue(id, patch, back, before.Group)
 				s.drop()
 				return
 			}
-			s.revert(id, back)
+			s.revert(id, back, before.Group)
 		}
 	})
 }
 
 // revert puts an entry back the way it was when the server refused its change.
-func (s *Screen) revert(id int64, back client.EntryPatch) {
+// group is the other copies as they were, each with its own state, which the entry gets back as they were.
+func (s *Screen) revert(id int64, back client.EntryPatch, group *client.Group) {
 	if i := s.index(id); i >= 0 {
-		s.set(i, back)
+		s.setRow(i, back)
+		if e := &s.entries[i]; e.Group != nil && group != nil {
+			members := slices.Clone(e.Group.Entries)
+			for k := range members {
+				m := &members[k]
+				j := slices.IndexFunc(group.Entries, func(o client.GroupMember) bool { return o.ID == m.ID })
+				if j < 0 {
+					continue
+				}
+				m.IsRead, m.Starred = s.moveMember(*m, group.Entries[j].IsRead), group.Entries[j].Starred
+			}
+			e.Group = &client.Group{By: e.Group.By, Entries: members}
+		}
 	}
 	s.patchLists([]int64{id}, back)
 	s.toast = s.text.ActionFailed
@@ -1479,7 +1494,9 @@ func unreached(err error) bool {
 type waiting struct {
 	id          int64
 	patch, back client.EntryPatch
-	version     int
+	// group is the other copies of the article as they were before the first change that is waiting.
+	group   *client.Group
+	version int
 }
 
 // waitingFor is the place in the queue of the changes waiting for entry id, -1 for none.
@@ -1489,10 +1506,10 @@ func (s *Screen) waitingFor(id int64) int {
 
 // enqueue keeps a change the server did not get. A second change of the same entry folds into the first: the last
 // value of each field is sent, and the way back is the state before the first.
-func (s *Screen) enqueue(id int64, patch, back client.EntryPatch) {
+func (s *Screen) enqueue(id int64, patch, back client.EntryPatch, group *client.Group) {
 	i := s.waitingFor(id)
 	if i < 0 {
-		s.queue = append(s.queue, waiting{id: id, patch: patch, back: back, version: 1})
+		s.queue = append(s.queue, waiting{id: id, patch: patch, back: back, group: group, version: 1})
 		return
 	}
 	w := &s.queue[i]
@@ -1556,7 +1573,7 @@ func (s *Screen) flush() {
 					s.queue = slices.Delete(s.queue, j, j+1)
 				}
 				if err != nil {
-					s.revert(w.id, w.back)
+					s.revert(w.id, w.back, w.group)
 				}
 			}
 			if !s.offline {
@@ -1566,7 +1583,8 @@ func (s *Screen) flush() {
 	})
 }
 
-func (s *Screen) set(i int, patch client.EntryPatch) {
+// setRow sets the fields of patch on the row alone and moves the counts of its source.
+func (s *Screen) setRow(i int, patch client.EntryPatch) {
 	e := &s.entries[i]
 	if patch.IsRead != nil && *patch.IsRead != e.IsRead {
 		e.IsRead = *patch.IsRead
@@ -1580,18 +1598,30 @@ func (s *Screen) set(i int, patch client.EntryPatch) {
 	if patch.Starred != nil {
 		e.Starred = *patch.Starred
 	}
+}
+
+// moveMember moves the count of the source of copy m for it being read or not, and returns read.
+func (s *Screen) moveMember(m client.GroupMember, read bool) bool {
+	if m.IsRead != read {
+		delta := 1
+		if read {
+			delta = -1
+		}
+		s.count(client.Entry{SourceID: m.SourceID}, delta)
+	}
+	return read
+}
+
+func (s *Screen) set(i int, patch client.EntryPatch) {
+	s.setRow(i, patch)
+	e := &s.entries[i]
 	if e.Group != nil {
 		// A change reaches every copy of the article. The server's counts come with the reload after it is taken.
 		members := slices.Clone(e.Group.Entries)
 		for k := range members {
 			m := &members[k]
-			if patch.IsRead != nil && *patch.IsRead != m.IsRead {
-				m.IsRead = *patch.IsRead
-				delta := 1
-				if m.IsRead {
-					delta = -1
-				}
-				s.count(client.Entry{SourceID: m.SourceID}, delta)
+			if patch.IsRead != nil {
+				m.IsRead = s.moveMember(*m, *patch.IsRead)
 			}
 			if patch.Starred != nil {
 				m.Starred = *patch.Starred

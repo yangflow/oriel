@@ -1251,9 +1251,9 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 }
 
 // alsoLine is the other sources that carry the article, under its title: a text button each, with the source's
-// monogram, name and time, that shows that copy. There is none for an article that only one source carries.
+// monogram, name and time, that shows that copy. There is none for an article that only one source carries, or when the screen cannot show a copy.
 func (s *Screen) alsoLine(c *ui.Context, e client.Entry) {
-	if e.Group == nil || len(e.Group.Entries) == 0 {
+	if s.deps.OpenCopy == nil || e.Group == nil || len(e.Group.Entries) == 0 {
 		return
 	}
 	t := c.Theme()

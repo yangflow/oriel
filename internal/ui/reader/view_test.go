@@ -1543,3 +1543,19 @@ func TestNoAlsoLineForOneSource(t *testing.T) {
 	f.settle(tt)
 	absent(t, tt, "Also in")
 }
+
+func TestNoAlsoLineWithoutOpenCopy(t *testing.T) {
+	article := full()
+	article.Group = &client.Group{By: "link", Entries: []client.GroupMember{
+		{ID: 18, SourceID: 3, SourceTitle: "Gopher", CreatedAt: now.Add(-4 * time.Minute).UnixMilli()}}}
+	f := &fake{now: now, article: article, nav: Nav{Entry: article.Entry, Scope: "All", Keys: true}}
+	d := f.deps()
+	d.OpenCopy = nil
+	s := New("en", d)
+	s.Use(f)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1100, 800)
+	s.Open(article.Entry)
+	tt.Frame()
+	f.settle(tt)
+	absent(t, tt, "Also in", "Gopher")
+}
