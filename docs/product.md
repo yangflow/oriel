@@ -258,6 +258,38 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 
 抓订阅时认 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，不读系统代理设置。
 
+## 订阅发现
+
+给一个网页地址，找出它的订阅。`GET /api/discover`（见「订阅接口」）是服务端的接口，添加对话框用它，以后 iOS 分享扩展（#170）也用它；它只找，不加订阅，也不写库。
+
+按顺序，找到就停：
+
+1. **内置规则**：地址的主机名（去掉 `www.` 和 `m.`）和路径对上随程序发布的规则表（下面），就直接给出规则里的订阅，不取网页。这些站的页面多半靠脚本渲染或拦截程序，取了也找不到。规则表编在程序里，不在运行时去问 RSSHub Radar 或别的外部服务。
+2. **地址本身**：取网页（经 `guardedClient`，只连公网地址，超时 25 秒，最大 8 MiB，同「正文抽取」）。内容能解析成订阅（RSS、Atom、JSON Feed）的，结果就是这个地址本身（`origin` 为 `feed`）。
+3. **页面声明**：HTML 里 `<link rel="alternate">` 的 `type` 是 `application/rss+xml`、`application/atom+xml`、`application/feed+json` 且 `href` 可补全成 http(s) 地址的，按页面里的顺序给出（`origin` 为 `alternate`），相对地址按页面地址补全，同一地址只留一个，标题取 `title` 属性。
+4. **常见路径**：页面没有声明时，试站点根下的 `/feed`、`/rss`、`/atom.xml`、`/index.xml`、`/feed.json`（`origin` 为 `common`）。只有响应能解析成订阅的才算，按最终地址去重。
+5. 都没有：返回空列表，不是错误。
+
+整个发现最多 20 秒，最多取 6 个页面（网页一个，常见路径五个，依次取）。网页本身取不到时仍会试常见路径。页面取不到时 502 `page_unavailable`，地址不是公网地址时 422 `address_not_public`，不是带主机名的 http 或 https 地址时 400 `invalid_url`。内置规则对上时不取网页，所以这三个错误只出现在取网页的步骤。
+
+内置规则（主机名去掉 `www.` 和 `m.`）：
+
+| 页面 | 订阅 | 形态 |
+|---|---|---|
+| `youtube.com/channel/UC…` | `https://www.youtube.com/feeds/videos.xml?channel_id=<id>` | `video` |
+| `youtube.com/@<handle>` | 路由 `/youtube/user/@<handle>` | `video` |
+| `youtube.com/playlist?list=<id>` | `https://www.youtube.com/feeds/videos.xml?playlist_id=<id>` | `video` |
+| `space.bilibili.com/<uid>` | 路由 `/bilibili/user/video/<uid>`（视频）、`/bilibili/user/dynamic/<uid>`（动态） | `video`、`social` |
+| `weibo.com/u/<uid>`、`weibo.com/<uid>`（数字）、`m.weibo.cn/u/<uid>`、`m.weibo.cn/profile/<uid>` | 路由 `/weibo/user/<uid>` | `social` |
+| `zhihu.com/people/<id>` | 路由 `/zhihu/people/activities/<id>`（动态）、`/zhihu/people/answers/<id>`（回答） | `article` |
+| `zhihu.com/column/<id>`、`zhuanlan.zhihu.com/<id>` | 路由 `/zhihu/zhuanlan/<id>` | `article` |
+| `zhihu.com/topic/<id>` | 路由 `/zhihu/topic/<id>` | `article` |
+| `zhihu.com/collection/<id>` | 路由 `/zhihu/collection/<id>` | `article` |
+| `zhihu.com/question/<id>` | 路由 `/zhihu/question/<id>` | `article` |
+| `x.com/<name>`、`twitter.com/<name>` | 路由 `/twitter/user/<name>` | `social` |
+
+X 的站内页面（见「订阅管理」）不算用户名。规则给出的路由要有 RSSHub 实例才抓得了，这由添加对话框照常处理；规则只给建议，加不加由用户定。
+
 ## WebSub 推送
 
 默认关闭。声明了 WebSub hub 的源可以让 hub 在有新内容时主动通知 Oriel，新条目几秒内出现，而不必等下一次轮询。推送只是让源「马上到期」，内容仍由正常的抓取取回；轮询一直都在，推送失效时回到原来的节奏。
@@ -343,6 +375,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `DELETE /api/sources/{id}` | 删源和它的全部条目，含收藏的，返回 204。 |
 | `POST /api/sources/{id}/refresh` | 「更新」：把 `next_fetch_at` 改成现在，返回 204。 |
 | `POST /api/sources/refresh` | 「全部更新」：把所有未暂停的源的 `next_fetch_at` 一次改成现在，返回 200 和 `{ "queued": N, "at": T }`，`N` 是改了的源数（没有未暂停的源时为 0），`T` 是服务端此刻的毫秒时间戳。不在请求里抓，也不另开线程：这些源和别的到期的源一样由抓取循环去抓，最久没抓的先取，仍是 5 个工作线程和每主机的限制（见「抓取」），所以几百个源要几分钟抓完，不会同时发出几百个请求。 |
+| `GET /api/discover?url=<地址>` | 订阅发现（见「订阅发现」）：返回 `{ "candidates": [...] }`，没找到为空数组。每项：`url`（订阅地址，路由候选为空串）、`rsshubPath`（RSSHub 路由，普通订阅为空串）、`title`（页面或订阅给的标题，可为空）、`kind`（建议的形态，可为空）、`origin`（`rule`、`feed`、`alternate`、`common`）；`origin` 为 `rule` 时还有 `site`（`youtube`、`bilibili`、`weibo`、`zhihu`、`x`）、`label`（`videos`、`dynamic`、`posts`、`activities`、`answers`、`column`、`topic`、`collection`、`question`、`channel`、`playlist`）和 `subject`（用户名、编号或话题名），界面据此按语言拼出名字。不写库。 |
 | `GET /api/sources/health` | 订阅健康（见「订阅健康」）：只返回有问题的源，不带别的源。按需请求，不轮询，也不参与 `GET /api/sources` 的刷新。 |
 
 `GET /api/sources/health` 返回 `{ "windowDays": 30, "sources": [...] }`。每项：`id`、`url`、`rsshubPath`、`title`、`iconUrl`、`kind`、`state`（`dead`、`failing`、`rarelyRead`）、`cause`（`state` 为 `dead` 时是 `failing` 或 `silent`，其余为空串）、`days`（见「订阅健康」）、`consecutiveFailures`、`lastError`，以及窗口内的 `recent`（写入条数）、`recentRead`、`recentStarred`。顺序：已失效、总在失败、很少读；同一档里按标题（空标题用地址）不分大小写排序。没有问题时 `sources` 是空数组。
@@ -803,6 +836,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 
 添加：侧栏的添加按钮、没有订阅时的「添加第一个订阅」和 Cmd/Ctrl+N 打开添加对话框。字段是地址、形态、标题（可空，空就用订阅里的）和检查间隔（自动、15 分钟、30 分钟、1 小时、3 小时、6 小时、12 小时、1 天，默认自动）。自动是默认，因为多数订阅从没人挑过间隔：更新少的订阅不必每 15 分钟被查一次，更新多的也不会查得更慢。
 
+- 地址是网页、不是已识别的平台链接（见下表）、不是路由、也不以 `.atom`、`.rss`、`.xml`、`.json` 结尾时，停止输入约半秒后向 `GET /api/discover` 问一次（后台，不卡界面），地址框下面写「正在找订阅…」，这时「添加」不可用，按回车或「添加」会让这次查找马上开始，而不是添加。找到一个就和识别出的平台链接一样显示成一张卡；找到多个就列成一排，第一个选中，点一个选它，「添加」用选中的那个（候选是路由时仍要有 RSSHub 根地址，见下）。没找到时提示「这个地址下没有找到订阅」，「添加」照原样试这个地址。查找失败（非公网地址、取不到页面、连不上服务端）不挡着添加，同样按原样试。地址又改了，上一次的结果作废。建议只填对话框，加不加由用户定。
 - 地址框边输入边识别，在框下面说清会订阅什么（平台和对象，加上实际的订阅地址或路由），发请求之前就能看到；服务端照样再查一遍。识别出的平台带出形态，用户自己选过形态之后就不再改。
 - 以 `/` 开头、不以 `//` 开头的是 RSSHub 路由。以设置里任一个 RSSHub 根地址开头的完整地址存成路由（去掉根地址），以后换实例只改设置。
 - 别的必须是带主机名的 `http://` 或 `https://` 地址；不是时点「添加」才在框下面报错，把焦点放回地址框，改了地址错误就消失。
@@ -825,7 +859,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 | `t.me/<name>`、`t.me/s/<name>` | 路由 `/telegram/channel/<name>` | `social` |
 | `weibo.com/u/<uid>`、`weibo.com/<uid>`（数字） | 路由 `/weibo/user/<uid>` | `social` |
 
-X 的 `home`、`i`、`search`、`explore`、`settings`、`messages`、`notifications` 等站内页面不算用户名。路径以 `.atom`、`.rss`、`.xml` 结尾的本来就是订阅，不再转换。别的地址原样当订阅地址。
+本地识别只认上表；知乎、B 站动态等见「订阅发现」的规则表，由服务端给出。X 的 `home`、`i`、`search`、`explore`、`settings`、`messages`、`notifications` 等站内页面不算用户名。路径以 `.atom`、`.rss`、`.xml` 结尾的本来就是订阅，不再转换。别的地址原样当订阅地址。
 
 修改：右键菜单的「编辑…」或工具栏的编辑按钮打开编辑对话框。最上面一行是抓取状况：「5 分钟前检查过 · 10 分钟后再查」，还没抓过时「还没检查过」，失败时「连续失败 N 次：原因」，暂停时「已暂停，恢复之前不抓取」，旁边是「更新」（失败时叫「重试」，暂停时没有）。RSSHub 源在这一行下面多一行小字「由 rsshub.example 提供」（`rsshubInstance` 去掉协议；从没成功抓取过则没有这一行），实例不是设置里的第一个时再加「（备用）」，看得出现在走的是备用实例。下面是标题、检查间隔（自动的订阅写成「自动 · 6 小时」，后面是现在用的间隔）、形态、「保留条目」、暂停开关和屏蔽词（每行一个）。「保留条目」和检查间隔是同样的选择菜单：「跟随设置 · 1 个月」（默认，后面是设置里现在的期限，设置是永久时写「永久」）、1 周、1 个月、3 个月、半年、1 年、永久；服务端存的是别的天数时多一项「N 天」；下面一行小字说明「更早的条目会被清理，收藏的条目一直保留。」。第一次抓取后服务端觉得形态不对时，形态下面多一行建议：「这个订阅的条目大多是视频。」带一个按钮「显示为视频」；按下只是在对话框里选了那个形态，点「保存」才生效，不按就什么都不变。「保存」只发改了的字段。订阅地址不能改。最后一组是「摘要和翻译」：「自动生成摘要」「自动翻译」两个开关（只管打开之后新到的条目），和摘要、翻译两个 prompt 框，留空就用设置里的 prompt。没配置 AI 时这一组上面多一行「还没配置 AI，暂时不会生成摘要和翻译」，带「打开设置…」。
 

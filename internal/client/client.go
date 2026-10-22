@@ -475,6 +475,9 @@ const maxImage = 8 << 20
 // aiClient waits for the server's own AI call, which may take 120 seconds.
 var aiClient = &http.Client{Timeout: 130 * time.Second, Transport: agent{}}
 
+// discoverClient waits longer than httpClient: the server may spend 20 seconds looking through pages.
+var discoverClient = &http.Client{Timeout: 30 * time.Second, Transport: agent{}}
+
 // imageClient waits longer than httpClient: the server itself may take 25 seconds to get a picture.
 var imageClient = &http.Client{Timeout: 40 * time.Second, Transport: agent{}}
 
@@ -877,6 +880,35 @@ func (s Session) Image(ctx context.Context, address string) ([]byte, error) {
 		return nil, fmt.Errorf("image is larger than %d MiB", maxImage>>20)
 	}
 	return body, nil
+}
+
+// Candidate is one feed a web address leads to. It carries either a feed URL or an RSSHub route; Site, Label and
+// Subject describe a route found by a rule so the screen can name it in the user's language.
+type Candidate struct {
+	URL        string `json:"url"`
+	RSSHubPath string `json:"rsshubPath"`
+	Title      string `json:"title"`
+	Kind       string `json:"kind"`
+	Origin     string `json:"origin"`
+	Site       string `json:"site"`
+	Label      string `json:"label"`
+	Subject    string `json:"subject"`
+}
+
+// Discover asks the server which feeds a web address leads to. An empty list means it found none.
+func (s Session) Discover(ctx context.Context, address string) ([]Candidate, error) {
+	var out struct {
+		Candidates []Candidate `json:"candidates"`
+	}
+	resp, err := s.send(ctx, discoverClient, http.MethodGet, "/api/discover?url="+url.QueryEscape(address), "", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
+		return nil, fmt.Errorf("discover: %w", err)
+	}
+	return out.Candidates, nil
 }
 
 // call sends a JSON request and decodes the JSON reply into out, or drops the reply for a nil out.

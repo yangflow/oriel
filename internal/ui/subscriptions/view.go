@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"path"
 	"runtime"
 	"slices"
 	"strconv"
@@ -32,7 +33,9 @@ type copy struct {
 	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo                                     string
 	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder                                      string
 	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added                                    string
-	AddedSoFar                                                                                                                              string
+	AddedSoFar, SearchingFeeds, FoundMany, NoneFound, SiteYouTube, SiteBilibili, SiteWeibo, SiteZhihu, SiteX                                string
+	LabelVideos, LabelDynamic, LabelPosts, LabelActivities, LabelAnswers, LabelColumn, LabelTopic, LabelCollection, LabelQuestion           string
+	LabelChannel, LabelPlaylist                                                                                                             string
 	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn                          string
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                               string
 	ServedBy, ServedByBackup, MuteHidden, MuteNone                                                                                          string
@@ -72,6 +75,7 @@ type API interface {
 	MutedCount(ctx context.Context, id int64, keywords string) (int, error)
 	Settings(ctx context.Context) (client.Settings, error)
 	SetSettings(ctx context.Context, patch client.SettingsPatch) (client.Settings, error)
+	Discover(ctx context.Context, address string) ([]client.Candidate, error)
 }
 
 // Deps is what the dialogs do outside themselves. Go runs work away from the UI thread and then the function it
@@ -112,6 +116,27 @@ const (
 	titleField
 )
 
+// The states of the lookup under the address field, which finds the feeds of a page address.
+const (
+	lookIdle      = iota // nothing to look up: no address, a platform link, a route or a feed address
+	lookWaiting          // the address changed; the lookup starts after a pause in typing, or at Enter or Add
+	lookSearching        // the server is looking
+	lookDone             // found holds the result, which may be empty
+	lookFailed           // the server could not look; the address is added as typed
+)
+
+// lookAfter is how long the address stays unchanged before the lookup starts.
+const lookAfter = 600 * time.Millisecond
+
+// lookup is the search for the feeds of address, the trimmed text of the address field it was made for.
+type lookup struct {
+	address string
+	state   int
+	typedAt time.Time // when the address last changed
+	found   []client.Candidate
+	chosen  int // the index in found that Add subscribes to
+}
+
 // adding is the add dialog.
 type adding struct {
 	open       bool
@@ -132,6 +157,7 @@ type adding struct {
 	focus      field
 	count      int    // the subscriptions added since the dialog opened, with "Add and continue"
 	last       string // the name of the last of them
+	look       lookup
 }
 
 // editing is the edit dialog of src.
@@ -293,19 +319,100 @@ func (s *Screen) needsBase(t target) bool {
 func (s *Screen) canAdd() bool {
 	a := s.add
 	return !a.busy && s.api != nil && strings.TrimSpace(a.address) != "" && a.addressErr == "" &&
-		a.settings != settingsLoading
+		a.settings != settingsLoading && a.look.state != lookSearching
+}
+
+// lookable returns the address to look feeds up for, "" when the field holds none: a platform link, a route and an
+// address of a feed file already say what they subscribe to.
+func (s *Screen) lookable() string {
+	t, ok := recognize(s.add.address, s.add.root)
+	if !ok || t.Platform != feed || t.URL == "" {
+		return ""
+	}
+	if u, err := url.Parse(t.URL); err == nil {
+		switch strings.ToLower(path.Ext(u.Path)) {
+		case ".atom", ".rss", ".xml", ".json":
+			return ""
+		}
+	}
+	return t.URL
+}
+
+// watch keeps the lookup in step with the address field: a new address starts a new lookup, which begins once the
+// address has stayed as it is for lookAfter. It returns how long to wait for that, 0 when there is nothing to wait for.
+func (s *Screen) watch() time.Duration {
+	a := &s.add
+	if !a.open || s.api == nil {
+		return 0
+	}
+	now := s.deps.Now()
+	if address := s.lookable(); a.look.address != address {
+		a.look = lookup{address: address, typedAt: now}
+		if address != "" {
+			a.look.state = lookWaiting
+		}
+	}
+	if a.look.state != lookWaiting {
+		return 0
+	}
+	if wait := lookAfter - now.Sub(a.look.typedAt); wait > 0 {
+		return wait
+	}
+	s.search()
+	return 0
+}
+
+// search asks the server for the feeds of the address of the lookup, in the background.
+func (s *Screen) search() {
+	a := &s.add
+	a.look.state = lookSearching
+	address, gen, api := a.look.address, s.gen, s.api
+	s.deps.Go(func() func() {
+		found, err := api.Discover(context.Background(), address)
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			l := &s.add.look
+			if l.address != address || l.state != lookSearching {
+				return // the address changed meanwhile
+			}
+			if err != nil {
+				l.state = lookFailed
+				return
+			}
+			l.state, l.found, l.chosen = lookDone, found, 0
+		}
+	})
+}
+
+// picked is the feed the lookup found that Add subscribes to.
+func (s *Screen) picked() (client.Candidate, bool) {
+	l := s.add.look
+	if l.state != lookDone || l.chosen < 0 || l.chosen >= len(l.found) {
+		return client.Candidate{}, false
+	}
+	return l.found[l.chosen], true
 }
 
 // submit adds the address. With more it keeps the dialog open and clears the address for the next one.
 func (s *Screen) submit(more bool) {
 	a := &s.add
+	s.watch()
 	if !s.canAdd() {
+		return
+	}
+	if a.look.state == lookWaiting { // Add or Enter does not wait out the pause; the feeds found come first
+		s.search()
 		return
 	}
 	t, ok := recognize(a.address, a.root)
 	if !ok {
 		a.addressErr, a.focus, s.announce = s.text.InvalidAddress, addressField, s.text.InvalidAddress
 		return
+	}
+	if cand, ok := s.picked(); ok {
+		t.URL, t.Route = cand.URL, cand.RSSHubPath
 	}
 	base := ""
 	if s.needsBase(t) {
@@ -938,6 +1045,18 @@ func monogram(c *ui.Context, kind, name string) {
 func (s *Screen) addDialog(c *ui.Context) {
 	a := &s.add
 	t, valid := recognize(a.address, a.root)
+	if wait := s.watch(); wait > 0 {
+		c.After(wait)
+	}
+	if cand, ok := s.picked(); ok {
+		t.URL, t.Route = cand.URL, cand.RSSHubPath
+		if cand.Kind != "" {
+			t.Kind = cand.Kind
+		}
+		if cand.Origin == "rule" {
+			t.Platform = route
+		}
+	}
 	if suggested := max(0, slices.Index(kinds, t.Kind)); a.kind == a.suggested {
 		a.kind, a.suggested = suggested, suggested
 	}
@@ -998,6 +1117,11 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 		empty := strings.TrimSpace(a.address) == ""
 		needsBase := valid && !empty && s.needsBase(t)
 		what, where := s.describe(t)
+		cand, hasCand := s.picked()
+		if hasCand {
+			what, where = s.describeCandidate(cand)
+		}
+		looking := !empty && valid && (a.look.state == lookWaiting || a.look.state == lookSearching)
 		box(c, "address", icons.Link, a.addressErr != "", th.Surface, func() {
 			in := ui.TextInputBase(c, &a.address).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.Address).
 				Placeholder(s.text.AddressPlaceholder).Disabled(a.busy).
@@ -1015,6 +1139,10 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 				in.Description(s.text.AddressHelp)
 			case needsBase:
 				in.Description(s.text.NeedsBase)
+			case looking:
+				in.Description(s.text.SearchingFeeds)
+			case a.look.state == lookDone && !hasCand:
+				in.Description(s.text.NoneFound)
 			default:
 				in.Description(what + s.text.Separator + where)
 			}
@@ -1043,10 +1171,89 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 			help(c, s.text.AddressHelp)
 		case needsBase:
 			s.baseCard(c)
+		case looking:
+			s.searching(c)
+		case a.look.state == lookDone && !hasCand:
+			help(c, s.text.NoneFound)
+		case a.look.state == lookDone && len(a.look.found) > 1:
+			s.pickList(c)
 		default:
 			s.found(c, t, what, where)
 		}
 	})
+}
+
+// describeCandidate says what a feed found for the address subscribes to, and where it is.
+func (s *Screen) describeCandidate(cand client.Candidate) (what, where string) {
+	where = cand.URL
+	if cand.RSSHubPath != "" {
+		where = s.text.ViaRSSHub + " " + cand.RSSHubPath
+	}
+	if cand.Site == "" {
+		what = strings.TrimSpace(cand.Title)
+		if u, err := url.Parse(cand.URL); what == "" && err == nil {
+			what = strings.TrimPrefix(u.Hostname(), "www.")
+		}
+		return what, where
+	}
+	site := map[string]string{"youtube": s.text.SiteYouTube, "bilibili": s.text.SiteBilibili, "weibo": s.text.SiteWeibo,
+		"zhihu": s.text.SiteZhihu, "x": s.text.SiteX}[cand.Site]
+	label := map[string]string{"videos": s.text.LabelVideos, "dynamic": s.text.LabelDynamic, "posts": s.text.LabelPosts,
+		"activities": s.text.LabelActivities, "answers": s.text.LabelAnswers, "column": s.text.LabelColumn,
+		"topic": s.text.LabelTopic, "collection": s.text.LabelCollection, "question": s.text.LabelQuestion,
+		"channel": s.text.LabelChannel, "playlist": s.text.LabelPlaylist}[cand.Label]
+	return site + s.text.Separator + s.fill(label, cand.Subject), where
+}
+
+// searching is the line under the address field while the feeds of a page address are looked up.
+func (s *Screen) searching(c *ui.Context) {
+	th := c.Theme()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(th.Space(1.5)).Role(ui.RoleStatus).Label(s.text.SearchingFeeds).
+		Children(func() {
+			spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(th, 12)).TextColor(th.TextMuted)
+			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+			help(c, s.text.SearchingFeeds)
+		})
+}
+
+// pickList lists the feeds found for the address, for the user to choose one.
+func (s *Screen) pickList(c *ui.Context) {
+	th := c.Theme()
+	a := &s.add
+	head := s.count(s.text.FoundMany, len(a.look.found))
+	ui.Column(c).FillWidth().Gap(px(th, 6)).Children(func() {
+		help(c, head)
+		ui.RadioGroup(c, func() {
+			for i, cand := range a.look.found {
+				what, where := s.describeCandidate(cand)
+				on := a.look.chosen == i
+				row := ui.RadioBase(c, &a.look.chosen, i).FillWidth().AlignItems(ui.Center).Gap(px(th, 10)).
+					Padding(th.Space(2), px(th, 10)).Radius(th.Radius).Label(what + s.text.Separator + where).Disabled(a.busy)
+				if on {
+					row.Background(theme.Soft(th, th.Accent))
+				} else {
+					row.Border(1, th.Border)
+				}
+				row.Children(func() {
+					ui.Icon(c, s.candidateIcon(cand)).FontSize(px(th, 16)).TextColor(th.Accent)
+					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+						ui.Text(c, what).FontWeight(600).SingleLine()
+						ui.Text(c, where).Font("monospace").FontSize(px(th, 12)).TextColor(th.TextMuted).SingleLine()
+					})
+					if on {
+						ui.Icon(c, icons.Check).FontSize(px(th, 16)).TextColor(th.Success)
+					}
+				})
+			}
+		}).FillWidth().Gap(px(th, 6)).Label(head)
+	})
+}
+
+func (s *Screen) candidateIcon(cand client.Candidate) *ui.SVG {
+	if cand.Origin == "rule" {
+		return kindIcon(cand.Kind)
+	}
+	return icons.Rss
 }
 
 // describe says what t subscribes to, and the address or route it is.

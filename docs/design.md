@@ -220,7 +220,13 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   with `Space(3.5)` between fields and 20 to the sides, and a footer with the buttons at the right; in the edit
   dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; title and interval share a
   row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` soft fill) or what
-  the address was recognized as (`Accent` soft fill, the address in monospace). The edit dialog starts with a health line
+  the address was recognized as (`Accent` soft fill, the address in monospace). An address that is a web page is looked up
+  half a second after typing stops: the line reads "Looking for feeds…" with a spinning loader at 14 and Add is held. Every feed
+  found is a row of the same recognized-as style (RSS icon, title or site and what it carries, the address in monospace, a check
+  at the right), rows 6 apart under a 12 muted line "Found n feeds. Choose one."; the chosen row has the `Accent` soft fill and its
+  check, the others have no fill, a 1 `Border` outline and no check. The first row is chosen, a click chooses another, and a single
+  result is the one card as for a recognized link. When nothing was found a 12 muted line says so and Add tries the address
+  as typed. Mockup states `add-searching`, `add-found-list` and `add-none-found`. The edit dialog starts with a health line
   (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail.
   For a route that has been fetched, a muted 12 line under it names the RSSHub instance that served the last fetch
   (host only, "(backup)" after it when it is not the first of the list). The interval offers Auto

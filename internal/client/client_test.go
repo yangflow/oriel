@@ -184,6 +184,14 @@ func TestTimelineAPI(t *testing.T) {
 			w.Write([]byte(`{"marked":2}`))
 		case "/api/image":
 			w.Write([]byte("PNG"))
+		case "/api/discover":
+			if r.URL.Query().Get("url") == "https://down.example/" {
+				w.WriteHeader(http.StatusBadGateway)
+				w.Write([]byte(`{"error":"page_unavailable"}`))
+				return
+			}
+			w.Write([]byte(`{"candidates":[{"url":"https://blog.example/rss.xml","rsshubPath":"","title":"Blog","kind":"","origin":"alternate"},
+				{"url":"","rsshubPath":"/bilibili/user/video/1","title":"","kind":"video","origin":"rule","site":"bilibili","label":"videos","subject":"1"}]}`))
 		case "/api/sources/5", "/api/sources/5/refresh":
 			if r.Method == http.MethodPatch {
 				w.Write([]byte(`{"id":5,"title":"New","kind":"video","paused":true,"keepDays":90,"lastFetchedAt":null}`))
@@ -253,6 +261,14 @@ func TestTimelineAPI(t *testing.T) {
 	if body, err := session.Image(ctx, "https://i/1.jpg?w=2&h=1"); err != nil || string(body) != "PNG" {
 		t.Errorf("Image = %q, %v", body, err)
 	}
+	found, err := session.Discover(ctx, "https://blog.example/")
+	if err != nil || len(found) != 2 || found[0] != (Candidate{URL: "https://blog.example/rss.xml", Title: "Blog", Origin: "alternate"}) ||
+		found[1] != (Candidate{RSSHubPath: "/bilibili/user/video/1", Kind: "video", Origin: "rule", Site: "bilibili", Label: "videos", Subject: "1"}) {
+		t.Errorf("Discover = %+v, %v", found, err)
+	}
+	if _, err := session.Discover(ctx, "https://down.example/"); !errors.As(err, &apiErr) || apiErr.Code != "page_unavailable" {
+		t.Errorf("Discover down: %v", err)
+	}
 	if _, err := session.AddSource(ctx, NewSource{RSSHubPath: "/x/y", Kind: "social"}); err != nil {
 		t.Errorf("AddSource: %v", err)
 	}
@@ -297,6 +313,8 @@ func TestTimelineAPI(t *testing.T) {
 		`POST /api/entries/read {"sourceId":5,"olderThan":1700000000000}`,
 		`POST /api/entries/unread {"ids":[7,8]}`,
 		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",
+		"GET /api/discover?url=https%3A%2F%2Fblog.example%2F ",
+		"GET /api/discover?url=https%3A%2F%2Fdown.example%2F ",
 		`POST /api/sources {"rsshubPath":"/x/y","kind":"social"}`,
 		`PATCH /api/sources/5 {"title":"New","paused":true,"keepDays":90}`,
 		`POST /api/sources/5/muted-count {"muteKeywords":"ad\nspam"}`,

@@ -28,8 +28,11 @@ type fake struct {
 	deleted []int64
 	fetched []int64
 	set     []client.SettingsPatch
+	looked  []string // the addresses Discover was asked for
+	found   []client.Candidate
+	lateBy  time.Duration // how far the clock is past now
 
-	addErr, updateErr, deleteErr, refreshErr, settingsErr, setErr, healthErr error
+	addErr, updateErr, deleteErr, refreshErr, settingsErr, setErr, healthErr, discoverErr error
 
 	hidden    int      // what the server says the mute keywords hide
 	hiddenErr error    // why it cannot say
@@ -104,10 +107,15 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	return f.settings, nil
 }
 
+func (f *fake) Discover(_ context.Context, address string) ([]client.Candidate, error) {
+	f.looked = append(f.looked, address)
+	return f.found, f.discoverErr
+}
+
 func (f *fake) deps() Deps {
 	return Deps{
 		Go:           func(work func() func()) { f.queue = append(f.queue, work) },
-		Now:          func() time.Time { return now },
+		Now:          func() time.Time { return now.Add(f.lateBy) },
 		Sources:      func() []client.Source { return f.sources },
 		Added:        func(src client.Source) { f.sources = append(f.sources, src) },
 		Changed:      func(src client.Source) { f.changed = append(f.changed, src) },
@@ -406,7 +414,7 @@ func TestInvalidAddress(t *testing.T) {
 	}
 
 	f.addErr = &client.APIError{Status: 400, Code: "invalid_url"}
-	s.add.address = "https://go.dev/x"
+	s.add.address = "https://go.dev/x.xml"
 	tt.Frame()
 	tt.Key(0, ui.KeyEnter)
 	f.settle(tt)
@@ -497,7 +505,7 @@ func TestExpired(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	open(t, s, f, tt)
 	f.addErr = client.ErrUnauthorized
-	tt.Type("https://go.dev/feed")
+	tt.Type("https://go.dev/feed.xml")
 	tt.Key(0, ui.KeyEnter)
 	f.settle(tt)
 	if s.Open() || f.expired != 1 {
