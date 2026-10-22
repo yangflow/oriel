@@ -33,6 +33,8 @@ type FeedSource struct {
 	WebSubHub, WebSubTopic string
 	// WebSubUntil is when the active push subscription runs out, zero when there is none.
 	WebSubUntil time.Time
+	// KeepDays is the source's own keep period: 0 follows the global retention, -1 keeps forever, else days.
+	KeepDays int
 }
 
 // NewSource describes a subscription to add. Exactly one of URL and RSSHubPath is set.
@@ -52,7 +54,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, fetch_interval_auto, last_success_at IS NULL, consecutive_failures,
 			auto_summary, auto_translate, site_url, icon_url, icon_checked_site, websub_hub, websub_topic,
-			CASE WHEN websub_state = 'active' THEN websub_expires_at END
+			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days
 		FROM sources WHERE paused = 0 AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
@@ -67,7 +69,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		var until sql.NullInt64
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
 			&interval, &src.FetchIntervalAuto, &src.FirstSuccess, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
-			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until); err != nil {
+			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays); err != nil {
 			return nil, err
 		}
 		if until.Valid {
@@ -435,10 +437,19 @@ func (s *Store) RetryExtraction(ctx context.Context, id int64) (Entry, error) {
 	return entry, nil
 }
 
-// PruneEntries deletes unstarred entries published, or else added, before cutoff, read or not.
-func (s *Store) PruneEntries(ctx context.Context, cutoff time.Time) (int64, error) {
-	result, err := s.db.ExecContext(ctx,
-		"DELETE FROM entries WHERE starred = 0 AND coalesce(published_at, created_at) < ?", cutoff.UnixMilli())
+// PruneEntries deletes unstarred entries published, or else added, before the keep period of their source ended,
+// read or not. A source's own keep_days wins over globalDays; 0 follows globalDays and -1 keeps forever, and a
+// globalDays of 0 keeps forever.
+func (s *Store) PruneEntries(ctx context.Context, now time.Time, globalDays int) (int64, error) {
+	const dayMillis = 24 * 60 * 60 * 1000
+	result, err := s.db.ExecContext(ctx, `
+		DELETE FROM entries WHERE starred = 0 AND EXISTS (
+			SELECT 1 FROM sources s
+			WHERE s.id = entries.source_id
+				AND CASE WHEN s.keep_days > 0 THEN s.keep_days WHEN s.keep_days = 0 THEN ?1 ELSE 0 END > 0
+				AND coalesce(entries.published_at, entries.created_at) <
+					?2 - ?3 * CASE WHEN s.keep_days > 0 THEN s.keep_days ELSE ?1 END)`,
+		globalDays, now.UnixMilli(), int64(dayMillis))
 	if err != nil {
 		return 0, err
 	}

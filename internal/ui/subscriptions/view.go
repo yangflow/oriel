@@ -36,6 +36,7 @@ type copy struct {
 	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn                          string
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                               string
 	ServedBy, ServedByBackup, MuteHidden, MuteNone                                                                                          string
+	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                         string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                         string
 	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                 string
 	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                       string
@@ -56,6 +57,10 @@ var kinds = []string{"article", "video", "social", "image"}
 
 // intervals are the fetch intervals offered, in seconds; 0 is Auto, the first and the default.
 var intervals = []int64{0, 15 * 60, 30 * 60, 3600, 3 * 3600, 6 * 3600, 12 * 3600, 24 * 3600}
+
+// keeps are the keep periods offered, in days; 0 follows the global setting, the first and the default, and -1 keeps
+// the entries forever, the last.
+var keeps = []int64{0, 7, 30, 90, 180, 365, -1}
 
 // API is what the dialogs read and write on the server; client.Session is one.
 type API interface {
@@ -137,6 +142,8 @@ type editing struct {
 	title    string
 	kind     int
 	interval int64
+	keep     int64 // in keeps: days, 0 to follow the settings, -1 for forever
+	global   int   // the keep period of the settings in days, 0 for forever
 	paused   bool
 	mute     string
 	counted  string // the keywords the count was asked for
@@ -401,7 +408,7 @@ func (s *Screen) Edit(src client.Source) {
 		return
 	}
 	s.edit = editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
-		interval: intervalChoice(src), paused: src.Paused, mute: src.MuteKeywords,
+		interval: intervalChoice(src), keep: int64(src.KeepDays), paused: src.Paused, mute: src.MuteKeywords,
 		auto:    [2]bool{src.AutoSummary, src.AutoTranslate},
 		prompts: [2]string{src.PromptSummary, src.PromptTranslate}, focus: true}
 	gen, api, id := s.gen, s.api, src.ID
@@ -412,6 +419,7 @@ func (s *Screen) Edit(src client.Source) {
 				return
 			}
 			s.edit.aiOff = !settings.AIConfigured()
+			s.edit.global = settings.RetentionDays
 			if len(settings.RSSHubBaseURLs) > 0 {
 				s.edit.primary = settings.RSSHubBaseURLs[0]
 			}
@@ -440,6 +448,9 @@ func (s *Screen) save() {
 			patch.FetchIntervalSec = &interval
 		}
 		changed = true
+	}
+	if keep := int(e.keep); keep != e.src.KeepDays {
+		patch.KeepDays, changed = &keep, true
 	}
 	if paused := e.paused; paused != e.src.Paused {
 		patch.Paused, changed = &paused, true
@@ -1238,16 +1249,71 @@ func (s *Screen) span(d time.Duration) string {
 // intervalSelect is the select of the check interval. Chosen as Auto it shows the interval Auto works out now when
 // that is known (autoNow, seconds), as in "Auto · 6 h".
 func (s *Screen) intervalSelect(c *ui.Context, value *int64, autoNow int64, busy bool) {
-	t := c.Theme()
-	label(c, s.text.Every)
 	options := intervals
 	if !slices.Contains(options, *value) {
 		options = append(slices.Clone(options), *value)
 		slices.Sort(options)
 	}
+	shown := s.every(*value)
+	if *value == 0 && autoNow > 0 {
+		shown = strings.ReplaceAll(s.text.AutoEvery, "{every}", s.every(autoNow))
+	}
+	s.choiceSelect(c, value, options, s.text.Every, shown, s.every, busy)
+}
+
+// keepName names a keep period in days: 0 follows the settings and -1 is forever.
+func (s *Screen) keepName(days int64) string {
+	switch days {
+	case 0:
+		return s.text.KeepFollow
+	case -1:
+		return s.text.KeepForever
+	case 7:
+		return s.text.KeepWeek
+	case 30:
+		return s.text.KeepMonth
+	case 90:
+		return s.text.KeepMonths3
+	case 180:
+		return s.text.KeepMonths6
+	case 365:
+		return s.text.KeepYear
+	}
+	return s.count(s.text.Days, int(days))
+}
+
+// keepField is the keep period of the subscription's entries, with the line that says what it does. Chosen as
+// following the settings it shows the period the settings have, as in "Follow settings · 3 months".
+func (s *Screen) keepField(c *ui.Context) {
+	t := c.Theme()
+	e := &s.edit
+	options := keeps
+	if !slices.Contains(options, e.keep) {
+		options = slices.Insert(slices.Clone(options), len(options)-1, e.keep)
+		slices.SortFunc(options[1:len(options)-1], func(a, b int64) int { return int(a - b) })
+	}
+	shown := s.keepName(e.keep)
+	if e.keep == 0 {
+		global := s.text.KeepForever
+		if e.global > 0 {
+			global = s.keepName(int64(e.global))
+		}
+		shown = strings.ReplaceAll(s.text.KeepFollowing, "{keep}", global)
+	}
+	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+		s.choiceSelect(c, &e.keep, options, s.text.Keep, shown, s.keepName, e.busy)
+		help(c, s.text.KeepHelp)
+	})
+}
+
+// choiceSelect is a select of whole numbers named by name, with the label above it; shown is what the closed select
+// reads for the current value.
+func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, busy bool) {
+	t := c.Theme()
+	label(c, labelText)
 	sel := ui.SelectBase(c, value)
 	sel.Trigger.FillWidth().Height(px(t, 32)).Gap(t.Space(2)).PaddingX(t.Space(2.5)).Radius(t.Radius).
-		Background(t.Surface).Label(s.text.Every).Disabled(busy)
+		Background(t.Surface).Label(labelText).Disabled(busy)
 	fieldEdge(c, sel.Trigger)
 	if sel.Trigger.Focused() {
 		sel.Trigger.Border(0, ui.Color{}).Background(theme.RaisedFill(t)).Shadow(0, 0, 0, 2, t.Focus)
@@ -1255,11 +1321,7 @@ func (s *Screen) intervalSelect(c *ui.Context, value *int64, autoNow int64, busy
 		sel.Trigger.Background(t.SurfaceHover)
 	}
 	sel.Trigger.Children(func() {
-		name := s.every(*value)
-		if *value == 0 && autoNow > 0 {
-			name = strings.ReplaceAll(s.text.AutoEvery, "{every}", s.every(autoNow))
-		}
-		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine()
+		ui.Text(c, shown).Grow(1).MinWidth(0).SingleLine()
 		ui.Icon(c, icons.ChevronDown).FontSize(px(t, 14)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
@@ -1271,7 +1333,7 @@ func (s *Screen) intervalSelect(c *ui.Context, value *int64, autoNow int64, busy
 				item.Background(theme.Chosen(t))
 			}
 			item.Children(func() {
-				ui.Text(c, s.every(v)).Grow(1).NoWrap().TextColor(t.Text)
+				ui.Text(c, name(v)).Grow(1).NoWrap().TextColor(t.Text)
 				if v == *value {
 					ui.Icon(c, icons.Check).FontSize(px(t, 14)).TextColor(t.Accent)
 				}
@@ -1300,6 +1362,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		})
 		s.kindPicker(c, &e.kind)
 		s.kindSuggestion(c)
+		s.keepField(c)
 		s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, s.text.PauseHelp)
 		s.muteField(c)
 		s.aiGroup(c)

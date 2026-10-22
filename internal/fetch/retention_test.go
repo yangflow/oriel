@@ -10,8 +10,6 @@ import (
 	"github.com/yangflow/oriel/internal/store"
 )
 
-const day = 24 * time.Hour
-
 func TestRetentionSetting(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
@@ -58,6 +56,7 @@ func TestPrune(t *testing.T) {
 	if len(remaining()) != 6 {
 		t.Fatalf("pruned without a retention period: %v", remaining())
 	}
+	f.now = f.now.Add(time.Hour) // the next hourly pass
 	f.store.SetSetting(ctx, RetentionSetting, "30")
 	f.poller.prune(ctx)
 	got := remaining()
@@ -102,5 +101,95 @@ func TestExpiredItemsAreNotFetchedAgain(t *testing.T) {
 	}
 	if f.int("SELECT count(*) FROM entries WHERE guid = 'kept'") != 1 {
 		t.Fatal("fetching removed an existing entry")
+	}
+}
+
+func TestKeepFor(t *testing.T) {
+	for _, c := range []struct {
+		keep   int
+		global time.Duration
+		want   time.Duration
+	}{
+		{0, 30 * day, 30 * day}, {0, 0, 0}, {7, 30 * day, 7 * day}, {90, 30 * day, 90 * day},
+		{90, 0, 90 * day}, {-1, 30 * day, 0},
+	} {
+		if got := keepFor(store.FeedSource{KeepDays: c.keep}, c.global); got != c.want {
+			t.Errorf("keep %d, global %s: %s, want %s", c.keep, c.global, got, c.want)
+		}
+	}
+}
+
+func TestPruneUsesTheKeepPeriodOfTheSource(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	follow := f.add(store.NewSource{URL: "https://example.org/follow", Kind: "article"})
+	short := f.add(store.NewSource{URL: "https://example.org/short", Kind: "article"})
+	long := f.add(store.NewSource{URL: "https://example.org/long", Kind: "article"})
+	for id, days := range map[int64]int{short: 7, long: 90} {
+		if _, err := f.store.UpdateSource(ctx, id, store.SourcePatch{KeepDays: &days}, f.now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []int64{follow, short, long} {
+		src := store.FeedSource{ID: id, Kind: "article"}
+		entries := []store.FeedEntry{{GUID: "d3", PublishedAt: f.now.Add(-3 * day)}, {GUID: "d20", PublishedAt: f.now.Add(-20 * day)},
+			{GUID: "d60", PublishedAt: f.now.Add(-60 * day)}}
+		if _, err := f.store.SaveFeed(ctx, src, "", "", entries, "", time.Time{}, f.now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.db.Exec("UPDATE entries SET starred = 1 WHERE source_id = ? AND guid = 'd60'", short)
+
+	// With the global setting unset, only the sources with a period of their own are pruned.
+	f.poller.prune(ctx)
+	if f.int("SELECT count(*) FROM entries WHERE source_id = ?", follow) != 3 {
+		t.Fatal("a source following an unset setting lost entries")
+	}
+	if f.int("SELECT count(*) FROM entries WHERE source_id = ?", short) != 2 || f.int("SELECT count(*) FROM entries WHERE source_id = ? AND guid = 'd60'", short) != 1 {
+		t.Fatal("the 7-day source kept the wrong entries")
+	}
+	if f.int("SELECT count(*) FROM entries WHERE source_id = ?", long) != 3 {
+		t.Fatal("the 90-day source lost entries")
+	}
+
+	f.store.SetSetting(ctx, RetentionSetting, "30")
+	f.now = f.now.Add(time.Hour)
+	f.poller.prune(ctx)
+	if f.int("SELECT count(*) FROM entries WHERE source_id = ?", follow) != 2 || f.int("SELECT count(*) FROM entries WHERE source_id = ?", long) != 3 {
+		t.Fatal("the global period did not apply to the follower only")
+	}
+}
+
+func TestExpiredItemsFollowTheKeepPeriodOfTheSource(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.store.SetSetting(ctx, RetentionSetting, "30")
+	published := func(age time.Duration) string { return f.now.Add(-age).UTC().Format(time.RFC1123Z) }
+	feed := `<rss version="2.0"><channel><title>T</title>` +
+		`<item><guid>d3</guid><pubDate>` + published(3*day) + `</pubDate></item>` +
+		`<item><guid>d20</guid><pubDate>` + published(20*day) + `</pubDate></item>` +
+		`<item><guid>d60</guid><pubDate>` + published(60*day) + `</pubDate></item></channel></rss>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(feed)) }))
+	defer srv.Close()
+	id := f.add(store.NewSource{URL: srv.URL, Kind: "social"})
+	days := 7
+	if _, err := f.store.UpdateSource(ctx, id, store.SourcePatch{KeepDays: &days}, f.now); err != nil {
+		t.Fatal(err)
+	}
+	if n := f.poller.fetchDue(ctx); n != 1 {
+		t.Fatalf("created %d entries under a 7-day period, want 1", n)
+	}
+	if f.int("SELECT count(*) FROM entries WHERE guid = 'd3'") != 1 {
+		t.Fatal("the recent item was skipped")
+	}
+
+	// A longer period than the global one lets the older items in.
+	days = 90
+	if _, err := f.store.UpdateSource(ctx, id, store.SourcePatch{KeepDays: &days}, f.now); err != nil {
+		t.Fatal(err)
+	}
+	f.due()
+	if n := f.poller.fetchDue(ctx); n != 2 {
+		t.Fatalf("created %d entries under a 90-day period, want 2", n)
 	}
 }

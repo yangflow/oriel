@@ -527,7 +527,7 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 		return 0, err
 	}
 	var expired time.Time
-	if keep := p.retention(ctx); keep > 0 {
+	if keep := keepFor(src, p.retention(ctx)); keep > 0 {
 		expired = now.Add(-keep)
 	}
 	var target string

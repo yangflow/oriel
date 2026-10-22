@@ -25,6 +25,9 @@
      interval out from how often the feed publishes, between 15 minutes and a day, and the edit dialog shows what it
      is now (Auto · 6 h). After the first fetch a feed that looks like another kind gets a line under the kind
      picker (edit-suggest) with a button; nothing changes until it is pressed and the dialog saved.
+     Keep entries is a select in the style of the check interval, full width, under the kind picker and its
+     suggestion and above the pause switch. It reads "Follow settings · 1 month" by default, with the period of the
+     global setting after the dot; a help line says that older entries are removed and starred ones are kept.
      Subscription health (health, health-loading, health-error, health-empty) is a dialog the command palette opens
      ("Subscription health…"); the sidebar has no entry for it. It lists unpaused sources that are dead, keep failing
      or are rarely read, each with its reason, the last 30 days in numbers and two buttons, Pause and Unsubscribe….
@@ -307,6 +310,7 @@ const copy={
     address:'Address', addressPlaceholder:'Feed URL, page link or RSSHub route',
     addressHelp:'Links to YouTube, Bilibili, X, GitHub, Telegram and Weibo are turned into feeds.',
     showAs:'Show as', title:'Title', titlePlaceholder:'From the feed', every:'Check every', auto:'Auto', autoEvery:'Auto · {every}', every6h:'6 h', suggest:'Most entries in this feed are videos.', suggestUse:'Show as Videos',
+    keep:'Keep entries', keepFollow:'Follow settings · 1 month', keepHelp:'Older entries are removed. Starred entries are always kept.',
     feed:'Feed', viaRsshub:'RSSHub route',
     found:{bilibili:'Bilibili · videos of user 2267573', feed:'Feed at go.dev', route:'RSSHub route'},
     needsBase:'RSSHub routes need an RSSHub instance. Enter its address; it is saved in Settings.',
@@ -338,6 +342,7 @@ const copy={
     address:'地址', addressPlaceholder:'订阅地址、主页链接或 RSSHub 路由',
     addressHelp:'YouTube、哔哩哔哩、X、GitHub、Telegram 和微博的链接会自动转成订阅。',
     showAs:'显示为', title:'标题', titlePlaceholder:'用订阅里的标题', every:'检查间隔', auto:'自动', autoEvery:'自动 · {every}', every6h:'6 小时', suggest:'这个订阅的条目大多是视频。', suggestUse:'显示为视频',
+    keep:'保留条目', keepFollow:'跟随设置 · 1 个月', keepHelp:'更早的条目会被清理，收藏的条目一直保留。',
     feed:'订阅地址', viaRsshub:'RSSHub 路由',
     found:{bilibili:'哔哩哔哩 · 用户 2267573 的视频', feed:'go.dev 的订阅', route:'RSSHub 路由'},
     needsBase:'RSSHub 路由要先有一个 RSSHub 实例。填上它的地址，会存进设置。',
@@ -433,6 +438,7 @@ function editDialog(){
       <div class="pair"><div class="field"><label>${copy.title}</label><div class="box focused"><input value="The Go Blog" placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.autoEvery.replace('{every}',copy.every6h))}</div>
       ${kindPicker('article')}
       ${state==='edit-suggest'?`<div class="health" role="status">${icon('video')}<span>${copy.suggest}</span><button class="button small">${copy.suggestUse}</button></div>`:''}
+      ${select(copy.keep,copy.keepFollow).replace('</div></div>',`</div><span class="help">${copy.keepHelp}</span></div>`)}
       <div class="switch-row"><div class="text"><span class="label">${copy.pauseLabel}</span><span class="help">${copy.pauseHelp}</span></div><span class="switch${paused?' on':''}" role="switch" aria-checked="${paused}" aria-label="${copy.pauseLabel}"></span></div>
       <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" aria-describedby="mh mc">${state==='edit-mute-none'?(lang==='en'?'giveaway':'抽奖'):lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span><span class="help count" id="mc" role="status">${state==='edit-mute-none'?copy.muteNone:copy.muteHidden.replace('{n}','7')}</span></div>
       <h3 class="group-title">${icon('sparkles')}${copy.aiGroup}</h3>

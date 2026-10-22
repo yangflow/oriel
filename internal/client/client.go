@@ -308,6 +308,7 @@ type Source struct {
 	ConsecutiveFailures int    `json:"consecutiveFailures"`
 	MuteKeywords        string `json:"muteKeywords"`
 	Paused              bool   `json:"paused"`
+	KeepDays            int    `json:"keepDays"`
 	UnreadCount         int    `json:"unreadCount"`
 	PromptSummary       string `json:"promptSummary"`
 	PromptTranslate     string `json:"promptTranslate"`
@@ -335,10 +336,13 @@ type SourcePatch struct {
 	FetchIntervalAuto *bool   `json:"fetchIntervalAuto,omitempty"`
 	MuteKeywords      *string `json:"muteKeywords,omitempty"`
 	Paused            *bool   `json:"paused,omitempty"`
-	PromptSummary     *string `json:"promptSummary,omitempty"`
-	PromptTranslate   *string `json:"promptTranslate,omitempty"`
-	AutoSummary       *bool   `json:"autoSummary,omitempty"`
-	AutoTranslate     *bool   `json:"autoTranslate,omitempty"`
+	// KeepDays is the keep period of the source's entries: 0 follows the global setting, -1 keeps them forever,
+	// else a number of days up to 3650. Starred entries are always kept.
+	KeepDays        *int    `json:"keepDays,omitempty"`
+	PromptSummary   *string `json:"promptSummary,omitempty"`
+	PromptTranslate *string `json:"promptTranslate,omitempty"`
+	AutoSummary     *bool   `json:"autoSummary,omitempty"`
+	AutoTranslate   *bool   `json:"autoTranslate,omitempty"`
 }
 
 // Settings are the server's settings; RetentionDays is 0 to keep entries forever. The API key is never sent, only

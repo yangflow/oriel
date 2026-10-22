@@ -5,14 +5,17 @@ import (
 	"log/slog"
 	"strconv"
 	"time"
+
+	"github.com/yangflow/oriel/internal/store"
 )
 
 const (
 	// RetentionSetting holds how many days entries are kept; 0 or unset keeps them forever.
 	RetentionSetting = "retention_days"
-	// MaxRetentionDays caps the retention setting at about ten years.
+	// MaxRetentionDays caps the retention setting, and a source's own keep period, at about ten years.
 	MaxRetentionDays = 3650
 	pruneEvery       = time.Hour
+	day              = 24 * time.Hour
 )
 
 // retention is how long entries are kept, zero for forever. Values that are not a day count mean forever.
@@ -28,20 +31,28 @@ func (p *Poller) retention(ctx context.Context) time.Duration {
 	if err != nil || days <= 0 {
 		return 0
 	}
-	return time.Duration(min(days, MaxRetentionDays)) * 24 * time.Hour
+	return time.Duration(min(days, MaxRetentionDays)) * day
 }
 
-// prune deletes expired, unstarred entries at most once an hour.
+// keepFor is how long the entries of a source are kept, zero for forever. The source's own keep period wins over the
+// global one: KeepDays 0 follows it, -1 keeps forever, a positive number of days is used as it is.
+func keepFor(src store.FeedSource, global time.Duration) time.Duration {
+	switch {
+	case src.KeepDays > 0:
+		return time.Duration(min(src.KeepDays, MaxRetentionDays)) * day
+	case src.KeepDays < 0:
+		return 0
+	}
+	return global
+}
+
+// prune deletes expired, unstarred entries at most once an hour, each by the keep period of its source.
 func (p *Poller) prune(ctx context.Context) {
 	now := p.now()
 	if !p.lastPrune.IsZero() && now.Sub(p.lastPrune) < pruneEvery {
 		return
 	}
-	keep := p.retention(ctx)
-	if keep == 0 {
-		return
-	}
-	deleted, err := p.store.PruneEntries(ctx, now.Add(-keep))
+	deleted, err := p.store.PruneEntries(ctx, now, int(p.retention(ctx)/day))
 	if err != nil {
 		if ctx.Err() == nil {
 			slog.Error("Cannot prune entries", "error", err)
