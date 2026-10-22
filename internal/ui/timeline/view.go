@@ -159,6 +159,10 @@ type marking struct {
 // keepLists is how many lists the screen keeps to draw again at once.
 const keepLists = 8
 
+// skeletonDelay is how long the first page may take before the skeleton is drawn; a switch that answers sooner shows
+// no loading state at all.
+const skeletonDelay = 300 * time.Millisecond
+
 // listKey is what defines a list: the scope, the filter and the reading-time budget. A search is not kept.
 type listKey struct {
 	scope  scope
@@ -236,8 +240,9 @@ type Screen struct {
 	firstFocus bool   // give the first matching subscription the focus in the next frame
 
 	entries  []client.Entry
-	next     string // the cursor of the next page, "" at the end
-	loading  bool   // the first page
+	next     string    // the cursor of the next page, "" at the end
+	loading  bool      // the first page
+	loadedAt time.Time // when the first page was asked for; the skeleton waits skeletonDelay after it
 	loadErr  bool
 	more     bool // the next page
 	moreErr  bool
@@ -632,6 +637,7 @@ func (s *Screen) reload() {
 	}
 	s.run++
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
+	s.loadedAt = s.deps.Now()
 	s.entries, s.next, s.loading, s.loadErr, s.more, s.moreErr, s.fresh = nil, "", true, false, false, false, 0
 	s.offline = false
 	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = -1, -1, -1, true, 0, false
@@ -3324,6 +3330,11 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 		switch {
 		case s.api == nil:
 		case s.loading:
+			// A page that comes back at once is not worth a flash of bars: draw nothing until the wait is over.
+			if wait := skeletonDelay - now.Sub(s.loadedAt); wait > 0 {
+				c.After(wait)
+				return
+			}
 			s.skeleton(c)
 		case s.loadErr:
 			s.empty(c, icons.WifiOff, s.text.Error, s.text.ErrorHint, true)

@@ -1857,9 +1857,10 @@ func TestMarkVisibleNothingUnread(t *testing.T) {
 // TestMarkVisiblePageEdge leaves the last entry loaded unread while another page follows, and goes to it.
 func TestMarkVisiblePageEdge(t *testing.T) {
 	s, f, tt := crowd(t, 60, 20000)
-	if s.next == "" {
-		t.Fatal("the whole timeline is loaded")
+	if s.next != "" {
+		t.Fatal("more pages")
 	}
+	s.next, s.moreErr = "more", true // another page follows, and the footer waits for a retry
 	last := len(s.entries) - 1
 	tt.Key(0, ui.KeyV)
 	f.settle(t, tt)
@@ -2234,6 +2235,11 @@ func TestStates(t *testing.T) {
 			s.Use(f, "")
 			s.filter = map[string]int{"unread done": unread, "no starred": starred}[tc.name]
 			s.reload()
+			tt.Frame()
+			if _, ok := tt.Find("Loading"); ok {
+				t.Fatal("the loading state is drawn before the wait is over")
+			}
+			f.now = f.now.Add(skeletonDelay)
 			tt.Frame()
 			if _, ok := tt.Find("Loading"); !ok {
 				t.Fatal("no loading state")
@@ -2902,6 +2908,40 @@ func TestKeptListsAreBounded(t *testing.T) {
 	s.choose(scope{kind: "article", source: 9})
 	if len(s.entries) != 1 || s.loading || len(s.lists) != keepLists-1 {
 		t.Fatalf("%d entries, %d kept", len(s.entries), len(s.lists))
+	}
+}
+
+// TestSkeletonWaits shows a switch that is answered within the wait never draws the skeleton, and a slow one does.
+func TestSkeletonWaits(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.Use(f, "")
+	tt.Frame()
+	if !s.loading {
+		t.Fatal("not loading")
+	}
+	if _, ok := tt.Find("Loading"); ok {
+		t.Fatal("the skeleton flashes at once")
+	}
+	f.now = f.now.Add(skeletonDelay / 2)
+	tt.Frame()
+	if _, ok := tt.Find("Loading"); ok {
+		t.Fatal("the skeleton is drawn before the wait is over")
+	}
+	f.now = f.now.Add(skeletonDelay / 2)
+	tt.Frame()
+	if _, ok := tt.Find("Loading"); !ok {
+		t.Fatal("a slow load shows no skeleton")
+	}
+	f.settle(t, tt)
+	for _, name := range []string{"Unread", "Starred", "All"} {
+		if err := tt.Click(name); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if _, ok := tt.Find("Loading"); ok {
+			t.Fatalf("%s flashes the skeleton", name)
+		}
+		f.settle(t, tt)
 	}
 }
 
