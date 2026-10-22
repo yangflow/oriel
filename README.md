@@ -65,6 +65,9 @@ Working now:
   subscription can summarize or translate its new entries by itself and use its own prompts.
 - **OPML import and export.** Import subscriptions from another reader, nested groups included, and see which
   could not be added and why; export them all to a file that keeps each source's kind and RSSHub path.
+- **Back up and restore.** Save everything (subscriptions, entries, read and starred state, AI results, settings) to
+  one `.oriel-backup` file from Settings or with `oriel backup`, and bring it back from Settings, the empty timeline
+  or `oriel restore`. Sign-in sessions and the AI API key stay out of the file.
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
   with password sign-in and per-device sessions.
 - **Connect to a remote server.** The desktop app can switch to an `oriel serve` on another machine from

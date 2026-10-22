@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -31,10 +32,14 @@ var ErrNotRetryable = errors.New("not retryable")
 // ErrLocked reports that another process already serves the same database.
 var ErrLocked = errors.New("the database is in use by another Oriel process")
 
+// ErrSchemaNewer reports a database, or a backup, made by a newer Oriel than this one.
+var ErrSchemaNewer = errors.New("the data is from a newer version of Oriel")
+
 // Store is safe for concurrent use.
 type Store struct {
 	db   *sql.DB
 	lock *os.File
+	path string // the database file; backups and restores keep their scratch files beside it
 
 	vacuuming atomic.Bool // set while Vacuum runs
 }
@@ -58,6 +63,23 @@ func Open(ctx context.Context, file string) (*Store, error) {
 		return nil, err
 	}
 	dbFile.Close()
+	removeScratch(filepath.Dir(file))
+	db, err := sql.Open("sqlite", dsn(file))
+	if err != nil {
+		lockFile.Close()
+		return nil, err
+	}
+	s := &Store{db: db, lock: lockFile, path: file}
+	if err := s.migrate(ctx); err != nil {
+		s.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
+// dsn is the connection string of a database file: write-ahead log, foreign keys, and a write lock taken when a
+// transaction begins.
+func dsn(file string) string {
 	query := url.Values{}
 	// Every transaction takes the write lock when it begins. A deferred one that reads first and writes later
 	// would fail at once with SQLITE_BUSY when it upgrades, and busy_timeout does not apply to that.
@@ -65,17 +87,7 @@ func Open(ctx context.Context, file string) (*Store, error) {
 	for _, pragma := range []string{"journal_mode(WAL)", "foreign_keys(1)", "busy_timeout(5000)", "synchronous(NORMAL)"} {
 		query.Add("_pragma", pragma)
 	}
-	db, err := sql.Open("sqlite", file+"?"+query.Encode())
-	if err != nil {
-		lockFile.Close()
-		return nil, err
-	}
-	s := &Store{db: db, lock: lockFile}
-	if err := s.migrate(ctx); err != nil {
-		s.Close()
-		return nil, err
-	}
-	return s, nil
+	return file + "?" + query.Encode()
 }
 
 // Close closes the database, then releases the lock.
@@ -94,7 +106,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		return err
 	}
 	if current > len(names) {
-		return fmt.Errorf("database schema version %d is newer than this build (%d)", current, len(names))
+		return fmt.Errorf("database schema version %d is newer than this build (%d): %w", current, len(names), ErrSchemaNewer)
 	}
 	for i, name := range names {
 		version := i + 1

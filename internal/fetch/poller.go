@@ -199,6 +199,10 @@ func New(st *store.Store, version string) *Poller {
 // Run fetches, extracts and prunes until ctx is canceled, starting right away. Fetching is a pool of workers that
 // keep taking due sources; extraction and pruning have their own loops, so none of the three waits for another.
 func (p *Poller) Run(ctx context.Context) {
+	// A queue left from an earlier run may name sources that no longer exist, for example after a restore.
+	p.mu.Lock()
+	p.queue, p.loaded = nil, time.Time{}
+	p.mu.Unlock()
 	var wg sync.WaitGroup
 	for range workers {
 		wg.Go(func() { p.work(ctx, true) })

@@ -863,6 +863,45 @@ func (s Session) Diagnostics(ctx context.Context) ([]byte, error) {
 	return body, nil
 }
 
+// backupClient waits as long as the server may work on a backup or a restore, which grows with the data.
+var backupClient = &http.Client{Timeout: 30 * time.Minute, Transport: agent{}}
+
+// Backup streams a backup of all the server's data into dst and returns how many bytes it wrote.
+func (s Session) Backup(ctx context.Context, dst io.Writer) (int64, error) {
+	resp, err := s.send(ctx, backupClient, http.MethodGet, "/api/backup", "", nil)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	n, err := io.Copy(dst, resp.Body)
+	if err != nil {
+		return n, fmt.Errorf("%w: %v", ErrUnreachable, err)
+	}
+	return n, nil
+}
+
+// Restored is what a restore brought in.
+type Restored struct {
+	Sources int `json:"sources"`
+	Entries int `json:"entries"`
+}
+
+// Restore uploads a backup, which replaces all the server's data. A refused backup is an *APIError whose Code is
+// invalid_backup, corrupt_backup, backup_newer, backup_too_large, restore_running or vacuum_running, and leaves the
+// data as it was.
+func (s Session) Restore(ctx context.Context, backup io.Reader) (Restored, error) {
+	resp, err := s.send(ctx, backupClient, http.MethodPost, "/api/restore", "application/zip", backup)
+	if err != nil {
+		return Restored{}, err
+	}
+	defer resp.Body.Close()
+	var restored Restored
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&restored); err != nil {
+		return Restored{}, fmt.Errorf("restore: %w", err)
+	}
+	return restored, nil
+}
+
 // StartImport has the server read another reader's subscriptions, stars and read state into a preview. Nothing is
 // written until ConfirmImport.
 func (s Session) StartImport(ctx context.Context, req ImportRequest) (ImportStatus, error) {

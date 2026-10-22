@@ -57,6 +57,9 @@ type Config struct {
 	Log *diag.Handler
 	// Mode is diag.ModeDesktop or diag.ModeHeadless.
 	Mode string
+	// Pause stops the fetch loop and the AI worker, and waits until they have, while a restore replaces the data. The
+	// function it returns starts them again. Nil means there is nothing to stop.
+	Pause func(ctx context.Context) (resume func(), err error)
 }
 
 // Images downloads a picture found inside a feed and returns its content type and bytes.
@@ -99,11 +102,14 @@ type Server struct {
 
 	vacuumMu sync.Mutex // guards vacuum
 	vacuum   vacuumState
+
+	restoring sync.Mutex // held for the length of a restore
+	pause     func(ctx context.Context) (resume func(), err error)
 }
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, log: cfg.Log, mode: cfg.Mode, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
+	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, log: cfg.Log, mode: cfg.Mode, pause: cfg.Pause, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
 	if s.routes == nil {
 		s.routes = fetch.NewRoutes(cfg.Version)
 	}
@@ -152,6 +158,8 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("PATCH /api/settings", s.authed(s.updateSettings))
 	mux.HandleFunc("POST /api/opml/import", s.authed(s.importOPML))
 	mux.HandleFunc("GET /api/opml/export", s.authed(s.exportOPML))
+	mux.HandleFunc("GET /api/backup", s.authed(s.backup))
+	mux.HandleFunc("POST /api/restore", s.authed(s.restore))
 	mux.HandleFunc("POST /api/import/start", s.authed(s.startImport))
 	mux.HandleFunc("GET /api/import", s.authed(s.importStatus))
 	mux.HandleFunc("POST /api/import/confirm", s.authed(s.confirmImport))

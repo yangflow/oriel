@@ -55,8 +55,9 @@
      A star or read change made while the server is out of reach stays on the row and is sent when it comes back,
      not rolled back; until then the row's meta line carries a small muted upload mark after the star, named "Waiting
      to save" (offline-pending, the first two rows). The waiting changes live in memory only and are lost on quit.
-     With no subscription yet (no-subscriptions) the empty state offers two ways in: the primary "Add your first
-     subscription" opens the add dialog, and the quiet "Import OPML…" beside it opens Settings on Import and export.
+     With no subscription yet (no-subscriptions) the empty state offers three ways in: the primary "Add your first
+     subscription" opens the add dialog, and the quiet "Import OPML…" and "Restore from backup…" beside it open Settings
+     on Import and export, where the backup file is chosen and the restore confirmed.
      The hint adds one line saying that links to YouTube, X, GitHub and the like work too.
      Under the two buttons sits a quiet label, "Or start with a topic", and a row of starter packs (Technology, Science,
      Design, News): each a card with the pack's name and a one-line description, wrapping when narrow. Choosing one
@@ -634,6 +635,7 @@ for(const [id,list] of Object.entries(options)){
 }
 
 const icons={
+  database:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
   panelLeft:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
   layoutGrid:'<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
   list:'<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
@@ -705,7 +707,7 @@ const copy={
     orderNewest:'Newest first', orderOldest:'Oldest first',
     showGrid:'Show as grid', showList:'Show as list', timeName:'Reading time: any length', timeNameUpTo:'Reading time: up to {n} minutes',
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
-    noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…', packsLabel:'Or start with a topic', packsAdding:'Adding {n} subscriptions…', packAdded:'Added {n} subscriptions from {pack}', packFailed:'Added {n} subscriptions from {pack}, couldn’t add {names}',
+    noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…', restoreBackup:'Restore from backup…', packsLabel:'Or start with a topic', packsAdding:'Adding {n} subscriptions…', packAdded:'Added {n} subscriptions from {pack}', packFailed:'Added {n} subscriptions from {pack}, couldn’t add {names}',
     packTechnology:'Technology', packTechnologyHint:'Software, the web and gadgets.', packScience:'Science', packScienceHint:'Research, space and nature.', packDesign:'Design', packDesignHint:'Web design, CSS and visual craft.', packNews:'News', packNewsHint:'World news from newsrooms.',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
     marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below', fetching:'{name}, fetching', fetchedNew:'Fetched {n} entries from “{name}”', fetchedNone:'“{name}” fetched, but has no entries yet', fetchedFailed:'Couldn’t fetch “{name}”: {error}', refreshingName:'Refreshing, {done} of {n} checked', refreshed:'Checked {n} subscriptions', refreshedFailed:'Checked {n} subscriptions, {failed} failed', refreshedPart:'Checked {done} of {n} subscriptions, the rest will follow', refreshNone:'No subscriptions to refresh', kRefreshAll:'Refresh all subscriptions',
@@ -740,7 +742,7 @@ const copy={
     orderNewest:'最新的在前', orderOldest:'最旧的在前',
     showGrid:'以网格显示', showList:'以列表显示', timeName:'阅读时长：不限', timeNameUpTo:'阅读时长：{n} 分钟内',
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
-    noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…', packsLabel:'或者从一个主题开始', packsAdding:'正在添加 {n} 个订阅…', packAdded:'已添加{pack}的 {n} 个订阅', packFailed:'已添加{pack}的 {n} 个订阅，{names}没能添加',
+    noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…', restoreBackup:'从备份恢复…', packsLabel:'或者从一个主题开始', packsAdding:'正在添加 {n} 个订阅…', packAdded:'已添加{pack}的 {n} 个订阅', packFailed:'已添加{pack}的 {n} 个订阅，{names}没能添加',
     packTechnology:'科技', packTechnologyHint:'软件、网络和数码。', packScience:'科学', packScienceHint:'研究、太空和自然。', packDesign:'设计', packDesignHint:'网页设计、CSS 和视觉工艺。', packNews:'新闻', packNewsHint:'各大新闻机构的国际新闻。',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
     marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了', fetching:'{name}，正在抓取', fetchedNew:'「{name}」抓到 {n} 条', fetchedNone:'「{name}」抓取成功，但还没有条目', fetchedFailed:'「{name}」抓取失败：{error}', refreshingName:'正在更新，已查 {done}/{n}', refreshed:'已查完 {n} 个订阅', refreshedFailed:'已查完 {n} 个订阅，其中 {failed} 个失败', refreshedPart:'已查 {done}/{n} 个订阅，其余会陆续抓', refreshNone:'没有可更新的订阅', kRefreshAll:'全部更新',
@@ -979,7 +981,7 @@ const more=state==='more'?`<div class="footer" role="status">${icon('loader','sp
 
 let list;
 if(state==='loading')list=`<div class="column" aria-busy="true">${skeleton()}</div>`;
-else if(noSubs){const adding=state==='no-subscriptions-adding';list=empty('rss',copy.noSubscriptions,copy.noSubscriptionsHint,`<div class="empty-actions"><button class="button primary">${icon('plus')}${copy.addFirst}</button><button class="button">${icon('upload')}${copy.importOpml}</button></div><div class="packs-label" id="packs-label"${adding?' role="status"':''}>${adding?icon('loader','spin')+t('packsAdding',{n:5}):copy.packsLabel}</div><div class="packs" role="group" aria-labelledby="packs-label">${['Technology','Science','Design','News'].map(k=>`<button class="pack"${adding?' disabled':''}><b>${copy['pack'+k]}</b><span>${copy['pack'+k+'Hint']}</span></button>`).join('')}</div>`)}
+else if(noSubs){const adding=state==='no-subscriptions-adding';list=empty('rss',copy.noSubscriptions,copy.noSubscriptionsHint,`<div class="empty-actions"><button class="button primary">${icon('plus')}${copy.addFirst}</button><button class="button">${icon('upload')}${copy.importOpml}</button><button class="button">${icon('database')}${copy.restoreBackup}</button></div><div class="packs-label" id="packs-label"${adding?' role="status"':''}>${adding?icon('loader','spin')+t('packsAdding',{n:5}):copy.packsLabel}</div><div class="packs" role="group" aria-labelledby="packs-label">${['Technology','Science','Design','News'].map(k=>`<button class="pack"${adding?' disabled':''}><b>${copy['pack'+k]}</b><span>${copy['pack'+k+'Hint']}</span></button>`).join('')}</div>`)}
 else if(state==='error')list=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');
 else if(state==='unread-done')list=empty('circleCheck',copy.unreadDone,copy.unreadDoneHint);
 else if(state==='starred-none')list=empty('star',copy.noStarred,copy.noStarredHint);

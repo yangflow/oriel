@@ -486,6 +486,41 @@ func TestSettingsAPI(t *testing.T) {
 	}
 }
 
+func TestBackupAPI(t *testing.T) {
+	ctx := context.Background()
+	var uploaded string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /api/backup":
+			w.Header().Set("Content-Type", "application/zip")
+			w.Write([]byte("zip bytes"))
+		case "POST /api/restore":
+			body, _ := io.ReadAll(r.Body)
+			if uploaded = string(body); uploaded == "bad" {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				w.Write([]byte(`{"error":"backup_newer"}`))
+				return
+			}
+			w.Write([]byte(`{"sources":3,"entries":40}`))
+		}
+	}))
+	defer srv.Close()
+	session := Session{Server: srv.URL}
+
+	var saved strings.Builder
+	if n, err := session.Backup(ctx, &saved); err != nil || n != 9 || saved.String() != "zip bytes" {
+		t.Errorf("Backup = %d %q, %v", n, saved.String(), err)
+	}
+	restored, err := session.Restore(ctx, strings.NewReader("zip bytes"))
+	if err != nil || restored != (Restored{Sources: 3, Entries: 40}) || uploaded != "zip bytes" {
+		t.Errorf("Restore = %+v, %v (uploaded %q)", restored, err, uploaded)
+	}
+	var apiErr *APIError
+	if _, err := session.Restore(ctx, strings.NewReader("bad")); !errors.As(err, &apiErr) || apiErr.Code != "backup_newer" {
+		t.Errorf("Restore of a newer backup: %v", err)
+	}
+}
+
 func TestAIAPI(t *testing.T) {
 	ctx := context.Background()
 	var seen []string

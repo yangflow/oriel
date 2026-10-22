@@ -34,34 +34,37 @@ import (
 var catalog []byte
 
 type copy struct {
-	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Shortcut, Lead, Fetching, OPML, Devices, RSSHub        string
-	RSSHubHelp, RSSHubPlaceholder, Save, Saved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp  string
-	InvalidBaseAny, TooManyBase                                                                                    string
-	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp string
-	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed        string
-	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind              string
-	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle             string
-	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry, Now, Minutes       string
-	Hours, Yesterday, DaysAgo, DateLayout, YearLayout                                                              string
-	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset     string
-	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested      string
-	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase         string
-	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                string
-	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp   string
-	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                           string
-	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium           string
-	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed           string
-	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                      string
-	Preset, SummaryLimit, ChunkLimit, LimitsHelp, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit string
-	ChineseTypesetting, ChineseTypesettingHelp                                                                     string
-	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                              string
-	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid           string
-	ViewWall, ViewCard, ViewAsHelp, Timeline, Density, DensityHelp, DensityComfortable, DensityCompact             string
-	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Compact, Compacting            string
-	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep               string
-	NewCount, NothingNew, FailedWord, ShowAttempts                                                                 string
-	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported   string
-	DiagnosticsFailed, DiagnosticsMenu                                                                             string
+	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Shortcut, Lead, Fetching, OPML, Devices, RSSHub           string
+	RSSHubHelp, RSSHubPlaceholder, Save, Saved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp     string
+	InvalidBaseAny, TooManyBase                                                                                       string
+	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp    string
+	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed           string
+	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind                 string
+	BackupLabel, BackupHelp, BackupButton, RestoreLabel, RestoreHelp, RestoreButton, BackupFiles, BackingUp, BackedUp string
+	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge             string
+	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                             string
+	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                string
+	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry, Now, Minutes          string
+	Hours, Yesterday, DaysAgo, DateLayout, YearLayout                                                                 string
+	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset        string
+	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested         string
+	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase            string
+	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                   string
+	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp      string
+	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                              string
+	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium              string
+	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed              string
+	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                         string
+	Preset, SummaryLimit, ChunkLimit, LimitsHelp, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit    string
+	ChineseTypesetting, ChineseTypesettingHelp                                                                        string
+	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                 string
+	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid              string
+	ViewWall, ViewCard, ViewAsHelp, Timeline, Density, DensityHelp, DensityComfortable, DensityCompact                string
+	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Compact, Compacting               string
+	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                  string
+	NewCount, NothingNew, FailedWord, ShowAttempts                                                                    string
+	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported      string
+	DiagnosticsFailed, DiagnosticsMenu                                                                                string
 
 	ReaderLabel, ReaderHelp, ReaderButton, ReaderTitle, ReaderService, ReaderAddress, ReaderAddressHint    string
 	ReaderUser, ReaderToken, ReaderPassword, ReaderMemory, ReaderConnect, ReaderClose, ReaderCancel        string
@@ -131,6 +134,8 @@ type API interface {
 	ImportOPML(ctx context.Context, opml []byte) (client.Imported, error)
 	ExportOPML(ctx context.Context) ([]byte, error)
 	Diagnostics(ctx context.Context) ([]byte, error)
+	Backup(ctx context.Context, dst io.Writer) (int64, error)
+	Restore(ctx context.Context, backup io.Reader) (client.Restored, error)
 	TestAI(ctx context.Context) (client.AITest, error)
 	StartImport(ctx context.Context, req client.ImportRequest) (client.ImportStatus, error)
 	ImportStatus(ctx context.Context) (client.ImportStatus, error)
@@ -149,7 +154,7 @@ type API interface {
 type Deps struct {
 	Go       func(work func() (apply func()))
 	Now      func() time.Time
-	Open     func(filter string) (string, error)
+	Open     func(filter string, extensions ...string) (string, error)
 	Save     func(name, filter string) (string, error)
 	Back     func()
 	Imported func()
@@ -190,6 +195,7 @@ type result struct {
 	text   string
 	fails  []client.ImportFail
 	export bool // shown under the export row, else under the import row
+	backup bool // shown under the restore row, which also holds the result of a backup
 }
 
 // Screen keeps the settings as loaded and the work under way.
@@ -249,10 +255,13 @@ type Screen struct {
 	promptSaving           bool
 	promptStatus           status
 
-	busy      bool   // a file is being chosen, imported or exported
-	importing string // the name of the file being imported
-	result    result
-	reader    reader // the dialog that imports from another reader
+	busy       bool   // a file is being chosen, imported or exported
+	importing  string // the name of the file being imported
+	working    string // what the backup or restore under way says, shown with a spinner under the restore row
+	confirming bool   // the dialog that asks to replace the data is open
+	backupFile string // the backup file the dialog is about
+	result     result
+	reader     reader // the dialog that imports from another reader
 
 	revoking bool
 	doomed   client.Device
@@ -304,6 +313,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.api, s.server, s.signedIn = api, server, signedIn
 	s.gen++
 	s.group, s.busy, s.importing, s.result, s.revoking = fetching, false, "", result{}, false
+	s.working, s.confirming, s.backupFile = "", false, ""
 	s.saving, s.keeping, s.aiSaving, s.testing, s.promptSaving = false, false, false, false, false
 	s.state, s.deviceState, s.restored = loading, loading, nil
 	s.activity, s.storage, s.actState, s.actBusy, s.actOpen = client.Activity{}, client.Storage{}, loading, false, 0
@@ -362,6 +372,7 @@ func (s *Screen) expired(err error) bool {
 	s.gen++
 	s.api = nil
 	s.busy, s.saving, s.keeping, s.revoking = false, false, false, false
+	s.working, s.confirming, s.backupFile = "", false, ""
 	s.aiSaving, s.testing, s.promptSaving = false, false, false
 	s.actBusy, s.vacStarting = false, false
 	s.reader = reader{}
@@ -924,6 +935,168 @@ func (s *Screen) export() {
 	})
 }
 
+// backupName is the name a backup file is suggested under: Oriel and the day, with the extension of the format.
+func (s *Screen) backupName() string {
+	return "Oriel-" + s.deps.Now().Format("2006-01-02") + ".oriel-backup"
+}
+
+// back up asks where to save and has the server stream everything to that file.
+func (s *Screen) backUp() {
+	if s.busy || s.api == nil {
+		return
+	}
+	s.busy, s.result = true, result{}
+	gen, api, filter, suggested := s.gen, s.api, s.text.BackupFiles, s.backupName()
+	s.deps.Go(func() func() {
+		path, err := s.deps.Save(suggested, filter)
+		if err != nil || path == "" {
+			return func() {
+				if gen == s.gen {
+					s.busy = false
+				}
+			}
+		}
+		name := filepath.Base(path)
+		s.deps.Go(func() func() {
+			created, err := writeBackup(api, path)
+			return func() {
+				if gen != s.gen || s.expired(err) {
+					return
+				}
+				s.busy, s.working = false, ""
+				switch {
+				case err == nil:
+					s.result = result{tone: done, text: s.fill(s.text.BackedUp, "{file}", name)}
+				case !created:
+					s.result = result{tone: refused, text: s.fill(s.text.WriteFailed, "{file}", name)}
+				default:
+					s.result = result{tone: refused, text: s.text.BackupFailed}
+				}
+				s.result.backup = true
+				s.announce = s.result.text
+			}
+		})
+		return func() {
+			if gen == s.gen && s.busy {
+				s.working = s.text.BackingUp
+				s.announce = s.text.BackingUp
+			}
+		}
+	})
+}
+
+// writeBackup saves the server's backup at path and removes the file again when it did not complete. created says
+// whether the disk took the file, to tell a failure of the disk from one of the server.
+func writeBackup(api API, path string) (created bool, err error) {
+	f, err := os.Create(path)
+	if err != nil {
+		return false, err
+	}
+	_, err = api.Backup(context.Background(), f)
+	if closeErr := f.Close(); err == nil && closeErr != nil {
+		err, created = closeErr, false
+	} else {
+		created = true
+	}
+	if err != nil {
+		os.Remove(path)
+	}
+	return created, err
+}
+
+// chooseRestore asks which backup to restore and then, before anything is replaced, whether to go on.
+func (s *Screen) chooseRestore() {
+	if s.busy || s.api == nil {
+		return
+	}
+	s.busy, s.result = true, result{}
+	gen, filter := s.gen, s.text.BackupFiles
+	s.deps.Go(func() func() {
+		path, err := s.deps.Open(filter, "oriel-backup")
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			if err != nil || path == "" {
+				s.busy = false
+				return
+			}
+			s.backupFile, s.confirming = path, true
+		}
+	})
+}
+
+// restore uploads the chosen backup, which replaces the server's data.
+func (s *Screen) restore() {
+	if s.api == nil || s.backupFile == "" {
+		return
+	}
+	gen, api, path := s.gen, s.api, s.backupFile
+	name := filepath.Base(path)
+	s.working = s.fill(s.text.Restoring, "{file}", name)
+	s.announce = s.working
+	s.deps.Go(func() func() {
+		var restored client.Restored
+		f, err := os.Open(path)
+		if err != nil {
+			err = errRead
+		} else {
+			defer f.Close()
+			restored, err = api.Restore(context.Background(), f)
+		}
+		return func() { s.restoreDone(gen, name, restored, err) }
+	})
+}
+
+func (s *Screen) restoreDone(gen int, name string, restored client.Restored, err error) {
+	if gen != s.gen || s.expired(err) {
+		return
+	}
+	s.busy, s.working, s.backupFile = false, "", ""
+	file := "{file}"
+	switch {
+	case err == nil:
+		// The settings and the devices are the restored ones now; Open clears the result, so it comes first.
+		s.Open()
+		s.result = result{tone: done, text: s.fill(s.text.RestoreDone, "{sources}", strconv.Itoa(restored.Sources),
+			"{entries}", strconv.Itoa(restored.Entries))}
+		s.deps.Imported()
+	case errors.Is(err, errRead):
+		s.result = result{tone: refused, text: s.fill(s.text.ReadFailed, file, name)}
+	case code(err) == "invalid_backup":
+		s.result = result{tone: refused, text: s.fill(s.text.RestoreNotBackup, file, name)}
+	case code(err) == "corrupt_backup":
+		s.result = result{tone: refused, text: s.fill(s.text.RestoreCorrupt, file, name)}
+	case code(err) == "backup_newer":
+		s.result = result{tone: refused, text: s.fill(s.text.RestoreNewer, file, name)}
+	case code(err) == "backup_too_large":
+		s.result = result{tone: refused, text: s.fill(s.text.RestoreTooLarge, file, name)}
+	case code(err) == "restore_running" || code(err) == "vacuum_running":
+		s.result = result{tone: refused, text: s.text.RestoreBusy}
+	default:
+		s.result = result{tone: refused, text: s.fill(s.text.RestoreFailed, file, name)}
+	}
+	s.result.backup = true
+	s.announce = s.result.text
+}
+
+// restoreDialog asks to replace the data with the chosen backup. Cancel is the default; the file is not read before
+// the answer.
+func (s *Screen) restoreDialog(c *ui.Context) {
+	if !s.confirming {
+		return
+	}
+	switch ui.AlertDialog(c, &s.confirming, s.text.RestoreTitle,
+		s.fill(s.text.RestoreBody, "{file}", filepath.Base(s.backupFile)), s.text.Cancel, s.text.RestoreConfirm) {
+	case 1:
+		s.restore()
+	default:
+		if !s.confirming {
+			s.busy, s.backupFile = false, ""
+		}
+	}
+}
+
 func (s *Screen) revoke() {
 	if s.api == nil {
 		return
@@ -1107,6 +1280,7 @@ func (s *Screen) View(c *ui.Context) {
 		}
 	}
 	s.readerDialog(c)
+	s.restoreDialog(c)
 	if s.announce != "" {
 		c.Announce(s.announce)
 		s.announce = ""
@@ -2154,7 +2328,7 @@ func (s *Screen) opmlPage(c *ui.Context) {
 						TextColor(t.TextMuted).Shrink(1).Wrap()
 				})
 		}
-		if s.result.text != "" && !s.result.export {
+		if s.result.text != "" && !s.result.export && !s.result.backup {
 			s.resultBox(c)
 		}
 	}, func() {
@@ -2174,6 +2348,33 @@ func (s *Screen) opmlPage(c *ui.Context) {
 			}
 		})
 		if s.result.text != "" && s.result.export {
+			s.resultBox(c)
+		}
+	}, func() {
+		labeled(c, s.text.BackupLabel, s.text.BackupHelp, func() {
+			b := button(c, secondary, s.busy)
+			textButton(c, b, secondary, icons.Database, s.text.BackupButton, false)
+			if b.Clicked() {
+				s.backUp()
+			}
+		})
+	}, func() {
+		labeled(c, s.text.RestoreLabel, s.text.RestoreHelp, func() {
+			b := button(c, secondary, s.busy)
+			textButton(c, b, secondary, icons.RotateCcw, s.text.RestoreButton, false)
+			if b.Clicked() {
+				s.chooseRestore()
+			}
+		})
+		if s.working != "" {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(px(t, 6)).Margin(px(t, 6), 0, 0, 0).Role(ui.RoleStatus).
+				Children(func() {
+					spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 14)).TextColor(t.TextMuted)
+					spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+					ui.Text(c, s.working).FontSize(px(t, 12)).TextColor(t.TextMuted).Shrink(1).Wrap()
+				})
+		}
+		if s.result.text != "" && s.result.backup {
 			s.resultBox(c)
 		}
 	})
