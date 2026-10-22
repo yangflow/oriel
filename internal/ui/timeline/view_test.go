@@ -30,21 +30,23 @@ func ago(d time.Duration) int64 { return now.Add(-d).UnixMilli() }
 
 // fake stands in for the server and the background: work waits in a queue until step runs it.
 type fake struct {
-	saveTo   string
-	queue    []func() func()
-	now      time.Time
-	entries  []client.Entry // newest first
-	sources  []client.Source
-	health   client.Health
-	queries  []client.Query
-	patches  map[int64][]client.EntryPatch
-	marked   []client.ReadScope
-	unmarked [][]int64
-	pictures []string
-	articles []int64  // the entries asked for in full
-	aiReads  []int64  // the entries whose summary and translation were read
-	aiAsked  int      // the summaries and translations asked to be made
-	pages    []string // the settings pages asked for
+	saveTo     string
+	queue      []func() func()
+	now        time.Time
+	entries    []client.Entry // newest first
+	sources    []client.Source
+	health     client.Health
+	queries    []client.Query
+	patches    map[int64][]client.EntryPatch
+	marked     []client.ReadScope
+	unmarked   [][]int64
+	unmarkedAt []int64
+	extraRead  int // entries MarkRead reports besides the ones in the list, to make a very large mark as read
+	pictures   []string
+	articles   []int64  // the entries asked for in full
+	aiReads    []int64  // the entries whose summary and translation were read
+	aiAsked    int      // the summaries and translations asked to be made
+	pages      []string // the settings pages asked for
 
 	refreshed  client.RefreshResult // what RefreshAll answers
 	refreshes  int                  // the times it was asked
@@ -102,10 +104,10 @@ func shownAt(e client.Entry) int64 {
 	return e.CreatedAt
 }
 
-func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) ([]int64, error) {
+func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) (client.Marked, error) {
 	f.marked = append(f.marked, scope)
 	if f.markErr != nil {
-		return nil, f.markErr
+		return client.Marked{}, f.markErr
 	}
 	var ids []int64
 	for i, e := range f.entries {
@@ -117,23 +119,30 @@ func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) ([]int64, err
 		}
 	}
 	f.count()
-	return ids, nil
+	for i := 0; i < f.extraRead; i++ {
+		ids = append(ids, int64(1000+i))
+	}
+	return client.Marked{IDs: ids, ReadAt: fakeReadAt}, nil
 }
 
-func (f *fake) MarkUnread(_ context.Context, ids []int64) (int, error) {
-	f.unmarked = append(f.unmarked, ids)
+// fakeReadAt is the time the fake reads entries at.
+const fakeReadAt = 1700000000000
+
+func (f *fake) MarkUnread(_ context.Context, m client.Marked) ([]int64, error) {
+	f.unmarked = append(f.unmarked, m.IDs)
+	f.unmarkedAt = append(f.unmarkedAt, m.ReadAt)
 	if f.markErr != nil {
-		return 0, f.markErr
+		return nil, f.markErr
 	}
-	n := 0
+	var ids []int64
 	for i, e := range f.entries {
-		if e.IsRead && slices.Contains(ids, e.ID) {
+		if e.IsRead && slices.Contains(m.IDs, e.ID) {
 			f.entries[i].IsRead = false
-			n++
+			ids = append(ids, e.ID)
 		}
 	}
 	f.count()
-	return n, nil
+	return ids, nil
 }
 
 // count sets the unread counts of the sources from the entries.
@@ -1465,8 +1474,8 @@ func TestMarkAllRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
-	if !reflect.DeepEqual(f.unmarked, [][]int64{{8, 7, 6, 5, 3}}) {
-		t.Fatalf("unmarked %v", f.unmarked)
+	if !reflect.DeepEqual(f.unmarked, [][]int64{{8, 7, 6, 5, 3}}) || !reflect.DeepEqual(f.unmarkedAt, []int64{fakeReadAt}) {
+		t.Fatalf("unmarked %v at %v", f.unmarked, f.unmarkedAt)
 	}
 	if s.unreadIn(s.scope) != 5 || tt.HasText("Undo") || s.undoable != nil {
 		t.Fatalf("unread %d, texts %v", s.unreadIn(s.scope), tt.Texts())
@@ -2098,6 +2107,21 @@ func TestUndoWithKey(t *testing.T) {
 	f.settle(t, tt)
 	if len(f.unmarked) != 1 {
 		t.Fatalf("undid twice: %v", f.unmarked)
+	}
+}
+
+// TestUndoTooLarge shows a mark as read of more entries than one undo takes offers no Undo.
+func TestUndoTooLarge(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.extraRead = maxUndo
+	if err := tt.Click("Mark all in “All” as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Key(ui.Cmd, ui.KeyZ)
+	f.settle(t, tt)
+	if len(f.unmarked) != 0 || s.undoable != nil || tt.HasText("Undo") {
+		t.Fatalf("unmarked %v, texts %v", f.unmarked, tt.Texts())
 	}
 }
 

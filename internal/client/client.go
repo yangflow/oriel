@@ -905,22 +905,28 @@ func (s Session) SetEntry(ctx context.Context, id int64, patch EntryPatch) (Entr
 	return entry, err
 }
 
-// MarkRead marks the unread entries of a scope as read and returns the IDs it marked, which MarkUnread takes to undo it.
-func (s Session) MarkRead(ctx context.Context, scope ReadScope) ([]int64, error) {
+// Marked is what a bulk mark as read changed: the IDs of the entries that were unread, and the time it read them, in
+// Unix milliseconds. MarkUnread takes both to undo it.
+type Marked struct {
+	IDs    []int64 `json:"ids"`
+	ReadAt int64   `json:"readAt"`
+}
+
+// MarkRead marks the unread entries of a scope as read and returns what it changed.
+func (s Session) MarkRead(ctx context.Context, scope ReadScope) (Marked, error) {
+	var reply Marked
+	err := s.call(ctx, http.MethodPost, "/api/entries/read", scope, &reply)
+	return reply, err
+}
+
+// MarkUnread undoes a MarkRead: it marks the entries of m unread again, except those read again since, and returns
+// the IDs of those it changed.
+func (s Session) MarkUnread(ctx context.Context, m Marked) ([]int64, error) {
 	var reply struct {
 		IDs []int64 `json:"ids"`
 	}
-	err := s.call(ctx, http.MethodPost, "/api/entries/read", scope, &reply)
+	err := s.call(ctx, http.MethodPost, "/api/entries/unread", m, &reply)
 	return reply.IDs, err
-}
-
-// MarkUnread marks the given entries unread again and returns how many changed.
-func (s Session) MarkUnread(ctx context.Context, ids []int64) (int, error) {
-	var reply struct {
-		Marked int `json:"marked"`
-	}
-	err := s.call(ctx, http.MethodPost, "/api/entries/unread", map[string][]int64{"ids": ids}, &reply)
-	return reply.Marked, err
 }
 
 // AI returns the summary and the translation of an entry.

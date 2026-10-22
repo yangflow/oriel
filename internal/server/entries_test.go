@@ -191,14 +191,29 @@ func TestTimeline(t *testing.T) {
 	if got := titles(t, decode(t, do(s, "GET", "/api/entries?unread=1", "", bearer(token)))); fmt.Sprint(got) != "[social 0 video 1]" {
 		t.Fatalf("unread: %v", got)
 	}
-	undo, _ := json.Marshal(map[string]any{"ids": marked["ids"]})
-	if w := do(s, "POST", "/api/entries/unread", string(undo), bearer(token)); w.Code != http.StatusOK || decode(t, w)["marked"] != 3.0 {
+	readAt, ok := marked["readAt"].(float64)
+	if !ok || readAt != float64(c.t.UnixMilli()) {
+		t.Fatalf("readAt: %v", marked["readAt"])
+	}
+	// The first entry is unread and read again later by another action: the undo leaves it alone.
+	firstID := int(marked["ids"].([]any)[0].(float64))
+	c.t = c.t.Add(time.Second)
+	do(s, "PATCH", fmt.Sprintf("/api/entries/%d", firstID), `{"isRead":false}`, bearer(token))
+	do(s, "PATCH", fmt.Sprintf("/api/entries/%d", firstID), `{"isRead":true}`, bearer(token))
+	undo, _ := json.Marshal(map[string]any{"ids": marked["ids"], "readAt": readAt})
+	if w := do(s, "POST", "/api/entries/unread", string(undo), bearer(token)); w.Code != http.StatusOK {
 		t.Fatalf("undo: %d %s", w.Code, w.Body)
+	} else if got := decode(t, w); got["marked"] != 2.0 || slices.Contains(got["ids"].([]any), any(float64(firstID))) {
+		t.Fatalf("undo: %v", got)
+	}
+	undo, _ = json.Marshal(map[string]any{"ids": marked["ids"]})
+	if w := do(s, "POST", "/api/entries/unread", string(undo), bearer(token)); w.Code != http.StatusOK || decode(t, w)["marked"] != 1.0 {
+		t.Fatalf("undo without a time: %d %s", w.Code, w.Body)
 	}
 	if got := titles(t, decode(t, do(s, "GET", "/api/entries?unread=1", "", bearer(token)))); len(got) != 5 {
 		t.Fatalf("unread after undo: %v", got)
 	}
-	for _, body := range []string{`{"ids":[]}`, `{}`, `{"ids":"1"}`} {
+	for _, body := range []string{`{"ids":[]}`, `{}`, `{"ids":"1"}`, `{"ids":[1],"readAt":-1}`} {
 		if w := do(s, "POST", "/api/entries/unread", body, bearer(token)); w.Code != http.StatusBadRequest {
 			t.Errorf("unread %s: %d", body, w.Code)
 		}

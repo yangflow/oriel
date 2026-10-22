@@ -366,11 +366,24 @@ func TestEntries(t *testing.T) {
 	if unread, _ := s.Entries(ctx, EntryFilter{Unread: true}, 10); len(unread) != 1 || unread[0].ID != all[0].ID {
 		t.Fatalf("unread after MarkRead: %v", ids(unread))
 	}
-	if n, err := s.MarkUnread(ctx, append(marked, 99)); err != nil || n != 2 {
-		t.Fatalf("MarkUnread = %d, %v", n, err)
+	if n, err := s.MarkUnread(ctx, append(marked, 99), 0); err != nil || len(n) != 2 {
+		t.Fatalf("MarkUnread = %v, %v", n, err)
 	}
 	if unread, _ := s.Entries(ctx, EntryFilter{Unread: true}, 10); len(unread) != 3 || !unread[1].ReadAt.IsZero() {
 		t.Fatalf("unread after MarkUnread: %v", ids(unread))
+	}
+	// An undo with the time of the mark restores the entries it marked and leaves one read again since.
+	if got, err := s.MarkRead(ctx, EntryFilter{UpTo: &upTo}, first); err != nil || len(got) != 2 {
+		t.Fatalf("MarkRead again = %v, %v", got, err)
+	}
+	if _, err := s.db.ExecContext(ctx, "UPDATE entries SET read_at = ? WHERE id = ?", first.UnixMilli()+5, marked[0]); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.MarkUnread(ctx, marked, first.UnixMilli()); err != nil || len(n) != 1 || n[0] != marked[1] {
+		t.Fatalf("MarkUnread at the time of the mark = %v, %v", n, err)
+	}
+	if n, err := s.MarkUnread(ctx, marked, 0); err != nil || len(n) != 1 {
+		t.Fatalf("MarkUnread without a time = %v, %v", n, err)
 	}
 	newest, err := s.EntryPosition(ctx, all[0].ID)
 	if err != nil {
@@ -429,8 +442,8 @@ func TestMarkReadOlderThan(t *testing.T) {
 	if err != nil || titlesOf(got) != "Dated|Video" {
 		t.Fatalf("older than a day = %s, %v", titlesOf(got), err)
 	}
-	if n, err := s.MarkUnread(ctx, got); err != nil || n != 2 {
-		t.Fatalf("undo = %d, %v", n, err)
+	if n, err := s.MarkUnread(ctx, got, 0); err != nil || len(n) != 2 {
+		t.Fatalf("undo = %v, %v", n, err)
 	}
 	if got, err := s.MarkRead(ctx, EntryFilter{OlderThan: cut, Kind: "video"}, at); err != nil || titlesOf(got) != "Video" {
 		t.Fatalf("kind scope = %s, %v", titlesOf(got), err)
