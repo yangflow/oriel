@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
+
+	"github.com/yangflow/oriel/internal/store"
 )
 
 type images map[string]string
@@ -85,5 +88,59 @@ func TestImageNeedsSession(t *testing.T) {
 	token := login(t, s, "test")
 	if w := do(s, "GET", target, "", map[string]string{"Authorization": "Bearer " + token}); w.Code != http.StatusOK {
 		t.Fatalf("signed-in image = %d", w.Code)
+	}
+}
+
+func TestImageServesTheCopyOfAStarredEntry(t *testing.T) {
+	ctx := context.Background()
+	s, c := newServer(t, "")
+	src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/s", Kind: "social", FetchInterval: time.Hour}, "", c.t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "social"}, "", "", []store.FeedEntry{{GUID: "1", Title: "post"}}, "", time.Time{}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.store.Entries(ctx, store.EntryFilter{}, 10)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("entries %v, %v", list, err)
+	}
+	id := list[0].ID
+	star := true
+	if _, err := s.store.UpdateEntry(ctx, id, store.EntryPatch{Starred: &star}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	address := "https://gone.example/a.png"
+	if err := s.store.SaveImageCopy(ctx, id, address, "image/png", []byte("COPY"), c.t); err != nil {
+		t.Fatal(err)
+	}
+
+	// The original is gone; the copy answers with the headers of a proxied picture, even with no fetcher set.
+	s.images = images{}
+	w := do(s, "GET", "/api/image?url="+url.QueryEscape(address), "", nil)
+	if w.Code != http.StatusOK || w.Body.String() != "COPY" || w.Header().Get("Content-Type") != "image/png" ||
+		w.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("copy = %d %q %v", w.Code, w.Body.String(), w.Header())
+	}
+	s.images = nil
+	if w := do(s, "GET", "/api/image?url="+url.QueryEscape(address), "", nil); w.Code != http.StatusOK || w.Body.String() != "COPY" {
+		t.Errorf("copy without a fetcher = %d", w.Code)
+	}
+
+	// The copy is counted in the storage figures, and goes when the entry is unstarred.
+	body := decode(t, do(s, "GET", "/api/storage", "", nil))
+	if body["copies"] != 1.0 || body["copyBytes"] != 4.0 {
+		t.Errorf("storage = %v", body)
+	}
+	off := false
+	if _, err := s.store.UpdateEntry(ctx, id, store.EntryPatch{Starred: &off}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	if w := do(s, "GET", "/api/image?url="+url.QueryEscape(address), "", nil); w.Code != http.StatusBadGateway {
+		t.Errorf("after unstarring = %d", w.Code)
+	}
+	body = decode(t, do(s, "GET", "/api/storage", "", nil))
+	if body["copies"] != 0.0 || body["copyBytes"] != 0.0 {
+		t.Errorf("storage after unstarring = %v", body)
 	}
 }

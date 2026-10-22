@@ -128,7 +128,7 @@ func TestStorageRouteAndVacuum(t *testing.T) {
 func TestStorageWithoutImageCache(t *testing.T) {
 	s, _ := newServer(t, "")
 	body := decode(t, do(s, "GET", "/api/storage", "", nil))
-	if body["images"] != 0.0 || body["imageBytes"] != 0.0 {
+	if body["images"] != 0.0 || body["imageBytes"] != 0.0 || body["copies"] != 0.0 || body["copyBytes"] != 0.0 {
 		t.Fatalf("storage: %v", body)
 	}
 }

@@ -141,6 +141,7 @@ func (s *Screen) storageCard(c *ui.Context) {
 			s.keyValue(c, s.text.DBSize, s.bytes(st.DatabaseBytes))
 			s.keyValue(c, s.text.Entries, strconv.FormatInt(st.Entries, 10))
 			s.keyValue(c, s.text.Images, s.fill(s.text.ImagesValue, "{n}", strconv.Itoa(st.Images), "{size}", s.bytes(st.ImageBytes)))
+			s.keyValue(c, s.text.Copies, s.fill(s.text.CopiesValue, "{n}", strconv.Itoa(st.Copies), "{size}", s.bytes(st.CopyBytes)))
 		})
 	}, func() {
 		busy := s.compacting()

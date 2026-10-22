@@ -34,37 +34,37 @@ import (
 var catalog []byte
 
 type copy struct {
-	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Shortcut, Lead, Fetching, OPML, Devices, RSSHub           string
-	RSSHubHelp, RSSHubPlaceholder, Save, Saved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp     string
-	InvalidBaseAny, TooManyBase                                                                                       string
-	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp    string
-	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed           string
-	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind                 string
-	BackupLabel, BackupHelp, BackupButton, RestoreLabel, RestoreHelp, RestoreButton, BackupFiles, BackingUp, BackedUp string
-	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge             string
-	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                             string
-	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                string
-	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry, Now, Minutes          string
-	Hours, Yesterday, DaysAgo, DateLayout, YearLayout                                                                 string
-	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset        string
-	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested         string
-	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase            string
-	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                   string
-	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp      string
-	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                              string
-	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium              string
-	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed              string
-	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                         string
-	Preset, SummaryLimit, ChunkLimit, LimitsHelp, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit    string
-	ChineseTypesetting, ChineseTypesettingHelp                                                                        string
-	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                 string
-	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid              string
-	ViewWall, ViewCard, ViewAsHelp, Timeline, Density, DensityHelp, DensityComfortable, DensityCompact                string
-	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Compact, Compacting               string
-	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                  string
-	NewCount, NothingNew, FailedWord, ShowAttempts                                                                    string
-	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported      string
-	DiagnosticsFailed, DiagnosticsMenu                                                                                string
+	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Shortcut, Lead, Fetching, OPML, Devices, RSSHub                  string
+	RSSHubHelp, RSSHubPlaceholder, Save, Saved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp            string
+	InvalidBaseAny, TooManyBase                                                                                              string
+	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp           string
+	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed                  string
+	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind                        string
+	BackupLabel, BackupHelp, BackupButton, RestoreLabel, RestoreHelp, RestoreButton, BackupFiles, BackingUp, BackedUp        string
+	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge                    string
+	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                                    string
+	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                       string
+	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry, Now, Minutes                 string
+	Hours, Yesterday, DaysAgo, DateLayout, YearLayout                                                                        string
+	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset               string
+	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested                string
+	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase                   string
+	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                          string
+	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp             string
+	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                     string
+	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                     string
+	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed                     string
+	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                string
+	Preset, SummaryLimit, ChunkLimit, LimitsHelp, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit           string
+	ChineseTypesetting, ChineseTypesettingHelp                                                                               string
+	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                        string
+	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid                     string
+	ViewWall, ViewCard, ViewAsHelp, Timeline, Density, DensityHelp, DensityComfortable, DensityCompact                       string
+	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, Compacting string
+	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                         string
+	NewCount, NothingNew, FailedWord, ShowAttempts                                                                           string
+	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported             string
+	DiagnosticsFailed, DiagnosticsMenu                                                                                       string
 
 	ReaderLabel, ReaderHelp, ReaderButton, ReaderTitle, ReaderService, ReaderAddress, ReaderAddressHint    string
 	ReaderUser, ReaderToken, ReaderPassword, ReaderMemory, ReaderConnect, ReaderClose, ReaderCancel        string

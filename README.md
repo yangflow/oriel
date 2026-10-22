@@ -34,6 +34,9 @@ Working now:
 - **Full text for articles.** Article pages are reduced to their main content with Readability, including the
   linked post of a Discourse topic. Links found in feeds cannot reach loopback or private addresses.
 - **Retention.** Unstarred entries older than a chosen number of days are pruned hourly; 0 keeps everything.
+- **Starred copies.** Starring an entry keeps a local copy of its full text and pictures (up to 30, 8 MiB each) in the
+  database, so it survives its original page going away and is included in a database backup; unstarring removes the
+  copies.
 - **Subscription API.** Add, list, edit, pause, delete and refresh subscriptions, one or all at
   once, over HTTP, with validation and duplicate detection.
 - **Timeline API.** Page through all entries newest first, filter by source, kind, unread or starred, search

@@ -45,6 +45,7 @@ type background struct {
 	store  *store.Store
 	poller *fetch.Poller
 	worker *ai.Worker
+	copier *fetch.Copier
 
 	mu     sync.Mutex
 	stop   context.CancelFunc
@@ -63,6 +64,7 @@ func (g *background) run() {
 	g.stop = stop
 	g.group.Go(func() { g.poller.Run(ctx) })
 	g.group.Go(func() { g.worker.Run(ctx) })
+	g.group.Go(func() { g.copier.Run(ctx) })
 	g.group.Go(func() {
 		if err := g.store.BackfillReadingTime(ctx); err != nil && ctx.Err() == nil {
 			slog.Error("Cannot fill in reading times", "error", err)
@@ -106,8 +108,9 @@ func start(ctx context.Context, dataDir, password, mode string, port int) (*back
 	}
 	worker := ai.New(st, version)
 	poller := fetch.New(st, version)
-	work := &background{store: st, poller: poller, worker: worker}
-	api, err := server.New(st, server.Config{Password: password, Version: version, Images: fetch.NewImages(version, filepath.Join(dataDir, "image-cache")),
+	images := fetch.NewImages(version, filepath.Join(dataDir, "image-cache"))
+	work := &background{store: st, poller: poller, worker: worker, copier: fetch.NewCopier(st, images)}
+	api, err := server.New(st, server.Config{Password: password, Version: version, Images: images,
 		Discover: fetch.NewDiscoverer(version), AI: worker, Fetching: poller.Fetching, Log: logs, Mode: mode, Pause: work.pause})
 	if err != nil {
 		st.Close()
