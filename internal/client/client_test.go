@@ -179,7 +179,7 @@ func TestTimelineAPI(t *testing.T) {
 			w.WriteHeader(http.StatusAccepted)
 			w.Write([]byte(`{"id":7,"extractStatus":"pending","contentHtml":"<p>x</p>"}`))
 		case "/api/entries/read":
-			w.Write([]byte(`{"marked":2,"ids":[7,8]}`))
+			w.Write([]byte(`{"marked":2,"ids":[7,8],"readAt":1700000000500}`))
 		case "/api/entries/unread":
 			w.Write([]byte(`{"marked":2}`))
 		case "/api/image":
@@ -261,14 +261,14 @@ func TestTimelineAPI(t *testing.T) {
 	if entry, err := session.SetEntry(ctx, 7, EntryPatch{ReadProgress: &progress}); err != nil || entry.ReadProgress == nil || *entry.ReadProgress != 0.5 {
 		t.Errorf("SetEntry progress = %+v, %v", entry, err)
 	}
-	ids, err := session.MarkRead(ctx, ReadScope{Kind: "video", UpTo: 7})
-	if err != nil || len(ids) != 2 || ids[0] != 7 || ids[1] != 8 {
-		t.Errorf("MarkRead = %v, %v", ids, err)
+	read, err := session.MarkRead(ctx, ReadScope{Kind: "video", UpTo: 7})
+	if err != nil || len(read.IDs) != 2 || read.IDs[0] != 7 || read.IDs[1] != 8 || read.ReadAt != 1700000000500 {
+		t.Errorf("MarkRead = %v, %v", read, err)
 	}
-	if ids, err := session.MarkRead(ctx, ReadScope{SourceID: 5, OlderThan: 1700000000000}); err != nil || len(ids) != 2 {
-		t.Errorf("MarkRead older = %v, %v", ids, err)
+	if read, err := session.MarkRead(ctx, ReadScope{SourceID: 5, OlderThan: 1700000000000}); err != nil || len(read.IDs) != 2 {
+		t.Errorf("MarkRead older = %v, %v", read, err)
 	}
-	if marked, err := session.MarkUnread(ctx, ids); err != nil || marked != 2 {
+	if marked, err := session.MarkUnread(ctx, read); err != nil || marked != 2 {
 		t.Errorf("MarkUnread = %d, %v", marked, err)
 	}
 	if body, err := session.Image(ctx, "https://i/1.jpg?w=2&h=1"); err != nil || string(body) != "PNG" {
@@ -339,7 +339,7 @@ func TestTimelineAPI(t *testing.T) {
 		`PATCH /api/entries/7 {"readProgress":0.5}`,
 		`POST /api/entries/read {"kind":"video","upTo":7}`,
 		`POST /api/entries/read {"sourceId":5,"olderThan":1700000000000}`,
-		`POST /api/entries/unread {"ids":[7,8]}`,
+		`POST /api/entries/unread {"ids":[7,8],"readAt":1700000000500}`,
 		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",
 		"GET /api/discover?url=https%3A%2F%2Fblog.example%2F ",
 		"GET /api/discover?url=https%3A%2F%2Fdown.example%2F ",

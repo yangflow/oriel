@@ -99,8 +99,8 @@ type API interface {
 	Entries(ctx context.Context, q client.Query) (client.Page, error)
 	Sources(ctx context.Context) ([]client.Source, error)
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
-	MarkRead(ctx context.Context, scope client.ReadScope) ([]int64, error)
-	MarkUnread(ctx context.Context, ids []int64) (int, error)
+	MarkRead(ctx context.Context, scope client.ReadScope) (client.Marked, error)
+	MarkUnread(ctx context.Context, m client.Marked) (int, error)
 	RefreshAll(ctx context.Context) (client.RefreshResult, error)
 }
 
@@ -159,10 +159,13 @@ type picture struct {
 
 // marking is a "mark as read" (all, above or a subscription) that can be undone: the entries it marked, and the text of its toast, once shown.
 type marking struct {
-	ids   []int64
+	client.Marked
 	text  string
 	shown bool
 }
+
+// maxUndo is the most entries one undo takes: the server refuses more, so a bigger mark as read offers no Undo.
+const maxUndo = 10000
 
 // keepLists is how many lists the screen keeps to draw again at once.
 const keepLists = 8
@@ -1884,7 +1887,7 @@ func (s *Screen) markScope(scope client.ReadScope, text, name string) {
 func (s *Screen) markScopeText(scope client.ReadScope, text, name, none string) {
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
-		ids, err := api.MarkRead(context.Background(), scope)
+		marked, err := api.MarkRead(context.Background(), scope)
 		return func() {
 			if gen != s.gen || s.expired(err) {
 				return
@@ -1893,13 +1896,18 @@ func (s *Screen) markScopeText(scope client.ReadScope, text, name, none string) 
 				s.toast = s.text.ActionFailed
 				return
 			}
+			ids := marked.IDs
 			if len(ids) == 0 && none != "" {
 				s.noOlder = none
 				return
 			}
 			s.setRead(ids, true)
 			s.loadSources()
-			s.undoable = &marking{ids: ids, text: strings.ReplaceAll(s.format(text, len(ids)), "{scope}", name)}
+			s.undoable = nil
+			if len(ids) > maxUndo {
+				return
+			}
+			s.undoable = &marking{Marked: marked, text: strings.ReplaceAll(s.format(text, len(ids)), "{scope}", name)}
 		}
 	})
 }
@@ -1909,12 +1917,12 @@ func (s *Screen) undo(m *marking) {
 	if s.undoable == m {
 		s.undoable = nil
 	}
-	if s.api == nil || len(m.ids) == 0 {
+	if s.api == nil || len(m.IDs) == 0 {
 		return
 	}
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
-		_, err := api.MarkUnread(context.Background(), m.ids)
+		_, err := api.MarkUnread(context.Background(), m.Marked)
 		return func() {
 			if gen != s.gen || s.expired(err) {
 				return
@@ -1923,7 +1931,7 @@ func (s *Screen) undo(m *marking) {
 				s.toast = s.text.ActionFailed
 				return
 			}
-			s.setRead(m.ids, false)
+			s.setRead(m.IDs, false)
 			s.loadSources()
 		}
 	})

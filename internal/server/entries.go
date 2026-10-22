@@ -291,12 +291,13 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 		}
 		*bound.set = &position
 	}
-	ids, err := s.store.MarkRead(r.Context(), filter, s.now())
+	readAt := s.now()
+	ids, err := s.store.MarkRead(r.Context(), filter, readAt)
 	if err != nil {
 		internal(w, err)
 		return
 	}
-	reply(w, http.StatusOK, map[string]any{"marked": len(ids), "ids": ids})
+	reply(w, http.StatusOK, map[string]any{"marked": len(ids), "ids": ids, "readAt": readAt.UnixMilli()})
 }
 
 // maxUnread bounds one undo of "Mark all as read".
@@ -304,16 +305,17 @@ const maxUnread = 10000
 
 func (s *Server) markUnread(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		IDs []int64 `json:"ids"`
+		IDs    []int64 `json:"ids"`
+		ReadAt int64   `json:"readAt"`
 	}
 	if !readBody(w, r, &body) {
 		return
 	}
-	if len(body.IDs) == 0 || len(body.IDs) > maxUnread {
+	if body.ReadAt < 0 || len(body.IDs) == 0 || len(body.IDs) > maxUnread {
 		fail(w, http.StatusBadRequest, "invalid_ids")
 		return
 	}
-	marked, err := s.store.MarkUnread(r.Context(), body.IDs)
+	marked, err := s.store.MarkUnread(r.Context(), body.IDs, body.ReadAt)
 	if err != nil {
 		internal(w, err)
 		return
