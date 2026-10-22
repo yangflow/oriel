@@ -10,7 +10,12 @@
      A page address that is not a platform link is looked up after a short pause in typing: add-searching shows
      "Looking for feeds…" and holds Add; add-found-list lists every feed found, one row each in the found row's
      style (the chosen row filled with a check, the others outlined), the first chosen; add-none-found says nothing
-     was found and Add tries the address as typed. Colors are the Oriel palette of
+     was found and Add tries the address as typed.
+     A name such as "github", or a link that has no feed, is looked up in the route catalog of the user's RSSHub
+     instance: add-routes lists the matching routes in the same row style (route name, route template), add-route-params
+     shows the chosen route's parameters as fields under the list (the link's own parts already filled in),
+     add-route-preview adds the Preview button's result, the first entries of the route without subscribing, and
+     add-no-catalog is the quiet line when the instance has no catalog. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License). The edit dialog ends with the subscription's summaries and
      translations: switches that queue new entries, and prompts that replace the global ones in Settings; edit-ai
      shows that part scrolled into view, edit-ai-off the same while AI is not set up. edit-backup is the dialog of an RSSHub route whose last fetch
@@ -194,6 +199,11 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 .found.pick.on > svg.icon:last-child { visibility:visible }
 .picks { display:flex; flex-direction:column; gap:6px }
 .picks .head { font-size:12px; color:var(--muted) }
+.params { display:flex; flex-direction:column; gap:10px }
+.preview { display:flex; flex-direction:column; gap:6px; padding:8px 12px; border-radius:8px; box-shadow:inset 0 0 0 1px var(--border) }
+.preview .row { display:flex; gap:10px; align-items:baseline }
+.preview .row b { flex:1; min-width:0; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.preview .row span { font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap }
 .needs { display:flex; flex-direction:column; gap:8px; padding:10px 12px; border-radius:8px; background:var(--warning-soft) }
 .needs .head { display:flex; gap:8px; color:var(--warning); font-weight:500 }
 .needs .head svg.icon { width:14px; height:14px; margin-top:3px; flex:none }
@@ -270,7 +280,7 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','add-searching','add-found-list','add-none-found','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','edit-mute-none','delete','health','health-loading','health-error','health-empty','health-delete'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','add-searching','add-found-list','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','edit-mute-none','delete','health','health-loading','health-error','health-empty','health-delete'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -326,6 +336,8 @@ const copy={
     pace:'Pace', paceOff:'Off', paceHelp:'Unread entries fade and leave All and Unread when their time is up. Search, Starred and the source still show them.',
     feed:'Feed', viaRsshub:'RSSHub route',
     found:{bilibili:'Bilibili · videos of user 2267573', feed:'Feed at go.dev', route:'RSSHub route'},
+    searchingRoutes:'Looking for RSSHub routes…', foundRoutes:'Found {n} routes. Choose one.', preview:'Preview', previewOf:'Latest from “Issues · rsshub/rsshub”', noCatalog:'Can’t read the route catalog of your RSSHub. Type a route yourself, for example /github/issue/user/repo.',
+    routeA:'GitHub · Repository issues', routeB:'GitHub · Trending', routeC:'GitHub · User followers', paramUser:'user', paramUserHelp:'GitHub user or organization', paramRepo:'repo', paramRepoHelp:'Repository name',
     searching:'Looking for feeds…', foundMany:'Found {n} feeds. Choose one.', noneFound:'No feed found at this address. “Add” tries it as typed.',
     pickGo:'The Go Blog', pickGoCode:'https://go.dev/blog/feed.atom', pickAll:'All posts', pickAllCode:'https://go.dev/blog/rss.xml', pickCom:'Comments', pickComCode:'https://go.dev/blog/comments.atom',
     needsBase:'RSSHub routes need an RSSHub instance. Enter its address; it is saved in Settings.',
@@ -361,6 +373,8 @@ const copy={
     pace:'节奏', paceOff:'关闭', paceHelp:'未读条目到期前会逐渐变淡，到期后离开全部和未读；搜索、收藏和该订阅源里仍能看到。',
     feed:'订阅地址', viaRsshub:'RSSHub 路由',
     found:{bilibili:'哔哩哔哩 · 用户 2267573 的视频', feed:'go.dev 的订阅', route:'RSSHub 路由'},
+    searchingRoutes:'正在找 RSSHub 路由…', foundRoutes:'找到 {n} 条路由，选一条。', preview:'预览', previewOf:'「Issues · rsshub/rsshub」的最新内容', noCatalog:'读不到 RSSHub 的路由目录。直接填路由，比如 /github/issue/用户/仓库。',
+    routeA:'GitHub · 仓库 Issues', routeB:'GitHub · 趋势', routeC:'GitHub · 用户关注者', paramUser:'user', paramUserHelp:'GitHub 用户或组织', paramRepo:'repo', paramRepoHelp:'仓库名',
     searching:'正在找订阅…', foundMany:'找到 {n} 个订阅，选一个。', noneFound:'这个地址下没有找到订阅。点「添加」会按原样试一次。',
     pickGo:'The Go Blog', pickGoCode:'https://go.dev/blog/feed.atom', pickAll:'全部文章', pickAllCode:'https://go.dev/blog/rss.xml', pickCom:'评论', pickComCode:'https://go.dev/blog/comments.atom',
     needsBase:'RSSHub 路由要先有一个 RSSHub 实例。填上它的地址，会存进设置。',
@@ -418,7 +432,7 @@ const select=(label,value)=>`<div class="field"><label>${label}</label><div clas
 const foundCard=(kind,what,code)=>`<div class="found" role="status">${icon(kind==='feed'?'rss':kind)}<div class="what"><b>${what}</b><code>${code}</code></div>${icon('check')}</div>`;
 
 function addDialog(){
-  const value={add:'','add-link':'https://space.bilibili.com/2267573','add-feed':'https://go.dev/blog/feed.atom','add-route':'/github/trending/daily','add-route-no-base':'/github/trending/daily','add-more':'','add-invalid':'go.dev/blog','add-exists':'https://go.dev/blog/feed.atom',adding:'https://space.bilibili.com/2267573','add-searching':'https://go.dev/blog','add-found-list':'https://go.dev/blog','add-none-found':'https://example.org/about'}[state];
+  const value={add:'','add-link':'https://space.bilibili.com/2267573','add-feed':'https://go.dev/blog/feed.atom','add-route':'/github/trending/daily','add-route-no-base':'/github/trending/daily','add-more':'','add-invalid':'go.dev/blog','add-exists':'https://go.dev/blog/feed.atom',adding:'https://space.bilibili.com/2267573','add-searching':'https://go.dev/blog','add-found-list':'https://go.dev/blog','add-none-found':'https://example.org/about','add-routes':'github','add-route-params':'https://github.com/rsshub/rsshub','add-route-preview':'https://github.com/rsshub/rsshub','add-no-catalog':'github'}[state];
   const kind=['add-link','adding'].includes(state)?'video':'article';
   const invalid=state==='add-invalid'||state==='add-exists';
   let below=`<span class="help" id="ah">${copy.addressHelp}</span>`;
@@ -429,6 +443,21 @@ function addDialog(){
   if(state==='add-searching')below=`<span class="help" role="status">${icon('loader','spin')} ${copy.searching}</span>`;
   if(state==='add-found-list')below=`<div class="picks" role="radiogroup" aria-label="${copy.foundMany.replace('{n}',3)}"><span class="head" role="status">${copy.foundMany.replace('{n}',3)}</span>${[['pickGo','pickGoCode',1],['pickAll','pickAllCode',0],['pickCom','pickComCode',0]].map(([a,b,on])=>`<div class="found pick${on?' on':''}" role="radio" aria-checked="${!!on}">${icon('rss')}<div class="what"><b>${copy[a]}</b><code>${copy[b]}</code></div>${icon('check')}</div>`).join('')}</div>`;
   if(state==='add-none-found')below=`<span class="help" role="status">${copy.noneFound}</span>`;
+  const routes=[['routeA','/github/issue/:user/:repo',1],['routeB','/github/trending/:since/:language?',0],['routeC','/github/user/followers/:user',0]];
+  const field=(name,help,val,focus)=>`<div class="field"><label>${name}</label><div class="box${focus?' focused':''}"><input value="${val}" placeholder="${help}" aria-label="${name}"></div></div>`;
+  if(['add-routes','add-route-params','add-route-preview'].includes(state)){
+    const head=copy.foundRoutes.replace('{n}',3);
+    below=`<div class="picks" role="radiogroup" aria-label="${head}"><span class="head" role="status">${head}</span>${routes.map(([a,b,on])=>`<div class="found pick${on?' on':''}" role="radio" aria-checked="${!!on}">${icon('rss')}<div class="what"><b>${copy[a]}</b><code>${b}</code></div>${icon('check')}</div>`).join('')}</div>`;
+  }
+  if(state==='add-route-params'||state==='add-route-preview'){
+    const done=state==='add-route-preview';
+    below+=`<div class="params">${field(copy.paramUser,copy.paramUserHelp,'rsshub',false)}${field(copy.paramRepo,copy.paramRepoHelp,done?'rsshub':'',!done)}<button class="button" style="align-self:flex-start"${done?'':' disabled'}>${icon('eye')}${copy.preview}</button></div>`;
+  }
+  if(state==='add-route-preview'){
+    const items=lang==='en'?[['Support Atom feeds for pages','2 h'],['Route /github/issue returns 404 for private repos','1 d'],['Add a parameter for labels','3 d'],['Docs: describe radar rules','5 d'],['Fix date parsing','1 w']]:[['页面支持 Atom 订阅','2 小时'],['私有仓库时 /github/issue 返回 404','1 天'],['为标签加一个参数','3 天'],['文档：说明 radar 规则','5 天'],['修复日期解析','1 周']];
+    below+=`<div class="preview" role="status"><span class="help">${copy.previewOf}</span>${items.map(([t,d])=>`<div class="row"><b>${t}</b><span>${d}</span></div>`).join('')}</div>`;
+  }
+  if(state==='add-no-catalog')below=`<span class="help" role="status">${copy.noCatalog}</span>`;
   if(state==='add-invalid')below=`<span class="error" id="ae">${icon('alert')}${copy.invalidUrl}</span>`;
   if(state==='add-exists')below=`<span class="error" id="ae">${icon('alert')}<span>${copy.exists} <a href="#" style="color:inherit;font-weight:500">${copy.show}</a></span></span>`;
   const busy=state==='adding';
@@ -440,7 +469,7 @@ function addDialog(){
       ${kindPicker(kind)}
       <div class="pair"><div class="field"><label>${copy.title}</label><div class="box"><input placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.auto)}</div>
     </div>
-    <footer><span class="spacer"></span><button class="button">${state==='add-more'?copy.done:copy.cancel}</button><button class="button" title="${copy.addContinue} (⌘Enter)"${state==='add'||state==='add-more'||state==='add-searching'||invalid?' disabled':''}>${copy.addContinue}</button><button class="button primary"${state==='add'||state==='add-more'||state==='add-searching'||invalid?' disabled':''}>${busy?icon('loader','spin')+copy.adding:copy.addShort}</button></footer>
+    <footer><span class="spacer"></span><button class="button">${state==='add-more'?copy.done:copy.cancel}</button><button class="button" title="${copy.addContinue} (⌘Enter)"${state==='add'||state==='add-more'||state==='add-searching'||state==='add-routes'||state==='add-route-params'||state==='add-no-catalog'||invalid?' disabled':''}>${copy.addContinue}</button><button class="button primary"${state==='add'||state==='add-more'||state==='add-searching'||invalid?' disabled':''}>${busy?icon('loader','spin')+copy.adding:copy.addShort}</button></footer>
   </div></div>`;
 }
 

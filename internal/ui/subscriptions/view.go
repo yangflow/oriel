@@ -34,6 +34,7 @@ type copy struct {
 	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder                                      string
 	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added                                    string
 	AddedSoFar, SearchingFeeds, FoundMany, NoneFound, SiteYouTube, SiteBilibili, SiteWeibo, SiteZhihu, SiteX                                string
+	SearchingRoutes, FoundRoutes, Preview, PreviewOf, PreviewEmpty, PreviewNotFound, NoCatalog, NoRoutes                                    string
 	LabelVideos, LabelDynamic, LabelPosts, LabelActivities, LabelAnswers, LabelColumn, LabelTopic, LabelCollection, LabelQuestion           string
 	LabelChannel, LabelPlaylist                                                                                                             string
 	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn                          string
@@ -80,6 +81,8 @@ type API interface {
 	Settings(ctx context.Context) (client.Settings, error)
 	SetSettings(ctx context.Context, patch client.SettingsPatch) (client.Settings, error)
 	Discover(ctx context.Context, address string) ([]client.Candidate, error)
+	FindRoutes(ctx context.Context, query string, refresh bool) (client.Routes, error)
+	PreviewRoute(ctx context.Context, path string) (client.RoutePreview, error)
 }
 
 // Deps is what the dialogs do outside themselves. Go runs work away from the UI thread and then the function it
@@ -162,6 +165,7 @@ type adding struct {
 	count      int    // the subscriptions added since the dialog opened, with "Add and continue"
 	last       string // the name of the last of them
 	look       lookup
+	routes     finding
 }
 
 // editing is the edit dialog of src.
@@ -324,7 +328,8 @@ func (s *Screen) needsBase(t target) bool {
 func (s *Screen) canAdd() bool {
 	a := s.add
 	return !a.busy && s.api != nil && strings.TrimSpace(a.address) != "" && a.addressErr == "" &&
-		a.settings != settingsLoading && a.look.state != lookSearching
+		a.settings != settingsLoading && a.look.state != lookSearching && a.routes.state != lookSearching &&
+		s.routeReady()
 }
 
 // lookable returns the address to look feeds up for, "" when the field holds none: a platform link, a route and an
@@ -346,6 +351,14 @@ func (s *Screen) lookable() string {
 // watch keeps the lookup in step with the address field: a new address starts a new lookup, which begins once the
 // address has stayed as it is for lookAfter. It returns how long to wait for that, 0 when there is nothing to wait for.
 func (s *Screen) watch() time.Duration {
+	wait, more := s.watchLook(), s.watchRoutes()
+	if wait == 0 || more > 0 && more < wait {
+		return more
+	}
+	return wait
+}
+
+func (s *Screen) watchLook() time.Duration {
 	a := &s.add
 	if !a.open || s.api == nil {
 		return 0
@@ -412,12 +425,15 @@ func (s *Screen) submit(more bool) {
 		return
 	}
 	t, ok := recognize(a.address, a.root)
-	if !ok {
+	if _, chosen := s.chosenRoute(); !ok && !chosen {
 		a.addressErr, a.focus, s.announce = s.text.InvalidAddress, addressField, s.text.InvalidAddress
 		return
 	}
 	if cand, ok := s.picked(); ok {
 		t.URL, t.Route = cand.URL, cand.RSSHubPath
+	}
+	if _, ok := s.chosenRoute(); ok {
+		t.URL, t.Route = "", s.routePath()
 	}
 	base := ""
 	if s.needsBase(t) {
@@ -1068,6 +1084,7 @@ func (s *Screen) addDialog(c *ui.Context) {
 	if suggested := max(0, slices.Index(kinds, t.Kind)); a.kind == a.suggested {
 		a.kind, a.suggested = suggested, suggested
 	}
+	s.syncRoute()
 	if a.open {
 		c.OnShortcut(ui.Cmd, ui.KeyEnter, func() { s.submit(true) })
 	}
@@ -1129,6 +1146,7 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 		if hasCand {
 			what, where = s.describeCandidate(cand)
 		}
+		shown := s.routeView()
 		looking := !empty && valid && (a.look.state == lookWaiting || a.look.state == lookSearching)
 		box(c, "address", icons.Link, a.addressErr != "", th.Surface, func() {
 			in := ui.TextInputBase(c, &a.address).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.Address).
@@ -1143,6 +1161,8 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 			switch {
 			case a.addressErr != "":
 				in.Error(a.addressErr)
+			case shown != routeNone:
+				in.Description(s.routeNote(shown))
 			case empty || !valid:
 				in.Description(s.text.AddressHelp)
 			case needsBase:
@@ -1175,12 +1195,18 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 				a.open = false
 				s.deps.Show(a.exists)
 			}
+		case shown == routeSearching:
+			s.searching(c, s.text.SearchingRoutes)
+		case shown == routeList:
+			s.routeList(c)
+		case shown != routeNone:
+			help(c, s.routeNote(shown))
 		case empty || !valid:
 			help(c, s.text.AddressHelp)
 		case needsBase:
 			s.baseCard(c)
 		case looking:
-			s.searching(c)
+			s.searching(c, s.text.SearchingFeeds)
 		case a.look.state == lookDone && !hasCand:
 			help(c, s.text.NoneFound)
 		case a.look.state == lookDone && len(a.look.found) > 1:
@@ -1214,13 +1240,13 @@ func (s *Screen) describeCandidate(cand client.Candidate) (what, where string) {
 }
 
 // searching is the line under the address field while the feeds of a page address are looked up.
-func (s *Screen) searching(c *ui.Context) {
+func (s *Screen) searching(c *ui.Context, text string) {
 	th := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(th.Space(1.5)).Role(ui.RoleStatus).Label(s.text.SearchingFeeds).
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(th.Space(1.5)).Role(ui.RoleStatus).Label(text).
 		Children(func() {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(th, 12)).TextColor(th.TextMuted)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-			help(c, s.text.SearchingFeeds)
+			help(c, text)
 		})
 }
 

@@ -219,6 +219,14 @@ func (f *fake) SetSettings(context.Context, client.SettingsPatch) (client.Settin
 
 func (f *fake) Discover(context.Context, string) ([]client.Candidate, error) { return nil, nil }
 
+func (f *fake) FindRoutes(context.Context, string, bool) (client.Routes, error) {
+	return client.Routes{}, nil
+}
+
+func (f *fake) PreviewRoute(context.Context, string) (client.RoutePreview, error) {
+	return client.RoutePreview{}, nil
+}
+
 func (f *fake) AI(_ context.Context, id int64) (client.AIResults, error) {
 	f.aiReads = append(f.aiReads, id)
 	return client.AIResults{}, nil

@@ -918,6 +918,81 @@ func (s Session) Discover(ctx context.Context, address string) ([]Candidate, err
 	return out.Candidates, nil
 }
 
+// RouteParam is one parameter of a route template, in the order it appears in the path.
+type RouteParam struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Optional    bool   `json:"optional"`
+}
+
+// Route is a route of the user's RSSHub instance. Values are the parameters the server read from a pasted link.
+type Route struct {
+	Path          string            `json:"path"`
+	Name          string            `json:"name"`
+	Namespace     string            `json:"namespace"`
+	NamespaceName string            `json:"namespaceName"`
+	Example       string            `json:"example"`
+	Parameters    []RouteParam      `json:"parameters"`
+	Values        map[string]string `json:"values"`
+}
+
+// Routes is the answer of a route search. Available is false when the instance has no readable catalog; Total is
+// the number of matches, of which Routes holds the best few.
+type Routes struct {
+	Available bool    `json:"available"`
+	Instance  string  `json:"instance"`
+	Total     int     `json:"total"`
+	Routes    []Route `json:"routes"`
+}
+
+// PreviewEntry is one entry of a previewed route; PublishedAt is Unix milliseconds, nil when it has none.
+type PreviewEntry struct {
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	PublishedAt *int64 `json:"publishedAt"`
+}
+
+// RoutePreview is the first entries of a route, fetched without subscribing.
+type RoutePreview struct {
+	Instance string         `json:"instance"`
+	Title    string         `json:"title"`
+	Entries  []PreviewEntry `json:"entries"`
+}
+
+// FindRoutes asks the server for the routes of the RSSHub instance that fit a pasted link or a name. refresh makes
+// it read the instance's catalog again.
+func (s Session) FindRoutes(ctx context.Context, query string, refresh bool) (Routes, error) {
+	target := "/api/routes?q=" + url.QueryEscape(query)
+	if refresh {
+		target += "&refresh=1"
+	}
+	var out Routes
+	resp, err := s.send(ctx, discoverClient, http.MethodGet, target, "", nil)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
+		return Routes{}, fmt.Errorf("routes: %w", err)
+	}
+	return out, nil
+}
+
+// PreviewRoute asks the server for the first entries of a route, such as /github/issue/rsshub/rsshub, without
+// subscribing to it.
+func (s Session) PreviewRoute(ctx context.Context, path string) (RoutePreview, error) {
+	var out RoutePreview
+	resp, err := s.send(ctx, discoverClient, http.MethodGet, "/api/routes/preview?path="+url.QueryEscape(path), "", nil)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
+		return RoutePreview{}, fmt.Errorf("route preview: %w", err)
+	}
+	return out, nil
+}
+
 // call sends a JSON request and decodes the JSON reply into out, or drops the reply for a nil out.
 func (s Session) call(ctx context.Context, method, path string, in, out any) error {
 	var body io.Reader
