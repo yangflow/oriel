@@ -13,6 +13,7 @@ import (
 	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/autobackup"
 	"github.com/yangflow/oriel/internal/fetch"
+	"github.com/yangflow/oriel/internal/store"
 )
 
 const (
@@ -27,6 +28,8 @@ type settingsJSON struct {
 	RSSHubBaseURLs []string `json:"rsshubBaseUrls"`
 	RSSHubBaseURL  string   `json:"rsshubBaseUrl"`
 	RetentionDays  int      `json:"retentionDays"`
+	// Whether entries with the same link show once in the timeline.
+	GroupSameLink bool `json:"groupSameLink"`
 	// The public address of this server that WebSub hubs call back, empty while WebSub is off.
 	WebSubBaseURL string `json:"websubBaseUrl"`
 	AIBaseURL     string `json:"aiBaseUrl"`
@@ -78,6 +81,11 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	if err != nil || days < 0 || days > fetch.MaxRetentionDays {
 		days = 0
 	}
+	group, err := s.store.GroupSameLink(r.Context())
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	websub, err := fetch.WebSubBase(r.Context(), s.store)
 	if err != nil {
 		internal(w, err)
@@ -110,7 +118,7 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		AIAutoDailyLimit: cfg.AutoDailyLimit, AIAutoFetchLimit: cfg.AutoFetchLimit,
 		DefaultAIAutoDailyLimit: ai.DefaultAutoDaily, DefaultAIAutoFetchLimit: ai.DefaultAutoFetch,
 		AIAutoCallsToday: calls, AIEndpointLocal: ai.IsLocalEndpoint(cfg.BaseURL),
-		RSSHubBaseURLs: instances, RSSHubBaseURL: primary, RetentionDays: days, WebSubBaseURL: websub, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
+		RSSHubBaseURLs: instances, RSSHubBaseURL: primary, RetentionDays: days, GroupSameLink: group, WebSubBaseURL: websub, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
 		AIAPIKeySet: cfg.APIKey != "", AILanguage: cfg.Language,
 		AISummaryLimit: cfg.SummaryLimit, AIChunkLimit: cfg.ChunkLimit, DefaultAISummaryLimit: ai.DefaultSummary,
 		DefaultAIChunkLimit: ai.DefaultChunk, PromptSummary: cfg.PromptSummary,
@@ -127,6 +135,7 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		RSSHubBaseURLs  *[]string `json:"rsshubBaseUrls"`
 		RSSHubBaseURL   *string   `json:"rsshubBaseUrl"`
 		RetentionDays   *int      `json:"retentionDays"`
+		GroupSameLink   *bool     `json:"groupSameLink"`
 		WebSubBaseURL   *string   `json:"websubBaseUrl"`
 		AIBaseURL       *string   `json:"aiBaseUrl"`
 		AIModel         *string   `json:"aiModel"`
@@ -171,6 +180,13 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		changes = append(changes, [2]string{fetch.RetentionSetting, strconv.Itoa(days)})
+	}
+	if body.GroupSameLink != nil {
+		value := "0"
+		if *body.GroupSameLink {
+			value = "1"
+		}
+		changes = append(changes, [2]string{store.GroupSameLinkSetting, value})
 	}
 	if body.WebSubBaseURL != nil {
 		root := strings.TrimRight(strings.TrimSpace(*body.WebSubBaseURL), "/")

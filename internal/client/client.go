@@ -283,6 +283,26 @@ type Entry struct {
 	// and leaves All and Unread; 0 when it has none.
 	FadesAt   int64 `json:"fadesAt,omitempty"`
 	ExpiresAt int64 `json:"expiresAt,omitempty"`
+	// Group lists the other copies of the article when several sources carry its link; nil when there are none.
+	Group *Group `json:"group,omitempty"`
+}
+
+// Group is the other copies of an article that several sources carry; By is how they were found ("link").
+type Group struct {
+	By      string        `json:"by"`
+	Entries []GroupMember `json:"entries"`
+}
+
+// GroupMember is one other copy of an article.
+type GroupMember struct {
+	ID          int64  `json:"id"`
+	SourceID    int64  `json:"sourceId"`
+	SourceTitle string `json:"sourceTitle"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	IsRead      bool   `json:"isRead"`
+	Starred     bool   `json:"starred"`
+	CreatedAt   int64  `json:"createdAt"`
 }
 
 // Article is an entry with its text: ContentHTML is what the feed carries and ExtractedHTML the text taken from
@@ -384,6 +404,8 @@ type Settings struct {
 	PromptTranslate        string   `json:"promptTranslate"`
 	DefaultPromptSummary   string   `json:"defaultPromptSummary"`
 	DefaultPromptTranslate string   `json:"defaultPromptTranslate"`
+	// GroupSameLink shows an article once in the timeline when several sources carry it.
+	GroupSameLink bool `json:"groupSameLink"`
 	// Automatic backup: the choices, and the outcome of the last tries in Unix milliseconds (0 for never) with the
 	// code of the last failure.
 	AutoBackupEnabled   bool   `json:"autoBackupEnabled"`
@@ -415,6 +437,7 @@ type SettingsPatch struct {
 	AIAutoFetch     *int      `json:"aiAutoFetchLimit,omitempty"`
 	PromptSummary   *string   `json:"promptSummary,omitempty"`
 	PromptTranslate *string   `json:"promptTranslate,omitempty"`
+	GroupSameLink   *bool     `json:"groupSameLink,omitempty"`
 
 	AutoBackupEnabled   *bool   `json:"autoBackupEnabled,omitempty"`
 	AutoBackupFolder    *string `json:"autoBackupFolder,omitempty"`
@@ -617,13 +640,18 @@ func (s Session) Entries(ctx context.Context, q Query) (Page, error) {
 	return page, err
 }
 
+// SourceList is the subscriptions with their unread counts, and the unread entries of All: with articles shown once
+// that is fewer than the counts of the sources add up to.
+type SourceList struct {
+	Sources     []Source `json:"sources"`
+	UnreadTotal int      `json:"unreadTotal"`
+}
+
 // Sources lists every subscription with its unread count.
-func (s Session) Sources(ctx context.Context) ([]Source, error) {
-	var reply struct {
-		Sources []Source `json:"sources"`
-	}
+func (s Session) Sources(ctx context.Context) (SourceList, error) {
+	var reply SourceList
 	err := s.call(ctx, http.MethodGet, "/api/sources", nil, &reply)
-	return reply.Sources, err
+	return reply, err
 }
 
 // Health reasons a subscription can be listed for, and the causes of a dead one.

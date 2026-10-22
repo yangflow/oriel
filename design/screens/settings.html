@@ -47,7 +47,7 @@
      switch sits after Line spacing and the sample under it is set with the rules, in Simplified Chinese; the sample
      in English is plain either way);
      density (the Timeline card, between Reading and View as, with List density set to Compact; Comfortable, the
-     default, is the appearance state);
+     default, is the appearance state; under it, Show an article once, a switch that is on by default, in every state);
      viewers (the View as card with the choices changed from the defaults: Articles Compact, Videos List, Images Grid;
      in appearance every row is on its default, the first segment: List, Grid, Card, Wall).
      The font picker is a popup anchored under its control, right edges aligned: a search field, a hairline, then the
@@ -437,7 +437,7 @@ const copy={
     followInterface:'Follow interface', serif:'Serif', textSize:'Text size', textSizeHelp:'The text of an article in the reader.',
     sizeSmall:'Small', sizeMedium:'Medium', sizeLarge:'Large', sizeXLarge:'Extra large',
     lineSpacing:'Line spacing', lineSpacingHelp:'The space between the lines of an article.',
-    timeline:'Timeline', density:'List density', densityHelp:'How tight the rows sit. Compact keeps everything and only tightens the spacing.', dComfortable:'Comfortable', dCompact:'Compact',
+    timeline:'Timeline', density:'List density', densityHelp:'How tight the rows sit. Compact keeps everything and only tightens the spacing.', dComfortable:'Comfortable', dCompact:'Compact', group:'Show an article once', groupHelp:'When several subscriptions carry the same article, the timeline shows one row.',
     viewAs:'View as',
     vArticles:'Articles', vVideos:'Videos', vSocial:'Social', vImages:'Images',
     vList:'List', vCompact:'Compact', vCover:'Large cover', vGrid:'Grid', vWall:'Wall', vCard:'Card',
@@ -526,7 +526,7 @@ const copy={
     followInterface:'跟随界面', serif:'衬线', textSize:'文字大小', textSizeHelp:'阅读窗格里文章正文的大小。',
     sizeSmall:'小', sizeMedium:'中', sizeLarge:'大', sizeXLarge:'特大',
     lineSpacing:'行距', lineSpacingHelp:'文章正文的行与行之间的距离。',
-    timeline:'时间线', density:'列表密度', densityHelp:'行与行之间的松紧。紧凑不删任何内容，只收紧间距。', dComfortable:'舒适', dCompact:'紧凑',
+    timeline:'时间线', density:'列表密度', densityHelp:'行与行之间的松紧。紧凑不删任何内容，只收紧间距。', dComfortable:'舒适', dCompact:'紧凑', group:'同一篇文章只显示一次', groupHelp:'几个订阅带同一篇文章时，时间线只显示一行。',
     viewAs:'查看方式',
     vArticles:'文章', vVideos:'视频', vSocial:'社交', vImages:'图片',
     vList:'列表', vCompact:'紧凑', vCover:'大封面', vGrid:'网格', vWall:'瀑布流', vCard:'卡片',
@@ -641,6 +641,7 @@ ${switchRow(copy.cjk,copy.cjkHelp,cjkOn)}
 <div class="row"><div class="preview-box" aria-hidden="true"><p class="preview"${serifOn?` style="font-family:${serifFace}"`:''}>${lang==='zh-Hans'&&cjkOn?typeset(copy.previewText):copy.previewText}</p></div></div>
 </div><h2 class="section-title" id="timeline">${copy.timeline}</h2><div class="card">
 ${setting(copy.density,copy.densityHelp,seg(copy.density,[['comfortable',copy.dComfortable],['compact',copy.dCompact]],dense?'compact':'comfortable'))}
+${switchRow(copy.group,copy.groupHelp,true)}
 </div><h2 class="section-title" id="view-as">${copy.viewAs}</h2><div class="card">
 ${setting(copy.vArticles,'',seg(copy.vArticles,[['list',copy.vList],['compact',copy.vCompact]],viewed?'compact':'list'))}
 ${setting(copy.vVideos,'',seg(copy.vVideos,[['grid',copy.vGrid],['cover',copy.vCover],['list',copy.vList]],viewed?'list':'grid'))}

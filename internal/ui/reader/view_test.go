@@ -120,6 +120,7 @@ func (f *fake) deps() Deps {
 		Star:         func() { f.calls = append(f.calls, "star") },
 		ToggleRead:   func() { f.calls = append(f.calls, "read") },
 		OpenSettings: func() { f.calls = append(f.calls, "settings") },
+		OpenCopy:     func(id int64) { f.calls = append(f.calls, fmt.Sprintf("copy %d", id)) },
 		Save: func(name, filter string) (string, error) {
 			f.dialogs = append(f.dialogs, name+" | "+filter)
 			return f.saveTo, nil
@@ -1517,4 +1518,44 @@ func TestTooltips(t *testing.T) {
 			t.Errorf("width %d: %q has no tooltip", width, s.text.CopyLink)
 		}
 	}
+}
+
+func TestAlsoLine(t *testing.T) {
+	article := full()
+	article.Group = &client.Group{By: "link", Entries: []client.GroupMember{
+		{ID: 18, SourceID: 3, SourceTitle: "Gopher", Title: "Go 1.27 is out", CreatedAt: now.Add(-4 * time.Minute).UnixMilli()},
+		{ID: 28, SourceID: 4, SourceTitle: "Photos", Title: "Mirror", CreatedAt: now.Add(-3 * time.Hour).UnixMilli()},
+	}}
+	_, f, tt := setup(t, "en", article)
+	f.nav.Entry = article.Entry
+	f.settle(tt)
+	expect(t, tt, "Also in", "Gopher", "Photos")
+	if err := tt.Click("Photos Oct 18, 09:00"); err != nil {
+		t.Fatalf("%v in %v", err, tt.Texts())
+	}
+	if !slices.Equal(f.calls, []string{"copy 28"}) {
+		t.Fatalf("calls %v", f.calls)
+	}
+}
+
+func TestNoAlsoLineForOneSource(t *testing.T) {
+	_, f, tt := setup(t, "en", full())
+	f.settle(tt)
+	absent(t, tt, "Also in")
+}
+
+func TestNoAlsoLineWithoutOpenCopy(t *testing.T) {
+	article := full()
+	article.Group = &client.Group{By: "link", Entries: []client.GroupMember{
+		{ID: 18, SourceID: 3, SourceTitle: "Gopher", CreatedAt: now.Add(-4 * time.Minute).UnixMilli()}}}
+	f := &fake{now: now, article: article, nav: Nav{Entry: article.Entry, Scope: "All", Keys: true}}
+	d := f.deps()
+	d.OpenCopy = nil
+	s := New("en", d)
+	s.Use(f)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1100, 800)
+	s.Open(article.Entry)
+	tt.Frame()
+	f.settle(tt)
+	absent(t, tt, "Also in", "Gopher")
 }

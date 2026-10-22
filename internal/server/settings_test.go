@@ -26,7 +26,7 @@ func TestSettings(t *testing.T) {
 		body["rsshubBaseUrl"] != "" || len(body["rsshubBaseUrls"].([]any)) != 0 || body["retentionDays"] != 0.0 || body["aiBaseUrl"] != "" || body["aiModel"] != "" ||
 		body["aiApiKeySet"] != true || body["aiLanguage"] != "zh-Hans" || body["promptSummary"] != ai.DefaultPromptSummary ||
 		body["promptTranslate"] != ai.DefaultPromptTranslate || body["defaultPromptSummary"] != ai.DefaultPromptSummary ||
-		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 30 || body["websubBaseUrl"] != "" || body["aiSummaryLimit"] != 24000.0 ||
+		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 31 || body["groupSameLink"] != true || body["websubBaseUrl"] != "" || body["aiSummaryLimit"] != 24000.0 ||
 		body["aiChunkLimit"] != 6000.0 || body["defaultAiSummaryLimit"] != 24000.0 || body["defaultAiChunkLimit"] != 6000.0 {
 		t.Fatalf("defaults: %d %s", w.Code, w.Body)
 	}
@@ -90,6 +90,7 @@ func TestSettings(t *testing.T) {
 		`{"retentionDays":"30"}`:                                  "invalid_body",
 		`{"retentionDays":1.5}`:                                   "invalid_body",
 		`{"aiApiKeySet":true}`:                                    "invalid_body",
+		`{"groupSameLink":"yes"}`:                                 "invalid_body",
 		`{"aiBaseUrl":"localhost:11434"}`:                         "invalid_ai_base_url",
 		`{"aiModel":"` + strings.Repeat("m", 201) + `"}`:          "invalid_ai_model",
 		`{"aiApiKey":"` + strings.Repeat("k", 4097) + `"}`:        "invalid_ai_api_key",

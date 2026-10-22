@@ -30,23 +30,26 @@ func ago(d time.Duration) int64 { return now.Add(-d).UnixMilli() }
 
 // fake stands in for the server and the background: work waits in a queue until step runs it.
 type fake struct {
-	saveTo     string
-	queue      []func() func()
-	now        time.Time
-	entries    []client.Entry // newest first
-	sources    []client.Source
-	health     client.Health
-	queries    []client.Query
-	patches    map[int64][]client.EntryPatch
-	marked     []client.ReadScope
-	unmarked   [][]int64
-	unmarkedAt []int64
-	extraRead  int // entries MarkRead reports besides the ones in the list, to make a very large mark as read
-	pictures   []string
-	articles   []int64  // the entries asked for in full
-	aiReads    []int64  // the entries whose summary and translation were read
-	aiAsked    int      // the summaries and translations asked to be made
-	pages      []string // the settings pages asked for
+	saveTo      string
+	queue       []func() func()
+	now         time.Time
+	entries     []client.Entry // newest first
+	sources     []client.Source
+	health      client.Health
+	queries     []client.Query
+	setReply    client.Entry // what the server answers to a change
+	patches     map[int64][]client.EntryPatch
+	marked      []client.ReadScope
+	unmarked    [][]int64
+	unmarkedAt  []int64
+	unreadTotal *int // what Sources answers for All, if not the sum of the sources
+	sourceLoads int  // the times Sources was asked
+	extraRead   int  // entries MarkRead reports besides the ones in the list, to make a very large mark as read
+	pictures    []string
+	articles    []int64  // the entries asked for in full
+	aiReads     []int64  // the entries whose summary and translation were read
+	aiAsked     int      // the summaries and translations asked to be made
+	pages       []string // the settings pages asked for
 
 	refreshed  client.RefreshResult // what RefreshAll answers
 	refreshes  int                  // the times it was asked
@@ -84,16 +87,24 @@ func (f *fake) Entries(_ context.Context, q client.Query) (client.Page, error) {
 	return page, nil
 }
 
-func (f *fake) Sources(context.Context) ([]client.Source, error) {
+func (f *fake) Sources(context.Context) (client.SourceList, error) {
 	if f.entriesErr != nil {
-		return nil, f.entriesErr
+		return client.SourceList{}, f.entriesErr
 	}
-	return slices.Clone(f.sources), nil
+	f.sourceLoads++
+	total := 0
+	for _, src := range f.sources {
+		total += src.UnreadCount
+	}
+	if f.unreadTotal != nil {
+		total = *f.unreadTotal
+	}
+	return client.SourceList{Sources: slices.Clone(f.sources), UnreadTotal: total}, nil
 }
 
 func (f *fake) SetEntry(_ context.Context, id int64, patch client.EntryPatch) (client.Entry, error) {
 	f.patches[id] = append(f.patches[id], patch)
-	return client.Entry{}, f.setErr
+	return f.setReply, f.setErr
 }
 
 // shownAt is the time a row shows: when it was published, else when it arrived.
@@ -163,6 +174,18 @@ func (f *fake) Entry(_ context.Context, id int64) (client.Article, error) {
 		if e.ID == id {
 			e.ExtractStatus = "ok"
 			return client.Article{Entry: e, ExtractedHTML: "<p>The text of " + e.Title + ".</p>"}, nil
+		}
+	}
+	for _, row := range f.entries {
+		if row.Group == nil {
+			continue
+		}
+		for _, m := range row.Group.Entries {
+			if m.ID == id {
+				e := client.Entry{ID: m.ID, SourceID: m.SourceID, SourceTitle: m.SourceTitle, Kind: "article", Title: m.Title,
+					URL: m.URL, CreatedAt: m.CreatedAt, ExtractStatus: "ok"}
+				return client.Article{Entry: e, ExtractedHTML: "<p>The text of " + m.Title + ".</p>"}, nil
+			}
 		}
 	}
 	return client.Article{}, &client.APIError{Status: 404, Code: "not_found"}
@@ -4877,5 +4900,221 @@ func TestQueuedChangesLostWithServer(t *testing.T) {
 	f.settle(t, tt)
 	if len(s.queue) != 0 {
 		t.Fatal("the queue outlived the server it was made for")
+	}
+}
+
+// setupGrouped is setup with the newest article also carried by two other sources.
+func setupGrouped(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	sources, entries := sample()
+	entries[0].Group = &client.Group{By: "link", Entries: []client.GroupMember{
+		{ID: 18, SourceID: 3, SourceTitle: "Gopher", Title: "Go 1.27 is out", URL: "https://social.example/18",
+			CreatedAt: ago(4 * time.Minute)},
+		{ID: 28, SourceID: 4, SourceTitle: "Photos", Title: "Release notes mirror", URL: "https://photos.example/28",
+			CreatedAt: ago(3 * time.Hour)},
+	}}
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New(language, f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	return s, f, tt
+}
+
+func TestAlsoChipExpandsAndCollapses(t *testing.T) {
+	for language, chip := range map[string]string{"en": "2 more sources", "zh-Hans": "另 2 个来源"} {
+		t.Run(language, func(t *testing.T) {
+			s, f, tt := setupGrouped(t, language)
+			if !tt.HasText(chip) || tt.HasText("Release notes mirror") {
+				t.Fatalf("chip %q, or a list too soon, in %v", chip, tt.Texts())
+			}
+			if strings.Count(strings.Join(tt.Texts(), "\n"), chip) != 1 {
+				t.Fatalf("a row without other sources has a chip: %v", tt.Texts())
+			}
+			name := s.format(s.text.AlsoName, 2)
+			if err := tt.Click(name); err != nil {
+				t.Fatalf("%v in %v", err, tt.Texts())
+			}
+			if s.also != 8 || !tt.HasText("Release notes mirror") || !tt.HasText("Go 1.27 is out") {
+				t.Fatalf("not open: also %d, %v", s.also, tt.Texts())
+			}
+			if s.reading != 0 || len(f.patches) != 0 {
+				t.Fatalf("expanding changed the row: reading %d, patches %v", s.reading, f.patches)
+			}
+			if err := tt.Click(name); err != nil {
+				t.Fatal(err)
+			}
+			if s.also != 0 || tt.HasText("Release notes mirror") {
+				t.Fatalf("not closed: %v", tt.Texts())
+			}
+		})
+	}
+}
+
+func TestAlsoListLeavesWithTheScope(t *testing.T) {
+	s, f, tt := setupGrouped(t, "en")
+	if err := tt.Click(s.format(s.text.AlsoName, 2)); err != nil {
+		t.Fatal(err)
+	}
+	s.choose(scope{kind: "article"})
+	f.settle(t, tt)
+	if s.also != 0 {
+		t.Fatalf("the list stayed open on another scope: %d", s.also)
+	}
+}
+
+func TestAlsoChipNeedsTheWholeTimeline(t *testing.T) {
+	s, f, tt := setupGrouped(t, "en")
+	s.choose(scope{source: 1})
+	f.settle(t, tt)
+	if tt.HasText("2 more sources") {
+		t.Fatalf("a single subscription shows the chip: %v", tt.Texts())
+	}
+	s.choose(scope{})
+	f.settle(t, tt)
+	if !tt.HasText("2 more sources") {
+		t.Fatalf("the chip does not come back: %v", tt.Texts())
+	}
+	s.searched = "go"
+	tt.Frame()
+	if tt.HasText("2 more sources") {
+		t.Fatalf("a search shows the chip: %v", tt.Texts())
+	}
+}
+
+func TestAlsoItemOpensThatCopy(t *testing.T) {
+	s, f, tt := setupGrouped(t, "en")
+	if err := tt.Click(s.format(s.text.AlsoName, 2)); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Gopher, Go 1.27 is out"); err != nil {
+		t.Fatalf("%v in %v", err, tt.Texts())
+	}
+	f.settle(t, tt)
+	if s.reading != 8 || s.copyID != 18 {
+		t.Fatalf("reading %d, copy %d", s.reading, s.copyID)
+	}
+	if !slices.Contains(f.articles, 18) {
+		t.Fatalf("the copy was not fetched: %v", f.articles)
+	}
+	if !s.entries[0].IsRead || len(f.patches[8]) != 1 {
+		t.Fatalf("the row was not read as a whole: %v", f.patches)
+	}
+	shown := s.shownCopy(s.entries[0])
+	if shown.ID != 18 || shown.SourceTitle != "Gopher" || shown.Group == nil || len(shown.Group.Entries) != 2 ||
+		shown.Group.Entries[0].ID != 8 || shown.Group.Entries[1].ID != 28 {
+		t.Fatalf("shown %+v group %+v", shown, shown.Group)
+	}
+	// The reader's own line switches to another copy, and the row's own is one of them.
+	s.showCopy(8)
+	if s.copyID != 8 || s.shownCopy(s.entries[0]).ID != 8 {
+		t.Fatalf("copy %d", s.copyID)
+	}
+	s.showCopy(28)
+	tt.Key(0, ui.KeyEscape)
+	f.settle(t, tt)
+	if s.reading != 0 || s.copyID != 0 {
+		t.Fatalf("leaving the reader keeps the copy: reading %d, copy %d", s.reading, s.copyID)
+	}
+}
+
+func TestAlsoItemOfAVideoOpensTheBrowser(t *testing.T) {
+	sources, entries := sample()
+	entries[1].Group = &client.Group{By: "link", Entries: []client.GroupMember{
+		{ID: 70, SourceID: 1, SourceTitle: "Go Blog", Title: "Profiling in practice", URL: "https://go.dev/video/70",
+			CreatedAt: ago(time.Hour)}}}
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New("en", f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	if err := tt.Click(s.format(s.text.AlsoName, 1)); err != nil {
+		t.Fatalf("%v in %v", err, tt.Texts())
+	}
+	if err := tt.Click("Go Blog, Profiling in practice"); err != nil {
+		t.Fatalf("%v in %v", err, tt.Texts())
+	}
+	if got := tt.OpenedURLs(); len(got) != 1 || got[0] != "https://go.dev/video/70" || s.reading != 0 {
+		t.Fatalf("opened %v, reading %d", got, s.reading)
+	}
+}
+
+func TestGroupedReadCountsEveryCopy(t *testing.T) {
+	s, f, tt := setupGrouped(t, "en")
+	total := s.unreadTotal
+	before := f.sourceLoads
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+		t.Fatalf("%v in %v", err, tt.Texts())
+	}
+	unread := func(id int64) int {
+		for _, src := range s.sources {
+			if src.ID == id {
+				return src.UnreadCount
+			}
+		}
+		return -1
+	}
+	if s.unreadTotal != total-1 || unread(1) != 1 || unread(3) != 0 || unread(4) != 0 {
+		t.Fatalf("total %d -> %d, counts %d %d %d", total, s.unreadTotal, unread(1), unread(3), unread(4))
+	}
+	if m := s.entries[0].Group.Entries; !m[0].IsRead || !m[1].IsRead {
+		t.Fatalf("the other copies are still unread: %+v", m)
+	}
+	f.settle(t, tt)
+	if f.sourceLoads == before {
+		t.Fatal("the counts were not read again after changing a group")
+	}
+}
+
+func TestChangeReadsCountsWhenServerChangedOtherCopies(t *testing.T) {
+	// One subscription shows the row alone, but the server answers with the other copies it changed too.
+	s, f, tt := setup(t, "en")
+	f.setReply = client.Entry{ID: 8, Group: &client.Group{By: "link", Entries: []client.GroupMember{
+		{ID: 18, SourceID: 3, SourceTitle: "Gopher"}}}}
+	before := f.sourceLoads
+	tt.Key(0, ui.KeyJ)
+	tt.Key(0, ui.KeyM)
+	f.settle(t, tt)
+	if f.sourceLoads == before {
+		t.Fatal("the counts of the other copies' sources were not read again")
+	}
+	// An answer without other copies needs no reload.
+	f.setReply = client.Entry{ID: 8}
+	before = f.sourceLoads
+	tt.Key(0, ui.KeyM)
+	f.settle(t, tt)
+	if f.sourceLoads != before {
+		t.Fatalf("the counts were read again for a row alone: %d -> %d", before, f.sourceLoads)
+	}
+	_ = s
+}
+
+func TestGroupedChangeFailsRestoresEachCopy(t *testing.T) {
+	s, f, tt := setupGrouped(t, "en")
+	// One copy was read already, the other not.
+	m := s.entries[0].Group.Entries
+	m[0].IsRead, m[1].IsRead, m[1].Starred = true, false, true
+	count := func(id int64) int {
+		for _, src := range s.sources {
+			if src.ID == id {
+				return src.UnreadCount
+			}
+		}
+		return -1
+	}
+	n3, n4 := count(3), count(4)
+	f.setErr = &client.APIError{Status: 500, Code: "internal"}
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	g := s.entries[0].Group.Entries
+	if s.entries[0].IsRead || !g[0].IsRead || g[1].IsRead || !g[1].Starred {
+		t.Fatalf("the copies are not as they were: read %v, %+v", s.entries[0].IsRead, g)
+	}
+	if count(3) != n3 || count(4) != n4 {
+		t.Fatalf("counts %d %d, were %d %d", count(3), count(4), n3, n4)
 	}
 }

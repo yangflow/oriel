@@ -22,6 +22,8 @@ func TestMigrationMakesDefaultIntervalAuto(t *testing.T) {
 		"DROP TRIGGER entries_star_off",
 		"DROP TABLE entry_image_copies",
 		"DROP INDEX entries_copy_due",
+		"DROP INDEX entries_link_key",
+		"ALTER TABLE entries DROP COLUMN link_key",
 		"ALTER TABLE entries DROP COLUMN copy_status",
 		"ALTER TABLE entries DROP COLUMN copy_attempts",
 		"ALTER TABLE entries DROP COLUMN next_copy_at",

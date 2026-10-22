@@ -327,9 +327,9 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Make it look like version 19, before the finished translation chunks and the AI usage.
+	// Make it look like version 20, before the link key that groups an article carried by several sources.
 	for _, stmt := range []string{
-		"DROP TABLE entry_ai_chunks", "DROP TABLE ai_usage", "PRAGMA user_version = 19",
+		"DROP INDEX entries_link_key", "ALTER TABLE entries DROP COLUMN link_key", "PRAGMA user_version = 20",
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)
@@ -339,7 +339,7 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	raw, _ := os.ReadFile(old)
 
 	other := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
-	r, err := other.PrepareRestore(ctx, bytes.NewReader(zipOf(t, Manifest{Format: 1, App: "oriel", Schema: 19}, raw)), MaxBackup)
+	r, err := other.PrepareRestore(ctx, bytes.NewReader(zipOf(t, Manifest{Format: 1, App: "oriel", Schema: 20}, raw)), MaxBackup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,8 +347,8 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	if res, err := r.Apply(ctx); err != nil || res.Sources != 2 {
 		t.Fatalf("%+v %v", res, err)
 	}
-	if count(t, other, "SELECT count(*) FROM sources") != 2 || count(t, other, "SELECT count(*) FROM ai_usage") != 0 {
-		t.Fatal("the migrated tables are missing")
+	if count(t, other, "SELECT count(*) FROM entries WHERE link_key <> ''") == 0 {
+		t.Fatal("the migrated link keys are missing")
 	}
 }
 

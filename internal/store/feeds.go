@@ -253,10 +253,10 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO entries (source_id, guid, title, url, author, published_at, rss_summary, rss_content_html,
-				extract_status, thumbnail_url, duration_sec, platform, images, language, reading_sec, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				extract_status, thumbnail_url, duration_sec, platform, images, language, reading_sec, created_at, updated_at, link_key)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, group_key(?4, ?2))
 			ON CONFLICT (source_id, guid) DO UPDATE SET
-				title = excluded.title, url = excluded.url, author = excluded.author, published_at = excluded.published_at,
+				title = excluded.title, url = excluded.url, link_key = excluded.link_key, author = excluded.author, published_at = excluded.published_at,
 				rss_summary = excluded.rss_summary, rss_content_html = excluded.rss_content_html,
 				thumbnail_url = excluded.thumbnail_url, duration_sec = excluded.duration_sec,
 				platform = excluded.platform, images = excluded.images,

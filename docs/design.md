@@ -465,6 +465,21 @@ values are in [design/tokens.md](../design/tokens.md). See
   the whole row (text, thumbnail, picture) goes from full to 55% opacity, linearly, and its accessible name ends with
   "leaving the timeline soon". Nothing else changes, so the row stays readable and clickable. Drawn in
   `design/screens/timeline.html`, `expiring`.
+- **One article from several sources.** When the same link comes from more than one source, the list shows one row,
+  and a quiet text button follows the time in its meta line: a 13 `layers` icon and "2 more sources" in 12 `TextMuted`,
+  20 high, radius 6, padded 4 and 6, with the `Pressed` fill under the pointer. It is a button, never a badge and never
+  an accent. Clicked, it expands under the row (`aria-expanded` follows) a list of the other sources, indented 12
+  behind a 2 `Border` hairline: each item is a 30 high row (radius 8, `Hover` fill under the pointer or the keyboard) with the
+  source's 16 icon, its name in 12 medium `Text2`, the title in 13 `Text` (cut with an ellipsis) and the relative time
+  in 12 `TextMuted`. One row is open at a time; an item opens that copy in the reader. The row's accessible name for
+  the button is "Also in 2 other sources, show them". The compact article row has no chip, and neither does a list
+  with grouping off, one subscription or a search. Drawn in `design/screens/timeline.html`, `grouped` and
+  `grouped-open`.
+  In the reader the same copies are one line under the title: "Also in" in 12 medium `TextMuted`, then a text button
+  for each other source, 28 high, radius 8, padded 8, with the source's 15 monogram, its name in 13 medium `Text2`
+  (`Text` under the pointer, with the `Hover` fill) and the time of that copy in 12 `TextMuted`; the line wraps when
+  the column is narrow, and there is no line for an article that only one source carries. Drawn in
+  `design/screens/reader.html`, `also`.
 - **Hierarchy by lightness.** Within one size, the order is `Text`, `Text2`, `TextMuted`; weight comes second and size
   last. Read rows go quiet in lightness and weight (500), not in size.
 - **Tracking and numerals.** Small labels get letter spacing (+0.04em at 11, +0.02em in Chinese at 12); the title
@@ -963,7 +978,7 @@ Overlays share focus and Escape behavior; see
   language; chosen, it applies at once and the screens are rebuilt), Interface font (a button that opens the font picker
   below: "System font" and the current family first, then the installed families, each set in its own face) and, in a second card titled "Reading", Reading font
   (a button like Interface font that opens the same font picker, with "Follow interface" (the default) and "Serif" pinned above a hairline, each drawn in its own face, then the current family if it is one, then the installed families; its value shows the current choice in its own face), Text size
-  (segmented: Small, Medium, Large, Extra large) and Line spacing (segmented: Compact, Standard, Relaxed) and Chinese typesetting (a switch, on by default; see Chinese typesetting). A second card, titled "Timeline" under the Reading card, has one row, List density (segmented: Comfortable, Compact; default Comfortable), with the help "How tight the rows sit. Compact keeps everything and only tightens the spacing." Drawn in `design/screens/settings.html`, `density`. A third card, titled "View as" under the Timeline card, has one row per kind, each a segmented control of its own values (Articles: List, Compact; Videos: Grid, Large cover, List; Social: Card, Compact; Images: Wall, Grid, Card), the default first, each row just the kind's name and its control; the last row of the card is a note in 12 `TextMuted` that says "Grid and Wall are used in Videos and Images. Elsewhere those entries appear as rows or cards." The segments are 26 high in a 32 high capsule, as in Theme, so a row never needs a popup. Drawn in `design/screens/settings.html`, `viewers`. A sample paragraph on `Surface` under them shows the result, set in the chosen Reading font (the column width is not shown there). Drawn in `design/screens/settings.html`, `reading-font`, `reading-font-open` and `reading-cjk-off`, and in `design/screens/reader.html` with `textsize`, `font` and `cjk`. Every control
+  (segmented: Small, Medium, Large, Extra large) and Line spacing (segmented: Compact, Standard, Relaxed) and Chinese typesetting (a switch, on by default; see Chinese typesetting). A second card, titled "Timeline" under the Reading card, has two rows. List density (segmented: Comfortable, Compact; default Comfortable), with the help "How tight the rows sit. Compact keeps everything and only tightens the spacing.", and under it Show an article once (a switch, on by default, a setting of the server rather than of this device), with the help "When several subscriptions carry the same article, the timeline shows one row." Drawn in `design/screens/settings.html`, `appearance` and `density`. A third card, titled "View as" under the Timeline card, has one row per kind, each a segmented control of its own values (Articles: List, Compact; Videos: Grid, Large cover, List; Social: Card, Compact; Images: Wall, Grid, Card), the default first, each row just the kind's name and its control; the last row of the card is a note in 12 `TextMuted` that says "Grid and Wall are used in Videos and Images. Elsewhere those entries appear as rows or cards." The segments are 26 high in a 32 high capsule, as in Theme, so a row never needs a popup. Drawn in `design/screens/settings.html`, `viewers`. A sample paragraph on `Surface` under them shows the result, set in the chosen Reading font (the column width is not shown there). Drawn in `design/screens/settings.html`, `reading-font`, `reading-font-open` and `reading-cjk-off`, and in `design/screens/reader.html` with `textsize`, `font` and `cjk`. Every control
   is saved and applied as soon as it is chosen; there is no Save button. The page starts 32 below the toolbar; rows are padded 16 by 20, help
   sits 4 under its label and the control 12 under that; cards and section titles are 28 apart.
 

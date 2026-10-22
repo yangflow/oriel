@@ -30,6 +30,7 @@ import (
 var catalog []byte
 
 type copy struct {
+	AlsoChip, AlsoName, AlsoHead                                                                                                                                        string
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
 	MarkUnread, Open, Blocked, BlockedPublic, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                             string
@@ -95,7 +96,7 @@ type API interface {
 	subscriptions.API
 	reader.API
 	Entries(ctx context.Context, q client.Query) (client.Page, error)
-	Sources(ctx context.Context) ([]client.Source, error)
+	Sources(ctx context.Context) (client.SourceList, error)
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
 	MarkRead(ctx context.Context, scope client.ReadScope) (client.Marked, error)
 	MarkUnread(ctx context.Context, m client.Marked) ([]int64, error)
@@ -229,12 +230,14 @@ type Screen struct {
 	sources       []client.Source
 	failingOnly   bool // the sidebar lists only the subscriptions whose last fetch failed
 	sourcesLoaded bool
-	scope         scope
-	tab           int  // the tab of scope.kind
-	filter        int  // everything, unread or starred
-	budget        int  // the most minutes an entry may take to read, 0 for any length; not kept between servers
-	oldest        bool // the list runs oldest first, as the preferences of this device choose
-	restoring     bool // the scope is a subscription kept from the last run, to check when the sources load
+	// unreadTotal is the unread entries of All as the server counts them: an article several sources carry is one.
+	unreadTotal int
+	scope       scope
+	tab         int  // the tab of scope.kind
+	filter      int  // everything, unread or starred
+	budget      int  // the most minutes an entry may take to read, 0 for any length; not kept between servers
+	oldest      bool // the list runs oldest first, as the preferences of this device choose
+	restoring   bool // the scope is a subscription kept from the last run, to check when the sources load
 
 	query      string    // as typed
 	searched   string    // the search in effect, trimmed
@@ -276,6 +279,8 @@ type Screen struct {
 	sideFocus bool            // give the sidebar the focus in the next frame
 	inSide    bool            // the focus is in the sidebar, or goes there
 	sideKeyed bool            // the focus in the sidebar came by the keyboard; a click on a kind or subscription clears it
+	copyID    int64           // the copy of the article read that the reader shows, 0 for the row's own
+	also      int64           // the entry whose other sources show under it, 0 for none
 	hovered   int             // the entry under the pointer in the last frame
 	height    float32         // of the window in the last frame
 	rects     map[int]ui.Rect // where the entries were drawn in the last frame, in window DIPs
@@ -385,6 +390,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		NextUnread:   s.nextUnread,
 		Star:         func() { s.toggleStar(s.index(s.reading)) },
 		ToggleRead:   func() { s.toggleRead(s.index(s.reading)) },
+		OpenCopy:     s.showCopy,
 	})
 	return s
 }
@@ -401,7 +407,7 @@ func (s *Screen) SetLanguage(systemLocale string) {
 func (s *Screen) Use(api API, server string) {
 	s.api, s.server = api, server
 	s.gen++
-	s.sources, s.sourcesLoaded = nil, false
+	s.sources, s.unreadTotal, s.sourcesLoaded = nil, 0, false
 	s.scope, s.tab, s.filter, s.budget = scope{}, 0, everything, 0
 	s.restorePlace()
 	s.oldest = s.views().OldestFirst
@@ -528,7 +534,7 @@ func (s *Screen) watchFetches(c *ui.Context) {
 				return
 			}
 			if err == nil {
-				s.sources, s.sourcesLoaded = sources, true
+				s.setSources(sources)
 			}
 			s.settleWatches(err == nil)
 		}
@@ -622,6 +628,11 @@ func (s *Screen) restored(src client.Source) {
 	s.reload()
 }
 
+// setSources takes the subscriptions as the server counts them.
+func (s *Screen) setSources(list client.SourceList) {
+	s.sources, s.unreadTotal, s.sourcesLoaded = list.Sources, list.UnreadTotal, true
+}
+
 func (s *Screen) loadSources() {
 	if s.api == nil {
 		return
@@ -633,7 +644,7 @@ func (s *Screen) loadSources() {
 			if gen != s.gen || s.expired(err) || err != nil {
 				return
 			}
-			s.sources, s.sourcesLoaded = sources, true
+			s.setSources(sources)
 			if s.restoring {
 				s.restoring = false
 				s.checkRestored()
@@ -669,11 +680,12 @@ func (s *Screen) reload() {
 		return
 	}
 	s.run++
+	s.also = 0
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
 	s.loadedAt = s.deps.Now()
 	s.entries, s.next, s.loading, s.loadErr, s.more, s.moreErr, s.fresh = nil, "", true, false, false, false, 0
 	s.offline, s.failures = false, 0
-	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = -1, -1, -1, true, 0, false
+	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.copyID, s.seeking = -1, -1, -1, true, 0, 0, false
 	s.checking = false
 	s.divider, s.away = -1, false
 	s.retryPictures()
@@ -829,6 +841,7 @@ func (s *Screen) leave(old listKey) {
 // show changes what the list shows, the scope, the filter or the search, by change. The list left is kept; one
 // chosen again that is kept is drawn at once where it was and checked in the background, any other is loaded.
 func (s *Screen) show(change func()) {
+	s.also = 0
 	s.leave(s.key())
 	before := s.scope
 	beforeFilter := s.filter
@@ -1137,6 +1150,7 @@ func (s *Screen) loadMore() {
 				return
 			}
 			s.entries, s.next = append(s.entries, page.Entries...), page.Next
+			s.also = 0
 			s.overlay()
 			if s.next == "" {
 				s.announce = s.text.AllLoaded
@@ -1203,9 +1217,9 @@ func (s *Screen) progress(c *ui.Context) {
 				return
 			}
 			if err == nil {
-				s.sources, s.sourcesLoaded = sources, true
+				s.setSources(sources)
 				r.done, r.failed = 0, 0
-				for _, src := range sources {
+				for _, src := range sources.Sources {
 					if !src.Paused && src.LastFetchedAt >= int64(r.at) {
 						r.done++
 						if src.LastError != "" {
@@ -1310,7 +1324,7 @@ func (s *Screen) poll(c *ui.Context) {
 				return
 			}
 			if sourcesErr == nil {
-				s.sources, s.sourcesLoaded = sources, true
+				s.setSources(sources)
 			}
 			if run != s.run {
 				return
@@ -1415,30 +1429,54 @@ func (s *Screen) change(id int64, patch client.EntryPatch) {
 	}
 	if s.offline || s.waitingFor(id) >= 0 {
 		// The server is out of reach, or an earlier change of this entry is still waiting and must go first.
-		s.enqueue(id, patch, back)
+		s.enqueue(id, patch, back, before.Group)
 		return
 	}
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
-		_, err := api.SetEntry(context.Background(), id, patch)
+		reply, err := api.SetEntry(context.Background(), id, patch)
 		return func() {
-			if gen != s.gen || err == nil || s.expired(err) {
+			if gen != s.gen {
+				return
+			}
+			if err == nil {
+				// The server changes every copy of an article, also when this view shows the row alone (one
+				// subscription, a search): the reply lists the copies, and the counts of their sources are read again.
+				if before.Group != nil || reply.Group != nil && len(reply.Group.Entries) > 0 {
+					s.loadSources()
+				}
+				return
+			}
+			if s.expired(err) {
 				return
 			}
 			if unreached(err) {
-				s.enqueue(id, patch, back)
+				s.enqueue(id, patch, back, before.Group)
 				s.drop()
 				return
 			}
-			s.revert(id, back)
+			s.revert(id, back, before.Group)
 		}
 	})
 }
 
 // revert puts an entry back the way it was when the server refused its change.
-func (s *Screen) revert(id int64, back client.EntryPatch) {
+// group is the other copies as they were, each with its own state, which the entry gets back as they were.
+func (s *Screen) revert(id int64, back client.EntryPatch, group *client.Group) {
 	if i := s.index(id); i >= 0 {
-		s.set(i, back)
+		s.setRow(i, back)
+		if e := &s.entries[i]; e.Group != nil && group != nil {
+			members := slices.Clone(e.Group.Entries)
+			for k := range members {
+				m := &members[k]
+				j := slices.IndexFunc(group.Entries, func(o client.GroupMember) bool { return o.ID == m.ID })
+				if j < 0 {
+					continue
+				}
+				m.IsRead, m.Starred = s.moveMember(*m, group.Entries[j].IsRead), group.Entries[j].Starred
+			}
+			e.Group = &client.Group{By: e.Group.By, Entries: members}
+		}
 	}
 	s.patchLists([]int64{id}, back)
 	s.toast = s.text.ActionFailed
@@ -1456,7 +1494,9 @@ func unreached(err error) bool {
 type waiting struct {
 	id          int64
 	patch, back client.EntryPatch
-	version     int
+	// group is the other copies of the article as they were before the first change that is waiting.
+	group   *client.Group
+	version int
 }
 
 // waitingFor is the place in the queue of the changes waiting for entry id, -1 for none.
@@ -1466,10 +1506,10 @@ func (s *Screen) waitingFor(id int64) int {
 
 // enqueue keeps a change the server did not get. A second change of the same entry folds into the first: the last
 // value of each field is sent, and the way back is the state before the first.
-func (s *Screen) enqueue(id int64, patch, back client.EntryPatch) {
+func (s *Screen) enqueue(id int64, patch, back client.EntryPatch, group *client.Group) {
 	i := s.waitingFor(id)
 	if i < 0 {
-		s.queue = append(s.queue, waiting{id: id, patch: patch, back: back, version: 1})
+		s.queue = append(s.queue, waiting{id: id, patch: patch, back: back, group: group, version: 1})
 		return
 	}
 	w := &s.queue[i]
@@ -1533,7 +1573,7 @@ func (s *Screen) flush() {
 					s.queue = slices.Delete(s.queue, j, j+1)
 				}
 				if err != nil {
-					s.revert(w.id, w.back)
+					s.revert(w.id, w.back, w.group)
 				}
 			}
 			if !s.offline {
@@ -1543,18 +1583,51 @@ func (s *Screen) flush() {
 	})
 }
 
-func (s *Screen) set(i int, patch client.EntryPatch) {
+// setRow sets the fields of patch on the row alone and moves the counts of its source.
+func (s *Screen) setRow(i int, patch client.EntryPatch) {
 	e := &s.entries[i]
 	if patch.IsRead != nil && *patch.IsRead != e.IsRead {
 		e.IsRead = *patch.IsRead
+		delta := 1
 		if e.IsRead {
-			s.count(*e, -1)
-		} else {
-			s.count(*e, 1)
+			delta = -1
 		}
+		s.count(*e, delta)
+		s.unreadTotal = max(0, s.unreadTotal+delta)
 	}
 	if patch.Starred != nil {
 		e.Starred = *patch.Starred
+	}
+}
+
+// moveMember moves the count of the source of copy m for it being read or not, and returns read.
+func (s *Screen) moveMember(m client.GroupMember, read bool) bool {
+	if m.IsRead != read {
+		delta := 1
+		if read {
+			delta = -1
+		}
+		s.count(client.Entry{SourceID: m.SourceID}, delta)
+	}
+	return read
+}
+
+func (s *Screen) set(i int, patch client.EntryPatch) {
+	s.setRow(i, patch)
+	e := &s.entries[i]
+	if e.Group != nil {
+		// A change reaches every copy of the article. The server's counts come with the reload after it is taken.
+		members := slices.Clone(e.Group.Entries)
+		for k := range members {
+			m := &members[k]
+			if patch.IsRead != nil {
+				m.IsRead = s.moveMember(*m, *patch.IsRead)
+			}
+			if patch.Starred != nil {
+				m.Starred = *patch.Starred
+			}
+		}
+		e.Group = &client.Group{By: e.Group.By, Entries: members}
 	}
 }
 
@@ -1622,7 +1695,7 @@ func (s *Screen) markRead(e client.Entry) {
 // read shows the article at i in the reader and marks it read; the reader's toggle marks it unread again.
 func (s *Screen) read(i int) {
 	e := s.entries[i]
-	s.selected, s.reading = i, e.ID
+	s.selected, s.reading, s.copyID = i, e.ID, 0
 	s.reader.Open(e)
 	s.prefetch()
 	s.markRead(e)
@@ -1668,7 +1741,7 @@ func (s *Screen) back() {
 	}
 	s.reader.Leave()
 	i := s.index(s.reading)
-	s.reading, s.seeking = 0, false
+	s.reading, s.copyID, s.seeking = 0, 0, false
 	if i < 0 {
 		return
 	}
@@ -1693,8 +1766,12 @@ func (s *Screen) move(by int) {
 	s.grid.ScrollIntoView(i)
 }
 
-// unreadIn returns the unread entries of the scope, as the sources count them.
+// unreadIn returns the unread entries of the scope, as the sources count them; All is the server's total, which
+// counts an article several sources carry once.
 func (s *Screen) unreadIn(sc scope) int {
+	if sc.source == 0 && sc.kind == "" {
+		return s.unreadTotal
+	}
 	n := 0
 	for _, src := range s.sources {
 		if sc.source == src.ID || sc.source == 0 && (sc.kind == "" || sc.kind == src.Kind) {
@@ -2292,7 +2369,7 @@ func (s *Screen) View(c *ui.Context) {
 			s.sidebar(c, compact)
 		}
 		if s.reading != 0 {
-			e := s.entries[s.index(s.reading)]
+			e := s.shownCopy(s.entries[s.index(s.reading)])
 			s.reader.View(c, reader.Nav{Entry: e, Icon: s.bitmap(s.iconOf(e.SourceID)), Scope: s.scopeName(),
 				Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "", Keys: !open, Controls: hidden,
 				Column: mainColumn(t, width, hidden, compact)})
@@ -4006,6 +4083,9 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 				TextColor(source)
 			ui.Text(c, "·").FontSize(px(t, 12)).TextColor(muted).Opacity(0.7)
 			ui.Text(c, s.when(e, now)).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(muted).NoWrap()
+			if !lead {
+				s.alsoChip(c, e, muted)
+			}
 			if reading := s.readLabel(e); reading != "" {
 				ui.Text(c, "·").FontSize(px(t, 12)).TextColor(muted).Opacity(0.7)
 				ui.Text(c, reading).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(muted).NoWrap()
@@ -4022,6 +4102,157 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 				ui.Text(c, e.Platform).FontSize(px(t, 12)).SingleLine().MinWidth(0).Shrink(1).TextColor(muted)
 			}
 		})
+}
+
+// grouped tells whether e shows the other sources that carry its article: the server sends them only where articles
+// are shown once, and a single subscription and a search list every copy.
+func (s *Screen) grouped(e client.Entry) bool {
+	return e.Group != nil && len(e.Group.Entries) > 0 && s.scope.source == 0 && s.searched == ""
+}
+
+// alsoChip is the small "N more sources" button after the time of a row; it shows or hides the list of the other
+// sources under the row. The click does not reach the row under it.
+func (s *Screen) alsoChip(c *ui.Context, e client.Entry, muted ui.Color) {
+	if !s.grouped(e) {
+		return
+	}
+	t := c.Theme()
+	n := len(e.Group.Entries)
+	open := s.also == e.ID
+	b := ui.ButtonBase(c).Key("also").Height(px(t, 20)).Padding(0, px(t, 6), 0, px(t, 4)).Radius(px(t, 6)).
+		Label(s.format(s.text.AlsoName, n)).Expanded(open)
+	color := muted
+	switch {
+	case b.Pressed():
+		b.Background(theme.Chosen(t))
+		color = theme.Text2(t)
+	case b.Hovered():
+		b.Background(t.SurfacePressed)
+		color = theme.Text2(t)
+	case open:
+		color = theme.Text2(t)
+	}
+	b.Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(px(t, 3)).Children(func() {
+			ui.Icon(c, icons.Layers).FontSize(px(t, 13)).TextColor(color)
+			ui.Text(c, s.format(s.text.AlsoChip, n)).FontSize(px(t, 12)).NoWrap().TextColor(color)
+		})
+	})
+	if b.Clicked() {
+		if open {
+			s.also = 0
+		} else {
+			s.also = e.ID
+		}
+	}
+}
+
+// alsoList is the other sources of the row that is open, one line each under its content: the icon and name of the
+// source, the title and the time. A click opens that copy in the reader.
+func (s *Screen) alsoList(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
+	if s.also != e.ID || !s.grouped(e) {
+		return
+	}
+	t := c.Theme()
+	ui.Row(c).Key("also-list").FillWidth().AlignItems(ui.Stretch).Margin(px(t, 6), 0, 0, px(t, 1)).Role(ui.RoleList).
+		Label(s.text.AlsoHead).Children(func() {
+		ui.Box(c).Width(2).Shrink(0).Background(t.Border)
+		ui.Column(c).Grow(1).MinWidth(0).Padding(0, 0, 0, px(t, 12)).Children(func() {
+			for _, m := range e.Group.Entries {
+				s.alsoItem(c, e, m, now, muted)
+			}
+		})
+	})
+}
+
+// alsoItem is one other source in the list under a row.
+func (s *Screen) alsoItem(c *ui.Context, row client.Entry, m client.GroupMember, now time.Time, muted ui.Color) {
+	t := c.Theme()
+	title := m.Title
+	if title == "" {
+		title = m.URL
+	}
+	source, color := theme.Text2(t), t.Text
+	if row.IsRead {
+		color = muted
+	}
+	b := ui.ButtonBase(c).Key(m.ID).FillWidth().Height(px(t, 30)).Margin(0, px(t, -8), 0, px(t, -4)).
+		Padding(0, px(t, 8), 0, px(t, 4)).Radius(px(t, 8)).Role(ui.RoleListItem).
+		Label(m.SourceTitle + s.text.Separator + title)
+	switch {
+	case b.Pressed():
+		b.Background(t.SurfacePressed)
+	case b.Hovered():
+		b.Background(t.SurfaceHover)
+	}
+	b.Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(px(t, 8)).Children(func() {
+			s.glyph(c, m.SourceTitle, s.iconOf(m.SourceID), 16)
+			ui.Text(c, m.SourceTitle).FontSize(px(t, 12)).FontWeight(500).SingleLine().MaxWidth(px(t, 140)).Shrink(0).
+				TextColor(source)
+			ui.Text(c, title).FontSize(px(t, 13)).SingleLine().Grow(1).MinWidth(0).TextColor(color)
+			ui.Text(c, s.when(client.Entry{CreatedAt: m.CreatedAt}, now)).FontSize(px(t, 12)).FontFeatures("tnum").
+				TextColor(muted).NoWrap()
+		})
+	})
+	if b.Clicked() {
+		s.openCopy(c, row.ID, m)
+	}
+}
+
+// openCopy opens the copy m of the article of the row id, from the list under the row: an article in the reader, the
+// other kinds in the browser. The row stays the place in the list, and the article is marked read as a whole.
+func (s *Screen) openCopy(c *ui.Context, id int64, m client.GroupMember) {
+	i := s.index(id)
+	if i < 0 {
+		return
+	}
+	e := s.entries[i]
+	if e.Kind != "article" {
+		if m.URL != "" {
+			c.OpenURLThen(m.URL, func(err error) {
+				if err != nil {
+					s.toast = s.text.OpenFailed
+					c.Invalidate()
+				}
+			})
+		}
+		s.selected = i
+		s.markRead(e)
+		return
+	}
+	s.read(i)
+	s.showCopy(m.ID)
+}
+
+// showCopy has the reader show the copy of the article read that has the entry id; the row it belongs to, 0, shows the
+// row itself.
+func (s *Screen) showCopy(id int64) {
+	i := s.index(s.reading)
+	if i < 0 {
+		return
+	}
+	s.copyID = id
+	s.reader.Open(s.shownCopy(s.entries[i]))
+}
+
+// shownCopy is the entry the reader shows for the row e: the row, or the copy of its article chosen from the list. Its
+// read and starred state are the whole article's, and its group the other copies, the row's own among them.
+func (s *Screen) shownCopy(e client.Entry) client.Entry {
+	if s.copyID == 0 || e.Group == nil {
+		return e
+	}
+	k := slices.IndexFunc(e.Group.Entries, func(m client.GroupMember) bool { return m.ID == s.copyID })
+	if k < 0 {
+		return e
+	}
+	m := e.Group.Entries[k]
+	others := []client.GroupMember{{ID: e.ID, SourceID: e.SourceID, SourceTitle: e.SourceTitle, Title: e.Title,
+		URL: e.URL, IsRead: e.IsRead, Starred: e.Starred, CreatedAt: e.CreatedAt}}
+	others = append(others, slices.Delete(slices.Clone(e.Group.Entries), k, k+1)...)
+	e.ID, e.SourceID, e.SourceTitle, e.Title, e.URL, e.CreatedAt = m.ID, m.SourceID, m.SourceTitle, m.Title, m.URL, m.CreatedAt
+	e.Group = &client.Group{By: e.Group.By, Entries: others}
+	return e
 }
 
 // marked splits text into spans, the parts matching the search on the warning tint.
@@ -4257,6 +4488,7 @@ func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted 
 				line()
 			}
 		}
+		s.alsoList(c, e, now, muted)
 	})
 	if e.ThumbnailURL != "" {
 		// Under the meta line, so the row's actions never cover it, and never taller than the text: it starts 24 down.
@@ -4302,6 +4534,7 @@ func (s *Screen) largeRow(c *ui.Context, e client.Entry, now time.Time, muted ui
 		s.coverOf(c, e, true, true, px(t, 12), 44).FillWidth().MaxWidth(px(t, 640))
 		s.titleText(c, e, 15, muted)
 		s.meta(c, e, now, false, px(t, 88), muted, true)
+		s.alsoList(c, e, now, muted)
 	})
 }
 
@@ -4348,6 +4581,7 @@ func (s *Screen) videoRow(c *ui.Context, e client.Entry, now time.Time, compact 
 				ui.Text(c, e.Platform).FontSize(px(t, 12)).TextColor(muted)
 			})
 		}
+		s.alsoList(c, e, now, muted)
 	})
 }
 
@@ -4376,6 +4610,7 @@ func (s *Screen) socialRow(c *ui.Context, e client.Entry, now time.Time, muted u
 			body.LineHeight(1.7)
 		}
 		s.gallery(c, e)
+		s.alsoList(c, e, now, muted)
 	})
 }
 
@@ -4401,6 +4636,7 @@ func (s *Screen) briefPost(c *ui.Context, e client.Entry, now time.Time, muted, 
 		if n := len(e.Images); n > 1 {
 			s.strip(c, e)
 		}
+		s.alsoList(c, e, now, muted)
 	})
 	if len(e.Images) == 1 {
 		// Under the meta line, so the row's actions never cover it, as an article's thumbnail is.
@@ -4487,6 +4723,7 @@ func (s *Screen) imageRow(c *ui.Context, e client.Entry, now time.Time, muted ui
 			s.zoom(s.picture(c, address, true, px(t, 12), nil), s.index(e.ID), 0).FillWidth().AspectRatio(1.5).
 				MaxHeight(px(t, 320)).Margin(px(t, 8), 0, 0, 0)
 		}
+		s.alsoList(c, e, now, muted)
 	})
 }
 

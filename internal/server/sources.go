@@ -128,7 +128,17 @@ func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
 	for i, src := range list {
 		items[i] = toJSON(src)
 	}
-	reply(w, http.StatusOK, map[string]any{"sources": items})
+	group, err := s.store.GroupSameLink(r.Context())
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	total, err := s.store.UnreadTotal(r.Context(), group)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	reply(w, http.StatusOK, map[string]any{"sources": items, "unreadTotal": total})
 }
 
 type healthJSON struct {

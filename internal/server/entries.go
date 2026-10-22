@@ -48,6 +48,24 @@ type entryJSON struct {
 	// FadesAt and ExpiresAt are set for an unread entry of a source with a pace, in Unix milliseconds.
 	FadesAt   *int64 `json:"fadesAt,omitempty"`
 	ExpiresAt *int64 `json:"expiresAt,omitempty"`
+	// Group carries the other visible entries with the same link; it is left out for an entry that has none.
+	Group *groupJSON `json:"group,omitempty"`
+}
+
+type groupJSON struct {
+	By      string            `json:"by"`
+	Entries []groupMemberJSON `json:"entries"`
+}
+
+type groupMemberJSON struct {
+	ID          int64  `json:"id"`
+	SourceID    int64  `json:"sourceId"`
+	SourceTitle string `json:"sourceTitle"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	IsRead      bool   `json:"isRead"`
+	Starred     bool   `json:"starred"`
+	CreatedAt   int64  `json:"createdAt"`
 }
 
 type fullEntryJSON struct {
@@ -73,13 +91,32 @@ func entryToJSON(e store.Entry) entryJSON {
 	if images == nil {
 		images = []store.Image{}
 	}
+	var group *groupJSON
+	if len(e.Group) > 0 {
+		group = &groupJSON{By: "link", Entries: make([]groupMemberJSON, len(e.Group))}
+		for i, m := range e.Group {
+			group.Entries[i] = groupMemberJSON{ID: m.ID, SourceID: m.SourceID, SourceTitle: m.SourceTitle, Title: m.Title,
+				URL: m.URL, IsRead: m.IsRead, Starred: m.Starred, CreatedAt: m.CreatedAt.UnixMilli()}
+		}
+	}
 	return entryJSON{
-		ID: e.ID, SourceID: e.SourceID, SourceTitle: e.SourceTitle, Kind: e.Kind, Title: e.Title, URL: e.URL,
+		Group: group,
+		ID:    e.ID, SourceID: e.SourceID, SourceTitle: e.SourceTitle, Kind: e.Kind, Title: e.Title, URL: e.URL,
 		Author: e.Author, PublishedAt: millis(e.PublishedAt), Summary: e.Summary, ThumbnailURL: e.ThumbnailURL,
 		DurationSec: duration, Platform: e.Platform, Language: e.Language, ReadingSec: e.ReadingSec, ReadProgress: e.ReadProgress, Images: images, ExtractStatus: e.ExtractStatus,
 		IsRead: e.IsRead, ReadAt: millis(e.ReadAt), Starred: e.Starred, CreatedAt: e.CreatedAt.UnixMilli(),
 		FadesAt: millis(e.FadesAt), ExpiresAt: millis(e.ExpiresAt),
 	}
+}
+
+// grouping reports whether the timeline shows entries with the same link once.
+func (s *Server) grouping(w http.ResponseWriter, r *http.Request) (bool, bool) {
+	on, err := s.store.GroupSameLink(r.Context())
+	if err != nil {
+		internal(w, err)
+		return false, false
+	}
+	return on, true
 }
 
 // clipSummary flattens the white space of an AI summary and keeps at most maxListAISummary characters of it. A cut
@@ -171,6 +208,11 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 		}
 		filter.After = &after
 	}
+	group, ok := s.grouping(w, r)
+	if !ok {
+		return
+	}
+	filter.Group = group
 	// One extra row tells whether another page follows.
 	list, err := s.store.Entries(r.Context(), filter, limit+1)
 	if err != nil {
@@ -197,7 +239,14 @@ func (s *Server) getEntry(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	group, ok := s.grouping(w, r)
+	if !ok {
+		return
+	}
 	entry, err := s.store.Entry(r.Context(), id)
+	if err == nil && group {
+		entry, err = s.store.WithGroup(r.Context(), entry)
+	}
 	replyEntry(w, entry, err)
 }
 
@@ -218,8 +267,15 @@ func (s *Server) updateEntry(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_progress")
 		return
 	}
+	group, ok := s.grouping(w, r)
+	if !ok {
+		return
+	}
 	entry, err := s.store.UpdateEntry(r.Context(), id, store.EntryPatch{IsRead: body.IsRead, Starred: body.Starred,
-		ReadProgress: body.ReadProgress}, s.now())
+		ReadProgress: body.ReadProgress, Group: group}, s.now())
+	if err == nil && group {
+		entry, err = s.store.WithGroup(r.Context(), entry)
+	}
 	replyEntry(w, entry, err)
 }
 
@@ -265,7 +321,11 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_kind")
 		return
 	}
-	filter := store.EntryFilter{SourceID: body.SourceID, Kind: body.Kind}
+	group, ok := s.grouping(w, r)
+	if !ok {
+		return
+	}
+	filter := store.EntryFilter{SourceID: body.SourceID, Kind: body.Kind, Group: group}
 	if body.Older != nil {
 		if *body.Older <= 0 {
 			fail(w, http.StatusBadRequest, "invalid_older_than")

@@ -40,6 +40,7 @@ type copy struct {
 	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                        string
 	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint         string
 	SelectionAIOff, ExplanationReady, TranslateDone, LanguageZhHans, LanguageEn                                   string
+	AlsoHead                                                                                                      string
 	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles        string
 }
 
@@ -77,7 +78,8 @@ type API interface {
 // of this device for the article's text size and line spacing, each frame; nil means the defaults. ReadingFont gives
 // the font list of the article's body, "" (and nil) for the interface font; the shell works it out when the
 // preferences or the installed fonts change. Save asks where to save a file, offered under name and with the filter
-// label, and returns the path chosen, "" when none was; it runs off the UI thread.
+// label, and returns the path chosen, "" when none was; it runs off the UI thread. OpenCopy shows the copy of the
+// article that has the entry id, from the line of the other sources that carry it.
 type Deps struct {
 	Go           func(work func() (apply func()))
 	Now          func() time.Time
@@ -92,6 +94,7 @@ type Deps struct {
 	Reading      func() prefs.Preferences
 	ReadingFont  func() string
 	Save         func(name, filter string) (string, error)
+	OpenCopy     func(id int64)
 }
 
 // Nav is what the timeline tells the reader each frame: the entry as the list has it, with its read and starred
@@ -1205,6 +1208,7 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 			}
 			s.plain(c, &s.titleSet, title, s.han, size, tracking).FontSize(size).FontWeight(600).LineHeight(line).
 				LetterSpacing(tracking).TextColor(t.Text).Wrap().Margin(px(t, 12), 0, 0, 0).Role(ui.RoleHeading).Level(1)
+			s.alsoLine(c, e)
 			if s.jobs[translation].on {
 				s.translationNote(c)
 			}
@@ -1242,6 +1246,43 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 					s.retry()
 				}
 			}).FillWidth().Padding(t.Space(6), t.Space(6), t.Space(6), t.Space(6))
+		}
+	})
+}
+
+// alsoLine is the other sources that carry the article, under its title: a text button each, with the source's
+// monogram, name and time, that shows that copy. There is none for an article that only one source carries, or when the screen cannot show a copy.
+func (s *Screen) alsoLine(c *ui.Context, e client.Entry) {
+	if s.deps.OpenCopy == nil || e.Group == nil || len(e.Group.Entries) == 0 {
+		return
+	}
+	t := c.Theme()
+	ui.Row(c).Key("also").FillWidth().AlignItems(ui.Center).Wrap().Gap(px(t, 2)).Margin(px(t, 10), 0, 0, 0).
+		Role(ui.RoleList).Label(s.text.AlsoHead).Children(func() {
+		ui.Text(c, s.text.AlsoHead).FontSize(px(t, 12)).FontWeight(500).NoWrap().TextColor(t.TextMuted).
+			Margin(0, px(t, 4), 0, 0)
+		for _, m := range e.Group.Entries {
+			label := m.SourceTitle + " " + s.when(client.Entry{CreatedAt: m.CreatedAt})
+			b := ui.ButtonBase(c).Key(m.ID).Height(px(t, 28)).PaddingX(px(t, 8)).Gap(px(t, 6)).Radius(px(t, 8)).
+				Role(ui.RoleListItem).Label(label)
+			color := theme.Text2(t)
+			switch {
+			case b.Pressed():
+				b.Background(t.SurfacePressed)
+				color = t.Text
+			case b.Hovered():
+				b.Background(t.SurfaceHover)
+				color = t.Text
+			}
+			b.Children(func() {
+				monogram(c, m.SourceTitle)
+				ui.Text(c, m.SourceTitle).FontSize(px(t, 13)).FontWeight(500).NoWrap().TextColor(color)
+				ui.Text(c, s.when(client.Entry{CreatedAt: m.CreatedAt})).FontSize(px(t, 12)).FontFeatures("tnum").
+					NoWrap().TextColor(t.TextMuted)
+			})
+			if b.Clicked() {
+				s.deps.OpenCopy(m.ID)
+			}
 		}
 	})
 }
