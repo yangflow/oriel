@@ -96,7 +96,7 @@ func TestBackupLeavesOutTheKeyAndSessions(t *testing.T) {
 	if zr.File[0].Name != manifestName || json.NewDecoder(in).Decode(&manifest) != nil {
 		t.Fatalf("first file %s", zr.File[0].Name)
 	}
-	if manifest.App != "oriel" || manifest.Format != 1 || manifest.Version != "1.2.3" || manifest.Schema != 16 || time.Since(manifest.CreatedAt) > time.Minute {
+	if manifest.App != "oriel" || manifest.Format != 1 || manifest.Version != "1.2.3" || manifest.Schema != count(t, s, "PRAGMA user_version") || time.Since(manifest.CreatedAt) > time.Minute {
 		t.Fatalf("manifest %+v", manifest)
 	}
 	snap, _ := zr.File[1].Open()
@@ -327,10 +327,9 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Make it look like version 15, before the extraction rules.
+	// Make it look like version 16, before deleted subscriptions waited out an undo.
 	for _, stmt := range []string{
-		"ALTER TABLE sources DROP COLUMN extract_selector", "ALTER TABLE sources DROP COLUMN extract_referer",
-		"ALTER TABLE sources DROP COLUMN extract_rewrites", "PRAGMA user_version = 15",
+		"DROP INDEX sources_deleted", "ALTER TABLE sources DROP COLUMN deleted_at", "PRAGMA user_version = 16",
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)
@@ -340,7 +339,7 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	raw, _ := os.ReadFile(old)
 
 	other := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
-	r, err := other.PrepareRestore(ctx, bytes.NewReader(zipOf(t, Manifest{Format: 1, App: "oriel", Schema: 15}, raw)), MaxBackup)
+	r, err := other.PrepareRestore(ctx, bytes.NewReader(zipOf(t, Manifest{Format: 1, App: "oriel", Schema: 16}, raw)), MaxBackup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +347,7 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	if res, err := r.Apply(ctx); err != nil || res.Sources != 2 {
 		t.Fatalf("%+v %v", res, err)
 	}
-	if count(t, other, "SELECT count(*) FROM sources WHERE extract_selector = ''") != 2 {
+	if count(t, other, "SELECT count(*) FROM sources WHERE deleted_at IS NULL") != 2 {
 		t.Fatal("the migrated columns are missing")
 	}
 }
@@ -376,5 +375,32 @@ func TestRestoreWaitsOutAVacuum(t *testing.T) {
 	s.vacuuming.Store(true)
 	if _, err := r.Apply(context.Background()); !errors.Is(err, ErrVacuumRunning) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestBackupLeavesOutADeletedSubscription(t *testing.T) {
+	s, _ := seeded(t)
+	ctx := context.Background()
+	sources, err := s.Sources(ctx)
+	if err != nil || len(sources) != 2 {
+		t.Fatalf("%v %v", sources, err)
+	}
+	if err := s.DeleteSource(ctx, sources[0].ID, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	data := backupOf(t, s)
+	other := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	restore, err := other.PrepareRestore(ctx, bytes.NewReader(data), MaxBackup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restore.Discard()
+	result, err := restore.Apply(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Sources != 1 || count(t, other, "SELECT count(*) FROM sources WHERE deleted_at IS NOT NULL") != 0 ||
+		count(t, other, "SELECT count(*) FROM entries WHERE source_id = ?", sources[0].ID) != 0 {
+		t.Fatalf("result %+v", result)
 	}
 }

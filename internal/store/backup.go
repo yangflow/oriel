@@ -107,9 +107,10 @@ func writeBackup(ctx context.Context, db *sql.DB, dir string, w io.Writer, versi
 	return zw.Close()
 }
 
-// strip removes from a snapshot what a backup leaves out, shrinks it, and returns its schema version.
+// strip removes from a snapshot what a backup leaves out, shrinks it, and returns its schema version. A subscription
+// deleted within the undo window goes too, with all that hangs off it.
 func strip(ctx context.Context, snapshot string) (int, error) {
-	db, err := sql.Open("sqlite", snapshot)
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(snapshot)+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		return 0, err
 	}
@@ -117,6 +118,7 @@ func strip(ctx context.Context, snapshot string) (int, error) {
 	db.SetMaxOpenConns(1)
 	for _, stmt := range []string{
 		"DELETE FROM sessions",
+		"DELETE FROM sources WHERE deleted_at IS NOT NULL",
 		"DELETE FROM settings WHERE key = '" + apiKeySetting + "'",
 		"INSERT INTO entries_fts (entries_fts) VALUES ('delete-all')",
 		"VACUUM",
