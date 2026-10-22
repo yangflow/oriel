@@ -2,7 +2,9 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -214,17 +216,119 @@ func (w *Worker) Request(ctx context.Context, entryID int64, task string) (store
 	return result, nil
 }
 
-// Test sends a short request with the current settings and returns the model that answered.
-func (w *Worker) Test(ctx context.Context) (string, error) {
+// TestResult is what the self-check found. The pointers are nil when the endpoint did not say.
+type TestResult struct {
+	Model         string // the model that answered the short request
+	ModelFound    *bool  // whether the endpoint's list has the configured model
+	ContextTokens *int   // the context length the endpoint reports for the model
+	ContextFits   *bool  // whether the summary limit and chunk size fit that context
+}
+
+// Test checks the endpoint with the current settings: it lists the models, looks for the configured one, sends a
+// short request and compares the reported context length with the limits. It returns ErrNotConfigured, and a Code
+// for a failed step; the key is never part of an error.
+func (w *Worker) Test(ctx context.Context) (TestResult, error) {
 	cfg, err := Load(ctx, w.store)
 	if err != nil {
-		return "", err
+		return TestResult{}, err
 	}
 	if !cfg.Configured() {
-		return "", ErrNotConfigured
+		return TestResult{}, ErrNotConfigured
 	}
-	_, model, err := w.call(ctx, cfg, "Reply with OK.", "OK")
-	return model, err
+	var res TestResult
+	listed, err := w.listModels(ctx, cfg)
+	if err != nil {
+		return TestResult{}, err
+	}
+	var entry *modelEntry
+	if listed != nil {
+		found := false
+		for i := range listed {
+			if sameModel(listed[i].ID, cfg.Model) {
+				found, entry = true, &listed[i]
+				break
+			}
+		}
+		if !found {
+			return TestResult{}, ErrModelNotFound
+		}
+		res.ModelFound = &found
+	}
+	_, res.Model, err = w.call(ctx, cfg, "Reply with OK.", "OK")
+	if err != nil {
+		return TestResult{}, err
+	}
+	if entry != nil && entry.contextTokens() > 0 {
+		tokens := entry.contextTokens()
+		fits := tokens >= cfg.SummaryLimit/2+1000 && tokens >= cfg.ChunkLimit+1000
+		res.ContextTokens, res.ContextFits = &tokens, &fits
+	}
+	return res, nil
+}
+
+// modelEntry is one model of the endpoint's list.
+type modelEntry struct {
+	ID                  string `json:"id"`
+	LoadedContextLength int    `json:"loaded_context_length"`
+	ContextLength       int    `json:"context_length"`
+	MaxContextLength    int    `json:"max_context_length"`
+	ContextWindow       int    `json:"context_window"`
+}
+
+// contextTokens is the first context length the entry reports, 0 when it reports none.
+func (m modelEntry) contextTokens() int {
+	for _, n := range []int{m.LoadedContextLength, m.ContextLength, m.MaxContextLength, m.ContextWindow} {
+		if n > 0 {
+			return n
+		}
+	}
+	return 0
+}
+
+// sameModel compares model names ignoring case, and takes a name without a tag as the :latest one.
+func sameModel(listed, want string) bool {
+	listed, want = strings.ToLower(strings.TrimSpace(listed)), strings.ToLower(strings.TrimSpace(want))
+	if listed == want {
+		return true
+	}
+	return !strings.Contains(want, ":") && listed == want+":latest"
+}
+
+// listModels reads GET {base}/models. It returns nil, nil when the endpoint has no usable list, since many do not,
+// and an error only when the endpoint cannot be reached, is too slow or turns the key down.
+func (w *Worker) listModels(ctx context.Context, cfg Config) ([]modelEntry, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, w.timeout, errCallTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.BaseURL+"/models", nil)
+	if err != nil {
+		return nil, ErrUnreachable
+	}
+	req.Header.Set("User-Agent", w.userAgent)
+	if cfg.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	}
+	resp, err := w.client.Do(req)
+	if err != nil {
+		return nil, transportError(ctx, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, ErrUnauthorized
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, nil
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse+1))
+	if err != nil {
+		return nil, transportError(ctx, err)
+	}
+	var list struct {
+		Data []modelEntry `json:"data"`
+	}
+	if len(raw) > maxResponse || json.Unmarshal(raw, &list) != nil || len(list.Data) == 0 {
+		return nil, nil
+	}
+	return list.Data, nil
 }
 
 // Selection translates or explains a text the user selected while reading, in the target language, and returns the

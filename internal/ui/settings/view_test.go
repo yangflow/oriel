@@ -45,7 +45,8 @@ type fake struct {
 
 	settingsErr, setErr, devicesErr, revokeErr, importErr, exportErr, testErr error
 
-	model string // the model that answers a test
+	model string        // the model that answers a test
+	check client.AITest // what else the test finds; its Model is model
 	tests int
 
 	open, save string // the paths the dialogs answer, "" for cancelled
@@ -83,6 +84,12 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	if patch.AILanguage != nil {
 		f.settings.AILanguage = *patch.AILanguage
 	}
+	if patch.AISummaryLimit != nil {
+		f.settings.AISummaryLimit = cmp.Or(*patch.AISummaryLimit, f.settings.DefaultAISummaryLimit)
+	}
+	if patch.AIChunkLimit != nil {
+		f.settings.AIChunkLimit = cmp.Or(*patch.AIChunkLimit, f.settings.DefaultAIChunkLimit)
+	}
 	if patch.PromptSummary != nil {
 		f.settings.PromptSummary = cmp.Or(*patch.PromptSummary, f.settings.DefaultPromptSummary)
 	}
@@ -106,9 +113,11 @@ func (f *fake) ImportOPML(_ context.Context, opml []byte) (client.Imported, erro
 
 func (f *fake) ExportOPML(context.Context) ([]byte, error) { return f.opml, f.exportErr }
 
-func (f *fake) TestAI(context.Context) (string, error) {
+func (f *fake) TestAI(context.Context) (client.AITest, error) {
 	f.tests++
-	return f.model, f.testErr
+	found := f.check
+	found.Model = f.model
+	return found, f.testErr
 }
 
 func (f *fake) deps() Deps {
@@ -150,7 +159,8 @@ func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Te
 	f := &fake{
 		settings: client.Settings{RSSHubBaseURLs: []string{"https://rsshub.example.com"}, RetentionDays: 30, AILanguage: "zh-Hans",
 			PromptSummary: summaryPrompt, PromptTranslate: translatePrompt,
-			DefaultPromptSummary: summaryPrompt, DefaultPromptTranslate: translatePrompt},
+			DefaultPromptSummary: summaryPrompt, DefaultPromptTranslate: translatePrompt,
+			AISummaryLimit: 24000, AIChunkLimit: 6000, DefaultAISummaryLimit: 24000, DefaultAIChunkLimit: 6000},
 		devices: []client.Device{
 			{ID: 4, UserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 " +
 				"(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
@@ -879,7 +889,7 @@ func TestTestAI(t *testing.T) {
 	for code, want := range map[string]string{
 		"ai_unauthorized": s.text.AIUnauthorized, "ai_unreachable": s.text.AIUnreachable,
 		"ai_timeout": s.text.AITimeout, "ai_rate_limited": s.text.AIRateLimited, "ai_upstream": s.text.AIUpstream,
-		"ai_empty": s.text.AIUpstream, "": s.text.ErrorHint,
+		"ai_empty": s.text.AIUpstream, "ai_model_not_found": s.text.AIModelMissing, "": s.text.ErrorHint,
 	} {
 		f.testErr = &client.APIError{Status: 502, Code: code}
 		if code == "" {
@@ -897,6 +907,130 @@ func TestTestAI(t *testing.T) {
 	tt.Type("-2")
 	if !strings.Contains(s.aiModel, "-2") || tt.HasText(s.text.ErrorHint) || !tt.HasText(s.text.TestFirst) {
 		t.Fatalf("model %q, texts %v", s.aiModel, tt.Texts())
+	}
+}
+
+// TestPresets has a preset fill the address and hint the model, and leave the key and everything saved alone.
+func TestPresets(t *testing.T) {
+	s, f, tt := openAI(t, "en", true)
+	edit(tt, func() { s.aiKey = "sk-typed" })
+	press(t, tt, "Ollama")
+	if s.aiBase != "http://127.0.0.1:11434/v1" || s.aiKey != "sk-typed" || s.aiModel != "small" || len(f.set) != 0 ||
+		s.preset() != 0 || !s.aiDirty() || !tt.HasText(s.text.TestFirst) {
+		t.Fatalf("base %q, key %q, model %q, set %v", s.aiBase, s.aiKey, s.aiModel, f.set)
+	}
+	press(t, tt, "LM Studio")
+	if s.aiBase != "http://127.0.0.1:1234/v1" || s.preset() != 1 || s.aiKey != "sk-typed" {
+		t.Fatalf("base %q, key %q", s.aiBase, s.aiKey)
+	}
+	// An address typed by hand that is a preset's counts as it, trailing slash or not.
+	edit(tt, func() { s.aiBase = " http://127.0.0.1:11434/v1/ " })
+	if s.preset() != 0 {
+		t.Fatalf("preset %d for %q", s.preset(), s.aiBase)
+	}
+	edit(tt, func() { s.aiBase = "https://api.example.com/v1" })
+	if s.preset() != -1 {
+		t.Fatalf("preset %d for %q", s.preset(), s.aiBase)
+	}
+
+	// Saved, the preset sends the address and the key typed, and nothing else.
+	press(t, tt, "Ollama")
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 1 || *f.set[0].AIBaseURL != "http://127.0.0.1:11434/v1" || *f.set[0].AIAPIKey != "sk-typed" ||
+		f.set[0].AIModel != nil || f.set[0].AISummaryLimit != nil || f.set[0].AIChunkLimit != nil {
+		t.Fatalf("set %+v", f.set)
+	}
+}
+
+// TestPresetKeepsSavedKey is a preset picked with no key typed: the key saved is not part of the patch.
+func TestPresetKeepsSavedKey(t *testing.T) {
+	s, f, tt := openAI(t, "zh-Hans", true)
+	press(t, tt, "LM Studio")
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 1 || f.set[0].AIAPIKey != nil || !s.settings.AIAPIKeySet || !tt.HasText(s.text.KeySet) {
+		t.Fatalf("set %+v, key set %v", f.set, s.settings.AIAPIKeySet)
+	}
+}
+
+// TestLimits saves the limits as typed, takes empty for the default, and refuses what is not a number.
+func TestLimits(t *testing.T) {
+	s, f, tt := openAI(t, "en", true)
+	if s.aiLimits != [2]string{} || s.aiDirty() {
+		t.Fatalf("limits %q", s.aiLimits)
+	}
+	edit(tt, func() { s.aiLimits = [2]string{"8000", ""} })
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 1 || *f.set[0].AISummaryLimit != 8000 || f.set[0].AIChunkLimit != nil || f.set[0].AIBaseURL != nil ||
+		s.settings.AISummaryLimit != 8000 || s.aiLimits != [2]string{"8000", ""} || s.aiDirty() {
+		t.Fatalf("set %+v, limits %q", f.set, s.aiLimits)
+	}
+
+	edit(tt, func() { s.aiLimits = [2]string{"8000", "many"} })
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 1 || !tt.HasText(s.text.InvalidLimit) || !slices.Contains(tt.Announcements(), s.text.InvalidLimit) {
+		t.Fatalf("set %v, texts %v", f.set, tt.Texts())
+	}
+
+	// The server's refusal says the same.
+	edit(tt, func() { s.aiLimits = [2]string{"8000", "9"} })
+	f.setErr = &client.APIError{Status: 400, Code: "invalid_ai_limit"}
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 2 || !tt.HasText(s.text.InvalidLimit) {
+		t.Fatalf("set %v, texts %v", f.set, tt.Texts())
+	}
+	f.setErr = nil
+
+	// Emptied, the limit goes back to the default.
+	edit(tt, func() { s.aiLimits = [2]string{" ", ""} })
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 3 || *f.set[2].AISummaryLimit != 0 || s.settings.AISummaryLimit != 24000 || s.aiLimits != [2]string{} {
+		t.Fatalf("set %+v, limits %q", f.set, s.aiLimits)
+	}
+}
+
+// TestChecks lists what a test found under its answer: the model is listed, and the context fits or is too small.
+func TestChecks(t *testing.T) {
+	s, f, tt := openAI(t, "en", true)
+	yes, no, n := true, false, 128000
+	f.check = client.AITest{ModelFound: &yes, ContextTokens: &n, ContextFits: &yes}
+	press(t, tt, s.text.Test)
+	f.settle(tt)
+	fits := s.fill(s.text.CheckFits, "{n}", "128000")
+	if !tt.HasText("Connected. small answered.") || !tt.HasText(s.text.CheckListed) || !tt.HasText(fits) ||
+		len(s.aiChecks) != 2 || s.aiChecks[1].warn {
+		t.Fatalf("checks %+v, texts %v", s.aiChecks, tt.Texts())
+	}
+
+	n = 4096
+	f.check = client.AITest{ModelFound: &yes, ContextTokens: &n, ContextFits: &no}
+	press(t, tt, s.text.Test)
+	f.settle(tt)
+	small := s.fill(s.text.CheckSmall, "{n}", "4096")
+	if !tt.HasText("Connected. small answered.") || !tt.HasText(small) || !s.aiChecks[1].warn || tt.HasText(fits) {
+		t.Fatalf("checks %+v, texts %v", s.aiChecks, tt.Texts())
+	}
+
+	// What the endpoint did not tell is left out, and a change clears the lines.
+	f.check = client.AITest{}
+	press(t, tt, s.text.Test)
+	f.settle(tt)
+	if len(s.aiChecks) != 0 || tt.HasText(s.text.CheckListed) {
+		t.Fatalf("checks %+v", s.aiChecks)
+	}
+	f.check = client.AITest{ModelFound: &yes}
+	press(t, tt, s.text.Test)
+	f.settle(tt)
+	r, _ := tt.Find(s.text.Model)
+	tt.ClickAt(r.X+20, r.Y+r.H+28)
+	tt.Type("-2")
+	if len(s.aiChecks) != 0 || tt.HasText(s.text.CheckListed) {
+		t.Fatalf("checks %+v after a change", s.aiChecks)
 	}
 }
 

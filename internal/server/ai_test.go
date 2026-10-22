@@ -95,7 +95,8 @@ func TestAI(t *testing.T) {
 		t.Fatalf("cached: %d %s", w.Code, w.Body)
 	}
 
-	if w := do(s, "POST", "/api/ai/test", "", bearer(token)); w.Code != http.StatusOK || decode(t, w)["model"] != "m" {
+	if w := do(s, "POST", "/api/ai/test", "", bearer(token)); w.Code != http.StatusOK || decode(t, w)["model"] != "m" ||
+		decode(t, w)["reachable"] != true || decode(t, w)["modelFound"] != nil || decode(t, w)["contextFits"] != nil {
 		t.Fatalf("test: %d %s", w.Code, w.Body)
 	}
 	status.Store(http.StatusUnauthorized)
@@ -200,5 +201,34 @@ func TestAISelection(t *testing.T) {
 	results, err := s.store.AIResults(ctx, entries[0].ID)
 	if err != nil || len(results) != 0 {
 		t.Errorf("results stored: %v, %v", results, err)
+	}
+}
+
+func TestAISelfCheck(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/models" {
+			w.Write([]byte(`{"data":[{"id":"qwen3:8b","context_length":4096}]}`))
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"model": "qwen3:8b", "choices": []any{map[string]any{"message": map[string]string{"content": "OK"}}}})
+	}))
+	defer upstream.Close()
+	s.store.SetSetting(ctx, ai.BaseURLSetting, upstream.URL+"/v1")
+	s.store.SetSetting(ctx, ai.ModelSetting, "qwen3:8b")
+	s.store.SetSetting(ctx, ai.APIKeySetting, "stored-secret-value")
+
+	w := do(s, "POST", "/api/ai/test", "", bearer(token))
+	body := decode(t, w)
+	if w.Code != http.StatusOK || body["reachable"] != true || body["modelFound"] != true || body["contextTokens"] != 4096.0 ||
+		body["contextFits"] != false || strings.Contains(w.Body.String(), "stored-secret-value") {
+		t.Fatalf("self-check: %d %s", w.Code, w.Body)
+	}
+	s.store.SetSetting(ctx, ai.ModelSetting, "missing")
+	w = do(s, "POST", "/api/ai/test", "", bearer(token))
+	if w.Code != http.StatusBadGateway || decode(t, w)["error"] != "ai_model_not_found" {
+		t.Fatalf("missing model: %d %s", w.Code, w.Body)
 	}
 }

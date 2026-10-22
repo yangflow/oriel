@@ -362,6 +362,8 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 - `aiModel`：模型名，没设为空串。
 - `aiApiKeySet`：是否存了 API key。key 本身只能写（`PATCH` 的 `aiApiKey`），不下发。
 - `aiLanguage`：摘要和翻译的目标语言，`zh-Hans` 或 `en`，默认 `zh-Hans`。
+- `aiSummaryLimit`、`aiChunkLimit`：摘要最多送的字符数和翻译每块最多的字符数，用来配合小上下文的本地模型。没改过时是默认值 24 000 和 6000，返回的总是现在生效的值。这两个值跟着当前配置的这一个模型走，换模型不会自动改它们。
+- `defaultAiSummaryLimit`、`defaultAiChunkLimit`：上面两个的默认值，只读，界面用它们作占位和「恢复默认」。
 - `promptSummary`、`promptTranslate`：全局 prompt。没改过时是内置的默认 prompt。
 - `defaultPromptSummary`、`defaultPromptTranslate`：内置的默认 prompt，只读，界面用它判断 prompt 改没改过、恢复默认。
 
@@ -377,6 +379,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 - `aiModel` 去掉首尾空白，最多 200 个字符，否则 `invalid_ai_model`。
 - `aiApiKey` 去掉首尾空白后存下，空串表示删掉；最多 4096 个字符，否则 `invalid_ai_api_key`。本机的模型可以不要 key。
 - `aiLanguage` 不是 `zh-Hans` 或 `en` 时 `invalid_ai_language`。
+- `aiSummaryLimit` 是 500 到 100 000 的整数，`aiChunkLimit` 是 500 到 20 000 的整数，否则 `invalid_ai_limit`；`0` 恢复默认值。库里存在 `ai_summary_limit` 和 `ai_chunk_limit`，空串即默认；存的值读不成范围内的整数时按默认处理。
 - `promptSummary`、`promptTranslate` 最多 4000 个字符，否则 `invalid_prompt`；空串（去掉首尾空白后）恢复内置的默认 prompt。
 - 有一个字段不对就整个请求不生效。
 - 抓取循环每次抓取和清理都重新读设置，改了从下一次抓取和清理起生效，不用重启。
@@ -418,7 +421,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 | `GET /api/entries/{id}/ai` | 条目的两种结果和当前的目标语言：`{ "summary": ..., "translation": ..., "targetLanguage": "zh-Hans" }`，没有的结果为 `null`。 |
 | `POST /api/entries/{id}/summary` | 要摘要，返回这一种结果。 |
 | `POST /api/entries/{id}/translation` | 要翻译，返回这一种结果。 |
-| `POST /api/ai/test` | 用当前设置发一个很短的请求，成功返回 `{ "model": "..." }`；没配置好时 409，上游失败时 502，带下面的错误码。 |
+| `POST /api/ai/test` | 自检：用当前设置检查接口，成功返回 `{ "reachable": true, "model": "...", "modelFound": true \| null, "contextTokens": n \| null, "contextFits": true \| false \| null }`；没配置好时 409，失败时 502，带下面的错误码。见下面的「自检」。 |
 | `POST /api/ai/selection` | 翻译或解释阅读器里选中的一段文字：`{ "task": "translate" \| "explain", "text": "...", "title": "..." }`，成功返回 `{ "text": "...", "model": "..." }`。见下面的「所选文字」。 |
 
 一种结果是 `{ "status", "text", "error", "model", "updatedAt" }`，`status` 是 `pending`、`ok`、`failed`，`error` 只在 `failed` 时有值。
@@ -435,8 +438,8 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 
 - 第一行是条目标题，空一行，后面是正文的纯文本，段落之间空一行。正文依次取抽取的正文、订阅里的正文、订阅里的摘要，取第一个不为空的；都为空且没有标题时直接失败，`ai_empty`。
 - 文章形态的条目还在等待抽取（`pending`）时先等抽取结束，再送。
-- 摘要最多送 24 000 个字符，翻译最多 60 000 个字符，多出的截掉。
-- 翻译按段落切成每块不超过 6000 个字符，一块一个请求，按顺序翻完再拼起来；有一块失败就整条失败。
+- 摘要最多送 `aiSummaryLimit` 个字符（默认 24 000），翻译最多 60 000 个字符，多出的截掉。
+- 翻译按段落切成每块不超过 `aiChunkLimit` 个字符（默认 6000），一块一个请求，按顺序翻完再拼起来；有一块失败就整条失败。
 
 调用：
 
@@ -445,6 +448,15 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - 内置的摘要 prompt：`Summarize the article in {language} in three to five sentences. Reply with the summary only.`；翻译 prompt：`Translate the text into {language}. Keep the paragraphs and their order, and the title on the first line. Reply with the translation only.`
 - 每个请求超时 120 秒，响应最大 1 MiB。认 `HTTP_PROXY` / `HTTPS_PROXY`。接口地址是用户自己填的，可以指向本机或内网，不走正文抽取的公网检查。
 - 结果取第一个 `choices[].message.content`，去掉首尾空白；为空算失败。
+
+自检（`POST /api/ai/test`）在服务端做，界面只显示结果，从不在绘制时联网：
+
+1. 连通：`GET {aiBaseUrl}/models`，带 key（设了的话）。连不上是 `ai_unreachable`，超时是 `ai_timeout`，401 或 403 是 `ai_unauthorized`。别的状态码、不是预期的 JSON，或这个接口不存在（有的服务没有 `/models`）都不算失败，安静地跳过后两项里依赖列表的部分：`modelFound` 和 `contextTokens` 为 `null`。
+2. 模型存在：列表里有 `aiModel`（不分大小写，没写标签时也认 `:latest`，Ollama 的写法）时 `modelFound` 为 `true`；列表读到了却没有这个模型是 `ai_model_not_found`，不再发下一步。
+3. 发一个很短的 chat 请求，和以前的测试一样；成功时 `model` 是答复的模型。上游 404 也是 `ai_model_not_found`。
+4. 上下文：模型在列表里报了上下文长度（依次认 `loaded_context_length`、`context_length`、`max_context_length`、`context_window`，单位 token）时 `contextTokens` 是它。限制放得下时 `contextFits` 为 `true`，放不下为 `false`，不知道为 `null`。放不下不是失败：HTTP 仍是 200，由界面提示调小限制。估算按每两个字符约一个 token，摘要要 `aiSummaryLimit ÷ 2 + 1000`，翻译每块要 `aiChunkLimit + 1000`（原文和译文各占一半，所以不除以 2），两个都放得下才算 `true`。
+
+错误里不带 key，日志也不记 key。接口地址可以是本机，例如 `http://127.0.0.1:11434/v1`，同样走这条调用。
 
 失败的错误码（写进结果的 `error`，`POST /api/ai/test` 直接返回）：
 
@@ -455,6 +467,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 | `ai_timeout` | 超时。 |
 | `ai_unauthorized` | 上游 401 或 403，多半是 key 不对。 |
 | `ai_rate_limited` | 上游 429。 |
+| `ai_model_not_found` | 接口的模型列表里没有这个模型，或聊天请求得到 404。 |
 | `ai_upstream` | 上游其他非 2xx，或返回的不是预期的 JSON，或结果为空。 |
 | `ai_empty` | 条目没有可送的文字。 |
 
@@ -767,9 +780,11 @@ X 的 `home`、`i`、`search`、`explore`、`settings`、`messages`、`notificat
 
 AI：
 
-- 接口地址、模型、API key 和输出语言在一张卡片里，一个「保存」，只发改了的字段。服务端拒绝时错误显示在对应的框下面，焦点留在那个框里。
+- 预设：卡片顶部一行「预设」，两个小按钮「Ollama」（`http://127.0.0.1:11434/v1`）和「LM Studio」（`http://127.0.0.1:1234/v1`）。点一个只在界面里填好接口地址，并把模型框的占位换成这个运行时常见的写法（Ollama 是 `qwen3:8b`，LM Studio 是它界面里显示的模型名）；已经输入的模型名和 API key 一律不动，也不会自己保存，要点「保存」。当前地址正好是某个预设时，那个按钮显示为选中。预设只是填表，不探测端口，也不发请求。本机的模型可以不填 key。
+- 接口地址、模型、API key、输出语言和两个字符限制在一张卡片里，一个「保存」，只发改了的字段。服务端拒绝时错误显示在对应的框下面，焦点留在那个框里。
 - API key 不回显：框总是空的，旁边标「已配置」或「未配置」。填了就替换旧的；已配置时有「移除 key」，发空串删掉。
-- 「测试」发 `POST /api/ai/test`，用的是已保存的设置，所以有没保存的修改时不可用，提示「先保存再测试」。进行中显示「正在发一个简短的请求…」，成功显示「已连通，〈模型〉有回应」，失败按错误码提示原因。
+- 限制：「摘要上限」和「翻译分块」两个数字框（单位字符），空着用默认值（24 000 和 6000），占位显示默认值；超出范围时服务端回 `invalid_ai_limit`，错误显示在框下面。本地模型上下文只有 4k 或 8k 时调小它们。
+- 「测试」发 `POST /api/ai/test`（见「自检」），用的是已保存的设置，所以有没保存的修改时不可用，提示「先保存再测试」。进行中显示「正在发一个简短的请求…」。成功时第一行「已连通，〈模型〉有回应」，下面分行写各项结果：模型在接口的列表里（`modelFound` 为 `true` 才有这行）、上下文够用（「模型的上下文有 N 个 token，够用。」）或不够（「模型的上下文只有 N 个 token，放不下现在的限制。调小上面的摘要上限和翻译分块。」，警告色，不算失败）；接口不给列表或不报上下文时这两行不出现，不提示。失败按错误码给出能照着做的原因：连不上（检查地址，本机的话确认服务已启动）、401（key 不对）、找不到模型（检查模型名）、超时。错误文字里不带 key。
 - 摘要 prompt 和翻译 prompt 在另一张卡片里，各有「恢复默认」（就是默认时不可用；按下马上把默认 prompt 放进框里，还没保存，并弹出带「撤销」的提示，撤销放回恢复前的原文，框里之后又改过就什么都不做），一个「保存」。下面说明 `{language}` 会换成上面的输出语言，每个订阅可以在编辑对话框里用自己的 prompt。
 
 设备：

@@ -59,7 +59,8 @@ Working now:
   "Settings…" (Cmd/Ctrl+,); they are kept on the server, so every device connected to it shares them. Signed in to
   a server with a password, see each device signed in and sign out the ones you no longer use.
 - **AI summaries and translation.** Through your own OpenAI-compatible endpoint, such as OpenAI or a local
-  Ollama, set up in Settings with a connection test; the API key is kept on the server and never shown again. The
+  Ollama, set up in Settings with presets for Ollama and LM Studio and a connection check that says what is wrong
+  (address, key, model name, context size); the API key is kept on the server and never shown again. The
   reader summarizes or translates the open article on demand, cancellable, and keeps the result for next time; a
   subscription can summarize or translate its new entries by itself and use its own prompts.
 - **OPML import and export.** Import subscriptions from another reader, nested groups included, and see which

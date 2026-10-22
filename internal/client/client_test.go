@@ -371,7 +371,7 @@ func TestAIAPI(t *testing.T) {
 			w.WriteHeader(http.StatusConflict)
 			w.Write([]byte(`{"error":"ai_not_configured"}`))
 		case "/api/ai/test":
-			w.Write([]byte(`{"model":"m-1"}`))
+			w.Write([]byte(`{"reachable":true,"model":"m-1","modelFound":true,"contextTokens":4096,"contextFits":false}`))
 		case "/api/ai/selection":
 			if strings.Contains(string(body), "too long") {
 				w.WriteHeader(http.StatusBadGateway)
@@ -398,8 +398,9 @@ func TestAIAPI(t *testing.T) {
 	if _, err := session.RequestAI(ctx, 8, "summary"); !errors.As(err, &apiErr) || apiErr.Code != "ai_not_configured" {
 		t.Errorf("RequestAI not configured: %v", err)
 	}
-	if model, err := session.TestAI(ctx); err != nil || model != "m-1" {
-		t.Errorf("TestAI = %q, %v", model, err)
+	if got, err := session.TestAI(ctx); err != nil || got.Model != "m-1" || got.ModelFound == nil || !*got.ModelFound ||
+		got.ContextTokens == nil || *got.ContextTokens != 4096 || got.ContextFits == nil || *got.ContextFits {
+		t.Errorf("TestAI = %+v, %v", got, err)
 	}
 	if text, model, err := session.Selection(ctx, "translate", "hello", "Greetings"); err != nil || text != "你好" || model != "m-1" {
 		t.Errorf("Selection = %q, %q, %v", text, model, err)

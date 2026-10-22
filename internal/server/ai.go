@@ -86,7 +86,7 @@ func (s *Server) requestAI(w http.ResponseWriter, r *http.Request, task string) 
 }
 
 func (s *Server) testAI(w http.ResponseWriter, r *http.Request) {
-	model, err := s.ai.Test(r.Context())
+	result, err := s.ai.Test(r.Context())
 	var code ai.Code
 	switch {
 	case errors.Is(err, ai.ErrNotConfigured):
@@ -96,7 +96,10 @@ func (s *Server) testAI(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		internal(w, err)
 	default:
-		reply(w, http.StatusOK, map[string]string{"model": model})
+		reply(w, http.StatusOK, map[string]any{
+			"reachable": true, "model": result.Model, "modelFound": result.ModelFound,
+			"contextTokens": result.ContextTokens, "contextFits": result.ContextFits,
+		})
 	}
 }
 

@@ -33,7 +33,7 @@ state can be seen.
 | Timeline | `screens/timeline.html` (`?state=…&scope=all|article|video|social|image|source&scheme=light|dark&lang=en|zh-Hans&size=default|min|wide`) | `internal/ui/timeline/` |
 | Subscriptions | `screens/subscriptions.html` (`?state=…&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/subscriptions/` |
 | Reader | `screens/reader.html` (`?state=full|feed|extracting|extracting-empty|failed|loading|error|summarizing|summary|summary-failed|translating|translation|translation-failed|ai-off|no-more-unread|more-menu|copied&scheme=light|dark&lang=en|zh-Hans&size=default|min|wide`) | `internal/ui/reader/` |
-| Settings | `screens/settings.html` (`?state=appearance|fetching|edited|invalid|saved|opml|importing|imported|import-error|exported|devices|devices-local|revoke|ai|ai-configured|ai-edited|ai-invalid|ai-testing|ai-tested|ai-test-failed|loading|error&scheme=light|dark&lang=en|zh-Hans&size=default|min|wide`) | `internal/ui/settings/` |
+| Settings | `screens/settings.html` (`?state=appearance|fetching|edited|invalid|saved|opml|importing|imported|import-error|exported|devices|devices-local|revoke|ai|ai-configured|ai-edited|ai-invalid|ai-preset|ai-testing|ai-tested|ai-tested-small|ai-test-failed|ai-model-missing|ai-unreachable|loading|error&scheme=light|dark&lang=en|zh-Hans&size=default|min|wide`) | `internal/ui/settings/` |
 
 A mockup maps to a package: `screens/<screen>.html` is implemented by `internal/ui/<screen>/`. The text and states in
 the mockup are the strings in that package's `copy.json` (English and Simplified Chinese) and the states its `Screen`
