@@ -327,6 +327,22 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .stale .retry:disabled:hover { background:none }
 .pending-mark { flex:none; display:grid; color:var(--muted) }
 .pending-mark svg.icon { width:13px; height:13px }
+/* Several sources carry the same article: one row, with a quiet chip after the time that names how many other sources
+   have it. It is a text button in the meta band (muted, hover fill), never a badge; open, it unfolds the list of the other
+   sources under the row, indented behind a hairline. */
+.also { flex:none; display:inline-flex; align-items:center; gap:3px; height:20px; margin:0 -4px 0 0; padding:0 6px 0 4px; border-radius:6px; font:inherit; font-size:12px; color:var(--muted); white-space:nowrap }
+.also svg.icon { width:13px; height:13px }
+.also:hover, .also.hover { background:var(--pressed); color:var(--text2) }
+.also[aria-expanded="true"] { color:var(--text2) }
+.also-list { display:flex; flex-direction:column; margin:6px 0 0 1px; padding-left:12px; border-left:2px solid var(--border) }
+.also-row { display:flex; align-items:center; gap:8px; height:30px; margin:0 -8px 0 -4px; padding:0 8px 0 4px; border-radius:8px; font-size:13px; min-width:0 }
+.also-row:hover, .also-row.hover { background:var(--hover) }
+.also-row .src { flex:none; max-width:140px; font-size:12px; font-weight:500; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.also-row .atitle { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text) }
+.also-row .when { flex:none; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap }
+.also-row .fav, .also-row .mono { width:16px; height:16px; border-radius:4px; flex:none }
+.also-row .mono { font-size:9px }
+.read .also-row .atitle { color:var(--muted) }
 
 /* Timeline: rows are 12-radius fills; the pointer, a press and the choice fill with the 3, 5 and 6.5% ink steps
    (4, 6 and 8% in dark). The choice also carries a small accent marker inside the fill, 8 from its left edge. */
@@ -593,7 +609,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
+const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -659,6 +675,8 @@ const icons={
   sort:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
   chevronLeft:'<path d="m15 18-6-6 6-6"/>',
   chevronRight:'<path d="m9 18 6-6-6-6"/>',
+  chevronDown:'<path d="m6 9 6 6 6-6"/>',
+  layers:'<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
   x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   rss:'<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
   arrowUp:'<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
@@ -679,7 +697,7 @@ const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hid
 const copy={
   en:{
     all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
-    leaving:'leaving the timeline soon',
+    leaving:'leaving the timeline soon', alsoChip:'{n} more sources', alsoName:'Also in {n} other sources, show them', alsoHead:'Also in',
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
     unreadCount:'{n} unread', results:'{n} found',
@@ -713,7 +731,7 @@ const copy={
   },
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
-    leaving:'即将离开时间线',
+    leaving:'即将离开时间线', alsoChip:'另 {n} 个来源', alsoName:'另见 {n} 个来源，展开', alsoHead:'另见',
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
     unreadCount:'{n} 条未读', results:'找到 {n} 条',
@@ -851,6 +869,11 @@ const brokenEntries=[
   {source:9,kind:'image',when:ago('days',2),title:zh?'晨雾中的喀纳斯':'Morning fog over Kanas',images:['failed'],r:'4/5'},
   {source:8,kind:'image',when:ago('days',3),title:zh?'土星环':'Saturn’s rings',images:['g5'],r:'1/1'},
 ];
+// The same link from other sources: only the grouped states show it. The row is the earliest arrival; the others are listed.
+if(state==='grouped'||state==='grouped-open')entries[1].also=[
+  {source:2,when:ago('m',9),title:zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer'},
+  {source:3,when:ago('m',3),title:zh?'SQLite 全文检索与 trigram（转载）':'Full-text search in SQLite, via the trigram tokenizer'},
+];
 const lightboxOn=state==='lightbox'||state==='lightbox-failed';
 const lbImages=['g6','g2','g5','g8','g3','g7','g4','g9','g1','g6','g2','g5'];
 if(lightboxOn)entries[0].images=lbImages;
@@ -923,7 +946,10 @@ const actions=e=>`<div class="actions">${actionButtons(e)}</div>`;
 const unreadDot=e=>e.read?'':`<span class="dot-inline" role="img" aria-label="${copy.unread}"></span>`;
 const readMin=e=>e.sec>=60&&(e.kind==='article'||e.kind==='social')?Math.round(e.sec/60):0;
 const pendingMark=e=>e.pending?`<span class="pending-mark" role="img" aria-label="${copy.pending}" title="${copy.pending}">${icon('upload')}</span>`:'';
-const meta=(e,prefix='')=>{const s=byId[e.source];return `<div class="meta">${prefix}${glyph(s)}<span class="src">${s.name}</span><span class="sep"></span><span class="when">${e.when}</span>${readMin(e)?`<span class="sep"></span><span class="read-time">${t('readMin',{n:readMin(e)})}</span>`:''}${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}${pendingMark(e)}</div>`};
+const alsoOpen=state==='grouped-open';
+const alsoChip=e=>e.also?`<button class="also${e===entries[1]&&state==='grouped'?' hover':''}" aria-expanded="${alsoOpen}" aria-label="${t('alsoName',{n:e.also.length})}">${icon('layers')}<span>${t('alsoChip',{n:e.also.length})}</span></button>`:'';
+const alsoList=e=>e.also&&alsoOpen?`<div class="also-list" role="list" aria-label="${copy.alsoHead}">${e.also.map((a,k)=>`<div class="also-row${k===0?' hover':''}" role="listitem" tabindex="0">${glyph(byId[a.source])}<span class="src">${byId[a.source].name}</span><span class="atitle">${a.title}</span><span class="when">${a.when}</span></div>`).join('')}</div>`:'';
+const meta=(e,prefix='')=>{const s=byId[e.source];return `<div class="meta">${prefix}${glyph(s)}<span class="src">${s.name}</span><span class="sep"></span><span class="when">${e.when}</span>${alsoChip(e)}${readMin(e)?`<span class="sep"></span><span class="read-time">${t('readMin',{n:readMin(e)})}</span>`:''}${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}${pendingMark(e)}</div>`};
 const pictures=list=>{
   if(list.length===1)return `<div class="grid n1"><div class="pic ${list[0]}">${failedPic(list[0])}</div></div>`;
   if(list.length===2)return `<div class="grid n2">${list.map(g=>`<div class="pic ${g}">${failedPic(g)}</div>`).join('')}</div>`;
@@ -949,7 +975,7 @@ const row=(e,i)=>{
   const dot=e.read?'':`<span class="unread-dot" role="img" aria-label="${copy.unread}"></span>`;
   switch(e.kind){
     case 'article':if(viewer.article==='compact')return `<article class="${cls} crow">${dot}${glyph(byId[e.source])}<span class="src">${byId[e.source].name}</span><h3 class="ctitle">${highlight(e.title)}</h3>${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}${pendingMark(e)}<span class="when">${e.when}</span>${actions(e)}</article>`;
-      return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3>${e.ai?`<p class="summary ai"><span role="img" aria-label="${copy.aiSummary}" title="${copy.aiSummary}">${icon('sparkles')}</span><span class="clamp">${highlight(e.ai)}</span></p>`:`<p class="summary">${highlight(e.summary)}</p>`}</div>${e.thumb?`<div class="pic thumb ${e.thumb}">${failedPic(e.thumb)}</div>`:''}${actions(e)}</article>`;
+      return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3>${e.ai?`<p class="summary ai"><span role="img" aria-label="${copy.aiSummary}" title="${copy.aiSummary}">${icon('sparkles')}</span><span class="clamp">${highlight(e.ai)}</span></p>`:`<p class="summary">${highlight(e.summary)}</p>`}${alsoList(e)}</div>${e.thumb?`<div class="pic thumb ${e.thumb}">${failedPic(e.thumb)}</div>`:''}${actions(e)}</article>`;
     case 'video':if(viewer.video==='cover')return `<article class="${cls} vlarge">${dot}<div class="content">${videoCover(e,'video-thumb')}<h3 class="title">${e.title}</h3>${meta(e).replace('</div>',`<span class="sep"></span>${icon('video')}<span>${e.platform}</span></div>`)}</div>${actions(e)}</article>`;
       return `<article class="${cls}">${dot}${videoCover(e,'video-thumb')}<div class="content">${meta(e)}<h3 class="title">${e.title}</h3><div class="meta">${icon('video')}<span>${e.platform}</span></div></div>${actions(e)}</article>`;
     case 'social':if(viewer.social==='compact'){const one=e.images&&e.images.length===1;

@@ -465,6 +465,16 @@ values are in [design/tokens.md](../design/tokens.md). See
   the whole row (text, thumbnail, picture) goes from full to 55% opacity, linearly, and its accessible name ends with
   "leaving the timeline soon". Nothing else changes, so the row stays readable and clickable. Drawn in
   `design/screens/timeline.html`, `expiring`.
+- **One article from several sources.** When the same link comes from more than one source, the list shows one row,
+  and a quiet text button follows the time in its meta line: a 13 `layers` icon and "2 more sources" in 12 `TextMuted`,
+  20 high, radius 6, padded 4 and 6, with the `Pressed` fill under the pointer. It is a button, never a badge and never
+  an accent. Clicked, it expands under the row (`aria-expanded` follows) a list of the other sources, indented 12
+  behind a 2 `Border` hairline: each item is a 30 high row (radius 8, `Hover` fill under the pointer or the keyboard) with the
+  source's 16 icon, its name in 12 medium `Text2`, the title in 13 `Text` (cut with an ellipsis) and the relative time
+  in 12 `TextMuted`. One row is open at a time; an item opens that copy in the reader. The row's accessible name for
+  the button is "Also in 2 other sources, show them". The compact article row has no chip, and neither does a list
+  with grouping off, one subscription or a search. Drawn in `design/screens/timeline.html`, `grouped` and
+  `grouped-open`.
 - **Hierarchy by lightness.** Within one size, the order is `Text`, `Text2`, `TextMuted`; weight comes second and size
   last. Read rows go quiet in lightness and weight (500), not in size.
 - **Tracking and numerals.** Small labels get letter spacing (+0.04em at 11, +0.02em in Chinese at 12); the title
