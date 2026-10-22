@@ -74,6 +74,7 @@ type Deps struct {
 	Sources      func() []client.Source
 	Icon         func(address string) *ui.Bitmap
 	Added        func(client.Source)
+	Refreshed    func(client.Source) // src was queued to fetch now; the timeline waits for the result
 	Changed      func(client.Source)
 	Removed      func(id int64)
 	Show         func(id int64)
@@ -456,6 +457,9 @@ func (s *Screen) Refresh(src client.Source) {
 			switch {
 			case err == nil:
 				s.toast = s.fill(s.text.Queued, Name(src))
+				if s.deps.Refreshed != nil {
+					s.deps.Refreshed(src)
+				}
 			case code(err) == "source_paused":
 				s.toast = s.fill(s.text.ResumeFirst, Name(src))
 			case code(err) == "not_found":

@@ -53,6 +53,7 @@ type copy struct {
 	OrderNewest, OrderOldest                                                                                                                              string
 	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                   string
 	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu              string
+	Fetching, FetchedEntries, FetchedEntry, FetchedNone, FetchFailed, FreshEntries, FreshEntry, NothingNewIn                                              string
 }
 
 var translations = func() map[string]copy {
@@ -69,6 +70,8 @@ const (
 	lookEvery    = 15 * time.Second // how often the last-looked marker is kept while the list rests at the top
 	maxNewCount  = 50               // the most new entries the divider counts; more show as "50+"
 	pollEvery    = 60 * time.Second // how often the sources and the first page are checked for new entries
+	watchEvery   = 3 * time.Second  // how often a subscription just added or refreshed is checked for its fetch
+	watchFor     = 60 * time.Second // how long it is waited for
 	debounce     = 300 * time.Millisecond
 	refreshEvery = 2 * time.Second // how often the progress of "refresh all" is read
 	refreshLimit = 3 * time.Minute // how long it counts before it stops waiting for the rest
@@ -183,7 +186,24 @@ const (
 	noMoreToast    = "timeline.no-more-unread"
 	noneOlderToast = "timeline.none-older"
 	refreshedToast = "timeline.refreshed"
+	fetchedToast   = "timeline.fetched." // followed by the subscription's ID
 )
+
+// watch is a subscription added or refreshed whose fetch is waited for: its last fetch and unread count as they were,
+// and when to give up.
+type watch struct {
+	fetchedAt int64
+	unread    int
+	added     bool
+	until     time.Time
+}
+
+// fetchNote is the result of a fetch, to show as a toast once.
+type fetchNote struct {
+	id     int64
+	text   string
+	failed bool
+}
 
 // Screen keeps the timeline: the scope, the entries loaded, and the work under way.
 type Screen struct {
@@ -261,19 +281,23 @@ type Screen struct {
 	atTop     bool             // the last frame was in the state that moves the marker
 	lookedAt  time.Time        // when the marker was last kept
 
-	undoable *marking              // the last "mark as read", until its toast closes
-	seeking  bool                  // N found no unread entry loaded and waits for the next page
-	noMore   bool                  // show that no unread entry is below
-	noOlder  string                // show that no unread entry is older than this age, in words
-	keys     bool                  // the key sheet shows
-	pal      paletteState          // the command palette
-	subs     *subscriptions.Screen // the dialogs that add and edit subscriptions
-	reader   *reader.Screen        // in the place of the list while an article is read
-	reading  int64                 // the entry read, 0 for none
-	announce string
-	toast    string
-	refresh  *refreshing // "refresh all" from the request to the result, nil for none
-	result   *refreshed  // the result to show as a toast
+	watching  map[int64]watch       // the subscriptions whose fetch is waited for, by ID
+	watchedAt time.Time             // when they were last asked about
+	watchBusy bool                  // they are being asked about
+	notes     []fetchNote           // fetch results to show as toasts
+	undoable  *marking              // the last "mark as read", until its toast closes
+	seeking   bool                  // N found no unread entry loaded and waits for the next page
+	noMore    bool                  // show that no unread entry is below
+	noOlder   string                // show that no unread entry is older than this age, in words
+	keys      bool                  // the key sheet shows
+	pal       paletteState          // the command palette
+	subs      *subscriptions.Screen // the dialogs that add and edit subscriptions
+	reader    *reader.Screen        // in the place of the list while an article is read
+	reading   int64                 // the entry read, 0 for none
+	announce  string
+	toast     string
+	refresh   *refreshing // "refresh all" from the request to the result, nil for none
+	result    *refreshed  // the result to show as a toast
 }
 
 // refreshing is "refresh all" under way: the server queued queued subscriptions at the time at, and each one that was
@@ -306,6 +330,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		Sources:      func() []client.Source { return s.sources },
 		Icon:         s.bitmap,
 		Added:        s.added,
+		Refreshed:    func(src client.Source) { s.watch(src, false) },
 		Changed:      s.changed,
 		Removed:      s.removed,
 		Show:         func(id int64) { s.choose(scope{kind: s.kindOf(id), source: id}) },
@@ -360,6 +385,7 @@ func (s *Screen) Use(api API, server string) {
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
 	s.undoable, s.seeking, s.keys, s.pal = nil, false, false, paletteState{}
 	s.refresh, s.result = nil, nil
+	s.watching, s.watchBusy, s.notes = nil, false, nil
 	s.subs.Use(api)
 	s.reader.Use(api)
 	s.loadSources()
@@ -435,6 +461,94 @@ func (s *Screen) kindOf(id int64) string {
 func (s *Screen) added(src client.Source) {
 	s.sources = append(s.sources, src)
 	s.loadSources()
+	s.watch(src, true)
+}
+
+// watch starts waiting for the fetch of src, which was just added or queued to fetch now.
+func (s *Screen) watch(src client.Source, added bool) {
+	if s.watching == nil {
+		s.watching = map[int64]watch{}
+	}
+	now := s.deps.Now()
+	s.watching[src.ID] = watch{fetchedAt: src.LastFetchedAt, unread: src.UnreadCount, added: added, until: now.Add(watchFor)}
+	if !s.watchBusy {
+		s.watchedAt = now
+	}
+}
+
+// watchFetches asks every watchEvery for the subscriptions added or refreshed until each has fetched or watchFor is
+// over, and says how the fetch went.
+func (s *Screen) watchFetches(c *ui.Context) {
+	if len(s.watching) == 0 || s.api == nil || s.watchBusy {
+		return
+	}
+	now := s.deps.Now()
+	if wait := watchEvery - now.Sub(s.watchedAt); wait > 0 {
+		c.After(wait)
+		return
+	}
+	s.watchBusy, s.watchedAt = true, now
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		sources, err := api.Sources(context.Background())
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			s.watchBusy = false
+			if s.expired(err) {
+				return
+			}
+			if err == nil {
+				s.sources, s.sourcesLoaded = sources, true
+			}
+			s.settleWatches(err == nil)
+		}
+	})
+}
+
+// settleWatches ends the waits whose fetch is done, whose subscription is gone or whose time is up, and notes how the
+// fetches went. listed says s.sources was just loaded.
+func (s *Screen) settleWatches(listed bool) {
+	now := s.deps.Now()
+	for id, w := range s.watching {
+		i := slices.IndexFunc(s.sources, func(src client.Source) bool { return src.ID == id })
+		switch {
+		case i < 0:
+			delete(s.watching, id)
+		case listed && s.sources[i].LastFetchedAt != w.fetchedAt:
+			delete(s.watching, id)
+			s.notes = append(s.notes, s.fetchNote(s.sources[i], w))
+		case !now.Before(w.until):
+			delete(s.watching, id)
+		}
+	}
+}
+
+// fetchNote words how the fetch of src went: its failure, the entries a new subscription got, or the entries a refresh
+// found.
+func (s *Screen) fetchNote(src client.Source, w watch) fetchNote {
+	name := subscriptions.Name(src)
+	note := fetchNote{id: src.ID}
+	var text string
+	switch n := src.UnreadCount; {
+	case src.LastError != "":
+		text, note.failed = strings.ReplaceAll(s.text.FetchFailed, "{error}", src.LastError), true
+	case w.added && n == 0:
+		text = s.text.FetchedNone
+	case w.added && n == 1:
+		text = s.text.FetchedEntry
+	case w.added:
+		text = s.format(s.text.FetchedEntries, n)
+	case n-w.unread == 1:
+		text = s.text.FreshEntry
+	case n-w.unread > 1:
+		text = s.format(s.text.FreshEntries, n-w.unread)
+	default:
+		text = s.text.NothingNewIn
+	}
+	note.text = strings.ReplaceAll(text, "{name}", name)
+	return note
 }
 
 // changed shows the change of a subscription, and the entries again when it changes which ones show.
@@ -1885,6 +1999,7 @@ func (s *Screen) View(c *ui.Context) {
 	}
 	s.poll(c)
 	s.progress(c)
+	s.watchFetches(c)
 	if s.reading != 0 && s.index(s.reading) < 0 {
 		s.reading = 0
 	}
@@ -2095,6 +2210,14 @@ func (s *Screen) toasts(c *ui.Context) {
 		}
 		c.AddToast(ui.Toast{ID: refreshedToast, Title: r.text, Data: theme.ToastLook{Icon: icon}})
 	}
+	for _, n := range s.notes {
+		icon := icons.CircleCheckBig
+		if n.failed {
+			icon = icons.CircleAlert
+		}
+		c.AddToast(ui.Toast{ID: fetchedToast + strconv.FormatInt(n.id, 10), Title: n.text, Data: theme.ToastLook{Icon: icon}})
+	}
+	s.notes = nil
 	if s.noMore {
 		s.noMore = false
 		c.AddToast(ui.Toast{ID: noMoreToast, Title: s.text.NoMoreUnread,
@@ -2622,8 +2745,12 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 	chosen := s.scope.source == src.ID
 	name := subscriptions.Name(src)
 	label := name
+	_, fetching := s.watching[src.ID]
 	if failed(src) {
 		label = s.failingName(name, src.UnreadCount)
+	}
+	if fetching {
+		label = strings.ReplaceAll(s.text.Fetching, "{name}", name)
 	}
 	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(px(t, 30)).Gap(px(t, 10)).PaddingX(px(t, 10)).
 		Radius(px(t, 8)).Label(label).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
@@ -2657,7 +2784,9 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 		if chosen {
 			title.TextColor(t.Text).FontWeight(500)
 		}
-		if src.Paused {
+		if fetching && !src.Paused {
+			ui.Spinner(c).FontSize(px(t, 13)).Label(label)
+		} else if src.Paused {
 			ui.Box(c).Label(s.text.PausedMark).Tooltip(s.text.PausedMark).Role(ui.RoleImage).Children(func() {
 				ui.Icon(c, icons.Pause).FontSize(px(t, 14)).TextColor(t.TextMuted)
 			})

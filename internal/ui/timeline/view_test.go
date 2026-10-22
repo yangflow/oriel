@@ -4239,3 +4239,134 @@ func TestRefreshKeyBesideLoadNew(t *testing.T) {
 		t.Fatalf("refreshes %d, %d entries", f.refreshes, len(s.entries))
 	}
 }
+
+// fetchedWith makes the server's copy of the subscription id look fetched: its fetch time, error and unread count.
+func (f *fake) fetchedWith(id int64, unread int, lastError string) {
+	for i := range f.sources {
+		if f.sources[i].ID == id {
+			f.sources[i].LastFetchedAt++
+			f.sources[i].UnreadCount, f.sources[i].LastError = unread, lastError
+		}
+	}
+}
+
+// later moves the clock on and draws, which asks the server about the subscriptions waited for.
+func (f *fake) later(t *testing.T, tt *ui.Tester, d time.Duration) {
+	t.Helper()
+	f.now = f.now.Add(d)
+	tt.Frame()
+	f.settle(t, tt)
+}
+
+// addFresh adds a subscription the server has not fetched yet.
+func addFresh(t *testing.T, s *Screen, f *fake, tt *ui.Tester, title string) {
+	t.Helper()
+	added := client.Source{ID: 10, Title: title, Kind: "article"}
+	f.sources = append(f.sources, added)
+	s.added(added)
+	tt.Frame()
+	f.settle(t, tt)
+}
+
+func TestFetchResultOfNewSubscription(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	addFresh(t, s, f, tt, "Fresh Feed")
+	if err := tt.Click("Fresh Feed, fetching"); err != nil {
+		t.Fatalf("no progress on the row: %v", err)
+	}
+	f.later(t, tt, time.Second)
+	if len(f.queue) != 0 || len(s.watching) != 1 {
+		t.Fatalf("asked before %v: queue %d, watching %v", watchEvery, len(f.queue), s.watching)
+	}
+	f.later(t, tt, 3*time.Second)
+	if len(s.watching) != 1 || tt.HasText("Fetched") {
+		t.Fatalf("done before the fetch: %v", tt.Texts())
+	}
+	f.fetchedWith(10, 12, "")
+	f.later(t, tt, 3*time.Second)
+	if len(s.watching) != 0 || !tt.HasText("Fetched 12 entries from “Fresh Feed”") {
+		t.Fatalf("watching %v, texts %v", s.watching, tt.Texts())
+	}
+	if err := tt.Click("Fresh Feed, fetching"); err == nil {
+		t.Fatal("the row still shows progress")
+	}
+	f.later(t, tt, 10*time.Second)
+	if len(f.queue) != 0 {
+		t.Fatal("kept asking after the fetch")
+	}
+}
+
+func TestFetchResultNoEntries(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	addFresh(t, s, f, tt, "Fresh Feed")
+	f.fetchedWith(10, 0, "")
+	f.later(t, tt, 3*time.Second)
+	if !tt.HasText("“Fresh Feed” fetched, but has no entries yet") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestFetchResultOfRefresh(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.subs.Refresh(f.sources[0])
+	f.settle(t, tt)
+	f.fetchedWith(1, 2, "")
+	f.later(t, tt, 3*time.Second)
+	if !tt.HasText("“Go Blog” has nothing new") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	s.subs.Refresh(f.sources[0])
+	f.settle(t, tt)
+	f.fetchedWith(1, 5, "")
+	f.later(t, tt, 3*time.Second)
+	if !tt.HasText("“Go Blog” has 3 new entries") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestFetchResultFailed(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	addFresh(t, s, f, tt, "Fresh Feed")
+	f.fetchedWith(10, 0, "HTTP 404")
+	f.later(t, tt, 3*time.Second)
+	if !tt.HasText("Couldn’t fetch “Fresh Feed”: HTTP 404") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestFetchWaitEnds(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.subs.Refresh(f.sources[0])
+	f.settle(t, tt)
+	for range 21 {
+		f.later(t, tt, 3*time.Second)
+	}
+	if len(s.watching) != 0 || len(f.queue) != 0 || tt.HasText("Go Blog has") {
+		t.Fatalf("watching %v, texts %v", s.watching, tt.Texts())
+	}
+	f.later(t, tt, 3*time.Second)
+	if len(f.queue) != 0 {
+		t.Fatal("kept asking after the bound")
+	}
+}
+
+func TestFetchWaitDropsRemoved(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.subs.Refresh(f.sources[0])
+	f.settle(t, tt)
+	f.sources = f.sources[1:]
+	f.later(t, tt, 3*time.Second)
+	if len(s.watching) != 0 || tt.HasText("Go Blog has") {
+		t.Fatalf("watching %v, texts %v", s.watching, tt.Texts())
+	}
+}
+
+func TestFetchResultInChinese(t *testing.T) {
+	s, f, tt := setup(t, "zh-Hans")
+	addFresh(t, s, f, tt, "新订阅")
+	f.fetchedWith(10, 1, "")
+	f.later(t, tt, 3*time.Second)
+	if !tt.HasText("「新订阅」抓到 1 条") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
