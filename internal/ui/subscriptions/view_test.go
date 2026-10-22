@@ -280,6 +280,81 @@ func TestAdd(t *testing.T) {
 	}
 }
 
+func TestAddAndContinue(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	open(t, s, f, tt)
+	tt.Type("https://x.com/golang")
+	tt.Frame()
+	if err := tt.Click("Add and continue"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !s.Open() || s.add.address != "" || s.add.title != "" || !tt.Focused(s.text.Address) {
+		t.Fatalf("open %v, address %q, texts %v", s.Open(), s.add.address, tt.Texts())
+	}
+	if !tt.HasText("Added “/twitter/user/golang”") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if !tt.HasText("Done") || tt.HasText("Cancel") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if len(f.sources) != 3 {
+		t.Fatalf("the timeline was not told: %v", f.sources)
+	}
+
+	// The shortcut adds the next one, and a failed one blocks nothing.
+	f.addErr = &client.APIError{Status: 409, Code: "source_exists"}
+	tt.Type("https://go.dev/blog/feed.atom")
+	tt.Key(ui.Cmd, ui.KeyEnter)
+	f.settle(tt)
+	if !tt.HasText("You already follow this as “Go Blog”.") || !s.Open() || s.add.count != 1 {
+		t.Fatalf("count %d, texts %v", s.add.count, tt.Texts())
+	}
+	f.addErr = nil
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("https://example.com/feed.xml")
+	tt.Key(ui.Cmd, ui.KeyEnter)
+	f.settle(tt)
+	if s.add.count != 2 || !tt.HasText("Added “example.com” · 2 added") {
+		t.Fatalf("count %d, texts %v", s.add.count, tt.Texts())
+	}
+	if len(f.added) != 3 || len(f.sources) != 4 {
+		t.Fatalf("added %v, sources %d", f.added, len(f.sources))
+	}
+
+	// Enter adds the last one and closes.
+	tt.Type("https://example.org/feed.xml")
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if s.Open() || len(f.added) != 4 {
+		t.Fatalf("open %v, added %v", s.Open(), f.added)
+	}
+}
+
+func TestAddAndContinueNeedsAnAddress(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	open(t, s, f, tt)
+	tt.Key(ui.Cmd, ui.KeyEnter)
+	f.settle(tt)
+	if len(f.added) != 0 || !s.Open() {
+		t.Fatalf("added %v", f.added)
+	}
+}
+
+func TestAddAndContinueChinese(t *testing.T) {
+	s, f, tt := setup(t, "zh-Hans")
+	open(t, s, f, tt)
+	tt.Type("https://example.com/feed.xml")
+	tt.Frame()
+	if err := tt.Click("添加并继续"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !tt.HasText("已添加「example.com」") || !tt.HasText("完成") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
 func TestAddFullAddressOnTheInstance(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	open(t, s, f, tt)

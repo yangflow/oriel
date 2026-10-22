@@ -168,6 +168,8 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 .help { font-size:12px; color:var(--muted) }
 .error { display:flex; gap:6px; font-size:12px; color:var(--danger) }
 .error svg.icon { width:14px; height:14px; margin-top:2px }
+.added { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px; background:color-mix(in srgb,var(--success) 12%,transparent); font-weight:500 }
+.added svg { color:var(--success) }
 .found { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px; background:var(--accent-soft) }
 .found > svg.icon:first-child { color:var(--accent) }
 .found > svg.icon:last-child { color:var(--success) }
@@ -250,7 +252,7 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','delete','health','health-loading','health-error','health-empty','health-delete'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','delete','health','health-loading','health-error','health-empty','health-delete'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -298,7 +300,7 @@ const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hid
 const copy={
   en:{
     all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
-    add:'Add subscription', addShort:'Add', adding:'Adding', cancel:'Cancel', close:'Close', save:'Save',
+    add:'Add subscription', addShort:'Add', addContinue:'Add and continue', addedMore:'Added “The Go Blog” · 2 added', done:'Done', adding:'Adding', cancel:'Cancel', close:'Close', save:'Save',
     address:'Address', addressPlaceholder:'Feed URL, page link or RSSHub route',
     addressHelp:'Links to YouTube, Bilibili, X, GitHub, Telegram and Weibo are turned into feeds.',
     showAs:'Show as', title:'Title', titlePlaceholder:'From the feed', every:'Check every', auto:'Auto', autoEvery:'Auto · {every}', every6h:'6 h', suggest:'Most entries in this feed are videos.', suggestUse:'Show as Videos',
@@ -328,7 +330,7 @@ const copy={
   },
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
-    add:'添加订阅', addShort:'添加', adding:'正在添加', cancel:'取消', close:'关闭', save:'保存',
+    add:'添加订阅', addShort:'添加', addContinue:'添加并继续', addedMore:'已添加「The Go Blog」· 共 2 个', done:'完成', adding:'正在添加', cancel:'取消', close:'关闭', save:'保存',
     address:'地址', addressPlaceholder:'订阅地址、主页链接或 RSSHub 路由',
     addressHelp:'YouTube、哔哩哔哩、X、GitHub、Telegram 和微博的链接会自动转成订阅。',
     showAs:'显示为', title:'标题', titlePlaceholder:'用订阅里的标题', every:'检查间隔', auto:'自动', autoEvery:'自动 · {every}', every6h:'6 小时', suggest:'这个订阅的条目大多是视频。', suggestUse:'显示为视频',
@@ -388,7 +390,7 @@ const select=(label,value)=>`<div class="field"><label>${label}</label><div clas
 const foundCard=(kind,what,code)=>`<div class="found" role="status">${icon(kind==='feed'?'rss':kind)}<div class="what"><b>${what}</b><code>${code}</code></div>${icon('check')}</div>`;
 
 function addDialog(){
-  const value={add:'','add-link':'https://space.bilibili.com/2267573','add-feed':'https://go.dev/blog/feed.atom','add-route':'/github/trending/daily','add-route-no-base':'/github/trending/daily','add-invalid':'go.dev/blog','add-exists':'https://go.dev/blog/feed.atom',adding:'https://space.bilibili.com/2267573'}[state];
+  const value={add:'','add-link':'https://space.bilibili.com/2267573','add-feed':'https://go.dev/blog/feed.atom','add-route':'/github/trending/daily','add-route-no-base':'/github/trending/daily','add-more':'','add-invalid':'go.dev/blog','add-exists':'https://go.dev/blog/feed.atom',adding:'https://space.bilibili.com/2267573'}[state];
   const kind=['add-link','adding'].includes(state)?'video':'article';
   const invalid=state==='add-invalid'||state==='add-exists';
   let below=`<span class="help" id="ah">${copy.addressHelp}</span>`;
@@ -402,11 +404,12 @@ function addDialog(){
   return `<div class="scrim"><div class="dialog" role="dialog" aria-labelledby="dt">
     <header><div class="tile" style="width:32px;height:32px;border-radius:8px">${icon('rss')}</div><div class="titles"><h2 id="dt">${copy.add}</h2></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>
     <div class="form">
-      <div class="field"><label for="addr">${copy.address}</label><div class="box${state==='add'||state==='add-invalid'?' focused':''}${invalid?' invalid':''}">${icon('link')}<input id="addr" value="${value}" placeholder="${copy.addressPlaceholder}" ${invalid?'aria-invalid="true" aria-describedby="ae"':''}></div>${below}</div>
+      ${state==='add-more'?`<div class="added" role="status">${icon('check')}<span>${copy.addedMore}</span></div>`:''}
+      <div class="field"><label for="addr">${copy.address}</label><div class="box${state==='add'||state==='add-more'||state==='add-invalid'?' focused':''}${invalid?' invalid':''}">${icon('link')}<input id="addr" value="${value}" placeholder="${copy.addressPlaceholder}" ${invalid?'aria-invalid="true" aria-describedby="ae"':''}></div>${below}</div>
       ${kindPicker(kind)}
       <div class="pair"><div class="field"><label>${copy.title}</label><div class="box"><input placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.auto)}</div>
     </div>
-    <footer><span class="spacer"></span><button class="button">${copy.cancel}</button><button class="button primary"${state==='add'||invalid?' disabled':''}>${busy?icon('loader','spin')+copy.adding:copy.addShort}</button></footer>
+    <footer><span class="spacer"></span><button class="button">${state==='add-more'?copy.done:copy.cancel}</button><button class="button" title="${copy.addContinue} (⌘Enter)"${state==='add'||state==='add-more'||invalid?' disabled':''}>${copy.addContinue}</button><button class="button primary"${state==='add'||state==='add-more'||invalid?' disabled':''}>${busy?icon('loader','spin')+copy.adding:copy.addShort}</button></footer>
   </div></div>`;
 }
 
