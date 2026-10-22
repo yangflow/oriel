@@ -39,6 +39,10 @@
      palette-none. 60% of the window high at most, anchored 15% from the top; Up and Down wrap.
      Site icons replace the monogram where a subscription has one; the ones here are generic stand-ins, not the
      sites' real icons, and The Go Blog shows the monogram a subscription without an icon keeps.
+     Refresh all (Subscriptions menu, Cmd/Ctrl+R, the palette) has no button: while it runs, the heading's failing count
+     gives way to a muted progress link, a turning loader and "3/12" (refreshing); the result is a plain toast with the
+     tile of the other plain toasts: all checked (refreshed), some failed (refreshed-failed, the alert mark), stopped
+     waiting after a timeout (refreshed-part) or nothing active to refresh (refresh-none).
      A failing subscription carries the warning mark; its row's name says so ("The Go Blog, last fetch failed"), and the
      mark's tooltip gives how many times in a row and the reason (failing, the pointer resting on the mark). While any
      fail, the Subscriptions heading ends in "N failing", which narrows the list to them until Show all (failing-only).
@@ -173,6 +177,8 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .section .add svg.icon { width:14px; height:14px }
 .section .link { display:flex; align-items:center; gap:4px; height:20px; padding:0 6px; border-radius:6px; font:inherit; letter-spacing:inherit; color:var(--warning) }
 .section .link.plain { color:var(--text2) }
+.section .link.progress { cursor:default; font-variant-numeric:tabular-nums }
+.section .link.progress:hover { background:none }
 .section .link:hover, .section .link.hover { background:var(--hover) }
 .section .link svg.icon { width:12px; height:12px }
 .side-tools { display:flex; align-items:center; gap:4px; margin:0 2px 6px }
@@ -545,7 +551,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','dense'];
+const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','dense'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -649,7 +655,7 @@ const copy={
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
-    marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below',
+    marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below', refreshingName:'Refreshing, {done} of {n} checked', refreshed:'Checked {n} subscriptions', refreshedFailed:'Checked {n} subscriptions, {failed} failed', refreshedPart:'Checked {done} of {n} subscriptions, the rest will follow', refreshNone:'No subscriptions to refresh', kRefreshAll:'Refresh all subscriptions',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
     kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
@@ -682,7 +688,7 @@ const copy={
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
-    marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了',
+    marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了', refreshingName:'正在更新，已查 {done}/{n}', refreshed:'已查完 {n} 个订阅', refreshedFailed:'已查完 {n} 个订阅，其中 {failed} 个失败', refreshedPart:'已查 {done}/{n} 个订阅，其余会陆续抓', refreshNone:'没有可更新的订阅', kRefreshAll:'全部更新',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
     kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
     kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
@@ -851,7 +857,10 @@ function sidebar(){
   const body=list.length?list.map(sourceItem).join(''):`<div class="side-none" role="status">${copy.noMatchingSources}</div>`;
   const n=failingSources.length;
   const addSource=`<button class="add" aria-label="${copy.addSource}" title="${copy.addSource}">${icon('plus')}</button>`;
+  const refreshing=state==='refreshing';
+  const progress=`<span class="link plain progress" role="status" aria-label="${t('refreshingName',{done:3,n:12})}" title="${t('refreshingName',{done:3,n:12})}">${icon('loader','spin')}3/12</span>`;
   const heading=only?`<div class="section"><span>${copy.failingTitle}</span><button class="link plain">${copy.showAll}</button>${addSource}</div>`
+    :refreshing?`<div class="section"><span>${tabKind==='all'?copy.sources:copy[tabKind]}</span>${progress}${addSource}</div>`
     :n?`<div class="section"><span>${tabKind==='all'?copy.sources:copy[tabKind]}</span><button class="link" aria-label="${t('failingShow',{n})}" title="${t('failingShow',{n})}">${icon('alert')}${t('failingCount',{n})}</button>${addSource}</div>`
     :`<div class="section"><span>${tabKind==='all'?copy.sources:copy[tabKind]}</span>${addSource}</div>`;
   return `<aside>${tabs(true)}<nav class="nav" aria-label="${copy.sources}">${heading}${tools}${body}</nav>${serverBar()}</aside>`;
@@ -946,13 +955,17 @@ const toast=state==='marked-read'?`<div class="toast" role="status">${icon('chec
   :state==='marked-feed'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedFeedCount,scope:byId[2].name})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-older'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedOlder',{n:markedOlderCount,scope:scopeName,age:copy.age7})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-older-none'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('noneOlder',{age:copy.age7})}</span></div>`
+  :state==='refreshed'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('refreshed',{n:12})}</span></div>`
+  :state==='refreshed-failed'?`<div class="toast plain" role="status">${icon('alert')}<span class="msg">${t('refreshedFailed',{n:12,failed:2})}</span></div>`
+  :state==='refreshed-part'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('refreshedPart',{done:5,n:12})}</span></div>`
+  :state==='refresh-none'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.refreshNone}</span></div>`
   :state==='no-more-unread'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:'';
 const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
 const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${keys(...k)}</dd>`).join('')}</dl>`;
 const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="kt"><header><h2 id="kt">${copy.keysTitle}</h2><button class="close" aria-label="${copy.close}">${icon('x')}</button></header><div class="cols"><div>
   <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kPictures','Space'],['kStar','S'],['kRead','M'],['kMarkVisible','V'],['kMarkAll',[shift,'A']],['kUnread','U'],['kAll','A'],['kStarred','*'],['kLoadNew','R'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kScope','1–5'],['kSidebar','H','←'],['kBack','L','→','Esc'],['kMenu',[shift,'F10'],...(mac?[]:['Menu'])],['kUndo',[mod,'Z']]])}</div><div>
   <h3>${copy.inReader}</h3>${keyList([['kNextArticle','J'],['kPrevArticle','K'],['kNextUnread','N'],['kStar','S'],['kRead','M'],['kOpenBrowser','O'],['kBack','Esc']])}
-  <h3>${copy.anywhere}</h3>${keyList([['kPalette',[mod,'K']],['kAdd',[mod,'N']],['kToggleSidebar',[mod,'\\']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
+  <h3>${copy.anywhere}</h3>${keyList([['kPalette',[mod,'K']],['kAdd',[mod,'N']],['kRefreshAll',[mod,'R']],['kToggleSidebar',[mod,'\\']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
 
 // Command palette. The ranking is the one the code uses: spaces and case ignored; prefix, then the start of a word,
 // then a substring, then scattered letters; inside a rank the group order, then the original order; 50 rows at most.
@@ -965,7 +978,7 @@ const paletteRows=()=>{
   const scopeLabel=kinds.includes(scope)?copy[scope]:copy.all;
   const chips=(...k)=>`<dd class="chips">${k.map(x=>`<kbd>${x}</kbd>`).join('')}</dd>`;
   const rows=[
-    ...[[copy.pActions,t('markAllIn',{scope:scopeLabel}),'checkCheck',''],[copy.pActions,copy.kAdd,'plus',chips(...[mod,'N'])],[copy.pActions,copy.pUnreadOnly,'dot',''],
+    ...[[copy.pActions,t('markAllIn',{scope:scopeLabel}),'checkCheck',''],[copy.pActions,copy.kAdd,'plus',chips(...[mod,'N'])],[copy.pActions,copy.kRefreshAll,'refresh',chips(mod,'R')],[copy.pActions,copy.pUnreadOnly,'dot',''],
         [copy.pActions,copy.pOpenSettings,'settings',chips(mod,',')],[copy.pActions,copy.kKeys,'keyboard',chips('?')]]
       .map(([g,name,ic,tail])=>({g,name,lead:icon(ic),tail})),
     ...['all',...kinds].map(k=>({g:copy.kinds,name:k==='all'?copy.all:copy[k],lead:icon(k==='all'?'inbox':k),tail:`<span class="count">${k==='all'?sources.reduce((a,x)=>a+x.unread,0):kindUnread(k)}</span>`})),

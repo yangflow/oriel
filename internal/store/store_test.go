@@ -233,6 +233,17 @@ func TestSources(t *testing.T) {
 		t.Fatalf("due missing: %v", err)
 	}
 
+	all := due.Add(time.Hour)
+	if n, err := s.MarkAllSourcesDue(ctx, all); err != nil || n != 1 {
+		t.Fatalf("MarkAllSourcesDue = %d, %v; want only the unpaused source", n, err)
+	}
+	if got, _ := s.Source(ctx, hub.ID); !got.NextFetchAt.Equal(all) || !got.UpdatedAt.Equal(start) {
+		t.Fatalf("after MarkAllSourcesDue: %+v", got)
+	}
+	if got, _ := s.Source(ctx, blog.ID); got.NextFetchAt.Equal(all) {
+		t.Fatalf("paused source was marked due: %+v", got)
+	}
+
 	s.db.Exec("UPDATE entries SET starred = 1")
 	if err := s.DeleteSource(ctx, hub.ID); err != nil {
 		t.Fatal(err)

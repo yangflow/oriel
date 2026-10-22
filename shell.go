@@ -29,6 +29,7 @@ type home interface {
 	Refresh()
 	ShowKeys()
 	Run(cmd timeline.Command)
+	RefreshAll()
 	View(c *ui.Context)
 }
 
@@ -296,6 +297,14 @@ func (s *shell) run(cmd timeline.Command) {
 		return
 	}
 	s.home.Run(cmd)
+}
+
+// refreshAll asks the server to check every subscription, from the menu, when the timeline shows.
+func (s *shell) refreshAll() {
+	if s.showing || s.setting {
+		return
+	}
+	s.home.RefreshAll()
 }
 
 // openSettings shows the settings, from the menu or the timeline, unless the connect screen shows.

@@ -187,6 +187,8 @@ func TestTimelineAPI(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
+		case "/api/sources/refresh":
+			w.Write([]byte(`{"queued":3,"at":1700000000000}`))
 		case "/api/sources/6/refresh":
 			w.WriteHeader(http.StatusConflict)
 			w.Write([]byte(`{"error":"source_paused"}`))
@@ -255,6 +257,9 @@ func TestTimelineAPI(t *testing.T) {
 	if err := session.RefreshSource(ctx, 6); !errors.As(err, &apiErr) || apiErr.Code != "source_paused" {
 		t.Errorf("RefreshSource paused: %v", err)
 	}
+	if res, err := session.RefreshAll(ctx); err != nil || res != (RefreshResult{Queued: 3, At: 1700000000000}) {
+		t.Errorf("RefreshAll = %+v, %v", res, err)
+	}
 	if err := session.DeleteSource(ctx, 5); err != nil {
 		t.Errorf("DeleteSource: %v", err)
 	}
@@ -282,6 +287,7 @@ func TestTimelineAPI(t *testing.T) {
 		`PATCH /api/sources/5 {"title":"New","paused":true}`,
 		"POST /api/sources/5/refresh ",
 		"POST /api/sources/6/refresh ",
+		"POST /api/sources/refresh ",
 		"DELETE /api/sources/5 ",
 		"GET /api/settings ",
 		`PATCH /api/settings {"rsshubBaseUrl":"https://rsshub.app"}`,

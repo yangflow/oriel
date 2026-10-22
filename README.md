@@ -34,8 +34,8 @@ Working now:
 - **Full text for articles.** Article pages are reduced to their main content with Readability, including the
   linked post of a Discourse topic. Links found in feeds cannot reach loopback or private addresses.
 - **Retention.** Unstarred entries older than a chosen number of days are pruned hourly; 0 keeps everything.
-- **Subscription API.** Add, list, edit, pause, delete and refresh subscriptions over HTTP, with validation
-  and duplicate detection.
+- **Subscription API.** Add, list, edit, pause, delete and refresh subscriptions, one or all at
+  once, over HTTP, with validation and duplicate detection.
 - **Timeline API.** Page through all entries newest first, filter by source, kind, unread or starred, search
   the full text, and mark entries read or starred. Per-source mute keywords hide matching entries without
   deleting them.
@@ -53,7 +53,8 @@ Working now:
   GitHub, Telegram or Weibo link, which is turned into its feed or route; the kind and the check interval (Auto
   by default, worked out from how often the feed publishes) are chosen in the same dialog. Edit, pause, refresh and
   delete a subscription from the sidebar's right-click menu or the pencil in the toolbar; deleting asks first, since
-  its entries go too.
+  its entries go too. "Refresh All" (Subscriptions menu, Cmd/Ctrl+R or the command palette) checks every active
+  subscription now, shows progress in the sidebar and ends in a toast.
 - **Settings.** Change the RSSHub instances (an ordered list) and how long entries are kept from the gear beside the server bar or
   "Settings…" (Cmd/Ctrl+,); they are kept on the server, so every device connected to it shares them. Signed in to
   a server with a password, see each device signed in and sign out the ones you no longer use.

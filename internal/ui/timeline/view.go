@@ -52,6 +52,7 @@ type copy struct {
 	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                              string
 	OrderNewest, OrderOldest                                                                                                                              string
 	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                   string
+	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu              string
 }
 
 var translations = func() map[string]copy {
@@ -69,7 +70,9 @@ const (
 	maxNewCount  = 50               // the most new entries the divider counts; more show as "50+"
 	pollEvery    = 60 * time.Second // how often the sources and the first page are checked for new entries
 	debounce     = 300 * time.Millisecond
-	minQuery     = 3 // characters a search needs, as the server's trigram index does
+	refreshEvery = 2 * time.Second // how often the progress of "refresh all" is read
+	refreshLimit = 3 * time.Minute // how long it counts before it stops waiting for the rest
+	minQuery     = 3               // characters a search needs, as the server's trigram index does
 	maxDownloads = 4
 	keepPictures = 300 // decoded pictures kept in memory
 	wallAhead    = 800 // how far beyond the view the image wall loads pictures and the next page
@@ -87,6 +90,7 @@ type API interface {
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
 	MarkRead(ctx context.Context, scope client.ReadScope) ([]int64, error)
 	MarkUnread(ctx context.Context, ids []int64) (int, error)
+	RefreshAll(ctx context.Context) (client.RefreshResult, error)
 }
 
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it
@@ -178,6 +182,7 @@ const (
 	markedToast    = "timeline.marked"
 	noMoreToast    = "timeline.no-more-unread"
 	noneOlderToast = "timeline.none-older"
+	refreshedToast = "timeline.refreshed"
 )
 
 // Screen keeps the timeline: the scope, the entries loaded, and the work under way.
@@ -267,6 +272,22 @@ type Screen struct {
 	reading  int64                 // the entry read, 0 for none
 	announce string
 	toast    string
+	refresh  *refreshing // "refresh all" from the request to the result, nil for none
+	result   *refreshed  // the result to show as a toast
+}
+
+// refreshing is "refresh all" under way: the server queued queued subscriptions at the time at, and each one that was
+// fetched since counts as done.
+type refreshing struct {
+	at, queued, done, failed int
+	deadline, next           time.Time
+	checking                 bool
+}
+
+// refreshed is the toast that ends "refresh all": its text and whether it carries the alert mark.
+type refreshed struct {
+	text  string
+	alert bool
 }
 
 // New selects the best available translation, falling back to English. The screen shows nothing until Use.
@@ -338,6 +359,7 @@ func (s *Screen) Use(api API, server string) {
 	s.renew()
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
 	s.undoable, s.seeking, s.keys, s.pal = nil, false, false, paletteState{}
+	s.refresh, s.result = nil, nil
 	s.subs.Use(api)
 	s.reader.Use(api)
 	s.loadSources()
@@ -392,6 +414,7 @@ func (s *Screen) expired(err error) bool {
 	s.gen++
 	s.api = nil
 	s.lists = nil
+	s.refresh, s.result = nil, nil
 	s.subs.Use(nil)
 	s.reader.Use(nil)
 	s.reading = 0
@@ -964,6 +987,102 @@ func (s *Screen) loadMore() {
 			}
 		}
 	})
+}
+
+// RefreshAll asks the server to check every active subscription now, from the menu, Cmd/Ctrl+R and the palette. The
+// progress shows in the sidebar and the result in a toast; asking again while it runs does nothing.
+func (s *Screen) RefreshAll() {
+	if s.api == nil || s.refresh != nil || s.keys || s.subs.Open() || s.pal.open || s.lb.open {
+		return
+	}
+	r := &refreshing{}
+	s.refresh = r
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		res, err := api.RefreshAll(context.Background())
+		return func() {
+			if gen != s.gen || s.refresh != r {
+				return
+			}
+			if s.expired(err) {
+				return
+			}
+			switch {
+			case err != nil:
+				s.refresh, s.result = nil, &refreshed{text: s.text.RefreshFailed, alert: true}
+			case res.Queued == 0:
+				s.refresh, s.result = nil, &refreshed{text: s.text.RefreshNone}
+			default:
+				now := s.deps.Now()
+				r.at, r.queued = int(res.At), res.Queued
+				r.deadline, r.next = now.Add(refreshLimit), now.Add(refreshEvery)
+				s.announce = s.format(s.text.RefreshingAnnounce, res.Queued)
+			}
+		}
+	})
+}
+
+// progress reads which subscriptions "refresh all" has fetched, every refreshEvery, and ends it when all were or the
+// time is out.
+func (s *Screen) progress(c *ui.Context) {
+	r := s.refresh
+	if r == nil || r.queued == 0 || r.checking || s.api == nil {
+		return
+	}
+	now := s.deps.Now()
+	if wait := r.next.Sub(now); wait > 0 {
+		c.After(wait)
+		return
+	}
+	r.checking, r.next = true, now.Add(refreshEvery)
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		sources, err := api.Sources(context.Background())
+		return func() {
+			if gen != s.gen || s.refresh != r {
+				return
+			}
+			r.checking = false
+			if s.expired(err) {
+				return
+			}
+			if err == nil {
+				s.sources, s.sourcesLoaded = sources, true
+				r.done, r.failed = 0, 0
+				for _, src := range sources {
+					if !src.Paused && src.LastFetchedAt >= int64(r.at) {
+						r.done++
+						if src.LastError != "" {
+							r.failed++
+						}
+					}
+				}
+				r.done = min(r.done, r.queued)
+			}
+			switch {
+			case r.done >= r.queued:
+				s.finishRefresh(s.refreshText(s.text.Refreshed, s.text.RefreshedFailed, r), r.failed > 0)
+			case !s.deps.Now().Before(r.deadline):
+				text := strings.ReplaceAll(s.text.RefreshedPart, "{done}", strconv.Itoa(r.done))
+				s.finishRefresh(strings.ReplaceAll(text, "{n}", strconv.Itoa(r.queued)), false)
+			}
+		}
+	})
+}
+
+// refreshText is the result when all were checked: plain, or with how many failed.
+func (s *Screen) refreshText(ok, failed string, r *refreshing) string {
+	text := ok
+	if r.failed > 0 {
+		text = strings.ReplaceAll(failed, "{failed}", strconv.Itoa(r.failed))
+	}
+	return s.format(text, r.queued)
+}
+
+// finishRefresh ends "refresh all" with its toast and has the timeline look for new entries at once.
+func (s *Screen) finishRefresh(text string, alert bool) {
+	s.refresh, s.result = nil, &refreshed{text: text, alert: alert}
+	s.polledAt = time.Time{}
 }
 
 // poll checks the sources and the first page for new entries every pollEvery, without moving the list.
@@ -1765,6 +1884,7 @@ func (s *Screen) View(c *ui.Context) {
 		}
 	}
 	s.poll(c)
+	s.progress(c)
 	if s.reading != 0 && s.index(s.reading) < 0 {
 		s.reading = 0
 	}
@@ -1785,6 +1905,7 @@ func (s *Screen) View(c *ui.Context) {
 			s.searchBox = true
 		})
 		c.OnShortcut(ui.Cmd, ui.KeyN, s.subs.Add)
+		c.OnShortcut(ui.Cmd, ui.KeyR, s.RefreshAll)
 		c.OnShortcut(ui.Cmd, ui.KeySlash, s.ShowKeys)
 		c.OnShortcut(ui.Cmd, ui.KeyBackslash, s.toggleSidebar)
 		if m := s.undoable; m != nil && !s.typing && !s.filtering {
@@ -1966,6 +2087,14 @@ func (s *Screen) toasts(c *ui.Context) {
 		c.AddToast(ui.Toast{ID: noneOlderToast, Title: strings.ReplaceAll(s.text.NoneOlder, "{age}", age),
 			Data: theme.ToastLook{Icon: icons.CircleCheckBig}})
 	}
+	if r := s.result; r != nil {
+		s.result = nil
+		icon := icons.CircleCheckBig
+		if r.alert {
+			icon = icons.CircleAlert
+		}
+		c.AddToast(ui.Toast{ID: refreshedToast, Title: r.text, Data: theme.ToastLook{Icon: icon}})
+	}
 	if s.noMore {
 		s.noMore = false
 		c.AddToast(ui.Toast{ID: noMoreToast, Title: s.text.NoMoreUnread,
@@ -2048,6 +2177,13 @@ func TimelineMenu(systemLocale string) (name string, items []MenuItem) {
 		{text.KeyStarred, ShowStarred}, {text.KeyMarkAll, MarkAllRead}, {text.KeyLoadNew, LoadNew}}
 }
 
+// RefreshMenuLabels are the Subscriptions menu and its item that refreshes all of them, in the language of the system
+// locale.
+func RefreshMenuLabels(systemLocale string) (menu, refresh string) {
+	text := translations[locale.Language(systemLocale)]
+	return text.SubscriptionsMenu, text.RefreshAll
+}
+
 // MenuLabels are the Help menu and its item that shows the key sheet, in the language of the system locale.
 func MenuLabels(systemLocale string) (help, keys string) {
 	text := translations[locale.Language(systemLocale)]
@@ -2091,7 +2227,7 @@ func (s *Screen) keySheet(c *ui.Context) {
 	reading := []key{{s.text.KeyNextArticle, one("J")}, {s.text.KeyPreviousArticle, one("K")},
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyStar, one("S")}, {s.text.KeyRead, one("M")},
 		{s.text.KeyOpenBrowser, one("O")}, {s.text.KeyBack, one("Esc")}}
-	anywhere := []key{{s.text.KeyPalette, [][]string{{cmd, "K"}}}, {s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
+	anywhere := []key{{s.text.KeyPalette, [][]string{{cmd, "K"}}}, {s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.RefreshAll, [][]string{{cmd, "R"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
 		{s.text.KeyToggleSidebar, [][]string{{cmd, "\\"}}}, {s.text.KeyKeys, one("?")}}
 	ui.DialogBase(c, &s.keys, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Padding(t.Space(4))
@@ -2317,6 +2453,8 @@ func (s *Screen) section(c *ui.Context, failing int) {
 				if s.link(c, nil, s.text.ShowAll, s.text.ShowAll, theme.Text2(t)) {
 					s.failingOnly = false
 				}
+			case s.refresh != nil && s.refresh.queued > 0:
+				s.progressLink(c)
 			case failing > 0:
 				show := s.format(s.text.FailingShow, failing)
 				if s.link(c, icons.CircleAlert, s.format(s.text.FailingCount, failing), show, t.Warning) {
@@ -2462,6 +2600,21 @@ func (s *Screen) link(c *ui.Context, icon *ui.SVG, text, label string, color ui.
 		ui.Text(c, text).SingleLine().FontSize(px(t, 11)).FontWeight(500).TextColor(color)
 	})
 	return b.Clicked()
+}
+
+// progressLink is the count of "refresh all" in the heading of the sidebar, in the place of the failing count: a
+// turning loader and how many of the subscriptions were checked.
+func (s *Screen) progressLink(c *ui.Context) {
+	t := c.Theme()
+	r := s.refresh
+	label := strings.ReplaceAll(strings.ReplaceAll(s.text.RefreshingName, "{done}", strconv.Itoa(r.done)), "{n}", strconv.Itoa(r.queued))
+	ui.Row(c).Height(px(t, 20)).AlignItems(ui.Center).Gap(px(t, 4)).PaddingX(px(t, 6)).Label(label).Tooltip(label).
+		Children(func() {
+			spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 12)).TextColor(t.TextMuted)
+			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+			ui.Text(c, strconv.Itoa(r.done)+"/"+strconv.Itoa(r.queued)).SingleLine().FontSize(px(t, 11)).FontWeight(500).
+				TextColor(t.TextMuted)
+		})
 }
 
 func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {

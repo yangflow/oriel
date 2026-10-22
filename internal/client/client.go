@@ -536,6 +536,21 @@ func (s Session) RefreshSource(ctx context.Context, id int64) error {
 	return s.call(ctx, http.MethodPost, "/api/sources/"+strconv.FormatInt(id, 10)+"/refresh", nil, nil)
 }
 
+// RefreshResult says how many subscriptions RefreshAll queued and the server
+// time, in milliseconds, at which it queued them.
+type RefreshResult struct {
+	Queued int   `json:"queued"`
+	At     int64 `json:"at"`
+}
+
+// RefreshAll marks every unpaused subscription due now; the server fetches
+// them in the background.
+func (s Session) RefreshAll(ctx context.Context) (RefreshResult, error) {
+	var out RefreshResult
+	err := s.call(ctx, http.MethodPost, "/api/sources/refresh", nil, &out)
+	return out, err
+}
+
 // Settings returns the server's settings.
 func (s Session) Settings(ctx context.Context) (Settings, error) {
 	var settings Settings

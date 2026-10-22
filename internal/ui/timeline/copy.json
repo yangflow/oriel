@@ -170,7 +170,16 @@
     "LbFailed": "This picture can’t be shown",
     "KeyPictures": "View pictures",
     "OrderNewest": "Newest first",
-    "OrderOldest": "Oldest first"
+    "OrderOldest": "Oldest first",
+    "RefreshAll": "Refresh all subscriptions",
+    "RefreshingName": "Refreshing, {done} of {n} checked",
+    "RefreshingAnnounce": "Refreshing {n} subscriptions",
+    "Refreshed": "Checked {n} subscriptions",
+    "RefreshedFailed": "Checked {n} subscriptions, {failed} failed",
+    "RefreshedPart": "Checked {done} of {n} subscriptions, the rest will follow",
+    "RefreshNone": "No subscriptions to refresh",
+    "RefreshFailed": "Can't refresh now. Try again later.",
+    "SubscriptionsMenu": "Subscriptions"
   },
   "zh-Hans": {
     "All": "全部",
@@ -343,6 +352,15 @@
     "LbFailed": "这张图显示不出来",
     "KeyPictures": "看图",
     "OrderNewest": "最新的在前",
-    "OrderOldest": "最旧的在前"
+    "OrderOldest": "最旧的在前",
+    "RefreshAll": "全部更新",
+    "RefreshingName": "正在更新，已查 {done}/{n}",
+    "RefreshingAnnounce": "正在更新 {n} 个订阅",
+    "Refreshed": "已查完 {n} 个订阅",
+    "RefreshedFailed": "已查完 {n} 个订阅，其中 {failed} 个失败",
+    "RefreshedPart": "已查 {done}/{n} 个订阅，其余会陆续抓",
+    "RefreshNone": "没有可更新的订阅",
+    "RefreshFailed": "现在无法更新，请稍后再试",
+    "SubscriptionsMenu": "订阅"
   }
 }

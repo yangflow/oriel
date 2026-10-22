@@ -290,3 +290,15 @@ func (s *Server) refreshSource(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
+
+// refreshAll makes every unpaused subscription due now; the fetch loop fetches them with its own workers and per-host
+// limits. at is the time they were made due, which a client compares with lastFetchedAt to count the ones checked since.
+func (s *Server) refreshAll(w http.ResponseWriter, r *http.Request) {
+	now := s.now()
+	n, err := s.store.MarkAllSourcesDue(r.Context(), now)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	reply(w, http.StatusOK, map[string]any{"queued": n, "at": now.UnixMilli()})
+}
