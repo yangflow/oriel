@@ -3502,7 +3502,7 @@ func TestToolbarMinimumWidth(t *testing.T) {
 			tt.Frame()
 		}
 		for _, name := range []string{"Mark all in “Photos” as read", "Mark all in “Images” as read", "Show as grid", "Show as list", "Edit subscription",
-			"Hide sidebar", "Show sidebar"} {
+			"Hide sidebar", "Show sidebar", "Search"} {
 			if r, ok := tt.Find(name); ok && (r.X+r.W > 640 || r.W < 32) {
 				t.Fatalf("hidden %v: %q at %v is cut off by the 640 wide window", hidden, name, r)
 			}
@@ -3587,8 +3587,150 @@ func TestSidebarHiddenInset(t *testing.T) {
 	}
 	p.SidebarHidden = false
 	tt.Frame()
-	if shown, ok := tt.Find("Hide sidebar"); !ok || shown.X < 216 {
+	// With the pane shown the button is in the pane's top row, at its right end, level with the window buttons.
+	shown, ok := tt.Find("Hide sidebar")
+	if !ok || shown.X+shown.W > 8+216*shown.W/32 || shown.X < 8+216*shown.W/32-60 || shown.Y+shown.H > 52 {
 		t.Fatalf("with the pane shown the button is at %v, %v", shown, ok)
+	}
+	if mid := shown.Y + shown.H/2; mid < 25 || mid > 27 {
+		t.Fatalf("the button is centered at %v, not in the 52 high row", mid)
+	}
+}
+
+// The button stays on the same line when the pane is hidden and shown again, and hidden it starts after the window buttons.
+func TestSidebarButtonPlace(t *testing.T) {
+	p := prefs.Default()
+	_, _, tt := viewing(t, &p)
+	tt.SetSize(1100, 800)
+	tt.SetTitleBar(ui.TitleBar{Height: 52, Left: 78})
+	tt.Frame()
+	shown, ok := tt.Find("Hide sidebar")
+	if !ok {
+		t.Fatal("no Hide sidebar button")
+	}
+	p.SidebarHidden = true
+	tt.Frame()
+	hidden, ok := tt.Find("Show sidebar")
+	if !ok || hidden.Y-shown.Y > 1 || shown.Y-hidden.Y > 1 || hidden.W != shown.W {
+		t.Fatalf("shown at %v, hidden at %v, %v", shown, hidden, ok)
+	}
+	if hidden.X < 78 {
+		t.Fatalf("hidden, the button at %v is under the window buttons", hidden)
+	}
+}
+
+// The segments are in the middle of the main column, and the buttons after them are one group in the order reading
+// time, grid, mark all as read, with search last at the far right.
+func TestToolbarLayout(t *testing.T) {
+	for _, hidden := range []bool{false, true} {
+		p := prefs.Default()
+		p.SidebarHidden = hidden
+		s, f, _ := viewing(t, &p)
+		tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 1280, 800)
+		tt.Frame()
+		f.settle(t, tt)
+		tt.Frame()
+		if !hidden {
+			chooseSource(t, s, f, tt, "image", 4)
+		} else {
+			tt.Key(0, ui.Key5)
+			f.settle(t, tt)
+			tt.Frame()
+		}
+		left := float32(0)
+		if !hidden {
+			grid, _ := tt.Find(s.markAllLabel())
+			left = 8 + 216*grid.W/32
+		}
+		first, _ := tt.Find(s.text.Everything)
+		last, _ := tt.Find(s.text.Starred)
+		mid := (first.X + last.X + last.W) / 2
+		if want := (left + 1280) / 2; mid < want-1.5 || mid > want+1.5 {
+			t.Fatalf("hidden %v: the segments are centered on %v, the column on %v", hidden, mid, want)
+		}
+		var xs []float32
+		for _, name := range []string{"Reading time: any length", "Show as grid", s.markAllLabel(), "Search entries"} {
+			r, ok := tt.Find(name)
+			if name == "Show as grid" && !ok {
+				continue
+			}
+			if !ok {
+				t.Fatalf("hidden %v: no %q", hidden, name)
+			}
+			if r.X < last.X+last.W {
+				t.Fatalf("hidden %v: %q at %v is not after the segments", hidden, name, r)
+			}
+			xs = append(xs, r.X)
+		}
+		if !slices.IsSorted(xs) {
+			t.Fatalf("hidden %v: buttons in the wrong order: %v", hidden, xs)
+		}
+		search, _ := tt.Find("Search entries")
+		if search.X+search.W < 1280-20 || search.X+search.W > 1280 {
+			t.Fatalf("hidden %v: search ends at %v, not at the far right", hidden, search.X+search.W)
+		}
+	}
+}
+
+// In a narrow main column search is an icon after the group of buttons. Clicking it opens the field, which takes the
+// room of the other buttons and the focus; with no text it goes back to an icon when it loses the focus, with text
+// it stays.
+func TestSearchIconOpens(t *testing.T) {
+	p := prefs.Default()
+	s, f, _ := viewing(t, &p)
+	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 700, 700)
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	if _, ok := tt.Find("Search entries"); ok {
+		t.Fatal("the field shows in a narrow window")
+	}
+	icon, ok := tt.Find("Search")
+	if !ok || icon.W < 32 || icon.X+icon.W > 700 {
+		t.Fatalf("search icon %v, %v", icon, ok)
+	}
+	if clock, _ := tt.Find("Reading time: any length"); clock.X+clock.W > icon.X {
+		t.Fatalf("the icon at %v is not after the buttons, the first at %v", icon, clock)
+	}
+	if err := tt.Click("Search"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if !tt.Focused("Search entries") {
+		t.Fatal("the opened field does not have the focus")
+	}
+	if _, ok := tt.Find("Reading time: any length"); ok {
+		t.Fatal("the other buttons still show beside the open field")
+	}
+	if r, _ := tt.Find("Search entries"); r.X+r.W > 700 {
+		t.Fatalf("the field at %v is cut off", r)
+	}
+	tt.Type("go t")
+	tt.Frame()
+	if err := tt.Click(s.text.Everything); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("Search entries"); !ok {
+		t.Fatal("the field closed with text in it")
+	}
+	if err := tt.Click(s.text.Clear); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click(s.text.Everything); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("Search entries"); ok {
+		t.Fatal("the field stays open with no text and no focus")
+	}
+	tt.Key(0, ui.KeySlash)
+	tt.Frame()
+	tt.Frame()
+	if !tt.Focused("Search entries") {
+		t.Fatal("/ does not open the field")
 	}
 }
 

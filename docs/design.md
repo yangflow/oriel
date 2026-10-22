@@ -93,14 +93,19 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   own light-on-dark theme (see [Glass and ink](#windows-menus-and-navigation)); its first 40 are left to the window
   buttons. Then the five kinds (All, Articles, Videos, Social, Images) as 30 high rows, each an icon, its name and its
   unread count; then the subscriptions of the chosen kind, 30 high rows; at the bottom the server bar, 40 high. The main
-  column is the paper: `Background`. It has a 52 high toolbar row (the sidebar button, title, count, one capsule with the
-  Everything/Unread/Starred segments, the reading-time button, the grid switch (only where it applies), search, mark all as read, whose name and tooltip say
-  its scope: "Mark all in “Videos” as read"; right click opens its menu, see Components) with no bar and no divider: the segments are one 32 high capsule of glass floating over the
-  entries, which fade under the row (the soft scroll edge); search is a flat ink fill, and the other buttons are
-  bare icons. Below a 760 wide window the gap between the toolbar items is 4, the segments are padded 7 and the unread count is left out; what is
-  left gives way in this order: search shrinks first, to 64 wide at least (the magnifier and a few letters), then the
-  title is cut with an ellipsis, 40 wide at least; the buttons never shrink, so mark all as read is always inside the
-  window. The reading-time button is a bare 32 square clock icon right of the capsule, named "Reading time: any
+  column is the paper: `Background`. It has a 52 high toolbar row with no bar and no divider, in three parts: the title and its count at the leading end,
+  one capsule with the Everything/Unread/Starred segments in the middle, and at the trailing end an evenly spaced
+  group of bare icon buttons (the reading-time button, the grid switch (only where it applies), mark all as read, whose name and
+  tooltip say its scope: "Mark all in “Videos” as read"; right click opens its menu, see Components), 4 apart, with search
+  last, at the far right. The segments are one 32 high capsule of glass floating over the entries, which fade under the row (the
+  soft scroll edge). The title's part and the trailing part take equal room, so the segments are centered in the main
+  column, whatever the title or the buttons are. Search is a flat ink field 200 wide; it gives up width before anything else,
+  down to 48 (the magnifier and a letter), when the column is tight. Under a 736 wide main column (the column, not the window, so
+  hiding the sidebar gives room back) search is a 32 square magnifier button after the other buttons; clicked, it opens the field
+  over the buttons and takes the focus, and the field closes again when it loses the focus with no text in it. Under 580 the gap
+  between the toolbar items is 4, the segments are padded 7 and the unread count is left out; the title is then cut with an
+  ellipsis, 40 wide at least; the buttons never shrink, so mark all as read is always inside the window. The Tab order is the visual one:
+  the sidebar button, the segments, the buttons, search. The reading-time button is a bare 32 square clock icon right of the capsule, named "Reading time: any
   length"; its menu lists Any length (the default), Up to 5, 10, 15 and 30 minutes, each a 28 high menu row with a
   check on the current one. With a budget chosen it becomes a 32 high pill (radius 16) with the `Soft(Accent)` fill,
   "≤ 10 min" in `Accent` at 12 medium beside the icon, tabular numerals, named "Reading time: up to 10 minutes"; below
@@ -129,8 +134,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   AI summary shows it in place of the feed summary, in the same size, color and two-line clamp, led by the `sparkles` icon
   (13, `TextMuted`, labelled "AI summary") so it reads as generated; Social, Videos, Images and the Compact viewer, which
   show no feed summary, are unchanged. Rows are separated by a
-  hairline only, which hover and selection hide. The toolbar's title and buttons line up with that column's edges in
-  a wide window (Videos and Images, which fill the width, keep the 20 inset). Pictures in a social post share a grid at
+  hairline only, which hover and selection hide. The toolbar keeps its 12 inset in a wide window, so the segments stay centered in the main column. Pictures in a social post share a grid at
   most 440 wide (520 in Social): one picture keeps its aspect ratio, at most 384 wide and 240 high; two sit side by
   side at 4:3; three or more show the first three as squares in one row, the third covered by "+N" for the rest
   (labelled "N more pictures"), so a post is never taller than one row of pictures. Videos are a grid of cards at least
@@ -246,7 +250,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `health-empty`. Accessibility: the dialog is labeled by its title, each row is a list item named by the source and
   its reason, the buttons carry the source's name ("Pause {name}", "Unsubscribe {name}"), and the loaded count is
   announced with `Announce`.
-- **Hiding the sidebar.** The first item of the toolbar row, before the title, is a bare 32 square icon button with
+- **Hiding the sidebar.** The button sits in the pane's top 40, at its right end, 8 from the pane's edge and centered on the toolbar row's middle line,
+  level with the window buttons at the left; it is a bare 32 square icon button with
   the Lucide `panel-left` icon (16, `toolFill` colors, radius 8), named "Hide sidebar" while the pane shows and "Show
   sidebar" while it is hidden (that name is also its tooltip; no shortcut in the tooltip, as no other tooltip carries
   one). Cmd+\ on macOS and Ctrl+\ elsewhere does the same, from the timeline and the reader, which share one key
@@ -254,7 +259,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   column takes the whole window width, so the reading area keeps its width at the 640 minimum; the failing-sources hint and
   the add button go with the pane (1 to 5 still switch kinds; H or Left expand the pane first, then focus it). The
   window buttons sat over the pane, so with it hidden the toolbar row's left padding grows by `TitleBar().Left`, in the
-  timeline and in the reader, to leave them room. The pane does not animate in or out. The choice is a device
+  timeline and in the reader, to leave them room, and the sidebar button moves to the toolbar's leading edge, right after them,
+  before the title, on the same line as before; it stays at that fixed position whatever the title is. The pane does not animate in or out. The choice is a device
   preference and is remembered.
 - **The reader.** It takes the main column's place; the pane stays. A 52 high toolbar row over the article, as in the
   timeline: "Back to {scope}" (a chevron and the scope's name) at the left as a bare button; at the right
@@ -676,7 +682,7 @@ Overlays share focus and Escape behavior; see
 - **Title bar.** No title bar: `TitleBarStyle: mygo.TitleBarHidden`, the macOS window buttons placed with
   `TrafficLightPosition` so they sit over the sidebar's top, centered in the 52 high toolbar row. The view then owns
   the room the window controls take (`c.TitleBar()`: on Windows the caption buttons at the right, which the toolbar
-  leaves free) and the draggable area: the toolbar row's empty space and the sidebar's top call `DragWindow`. The
+  leaves free) and the draggable area: the toolbar row's empty space and the sidebar's top (the sidebar button apart) call `DragWindow`. The
   window's name stays set (`Title`) for the Window menu, the Dock and screen readers. With the sidebar hidden the
   macOS buttons sit over the toolbar row, which pads its left by `TitleBar().Left` (see Hiding the sidebar).
 - **Glass and ink.** Oriel draws its toolbar controls in glass (the [glass
@@ -711,7 +717,7 @@ Overlays share focus and Escape behavior; see
 - **Leaving the app.** Video and social entries have no embedded player; opening them hands the link to the system
   browser. Say so in the control ("Open in browser"), not only with an icon.
 - **Toolbar.** Frequent window-level commands, in order of importance; controls that do not fit overflow into a menu.
-  One glass capsule at most per toolbar; everything else is a bare icon or the flat search field.
+  One glass capsule at most per toolbar; everything else is a bare icon or the flat search field. Search is last, at the far right.
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.
 - **Timeline keys.** J or Down and K or Up move between entries, N goes to the next unread entry below the chosen one
   (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in the
