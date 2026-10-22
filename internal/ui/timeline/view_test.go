@@ -50,6 +50,9 @@ type fake struct {
 	refreshes  int                  // the times it was asked
 	refreshErr error
 
+	adds    []string         // the addresses AddSource was asked for
+	addErrs map[string]error // what AddSource answers for an address, if not success
+
 	entriesErr, setErr, markErr, imageErr            error
 	connects, settings, aiSettings, imports, expired int
 }
@@ -167,7 +170,11 @@ func (f *fake) Image(_ context.Context, address string) ([]byte, error) {
 }
 
 func (f *fake) AddSource(_ context.Context, src client.NewSource) (client.Source, error) {
-	added := client.Source{ID: 10, URL: src.URL, RSSHubPath: src.RSSHubPath, Kind: src.Kind}
+	f.adds = append(f.adds, src.URL)
+	if err := f.addErrs[src.URL]; err != nil {
+		return client.Source{}, err
+	}
+	added := client.Source{ID: int64(10 + len(f.sources)), Title: src.URL, URL: src.URL, RSSHubPath: src.RSSHubPath, Kind: src.Kind}
 	f.sources = append(f.sources, added)
 	return added, nil
 }
@@ -352,7 +359,7 @@ func TestAISummaryRow(t *testing.T) {
 }
 
 func TestCatalogsMatch(t *testing.T) {
-	var raw map[string]map[string]string
+	var raw map[string]map[string]any
 	if err := json.Unmarshal(catalog, &raw); err != nil {
 		t.Fatal(err)
 	}
