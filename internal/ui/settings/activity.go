@@ -2,6 +2,8 @@ package settings
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -125,6 +127,7 @@ func (s *Screen) activityPage(c *ui.Context) {
 		}
 	})
 	s.storageCard(c)
+	s.diagnosticsCard(c)
 	s.fetchingNowCard(c)
 	s.recentCard(c)
 }
@@ -173,6 +176,67 @@ func (s *Screen) vacuumStatus() status {
 		return status{warn: true, text: s.fill(s.text.CompactFailed, "{reason}", v.Error)}
 	}
 	return status{}
+}
+
+// diagnosticsCard exports the diagnostics file: what it holds, the button and how the last export went.
+func (s *Screen) diagnosticsCard(c *ui.Context) {
+	t := c.Theme()
+	sectionTitle(c, s.text.Diagnostics, t.Space(6))
+	card(c, func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
+			export := button(c, secondary, s.diagBusy)
+			label := s.text.ExportDiagnostics
+			if s.diagBusy {
+				label = s.text.ExportingDiagnostics
+			}
+			textButton(c, export, secondary, icons.Download, label, s.diagBusy)
+			if export.Clicked() {
+				s.exportDiagnostics()
+			}
+			ui.Text(c, s.text.DiagnosticsHelp).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Grow(1).Shrink(1).MinWidth(0)
+		})
+		statusLine(c, s.diagStatus)
+	})
+}
+
+// ExportDiagnostics starts the export from outside the page, the Help menu; the shell shows the page first.
+func (s *Screen) ExportDiagnostics() { s.exportDiagnostics() }
+
+// exportDiagnostics asks where to save the file, then has the server write it and saves what it sent.
+func (s *Screen) exportDiagnostics() {
+	if s.diagBusy || s.api == nil {
+		return
+	}
+	s.diagBusy, s.diagStatus = true, status{}
+	gen, api, filter := s.gen, s.api, s.text.DiagnosticsFiles
+	s.deps.Go(func() func() {
+		path, err := s.deps.Save("Oriel-diagnostics.txt", filter)
+		if err != nil || path == "" {
+			return func() {
+				if gen == s.gen {
+					s.diagBusy = false
+				}
+			}
+		}
+		name := filepath.Base(path)
+		data, err := api.Diagnostics(context.Background())
+		written := err == nil && os.WriteFile(path, data, 0o644) == nil
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			s.diagBusy = false
+			switch {
+			case err != nil:
+				s.diagStatus = status{text: s.text.DiagnosticsFailed}
+			case !written:
+				s.diagStatus = status{text: s.fill(s.text.WriteFailed, "{file}", name)}
+			default:
+				s.diagStatus = status{ok: true, text: s.fill(s.text.DiagnosticsExported, "{file}", name)}
+			}
+			s.announce = s.diagStatus.text
+		}
+	})
 }
 
 func (s *Screen) keyValue(c *ui.Context, label, value string) {

@@ -38,12 +38,13 @@ type fake struct {
 	devices  []client.Device
 	imported client.Imported
 	opml     []byte
+	diag     []byte
 
 	set     []client.SettingsPatch
 	revoked []int64
 	sent    [][]byte
 
-	settingsErr, setErr, devicesErr, revokeErr, importErr, exportErr, testErr error
+	settingsErr, setErr, devicesErr, revokeErr, importErr, exportErr, testErr, diagErr error
 
 	activity    client.Activity
 	storage     client.Storage
@@ -65,6 +66,7 @@ type fake struct {
 
 	open, save string // the paths the dialogs answer, "" for cancelled
 	filters    []string
+	names      []string // the file names the save dialog was offered
 	back       int
 	refreshed  int
 	expired    int
@@ -162,6 +164,7 @@ func (f *fake) deps() Deps {
 			return f.open, nil
 		},
 		Save: func(name, filter string) (string, error) {
+			f.names = append(f.names, name)
 			f.filters = append(f.filters, filter)
 			return f.save, nil
 		},

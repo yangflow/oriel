@@ -3,6 +3,8 @@ package settings
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -21,6 +23,8 @@ func (f *fake) StartVacuum(context.Context) (client.Vacuum, error) {
 	f.vacuums++
 	return f.started, f.vacuumErr
 }
+
+func (f *fake) Diagnostics(context.Context) ([]byte, error) { return f.diag, f.diagErr }
 
 // activityData is two subscriptions with attempts, one of them being fetched now.
 func activityData() (client.Activity, client.Storage) {
@@ -355,5 +359,77 @@ func TestActivityFormats(t *testing.T) {
 	}
 	if got := sourceName("", "", "https://x.example/feed"); got != "https://x.example/feed" {
 		t.Errorf("sourceName = %q", got)
+	}
+}
+
+func TestExportDiagnostics(t *testing.T) {
+	for language, want := range map[string]struct{ button, done, failed, unsaved string }{
+		"en":      {"Export diagnostics…", "Exported to Oriel-diagnostics.txt.", "Couldn’t export. Check the connection and try again.", "Oriel-diagnostics.txt could not be saved."},
+		"zh-Hans": {"导出诊断文件…", "已导出到 Oriel-diagnostics.txt。", "没能导出。检查一下连接再试。", "Oriel-diagnostics.txt 没能保存。"},
+	} {
+		t.Run(language, func(t *testing.T) {
+			_, f, tt := openActivity(t, language)
+			f.diag = []byte("Oriel diagnostics\n")
+			dir := t.TempDir()
+			f.save = filepath.Join(dir, "Oriel-diagnostics.txt")
+			if err := tt.Click(want.button); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(tt)
+			written, err := os.ReadFile(f.save)
+			if err != nil || string(written) != string(f.diag) {
+				t.Fatalf("written %q, %v", written, err)
+			}
+			if !tt.HasText(want.done) {
+				t.Fatalf("texts %v", tt.Texts())
+			}
+			if len(f.filters) == 0 || f.names[len(f.names)-1] != "Oriel-diagnostics.txt" {
+				t.Fatalf("save asked for %v", f.names)
+			}
+
+			f.save = filepath.Join(dir, "missing", "Oriel-diagnostics.txt")
+			if err := tt.Click(want.button); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(tt)
+			if !tt.HasText(want.unsaved) {
+				t.Fatalf("texts %v", tt.Texts())
+			}
+
+			f.diagErr = errors.New("offline")
+			if err := tt.Click(want.button); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(tt)
+			if !tt.HasText(want.failed) {
+				t.Fatalf("texts %v", tt.Texts())
+			}
+
+			f.diagErr, f.save = nil, ""
+			if err := tt.Click(want.button); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(tt)
+			if tt.HasText(want.failed) || tt.HasText(want.done) {
+				t.Fatalf("a cancelled dialog shows a result: %v", tt.Texts())
+			}
+		})
+	}
+}
+
+func TestExportDiagnosticsFromTheMenu(t *testing.T) {
+	s, f, tt := setup(t, "en", false)
+	f.activity, f.storage = activityData()
+	f.diag, f.save = []byte("Oriel diagnostics\n"), filepath.Join(t.TempDir(), "d.txt")
+	tt.SetSize(1000, 1800)
+	s.OpenPage("activity")
+	s.ExportDiagnostics()
+	tt.Frame()
+	f.settle(tt)
+	if _, err := os.Stat(f.save); err != nil || !tt.HasText("Exported to d.txt.") {
+		t.Fatalf("saved %v, texts %v", err, tt.Texts())
+	}
+	if DiagnosticsMenuLabel("zh-Hans-CN") != "导出诊断文件…" || DiagnosticsMenuLabel("fr") != "Export Diagnostics…" {
+		t.Fatal("menu labels")
 	}
 }

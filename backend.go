@@ -40,8 +40,8 @@ type backend struct {
 	background     sync.WaitGroup
 }
 
-// start opens the database in dataDir and serves the API until close. Port 0 picks a free port.
-func start(ctx context.Context, dataDir, password string, port int) (*backend, error) {
+// start opens the database in dataDir and serves the API until close. Mode is diag.ModeDesktop or diag.ModeHeadless. Port 0 picks a free port.
+func start(ctx context.Context, dataDir, password, mode string, port int) (*backend, error) {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func start(ctx context.Context, dataDir, password string, port int) (*backend, e
 	worker := ai.New(st, version)
 	poller := fetch.New(st, version)
 	api, err := server.New(st, server.Config{Password: password, Version: version, Images: fetch.NewImages(version, filepath.Join(dataDir, "image-cache")),
-		Discover: fetch.NewDiscoverer(version), AI: worker, Fetching: poller.Fetching})
+		Discover: fetch.NewDiscoverer(version), AI: worker, Fetching: poller.Fetching, Log: logs, Mode: mode})
 	if err != nil {
 		st.Close()
 		return nil, err

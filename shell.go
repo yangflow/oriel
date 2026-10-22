@@ -353,6 +353,17 @@ func (s *shell) openSettingsPage(page string) {
 	s.settings.OpenPage(page)
 }
 
+// exportDiagnostics shows the settings on the activity page and starts the export of the diagnostics file, from the
+// Help menu.
+func (s *shell) exportDiagnostics() {
+	if s.showing {
+		return
+	}
+	s.setting = true
+	s.settings.OpenPage("activity")
+	s.settings.ExportDiagnostics()
+}
+
 // expired shows the connect screen because the remote server no longer takes the session.
 func (s *shell) expired() {
 	if s.session == nil {

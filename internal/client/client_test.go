@@ -439,6 +439,8 @@ func TestSettingsAPI(t *testing.T) {
 		case "/api/opml/export":
 			w.Header().Set("Content-Type", "text/x-opml")
 			w.Write([]byte("<opml/>"))
+		case "/api/diagnostics":
+			w.Write([]byte("Oriel diagnostics\n"))
 		}
 	}))
 	defer srv.Close()
@@ -462,12 +464,16 @@ func TestSettingsAPI(t *testing.T) {
 	if opml, err := session.ExportOPML(ctx); err != nil || string(opml) != "<opml/>" {
 		t.Errorf("ExportOPML = %q, %v", opml, err)
 	}
+	if text, err := session.Diagnostics(ctx); err != nil || string(text) != "Oriel diagnostics\n" {
+		t.Errorf("Diagnostics = %q, %v", text, err)
+	}
 	agent := "Oriel/1.0 (" + platform() + ")"
 	want := []string{
 		"GET /api/sessions  " + agent + " ",
 		"DELETE /api/sessions/3  " + agent + " ",
 		"POST /api/opml/import text/x-opml " + agent + " <opml/>",
 		"GET /api/opml/export  " + agent + " ",
+		"GET /api/diagnostics  " + agent + " ",
 	}
 	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
 		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))
