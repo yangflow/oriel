@@ -854,7 +854,23 @@ Overlays share focus and Escape behavior; see
   where it is changed: the RSSHub instances with their Save button, the retention as soon as another is
   chosen; the line under it says it was saved, or why not, and a refused value keeps the focus in its field. OPML
   files are chosen and saved with the system's file dialogs, read and sent in the background; the result stays
-  under the button, with the subscriptions that could not be added and why, until dismissed. Signing a device out asks
+  under the button, with the subscriptions that could not be added and why, until dismissed. Below the OPML row,
+  "From another reader" with an "Import from Reader…" button opens a 440 wide dialog (the sheet of the subscription
+  dialogs: radius 16, 20 padding, a 15 semibold title with a 28 close button, the buttons in the footer, the form scrolling
+  when the window is low). Step one: a Service pair of small toggle buttons (Miniflux, FreshRSS), the server address in a
+  field with a `https://miniflux.example.com` placeholder, for FreshRSS a User name field, and the credential in a
+  masked field (API token, or API password for FreshRSS) with a 12 `TextMuted` line saying it is used for this import only
+  and kept in memory; Connect is disabled until all are filled, and an address that is not http or https is named under
+  its field with the `Danger` outline. Then a polite status with a turning loader, the stage ("Reading starred
+  entries…") and a 6 high progress bar with "300 so far" or "204 of 340"; Cancel stops at once. The preview lists
+  Subscriptions, Starred entries, Read entries and Folders and tags with tabular figures in one soft card, the folders
+  row with a 12 `TextMuted` note that Oriel has no folders yet, and says nothing has been added; Import is the
+  primary button. The result is a warning-toned box when anything was left out, else plain, with one line per figure
+  (added, already there, marked read, read entries not in Oriel, folders not imported) and the list of what was not
+  imported with the reason, as for OPML. A failure is a `Danger` box with a reason one can act on (the server turned
+  the credential down, cannot be reached, asked to slow down, ...), with Try again. The credential is never shown
+  again after Connect. Closing the dialog while it works cancels. Drawn in `design/screens/settings.html`, states
+  `reader` to `reader-failed`. Signing a device out asks
   first; the current device is marked and cannot be signed out. In the wide column Devices is a table in one card:
   a header row 36 high (11 medium, `TextMuted`, 12 in Chinese) over rows 48 high parted by the inset hairline, columns
   Device (a 28 glyph tile, the client's name at 13 medium and the "This device" badge), Platform and Signed in

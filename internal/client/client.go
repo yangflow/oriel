@@ -442,6 +442,69 @@ type ImportFail struct {
 // MaxOPML is the largest OPML file the server imports.
 const MaxOPML = 1 << 20
 
+// The services Session.StartImport can import from.
+const (
+	ServiceMiniflux = "miniflux"
+	ServiceFreshRSS = "freshrss"
+)
+
+// ImportRequest names the service to import from and how to reach it. Credential is the API token (Miniflux) or API
+// password (FreshRSS); the server keeps it in memory for the import only.
+type ImportRequest struct {
+	Service    string `json:"service"`
+	BaseURL    string `json:"baseUrl"`
+	Username   string `json:"username,omitempty"`
+	Credential string `json:"credential"`
+}
+
+// ImportProgress is the stage an import is in ("subscriptions", "starred", "read" or "writing") and how far it is;
+// Total is 0 when the service does not say.
+type ImportProgress struct {
+	Stage string `json:"stage"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
+}
+
+// ImportCounts is what a preview found in the other reader.
+type ImportCounts struct {
+	Sources int `json:"sources"`
+	Folders int `json:"folders"`
+	Starred int `json:"starred"`
+	Read    int `json:"read"`
+}
+
+// ImportSkip is something an import left out, with the code of its reason. Kind is "source" or "starred".
+type ImportSkip struct {
+	Kind    string `json:"kind"`
+	Title   string `json:"title"`
+	Address string `json:"address"`
+	Error   string `json:"error"`
+}
+
+// ImportResult is what an import wrote. Skipped lists at most 100 of the SkippedTotal items left out.
+type ImportResult struct {
+	AddedSources    int          `json:"addedSources"`
+	ExistingSources int          `json:"existingSources"`
+	StarredAdded    int          `json:"starredAdded"`
+	StarredExisting int          `json:"starredExisting"`
+	ReadMarked      int          `json:"readMarked"`
+	UnmatchedRead   int          `json:"unmatchedRead"`
+	FoldersSkipped  int          `json:"foldersSkipped"`
+	Skipped         []ImportSkip `json:"skipped"`
+	SkippedTotal    int          `json:"skippedTotal"`
+}
+
+// ImportStatus is the import job. Phase is "idle", "fetching", "ready" (the preview waits to be confirmed),
+// "writing", "done", "failed" or "canceled"; Error is the code of a failure.
+type ImportStatus struct {
+	Phase    string         `json:"phase"`
+	Service  string         `json:"service"`
+	Progress ImportProgress `json:"progress"`
+	Counts   ImportCounts   `json:"counts"`
+	Result   *ImportResult  `json:"result"`
+	Error    string         `json:"error"`
+}
+
 // Query selects a page of the timeline; the zero value is the first page of everything.
 type Query struct {
 	Source  int64
@@ -775,6 +838,35 @@ func (s Session) ExportOPML(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("%w: %v", ErrUnreachable, err)
 	}
 	return body, nil
+}
+
+// StartImport has the server read another reader's subscriptions, stars and read state into a preview. Nothing is
+// written until ConfirmImport.
+func (s Session) StartImport(ctx context.Context, req ImportRequest) (ImportStatus, error) {
+	var status ImportStatus
+	err := s.call(ctx, http.MethodPost, "/api/import/start", req, &status)
+	return status, err
+}
+
+// ImportStatus returns the import job.
+func (s Session) ImportStatus(ctx context.Context) (ImportStatus, error) {
+	var status ImportStatus
+	err := s.call(ctx, http.MethodGet, "/api/import", nil, &status)
+	return status, err
+}
+
+// ConfirmImport writes the preview that is ready.
+func (s Session) ConfirmImport(ctx context.Context) (ImportStatus, error) {
+	var status ImportStatus
+	err := s.call(ctx, http.MethodPost, "/api/import/confirm", nil, &status)
+	return status, err
+}
+
+// CancelImport stops the import and drops its preview, or clears a finished one.
+func (s Session) CancelImport(ctx context.Context) (ImportStatus, error) {
+	var status ImportStatus
+	err := s.call(ctx, http.MethodPost, "/api/import/cancel", nil, &status)
+	return status, err
 }
 
 // Entry returns an entry with its text.

@@ -421,7 +421,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 - 只用标准库 `net/http`。JSON 字段用 camelCase。
 - 出错时返回 `{ "error": "<代码>" }`，代码是稳定的小写英文，界面据此显示本地化文案。
 - `GET /health` 不要鉴权，返回版本、是否要求口令、数据库是否可写。数据库不可写时 503。
-- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「设置接口」「OPML 接口」「AI 摘要和翻译」「图片代理」「活动和存储接口」七节的路由。`GET|POST /websub/{key}`（WebSub 回调，不要会话，见「WebSub 推送」），其余路由随各自的功能加进来，并写进这一节。
+- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「设置接口」「OPML 接口」「导入其他阅读器接口」「AI 摘要和翻译」「图片代理」「活动和存储接口」八节的路由。`GET|POST /websub/{key}`（WebSub 回调，不要会话，见「WebSub 推送」），其余路由随各自的功能加进来，并写进这一节。
 - 请求体是 JSON，最大 64 KiB；坏 JSON、多出未知字段或类型不对返回 400 `invalid_body`。
 
 ## 订阅接口
@@ -581,6 +581,63 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - 每个源一个 `outline`，不分组，带 `text`、`title`、`type="rss"`、`xmlUrl`、`htmlUrl` 和 `orielKind`。标题为空时 `text` 用地址。
 - RSSHub 源另带 `orielRsshubPath`。设了 RSSHub 根地址时，`xmlUrl` 是主实例（列表里第一个）的根地址加路径，别的阅读器能直接用；没设时没有 `xmlUrl`。
 - 导出的文件再导入，得到同样的订阅：地址、RSSHub 路径、形态和标题都一样。别的字段（抓取间隔、prompt、屏蔽词、暂停）不导出。
+
+## 导入其他阅读器接口
+
+从别的阅读器的服务读出订阅、已加星标的条目和已读状态，写进 Oriel。首批支持 Miniflux 和 FreshRSS；Feedly、Inoreader 以后再加，代码里每个服务实现同一个 `Importer` 接口（取回一份快照），加服务不动流程。都要会话（设了口令时）。
+
+| 路由 | 作用 |
+|---|---|
+| `POST /api/import/start` | 请求体 `{ "service", "baseUrl", "username", "credential" }`，开始一个导入任务，进入预览阶段，返回 202 和状态。已有任务在进行（不是空闲、已完成、失败或已取消）时返回 409 `import_busy`。 |
+| `GET /api/import` | 返回当前任务的状态；没有任务时 `phase` 为 `idle`。 |
+| `POST /api/import/confirm` | 预览完成（`ready`）后确认，开始写入，返回状态。别的阶段返回 409 `import_not_ready`。 |
+| `POST /api/import/cancel` | 立即停止抓取或写入，丢掉预览；任务已结束时清回 `idle`。 |
+
+- `service` 是 `miniflux` 或 `freshrss`，别的值返回 400 `invalid_service`。`baseUrl` 必须是 `http` 或 `https` 地址，有主机名，不带用户名口令、查询串和片段，否则 400 `invalid_base_url`。末尾的 `/` 去掉；FreshRSS 末尾的 `/api/greader.php` 也去掉（填哪一种都行）。`credential` 不能为空（`missing_credential`）。`username` 只有 FreshRSS 要用（它的登录名），Miniflux 忽略。
+- 任务只在内存里，一次一个，重启就没有了。状态是 `{ "phase", "service", "progress": { "stage", "done", "total" }, "counts": { "sources", "folders", "starred", "read" }, "result", "error" }`。`phase` 依次是 `fetching`（取数据）、`ready`（预览完成，等确认）、`writing`、`done`，另有 `failed`、`canceled`、`idle`。`progress.stage` 是 `subscriptions`、`starred`、`read` 或 `writing`。`counts` 在预览阶段就有；`error` 是下面的错误码，只在 `failed` 时有。
+- `result`（`done` 时）是 `{ "addedSources", "existingSources", "starredAdded", "starredExisting", "readMarked", "unmatchedRead", "foldersSkipped", "skipped": [{ "kind", "title", "address", "error" }], "skippedTotal" }`。`skipped` 最多 100 条，`skippedTotal` 是实际总数；`kind` 是 `source` 或 `starred`；`error` 对订阅是和 OPML 导入一样的校验码（`invalid_url` 等），对星标条目是 `unknown_source`（找不到所属订阅）或 `invalid_link`（没有可用的链接）。
+
+### 凭据
+
+- 凭据（Miniflux 的 API token、FreshRSS 的 API 密码，以及 FreshRSS 登录后换到的 `Auth` 令牌）只存在内存里，只活到取数据结束：取完得到快照，写入只用快照，不再需要凭据，快照取完就把凭据丢掉。
+- 不落盘、不进数据库、不写日志、不放进错误信息、不在任何响应里回显（状态里没有 `credential`，也没有 `baseUrl` 以外的连接信息）。请求体照常受 64 KiB 的限制。
+- 取消、失败和完成后任务里都不留凭据。凭据只通过请求头发给用户填的那个主机；重定向到别的主机时不跟随，直接失败（`redirected`），不会把头带过去。
+- 测试里有一条检查：凭据字符串不出现在日志、错误、库里的行和任何响应中。
+
+### 请求方式
+
+- 用普通的 `http.Client`，不用抓取条目链接那个 `guardedClient`：`baseUrl` 是用户自己填的，常常是内网或本机的地址（局域网里的 Miniflux），`guardedClient` 会拒绝这些地址。代价是服务端会向用户指定的地址发请求，所以只做下面列出的调用，只用 GET（FreshRSS 登录那一个 POST 除外），任务一次一个，且要会话。
+- 每个请求 30 秒超时，响应最多读 16 MiB（超了 `too_large`）。连续两个请求之间至少隔 200 毫秒。收到 429 时按 `Retry-After`（秒数或日期，最多等 60 秒）等待后重试，最多 3 次，仍是 429 就以 `rate_limited` 失败。
+- 重定向最多 3 次，只跟随同一主机名，不从 https 降到 http。等待和请求都跟着任务的取消停下。
+- 错误码：`invalid_base_url`、`unauthorized`（401、403）、`rate_limited`、`unreachable`（连不上、超时）、`bad_response`（其他非 2xx 状态，或读不出预期的 JSON）、`too_large`、`redirected`。原始的传输错误不放进错误信息，因为它可能带请求地址。
+
+### 调用
+
+Miniflux（`<baseUrl>/v1/...`，请求头 `X-Auth-Token: <API token>`）：
+
+- `GET /v1/feeds`：订阅（`feed_url`、`site_url`、`title`、`category.title`）。分组数是不同的 `category.title` 个数。
+- `GET /v1/entries?starred=true&limit=100&offset=N`：加星标的条目，翻页到 `total` 为止。
+- `GET /v1/entries?status=read&limit=100&offset=N`：已读的条目，同样翻页。
+- 条目取 `url`、`title`、`author`、`published_at`、`content`、`starred`、`status` 和 `feed.feed_url`；`status` 为 `removed` 的忽略。不认得的字段忽略。
+
+FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
+
+- `POST accounts/ClientLogin`，表单 `Email`（登录名）和 `Passwd`（API 密码），回应里的 `Auth=` 行是令牌；之后每个请求带 `Authorization: GoogleLogin auth=<令牌>`。
+- `GET reader/api/0/subscription/list?output=json`：订阅（`id`、`title`、`url`、`htmlUrl`、`categories[].label`）。
+- `GET reader/api/0/tag/list?output=json`：标签；`id` 里带 `/label/` 的是分组，和订阅的 `categories` 取并集计数。
+- `GET reader/api/0/stream/contents/user/-/state/com.google/starred?n=1000&output=json&c=<continuation>`：加星标的条目，按 `continuation` 翻页。条目链接取 `canonical[0].href`，没有就取 `alternate[0].href`；所属订阅取 `origin.streamId`，对应订阅列表里的 `id`。
+- 已读状态：`reader/api/0/stream/items/ids` 只给条目 ID，没有链接，没法和 Oriel 里的条目对上，所以改读 `stream/contents/user/-/state/com.google/read`（同样翻页）取链接。只要仍在订阅里的条目，已读流里别的订阅的不要。
+- 星标和已读各最多读 20 000 条，再多的不读，结果里记一条 `limit`。
+
+### 匹配和写入
+
+- 订阅：和 OPML 导入走同一条路（同样的地址校验、默认抓取间隔、第一次抓取的随机延后）。按规整后的地址和已有订阅匹配，已经订阅的保留不动，计入 `existingSources`。导入时不去抓取，抓不了的地址之后在订阅健康里显示失败，和 OPML 一样，不会因此暂停。地址不合规则的订阅放进 `skipped`（`kind` 为 `source`）。
+- 分组和标签：Oriel 现在没有分组或标签，OPML 导入也不导入分组。所以只在预览里数一下，结果里 `foldersSkipped` 是数量，说明没有导入。等有了分组再接上，不需要改接口。
+- 星标条目：找到所属的订阅（没有就按上面加上）。条目抓不到所属订阅也照样存：插入的条目挂在这个订阅下，不暂停订阅。条目按链接匹配：先用规整后的链接当 GUID 对 `UNIQUE(source_id, guid)`，再用 `linkKey` 对该订阅已有条目的链接。已有的条目只加星标，不改别的；没有的就插入，带标题、作者、发布时间、摘要或正文（Miniflux 给的 `content`），`created_at` 取发布时间（晚于现在就取现在，没有就取现在），不排 AI 任务；正文抽取状态按形态是 `pending` 或 `skipped`。后来的抓取遇到真实 GUID 时沿用「条目」里的规则，接管这条条目并保留它的星标和已读。
+- 已读状态：只用在匹配到的、已有的条目上，只往已读方向改，不把已读改回未读，不创建只读不星标的条目（这类计入 `unmatchedRead`）。刚插入的星标条目如果在源上已读，也标已读。
+- 刚新增的订阅还没有条目，所以已读状态主要作用在已经订阅过的订阅上；新订阅里已读的条目等抓取后也不会自动标已读，计入 `unmatchedRead`。
+- 同一份快照导入两次，第二次什么都不加：订阅计入 `existingSources`，条目计入 `starredExisting`，已读不变。
+- 写入按订阅分批，一个订阅一个事务。取消在两批之间生效，已写的不回滚。写完后时间线重新读取订阅和条目。
 
 ## AI 摘要和翻译
 
@@ -1005,6 +1062,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 导入和导出：
 
 - 导入：「选择文件…」打开系统的文件对话框（OPML 和 XML 文件）。在后台读文件，超过 1 MB 不发，直接提示；发 `POST /api/opml/import`，进行中显示「正在导入 …」。结果留在按钮下面：新增几个、已经订阅几个、几个没能添加，没能添加的逐条列出标题、地址和原因；不是 OPML（`invalid_opml`）、太大（`opml_too_large`）、读不出来和连不上各有提示。新增了订阅时，时间线重新读取订阅和条目。结果可以关掉。
+- 从别的阅读器导入：「导入和导出」页的「从阅读器导入…」打开对话框，走「导入其他阅读器接口」。第一步选服务（Miniflux、FreshRSS），填服务器地址和凭据（FreshRSS 还要用户名），凭据框遮住输入，旁边说明只用于这次导入、只放在内存里；三项填全才能点「连接」，地址不是 http 或 https 时在框下面报错，不发请求。连接后显示正在读取的阶段和进度，可以取消。读完显示预览：订阅、加星标、已读的数量，以及分组和标签的数量（注明 Oriel 还没有分组，不会导入），这时什么都没有添加；点「导入」才写入，「取消」丢掉。写完显示结果：新增和已有的订阅数、新增和已有的星标条目数、标为已读的数量、不在 Oriel 里而没导入的已读条目数，以及没导入的逐条列出标题、地址和原因。失败按错误码给出能照着做的原因，可以「再试一次」。关闭对话框就是取消；凭据在连接之后不再显示，对话框关掉就忘。新增了订阅或条目时，时间线重新读取订阅和条目。
 - 导出：「存储为…」打开系统的保存对话框，默认文件名 `Oriel.opml`；在后台取 `GET /api/opml/export` 写进文件，提示导出了几个订阅（带 `xmlUrl` 或 `orielRsshubPath` 的 `outline`），写不进去和连不上各有提示。
 
 AI：
