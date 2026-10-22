@@ -122,7 +122,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   lined up with the list: a 14 `Warning` wifi-off icon and 12 `TextMuted` text, "Can't reach the server · last updated
   10:42", with no fill; it is a polite status, announced once, and goes away on the next successful check. At its end sits a quiet text button, "Try again" (12 `Accent`, 22 high, 8 padding, radius 6, hover fill like other quiet buttons); while a check runs it reads "Retrying…" in `TextMuted` and is disabled. A star or read change made while the server is out of reach stays on the row and is not rolled back; until it is sent, the row's meta line carries a 13 `TextMuted` upload icon after the star, named "Waiting to save". The queue lives in memory only and is lost on quit. Drawn in `design/screens/timeline.html`, `offline`, `offline-retrying`, `offline-pending`. Loading the first page of a list (a switch of scope, filter or kind, a reload) draws the skeleton only after 300 ms; an answer that comes sooner shows no loading state, so switching never flashes bars. With no subscriptions the list is an empty state: a 48 tile, a
   15 semibold heading, a hint at most 320 wide that names the links Oriel recognises, then a row of two buttons 8 apart,
-  wrapping when narrow: the primary "Add your first subscription" and the secondary "Import OPML…", which opens
+  wrapping when narrow: the primary "Add your first subscription" and the secondary "Import OPML…" and a second secondary "Restore from backup…", both of which open
   Settings on Import and export. Below them, 12 `TextMuted` label "Or start with a topic" and a centered row of starter-pack cards, 8 apart, wrapping, at most 560 wide: each card 132 wide, padded 10 by 12, radius 12, `Track` fill (the secondary button's hover and press mixes), a 13 semibold name over a 12 `TextMuted` one-line description, left aligned. The row is a group named by the label. While a pack is being added the cards are disabled (half opacity), and the label becomes a polite status with a turning 14 loader, "Adding 5 subscriptions…"; the result is a plain toast ("Added 5 subscriptions from Technology", with the alert mark and the names that failed when some could not be added). Drawn in `design/screens/timeline.html`, `no-subscriptions`, `no-subscriptions-adding` and `no-subscriptions-failed`. When a reading-time budget leaves nothing, the list shows the same pattern: a 48
   tile with a clock, "Nothing fits in 10 minutes", the hint "Entries with no estimate, like pictures, are left out.",
   and one secondary button, "Show any length", which clears the budget. Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
@@ -872,7 +872,15 @@ Overlays share focus and Escape behavior; see
   imported with the reason, as for OPML. A failure is a `Danger` box with a reason one can act on (the server turned
   the credential down, cannot be reached, asked to slow down, ...), with Try again. The credential is never shown
   again after Connect. Closing the dialog while it works cancels. Drawn in `design/screens/settings.html`, states
-  `reader` to `reader-failed`. Signing a device out asks
+  `reader` to `reader-failed`. Last on the page are two rows like the OPML ones, "Back up" and "Restore": a label, a 12 `TextMuted` help line (what a backup holds, and that sessions and the AI API key are left out; that restoring replaces what is here), and a secondary button, "Back up…" (database icon) and "Restore from backup…" (counter-clockwise arrow). Both use the system's file dialogs, filtered to `.oriel-backup`, and work
+  in the background; while one runs the buttons are disabled and a polite status with a turning 14 loader reads
+  "Backing up…" or "Restoring…". The result stays under the buttons until dismissed: a plain box for "Backed up to …"
+  and "Restored 12 subscriptions and 480 entries", a `Danger` box with a reason one can act on for a failure, and
+  the line that the data is as it was for a refused restore. After choosing a file, "Replace your data with this
+  backup?" is an alert dialog (the one that confirms deleting a subscription): the body says the subscriptions,
+  entries and settings now here are replaced and this cannot be undone, the focus starts on Cancel, and the
+  confirming button, "Replace data", is the `Danger` one. Drawn in `design/screens/settings.html`, states
+  `backup`, `restore-confirm`, `restoring`, `restored` and `restore-failed`. Signing a device out asks
   first; the current device is marked and cannot be signed out. In the wide column Devices is a table in one card:
   a header row 36 high (11 medium, `TextMuted`, 12 in Chinese) over rows 48 high parted by the inset hairline, columns
   Device (a 28 glyph tile, the client's name at 13 medium and the "This device" badge), Platform and Signed in

@@ -37,7 +37,7 @@ type copy struct {
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                                             string
 	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                            string
 	MorePictures, Pictures, AISummary, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                                                          string
-	AddSource, EditSource, AddFirst, ImportOPML, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                                 string
+	AddSource, EditSource, AddFirst, ImportOPML, RestoreBackup, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                  string
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                                                    string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
 	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                                        string
@@ -3771,20 +3771,26 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed b
 				if b.Clicked() {
 					s.subs.Add()
 				}
-				i := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(t.Radius).
-					Background(theme.Track(t))
-				if i.Pressed() {
-					i.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
-				} else if i.Hovered() {
-					i.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
-				}
-				theme.Fade(i)
-				i.Children(func() {
-					ui.Icon(c, icons.Upload).FontSize(px(t, 16)).TextColor(t.Text)
-					ui.Text(c, s.text.ImportOPML).NoWrap().FontWeight(500)
-				})
-				if i.Clicked() {
-					s.deps.OpenImport()
+				// Importing a file and restoring a backup both go to Import and export in Settings.
+				for _, quiet := range []struct {
+					icon  *ui.SVG
+					label string
+				}{{icons.Upload, s.text.ImportOPML}, {icons.Database, s.text.RestoreBackup}} {
+					i := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(t.Radius).
+						Background(theme.Track(t))
+					if i.Pressed() {
+						i.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
+					} else if i.Hovered() {
+						i.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
+					}
+					theme.Fade(i)
+					i.Children(func() {
+						ui.Icon(c, quiet.icon).FontSize(px(t, 16)).TextColor(t.Text)
+						ui.Text(c, quiet.label).NoWrap().FontWeight(500)
+					})
+					if i.Clicked() {
+						s.deps.OpenImport()
+					}
 				}
 			})
 			s.packCards(c)

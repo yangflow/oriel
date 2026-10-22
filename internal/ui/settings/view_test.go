@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -63,6 +64,12 @@ type fake struct {
 	startAns, statusAns, confirmAns client.ImportStatus
 	startErr, statusErr, confirmErr error
 	polls, cancels                  int
+
+	backup      []byte // what a backup streams
+	backupErr   error
+	restored    client.Restored
+	restoreErr  error
+	restoreSent [][]byte // the files uploaded to restore
 
 	open, save string // the paths the dialogs answer, "" for cancelled
 	filters    []string
@@ -129,6 +136,23 @@ func (f *fake) ImportOPML(_ context.Context, opml []byte) (client.Imported, erro
 
 func (f *fake) ExportOPML(context.Context) ([]byte, error) { return f.opml, f.exportErr }
 
+func (f *fake) Backup(_ context.Context, dst io.Writer) (int64, error) {
+	n, err := dst.Write(f.backup)
+	if err == nil {
+		err = f.backupErr
+	}
+	return int64(n), err
+}
+
+func (f *fake) Restore(_ context.Context, backup io.Reader) (client.Restored, error) {
+	data, err := io.ReadAll(backup)
+	if err != nil {
+		return client.Restored{}, err
+	}
+	f.restoreSent = append(f.restoreSent, data)
+	return f.restored, f.restoreErr
+}
+
 func (f *fake) TestAI(context.Context) (client.AITest, error) {
 	f.tests++
 	found := f.check
@@ -159,7 +183,7 @@ func (f *fake) deps() Deps {
 	return Deps{
 		Go:  func(work func() func()) { f.queue = append(f.queue, work) },
 		Now: func() time.Time { return now.Add(f.later) },
-		Open: func(filter string) (string, error) {
+		Open: func(filter string, _ ...string) (string, error) {
 			f.filters = append(f.filters, filter)
 			return f.open, nil
 		},

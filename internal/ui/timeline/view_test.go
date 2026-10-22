@@ -2401,7 +2401,7 @@ func TestNoSubscriptionsImport(t *testing.T) {
 	tt = ui.NewTester(s.View, 1100, 800)
 	s.Use(f, "")
 	f.settle(t, tt)
-	for _, text := range []string{"No subscriptions yet", "Add your first subscription", "Import OPML…",
+	for _, text := range []string{"No subscriptions yet", "Add your first subscription", "Import OPML…", "Restore from backup…",
 		"Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram."} {
 		if !tt.HasText(text) {
 			t.Fatalf("no %q in %v", text, tt.Texts())
@@ -2411,6 +2411,12 @@ func TestNoSubscriptionsImport(t *testing.T) {
 		t.Fatal(err)
 	}
 	if f.imports != 1 || s.subs.Open() {
+		t.Fatalf("imports %d, add dialog %v", f.imports, s.subs.Open())
+	}
+	if err := tt.Click("Restore from backup…"); err != nil {
+		t.Fatal(err)
+	}
+	if f.imports != 2 || s.subs.Open() {
 		t.Fatalf("imports %d, add dialog %v", f.imports, s.subs.Open())
 	}
 }

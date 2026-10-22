@@ -45,8 +45,20 @@ func main() {
 	slog.SetDefault(slog.New(logs))
 	// The name decides the user data directory: ~/Library/Application Support/Oriel, %AppData%\Oriel, ~/.config/Oriel.
 	mygo.App.SetName("Oriel")
-	if len(os.Args) > 1 && os.Args[1] == "serve" {
-		os.Exit(serve(os.Args[2:]))
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "serve":
+			os.Exit(serve(os.Args[2:]))
+		case "backup", "restore":
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			command := backupCommand
+			if os.Args[1] == "restore" {
+				command = restoreCommand
+			}
+			code := command(ctx, os.Args[2:], os.Stdout, os.Stderr)
+			stop()
+			os.Exit(code)
+		}
 	}
 	if len(os.Args) > 1 && os.Args[1] == "diagnostics" {
 		os.Exit(diagnostics(os.Args[2:], os.Stdout))
@@ -146,23 +158,28 @@ func desktop() {
 				window.Update(apply)
 			}()
 		}
-		// The files asked for are OPML or the diagnostics text (the settings) or Markdown (the reader), told by the
-		// name offered.
+		// The files asked for are OPML, the diagnostics text or a backup (the settings) or Markdown (the reader), told by
+		// the name offered.
 		filters := func(name, label string) []mygo.FileFilter {
 			switch filepath.Ext(name) {
 			case ".md":
 				return []mygo.FileFilter{{Name: label, Extensions: []string{"md"}}}
 			case ".txt":
 				return []mygo.FileFilter{{Name: label, Extensions: []string{"txt"}}}
+			case ".oriel-backup":
+				return []mygo.FileFilter{{Name: label, Extensions: []string{"oriel-backup"}}}
 			}
 			return []mygo.FileFilter{{Name: label, Extensions: []string{"opml", "xml"}}}
 		}
-		opml := func(name string) []mygo.FileFilter {
-			return []mygo.FileFilter{{Name: name, Extensions: []string{"opml", "xml"}}}
+		opened := func(name string, extensions []string) []mygo.FileFilter {
+			if len(extensions) == 0 {
+				extensions = []string{"opml", "xml"}
+			}
+			return []mygo.FileFilter{{Name: name, Extensions: extensions}}
 		}
 		files := settings.Deps{
-			Open: func(filter string) (string, error) {
-				paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: window, Filters: opml(filter)})
+			Open: func(filter string, extensions ...string) (string, error) {
+				paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: window, Filters: opened(filter, extensions)})
 				if err != nil {
 					slog.Error("Cannot show the open dialog", "error", err)
 				}
