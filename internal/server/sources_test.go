@@ -72,10 +72,10 @@ func TestSourceLifecycle(t *testing.T) {
 	}
 
 	c.t = c.t.Add(time.Minute)
-	w = do(s, "PATCH", "/api/sources/"+id, `{"title":"","kind":"image","muteKeywords":" ad \n\n  sponsor\r\n","paused":true,"keepDays":90}`, bearer(token))
+	w = do(s, "PATCH", "/api/sources/"+id, `{"title":"","kind":"image","muteKeywords":" ad \n\n  sponsor\r\n","paused":true,"keepDays":90,"paceSec":86400}`, bearer(token))
 	patched := decode(t, w)
 	if w.Code != http.StatusOK || patched["title"] != "" || patched["kind"] != "image" || patched["muteKeywords"] != "ad\nsponsor" ||
-		patched["paused"] != true || patched["keepDays"] != 90.0 || patched["updatedAt"] != float64(c.t.UnixMilli()) || patched["fetchIntervalSec"] != 900.0 {
+		patched["paused"] != true || patched["keepDays"] != 90.0 || patched["paceSec"] != 86400.0 || patched["updatedAt"] != float64(c.t.UnixMilli()) || patched["fetchIntervalSec"] != 900.0 {
 		t.Fatalf("patch: %d %v", w.Code, patched)
 	}
 	for body, code := range map[string]string{
@@ -83,11 +83,17 @@ func TestSourceLifecycle(t *testing.T) {
 		`{"fetchIntervalSec":30}`:   "invalid_interval",
 		`{"keepDays":-2}`:           "invalid_keep_days",
 		`{"keepDays":3651}`:         "invalid_keep_days",
+		`{"paceSec":-1}`:            "invalid_pace",
+		`{"paceSec":60}`:            "invalid_pace",
+		`{"paceSec":2592001}`:       "invalid_pace",
 		`{"url":"https://a.org/x"}`: "invalid_body",
 	} {
 		if w := do(s, "PATCH", "/api/sources/"+id, body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
 			t.Errorf("patch %s: %d %s", body, w.Code, w.Body)
 		}
+	}
+	if got := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"paceSec":0}`, bearer(token))); got["paceSec"] != 0.0 || got["keepDays"] != 90.0 {
+		t.Fatalf("pace off: %v", got)
 	}
 	if w := do(s, "POST", "/api/sources/"+id+"/refresh", "", bearer(token)); w.Code != http.StatusConflict || decode(t, w)["error"] != "source_paused" {
 		t.Fatalf("refresh paused: %d %s", w.Code, w.Body)

@@ -32,6 +32,7 @@ func TestMigrationMakesDefaultIntervalAuto(t *testing.T) {
 		"ALTER TABLE sources DROP COLUMN rsshub_instance",
 		"ALTER TABLE sources DROP COLUMN fetch_interval_auto",
 		"ALTER TABLE sources DROP COLUMN suggested_kind",
+		"ALTER TABLE sources DROP COLUMN pace_sec",
 		"ALTER TABLE sources DROP COLUMN keep_days",
 		"INSERT INTO sources (url, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at) VALUES ('https://a.org/a', 'article', 900, 0, 0, 0)",
 		"INSERT INTO sources (url, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at) VALUES ('https://a.org/b', 'article', 3600, 0, 0, 0)",

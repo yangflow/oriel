@@ -81,6 +81,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `mute_keywords` | 按行分隔的屏蔽词，见「屏蔽词」。 |
 | `paused` | 暂停的源不抓，也不能标到期。 |
 | `keep_days` | 这个源自己的保留期限，单位天：`0` 跟随全局的 `retention_days`（默认），`-1` 永久保留，`1` 到 3650 是天数。其它值（小于 -1，大于 3650）不接受，见「保留期限」。迁移 0014 加这一列。 |
+| `pace_sec` | 这个源的节奏：条目在「全部」和「未读」里停留多久，单位秒。`0` 是关（默认，条目一直在），否则是 3600 到 2592000（30 天）的整数，见「节奏」。迁移 0015 加这一列。 |
 | `websub_hub`、`websub_topic` | 订阅里声明的 WebSub hub 和主题（`rel="self"`），没有为空串，见「WebSub 推送」。迁移 0012 加这组 `websub_*` 列。 |
 | `websub_key`、`websub_secret` | 这个源的回调路径令牌和签名密钥，各自随机生成，只存库里，接口不下发。 |
 | `websub_state`、`websub_expires_at`、`websub_requested_at`、`websub_base`、`websub_next_at`、`websub_failures`、`websub_error` | 订阅状态：`''`（没订）、`pending`（等 hub 验证）、`active`（租约有效到 `websub_expires_at`）；最近一次请求的时间和当时用的公开地址；下一次动作（订阅或续订）的时间；连续失败次数和最近的原因。 |
@@ -342,6 +343,30 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 
 - 抓取记录有自己的上限（每源 10 次，见「抓取记录」），不看保留期限。
 
+## 节奏
+
+每个源可以设一个「节奏」`pace_sec`：条目在默认时间线里能待多久。快讯几小时就没用了，长文几周后还值得读；没有节奏，两种源的未读都攒在那里，未读数成了读者的负担。节奏**只藏，不删，不改阅读状态**，和保留期限（「保留期限」，删数据）是两回事，互不影响。
+
+预设只有四档，客户端的选择菜单只给这些：
+
+| 名称 | `pace_sec` | 用途 |
+|---|---|---|
+| 关 | `0` | 默认，和没有这个功能时一样，条目一直在 |
+| 快讯 | 10800（3 小时） | 新闻、快讯、动态 |
+| 日更 | 172800（2 天） | 日常的博客和专栏 |
+| 周更 | 604800（7 天） | 长文、周刊、播客 |
+
+服务端存的是别的值（3600 到 2592000 之间）时，菜单多一项「N 小时」或「N 天」（整天数用天），照常显示。
+
+规则：条目的时间取列表行上显示的时间，即 `published_at`，没有就用 `created_at`。`pace_sec` 大于 0 时，**未读且未收藏**的条目：
+
+- 到期前最后四分之一的时间（`pace_sec` 的 25%）里**渐隐**：列表行的不透明度随时间从 1 线性降到 0.55，到期那一刻是 0.55。
+- 到期（比现在早过 `pace_sec`）后**离开**「全部」和「未读」：`GET /api/entries` 在没有 `source`、没有 `starred=1`、没有 `q` 时不返回它，包括按 `kind` 筛的；它也不计入源的 `unreadCount`；「全部已读」「把上面的标为已读」不会标到它。
+- **留在**检索（`q`）、「收藏」（`starred=1`）和这个源自己的视图（带 `source`）里，在那里不隐藏；在源自己的视图里到期的条目仍然是渐隐的样子，让读者知道它在全部里已经看不到了。源自己的视图里条目会比侧栏的 `unreadCount` 多，这是预期的。
+- 已读的条目不受节奏影响（已经读过，不会再攒成负担）；收藏的条目也不受影响。读了或收藏了一个到期的条目，它回到「全部」里它按时间该在的位置。
+- 不标已读、不删除、`read_at` 和 `is_read` 不变。改了 `pace_sec` 马上生效，改回 `0` 后条目重新出现。按 `id` 仍能取到和修改。
+- 判断用服务端的当前时间，不看客户端的时钟。列表里到期的条目要等下一次刷新列表才消失，不会在打开的列表里自己抽走。
+
 ## 鉴权
 
 - 没设口令时，服务端只听 `127.0.0.1`，不校验。桌面模式默认这样。
@@ -364,7 +389,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 
 ## 订阅接口
 
-都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
+都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
 
 | 路由 | 作用 |
 |---|---|
@@ -389,9 +414,10 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 - `fetchIntervalSec` 是 60 到 604800（7 天）的整数，否则 `invalid_interval`。给了它就是固定间隔；`fetchIntervalAuto` 是布尔值，缺省为 `true`，即两个都不给时间隔「自动」，起点 900。`fetchIntervalAuto` 为 `true` 又给了 `fetchIntervalSec`，返回 `invalid_interval`。
 - 同一订阅已经有了（订阅地址按「源」一节规范化后比较，末尾多一个 `/`、主机名大小写或默认端口不同都算已有），返回 409 `source_exists`。
 
-能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`。订阅地址不能改，要换就删了重加。
+能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`。订阅地址不能改，要换就删了重加。
 
 - `keepDays` 是 -1 到 3650 的整数，否则 `invalid_keep_days`。
+- `paceSec` 是 `0` 或 3600 到 2592000 的整数，否则 `invalid_pace`。
 - 标题改成空串时，下次抓取用订阅里的标题补上。
 - 改 `kind` 后条目的形态跟着变（见「数据模型」）；改成别的形态的源不再抽取正文。
 - 改 `fetchIntervalSec` 从下一次抓取之后生效，同时把间隔改成固定（`fetchIntervalAuto` 变 `false`）；想马上抓就「更新」。`fetchIntervalAuto` 改成 `true` 后，现在用的间隔留着，下一次成功抓取时重新算；同时给 `fetchIntervalSec` 和 `true` 返回 `invalid_interval`。
@@ -413,14 +439,14 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 | `POST /api/entries/read` | 「全部已读」「把上面的标为已读」「把订阅标为已读」，返回 `{ "marked": n, "ids": [...] }`。 |
 | `POST /api/entries/unread` | 撤销上面三种已读：把请求里的 `ids` 标回未读，返回 `{ "marked": n }`。 |
 
-列表里的条目：`id`、`sourceId`、`sourceTitle`（源的标题，空就用地址）、`kind`（源的形态）、`title`、`url`、`author`、`publishedAt`、`summary`（订阅里的摘要）、`aiSummary`（见下）、`thumbnailUrl`、`durationSec`、`platform`、`images`、`language`（没有为空串）、`readingSec`（没有为 `null`）、`readProgress`（从没滚动过时不出现）、`extractStatus`、`isRead`、`readAt`、`starred`、`createdAt`。没有的时间和时长为 `null`。单个条目再多带 `contentHtml`（订阅里的正文）和 `extractedHtml`（抽取的正文，没有为空串）。
+列表里的条目：`id`、`sourceId`、`sourceTitle`（源的标题，空就用地址）、`kind`（源的形态）、`title`、`url`、`author`、`publishedAt`、`summary`（订阅里的摘要）、`aiSummary`（见下）、`thumbnailUrl`、`durationSec`、`platform`、`images`、`language`（没有为空串）、`readingSec`（没有为 `null`）、`readProgress`（从没滚动过时不出现）、`extractStatus`、`isRead`、`readAt`、`starred`、`createdAt`，源有节奏、条目未读且未收藏时再有 `fadesAt` 和 `expiresAt`（Unix 毫秒，见「节奏」：渐隐从 `fadesAt` 开始，`expiresAt` 离开「全部」和「未读」），否则这两个字段不出现。没有的时间和时长为 `null`。单个条目再多带 `contentHtml`（订阅里的正文）和 `extractedHtml`（抽取的正文，没有为空串）。
 
 `aiSummary` 是这个条目已存的 AI 摘要，给时间线的行代替订阅里的摘要显示：只在摘要任务的结果是 `ok` 且有文字时出现，否则整个字段不出现。它读的是「AI 结果」里存着的那一行，列表从不触发生成，也不调 AI 接口；阅读器显示的是同一份。为了不让列表变大，文字压平空白后最多 300 个字符，超出时在词界（没有空格的文字就在字符处）截断并加 `…`；完整的摘要用 `GET /api/entries/{id}/ai` 取。单个条目不带这个字段。
 
 `GET /api/entries` 的查询参数，都可选，可以组合：
 
 - `source`：只看这个源；`kind`：只看这种形态的源。值不对时 `invalid_source`、`invalid_kind`。
-- `unread=1`：只看未读；`starred=1`：只看收藏。其他值当没给。
+- `unread=1`：只看未读；`starred=1`：只看收藏。其他值当没给。有节奏的源里到期的条目只在带 `source`、`starred=1` 或 `q` 时返回，见「节奏」。
 - `q`：全文检索标题、订阅摘要和抽取的正文。去掉首尾空白后按整段文字匹配，不认检索语法，不分大小写。trigram 分词要求至少 3 个字符，短了返回 `query_too_short`。
 - `maxMinutes`：只看 `reading_sec` 不为空且不超过 N × 60 秒的条目，N 是 1 到 1440 的整数；不是整数或超出范围时 `invalid_max_minutes`。没给就不筛。条目没有 `reading_sec` 时（图片、没有时长的视频等）开了它就不返回。见「阅读时间」。
 - `limit`：一页几条，1 到 100，默认 50，否则 `invalid_limit`。
@@ -689,6 +715,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - 未读的条目左边有一个强调色圆点，标题加粗；已读的标题变淡。
 - 时间显示为相对时间（「5 分钟前」「3 小时前」「昨天」「3 天前」），一周以前显示日期，不是今年时带年份。用 `publishedAt`，没有就用 `createdAt`。
 - 阅读时间：行的信息行里，时间后面是一小段安静的次要文字「6 分钟阅读」，规则见「阅读时间」；没有的不留空位。
+- 节奏：有节奏的源里未读未收藏的条目，到期前最后四分之一的时间里整行渐隐（不透明度从 1 线性降到 0.55，规则见「节奏」），按条目的 `fadesAt` 和 `expiresAt` 和现在的时间算；悬停和选中时行的底色照常。渐隐的行的无障碍名称在最后加「，即将退出时间线」（英文 "leaving the timeline soon"），到期后只在源自己的视图里还看得到的同样加。没有节奏的行不变。
 - 图片经图片代理取，在后台解码，同时最多取 4 张；内存里缓存最近解码过的图，取失败的显示占位底色，不再重试，直到重新加载。画列表和网格时都不做磁盘和网络的活。
 
 查看方式：每个形态可以选一种画法，是这台设备自己的偏好（存在 `preferences.json`，在「设置」的「外观」里改，见「外观」）。
@@ -878,7 +905,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 
 本地识别只认上表；知乎、B 站动态等见「订阅发现」的规则表，由服务端给出。X 的 `home`、`i`、`search`、`explore`、`settings`、`messages`、`notifications` 等站内页面不算用户名。路径以 `.atom`、`.rss`、`.xml` 结尾的本来就是订阅，不再转换。别的地址原样当订阅地址。
 
-修改：右键菜单的「编辑…」或工具栏的编辑按钮打开编辑对话框。最上面一行是抓取状况：「5 分钟前检查过 · 10 分钟后再查」，还没抓过时「还没检查过」，失败时「连续失败 N 次：原因」，暂停时「已暂停，恢复之前不抓取」，旁边是「更新」（失败时叫「重试」，暂停时没有）。RSSHub 源在这一行下面多一行小字「由 rsshub.example 提供」（`rsshubInstance` 去掉协议；从没成功抓取过则没有这一行），实例不是设置里的第一个时再加「（备用）」，看得出现在走的是备用实例。下面是标题、检查间隔（自动的订阅写成「自动 · 6 小时」，后面是现在用的间隔）、形态、「保留条目」、暂停开关和屏蔽词（每行一个）。「保留条目」和检查间隔是同样的选择菜单：「跟随设置 · 1 个月」（默认，后面是设置里现在的期限，设置是永久时写「永久」）、1 周、1 个月、3 个月、半年、1 年、永久；服务端存的是别的天数时多一项「N 天」；下面一行小字说明「更早的条目会被清理，收藏的条目一直保留。」。第一次抓取后服务端觉得形态不对时，形态下面多一行建议：「这个订阅的条目大多是视频。」带一个按钮「显示为视频」；按下只是在对话框里选了那个形态，点「保存」才生效，不按就什么都不变。「保存」只发改了的字段。订阅地址不能改。最后一组是「摘要和翻译」：「自动生成摘要」「自动翻译」两个开关（只管打开之后新到的条目），和摘要、翻译两个 prompt 框，留空就用设置里的 prompt。没配置 AI 时这一组上面多一行「还没配置 AI，暂时不会生成摘要和翻译」，带「打开设置…」。
+修改：右键菜单的「编辑…」或工具栏的编辑按钮打开编辑对话框。最上面一行是抓取状况：「5 分钟前检查过 · 10 分钟后再查」，还没抓过时「还没检查过」，失败时「连续失败 N 次：原因」，暂停时「已暂停，恢复之前不抓取」，旁边是「更新」（失败时叫「重试」，暂停时没有）。RSSHub 源在这一行下面多一行小字「由 rsshub.example 提供」（`rsshubInstance` 去掉协议；从没成功抓取过则没有这一行），实例不是设置里的第一个时再加「（备用）」，看得出现在走的是备用实例。下面是标题、检查间隔（自动的订阅写成「自动 · 6 小时」，后面是现在用的间隔）、形态、「保留条目」、「节奏」、暂停开关和屏蔽词（每行一个）。「保留条目」和检查间隔是同样的选择菜单：「跟随设置 · 1 个月」（默认，后面是设置里现在的期限，设置是永久时写「永久」）、1 周、1 个月、3 个月、半年、1 年、永久；服务端存的是别的天数时多一项「N 天」；下面一行小字说明「更早的条目会被清理，收藏的条目一直保留。」。「节奏」是同样的选择菜单，在「保留条目」下面：「关」（默认）、「快讯 · 3 小时」「日更 · 2 天」「周更 · 7 天」；服务端存的是别的秒数时多一项「N 小时」或「N 天」；下面一行小字说明「没读的条目超过这个时间就从“全部”和“未读”里退出，渐隐在前；检索、收藏和这个订阅自己的页面里还在。」。第一次抓取后服务端觉得形态不对时，形态下面多一行建议：「这个订阅的条目大多是视频。」带一个按钮「显示为视频」；按下只是在对话框里选了那个形态，点「保存」才生效，不按就什么都不变。「保存」只发改了的字段。订阅地址不能改。最后一组是「摘要和翻译」：「自动生成摘要」「自动翻译」两个开关（只管打开之后新到的条目），和摘要、翻译两个 prompt 框，留空就用设置里的 prompt。没配置 AI 时这一组上面多一行「还没配置 AI，暂时不会生成摘要和翻译」，带「打开设置…」。
 
 暂停和恢复：右键菜单或编辑对话框的开关，发 `PATCH` 改 `paused`。
 

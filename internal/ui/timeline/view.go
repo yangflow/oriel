@@ -30,7 +30,7 @@ import (
 var catalog []byte
 
 type copy struct {
-	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show                                                                         string
+	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
 	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                                                     string
 	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                                            string
@@ -2065,7 +2065,30 @@ func (s *Screen) label(e client.Entry, now time.Time) string {
 	if s.waitingFor(e.ID) >= 0 {
 		parts = append(parts, s.text.Pending)
 	}
+	if fade(e, now) < 1 {
+		parts = append(parts, s.text.Leaving)
+	}
 	return strings.Join(parts, s.text.Separator)
+}
+
+// fadedOpacity is how clear an unread entry is when its time is nearly up.
+const fadedOpacity = 0.55
+
+// fade is the opacity of an entry: 1 until the server says it starts to fade (the last quarter of its source's
+// pace), then down to fadedOpacity at the moment it leaves All and Unread. See docs/product.md "节奏".
+func fade(e client.Entry, now time.Time) float32 {
+	if e.FadesAt <= 0 || e.ExpiresAt <= e.FadesAt || e.IsRead || e.Starred {
+		return 1
+	}
+	at := now.UnixMilli()
+	if at <= e.FadesAt {
+		return 1
+	}
+	if at >= e.ExpiresAt {
+		return fadedOpacity
+	}
+	progress := float32(at-e.FadesAt) / float32(e.ExpiresAt-e.FadesAt)
+	return 1 - progress*(1-fadedOpacity)
 }
 
 // readLabel is "6 min read" for an entry that is read and takes a minute or more; podcasts and videos, which have a
@@ -3794,6 +3817,9 @@ func (s *Screen) item(c *ui.Context, e ui.Element, i int, now time.Time, ringCho
 	}
 	if e.Focused() && s.selected != i {
 		s.selected = i
+	}
+	if opacity := fade(entry, now); opacity < 1 {
+		e.Opacity(opacity)
 	}
 	hovered, chosen = e.Hovered(), s.selected == i
 	if hovered {

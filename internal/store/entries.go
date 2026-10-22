@@ -39,6 +39,10 @@ type Entry struct {
 	ReadAt        time.Time
 	Starred       bool
 	CreatedAt     time.Time
+	// FadesAt and ExpiresAt are when an unread entry of a source with a pace starts to fade and leaves All and Unread;
+	// zero for a read or starred entry and for a source without a pace.
+	FadesAt   time.Time
+	ExpiresAt time.Time
 }
 
 // Position is a place on the timeline, which runs from the newest created_at and ID to the oldest.
@@ -72,11 +76,18 @@ type EntryPatch struct {
 const entryColumns = `
 	e.id, e.source_id, CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN s.url ELSE s.rsshub_path END, s.kind,
 	e.title, e.url, e.author, e.published_at, e.rss_summary, e.thumbnail_url, e.duration_sec, e.platform, e.images,
-	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec, e.read_progress`
+	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec, e.read_progress,
+	s.pace_sec, coalesce(nullif(e.published_at, 0), e.created_at)`
 
 // shown keeps the entries of s that none of its mute keywords hides. Starred entries are never hidden.
 // A source without keywords is decided in SQL, so the Go function runs only for sources that have some.
 const shown = "(e.starred = 1 OR s.mute_keywords = '' OR NOT muted(s.mute_keywords, e.title, e.rss_summary))"
+
+// live keeps out the unread entries whose source has a pace and whose time is up: they leave All and Unread and
+// their counts, and stay in search, Starred and the source's own view. The time is the published time, else the
+// time the entry was fetched, plus the pace; read and starred entries never expire. See docs/product.md "节奏".
+const live = "(s.pace_sec = 0 OR e.is_read = 1 OR e.starred = 1 OR " +
+	"coalesce(nullif(e.published_at, 0), e.created_at) + s.pace_sec * 1000 > CAST(unixepoch('subsec') * 1000 AS INTEGER))"
 
 func init() {
 	sqlite.MustRegisterDeterministicScalarFunction("muted", 3, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
@@ -112,6 +123,8 @@ func (f EntryFilter) where() (string, []any) {
 	}
 	if f.SourceID != 0 {
 		add("e.source_id = ?", f.SourceID)
+	} else if f.Query == "" {
+		add(live)
 	}
 	// Inside one source the source index already gives the order. The unary plus keeps the kind and unread
 	// conditions from drawing the planner to an index over every source, which reads far more rows.
@@ -311,10 +324,10 @@ func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error)
 	var language sql.NullString
 	var reading sql.NullInt64
 	var progress sql.NullFloat64
-	var created int64
+	var created, paceSec, base int64
 	dest := append([]any{&entry.ID, &entry.SourceID, &entry.SourceTitle, &entry.Kind, &entry.Title, &entry.URL,
 		&entry.Author, &published, &entry.Summary, &entry.ThumbnailURL, &duration, &entry.Platform, &images,
-		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading, &progress}, extra...)
+		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading, &progress, &paceSec, &base}, extra...)
 	if err := row.Scan(dest...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Entry{}, ErrNotFound
@@ -340,5 +353,9 @@ func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error)
 	}
 	entry.DurationSec = int(duration.Int64)
 	entry.CreatedAt = time.UnixMilli(created)
+	if paceSec > 0 && !entry.IsRead && !entry.Starred {
+		entry.FadesAt = time.UnixMilli(base + paceSec*750)
+		entry.ExpiresAt = time.UnixMilli(base + paceSec*1000)
+	}
 	return entry, nil
 }

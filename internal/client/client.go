@@ -279,6 +279,10 @@ type Entry struct {
 	IsRead        bool   `json:"isRead"`
 	Starred       bool   `json:"starred"`
 	CreatedAt     int64  `json:"createdAt"`
+	// FadesAt and ExpiresAt, in Unix milliseconds, are when an unread entry of a source with a pace starts to fade
+	// and leaves All and Unread; 0 when it has none.
+	FadesAt   int64 `json:"fadesAt,omitempty"`
+	ExpiresAt int64 `json:"expiresAt,omitempty"`
 }
 
 // Article is an entry with its text: ContentHTML is what the feed carries and ExtractedHTML the text taken from
@@ -309,6 +313,7 @@ type Source struct {
 	MuteKeywords        string `json:"muteKeywords"`
 	Paused              bool   `json:"paused"`
 	KeepDays            int    `json:"keepDays"`
+	PaceSec             int    `json:"paceSec"`
 	UnreadCount         int    `json:"unreadCount"`
 	PromptSummary       string `json:"promptSummary"`
 	PromptTranslate     string `json:"promptTranslate"`
@@ -338,7 +343,9 @@ type SourcePatch struct {
 	Paused            *bool   `json:"paused,omitempty"`
 	// KeepDays is the keep period of the source's entries: 0 follows the global setting, -1 keeps them forever,
 	// else a number of days up to 3650. Starred entries are always kept.
-	KeepDays        *int    `json:"keepDays,omitempty"`
+	KeepDays *int `json:"keepDays,omitempty"`
+	// PaceSec is how long an unread entry stays in All and Unread, in seconds: 0 turns it off, else 3600 to 2592000.
+	PaceSec         *int    `json:"paceSec,omitempty"`
 	PromptSummary   *string `json:"promptSummary,omitempty"`
 	PromptTranslate *string `json:"promptTranslate,omitempty"`
 	AutoSummary     *bool   `json:"autoSummary,omitempty"`
