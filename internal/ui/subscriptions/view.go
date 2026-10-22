@@ -28,29 +28,29 @@ import (
 var catalog []byte
 
 type copy struct {
-	Add, AddShort, AddContinue, AddContinueTip, Done, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs string
-	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute                              string
-	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo                                     string
-	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder                                      string
-	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added                                    string
-	AddedSoFar, SearchingFeeds, FoundMany, NoneFound, SiteYouTube, SiteBilibili, SiteWeibo, SiteZhihu, SiteX                                string
-	SearchingRoutes, FoundRoutes, Preview, PreviewOf, PreviewEmpty, PreviewNotFound, NoCatalog, NoRoutes                                    string
-	LabelVideos, LabelDynamic, LabelPosts, LabelActivities, LabelAnswers, LabelColumn, LabelTopic, LabelCollection, LabelQuestion           string
-	LabelChannel, LabelPlaylist                                                                                                             string
-	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn                          string
-	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                               string
-	ServedBy, ServedByBackup, MuteHidden, MuteNone                                                                                          string
-	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                         string
-	Extract, ExtractHelp, ExtractSelector, ExtractSelectorHelp, ExtractSelectorPlaceholder, ExtractSelectorInvalid                          string
-	ExtractReferer, ExtractRefererHelp, ExtractRefererPlaceholder, ExtractRefererInvalid                                                    string
-	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                string
-	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                            string
-	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                         string
-	Undo, Dismiss, UndoFailed                                                                                                               string
-	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                 string
-	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                       string
-	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                      string
-	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                   string
+	Add, AddShort, AddContinue, AddContinueTip, Done, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs                           string
+	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute                                                        string
+	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo                                                               string
+	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder, PublicNote, PublicNoInstance, UseMine, Blocked, BlockedPublic string
+	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added                                                              string
+	AddedSoFar, SearchingFeeds, FoundMany, NoneFound, SiteYouTube, SiteBilibili, SiteWeibo, SiteZhihu, SiteX                                                          string
+	SearchingRoutes, FoundRoutes, Preview, PreviewOf, PreviewEmpty, PreviewNotFound, NoCatalog, NoRoutes                                                              string
+	LabelVideos, LabelDynamic, LabelPosts, LabelActivities, LabelAnswers, LabelColumn, LabelTopic, LabelCollection, LabelQuestion                                     string
+	LabelChannel, LabelPlaylist                                                                                                                                       string
+	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn                                                    string
+	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                                                         string
+	ServedBy, ServedByBackup, MuteHidden, MuteNone                                                                                                                    string
+	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                                                   string
+	Extract, ExtractHelp, ExtractSelector, ExtractSelectorHelp, ExtractSelectorPlaceholder, ExtractSelectorInvalid                                                    string
+	ExtractReferer, ExtractRefererHelp, ExtractRefererPlaceholder, ExtractRefererInvalid                                                                              string
+	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                          string
+	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                                      string
+	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                   string
+	Undo, Dismiss, UndoFailed                                                                                                                                         string
+	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                                           string
+	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                                                 string
+	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                                string
+	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                             string
 }
 
 var translations = func() map[string]copy {
@@ -110,7 +110,9 @@ type Deps struct {
 	MarkRead     func(src client.Source)
 	MarkOlder    func(src client.Source, days int)
 	OpenSettings func()
-	Expired      func()
+	// OpenRSSHub opens the settings on the group of the RSSHub instances.
+	OpenRSSHub func()
+	Expired    func()
 }
 
 // The settings of the add dialog, which say whether a route needs an RSSHub instance first.
@@ -276,6 +278,19 @@ func Name(src client.Source) string {
 	return src.URL
 }
 
+// FailureReason is why the last fetch of src failed, to put after "Last fetch failed:": the server's text, or for a
+// fetch the site's bot protection turned away (kind "blocked") a sentence in the user's language, with blockedPublic
+// for the public rsshub.app and blocked for any other site.
+func FailureReason(src client.Source, blocked, blockedPublic string) string {
+	if src.LastErrorKind != "blocked" {
+		return src.LastError
+	}
+	if u, err := url.Parse(src.URL); err == nil && strings.EqualFold(u.Hostname(), PublicHost) {
+		return blockedPublic
+	}
+	return blocked
+}
+
 func (s *Screen) fill(text, name string) string { return strings.ReplaceAll(text, "{name}", name) }
 
 func (s *Screen) count(text string, n int) string {
@@ -347,7 +362,7 @@ func (s *Screen) canAdd() bool {
 // address of a feed file already say what they subscribe to.
 func (s *Screen) lookable() string {
 	t, ok := recognize(s.add.address, s.add.root)
-	if !ok || t.Platform != feed || t.URL == "" {
+	if !ok || t.Platform != feed || t.URL == "" || t.Public {
 		return ""
 	}
 	if u, err := url.Parse(t.URL); err == nil {
@@ -1239,7 +1254,8 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 			what, where = s.describeCandidate(cand)
 		}
 		shown := s.routeView()
-		looking := !empty && valid && (a.look.state == lookWaiting || a.look.state == lookSearching)
+		public := !empty && valid && t.Public && !hasCand
+		looking := !empty && valid && !public && (a.look.state == lookWaiting || a.look.state == lookSearching)
 		box(c, "address", icons.Link, a.addressErr != "", th.Surface, func() {
 			in := ui.TextInputBase(c, &a.address).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.Address).
 				Placeholder(s.text.AddressPlaceholder).Disabled(a.busy).
@@ -1259,6 +1275,8 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 				in.Description(s.text.AddressHelp)
 			case needsBase:
 				in.Description(s.text.NeedsBase)
+			case public:
+				in.Description(s.text.PublicNote)
 			case looking:
 				in.Description(s.text.SearchingFeeds)
 			case a.look.state == lookDone && !hasCand:
@@ -1297,6 +1315,8 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 			help(c, s.text.AddressHelp)
 		case needsBase:
 			s.baseCard(c)
+		case public:
+			s.publicCard(c)
 		case looking:
 			s.searching(c, s.text.SearchingFeeds)
 		case a.look.state == lookDone && !hasCand:
@@ -1427,6 +1447,41 @@ func (s *Screen) addedCard(c *ui.Context, line string) {
 		Background(theme.Soft(th, th.Success)).Role(ui.RoleStatus).Label(line).Children(func() {
 		ui.Icon(c, icons.Check).FontSize(px(th, 16)).TextColor(th.Success)
 		ui.Text(c, line).Grow(1).MinWidth(0).FontWeight(500).SingleLine()
+	})
+}
+
+// publicCard warns that the public RSSHub instance blocks Oriel. With an instance of the user's own set it offers to
+// swap the address for its route, only when pressed; without one it leads to the settings to add it.
+func (s *Screen) publicCard(c *ui.Context) {
+	t := c.Theme()
+	a := &s.add
+	own := strings.TrimSpace(a.root) != ""
+	text := s.text.PublicNoInstance
+	if own {
+		text = s.text.PublicNote
+	}
+	ui.Column(c).FillWidth().Gap(t.Space(2)).Padding(px(t, 10)).Radius(t.Radius).
+		Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(1.5)).Children(func() {
+			ui.Icon(c, icons.TriangleAlert).FontSize(px(t, 14)).TextColor(t.Warning).Margin(2, 0, 0, 0)
+			ui.Text(c, text).FontWeight(500).TextColor(t.Warning).Shrink(1).Wrap()
+		})
+		use := button(c, small, false)
+		if own {
+			textButton(c, use, small, nil, s.text.UseMine, false)
+			if use.Clicked() {
+				a.address = publicRoute(a.address)
+				a.focus = addressField
+			}
+			return
+		}
+		textButton(c, use, small, nil, s.text.OpenSettings, false)
+		if use.Clicked() {
+			a.open = false
+			if s.deps.OpenRSSHub != nil {
+				s.deps.OpenRSSHub()
+			}
+		}
 	})
 }
 
@@ -1819,11 +1874,11 @@ func (s *Screen) healthText(src client.Source, now time.Time) (string, bool) {
 	case src.Paused:
 		return s.text.Paused, false
 	case src.LastError != "":
+		why := FailureReason(src, s.text.Blocked, s.text.BlockedPublic)
 		if src.ConsecutiveFailures > 1 {
-			return strings.ReplaceAll(s.count(s.text.FailedTimes, src.ConsecutiveFailures), "{error}", src.LastError),
-				true
+			return strings.ReplaceAll(s.count(s.text.FailedTimes, src.ConsecutiveFailures), "{error}", why), true
 		}
-		return strings.ReplaceAll(s.text.FailedOnce, "{error}", src.LastError), true
+		return strings.ReplaceAll(s.text.FailedOnce, "{error}", why), true
 	case src.LastFetchedAt == 0:
 		return s.text.NotChecked, false
 	}

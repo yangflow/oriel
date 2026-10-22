@@ -93,7 +93,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 // route. Bookkeeping does not change the source's updated_at.
 func (s *Store) FetchSuccess(ctx context.Context, id int64, etag, lastModified, instance string, now, next time.Time, interval time.Duration) error {
 	_, err := s.db.ExecContext(ctx, `
-		UPDATE sources SET last_fetched_at = ?1, last_success_at = ?1, consecutive_failures = 0, last_error = '',
+		UPDATE sources SET last_fetched_at = ?1, last_success_at = ?1, consecutive_failures = 0, last_error = '', last_error_kind = '',
 			etag = CASE WHEN ?2 = '' THEN etag ELSE ?2 END,
 			last_modified = CASE WHEN ?3 = '' THEN last_modified ELSE ?3 END,
 			next_fetch_at = ?4,
@@ -141,12 +141,14 @@ func (s *Store) SetSourceIcon(ctx context.Context, id int64, icon, site string) 
 	return err
 }
 
-// FetchFailure records a failed fetch and when to try again.
-func (s *Store) FetchFailure(ctx context.Context, id int64, message string, now, next time.Time) error {
+// FetchFailure records a failed fetch and when to try again. kind is the stable code of the reason, empty when
+// the reason has none.
+func (s *Store) FetchFailure(ctx context.Context, id int64, message, kind string, now, next time.Time) error {
 	_, err := s.db.ExecContext(ctx, `
-		UPDATE sources SET last_fetched_at = ?, consecutive_failures = consecutive_failures + 1, last_error = ?, next_fetch_at = ?
+		UPDATE sources SET last_fetched_at = ?, consecutive_failures = consecutive_failures + 1, last_error = ?, last_error_kind = ?,
+			next_fetch_at = ?
 		WHERE id = ?`,
-		now.UnixMilli(), message, next.UnixMilli(), id)
+		now.UnixMilli(), message, kind, next.UnixMilli(), id)
 	return err
 }
 

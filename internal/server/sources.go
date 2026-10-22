@@ -37,6 +37,7 @@ type sourceJSON struct {
 	LastFetchedAt       *int64 `json:"lastFetchedAt"`
 	LastSuccessAt       *int64 `json:"lastSuccessAt"`
 	LastError           string `json:"lastError"`
+	LastErrorKind       string `json:"lastErrorKind"`
 	ConsecutiveFailures int    `json:"consecutiveFailures"`
 	PromptSummary       string `json:"promptSummary"`
 	PromptTranslate     string `json:"promptTranslate"`
@@ -67,7 +68,7 @@ func toJSON(src store.Source) sourceJSON {
 		ID: src.ID, URL: src.URL, RSSHubPath: src.RSSHubPath, Title: src.Title, SiteURL: src.SiteURL,
 		IconURL: src.IconURL, Kind: src.Kind, FetchIntervalSec: int64(src.FetchInterval / time.Second),
 		NextFetchAt: src.NextFetchAt.UnixMilli(), LastFetchedAt: millis(src.LastFetchedAt),
-		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError,
+		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError, LastErrorKind: src.LastErrorKind,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
 		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, RSSHubInstance: src.RSSHubInstance, WebSubHub: src.WebSubHub,

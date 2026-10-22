@@ -34,7 +34,7 @@ func TestDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 	failure := `Get "https://feeds.example.com/private/feed.xml?token=abc": EOF`
-	if err := st.FetchFailure(ctx, src.ID, failure, at, at.Add(time.Hour)); err != nil {
+	if err := st.FetchFailure(ctx, src.ID, failure, "", at, at.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.SetSetting(ctx, ai.APIKeySetting, "sk-seeded-ai-key"); err != nil {

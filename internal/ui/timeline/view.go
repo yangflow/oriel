@@ -32,7 +32,7 @@ var catalog []byte
 type copy struct {
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
-	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                                                     string
+	MarkUnread, Open, Blocked, BlockedPublic, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                             string
 	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                                            string
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                                             string
 	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                            string
@@ -357,6 +357,11 @@ func New(systemLocale string, deps Deps) *Screen {
 		MarkRead:     s.markSource,
 		MarkOlder:    s.markSourceOlder,
 		OpenSettings: deps.OpenAISettings,
+		OpenRSSHub: func() {
+			if deps.OpenSettingsPage != nil {
+				deps.OpenSettingsPage("fetching")
+			}
+		},
 		Expired: func() {
 			s.gen++
 			s.api = nil
@@ -554,7 +559,7 @@ func (s *Screen) fetchNote(src client.Source, w watch) fetchNote {
 	var text string
 	switch n := src.UnreadCount; {
 	case src.LastError != "":
-		text, note.failed = strings.ReplaceAll(s.text.FetchFailed, "{error}", src.LastError), true
+		text, note.failed = strings.ReplaceAll(s.text.FetchFailed, "{error}", s.failure(src)), true
 	case w.added && n == 0:
 		text = s.text.FetchedNone
 	case w.added && n == 1:
@@ -2012,7 +2017,12 @@ func (s *Screen) reason(src client.Source) string {
 	if src.ConsecutiveFailures > 1 {
 		text = s.format(s.text.FailedTimes, src.ConsecutiveFailures)
 	}
-	return strings.ReplaceAll(text, "{error}", src.LastError)
+	return strings.ReplaceAll(text, "{error}", s.failure(src))
+}
+
+// failure is the reason src failed, in the user's language when the site's bot protection turned the fetch away.
+func (s *Screen) failure(src client.Source) string {
+	return subscriptions.FailureReason(src, s.text.Blocked, s.text.BlockedPublic)
 }
 
 // failingName is the name of a failing subscription for a screen reader: its name, its unread count when it has

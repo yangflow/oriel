@@ -55,6 +55,7 @@ type fake struct {
 	marked   []int64
 	older    [][2]int64 // subscription and days of each "Mark older than"
 	opened   int        // the AI settings
+	rsshub   int        // the RSSHub instances in the settings
 	expired  int
 }
 
@@ -154,6 +155,7 @@ func (f *fake) deps() Deps {
 		MarkRead:     func(src client.Source) { f.marked = append(f.marked, src.ID) },
 		MarkOlder:    func(src client.Source, days int) { f.older = append(f.older, [2]int64{src.ID, int64(days)}) },
 		OpenSettings: func() { f.opened++ },
+		OpenRSSHub:   func() { f.rsshub++ },
 		Expired:      func() { f.expired++ },
 	}
 }
@@ -514,6 +516,58 @@ func TestNeedsBase(t *testing.T) {
 	}
 }
 
+func TestPublicInstanceNote(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	open(t, s, f, tt)
+	tt.Type("https://rsshub.app/github/trending/daily?language=go")
+	tt.Frame()
+	if !tt.HasText(s.text.PublicNote) || tt.HasText(s.text.SearchingFeeds) || s.lookable() != "" {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if s.add.address != "https://rsshub.app/github/trending/daily?language=go" {
+		t.Fatalf("the address changed to %q on its own", s.add.address)
+	}
+	if err := tt.Click(s.text.UseMine); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if s.add.address != "/github/trending/daily?language=go" || tt.HasText(s.text.PublicNote) {
+		t.Fatalf("address %q, texts %v", s.add.address, tt.Texts())
+	}
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if len(f.added) != 1 || f.added[0].RSSHubPath != "/github/trending/daily?language=go" {
+		t.Fatalf("added %+v", f.added)
+	}
+}
+
+func TestPublicInstanceNoteWithoutInstance(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.settings.RSSHubBaseURLs = nil
+	open(t, s, f, tt)
+	tt.Type("https://rsshub.app/github/trending/daily")
+	tt.Frame()
+	if !tt.HasText(s.text.PublicNoInstance) || tt.HasText(s.text.UseMine) || tt.HasText(s.text.NeedsBase) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if err := tt.Click(s.text.OpenSettings); err != nil {
+		t.Fatal(err)
+	}
+	if f.rsshub != 1 || s.Open() {
+		t.Fatalf("rsshub %d, open %v", f.rsshub, s.Open())
+	}
+}
+
+func TestPublicInstanceNoteOnlyForTheRoute(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	open(t, s, f, tt)
+	tt.Type("https://rsshub.app/")
+	tt.Frame()
+	if tt.HasText(s.text.PublicNote) {
+		t.Fatal("a note for the home page")
+	}
+}
+
 func TestSettingsFail(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	f.settingsErr = client.ErrUnreachable
@@ -690,6 +744,10 @@ func TestHealth(t *testing.T) {
 		{f.sources[0], "Checked 3 min ago · next in 12 min", false},
 		{f.sources[1], "Failed 3 times in a row: status 503", true},
 		{client.Source{LastError: "timeout", ConsecutiveFailures: 1}, "Last fetch failed: timeout", true},
+		{client.Source{URL: "https://rsshub.app/x", LastError: "status 403: blocked by Cloudflare", LastErrorKind: "blocked",
+			ConsecutiveFailures: 2}, "Failed 2 times in a row: " + s.text.BlockedPublic, true},
+		{client.Source{URL: "https://example.org/feed", LastError: "status 403: blocked by Cloudflare",
+			LastErrorKind: "blocked", ConsecutiveFailures: 1}, "Last fetch failed: " + s.text.Blocked, true},
 		{client.Source{Paused: true, LastError: "timeout"}, s.text.Paused, false},
 		{client.Source{}, "Not checked yet", false},
 		{client.Source{LastFetchedAt: now.UnixMilli(), NextFetchAt: now.UnixMilli()},

@@ -309,6 +309,7 @@ type Source struct {
 	LastFetchedAt       int64  `json:"lastFetchedAt"`
 	LastSuccessAt       int64  `json:"lastSuccessAt"`
 	LastError           string `json:"lastError"`
+	LastErrorKind       string `json:"lastErrorKind"`
 	ConsecutiveFailures int    `json:"consecutiveFailures"`
 	MuteKeywords        string `json:"muteKeywords"`
 	Paused              bool   `json:"paused"`

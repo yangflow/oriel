@@ -234,3 +234,22 @@ func TestSourcesHealthRoute(t *testing.T) {
 		t.Fatalf("paused source listed: %v", list)
 	}
 }
+
+func TestSourceLastErrorKind(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	created := decode(t, do(s, "POST", "/api/sources", `{"url":"https://example.org/feed","kind":"article"}`, bearer(token)))
+	id := int64(created["id"].(float64))
+	if created["lastErrorKind"] != "" {
+		t.Fatalf("new source: %v", created)
+	}
+	at := time.UnixMilli(1_700_000_000_000)
+	if err := s.store.FetchFailure(t.Context(), id, "status 403: blocked by Cloudflare", "blocked", at, at.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	list := decode(t, do(s, "GET", "/api/sources", "", bearer(token)))["sources"].([]any)
+	first := list[0].(map[string]any)
+	if first["lastErrorKind"] != "blocked" || first["lastError"] != "status 403: blocked by Cloudflare" {
+		t.Fatalf("source = %v", first)
+	}
+}

@@ -327,12 +327,9 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Make it look like version 17, before the copies of starred entries.
+	// Make it look like version 18, before the stable code of a fetch failure.
 	for _, stmt := range []string{
-		"DROP TRIGGER entries_star_insert", "DROP TRIGGER entries_star_on", "DROP TRIGGER entries_star_off",
-		"DROP INDEX entries_copy_due", "DROP TABLE entry_image_copies",
-		"ALTER TABLE entries DROP COLUMN copy_status", "ALTER TABLE entries DROP COLUMN copy_attempts",
-		"ALTER TABLE entries DROP COLUMN next_copy_at", "PRAGMA user_version = 17",
+		"ALTER TABLE sources DROP COLUMN last_error_kind", "PRAGMA user_version = 18",
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)
@@ -342,7 +339,7 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	raw, _ := os.ReadFile(old)
 
 	other := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
-	r, err := other.PrepareRestore(ctx, bytes.NewReader(zipOf(t, Manifest{Format: 1, App: "oriel", Schema: 17}, raw)), MaxBackup)
+	r, err := other.PrepareRestore(ctx, bytes.NewReader(zipOf(t, Manifest{Format: 1, App: "oriel", Schema: 18}, raw)), MaxBackup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +347,7 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	if res, err := r.Apply(ctx); err != nil || res.Sources != 2 {
 		t.Fatalf("%+v %v", res, err)
 	}
-	if count(t, other, "SELECT count(*) FROM entries WHERE copy_status = 'none'") == 0 {
+	if count(t, other, "SELECT count(*) FROM sources WHERE last_error_kind = ''") != 2 {
 		t.Fatal("the migrated columns are missing")
 	}
 }

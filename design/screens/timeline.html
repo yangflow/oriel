@@ -62,7 +62,9 @@
      After a subscription is added or refreshed its row shows a spinner in place of the warning mark until the first
      fetch is done (fetching; the row's name for a screen reader gains ", fetching"), then one plain toast with no Undo
      says the result: "Fetched 12 entries from ..." (fetched) or "Couldn't fetch ...: reason" with the Warning alert mark
-     (fetched-failed). Polling ends silently after 60 seconds.
+     (fetched-failed); when the site's bot protection turned the fetch away the reason is a localized sentence that
+     names rsshub.app and Settings → RSSHub, or says the site blocks automated readers (subscriptions.html, edit-blocked).
+     Polling ends silently after 60 seconds.
      Mark all as read has a menu of its own on right click (menu-markall): Mark all as read, as the click, a hairline, then Mark older than 1 day,
      1 week, 1 month as read. They mark the unread entries of the scope whose time, the one the row shows, is before now minus that long, act at once and offer
      Undo in the same toast (marked-older: it says how old and how many); when none is that old a plain toast says so (marked-older-none), without Undo.

@@ -4570,6 +4570,24 @@ func TestFetchResultFailed(t *testing.T) {
 	}
 }
 
+func TestFetchResultBlocked(t *testing.T) {
+	for _, c := range []struct{ url, want string }{
+		{"https://rsshub.app/github/trending/daily",
+			"Couldn’t fetch “Fresh Feed”: The public rsshub.app blocks automated requests. Use your own or another RSSHub instance in Settings → RSSHub."},
+		{"https://example.org/feed.xml", "Couldn’t fetch “Fresh Feed”: This site blocks automated readers."},
+	} {
+		s, f, tt := setup(t, "en")
+		addFresh(t, s, f, tt, "Fresh Feed")
+		f.fetchedWith(10, 0, "status 403: blocked by Cloudflare")
+		last := len(f.sources) - 1
+		f.sources[last].URL, f.sources[last].LastErrorKind = c.url, "blocked"
+		f.later(t, tt, 3*time.Second)
+		if !tt.HasText(c.want) {
+			t.Errorf("%s: texts %v", c.url, tt.Texts())
+		}
+	}
+}
+
 func TestFetchWaitEnds(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	s.subs.Refresh(f.sources[0])
