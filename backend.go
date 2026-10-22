@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/ai"
+	"github.com/yangflow/oriel/internal/autobackup"
 	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/server"
 	"github.com/yangflow/oriel/internal/store"
@@ -39,13 +40,15 @@ type backend struct {
 	background *background
 }
 
-// background is the work that runs beside the server: the fetch loop, the AI worker and the reading-time backfill.
+// background is the work that runs beside the server: the fetch loop, the AI worker, the automatic backups and the
+// reading-time backfill.
 // A restore stops it while the data is replaced and starts it again.
 type background struct {
 	store  *store.Store
 	poller *fetch.Poller
 	worker *ai.Worker
 	copier *fetch.Copier
+	auto   *autobackup.Runner
 
 	mu     sync.Mutex
 	stop   context.CancelFunc
@@ -65,6 +68,7 @@ func (g *background) run() {
 	g.group.Go(func() { g.poller.Run(ctx) })
 	g.group.Go(func() { g.worker.Run(ctx) })
 	g.group.Go(func() { g.copier.Run(ctx) })
+	g.group.Go(func() { g.auto.Run(ctx) })
 	g.group.Go(func() {
 		if err := g.store.BackfillReadingTime(ctx); err != nil && ctx.Err() == nil {
 			slog.Error("Cannot fill in reading times", "error", err)
@@ -109,9 +113,10 @@ func start(ctx context.Context, dataDir, password, mode string, port int) (*back
 	worker := ai.New(st, version)
 	poller := fetch.New(st, version)
 	images := fetch.NewImages(version, filepath.Join(dataDir, "image-cache"))
-	work := &background{store: st, poller: poller, worker: worker, copier: fetch.NewCopier(st, images)}
+	auto := autobackup.New(st, version)
+	work := &background{store: st, poller: poller, worker: worker, copier: fetch.NewCopier(st, images), auto: auto}
 	api, err := server.New(st, server.Config{Password: password, Version: version, Images: images,
-		Discover: fetch.NewDiscoverer(version), AI: worker, Fetching: poller.Fetching, Log: logs, Mode: mode, Pause: work.pause})
+		Discover: fetch.NewDiscoverer(version), AI: worker, Fetching: poller.Fetching, Log: logs, Mode: mode, Pause: work.pause, AutoBackup: auto})
 	if err != nil {
 		st.Close()
 		return nil, err

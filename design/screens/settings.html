@@ -16,7 +16,9 @@
      States: appearance, fetching (one RSSHub instance), several (three instances: the first is the primary, the others
      take over in order), edited (the list changed, not saved), invalid (a line is not a valid address; nothing is sent), saved, opml,
      importing, imported (with failures), import-error, exported, backup (the Back up and restore block, after a backup was saved),
-     restore-confirm (the alert before the data is replaced), restoring, restored, restore-failed (a file that is not a backup; the data is as it was), reader (the Import from Reader dialog, Miniflux: service,
+     restore-confirm (the alert before the data is replaced), restoring, restored, restore-failed (a file that is not a backup; the data is as it was), auto-off (Automatic backup switched off, nothing chosen yet),
+     auto-on (on, a folder chosen, the last success), auto-failed (the last attempt failed: warning line, retried within the hour),
+     auto-remote (a remote server: the folder is a text field), reader (the Import from Reader dialog, Miniflux: service,
      address, token), reader-freshrss (adds the user name; the credential is the API password), reader-invalid (the address
      is not http or https), reader-fetching (progress, Cancel), reader-preview (what was found, nothing added yet; Import),
      reader-writing, reader-done (what was added and what was left out), reader-failed (the server turned the credential
@@ -172,6 +174,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .control { display:flex; gap:8px; margin-top:12px; align-items:center }
 .field, .textarea { background:var(--raised); box-shadow:inset 0 0 0 .5px var(--edge-line); color:var(--text); transition:box-shadow var(--t) }
 .field { flex:1; min-width:0; height:32px; display:flex; align-items:center; padding:0 10px; border-radius:8px; font:13px ui-monospace,Menlo,Consolas,monospace }
+.field.short { flex:none; width:64px }
 .field.focused, .textarea.focused { box-shadow:0 0 0 2px var(--focus) }
 .field.invalid { box-shadow:inset 0 0 0 1.5px var(--danger) }
 .field .placeholder { color:var(--muted) }
@@ -279,6 +282,11 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .label-row .label { flex:1 }
 .actions { display:flex; align-items:center; gap:8px }
 .actions .status { flex:1; margin:0; min-width:0 }
+.auto { display:flex; flex-direction:column; gap:10px; margin-top:12px; padding-top:12px; border-top:.5px solid var(--hairline) }
+.auto .line { display:flex; align-items:center; gap:12px; min-height:32px } .auto .line > .name { flex:none; width:96px; font-size:13px }
+.auto .path { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:13px ui-monospace,Menlo,Consolas,monospace } .auto .path.none { color:var(--muted); font-family:inherit }
+.auto .unit { color:var(--muted); font-size:12px } .auto .status { margin-top:0 } .auto .status.warn { color:var(--warning) }
+.auto .note { margin:0 0 0 108px; font-size:12px; color:var(--muted) }
 .switch-row { display:flex; align-items:center; gap:12px }
 .switch-row .text { flex:1; min-width:0 }
 .switch { width:34px; height:20px; border-radius:10px; background:rgba(var(--ink),.16); position:relative; flex:none; transition:background-color var(--t) }
@@ -340,7 +348,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -396,6 +404,7 @@ const icons={
   plug:'<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
   rotateCcw:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   check:'<path d="M20 6 9 17l-5-5"/>',
+  folder:'<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
   database:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
   arrowUpDown:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
 };
@@ -458,6 +467,7 @@ const copy={
     opmlHelp:'OPML files move subscriptions between Oriel and other readers.',
     importLabel:'Import', importHelp:'Adds the subscriptions in an OPML file. Ones you already have are skipped.', exportLabel:'Export', exportHelp:'Saves every subscription to one OPML file that Oriel and other readers can import.', notAdded:'Subscriptions not added',
     backupLabel:'Back up', backupHelp:'Saves everything to one file: subscriptions, entries, what you have read and starred, AI results and settings. Sign-in sessions and the AI API key are left out.', backupButton:'Back Up…', restoreLabel:'Restore', restoreHelp:'Replaces what is here with the contents of a backup file. Back up first if you want to keep it.', restoreButton:'Restore from Backup…',
+    autoLabel:'Back up automatically', autoHelp:'Saves a backup to a folder on a schedule and removes older ones beyond the number to keep. Only files it wrote itself are removed.', autoFolder:'Folder', autoChoose:'Choose…', autoNoFolder:'No folder chosen yet', autoFrequency:'How often', autoDaily:'Every day', autoWeekly:'Every week', autoKeep:'Keep', autoCopies:'backups', autoNever:'No backup yet', autoLast:'Last backup: {time}, {file}', autoFailed:'Last backup failed: {reason}. Trying again within the hour.', autoNoWrite:'the folder cannot be written to', autoRemote:'The folder is on the server’s computer, and the path must exist there.', autoPlaceholder:'/var/backups/oriel',
     backingUp:'Backing up…', backedUp:'Backed up to {file}.', restoring:'Restoring {file}…', restored:'Restored {sources} subscriptions and {entries} entries.', restoreNotBackup:'{file} is not an Oriel backup. Nothing was changed.',
     restoreTitle:'Replace your data with this backup?', restoreBody:'The subscriptions, entries and settings here are replaced by the ones in {file}. This cannot be undone.', restoreConfirm:'Replace Data',
     import:'Choose File…', export:'Save As…', importing:'Importing {file}…',
@@ -543,6 +553,7 @@ const copy={
     opmlHelp:'用 OPML 文件在 Oriel 和别的阅读器之间搬订阅。',
     importLabel:'导入', importHelp:'添加 OPML 文件里的订阅，已经订阅的跳过。', exportLabel:'导出', exportHelp:'把所有订阅存成一个 OPML 文件，Oriel 和别的阅读器都能导入。', notAdded:'没能添加的订阅',
     backupLabel:'备份', backupHelp:'把全部内容存成一个文件：订阅、条目、已读和星标、AI 结果和设置。登录会话和 AI 的 API key 不在其中。', backupButton:'备份…', restoreLabel:'恢复', restoreHelp:'用备份文件里的内容替换现在的数据。想保留现在的数据，请先备份。', restoreButton:'从备份恢复…',
+    autoLabel:'自动备份', autoHelp:'定期把备份存进一个文件夹，超出保留份数的旧备份会删掉。只删它自己写的文件。', autoFolder:'文件夹', autoChoose:'选择…', autoNoFolder:'还没选文件夹', autoFrequency:'频率', autoDaily:'每天', autoWeekly:'每周', autoKeep:'保留', autoCopies:'份', autoNever:'还没有备份过', autoLast:'上次备份：{time}，{file}', autoFailed:'上次备份失败：{reason}。会在一小时内重试。', autoNoWrite:'文件夹写不进去', autoRemote:'文件夹在服务端那台电脑上，路径要在那台电脑上存在。', autoPlaceholder:'/var/backups/oriel',
     backingUp:'正在备份…', backedUp:'已备份到 {file}。', restoring:'正在恢复 {file}…', restored:'已恢复 {sources} 个订阅、{entries} 条条目。', restoreNotBackup:'{file} 不是 Oriel 的备份，没有改动任何数据。',
     restoreTitle:'用这个备份替换现有数据？', restoreBody:'现在的订阅、条目和设置会被 {file} 里的替换，不能撤销。', restoreConfirm:'替换数据',
     import:'选择文件…', export:'存储为…', importing:'正在导入 {file}…',
@@ -578,7 +589,7 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
+const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
 
 const groups=[['appearance','palette'],['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop'],['activity','database']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
@@ -652,12 +663,22 @@ if(state==='restoring')backupResult=`<div class="status busy" role="status">${ic
 if(state==='backup')backupResult=`<div class="result" role="status"><div class="head" style="color:var(--success)">${icon('check')}<span class="grow" style="color:var(--text)">${t('backedUp',{file:bfile})}</span><button class="close" aria-label="${copy.dismiss}">${icon('x')}</button></div></div>`;
 if(state==='restored')backupResult=`<div class="result" role="status"><div class="head" style="color:var(--success)">${icon('check')}<span class="grow" style="color:var(--text)">${t('restored',{sources:18,entries:2406})}</span><button class="close" aria-label="${copy.dismiss}">${icon('x')}</button></div></div>`;
 if(state==='restore-failed')backupResult=`<div class="result error" role="alert"><div class="head">${icon('alert')}<span class="grow">${t('restoreNotBackup',{file:'notes.zip'})}</span><button class="close" aria-label="${copy.dismiss}">${icon('x')}</button></div></div>`;
+const autoField=(label,value,cls='')=>`<div class="field${cls}" role="textbox" aria-label="${label}">${value}</div>`;
+const autoOn=state==='auto-on'||state==='auto-failed'||state==='auto-remote';
+const autoPath=state==='auto-remote'?'/var/backups/oriel':'/Users/me/Backups/Oriel';
+const autoFolder=state==='auto-off'?`<span class="path none">${copy.autoNoFolder}</span>`:state==='auto-remote'?autoField(copy.autoFolder,autoPath):`<span class="path" title="${autoPath}">${autoPath}</span>`;
+const autoStatus=state==='auto-failed'?`<div class="status warn" role="status">${icon('alert')}${t('autoFailed',{reason:copy.autoNoWrite})}</div>`:`<div class="status" role="status">${t('autoLast',{time:zh?'今天 03:00':'Today 03:00',file:'Oriel-2026-10-22-030000.oriel-backup'})}</div>`;
+const auto=`<div class="row"><div class="switch-row"><div class="text"><span class="label">${copy.autoLabel}</span><p class="help">${copy.autoHelp}</p></div><span class="switch${autoOn?' on':''}" role="switch" aria-checked="${autoOn}" aria-label="${copy.autoLabel}"></span></div>
+<div class="auto"><div class="line"><span class="name">${copy.autoFolder}</span>${autoFolder}${state==='auto-remote'?'':`<button class="button small">${icon('folder')}${copy.autoChoose}</button>`}</div>${state==='auto-remote'?`<p class="note">${copy.autoRemote}</p>`:''}
+<div class="line"><span class="name">${copy.autoFrequency}</span>${seg(copy.autoFrequency,[['daily',copy.autoDaily],['weekly',copy.autoWeekly]],state==='auto-failed'?'weekly':'daily')}</div>
+<div class="line"><span class="name">${copy.autoKeep}</span>${autoField(copy.autoKeep,'7',' short')}<span class="unit">${copy.autoCopies}</span></div>${autoOn?autoStatus:`<div class="status">${copy.autoNever}</div>`}</div></div>`;
 const opml=`<p class="lead">${copy.opmlHelp}</p><div class="card">
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.importLabel}</span><p class="help">${copy.importHelp}</p></div><button class="button"${busy?' disabled':''}>${icon('upload')}${copy.import}</button></div>${result}</div>
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.readerLabel}</span><p class="help">${copy.readerHelp}</p></div><button class="button"${busy?' disabled':''}>${icon('arrowUpDown')}${copy.readerButton}</button></div></div>
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.exportLabel}</span><p class="help">${copy.exportHelp}</p></div><button class="button"${busy?' disabled':''}>${icon('download')}${copy.export}</button></div></div>
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.backupLabel}</span><p class="help">${copy.backupHelp}</p></div><button class="button"${busy?' disabled':''}>${icon('database')}${copy.backupButton}</button></div></div>
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.restoreLabel}</span><p class="help">${copy.restoreHelp}</p></div><button class="button"${busy?' disabled':''}>${icon('rotateCcw')}${copy.restoreButton}</button></div>${backupResult}</div>
+${auto}
 </div>`;
 
 const sessions=[

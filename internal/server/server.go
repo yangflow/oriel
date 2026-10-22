@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/ai"
+	"github.com/yangflow/oriel/internal/autobackup"
 	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/importer"
@@ -60,6 +61,9 @@ type Config struct {
 	// Pause stops the fetch loop and the AI worker, and waits until they have, while a restore replaces the data. The
 	// function it returns starts them again. Nil means there is nothing to stop.
 	Pause func(ctx context.Context) (resume func(), err error)
+	// AutoBackup is the scheduler of automatic backups. The server tells it to check after the settings changed and
+	// keeps it from starting during a restore or a vacuum; whoever owns it runs it. Nil means there is none.
+	AutoBackup *autobackup.Runner
 }
 
 // Images downloads a picture found inside a feed and returns its content type and bytes.
@@ -105,16 +109,21 @@ type Server struct {
 
 	restoring sync.Mutex // held for the length of a restore
 	pause     func(ctx context.Context) (resume func(), err error)
+
+	auto *autobackup.Runner
 }
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, log: cfg.Log, mode: cfg.Mode, pause: cfg.Pause, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
+	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, log: cfg.Log, mode: cfg.Mode, pause: cfg.Pause, auto: cfg.AutoBackup, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
 	if s.routes == nil {
 		s.routes = fetch.NewRoutes(cfg.Version)
 	}
 	if s.ai == nil {
 		s.ai = ai.New(st, cfg.Version)
+	}
+	if s.auto != nil {
+		s.auto.Busy = s.maintenance
 	}
 	if cfg.Password != "" {
 		s.salt = make([]byte, 16)

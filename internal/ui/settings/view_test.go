@@ -72,6 +72,8 @@ type fake struct {
 	restoreSent [][]byte // the files uploaded to restore
 
 	open, save string // the paths the dialogs answer, "" for cancelled
+	folder     string // the folder the folder dialog answers
+	folders    int    // how often the folder dialog was shown
 	filters    []string
 	names      []string // the file names the save dialog was offered
 	back       int
@@ -118,6 +120,18 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	}
 	if patch.PromptTranslate != nil {
 		f.settings.PromptTranslate = cmp.Or(*patch.PromptTranslate, f.settings.DefaultPromptTranslate)
+	}
+	if patch.AutoBackupEnabled != nil {
+		f.settings.AutoBackupEnabled = *patch.AutoBackupEnabled
+	}
+	if patch.AutoBackupFolder != nil {
+		f.settings.AutoBackupFolder = *patch.AutoBackupFolder
+	}
+	if patch.AutoBackupFrequency != nil {
+		f.settings.AutoBackupFrequency = *patch.AutoBackupFrequency
+	}
+	if patch.AutoBackupKeep != nil {
+		f.settings.AutoBackupKeep = *patch.AutoBackupKeep
 	}
 	return f.settings, nil
 }
@@ -192,6 +206,10 @@ func (f *fake) deps() Deps {
 			f.filters = append(f.filters, filter)
 			return f.save, nil
 		},
+		Folder: func() (string, error) {
+			f.folders++
+			return f.folder, nil
+		},
 		Back:        func() { f.back++ },
 		Imported:    func() { f.refreshed++ },
 		Expired:     func() { f.expired++ },
@@ -220,7 +238,8 @@ func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Te
 		settings: client.Settings{RSSHubBaseURLs: []string{"https://rsshub.example.com"}, RetentionDays: 30, AILanguage: "zh-Hans",
 			PromptSummary: summaryPrompt, PromptTranslate: translatePrompt,
 			DefaultPromptSummary: summaryPrompt, DefaultPromptTranslate: translatePrompt,
-			AISummaryLimit: 24000, AIChunkLimit: 6000, DefaultAISummaryLimit: 24000, DefaultAIChunkLimit: 6000},
+			AISummaryLimit: 24000, AIChunkLimit: 6000, DefaultAISummaryLimit: 24000, DefaultAIChunkLimit: 6000,
+			AutoBackupFrequency: "daily", AutoBackupKeep: 7},
 		devices: []client.Device{
 			{ID: 4, UserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 " +
 				"(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",

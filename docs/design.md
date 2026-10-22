@@ -898,7 +898,17 @@ Overlays share focus and Escape behavior; see
   backup?" is an alert dialog (the one that confirms deleting a subscription): the body says the subscriptions,
   entries and settings now here are replaced and this cannot be undone, the focus starts on Cancel, and the
   confirming button, "Replace data", is the `Danger` one. Drawn in `design/screens/settings.html`, states
-  `backup`, `restore-confirm`, `restoring`, `restored` and `restore-failed`. Signing a device out asks
+  `backup`, `restore-confirm`, `restoring`, `restored` and `restore-failed`. The last row, "Back up automatically", is a
+  label, a 12 `TextMuted` help line and a switch (off by default); below it, always shown and parted by a hairline,
+  three 32 high lines with a 96 wide label: Folder (the path in 13 mono, cut with an ellipsis, or "No folder chosen
+  yet" in `TextMuted`, and a small "Choose…" button with a folder icon that opens the system's folder dialog), How
+  often (a segmented control, Every day and Every week) and Keep (a 64 wide number field and "backups" in 12
+  `TextMuted`), then a 12 status line: the last success ("Last backup: Today 03:00, Oriel-….oriel-backup"), "No backup
+  yet", or, after a failed try, the warning-toned "Last backup failed: …. Trying again within the hour." with the
+  alert icon. On a remote server the folder is not on this computer, so it is a text field instead of the button,
+  with a 12 `TextMuted` note that the path must exist on the server's machine. A refused value is named under its line
+  in `Danger` and the control goes back to the server's value. States `auto-off`, `auto-on`, `auto-failed` and
+  `auto-remote`. Signing a device out asks
   first; the current device is marked and cannot be signed out. In the wide column Devices is a table in one card:
   a header row 36 high (11 medium, `TextMuted`, 12 in Chinese) over rows 48 high parted by the inset hairline, columns
   Device (a 28 glyph tile, the client's name at 13 medium and the "This device" badge), Platform and Signed in

@@ -43,6 +43,10 @@ type copy struct {
 	BackupLabel, BackupHelp, BackupButton, RestoreLabel, RestoreHelp, RestoreButton, BackupFiles, BackingUp, BackedUp        string
 	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge                    string
 	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                                    string
+	AutoLabel, AutoHelp, AutoFolder, AutoChoose, AutoNoFolder, AutoFrequency, AutoDaily, AutoWeekly, AutoKeep                string
+	AutoCopies, AutoNever, AutoLast, AutoFailed, AutoRemote, AutoPlaceholder                                                 string
+	AutoReasonMissing, AutoReasonNotDir, AutoReasonNoWrite, AutoReasonDisk, AutoReasonOther                                  string
+	AutoNeedFolder, AutoBadFolder, AutoInvalidKeep, AutoSaveFailed                                                           string
 	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                       string
 	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry, Now, Minutes                 string
 	Hours, Yesterday, DaysAgo, DateLayout, YearLayout                                                                        string
@@ -146,7 +150,8 @@ type API interface {
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it
 // returns on the UI thread; Now is the clock, time.Now by default. Open and Save ask for the OPML file to import and
 // the one to export to, filter naming its kind; they block until the user answers, so they run in Go's work and
-// return "" when cancelled. Back returns to the timeline, Imported tells it subscriptions were added, and Expired
+// return "" when cancelled; Folder is the same for the folder of automatic backups, and nil when it cannot be
+// chosen here, as with a remote server. Back returns to the timeline, Imported tells it subscriptions were added, and Expired
 // shows the connect screen because the server no longer takes the session. The appearance preferences belong to this
 // device: Preferences gives them, Fonts the installed font families once they are known (nil until then), ReadingFont
 // the font list of an article's body that they come to ("" for the interface font), and Change takes new ones, which
@@ -156,6 +161,7 @@ type Deps struct {
 	Now      func() time.Time
 	Open     func(filter string, extensions ...string) (string, error)
 	Save     func(name, filter string) (string, error)
+	Folder   func() (string, error)
 	Back     func()
 	Imported func()
 	Expired  func()
@@ -260,6 +266,10 @@ type Screen struct {
 	working    string // what the backup or restore under way says, shown with a spinner under the restore row
 	confirming bool   // the dialog that asks to replace the data is open
 	backupFile string // the backup file the dialog is about
+	autoFolder string // the folder of automatic backups as typed, where it is typed
+	autoKeep   string // the number to keep as typed
+	autoSaving bool   // a choice about automatic backups is being chosen or saved
+	autoStatus status
 	result     result
 	reader     reader // the dialog that imports from another reader
 
@@ -314,6 +324,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.gen++
 	s.group, s.busy, s.importing, s.result, s.revoking = fetching, false, "", result{}, false
 	s.working, s.confirming, s.backupFile = "", false, ""
+	s.autoSaving, s.autoStatus = false, status{}
 	s.saving, s.keeping, s.aiSaving, s.testing, s.promptSaving = false, false, false, false, false
 	s.state, s.deviceState, s.restored = loading, loading, nil
 	s.activity, s.storage, s.actState, s.actBusy, s.actOpen = client.Activity{}, client.Storage{}, loading, false, 0
@@ -357,6 +368,7 @@ func (s *Screen) PreferenceFailed() {
 func (s *Screen) Open() {
 	s.baseStatus, s.keepStatus, s.invalid, s.revoking = status{}, status{}, false, false
 	s.aiStatus, s.promptStatus, s.aiInvalid, s.aiChecks = status{}, status{}, false, nil
+	s.autoStatus = status{}
 	if !s.busy {
 		s.result = result{}
 	}
@@ -373,6 +385,7 @@ func (s *Screen) expired(err error) bool {
 	s.api = nil
 	s.busy, s.saving, s.keeping, s.revoking = false, false, false, false
 	s.working, s.confirming, s.backupFile = "", false, ""
+	s.autoSaving = false
 	s.aiSaving, s.testing, s.promptSaving = false, false, false
 	s.actBusy, s.vacStarting = false, false
 	s.reader = reader{}
@@ -411,6 +424,7 @@ func (s *Screen) loadSettings() {
 			s.aiBase, s.aiModel, s.aiKey, s.aiLanguage = settings.AIBaseURL, settings.AIModel, "", settings.AILanguage
 			s.aiLimits = savedLimits(settings)
 			s.prompts = [2]string{settings.PromptSummary, settings.PromptTranslate}
+			s.autoFolder, s.autoKeep = settings.AutoBackupFolder, strconv.Itoa(settings.AutoBackupKeep)
 		}
 	})
 }
@@ -2376,7 +2390,193 @@ func (s *Screen) opmlPage(c *ui.Context) {
 		if s.result.text != "" && s.result.backup {
 			s.resultBox(c)
 		}
+	}, func() { s.autoRows(c) })
+}
+
+// autoRemote reports that the folder of automatic backups is on another computer, which a dialog here cannot browse,
+// so it is typed.
+func (s *Screen) autoRemote() bool { return s.server != "" || s.deps.Folder == nil }
+
+// saveAuto saves a choice about automatic backups. The server checks the folder, and a refusal is shown under the row
+// while the typed values stay for the user to fix.
+func (s *Screen) saveAuto(patch client.SettingsPatch) {
+	if s.api == nil || s.autoSaving {
+		return
+	}
+	s.autoSaving, s.autoStatus = true, status{}
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		saved, err := api.SetSettings(context.Background(), patch)
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			s.autoSaving = false
+			if err != nil {
+				s.autoStatus = status{text: s.autoError(code(err))}
+				s.announce = s.autoStatus.text
+				return
+			}
+			s.settings.AutoBackupEnabled, s.settings.AutoBackupFolder = saved.AutoBackupEnabled, saved.AutoBackupFolder
+			s.settings.AutoBackupFrequency, s.settings.AutoBackupKeep = saved.AutoBackupFrequency, saved.AutoBackupKeep
+			s.settings.AutoBackupLastAt, s.settings.AutoBackupLastFile = saved.AutoBackupLastAt, saved.AutoBackupLastFile
+			s.settings.AutoBackupFailedAt, s.settings.AutoBackupError = saved.AutoBackupFailedAt, saved.AutoBackupError
+			s.autoFolder, s.autoKeep = saved.AutoBackupFolder, strconv.Itoa(saved.AutoBackupKeep)
+		}
 	})
+}
+
+// autoError is why a choice about automatic backups was refused.
+func (s *Screen) autoError(code string) string {
+	switch code {
+	case "backup_folder_missing":
+		return s.fill(s.text.AutoBadFolder, "{reason}", s.text.AutoReasonMissing)
+	case "backup_folder_not_directory":
+		return s.fill(s.text.AutoBadFolder, "{reason}", s.text.AutoReasonNotDir)
+	case "backup_folder_not_writable":
+		return s.fill(s.text.AutoBadFolder, "{reason}", s.text.AutoReasonNoWrite)
+	case "invalid_backup_folder":
+		return s.text.AutoNeedFolder
+	case "invalid_backup_keep":
+		return s.text.AutoInvalidKeep
+	}
+	return s.text.AutoSaveFailed
+}
+
+// autoReason is why the last automatic backup failed.
+func (s *Screen) autoReason(code string) string {
+	switch code {
+	case "folder_missing":
+		return s.text.AutoReasonMissing
+	case "folder_not_directory":
+		return s.text.AutoReasonNotDir
+	case "folder_not_writable":
+		return s.text.AutoReasonNoWrite
+	case "disk_full":
+		return s.text.AutoReasonDisk
+	}
+	return s.text.AutoReasonOther
+}
+
+// chooseFolder asks for the folder of automatic backups and saves it. The dialog blocks, so it runs in Go's work.
+func (s *Screen) chooseFolder() {
+	if s.api == nil || s.autoSaving || s.deps.Folder == nil {
+		return
+	}
+	s.autoSaving, s.autoStatus = true, status{}
+	gen := s.gen
+	s.deps.Go(func() func() {
+		path, err := s.deps.Folder()
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			s.autoSaving = false
+			if err != nil || path == "" {
+				return
+			}
+			s.saveAuto(client.SettingsPatch{AutoBackupFolder: &path})
+		}
+	})
+}
+
+// commitAuto saves the folder and the number to keep as typed, whichever differs from what is saved. A number that is
+// not one in range is refused here.
+func (s *Screen) commitAuto() {
+	var patch client.SettingsPatch
+	if folder := strings.TrimSpace(s.autoFolder); folder != s.settings.AutoBackupFolder {
+		patch.AutoBackupFolder = &folder
+	}
+	keep, err := strconv.Atoi(strings.TrimSpace(s.autoKeep))
+	switch {
+	case err != nil || keep < 1 || keep > 100:
+		s.autoStatus = status{text: s.text.AutoInvalidKeep}
+		s.announce = s.autoStatus.text
+		return
+	case keep != s.settings.AutoBackupKeep:
+		patch.AutoBackupKeep = &keep
+	}
+	if patch.AutoBackupFolder != nil || patch.AutoBackupKeep != nil {
+		s.saveAuto(patch)
+	}
+}
+
+// autoRows is the automatic backup row: the switch, the folder, how often, how many to keep and how the last one went.
+func (s *Screen) autoRows(c *ui.Context) {
+	t := c.Theme()
+	st := s.settings
+	labeled(c, s.text.AutoLabel, s.text.AutoHelp, func() {
+		on := st.AutoBackupEnabled
+		ui.Switch(c, &on).Label(s.text.AutoLabel).Description(s.text.AutoHelp).Disabled(s.autoSaving)
+		if on != st.AutoBackupEnabled {
+			patch := client.SettingsPatch{AutoBackupEnabled: &on}
+			if folder := strings.TrimSpace(s.autoFolder); on && s.autoRemote() && folder != st.AutoBackupFolder {
+				patch.AutoBackupFolder = &folder
+			}
+			s.saveAuto(patch)
+		}
+	})
+	line := func(name string, control func()) {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(px(t, 12)).Margin(px(t, 10), 0, 0, 0).MinHeight(px(t, 32)).
+			Children(func() {
+				ui.Text(c, name).Width(px(t, 96)).Shrink(0)
+				control()
+			})
+	}
+	line(s.text.AutoFolder, func() {
+		switch {
+		case s.autoRemote():
+			field(c, "autofolder", &s.autoFolder, 0, false, func(in ui.Element) {
+				in.Font("monospace").Label(s.text.AutoFolder).Placeholder(s.text.AutoPlaceholder).Disabled(s.autoSaving)
+				if in.Submitted() {
+					s.commitAuto()
+				}
+			})
+		case st.AutoBackupFolder == "":
+			ui.Text(c, s.text.AutoNoFolder).Grow(1).MinWidth(0).TextColor(t.TextMuted)
+		default:
+			ui.Text(c, st.AutoBackupFolder).Font("monospace").NoWrap().Grow(1).MinWidth(0)
+		}
+		if !s.autoRemote() {
+			b := button(c, small, s.autoSaving)
+			textButton(c, b, small, icons.Folder, s.text.AutoChoose, false)
+			if b.Clicked() {
+				s.chooseFolder()
+			}
+		}
+	})
+	if s.autoRemote() {
+		ui.Text(c, s.text.AutoRemote).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(px(t, 6), 0, 0, px(t, 108))
+	}
+	line(s.text.AutoFrequency, func() {
+		frequencies := []string{"daily", "weekly"}
+		names := []string{s.text.AutoDaily, s.text.AutoWeekly}
+		if i, changed := s.segments(c, s.text.AutoFrequency, names, slices.Index(frequencies, st.AutoBackupFrequency)); changed &&
+			frequencies[i] != st.AutoBackupFrequency {
+			s.saveAuto(client.SettingsPatch{AutoBackupFrequency: &frequencies[i]})
+		}
+	})
+	line(s.text.AutoKeep, func() {
+		field(c, "autokeep", &s.autoKeep, px(t, 64), false, func(in ui.Element) {
+			in.Font("monospace").Label(s.text.AutoKeep).Disabled(s.autoSaving)
+			if in.Submitted() {
+				s.commitAuto()
+			}
+		})
+		ui.Text(c, s.text.AutoCopies).FontSize(px(t, 12)).TextColor(t.TextMuted)
+	})
+	now := s.deps.Now()
+	switch {
+	case s.autoStatus.text != "":
+		statusLine(c, s.autoStatus)
+	case st.AutoBackupFailedAt != 0:
+		statusLine(c, status{warn: true, text: s.fill(s.text.AutoFailed, "{reason}", s.autoReason(st.AutoBackupError))})
+	case st.AutoBackupLastAt != 0:
+		statusLine(c, status{muted: true, text: s.fill(s.text.AutoLast, "{time}", s.ago(st.AutoBackupLastAt, now),
+			"{file}", st.AutoBackupLastFile)})
+	default:
+		statusLine(c, status{muted: true, text: s.text.AutoNever})
+	}
 }
 
 func (s *Screen) resultBox(c *ui.Context) {

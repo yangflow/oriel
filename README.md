@@ -71,6 +71,8 @@ Working now:
 - **Back up and restore.** Save everything (subscriptions, entries, read and starred state, AI results, settings) to
   one `.oriel-backup` file from Settings or with `oriel backup`, and bring it back from Settings, the empty timeline
   or `oriel restore`. Sign-in sessions and the AI API key stay out of the file.
+- **Automatic backup.** Turn it on in Settings to save a backup to a folder every day or week; the server keeps the
+  newest few (7 by default) and removes only older files it wrote itself.
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
   with password sign-in and per-device sessions.
 - **Connect to a remote server.** The desktop app can switch to an `oriel serve` on another machine from

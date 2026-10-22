@@ -94,6 +94,7 @@ func (s *shell) build() {
 		Go:          s.goAsync,
 		Open:        s.files.Open,
 		Save:        s.files.Save,
+		Folder:      s.files.Folder,
 		Back:        func() { s.setting = false },
 		Imported:    func() { s.home.Refresh() },
 		Expired:     s.expired,
