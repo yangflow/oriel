@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/yangflow/oriel/internal/store"
 )
 
 func TestSourceValidation(t *testing.T) {
@@ -154,6 +156,44 @@ func TestSourceLifecycle(t *testing.T) {
 	}
 	if w := do(s, "GET", "/api/sources/x", "", bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_id" {
 		t.Fatalf("bad id: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestRestoreSourceRoute(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	if w := do(s, "POST", "/api/sources/1/restore", "", nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("restore without a session: %d", w.Code)
+	}
+	created := decode(t, do(s, "POST", "/api/sources", `{"url":"https://example.org/feed","kind":"article","title":"Blog"}`, bearer(token)))
+	id := strconv.Itoa(int(created["id"].(float64)))
+	if w := do(s, "POST", "/api/sources/"+id+"/restore", "", bearer(token)); w.Code != http.StatusNotFound {
+		t.Fatalf("restore a source that is not deleted: %d", w.Code)
+	}
+
+	do(s, "DELETE", "/api/sources/"+id, "", bearer(token))
+	c.t = c.t.Add(store.DeleteUndoWindow - time.Second)
+	w := do(s, "POST", "/api/sources/"+id+"/restore", "", bearer(token))
+	if got := decode(t, w); w.Code != http.StatusOK || got["title"] != "Blog" {
+		t.Fatalf("restore: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "GET", "/api/sources/"+id, "", bearer(token)); w.Code != http.StatusOK {
+		t.Fatalf("get after restore: %d", w.Code)
+	}
+	if w := do(s, "POST", "/api/sources/"+id+"/restore", "", bearer(token)); w.Code != http.StatusNotFound {
+		t.Fatalf("second restore: %d", w.Code)
+	}
+
+	do(s, "DELETE", "/api/sources/"+id, "", bearer(token))
+	c.t = c.t.Add(store.DeleteUndoWindow + time.Second)
+	if w := do(s, "POST", "/api/sources/"+id+"/restore", "", bearer(token)); w.Code != http.StatusNotFound || decode(t, w)["error"] != "not_found" {
+		t.Fatalf("restore after the window: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "POST", "/api/sources/999/restore", "", bearer(token)); w.Code != http.StatusNotFound {
+		t.Fatalf("restore unknown: %d", w.Code)
+	}
+	if w := do(s, "POST", "/api/sources/x/restore", "", bearer(token)); w.Code != http.StatusBadRequest {
+		t.Fatalf("restore bad id: %d", w.Code)
 	}
 }
 

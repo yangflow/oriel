@@ -50,7 +50,7 @@ func (s *Store) AIInput(ctx context.Context, entryID int64) (AIInput, error) {
 	err := s.db.QueryRowContext(ctx, `
 		SELECT e.title, s.kind, e.extract_status, e.extracted_html, e.rss_content_html, e.rss_summary,
 			s.prompt_summary, s.prompt_translate
-		FROM entries e JOIN sources s ON s.id = e.source_id WHERE e.id = ?`, entryID).Scan(
+		FROM entries e JOIN sources s ON s.id = e.source_id WHERE e.id = ? AND s.deleted_at IS NULL`, entryID).Scan(
 		&in.Title, &in.Kind, &in.ExtractStatus, &in.ExtractedHTML, &in.ContentHTML, &in.Summary,
 		&in.PromptSummary, &in.PromptTranslate)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -112,7 +112,7 @@ func (s *Store) AIJobs(ctx context.Context, limit, maxAttempts int, retryBefore 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT a.entry_id, a.task FROM entry_ai a
 			JOIN entries e ON e.id = a.entry_id JOIN sources s ON s.id = e.source_id
-		WHERE NOT (s.kind = 'article' AND e.extract_status = 'pending')
+		WHERE s.deleted_at IS NULL AND NOT (s.kind = 'article' AND e.extract_status = 'pending')
 			AND (a.status = 'pending'
 				OR (a.status = 'failed' AND a.requested = 0 AND a.attempts < ? AND a.updated_at <= ?))
 		ORDER BY a.status = 'failed', a.requested DESC, e.created_at DESC, e.id DESC

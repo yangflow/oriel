@@ -63,4 +63,14 @@ func (p *Poller) prune(ctx context.Context) {
 	if deleted > 0 {
 		slog.Info("Pruned expired entries", "count", deleted)
 	}
+	purged, err := p.store.PurgeDeletedSources(ctx, now)
+	if err != nil {
+		if ctx.Err() == nil {
+			slog.Error("Cannot remove deleted subscriptions", "error", err)
+		}
+		return
+	}
+	if purged > 0 {
+		slog.Info("Removed deleted subscriptions", "count", purged)
+	}
 }

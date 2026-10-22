@@ -759,9 +759,18 @@ func (s Session) MutedCount(ctx context.Context, id int64, keywords string) (int
 	return reply.Count, err
 }
 
-// DeleteSource removes a subscription with all its entries, starred ones included.
+// DeleteSource deletes a subscription with its entries, starred ones included. RestoreSource undoes it for a short
+// while; after that the server removes it for good.
 func (s Session) DeleteSource(ctx context.Context, id int64) error {
 	return s.call(ctx, http.MethodDelete, "/api/sources/"+strconv.FormatInt(id, 10), nil, nil)
+}
+
+// RestoreSource undoes DeleteSource within the server's undo window and returns the subscription. After the window
+// the error code is not_found.
+func (s Session) RestoreSource(ctx context.Context, id int64) (Source, error) {
+	var src Source
+	err := s.call(ctx, http.MethodPost, "/api/sources/"+strconv.FormatInt(id, 10)+"/restore", nil, &src)
+	return src, err
 }
 
 // RefreshSource asks the server to fetch a subscription now.

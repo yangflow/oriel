@@ -55,7 +55,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, fetch_interval_auto, last_success_at IS NULL, consecutive_failures,
 			auto_summary, auto_translate, site_url, icon_url, icon_checked_site, websub_hub, websub_topic,
 			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days
-		FROM sources WHERE paused = 0 AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
+		FROM sources WHERE paused = 0 AND deleted_at IS NULL AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
 		return nil, err
@@ -357,7 +357,7 @@ type ExtractTarget struct {
 func (s *Store) PendingExtractions(ctx context.Context, now time.Time, limit int) ([]ExtractTarget, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT e.id, e.url, e.title, e.extract_attempts, s.extract_selector, s.extract_referer, s.extract_rewrites FROM entries e JOIN sources s ON s.id = e.source_id
-		WHERE s.kind = 'article'
+		WHERE s.kind = 'article' AND s.deleted_at IS NULL
 			AND (e.extract_status = 'pending' OR (e.extract_status = 'failed' AND e.next_extract_at <= ?))
 		ORDER BY e.extract_status = 'failed', e.created_at DESC, e.id DESC
 		LIMIT ?`, now.UnixMilli(), limit)

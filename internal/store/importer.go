@@ -11,7 +11,7 @@ import (
 
 // SourceIDByFeedURL returns the id of the subscription whose feed address equals raw by feedURLKey, or ErrNotFound.
 func (s *Store) SourceIDByFeedURL(ctx context.Context, raw string) (int64, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, url FROM sources WHERE url <> '' ORDER BY id")
+	rows, err := s.db.QueryContext(ctx, "SELECT id, url FROM sources WHERE url <> '' AND deleted_at IS NULL ORDER BY id")
 	if err != nil {
 		return 0, err
 	}

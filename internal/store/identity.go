@@ -53,7 +53,7 @@ func feedURLKey(raw string) string {
 
 // feedURLExists reports whether a source already has the same feed address as raw, compared with feedURLKey.
 func (s *Store) feedURLExists(ctx context.Context, raw string) (bool, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT url FROM sources WHERE url <> ''")
+	rows, err := s.db.QueryContext(ctx, "SELECT url FROM sources WHERE url <> '' AND deleted_at IS NULL")
 	if err != nil {
 		return false, err
 	}

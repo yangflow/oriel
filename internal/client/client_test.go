@@ -205,6 +205,8 @@ func TestTimelineAPI(t *testing.T) {
 			}
 			w.Write([]byte(`{"instance":"http://rsshub.local","title":"Issues","entries":[{"title":"One","url":"https://e/1","publishedAt":1700000000000},
 				{"title":"Two","url":"https://e/2","publishedAt":null}]}`))
+		case "/api/sources/5/restore":
+			w.Write([]byte(`{"id":5,"title":"Back","kind":"video","lastFetchedAt":null}`))
 		case "/api/sources/5", "/api/sources/5/refresh":
 			if r.Method == http.MethodPatch {
 				w.Write([]byte(`{"id":5,"title":"New","kind":"video","paused":true,"keepDays":90,"lastFetchedAt":null}`))
@@ -320,6 +322,9 @@ func TestTimelineAPI(t *testing.T) {
 	if err := session.DeleteSource(ctx, 5); err != nil {
 		t.Errorf("DeleteSource: %v", err)
 	}
+	if src, err := session.RestoreSource(ctx, 5); err != nil || src.ID != 5 || src.Title != "Back" {
+		t.Errorf("RestoreSource = %+v, %v", src, err)
+	}
 	if settings, err := session.Settings(ctx); err != nil || settings.RetentionDays != 30 {
 		t.Errorf("Settings = %+v, %v", settings, err)
 	}
@@ -353,6 +358,7 @@ func TestTimelineAPI(t *testing.T) {
 		"POST /api/sources/6/refresh ",
 		"POST /api/sources/refresh ",
 		"DELETE /api/sources/5 ",
+		"POST /api/sources/5/restore ",
 		"GET /api/settings ",
 		`PATCH /api/settings {"rsshubBaseUrl":"https://rsshub.app"}`,
 	}

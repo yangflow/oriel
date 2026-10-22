@@ -209,6 +209,10 @@ func (f *fake) DeleteSource(_ context.Context, id int64) error {
 	return nil
 }
 
+func (f *fake) RestoreSource(context.Context, int64) (client.Source, error) {
+	return client.Source{}, &client.APIError{Status: 404, Code: "not_found"}
+}
+
 func (f *fake) RefreshSource(context.Context, int64) error { return nil }
 
 func (f *fake) RefreshAll(context.Context) (client.RefreshResult, error) {

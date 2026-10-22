@@ -87,6 +87,9 @@ const sourceColumns = `
 // Feed addresses are compared by feedURLKey, so a trailing slash, a capitalised host or a default port does not make
 // a second subscription; the address is stored as given.
 func (s *Store) CreateSource(ctx context.Context, src NewSource, title string, now time.Time) (Source, error) {
+	if err := s.purgeDeletedLike(ctx, src); err != nil {
+		return Source{}, err
+	}
 	if src.URL != "" {
 		if exists, err := s.feedURLExists(ctx, src.URL); err != nil {
 			return Source{}, err
@@ -113,10 +116,42 @@ func (s *Store) CreateSource(ctx context.Context, src NewSource, title string, n
 	return s.Source(ctx, id)
 }
 
+// purgeDeletedLike removes the deleted subscriptions that src would clash with, now rather than at the end of their
+// undo window: adding the feed again is a new subscription, not a restore.
+func (s *Store) purgeDeletedLike(ctx context.Context, src NewSource) error {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, url, rsshub_path FROM sources WHERE deleted_at IS NOT NULL")
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		var url, path string
+		if err := rows.Scan(&id, &url, &path); err != nil {
+			rows.Close()
+			return err
+		}
+		if (url == src.URL && path == src.RSSHubPath) || (src.URL != "" && url != "" && feedURLKey(url) == feedURLKey(src.URL)) {
+			ids = append(ids, id)
+		}
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err := s.db.ExecContext(ctx, "DELETE FROM sources WHERE id = ?", id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Sources lists every subscription by title, or by address when the title is empty.
 func (s *Store) Sources(ctx context.Context) ([]Source, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT"+sourceColumns+`
-		FROM sources s ORDER BY lower(CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN s.url ELSE s.rsshub_path END), s.id`)
+		FROM sources s WHERE s.deleted_at IS NULL ORDER BY lower(CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN s.url ELSE s.rsshub_path END), s.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +169,7 @@ func (s *Store) Sources(ctx context.Context) ([]Source, error) {
 
 // Source returns one subscription.
 func (s *Store) Source(ctx context.Context, id int64) (Source, error) {
-	return scanSource(s.db.QueryRowContext(ctx, "SELECT"+sourceColumns+" FROM sources s WHERE s.id = ?", id))
+	return scanSource(s.db.QueryRowContext(ctx, "SELECT"+sourceColumns+" FROM sources s WHERE s.id = ? AND s.deleted_at IS NULL", id))
 }
 
 // UpdateSource applies a patch and returns the changed subscription. An empty patch changes nothing.
@@ -192,7 +227,7 @@ func (s *Store) UpdateSource(ctx context.Context, id int64, patch SourcePatch, n
 	}
 	if len(sets) > 0 {
 		set("updated_at", now.UnixMilli())
-		result, err := s.db.ExecContext(ctx, "UPDATE sources SET "+strings.Join(sets, ", ")+" WHERE id = ?", append(args, id)...)
+		result, err := s.db.ExecContext(ctx, "UPDATE sources SET "+strings.Join(sets, ", ")+" WHERE id = ? AND deleted_at IS NULL", append(args, id)...)
 		if err != nil {
 			return Source{}, err
 		}
@@ -219,9 +254,14 @@ func (s *Store) MutedCount(ctx context.Context, id int64, keywords string) (int,
 	return n, err
 }
 
-// DeleteSource removes a subscription and, through the foreign key, all its entries, starred or not.
-func (s *Store) DeleteSource(ctx context.Context, id int64) error {
-	result, err := s.db.ExecContext(ctx, "DELETE FROM sources WHERE id = ?", id)
+// DeleteUndoWindow is how long a deleted subscription can be restored. The client's toast shows for less, so that a
+// click on Undo does not meet the end of the window.
+const DeleteUndoWindow = 30 * time.Second
+
+// DeleteSource hides a subscription with its entries everywhere. RestoreSource brings it back within
+// DeleteUndoWindow; PurgeDeletedSources removes it for good after that. A subscription already deleted is ErrNotFound.
+func (s *Store) DeleteSource(ctx context.Context, id int64, now time.Time) error {
+	result, err := s.db.ExecContext(ctx, "UPDATE sources SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL", now.UnixMilli(), id)
 	if err != nil {
 		return err
 	}
@@ -233,11 +273,37 @@ func (s *Store) DeleteSource(ctx context.Context, id int64) error {
 	return nil
 }
 
+// RestoreSource brings back a subscription deleted at most DeleteUndoWindow before now, with its entries and
+// settings, and returns it. Otherwise, or when it was never deleted, it returns ErrNotFound.
+func (s *Store) RestoreSource(ctx context.Context, id int64, now time.Time) (Source, error) {
+	result, err := s.db.ExecContext(ctx, "UPDATE sources SET deleted_at = NULL WHERE id = ? AND deleted_at > ?",
+		id, now.Add(-DeleteUndoWindow).UnixMilli())
+	if err != nil {
+		return Source{}, err
+	}
+	if n, err := result.RowsAffected(); err != nil {
+		return Source{}, err
+	} else if n == 0 {
+		return Source{}, ErrNotFound
+	}
+	return s.Source(ctx, id)
+}
+
+// PurgeDeletedSources removes the subscriptions whose undo window is over, and through the foreign key all their
+// entries, starred or not. It returns how many subscriptions it removed.
+func (s *Store) PurgeDeletedSources(ctx context.Context, now time.Time) (int64, error) {
+	result, err := s.db.ExecContext(ctx, "DELETE FROM sources WHERE deleted_at <= ?", now.Add(-DeleteUndoWindow).UnixMilli())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 // MarkSourceDue makes an unpaused subscription due now, without changing its updated_at.
 // It returns ErrPaused for a paused subscription.
 func (s *Store) MarkSourceDue(ctx context.Context, id int64, now time.Time) error {
 	var paused bool
-	if err := s.db.QueryRowContext(ctx, "SELECT paused FROM sources WHERE id = ?", id).Scan(&paused); err != nil {
+	if err := s.db.QueryRowContext(ctx, "SELECT paused FROM sources WHERE id = ? AND deleted_at IS NULL", id).Scan(&paused); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -246,14 +312,14 @@ func (s *Store) MarkSourceDue(ctx context.Context, id int64, now time.Time) erro
 	if paused {
 		return ErrPaused
 	}
-	_, err := s.db.ExecContext(ctx, "UPDATE sources SET next_fetch_at = ? WHERE id = ? AND paused = 0", now.UnixMilli(), id)
+	_, err := s.db.ExecContext(ctx, "UPDATE sources SET next_fetch_at = ? WHERE id = ? AND paused = 0 AND deleted_at IS NULL", now.UnixMilli(), id)
 	return err
 }
 
 // MarkAllSourcesDue makes every unpaused subscription due now, without changing updated_at, and returns how many it
 // made due. The fetch loop picks them up like any other due subscription.
 func (s *Store) MarkAllSourcesDue(ctx context.Context, now time.Time) (int, error) {
-	res, err := s.db.ExecContext(ctx, "UPDATE sources SET next_fetch_at = ? WHERE paused = 0", now.UnixMilli())
+	res, err := s.db.ExecContext(ctx, "UPDATE sources SET next_fetch_at = ? WHERE paused = 0 AND deleted_at IS NULL", now.UnixMilli())
 	if err != nil {
 		return 0, err
 	}

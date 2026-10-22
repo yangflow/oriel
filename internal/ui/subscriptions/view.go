@@ -46,6 +46,7 @@ type copy struct {
 	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                string
 	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                            string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                         string
+	Undo, Dismiss, UndoFailed                                                                                                               string
 	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                 string
 	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                       string
 	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                      string
@@ -78,6 +79,7 @@ type API interface {
 	AddSource(ctx context.Context, src client.NewSource) (client.Source, error)
 	UpdateSource(ctx context.Context, id int64, patch client.SourcePatch) (client.Source, error)
 	DeleteSource(ctx context.Context, id int64) error
+	RestoreSource(ctx context.Context, id int64) (client.Source, error)
 	RefreshSource(ctx context.Context, id int64) error
 	SourcesHealth(ctx context.Context) (client.Health, error)
 	MutedCount(ctx context.Context, id int64, keywords string) (int, error)
@@ -91,7 +93,7 @@ type API interface {
 // Deps is what the dialogs do outside themselves. Go runs work away from the UI thread and then the function it
 // returns on the UI thread; Now is the clock, time.Now by default. Sources are the subscriptions the timeline has,
 // to name the one an address is already followed as. Added, Changed and Removed tell the timeline what the server
-// took, Show chooses a subscription in it, OpenSettings opens the AI group of the settings, and Expired shows the
+// took, Restored that a deleted subscription is back, Show chooses a subscription in it, OpenSettings opens the AI group of the settings, and Expired shows the
 // connect screen because the server no longer takes the session. Icon returns a site icon once the timeline has
 // decoded it, nil until then.
 type Deps struct {
@@ -103,6 +105,7 @@ type Deps struct {
 	Refreshed    func(client.Source) // src was queued to fetch now; the timeline waits for the result
 	Changed      func(client.Source)
 	Removed      func(id int64)
+	Restored     func(client.Source)
 	Show         func(id int64)
 	MarkRead     func(src client.Source)
 	MarkOlder    func(src client.Source, days int)
@@ -232,6 +235,7 @@ type Screen struct {
 	doomed   client.Source // the subscription being deleted
 	announce string
 	toast    string
+	deleted  []*deletion // the toasts that offer to undo a delete
 }
 
 // New selects the best available translation, falling back to English.
@@ -660,6 +664,19 @@ func (s *Screen) saveProblem(err error) string {
 	return s.problem(err)
 }
 
+// deletedToast is the ID of the toast that offers to undo deleting a subscription, followed by its ID.
+const deletedToast = "subscriptions.deleted."
+
+// undoToast is how long the toast offers Undo. The server takes the delete back for longer, see
+// store.DeleteUndoWindow, so a click at the end of the toast still works.
+const undoToast = 8 * time.Second
+
+// deletion is a subscription just deleted, whose toast is on screen or about to be.
+type deletion struct {
+	src   client.Source
+	shown bool
+}
+
 // gone drops a subscription the server no longer has.
 func (s *Screen) gone(id int64) {
 	if s.edit.src.ID == id {
@@ -760,7 +777,7 @@ func (s *Screen) remove() {
 			}
 			switch {
 			case err == nil:
-				s.toast = s.fill(s.text.Deleted, Name(src))
+				s.deleted = append(s.deleted, &deletion{src: src})
 				s.dropHealth(src.ID)
 				s.deps.Removed(src.ID)
 			case code(err) == "not_found":
@@ -770,6 +787,48 @@ func (s *Screen) remove() {
 			}
 		}
 	})
+}
+
+// restore undoes the delete of d.src. The timeline gets the subscription back, with its entries.
+func (s *Screen) restore(d *deletion) {
+	if s.api == nil {
+		return
+	}
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		src, err := api.RestoreSource(context.Background(), d.src.ID)
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			switch {
+			case err == nil:
+				s.deps.Restored(src)
+			case code(err) == "not_found":
+				s.toast = s.text.UndoFailed
+			default:
+				s.toast = s.problem(err)
+			}
+		}
+	})
+}
+
+// toasts offers Undo for each subscription just deleted. The toast is announced and takes no focus.
+func (s *Screen) toasts(c *ui.Context) {
+	for _, d := range s.deleted {
+		if d.shown {
+			continue
+		}
+		d.shown = true
+		c.AddToast(ui.Toast{ID: deletedToast + strconv.FormatInt(d.src.ID, 10), Title: s.fill(s.text.Deleted, Name(d.src)),
+			Timeout:  undoToast,
+			Action:   s.text.Undo,
+			OnAction: func() { s.restore(d) },
+			OnClose: func() {
+				s.deleted = slices.DeleteFunc(s.deleted, func(other *deletion) bool { return other == d })
+			},
+			Data: theme.ToastLook{Icon: icons.Trash2, Close: s.text.Dismiss}})
+	}
 }
 
 // Menu fills the context menu of src in the sidebar.
@@ -822,6 +881,7 @@ func (s *Screen) View(c *ui.Context) {
 			s.remove()
 		}
 	}
+	s.toasts(c)
 	if s.announce != "" {
 		c.Announce(s.announce)
 		s.announce = ""

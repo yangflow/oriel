@@ -79,9 +79,10 @@ const entryColumns = `
 	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec, e.read_progress,
 	s.pace_sec, coalesce(nullif(e.published_at, 0), e.created_at)`
 
-// shown keeps the entries of s that none of its mute keywords hides. Starred entries are never hidden.
-// A source without keywords is decided in SQL, so the Go function runs only for sources that have some.
-const shown = "(e.starred = 1 OR s.mute_keywords = '' OR NOT muted(s.mute_keywords, e.title, e.rss_summary))"
+// shown keeps the entries of s that none of its mute keywords hides, and drops those of a deleted source. Starred
+// entries are never hidden by keywords. A source without keywords is decided in SQL, so the Go function runs only for
+// sources that have some.
+const shown = "(s.deleted_at IS NULL AND (e.starred = 1 OR s.mute_keywords = '' OR NOT muted(s.mute_keywords, e.title, e.rss_summary)))"
 
 // live keeps out the unread entries whose source has a pace and whose time is up: they leave All and Unread and
 // their counts, and stay in search, Starred and the source's own view. The time is the published time, else the
@@ -211,7 +212,7 @@ func (s *Store) Entries(ctx context.Context, filter EntryFilter, limit int) ([]E
 func (s *Store) Entry(ctx context.Context, id int64) (Entry, error) {
 	var content, extracted string
 	entry, err := scanEntry(s.db.QueryRowContext(ctx, "SELECT"+entryColumns+`, e.rss_content_html, e.extracted_html
-		FROM entries e JOIN sources s ON s.id = e.source_id WHERE e.id = ?`, id), &content, &extracted)
+		FROM entries e JOIN sources s ON s.id = e.source_id WHERE e.id = ? AND s.deleted_at IS NULL`, id), &content, &extracted)
 	entry.ContentHTML, entry.ExtractedHTML = content, extracted
 	return entry, err
 }
@@ -225,7 +226,7 @@ func (s *Store) UpdateEntry(ctx context.Context, id int64, patch EntryPatch, now
 				is_read = coalesce(?1, is_read),
 				read_at = CASE WHEN ?1 IS NULL THEN read_at WHEN ?1 = 0 THEN NULL ELSE coalesce(read_at, ?2) END,
 				starred = coalesce(?3, starred)
-			WHERE id = ?4`, nullBool(patch.IsRead), now.UnixMilli(), nullBool(patch.Starred), id)
+			WHERE id = ?4 AND source_id IN (SELECT id FROM sources WHERE deleted_at IS NULL)`, nullBool(patch.IsRead), now.UnixMilli(), nullBool(patch.Starred), id)
 		if err != nil {
 			return Entry{}, err
 		}
@@ -236,7 +237,7 @@ func (s *Store) UpdateEntry(ctx context.Context, id int64, patch EntryPatch, now
 		}
 	}
 	if patch.ReadProgress != nil {
-		result, err := s.db.ExecContext(ctx, "UPDATE entries SET read_progress = ? WHERE id = ?", *patch.ReadProgress, id)
+		result, err := s.db.ExecContext(ctx, "UPDATE entries SET read_progress = ? WHERE id = ? AND source_id IN (SELECT id FROM sources WHERE deleted_at IS NULL)", *patch.ReadProgress, id)
 		if err != nil {
 			return Entry{}, err
 		}
@@ -307,7 +308,7 @@ func (s *Store) MarkUnread(ctx context.Context, ids []int64, readAt int64) ([]in
 // EntryPosition returns where an entry sits on the timeline.
 func (s *Store) EntryPosition(ctx context.Context, id int64) (Position, error) {
 	position := Position{ID: id}
-	err := s.db.QueryRowContext(ctx, "SELECT created_at FROM entries WHERE id = ?", id).Scan(&position.CreatedAt)
+	err := s.db.QueryRowContext(ctx, "SELECT created_at FROM entries WHERE id = ? AND source_id IN (SELECT id FROM sources WHERE deleted_at IS NULL)", id).Scan(&position.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Position{}, ErrNotFound
 	}

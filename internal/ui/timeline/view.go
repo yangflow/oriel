@@ -355,6 +355,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		Refreshed:    func(src client.Source) { s.watch(src, false) },
 		Changed:      s.changed,
 		Removed:      s.removed,
+		Restored:     s.restored,
 		Show:         func(id int64) { s.choose(scope{kind: s.kindOf(id), source: id}) },
 		MarkRead:     s.markSource,
 		MarkOlder:    s.markSourceOlder,
@@ -604,6 +605,16 @@ func (s *Screen) removed(id int64) {
 		s.choose(scope{})
 		return
 	}
+	s.reload()
+}
+
+// restored brings back a subscription that was deleted a moment ago, with its entries.
+func (s *Screen) restored(src client.Source) {
+	if !slices.ContainsFunc(s.sources, func(old client.Source) bool { return old.ID == src.ID }) {
+		s.sources = append(s.sources, src)
+	}
+	s.loadSources()
+	s.lists = nil
 	s.reload()
 }
 
