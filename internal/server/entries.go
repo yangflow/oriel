@@ -45,6 +45,9 @@ type entryJSON struct {
 	ReadAt        *int64        `json:"readAt"`
 	Starred       bool          `json:"starred"`
 	CreatedAt     int64         `json:"createdAt"`
+	// FadesAt and ExpiresAt are set for an unread entry of a source with a pace, in Unix milliseconds.
+	FadesAt   *int64 `json:"fadesAt,omitempty"`
+	ExpiresAt *int64 `json:"expiresAt,omitempty"`
 }
 
 type fullEntryJSON struct {
@@ -75,6 +78,7 @@ func entryToJSON(e store.Entry) entryJSON {
 		Author: e.Author, PublishedAt: millis(e.PublishedAt), Summary: e.Summary, ThumbnailURL: e.ThumbnailURL,
 		DurationSec: duration, Platform: e.Platform, Language: e.Language, ReadingSec: e.ReadingSec, ReadProgress: e.ReadProgress, Images: images, ExtractStatus: e.ExtractStatus,
 		IsRead: e.IsRead, ReadAt: millis(e.ReadAt), Starred: e.Starred, CreatedAt: e.CreatedAt.UnixMilli(),
+		FadesAt: millis(e.FadesAt), ExpiresAt: millis(e.ExpiresAt),
 	}
 }
 

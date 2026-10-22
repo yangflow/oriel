@@ -45,6 +45,7 @@ type sourceJSON struct {
 	MuteKeywords        string `json:"muteKeywords"`
 	Paused              bool   `json:"paused"`
 	KeepDays            int    `json:"keepDays"`
+	PaceSec             int    `json:"paceSec"`
 	RSSHubInstance      string `json:"rsshubInstance"`
 	WebSubHub           string `json:"websubHub"`
 	WebSubActive        bool   `json:"websubActive"`
@@ -66,7 +67,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, RSSHubInstance: src.RSSHubInstance, WebSubHub: src.WebSubHub,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, RSSHubInstance: src.RSSHubInstance, WebSubHub: src.WebSubHub,
 		WebSubActive: src.WebSubUntil.After(time.Now()), UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
@@ -248,6 +249,7 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		MuteKeywords      *string `json:"muteKeywords"`
 		Paused            *bool   `json:"paused"`
 		KeepDays          *int    `json:"keepDays"`
+		PaceSec           *int    `json:"paceSec"`
 	}
 	if !readBody(w, r, &body) {
 		return
@@ -284,6 +286,13 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		}
 		patch.KeepDays = body.KeepDays
 	}
+	if body.PaceSec != nil {
+		if sec := *body.PaceSec; sec != 0 && (sec < minPaceSec || sec > maxPaceSec) {
+			fail(w, http.StatusBadRequest, "invalid_pace")
+			return
+		}
+		patch.PaceSec = body.PaceSec
+	}
 	if body.MuteKeywords != nil {
 		keywords := muteLines(*body.MuteKeywords)
 		patch.MuteKeywords = &keywords
@@ -291,6 +300,12 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 	src, err := s.store.UpdateSource(r.Context(), id, patch, s.now())
 	replySource(w, src, err)
 }
+
+// minPaceSec and maxPaceSec bound a source's pace in seconds: an hour to 30 days; 0 turns it off.
+const (
+	minPaceSec = 3600
+	maxPaceSec = 30 * 24 * 3600
+)
 
 // mutedCount says how many entries of a source the given keywords would hide, without saving them.
 func (s *Server) mutedCount(w http.ResponseWriter, r *http.Request) {

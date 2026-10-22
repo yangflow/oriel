@@ -624,6 +624,7 @@ func TestEditAI(t *testing.T) {
 
 func TestEditAIOff(t *testing.T) {
 	s, f, tt := setup(t, "zh-Hans")
+	tt.SetSize(1000, 1400)
 	s.Edit(f.sources[0])
 	tt.Frame()
 	if tt.HasText(s.text.AIOff) {

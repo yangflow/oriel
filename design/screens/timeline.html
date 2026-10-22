@@ -103,6 +103,8 @@
      Hidden, the pane is gone with no rail, the main column takes the whole width (also at size=min) and the toolbar pads its
      left by the width of the window buttons, which then sit over it; the button is the first item of the toolbar, right
      after them, before the title, and stays on the same line as when the pane showed. The choice is remembered.
+     A source with a pace fades its unread entries during the last quarter of their time (expiring): the whole row goes
+     from full to 55% opacity, linearly, and its accessible name ends with "leaving the timeline soon". Nothing else changes.
      The toolbar is three parts: the title (with the count and the edit button) at the leading end, the segments in the middle,
      and at the trailing end the icon buttons (reading time, grid switch where it applies, mark all as read) with search
      last at the far right. The title's part and the trailing part take equal room, so the segments are centered in the
@@ -599,7 +601,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-adding','no-subscriptions-failed','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','dense'];
+const states=['list','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-adding','no-subscriptions-failed','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -684,6 +686,7 @@ const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hid
 const copy={
   en:{
     all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
+    leaving:'leaving the timeline soon',
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
     unreadCount:'{n} unread', results:'{n} found',
@@ -718,6 +721,7 @@ const copy={
   },
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
+    leaving:'即将离开时间线',
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
     unreadCount:'{n} 条未读', results:'找到 {n} 条',
@@ -984,7 +988,7 @@ else if(state==='time-empty')list=empty('clock',t('timeEmpty',{n:budget}),copy.t
 else if(state==='search-none')list=empty('search',t('noResults',{q}),copy.noResultsHint);
 else if(cardsOn)list=`<div class="vgrid${gridKind==='image'?' sq':''}" role="feed" aria-label="${scopeName}">${shown.map(gridKind==='image'?squareCard:videoCard).join('')}</div>${more}`;
 else if(wallOn)list=`<div class="masonry" role="feed" aria-label="${scopeName}">${shown.map(masonryTile).join('')}</div>${more}`;
-else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map((e,i)=>(state==='last-looked'&&i===3?`<button class="looked" aria-label="${t('lastLooked',{n:3})}"><span aria-hidden="true">${t('lastLooked',{n:3})}</span></button>`:'')+row(e,i)).join('')}${more}</div>`;
+else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map((e,i)=>(state==='last-looked'&&i===3?`<button class="looked" aria-label="${t('lastLooked',{n:3})}"><span aria-hidden="true">${t('lastLooked',{n:3})}</span></button>`:'')+(state==='expiring'&&!e.read?row(e,i).replace('<article class="',`<article style="opacity:${[1,.82,.7,.6,.55][Math.min(i,4)]}" aria-label="${(e.title||e.author)}, ${copy.leaving}" class="`):row(e,i))).join('')}${more}</div>`;
 
 const unreadInScope=kinds.includes(scope)?kindUnread(scope):scope==='source'?byId[focusId].unread:total;
 const sub=noSubs||state==='error'?'':state==='search'?t('results',{n:1}):state==='unread-done'||state==='starred-none'||state==='empty'||state==='marked-read'||budget?'':t('unreadCount',{n:unreadInScope});

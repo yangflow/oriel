@@ -40,6 +40,7 @@ type copy struct {
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                               string
 	ServedBy, ServedByBackup, MuteHidden, MuteNone                                                                                          string
 	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                         string
+	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                            string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                         string
 	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                 string
 	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                       string
@@ -64,6 +65,9 @@ var intervals = []int64{0, 15 * 60, 30 * 60, 3600, 3 * 3600, 6 * 3600, 12 * 3600
 // keeps are the keep periods offered, in days; 0 follows the global setting, the first and the default, and -1 keeps
 // the entries forever, the last.
 var keeps = []int64{0, 7, 30, 90, 180, 365, -1}
+
+// paces are the paces offered, in seconds: 0 is off, the first and the default, then 3 hours, 2 days and 7 days.
+var paces = []int64{0, 3 * 3600, 2 * 24 * 3600, 7 * 24 * 3600}
 
 // API is what the dialogs read and write on the server; client.Session is one.
 type API interface {
@@ -170,6 +174,7 @@ type editing struct {
 	interval int64
 	keep     int64 // in keeps: days, 0 to follow the settings, -1 for forever
 	global   int   // the keep period of the settings in days, 0 for forever
+	pace     int64 // in paces: seconds an unread entry stays in All and Unread, 0 for off
 	paused   bool
 	mute     string
 	counted  string // the keywords the count was asked for
@@ -515,7 +520,7 @@ func (s *Screen) Edit(src client.Source) {
 		return
 	}
 	s.edit = editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
-		interval: intervalChoice(src), keep: int64(src.KeepDays), paused: src.Paused, mute: src.MuteKeywords,
+		interval: intervalChoice(src), keep: int64(src.KeepDays), pace: int64(src.PaceSec), paused: src.Paused, mute: src.MuteKeywords,
 		auto:    [2]bool{src.AutoSummary, src.AutoTranslate},
 		prompts: [2]string{src.PromptSummary, src.PromptTranslate}, focus: true}
 	gen, api, id := s.gen, s.api, src.ID
@@ -558,6 +563,9 @@ func (s *Screen) save() {
 	}
 	if keep := int(e.keep); keep != e.src.KeepDays {
 		patch.KeepDays, changed = &keep, true
+	}
+	if pace := int(e.pace); pace != e.src.PaceSec {
+		patch.PaceSec, changed = &pace, true
 	}
 	if paused := e.paused; paused != e.src.Paused {
 		patch.Paused, changed = &paused, true
@@ -1513,6 +1521,36 @@ func (s *Screen) keepField(c *ui.Context) {
 	})
 }
 
+// paceName names a pace in seconds: 0 is off, the presets by name and any other number as hours or days.
+func (s *Screen) paceName(sec int64) string {
+	switch sec {
+	case 0:
+		return s.text.PaceOff
+	case paces[1]:
+		return s.text.PaceBreaking
+	case paces[2]:
+		return s.text.PaceDaily
+	case paces[3]:
+		return s.text.PaceWeekly
+	}
+	return s.every(sec)
+}
+
+// paceField is the pace of the subscription, with the line that says what it does.
+func (s *Screen) paceField(c *ui.Context) {
+	t := c.Theme()
+	e := &s.edit
+	options := paces
+	if !slices.Contains(options, e.pace) {
+		options = append(slices.Clone(options), e.pace)
+		slices.Sort(options[1:])
+	}
+	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+		s.choiceSelect(c, &e.pace, options, s.text.Pace, s.paceName(e.pace), s.paceName, e.busy)
+		help(c, s.text.PaceHelp)
+	})
+}
+
 // choiceSelect is a select of whole numbers named by name, with the label above it; shown is what the closed select
 // reads for the current value.
 func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, busy bool) {
@@ -1570,6 +1608,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.kindPicker(c, &e.kind)
 		s.kindSuggestion(c)
 		s.keepField(c)
+		s.paceField(c)
 		s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, s.text.PauseHelp)
 		s.muteField(c)
 		s.aiGroup(c)

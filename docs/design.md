@@ -235,7 +235,10 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   button "Show as Videos"; it only chooses the kind in the dialog. "Keep entries" follows, a full-width select in the
   style of the interval, above the pause switch: "Follow settings · 1 month" (the global period after the dot) is
   the default, then 1 week to 1 year and Forever, and an "N d" row when the stored number is none of those; a muted
-  12 help line under it says starred entries are always kept. The dialog ends with "Summaries and
+  12 help line under it says starred entries are always kept. "Pace" follows in the same style: Off is the
+  default, then Breaking (3 h), Daily (2 days) and Weekly (7 days), and an "N h" or "N d" row when the stored number is
+  none of those; a muted 12 help line says unread entries fade and leave All and Unread when the time is up, and
+  stay in search, Starred and the source. The dialog ends with "Summaries and
   translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
   Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".
@@ -437,6 +440,10 @@ values are in [design/tokens.md](../design/tokens.md). See
   with no break point (a URL, a version string) breaks where it must, so a title never pushes the row wider. The
   full title is always the entry's accessible name and the reader shows it whole; the pane's name also shows in full
   in a tooltip. Drawn in `design/screens/timeline.html`, `long-titles`.
+- **A row that is about to leave.** An unread entry of a source with a pace fades during the last quarter of its time:
+  the whole row (text, thumbnail, picture) goes from full to 55% opacity, linearly, and its accessible name ends with
+  "leaving the timeline soon". Nothing else changes, so the row stays readable and clickable. Drawn in
+  `design/screens/timeline.html`, `expiring`.
 - **Hierarchy by lightness.** Within one size, the order is `Text`, `Text2`, `TextMuted`; weight comes second and size
   last. Read rows go quiet in lightness and weight (500), not in size.
 - **Tracking and numerals.** Small labels get letter spacing (+0.04em at 11, +0.02em in Chinese at 12); the title
