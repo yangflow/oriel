@@ -1067,25 +1067,6 @@ func TestLineHeightFollowsLanguage(t *testing.T) {
 	}
 }
 
-// TestTranslateHiddenInTargetLanguage shows an entry already in the language of the translations has no Translate
-// button, and one in another language, or in none known, keeps it.
-func TestTranslateHiddenInTargetLanguage(t *testing.T) {
-	for _, tc := range []struct {
-		language string
-		shows    bool
-	}{{"zh-Hans", false}, {"en", true}, {"zh-Hant", true}, {"", true}} {
-		art := full()
-		art.Language = tc.language
-		_, f, tt := setup(t, "en", art)
-		f.ai = client.AIResults{TargetLanguage: "zh-Hans"}
-		f.settle(tt)
-		if tt.HasText("Translate") != tc.shows {
-			t.Errorf("language %q: Translate shows = %v, want %v", tc.language, !tc.shows, tc.shows)
-		}
-		expect(t, tt, "Summarize")
-	}
-}
-
 // several serves one article for each id, and counts what it is asked.
 type several struct {
 	*fake

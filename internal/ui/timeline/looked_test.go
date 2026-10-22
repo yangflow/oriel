@@ -239,3 +239,24 @@ func TestLastLookedOldest(t *testing.T) {
 		t.Fatalf("oldest first moved the marker: %v", g.kept)
 	}
 }
+
+// The toolbar's bar gets its hairline once the list is scrolled away from its top, and loses it back at the top.
+func TestBarEdge(t *testing.T) {
+	s, _, tt, _ := looking(t, "en", 60, 55, false)
+	tt.Frame()
+	if s.edge {
+		t.Fatal("the bar has an edge at the top")
+	}
+	s.list.ScrollTo(30, ui.Start)
+	tt.Frame()
+	tt.Frame()
+	if !s.edge {
+		t.Fatal("the bar has no edge once scrolled")
+	}
+	s.list.ScrollTo(0, ui.Start)
+	tt.Frame()
+	tt.Frame()
+	if s.edge {
+		t.Fatal("the bar keeps its edge back at the top")
+	}
+}
