@@ -32,6 +32,13 @@ type fake struct {
 	found   []client.Candidate
 	lateBy  time.Duration // how far the clock is past now
 
+	searched   []string // the queries FindRoutes was asked for
+	routes     client.Routes
+	routesErr  error
+	previewed  []string // the paths PreviewRoute was asked for
+	preview    client.RoutePreview
+	previewErr error
+
 	addErr, updateErr, deleteErr, refreshErr, settingsErr, setErr, healthErr, discoverErr error
 
 	hidden    int      // what the server says the mute keywords hide
@@ -110,6 +117,16 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 func (f *fake) Discover(_ context.Context, address string) ([]client.Candidate, error) {
 	f.looked = append(f.looked, address)
 	return f.found, f.discoverErr
+}
+
+func (f *fake) FindRoutes(_ context.Context, query string, _ bool) (client.Routes, error) {
+	f.searched = append(f.searched, query)
+	return f.routes, f.routesErr
+}
+
+func (f *fake) PreviewRoute(_ context.Context, path string) (client.RoutePreview, error) {
+	f.previewed = append(f.previewed, path)
+	return f.preview, f.previewErr
 }
 
 func (f *fake) deps() Deps {

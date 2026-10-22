@@ -226,7 +226,16 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   at the right), rows 6 apart under a 12 muted line "Found n feeds. Choose one."; the chosen row has the `Accent` soft fill and its
   check, the others have no fill, a 1 `Border` outline and no check. The first row is chosen, a click chooses another, and a single
   result is the one card as for a recognized link. When nothing was found a 12 muted line says so and Add tries the address
-  as typed. Mockup states `add-searching`, `add-found-list` and `add-none-found`. The edit dialog starts with a health line
+  as typed. Mockup states `add-searching`, `add-found-list` and `add-none-found`. A name, or a link that has no feed, is
+  looked up in the RSSHub instance's route catalog the same way: the line reads "Looking for RSSHub routes…", and every
+  matching route is a row like the feeds above (RSS icon, route name, the route template in monospace), at most 10. Under the
+  chosen row sit its parameters, one 32 high field each with the name as a 12 medium label ("(optional)" after it for a
+  parameter that may be left out) and the description as placeholder; the fields filled from a link look like typed ones.
+  A secondary "Preview" button with a 14 eye icon follows the fields and is held until the route is complete; its result is a
+  card with a 1 `Border` outline listing the first 5 entries, the title on one line and the date at the right in 12 muted,
+  under a 12 muted line with the feed's title, and a failure is the error line below the button. Without a catalog a 12
+  muted line says to type the route, as for a route typed with a slash, and there is no error. Mockup states
+  `add-routes`, `add-route-params`, `add-route-preview` and `add-no-catalog`. The edit dialog starts with a health line
   (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail.
   For a route that has been fetched, a muted 12 line under it names the RSSHub instance that served the last fetch
   (host only, "(backup)" after it when it is not the first of the list). The interval offers Auto

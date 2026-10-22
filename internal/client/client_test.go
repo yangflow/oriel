@@ -192,6 +192,19 @@ func TestTimelineAPI(t *testing.T) {
 			}
 			w.Write([]byte(`{"candidates":[{"url":"https://blog.example/rss.xml","rsshubPath":"","title":"Blog","kind":"","origin":"alternate"},
 				{"url":"","rsshubPath":"/bilibili/user/video/1","title":"","kind":"video","origin":"rule","site":"bilibili","label":"videos","subject":"1"}]}`))
+		case "/api/routes":
+			w.Write([]byte(`{"available":true,"instance":"http://rsshub.local","total":12,"routes":[{"path":"/github/issue/:user/:repo",
+				"name":"Issues","namespace":"github","namespaceName":"GitHub","example":"","unknown":1,
+				"parameters":[{"name":"user","description":"User","optional":false},{"name":"repo","description":"","optional":true}],
+				"values":{"user":"rsshub"}}]}`))
+		case "/api/routes/preview":
+			if r.URL.Query().Get("path") == "/gone" {
+				w.WriteHeader(http.StatusBadGateway)
+				w.Write([]byte(`{"error":"route_not_found"}`))
+				return
+			}
+			w.Write([]byte(`{"instance":"http://rsshub.local","title":"Issues","entries":[{"title":"One","url":"https://e/1","publishedAt":1700000000000},
+				{"title":"Two","url":"https://e/2","publishedAt":null}]}`))
 		case "/api/sources/5", "/api/sources/5/refresh":
 			if r.Method == http.MethodPatch {
 				w.Write([]byte(`{"id":5,"title":"New","kind":"video","paused":true,"keepDays":90,"lastFetchedAt":null}`))
@@ -269,6 +282,21 @@ func TestTimelineAPI(t *testing.T) {
 	if _, err := session.Discover(ctx, "https://down.example/"); !errors.As(err, &apiErr) || apiErr.Code != "page_unavailable" {
 		t.Errorf("Discover down: %v", err)
 	}
+	routes, err := session.FindRoutes(ctx, "github issues", true)
+	if err != nil || !routes.Available || routes.Instance != "http://rsshub.local" || routes.Total != 12 || len(routes.Routes) != 1 ||
+		routes.Routes[0].Path != "/github/issue/:user/:repo" || routes.Routes[0].NamespaceName != "GitHub" ||
+		len(routes.Routes[0].Parameters) != 2 || !routes.Routes[0].Parameters[1].Optional ||
+		routes.Routes[0].Values["user"] != "rsshub" {
+		t.Errorf("FindRoutes = %+v, %v", routes, err)
+	}
+	preview, err := session.PreviewRoute(ctx, "/github/issue/rsshub/rsshub")
+	if err != nil || preview.Title != "Issues" || len(preview.Entries) != 2 || preview.Entries[0].PublishedAt == nil ||
+		*preview.Entries[0].PublishedAt != 1700000000000 || preview.Entries[1].PublishedAt != nil {
+		t.Errorf("PreviewRoute = %+v, %v", preview, err)
+	}
+	if _, err := session.PreviewRoute(ctx, "/gone"); !errors.As(err, &apiErr) || apiErr.Code != "route_not_found" {
+		t.Errorf("PreviewRoute gone: %v", err)
+	}
 	if _, err := session.AddSource(ctx, NewSource{RSSHubPath: "/x/y", Kind: "social"}); err != nil {
 		t.Errorf("AddSource: %v", err)
 	}
@@ -315,6 +343,9 @@ func TestTimelineAPI(t *testing.T) {
 		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",
 		"GET /api/discover?url=https%3A%2F%2Fblog.example%2F ",
 		"GET /api/discover?url=https%3A%2F%2Fdown.example%2F ",
+		"GET /api/routes?q=github+issues&refresh=1 ",
+		"GET /api/routes/preview?path=%2Fgithub%2Fissue%2Frsshub%2Frsshub ",
+		"GET /api/routes/preview?path=%2Fgone ",
 		`POST /api/sources {"rsshubPath":"/x/y","kind":"social"}`,
 		`PATCH /api/sources/5 {"title":"New","paused":true,"keepDays":90}`,
 		`POST /api/sources/5/muted-count {"muteKeywords":"ad\nspam"}`,

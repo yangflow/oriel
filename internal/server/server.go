@@ -44,6 +44,8 @@ type Config struct {
 	Images Images
 	// Discover finds the feeds of a web address for GET /api/discover; nil answers every request with page_unavailable.
 	Discover Discoverer
+	// Routes finds and previews RSSHub routes for GET /api/routes; nil makes the finder of fetch.
+	Routes RouteFinder
 	// AI works through the queue of summaries and translations. Nil makes one that is never run, so
 	// requests stay queued.
 	AI *ai.Worker
@@ -62,11 +64,19 @@ type Discoverer interface {
 	Discover(ctx context.Context, address string) ([]fetch.Candidate, error)
 }
 
+// RouteFinder looks up the routes of the RSSHub instances and previews one. Find never fails: a catalog that cannot
+// be read is Available false. Preview returns fetch.ErrNoInstance, ErrRouteNotFound, ErrRouteUnavailable or ErrNotAFeed.
+type RouteFinder interface {
+	Find(ctx context.Context, instances []string, q string, refresh bool) fetch.RouteMatches
+	Preview(ctx context.Context, instances []string, path string) (fetch.RoutePreview, error)
+}
+
 // Server serves the HTTP API on top of a store.
 type Server struct {
 	store    *store.Store
 	images   Images
 	discover Discoverer
+	routes   RouteFinder
 	ai       *ai.Worker
 	version  string
 	salt     []byte
@@ -82,7 +92,10 @@ type Server struct {
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, ai: cfg.AI, fetching: cfg.Fetching, version: cfg.Version, now: time.Now, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
+	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, version: cfg.Version, now: time.Now, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
+	if s.routes == nil {
+		s.routes = fetch.NewRoutes(cfg.Version)
+	}
 	if s.ai == nil {
 		s.ai = ai.New(st, cfg.Version)
 	}
@@ -132,6 +145,8 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("GET /api/storage", s.authed(s.storage))
 	mux.HandleFunc("POST /api/storage/vacuum", s.authed(s.startVacuum))
 	mux.HandleFunc("GET /api/discover", s.authed(s.findFeeds))
+	mux.HandleFunc("GET /api/routes", s.authed(s.findRoutes))
+	mux.HandleFunc("GET /api/routes/preview", s.authed(s.previewRoute))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "not_found") })
 	s.handler = mux
 	return s, nil
