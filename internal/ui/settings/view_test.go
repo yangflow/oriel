@@ -737,7 +737,7 @@ func openAI(t *testing.T, language string, configured bool) (*Screen, *fake, *ui
 	}
 	f.model = "small"
 	// The AI page is longer than the default window; fonts differ by platform, so leave room for all of it.
-	tt.SetSize(1000, 1400)
+	tt.SetSize(1000, 1800)
 	s.OpenAI()
 	f.settle(tt)
 	return s, f, tt
@@ -1038,8 +1038,6 @@ func TestChecks(t *testing.T) {
 
 func TestPrompts(t *testing.T) {
 	s, f, tt := openAI(t, "en", true)
-	tt.SetSize(1000, 1200)
-	tt.Frame()
 	save, reset := s.text.Prompts+" · "+s.text.Save, s.text.PromptSummary+" · "+s.text.Reset
 	edit(tt, func() { s.prompts[0] += " Be brief." })
 	press(t, tt, save)
@@ -1075,8 +1073,6 @@ func TestPrompts(t *testing.T) {
 // not been edited again.
 func TestPromptRestoreUndo(t *testing.T) {
 	s, _, tt := openAI(t, "en", true)
-	tt.SetSize(1000, 1200)
-	tt.Frame()
 	reset := s.text.PromptSummary + " · " + s.text.Reset
 	toast := s.fill(s.text.PromptRestored, "{name}", s.text.PromptSummary)
 	edited := "  Be brief.\nUse \"quotes\".  " + strings.Repeat("é", 100)
