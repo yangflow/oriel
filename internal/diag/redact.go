@@ -3,6 +3,7 @@
 package diag
 
 import (
+	"os"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -16,6 +17,9 @@ var (
 	assignment = regexp.MustCompile(`(?i)([\w.\-]*(?:key|token|password|passwd|secret|credential|authorization|cookie|signature)[\w.\-]*)=[^\s&"']+`)
 	bearer     = regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]+`)
 )
+
+// home is the user's home directory, which names the local user; Redact writes it as "~".
+var home, _ = os.UserHomeDir()
 
 // sensitive are the words in the name of an attribute that make its value a secret.
 var sensitive = []string{"key", "token", "password", "passwd", "secret", "credential", "authorization", "cookie", "signature"}
@@ -31,10 +35,13 @@ func Sensitive(name string) bool {
 	return false
 }
 
-// Redact cuts every address in text down to scheme and host, blanks values that are assigned to a name that looks like
+// Redact cuts every address in text down to scheme and host, writes the home directory as "~", blanks values that are assigned to a name that looks like
 // a secret ("token=abc") and credentials after Bearer or Basic, and keeps at most maxText characters.
 func Redact(text string) string {
 	text = address.ReplaceAllStringFunc(text, hostOnly)
+	if len(home) > 1 {
+		text = strings.ReplaceAll(text, home, "~")
+	}
 	text = assignment.ReplaceAllString(text, "$1=[redacted]")
 	text = bearer.ReplaceAllString(text, "$1 [redacted]")
 	return truncate(text)

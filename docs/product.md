@@ -788,6 +788,7 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 脱敏规则（日志和 `last_error` 一视同仁，写入时就做，文件里没有未脱敏的版本）：
 
 - 文字里出现的网址（`scheme://…`）只留 `scheme://host`，路径、查询串、片段、用户名和密码都去掉。主机名之后的端口保留。
+- 用户主目录（里面有本机用户名）写成 `~`，比如文件错误里的 `/Users/<名字>/Library/…` 写成 `~/Library/…`。
 - 日志属性的名字（不分大小写）含 `key`、`token`、`password`、`passwd`、`secret`、`credential`、`authorization`、`cookie`、`signature` 之一的，整个属性不写；属性组里按带点的完整名字判断。
 - 单条属性值、消息和 `last_error` 各最多保留 300 个字符，超出的以 `…` 结尾。
 - 任何情况下都不写入：口令、会话令牌、AI 的 key、提示词、条目的标题和正文、订阅的完整地址、标题、站点地址和 RSSHub 实例地址、WebSub 的回调 key 和签名密钥。这些数据根本不进入文件的组装代码；脱敏只是第二道防线。

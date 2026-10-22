@@ -93,3 +93,13 @@ func TestBuildFromDataDirectory(t *testing.T) {
 		t.Errorf("an empty log is not said:\n%s", body)
 	}
 }
+
+func TestRedactHomeDirectory(t *testing.T) {
+	saved := home
+	defer func() { home = saved }()
+	home = filepath.Join(string(filepath.Separator)+"home", "someone")
+	in := "open " + filepath.Join(home, ".config", "Oriel", "preferences.json") + ": permission denied"
+	if got := Redact(in); strings.Contains(got, "someone") || !strings.HasPrefix(got, "open ~") {
+		t.Fatalf("Redact(%q) = %q", in, got)
+	}
+}
