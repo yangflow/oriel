@@ -100,7 +100,7 @@ type API interface {
 	Sources(ctx context.Context) ([]client.Source, error)
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
 	MarkRead(ctx context.Context, scope client.ReadScope) (client.Marked, error)
-	MarkUnread(ctx context.Context, m client.Marked) (int, error)
+	MarkUnread(ctx context.Context, m client.Marked) ([]int64, error)
 	RefreshAll(ctx context.Context) (client.RefreshResult, error)
 }
 
@@ -1922,7 +1922,7 @@ func (s *Screen) undo(m *marking) {
 	}
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
-		_, err := api.MarkUnread(context.Background(), m.Marked)
+		ids, err := api.MarkUnread(context.Background(), m.Marked)
 		return func() {
 			if gen != s.gen || s.expired(err) {
 				return
@@ -1931,7 +1931,7 @@ func (s *Screen) undo(m *marking) {
 				s.toast = s.text.ActionFailed
 				return
 			}
-			s.setRead(m.IDs, false)
+			s.setRead(ids, false)
 			s.loadSources()
 		}
 	})

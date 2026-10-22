@@ -273,31 +273,33 @@ func (s *Store) MarkRead(ctx context.Context, filter EntryFilter, now time.Time)
 	return ids, rows.Err()
 }
 
-// MarkUnread marks the read entries among ids as unread and returns how many changed. Unknown IDs are skipped. When
+// MarkUnread marks the read entries among ids as unread and returns the IDs of those it changed. Unknown IDs are skipped. When
 // readAt is not zero, only entries read at exactly that time (Unix milliseconds) change: the ones a MarkRead at that
 // time marked and nothing has marked since.
-func (s *Store) MarkUnread(ctx context.Context, ids []int64, readAt int64) (int64, error) {
+func (s *Store) MarkUnread(ctx context.Context, ids []int64, readAt int64) ([]int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer tx.Rollback()
 	statement, err := tx.PrepareContext(ctx, "UPDATE entries SET is_read = 0, read_at = NULL WHERE id = ? AND is_read = 1 AND (? = 0 OR read_at = ?)")
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer statement.Close()
-	var marked int64
+	marked := []int64{}
 	for _, id := range ids {
 		result, err := statement.ExecContext(ctx, id, readAt, readAt)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 		n, err := result.RowsAffected()
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
-		marked += n
+		if n > 0 {
+			marked = append(marked, id)
+		}
 	}
 	return marked, tx.Commit()
 }

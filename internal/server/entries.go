@@ -320,5 +320,5 @@ func (s *Server) markUnread(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
-	reply(w, http.StatusOK, map[string]int64{"marked": marked})
+	reply(w, http.StatusOK, map[string]any{"marked": len(marked), "ids": marked})
 }

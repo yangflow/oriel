@@ -128,21 +128,21 @@ func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) (client.Marke
 // fakeReadAt is the time the fake reads entries at.
 const fakeReadAt = 1700000000000
 
-func (f *fake) MarkUnread(_ context.Context, m client.Marked) (int, error) {
+func (f *fake) MarkUnread(_ context.Context, m client.Marked) ([]int64, error) {
 	f.unmarked = append(f.unmarked, m.IDs)
 	f.unmarkedAt = append(f.unmarkedAt, m.ReadAt)
 	if f.markErr != nil {
-		return 0, f.markErr
+		return nil, f.markErr
 	}
-	n := 0
+	var ids []int64
 	for i, e := range f.entries {
 		if e.IsRead && slices.Contains(m.IDs, e.ID) {
 			f.entries[i].IsRead = false
-			n++
+			ids = append(ids, e.ID)
 		}
 	}
 	f.count()
-	return n, nil
+	return ids, nil
 }
 
 // count sets the unread counts of the sources from the entries.

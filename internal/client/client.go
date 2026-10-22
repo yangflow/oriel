@@ -905,14 +905,14 @@ func (s Session) MarkRead(ctx context.Context, scope ReadScope) (Marked, error) 
 	return reply, err
 }
 
-// MarkUnread undoes a MarkRead: it marks the entries of m unread again, except those read again since, and returns how
-// many changed.
-func (s Session) MarkUnread(ctx context.Context, m Marked) (int, error) {
+// MarkUnread undoes a MarkRead: it marks the entries of m unread again, except those read again since, and returns
+// the IDs of those it changed.
+func (s Session) MarkUnread(ctx context.Context, m Marked) ([]int64, error) {
 	var reply struct {
-		Marked int `json:"marked"`
+		IDs []int64 `json:"ids"`
 	}
 	err := s.call(ctx, http.MethodPost, "/api/entries/unread", m, &reply)
-	return reply.Marked, err
+	return reply.IDs, err
 }
 
 // AI returns the summary and the translation of an entry.

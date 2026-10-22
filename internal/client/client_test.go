@@ -181,7 +181,7 @@ func TestTimelineAPI(t *testing.T) {
 		case "/api/entries/read":
 			w.Write([]byte(`{"marked":2,"ids":[7,8],"readAt":1700000000500}`))
 		case "/api/entries/unread":
-			w.Write([]byte(`{"marked":2}`))
+			w.Write([]byte(`{"marked":2,"ids":[7,8]}`))
 		case "/api/image":
 			w.Write([]byte("PNG"))
 		case "/api/discover":
@@ -268,8 +268,8 @@ func TestTimelineAPI(t *testing.T) {
 	if read, err := session.MarkRead(ctx, ReadScope{SourceID: 5, OlderThan: 1700000000000}); err != nil || len(read.IDs) != 2 {
 		t.Errorf("MarkRead older = %v, %v", read, err)
 	}
-	if marked, err := session.MarkUnread(ctx, read); err != nil || marked != 2 {
-		t.Errorf("MarkUnread = %d, %v", marked, err)
+	if marked, err := session.MarkUnread(ctx, read); err != nil || len(marked) != 2 {
+		t.Errorf("MarkUnread = %v, %v", marked, err)
 	}
 	if body, err := session.Image(ctx, "https://i/1.jpg?w=2&h=1"); err != nil || string(body) != "PNG" {
 		t.Errorf("Image = %q, %v", body, err)

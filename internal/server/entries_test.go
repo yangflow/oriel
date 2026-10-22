@@ -201,8 +201,10 @@ func TestTimeline(t *testing.T) {
 	do(s, "PATCH", fmt.Sprintf("/api/entries/%d", firstID), `{"isRead":false}`, bearer(token))
 	do(s, "PATCH", fmt.Sprintf("/api/entries/%d", firstID), `{"isRead":true}`, bearer(token))
 	undo, _ := json.Marshal(map[string]any{"ids": marked["ids"], "readAt": readAt})
-	if w := do(s, "POST", "/api/entries/unread", string(undo), bearer(token)); w.Code != http.StatusOK || decode(t, w)["marked"] != 2.0 {
+	if w := do(s, "POST", "/api/entries/unread", string(undo), bearer(token)); w.Code != http.StatusOK {
 		t.Fatalf("undo: %d %s", w.Code, w.Body)
+	} else if got := decode(t, w); got["marked"] != 2.0 || slices.Contains(got["ids"].([]any), any(float64(firstID))) {
+		t.Fatalf("undo: %v", got)
 	}
 	undo, _ = json.Marshal(map[string]any{"ids": marked["ids"]})
 	if w := do(s, "POST", "/api/entries/unread", string(undo), bearer(token)); w.Code != http.StatusOK || decode(t, w)["marked"] != 1.0 {
