@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -167,6 +168,7 @@ type Poller struct {
 	hosts     hostGate      // limits and spaces out requests to one site, for feeds and extraction
 	rsshub    instanceGate  // the RSSHub instances that are cooling down
 	lastPrune time.Time     // only touched by prune, which runs in one loop
+	vacuuming func() bool   // whether a vacuum is running; no new fetch starts while it is
 
 	mu       sync.Mutex // guards the three fields below
 	queue    []queued   // due sources not yet taken, oldest first
@@ -190,6 +192,7 @@ func New(st *store.Store, version string) *Poller {
 		now:       time.Now,
 		spacing:   feedSpacing,
 		inflight:  map[int64]bool{},
+		vacuuming: st.Vacuuming,
 	}
 }
 
@@ -261,6 +264,9 @@ func (p *Poller) work(ctx context.Context, idle bool) int {
 // take claims the oldest due source whose host has room, or reports that there is none. Sources whose host is busy
 // or held back stay in the queue, so one crowded host does not stop the others.
 func (p *Poller) take(ctx context.Context) (queued, bool) {
+	if p.vacuuming() {
+		return queued{}, false // a vacuum holds the write lock; a fetch started now would only wait and fail
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := p.now()
@@ -307,6 +313,21 @@ func (p *Poller) refill(ctx context.Context, now time.Time) {
 	}
 }
 
+// Fetching returns the ids of the sources being fetched now, in order.
+func (p *Poller) Fetching() []int64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ids := make([]int64, 0, len(p.inflight))
+	for id := range p.inflight {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+// statusKey carries the place where fetchFrom leaves the HTTP status it received, for the fetch log.
+type statusKey struct{}
+
 // finish gives back the host's place and the source's turn, after its outcome is recorded.
 func (p *Poller) finish(job queued) {
 	p.hosts.release(job.host)
@@ -330,11 +351,20 @@ func sourceAddress(src store.FeedSource, root string) string {
 // fetchSource fetches one source and records the outcome on it.
 func (p *Poller) fetchSource(ctx context.Context, job queued) int {
 	src := job.src
-	created, err := p.fetchAndSave(ctx, src, job.host)
+	started := p.now()
+	var status int
+	created, err := p.fetchAndSave(context.WithValue(ctx, statusKey{}, &status), src, job.host)
 	if ctx.Err() != nil || errors.Is(err, errDeferred) {
 		return 0 // shutting down, or nothing could be tried: leave the source due
 	}
 	now := p.now()
+	attempt := store.FetchAttempt{SourceID: src.ID, At: now, Duration: max(now.Sub(started), 0), OK: err == nil, Status: status, NewEntries: created}
+	if err != nil {
+		attempt.Error = err.Error()
+	}
+	if logErr := p.store.LogFetch(ctx, attempt); logErr != nil && ctx.Err() == nil {
+		slog.Error("Cannot log a fetch", "source", src.ID, "error", logErr)
+	}
 	if err != nil {
 		wait := retryDelay(src.ConsecutiveFailures + 1)
 		var asked *retryAfterError
@@ -464,6 +494,9 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 		return 0, unavailable(ctx, instance, err)
 	}
 	defer resp.Body.Close()
+	if status, ok := ctx.Value(statusKey{}).(*int); ok {
+		*status = resp.StatusCode
+	}
 	etag, lastModified := resp.Header.Get("ETag"), resp.Header.Get("Last-Modified")
 	now := p.now()
 	switch {

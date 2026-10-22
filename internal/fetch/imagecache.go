@@ -82,6 +82,14 @@ func (c *imageCache) scan() {
 	}
 }
 
+// stats returns how many pictures the cache holds and the bytes they take.
+func (c *imageCache) stats() (count int, bytes int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.scan()
+	return len(c.entries), c.total
+}
+
 // drop forgets a file and removes it. The caller holds mu.
 func (c *imageCache) drop(key string) {
 	if e, ok := c.entries[key]; ok {

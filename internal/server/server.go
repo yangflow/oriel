@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/yangflow/oriel/internal/ai"
@@ -43,6 +44,8 @@ type Config struct {
 	// AI works through the queue of summaries and translations. Nil makes one that is never run, so
 	// requests stay queued.
 	AI *ai.Worker
+	// Fetching returns the ids of the sources being fetched now, for GET /api/activity; nil means none are.
+	Fetching func() []int64
 }
 
 // Images downloads a picture found inside a feed and returns its content type and bytes.
@@ -61,11 +64,15 @@ type Server struct {
 	now      func() time.Time
 	throttle *throttle
 	handler  http.Handler
+	fetching func() []int64
+
+	vacuumMu sync.Mutex // guards vacuum
+	vacuum   vacuumState
 }
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, ai: cfg.AI, version: cfg.Version, now: time.Now, throttle: newThrottle()}
+	s := &Server{store: st, images: cfg.Images, ai: cfg.AI, fetching: cfg.Fetching, version: cfg.Version, now: time.Now, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
 	if s.ai == nil {
 		s.ai = ai.New(st, cfg.Version)
 	}
@@ -110,6 +117,9 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("POST /api/opml/import", s.authed(s.importOPML))
 	mux.HandleFunc("GET /api/opml/export", s.authed(s.exportOPML))
 	mux.HandleFunc("GET /api/image", s.authed(s.image))
+	mux.HandleFunc("GET /api/activity", s.authed(s.activity))
+	mux.HandleFunc("GET /api/storage", s.authed(s.storage))
+	mux.HandleFunc("POST /api/storage/vacuum", s.authed(s.startVacuum))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "not_found") })
 	s.handler = mux
 	return s, nil

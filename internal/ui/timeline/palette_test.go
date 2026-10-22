@@ -256,7 +256,7 @@ func TestPaletteActions(t *testing.T) {
 	t.Run("pages", func(t *testing.T) {
 		s, f, tt := setup(t, "en")
 		for _, tc := range []struct{ query, page string }{{"appearance", "appearance"}, {"fetching", "fetching"},
-			{"import", "opml"}, {"ai", "ai"}, {"devices", "devices"}} {
+			{"import", "opml"}, {"ai", "ai"}, {"devices", "devices"}, {"activity", "activity"}} {
 			run(t, s, tt, tc.query)
 			if got := f.pages; len(got) == 0 || got[len(got)-1] != tc.page {
 				t.Fatalf("%q opened %v", tc.query, got)

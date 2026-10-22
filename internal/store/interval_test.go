@@ -15,8 +15,9 @@ func TestMigrationMakesDefaultIntervalAuto(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Take the database back to what version 9 left: the columns of the later migrations gone, three sources with their intervals.
+	// Take the database back to what version 9 left: no fetch log, the columns of the later migrations gone, three sources with their intervals.
 	for _, q := range []string{
+		"DROP TABLE fetch_log",
 		"ALTER TABLE sources DROP COLUMN websub_hub",
 		"ALTER TABLE sources DROP COLUMN websub_topic",
 		"ALTER TABLE sources DROP COLUMN websub_key",

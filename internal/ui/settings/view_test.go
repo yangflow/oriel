@@ -45,6 +45,15 @@ type fake struct {
 
 	settingsErr, setErr, devicesErr, revokeErr, importErr, exportErr, testErr error
 
+	activity    client.Activity
+	storage     client.Storage
+	started     client.Vacuum // what starting a compaction answers
+	activityErr error
+	storageErr  error
+	vacuumErr   error
+	reads       int // how many times the activity was read
+	vacuums     int // how many times a compaction was started
+
 	model string        // the model that answers a test
 	check client.AITest // what else the test finds; its Model is model
 	tests int
@@ -756,7 +765,7 @@ func TestOpenPage(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		group int
-	}{{"appearance", appearance}, {"fetching", fetching}, {"opml", opml}, {"ai", ai}, {"devices", devices}} {
+	}{{"appearance", appearance}, {"fetching", fetching}, {"opml", opml}, {"ai", ai}, {"devices", devices}, {"activity", activity}} {
 		s, f, tt := setup(t, "en", true)
 		s.OpenPage(tc.name)
 		f.settle(tt)

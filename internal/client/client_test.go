@@ -312,6 +312,61 @@ func TestTimelineAPI(t *testing.T) {
 	}
 }
 
+func TestActivityAndStorageAPI(t *testing.T) {
+	ctx := context.Background()
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+		switch r.Method + " " + r.URL.Path {
+		case "GET /api/activity":
+			w.Write([]byte(`{"keep":10,"fetching":[{"id":2,"url":"https://b/feed","rsshubPath":"","title":"B"}],
+				"sources":[{"id":1,"url":"https://a/feed","rsshubPath":"","title":"A","paused":true,
+				"attempts":[{"at":1700000000000,"durationMs":1500,"ok":false,"status":503,"newEntries":0,"error":"status 503"},
+				{"at":1699999000000,"durationMs":90,"ok":true,"status":200,"newEntries":4,"error":""}]}]}`))
+		case "GET /api/storage":
+			w.Write([]byte(`{"databaseBytes":1000,"reclaimableBytes":200,"entries":30,"images":4,"imageBytes":5000,
+				"vacuum":{"state":"done","startedAt":1,"finishedAt":2,"freedBytes":150,"error":""}}`))
+		case "POST /api/storage/vacuum":
+			if len(seen) > 3 {
+				w.WriteHeader(http.StatusConflict)
+				w.Write([]byte(`{"error":"vacuum_running"}`))
+				return
+			}
+			w.WriteHeader(http.StatusAccepted)
+			w.Write([]byte(`{"vacuum":{"state":"running","startedAt":7}}`))
+		}
+	}))
+	defer srv.Close()
+	session := Session{Server: srv.URL, Token: "tok"}
+
+	activity, err := session.Activity(ctx)
+	if err != nil || activity.Keep != 10 || len(activity.Fetching) != 1 || activity.Fetching[0].Title != "B" || len(activity.Sources) != 1 {
+		t.Fatalf("Activity = %+v, %v", activity, err)
+	}
+	src := activity.Sources[0]
+	if !src.Paused || len(src.Attempts) != 2 || src.Attempts[0].OK || src.Attempts[0].Status != 503 ||
+		src.Attempts[0].Error != "status 503" || src.Attempts[1].NewEntries != 4 || src.Attempts[1].DurationMs != 90 {
+		t.Errorf("source = %+v", src)
+	}
+	storage, err := session.Storage(ctx)
+	if err != nil || storage.DatabaseBytes != 1000 || storage.ReclaimableBytes != 200 || storage.Entries != 30 ||
+		storage.Images != 4 || storage.ImageBytes != 5000 || storage.Vacuum.State != VacuumDone || storage.Vacuum.FreedBytes != 150 {
+		t.Errorf("Storage = %+v, %v", storage, err)
+	}
+	started, err := session.StartVacuum(ctx)
+	if err != nil || started.State != VacuumRunning || started.StartedAt != 7 {
+		t.Errorf("StartVacuum = %+v, %v", started, err)
+	}
+	var apiErr *APIError
+	if _, err := session.StartVacuum(ctx); !errors.As(err, &apiErr) || apiErr.Code != "vacuum_running" || apiErr.Status != http.StatusConflict {
+		t.Errorf("second StartVacuum: %v", err)
+	}
+	want := []string{"GET /api/activity Bearer tok", "GET /api/storage Bearer tok", "POST /api/storage/vacuum Bearer tok", "POST /api/storage/vacuum Bearer tok"}
+	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
+		t.Errorf("requests:\n%s", strings.Join(seen, "\n"))
+	}
+}
+
 func TestSettingsAPI(t *testing.T) {
 	ctx := context.Background()
 	var seen []string

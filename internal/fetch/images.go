@@ -63,6 +63,14 @@ func (im *Images) Get(ctx context.Context, address string) (string, []byte, erro
 	return kind, body, err
 }
 
+// CacheStats returns how many pictures the disk cache holds and the bytes they take; both are zero without a cache.
+func (im *Images) CacheStats() (count int, bytes int64) {
+	if im.cache == nil {
+		return 0, 0
+	}
+	return im.cache.stats()
+}
+
 // download fetches the picture from the origin through the guarded client.
 func (im *Images) download(ctx context.Context, address string) (string, []byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)

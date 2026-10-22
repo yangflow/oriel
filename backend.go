@@ -50,7 +50,8 @@ func start(ctx context.Context, dataDir, password string, port int) (*backend, e
 		return nil, err
 	}
 	worker := ai.New(st, version)
-	api, err := server.New(st, server.Config{Password: password, Version: version, Images: fetch.NewImages(version, filepath.Join(dataDir, "image-cache")), AI: worker})
+	poller := fetch.New(st, version)
+	api, err := server.New(st, server.Config{Password: password, Version: version, Images: fetch.NewImages(version, filepath.Join(dataDir, "image-cache")), AI: worker, Fetching: poller.Fetching})
 	if err != nil {
 		st.Close()
 		return nil, err
@@ -74,7 +75,7 @@ func start(ctx context.Context, dataDir, password string, port int) (*backend, e
 			slog.Error("Server stopped", "error", err)
 		}
 	}()
-	b.background.Go(func() { fetch.New(st, version).Run(backgroundCtx) })
+	b.background.Go(func() { poller.Run(backgroundCtx) })
 	b.background.Go(func() { worker.Run(backgroundCtx) })
 	b.background.Go(func() {
 		if err := st.BackfillReadingTime(backgroundCtx); err != nil && backgroundCtx.Err() == nil {

@@ -13,6 +13,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -34,6 +35,8 @@ var ErrLocked = errors.New("the database is in use by another Oriel process")
 type Store struct {
 	db   *sql.DB
 	lock *os.File
+
+	vacuuming atomic.Bool // set while Vacuum runs
 }
 
 // Open opens or creates the database file, locks it for this process and applies pending migrations.

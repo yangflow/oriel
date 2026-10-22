@@ -9,13 +9,18 @@
      return to the timeline where it was. Groups: Appearance (first; theme, interface language, interface font and the
      reading text and how each kind is viewed, kept on this device only, not on the server), Fetching (the RSSHub instances, an ordered list, and how long entries are
      kept), Import and export (OPML), AI (the endpoint for summaries and translations, and the global prompts), Devices
-     (the sessions signed in to the server).
+     (the sessions signed in to the server), Activity and storage (what is being fetched, how each subscription's recent
+     fetches went, the database size and the Compact database action).
      Appearance is saved and applied as soon as a control is changed; it has no Save button. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License).
      States: appearance, fetching (one RSSHub instance), several (three instances: the first is the primary, the others
      take over in order), edited (the list changed, not saved), invalid (a line is not a valid address; nothing is sent), saved, opml,
      importing, imported (with failures), import-error, exported, devices (a remote server and its sessions),
      devices-local (this computer's server, no sessions), revoke (confirming a revocation), loading, error;
+     activity (storage figures, one fetch under way, recent fetches with the newest attempt of each source),
+     activity-open (one source expanded to its attempts, a failed one with its reason), activity-empty (nothing fetching,
+     no attempts yet), vacuum-running (Compact database pressed: busy, cannot be pressed again), vacuum-done (finished,
+     how much was freed), vacuum-failed (the reason, the button usable again);
      ai (not set up), ai-configured (saved, the key only shown as set), ai-edited (changed, not saved; testing waits
      for the save), ai-invalid (the server refused the address), ai-preset (Ollama picked from the Preset row: address filled in, unsaved,
      model placeholder is that runtime's hint, key untouched), ai-testing, ai-tested (connected, model listed, context
@@ -243,6 +248,25 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .badge { height:18px; display:inline-flex; align-items:center; padding:0 7px; border-radius:9px; font-size:11px; font-weight:500; letter-spacing:.02em; background:var(--accent-soft); color:var(--accent) }
 .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%) }
 .badge.off { background:var(--track); color:var(--muted) }
+.kv { display:flex; align-items:baseline; justify-content:space-between; gap:16px }
+.kv .value { font-variant-numeric:tabular-nums; color:var(--text2) }
+.lead-row { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin:0 0 20px }
+.lead-row .lead { margin:0 }
+.compact { display:flex; align-items:flex-start; gap:16px }
+.compact .help { flex:1; margin:0 }
+.line { display:flex; align-items:center; gap:10px; min-height:36px; padding:0 20px }
+.line .name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.src { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:0 20px; text-align:left }
+.src .name { font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.src .sum { flex:none; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums }
+.src .grow { flex:1; min-width:0 }
+.src svg.icon { flex:none }
+.src .chev { color:var(--muted); transition:transform .14s ease-out }
+.src.open .chev { transform:rotate(180deg) }
+.ok-ic { color:var(--success) } .bad-ic { color:var(--danger) }
+.attempt { display:flex; flex-wrap:wrap; align-items:center; gap:2px 10px; padding:6px 20px 6px 50px; font-size:12px; color:var(--text2); font-variant-numeric:tabular-nums }
+.attempt .reason { flex-basis:100%; padding-left:24px; color:var(--danger) }
+.attempt svg.icon { width:14px; height:14px }
 .note { display:flex; gap:10px; align-items:flex-start; color:var(--muted) }
 .note svg.icon { margin-top:1px }
 .label-row { display:flex; align-items:center; gap:8px }
@@ -292,7 +316,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -348,6 +372,7 @@ const icons={
   plug:'<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
   rotateCcw:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   check:'<path d="M20 6 9 17l-5-5"/>',
+  database:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
   arrowUpDown:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
 };
 
@@ -357,7 +382,14 @@ const copy={
   en:{
     thisComputer:'This computer', settings:'Settings', backTimeline:'Back to the timeline', serverNote:'These settings belong to this server',
     lead:'Settings are kept on the server, for every device connected to it.',
-    fetching:'Fetching', opml:'Import and export', devices:'Devices', ai:'AI',
+    fetching:'Fetching', opml:'Import and export', devices:'Devices', ai:'AI', activity:'Activity and storage',
+    activityLead:'What is being fetched, how the recent fetches went, and the space the database uses.', refresh:'Refresh',
+    storage:'Storage', dbSize:'Database size', entries:'Entries', images:'Cached images', imagesValue:'{n} images, {size}',
+    compact:'Compact database', compacting:'Compacting…', compacted:'Compacted. Freed {size}', compactFailed:'Could not compact: {reason}',
+    compactHelp:'Rewrites the database file to give back unused space. It can take a while and runs in the background; Oriel stays usable, and new fetches wait until it is done. About {size} can be freed.',
+    fetchingNow:'Fetching now', fetchingNone:'Nothing is being fetched right now.', recent:'Recent fetches',
+    recentNone:'No fetches yet. Subscriptions appear here once they have been fetched.', recentKeep:'The last {n} attempts of each subscription are kept.',
+    newCount:'{n} new', nothingNew:'nothing new', failedWord:'failed', showAttempts:'Show the fetches of {name}',
     appearance:'Appearance', appearanceLead:'These apply only to this device.',
     theme:'Theme', themeHelp:'Light or dark. Teal stays the accent in both.', themeSystem:'System', themeLight:'Light', themeDark:'Dark',
     uiLanguage:'Interface language', uiLanguageHelp:'Applies at once.', systemChoice:'System',
@@ -415,7 +447,14 @@ const copy={
   'zh-Hans':{
     thisComputer:'本机', settings:'设置', backTimeline:'回到时间线', serverNote:'这些设置属于这个服务端',
     lead:'设置保存在服务端，连到它的每台设备都一样。',
-    fetching:'抓取', opml:'导入和导出', devices:'设备', ai:'AI',
+    fetching:'抓取', opml:'导入和导出', devices:'设备', ai:'AI', activity:'活动与存储',
+    activityLead:'现在在抓什么、最近抓得怎么样，以及数据库占用的空间。', refresh:'刷新',
+    storage:'存储', dbSize:'数据库大小', entries:'条目', images:'图片缓存', imagesValue:'{n} 张，{size}',
+    compact:'压缩数据库', compacting:'正在压缩…', compacted:'已压缩，腾出 {size}', compactFailed:'没能压缩：{reason}',
+    compactHelp:'重写数据库文件，把空闲的空间还给系统。可能要一会儿，在后台进行，Oriel 照常可用；压缩期间不开始新的抓取。大约能腾出 {size}。',
+    fetchingNow:'正在抓取', fetchingNone:'现在没有在抓取的订阅。', recent:'最近的抓取',
+    recentNone:'还没有抓取记录。订阅抓取过之后会出现在这里。', recentKeep:'每个订阅保留最近 {n} 次。',
+    newCount:'新增 {n} 条', nothingNew:'没有新内容', failedWord:'失败', showAttempts:'显示「{name}」的抓取记录',
     appearance:'外观', appearanceLead:'这些只对这台设备生效。',
     theme:'主题', themeHelp:'浅色或深色。两种主题下强调色都是青绿。', themeSystem:'跟随系统', themeLight:'浅色', themeDark:'深色',
     uiLanguage:'界面语言', uiLanguageHelp:'选了立即生效。', systemChoice:'跟随系统',
@@ -475,9 +514,9 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':'fetching';
+const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')?'activity':'fetching';
 
-const groups=[['appearance','palette'],['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop']];
+const groups=[['appearance','palette'],['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop'],['activity','database']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
 <nav class="nav" aria-label="${copy.settings}"><div class="section">${copy.settings}</div>${groups.map(([k,g])=>`<button class="item${k===group?' chosen':''}"${k===group?' aria-current="page"':''}>${icon(g)}<span class="name">${copy[k]}</span></button>`).join('')}</nav>
 <div class="server" title="${copy.serverNote}">${icon(remote?'server':'laptop')}<span class="name">${remote?host:copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></div></aside>`;
@@ -595,10 +634,38 @@ ${prompt(copy.promptTranslate,'Translate the text into {language}. Keep the para
 <div class="row"><div class="actions"><p class="help status" style="display:block">${copy.promptHelp}</p><button class="button${state==='prompt-restored'?' primary':''}"${state==='prompt-restored'?'':' disabled'}>${copy.save}</button></div></div>
 </div></div></div>`;
 
+const ago=m=>m<1?copy.now:m<60?(zh?m+' 分钟前':m+' min ago'):t('hours',{n:Math.round(m/60)});
+const sources=[
+  {name:'Gopher Weekly',min:2,ok:true,news:3},
+  {name:zh?'少数派':'Daring Fireball',min:6,ok:true,news:0},
+  {name:zh?'某某博客':'Example Blog',min:11,ok:false},
+  {name:'Hacker News',min:14,ok:true,news:12},
+];
+const empty=state==='activity-empty';
+const attempts=[[11,false,503,1200,0,'status 503'],[41,true,200,340,3],[71,true,304,95,0],[101,true,200,410,1]];
+const sumText=x=>x.ok?(x.news?t('newCount',{n:x.news}):copy.nothingNew):copy.failedWord;
+const srcRow=(x,open)=>`<button class="src${open?' open':''}" aria-expanded="${open}" aria-label="${t('showAttempts',{name:x.name})}">${icon(x.ok?'check':'alert',x.ok?'ok-ic':'bad-ic')}<span class="grow name">${x.name}</span><span class="sum">${ago(x.min)} · ${sumText(x)}</span>${icon('chevronDown','chev')}</button>`;
+const attemptRows=attempts.map(([m,ok,st,ms,n,why])=>`<div class="attempt">${icon(ok?'check':'alert',ok?'ok-ic':'bad-ic')}<span>${ago(m)}</span><span>${st}</span><span>${ms>=1000?(ms/1000).toFixed(1)+' s':ms+' ms'}</span>${ok?`<span>${t('newCount',{n})}</span>`:''}${why?`<span class="reason">${why}</span>`:''}</div>`).join('');
+const vac=state==='vacuum-running'?'running':state==='vacuum-done'?'done':state==='vacuum-failed'?'failed':'idle';
+let vacStatus='';
+if(vac==='done')vacStatus=`<div class="status ok" role="status">${icon('check')}${t('compacted',{size:'38.2 MB'})}</div>`;
+if(vac==='failed')vacStatus=`<div class="status warn" role="alert">${icon('alert')}${t('compactFailed',{reason:'database or disk is full'})}</div>`;
+const free=vac==='done'?'0 B':'38.2 MB';
+const activity=`<div class="lead-row"><p class="lead">${copy.activityLead}</p><button class="button small">${icon('refresh')}${copy.refresh}</button></div>
+<h2 class="section-title">${copy.storage}</h2><div class="card">
+<div class="row kv"><span>${copy.dbSize}</span><span class="value">${vac==='done'?'86.4 MB':'124.6 MB'}</span></div>
+<div class="row kv"><span>${copy.entries}</span><span class="value">48,213</span></div>
+<div class="row kv"><span>${copy.images}</span><span class="value">${t('imagesValue',{n:'1,284',size:'212.3 MB'})}</span></div>
+<div class="row"><div class="compact"><p class="help">${t('compactHelp',{size:free})}</p><button class="button"${vac==='running'?' disabled':''}>${vac==='running'?icon('loader','spin'):icon('database')}${vac==='running'?copy.compacting:copy.compact}</button></div>${vacStatus}</div>
+</div>
+<h2 class="section-title" style="margin-top:28px">${copy.fetchingNow}</h2><div class="card">${empty?`<div class="row note">${icon('check')}<span>${copy.fetchingNone}</span></div>`:`<div class="line">${icon('rss')}<span class="name">Lobsters</span></div><div class="line">${icon('rss')}<span class="name">${zh?'阮一峰的网络日志':'Julia Evans'}</span></div>`}</div>
+<h2 class="section-title" style="margin-top:28px">${copy.recent}</h2><div class="card">${empty?`<div class="row note">${icon('inbox')}<span>${copy.recentNone}</span></div>`:sources.map((x,i)=>`<div class="row" style="padding:0">${srcRow(x,state==='activity-open'&&i===2)}${state==='activity-open'&&i===2?attemptRows:''}</div>`).join('')}</div>
+<p class="help" style="margin:8px 4px 0">${t('recentKeep',{n:10})}</p>`;
+
 let page;
 if(state==='loading')page=`<div class="page skeleton" aria-busy="true"><div class="bar" style="width:60%"></div><div class="block"></div></div>`;
 else if(state==='error')page=`<div class="empty" role="status"><div class="tile">${icon('wifiOff')}</div><h2>${copy.error}</h2><p>${copy.errorHint}</p><button class="button">${icon('refresh')}${copy.retry}</button></div>`;
-else page=`<div class="page${group==='devices'&&remote?' list':group==='ai'?' split':''}">${{appearance,fetching,opml,ai,devices}[group]}</div>`;
+else page=`<div class="page${group==='devices'&&remote?' list':group==='ai'?' split':''}">${{appearance,fetching,opml,ai,devices,activity}[group]}</div>`;
 
 let overlay='';
 // Font picker. pinned: the rows the caller supplies, [name, face]; the current one has the check. families: the
