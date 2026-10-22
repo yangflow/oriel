@@ -59,11 +59,6 @@
      subscription" opens the add dialog, and the quiet "Import OPML…" and "Restore from backup…" beside it open Settings
      on Import and export, where the backup file is chosen and the restore confirmed.
      The hint adds one line saying that links to YouTube, X, GitHub and the like work too.
-     Under the two buttons sits a quiet label, "Or start with a topic", and a row of starter packs (Technology, Science,
-     Design, News): each a card with the pack's name and a one-line description, wrapping when narrow. Choosing one
-     subscribes to its feeds (no-subscriptions-adding: the cards are dimmed and cannot be pressed, the label reads
-     "Adding 5 subscriptions…" with a turning loader). The result is a plain toast, "Added 5 subscriptions from
-     Technology" (no-subscriptions-failed shows the case where some could not be added, with the alert mark).
      After a subscription is added or refreshed its row shows a spinner in place of the warning mark until the first
      fetch is done (fetching; the row's name for a screen reader gains ", fetching"), then one plain toast with no Undo
      says the result: "Fetched 12 entries from ..." (fetched) or "Couldn't fetch ...: reason" with the Warning alert mark
@@ -498,14 +493,6 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .button.primary { background:var(--accent); color:var(--accent-text) }
 .button.primary:hover { background:var(--accent-hover) }
 .empty-actions { margin-top:8px; display:flex; flex-wrap:wrap; justify-content:center; gap:8px }
-.packs-label { margin-top:12px; font-size:12px; color:var(--muted) }
-.packs-label svg.icon { width:14px; height:14px; vertical-align:-2px; margin-right:6px }
-.packs { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; max-width:560px }
-.pack { width:132px; display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:10px 12px; border-radius:12px; background:var(--track); color:var(--text); text-align:left }
-.pack:hover { background:color-mix(in srgb,var(--track) 90%,var(--text)) }
-.pack b { font-weight:600 }
-.pack span { font-size:12px; color:var(--muted); white-space:normal }
-.pack:disabled { opacity:.5 }
 
 .scrim { position:absolute; inset:0; z-index:3; display:grid; place-items:center; background:rgba(var(--shadow),.32) }
 .toast { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:4; display:flex; align-items:center; gap:10px; max-width:calc(100% - 40px); min-height:40px; padding:6px 6px 6px 14px; border-radius:14px; background:#2a2620; color:#f4efe6; font-size:12.5px; box-shadow:0 10px 30px rgba(var(--shadow),.28), 0 0 0 .5px rgba(255,248,235,.08) }
@@ -602,13 +589,13 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-adding','no-subscriptions-failed','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense'];
+const states=['list','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
 const options={state:states,scope:['all',...kinds,'source'],scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
 const state=pick('state',states,'list');
-const noSubs=state==='no-subscriptions'||state==='no-subscriptions-adding'||state==='no-subscriptions-failed';
+const noSubs=state==='no-subscriptions';
 // Each viewer state is drawn in the scope that shows it best; the scope menu still switches it.
 const stateScope={'article-compact':'article','social-compact':'social','video-cover':'video','video-list':'video','image-grid':'image','image-card':'image','image-switch':'image','source-grid':'source','lightbox':'social','lightbox-failed':'social'};
 const scope=pick('scope',options.scope,stateScope[state]||'all');
@@ -707,8 +694,7 @@ const copy={
     orderNewest:'Newest first', orderOldest:'Oldest first',
     showGrid:'Show as grid', showList:'Show as list', timeName:'Reading time: any length', timeNameUpTo:'Reading time: up to {n} minutes',
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
-    noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…', restoreBackup:'Restore from backup…', packsLabel:'Or start with a topic', packsAdding:'Adding {n} subscriptions…', packAdded:'Added {n} subscriptions from {pack}', packFailed:'Added {n} subscriptions from {pack}, couldn’t add {names}',
-    packTechnology:'Technology', packTechnologyHint:'Software, the web and gadgets.', packScience:'Science', packScienceHint:'Research, space and nature.', packDesign:'Design', packDesignHint:'Web design, CSS and visual craft.', packNews:'News', packNewsHint:'World news from newsrooms.',
+    noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…', restoreBackup:'Restore from backup…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
     marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below', fetching:'{name}, fetching', fetchedNew:'Fetched {n} entries from “{name}”', fetchedNone:'“{name}” fetched, but has no entries yet', fetchedFailed:'Couldn’t fetch “{name}”: {error}', refreshingName:'Refreshing, {done} of {n} checked', refreshed:'Checked {n} subscriptions', refreshedFailed:'Checked {n} subscriptions, {failed} failed', refreshedPart:'Checked {done} of {n} subscriptions, the rest will follow', refreshNone:'No subscriptions to refresh', kRefreshAll:'Refresh all subscriptions',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
@@ -742,8 +728,7 @@ const copy={
     orderNewest:'最新的在前', orderOldest:'最旧的在前',
     showGrid:'以网格显示', showList:'以列表显示', timeName:'阅读时长：不限', timeNameUpTo:'阅读时长：{n} 分钟内',
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
-    noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…', restoreBackup:'从备份恢复…', packsLabel:'或者从一个主题开始', packsAdding:'正在添加 {n} 个订阅…', packAdded:'已添加{pack}的 {n} 个订阅', packFailed:'已添加{pack}的 {n} 个订阅，{names}没能添加',
-    packTechnology:'科技', packTechnologyHint:'软件、网络和数码。', packScience:'科学', packScienceHint:'研究、太空和自然。', packDesign:'设计', packDesignHint:'网页设计、CSS 和视觉工艺。', packNews:'新闻', packNewsHint:'各大新闻机构的国际新闻。',
+    noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…', restoreBackup:'从备份恢复…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
     marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了', fetching:'{name}，正在抓取', fetchedNew:'「{name}」抓到 {n} 条', fetchedNone:'「{name}」抓取成功，但还没有条目', fetchedFailed:'「{name}」抓取失败：{error}', refreshingName:'正在更新，已查 {done}/{n}', refreshed:'已查完 {n} 个订阅', refreshedFailed:'已查完 {n} 个订阅，其中 {failed} 个失败', refreshedPart:'已查 {done}/{n} 个订阅，其余会陆续抓', refreshNone:'没有可更新的订阅', kRefreshAll:'全部更新',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
@@ -981,7 +966,7 @@ const more=state==='more'?`<div class="footer" role="status">${icon('loader','sp
 
 let list;
 if(state==='loading')list=`<div class="column" aria-busy="true">${skeleton()}</div>`;
-else if(noSubs){const adding=state==='no-subscriptions-adding';list=empty('rss',copy.noSubscriptions,copy.noSubscriptionsHint,`<div class="empty-actions"><button class="button primary">${icon('plus')}${copy.addFirst}</button><button class="button">${icon('upload')}${copy.importOpml}</button><button class="button">${icon('database')}${copy.restoreBackup}</button></div><div class="packs-label" id="packs-label"${adding?' role="status"':''}>${adding?icon('loader','spin')+t('packsAdding',{n:5}):copy.packsLabel}</div><div class="packs" role="group" aria-labelledby="packs-label">${['Technology','Science','Design','News'].map(k=>`<button class="pack"${adding?' disabled':''}><b>${copy['pack'+k]}</b><span>${copy['pack'+k+'Hint']}</span></button>`).join('')}</div>`)}
+else if(noSubs){list=empty('rss',copy.noSubscriptions,copy.noSubscriptionsHint,`<div class="empty-actions"><button class="button primary">${icon('plus')}${copy.addFirst}</button><button class="button">${icon('upload')}${copy.importOpml}</button><button class="button">${icon('database')}${copy.restoreBackup}</button></div>`)}
 else if(state==='error')list=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');
 else if(state==='unread-done')list=empty('circleCheck',copy.unreadDone,copy.unreadDoneHint);
 else if(state==='starred-none')list=empty('star',copy.noStarred,copy.noStarredHint);
@@ -1017,7 +1002,6 @@ const toast=state==='marked-read'?`<div class="toast" role="status">${icon('chec
   :state==='marked-older'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedOlder',{n:markedOlderCount,scope:scopeName,age:copy.age7})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-older-none'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('noneOlder',{age:copy.age7})}</span></div>`
   :state==='refreshed'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('refreshed',{n:12})}</span></div>`
-  :state==='no-subscriptions-failed'?`<div class="toast plain" role="status">${icon('alert')}<span class="msg">${t('packFailed',{n:4,pack:copy.packTechnology,names:'wired.com'})}</span></div>`
   :state==='refreshed-failed'?`<div class="toast plain" role="status">${icon('alert')}<span class="msg">${t('refreshedFailed',{n:12,failed:2})}</span></div>`
   :state==='refreshed-part'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('refreshedPart',{done:5,n:12})}</span></div>`
   :state==='refresh-none'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.refreshNone}</span></div>`
