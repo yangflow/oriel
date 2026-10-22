@@ -288,3 +288,13 @@ func TestCancelStopsFetch(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestMergeKeepsContentOfStarredOnly(t *testing.T) {
+	var m merge
+	m.add(Entry{FeedURL: "f", Link: "a", ContentHTML: "<p>a</p>", Starred: true})
+	m.add(Entry{FeedURL: "f", Link: "a", ContentHTML: "<p>a</p>", Read: true})
+	m.add(Entry{FeedURL: "f", Link: "b", ContentHTML: "<p>b</p>", Read: true})
+	if len(m.entries) != 2 || m.entries[0].ContentHTML == "" || !m.entries[0].Read || m.entries[1].ContentHTML != "" {
+		t.Fatalf("entries = %+v", m.entries)
+	}
+}

@@ -143,13 +143,17 @@ func addFolder(seen map[string]bool, folders *[]string, name string) {
 }
 
 // merge keeps one Entry for each feed and link, and ORs the state of those that repeat. The order of first sight
-// is kept.
+// is kept. Only a starred entry keeps its content: a read one is only ever marked, so its content would just be held
+// in memory.
 type merge struct {
 	index   map[string]int
 	entries []Entry
 }
 
 func (m *merge) add(e Entry) {
+	if !e.Starred {
+		e.ContentHTML = ""
+	}
 	if m.index == nil {
 		m.index = map[string]int{}
 	}
