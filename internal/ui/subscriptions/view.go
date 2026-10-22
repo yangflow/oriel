@@ -41,6 +41,9 @@ type copy struct {
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                               string
 	ServedBy, ServedByBackup, MuteHidden, MuteNone                                                                                          string
 	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                         string
+	Extract, ExtractHelp, ExtractSelector, ExtractSelectorHelp, ExtractSelectorPlaceholder, ExtractSelectorInvalid                          string
+	ExtractReferer, ExtractRefererHelp, ExtractRefererPlaceholder, ExtractRefererInvalid                                                    string
+	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                string
 	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                            string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                         string
 	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                 string
@@ -181,6 +184,10 @@ type editing struct {
 	pace     int64 // in paces: seconds an unread entry stays in All and Unread, 0 for off
 	paused   bool
 	mute     string
+	extract  bool   // the Extraction group is open
+	selector string // the content selector, the Referer and the link rewrites of the subscription
+	referer  string
+	rewrites string
 	counted  string // the keywords the count was asked for
 	hidden   int    // how many entries the keywords hide, once known
 	known    bool
@@ -537,6 +544,8 @@ func (s *Screen) Edit(src client.Source) {
 	}
 	s.edit = editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
 		interval: intervalChoice(src), keep: int64(src.KeepDays), pace: int64(src.PaceSec), paused: src.Paused, mute: src.MuteKeywords,
+		extract:  src.ExtractSelector != "" || src.ExtractReferer != "" || src.ExtractRewrites != "",
+		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
 		auto:    [2]bool{src.AutoSummary, src.AutoTranslate},
 		prompts: [2]string{src.PromptSummary, src.PromptTranslate}, focus: true}
 	gen, api, id := s.gen, s.api, src.ID
@@ -589,6 +598,15 @@ func (s *Screen) save() {
 	if mute := e.mute; mute != e.src.MuteKeywords {
 		patch.MuteKeywords, changed = &mute, true
 	}
+	if selector := strings.TrimSpace(e.selector); selector != e.src.ExtractSelector {
+		patch.ExtractSelector, changed = &selector, true
+	}
+	if referer := strings.TrimSpace(e.referer); referer != e.src.ExtractReferer {
+		patch.ExtractReferer, changed = &referer, true
+	}
+	if rewrites := strings.TrimSpace(e.rewrites); rewrites != e.src.ExtractRewrites {
+		patch.ExtractRewrites, changed = &rewrites, true
+	}
 	if auto := e.auto[0]; auto != e.src.AutoSummary {
 		patch.AutoSummary, changed = &auto, true
 	}
@@ -621,11 +639,25 @@ func (s *Screen) save() {
 			case code(err) == "not_found":
 				s.gone(id)
 			default:
-				s.edit.formErr = s.problem(err)
+				s.edit.formErr = s.saveProblem(err)
 				s.announce = s.edit.formErr
 			}
 		}
 	})
+}
+
+// saveProblem says why saving a subscription failed: a rule of the Extraction group the server refuses, or the
+// general reason.
+func (s *Screen) saveProblem(err error) string {
+	switch code(err) {
+	case "invalid_extract_selector":
+		return s.text.ExtractSelectorInvalid
+	case "invalid_extract_referer":
+		return s.text.ExtractRefererInvalid
+	case "invalid_extract_rewrites":
+		return s.text.ExtractRewritesInvalid
+	}
+	return s.problem(err)
 }
 
 // gone drops a subscription the server no longer has.
@@ -1577,6 +1609,61 @@ func (s *Screen) paceField(c *ui.Context) {
 	})
 }
 
+// extractGroup is the Extraction disclosure: the content selector, the Referer and the link rewrites that steer the
+// full text of the subscription. It is closed unless a rule is set, and an empty field leaves the automatic behavior.
+func (s *Screen) extractGroup(c *ui.Context) {
+	t := c.Theme()
+	e := &s.edit
+	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+		head := ui.ButtonBase(c).Key("extract").FillWidth().Height(px(t, 28)).AlignItems(ui.Center).Gap(t.Space(1.5)).
+			Radius(t.Radius).Label(s.text.Extract).Role(ui.RoleDisclosure).Expanded(e.extract)
+		if head.Hovered() {
+			head.Background(t.SurfaceHover)
+		}
+		theme.Fade(head)
+		head.Children(func() {
+			chevron := icons.ChevronRight
+			if e.extract {
+				chevron = icons.ChevronDown
+			}
+			ui.Icon(c, chevron).FontSize(px(t, 14)).TextColor(t.TextMuted)
+			ui.Text(c, s.text.Extract).FontSize(px(t, 12)).FontWeight(500)
+		})
+		if head.Clicked() {
+			e.extract = !e.extract
+		}
+		if !e.extract {
+			help(c, s.text.ExtractHelp)
+			return
+		}
+		s.extractInput(c, "selector", &e.selector, s.text.ExtractSelector, s.text.ExtractSelectorPlaceholder, s.text.ExtractSelectorHelp)
+		s.extractInput(c, "referer", &e.referer, s.text.ExtractReferer, s.text.ExtractRefererPlaceholder, s.text.ExtractRefererHelp)
+		ui.Column(c.Key("rewrites")).FillWidth().Gap(t.Space(1)).Children(func() {
+			label(c, s.text.ExtractRewrites)
+			area := ui.TextArea(c, &e.rewrites).FillWidth().Lines(3, 8).Font("monospace").FontSize(px(t, 12.5)).
+				Label(s.text.ExtractRewrites).Description(s.text.ExtractRewritesHelp).
+				Placeholder(s.text.ExtractRewritesPlaceholder).Disabled(e.busy)
+			if area.Focused() {
+				area.Background(theme.RaisedFill(t))
+			}
+			help(c, s.text.ExtractRewritesHelp)
+		})
+	})
+}
+
+// extractInput is one single-line field of the Extraction group, with its help line.
+func (s *Screen) extractInput(c *ui.Context, key string, value *string, labelText, placeholder, helpText string) {
+	t := c.Theme()
+	ui.Column(c.Key(key)).FillWidth().Gap(t.Space(1)).Children(func() {
+		label(c, labelText)
+		box(c, key, nil, false, t.Surface, func() {
+			ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(labelText).Description(helpText).
+				Placeholder(placeholder).Disabled(s.edit.busy)
+		})
+		help(c, helpText)
+	})
+}
+
 // choiceSelect is a select of whole numbers named by name, with the label above it; shown is what the closed select
 // reads for the current value.
 func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, busy bool) {
@@ -1635,6 +1722,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.kindSuggestion(c)
 		s.keepField(c)
 		s.paceField(c)
+		s.extractGroup(c)
 		s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, s.text.PauseHelp)
 		s.muteField(c)
 		s.aiGroup(c)

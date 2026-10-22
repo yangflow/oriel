@@ -19,6 +19,7 @@ import (
 	readability "codeberg.org/readeck/go-readability/v2"
 	"github.com/andybalholm/cascadia"
 	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 	"golang.org/x/net/html/charset"
 
 	"github.com/yangflow/oriel/internal/store"
@@ -133,29 +134,39 @@ func (p *Poller) extractAll(ctx context.Context) {
 		return
 	}
 	type job struct {
-		target store.ExtractTarget
-		host   string
+		target  store.ExtractTarget
+		address string // the page to request: the entry link after the source's rewrites
+		host    string
 	}
 	var jobs []job
 	for _, target := range waiting {
 		if len(jobs) == extractBatch {
 			break
 		}
+		address, err := targetAddress(target)
+		if err != nil {
+			// The source's own rules gave no address to ask for, and another try would give the same.
+			slog.Info("Extraction failed", "entry", target.ID, "error", err)
+			if err := p.store.FailExtraction(ctx, target.ID, time.Time{}); err != nil {
+				slog.Error("Cannot save an extraction", "entry", target.ID, "error", err)
+			}
+			continue
+		}
 		var host string
-		if u, err := url.Parse(target.URL); err == nil {
+		if u, err := url.Parse(address); err == nil {
 			host = u.Host
 		}
 		if !p.hosts.acquire(host, now, hostSpacing) {
 			continue
 		}
-		jobs = append(jobs, job{target, host})
+		jobs = append(jobs, job{target, address, host})
 	}
 	var wg sync.WaitGroup
 	for _, j := range jobs {
 		target := j.target
 		wg.Go(func() {
 			defer p.hosts.release(j.host)
-			content, err := p.extract(ctx, target.URL)
+			content, err := p.extract(ctx, j.address, target.Selector, target.Referer)
 			if ctx.Err() != nil {
 				return // shutting down: the attempt does not count
 			}
@@ -179,11 +190,28 @@ func (p *Poller) extractAll(ctx context.Context) {
 	wg.Wait()
 }
 
-// extract downloads an article page through the guarded client and returns its main content as HTML.
-func (p *Poller) extract(ctx context.Context, address string) (string, error) {
-	doc, page, err := p.page(ctx, address)
+// targetAddress is the page to request for an entry: its link after the rewrite rules of its source.
+func targetAddress(target store.ExtractTarget) (string, error) {
+	rules, err := parseRewrites(target.Rewrites)
 	if err != nil {
 		return "", err
+	}
+	return rewriteLink(target.URL, rules)
+}
+
+// extract downloads an article page through the guarded client and returns its main content as HTML. A selector, when
+// the page has a readable element for it, names the content; otherwise the page is extracted automatically. A
+// referer, when not empty, is sent with the request.
+func (p *Poller) extract(ctx context.Context, address, selector, referer string) (string, error) {
+	doc, page, err := p.page(ctx, address, referer)
+	if err != nil {
+		return "", err
+	}
+	if selector != "" {
+		if content := selectedHTML(doc, page, selector); content != "" {
+			return content, nil
+		}
+		slog.Info("Content selector found nothing readable, extracting automatically", "address", address)
 	}
 	content, err := articleHTML(doc, page)
 	if err != nil {
@@ -196,8 +224,9 @@ func (p *Poller) extract(ctx context.Context, address string) (string, error) {
 }
 
 // page downloads a web page through the guarded client and parses it. The returned address is the one
-// reached after redirects, which relative links resolve against.
-func (p *Poller) page(ctx context.Context, address string) (*html.Node, *url.URL, error) {
+// reached after redirects, which relative links resolve against. A referer, when not empty, is the only header sent
+// besides the User-Agent.
+func (p *Poller) page(ctx context.Context, address, referer string) (*html.Node, *url.URL, error) {
 	page, err := url.Parse(address)
 	if err != nil || (page.Scheme != "http" && page.Scheme != "https") {
 		return nil, nil, permanent(fmt.Errorf("not a web address: %q", address))
@@ -207,6 +236,9 @@ func (p *Poller) page(ctx context.Context, address string) (*html.Node, *url.URL
 		return nil, nil, err
 	}
 	req.Header.Set("User-Agent", p.userAgent)
+	if referer != "" {
+		req.Header.Set("Referer", referer)
+	}
 	resp, err := p.guarded.Do(req)
 	if err != nil {
 		// A blocked address will not open up by waiting; a network failure may pass.
@@ -261,6 +293,55 @@ func articleHTML(doc *html.Node, page *url.URL) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(b.String()), nil
+}
+
+// selectedHTML returns the inside of the first element of the page that the selector matches, with the relative
+// addresses in it resolved against the page and scripts and styles dropped. It is empty when nothing matches or the
+// element has no readable text.
+func selectedHTML(doc *html.Node, page *url.URL, selector string) string {
+	compiled, err := cascadia.Parse(selector)
+	if err != nil {
+		return ""
+	}
+	element := cascadia.Query(doc, compiled)
+	if element == nil {
+		return ""
+	}
+	resolveLinks(element, page)
+	var b strings.Builder
+	for child := element.FirstChild; child != nil; child = child.NextSibling {
+		html.Render(&b, child)
+	}
+	content := strings.TrimSpace(b.String())
+	if text(content) == "" {
+		return ""
+	}
+	return content
+}
+
+// resolveLinks makes the addresses under n absolute and removes the elements that only carry code.
+func resolveLinks(n *html.Node, page *url.URL) {
+	for child := n.FirstChild; child != nil; {
+		next := child.NextSibling
+		switch child.DataAtom {
+		case atom.Script, atom.Style, atom.Noscript, atom.Template:
+			n.RemoveChild(child)
+		default:
+			resolveLinks(child, page)
+		}
+		child = next
+	}
+	if n.Type != html.ElementNode {
+		return
+	}
+	for i, a := range n.Attr {
+		if a.Key != "href" && a.Key != "src" {
+			continue
+		}
+		if ref, err := url.Parse(strings.TrimSpace(a.Val)); err == nil {
+			n.Attr[i].Val = page.ResolveReference(ref).String()
+		}
+	}
 }
 
 var (

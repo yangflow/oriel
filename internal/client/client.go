@@ -314,6 +314,9 @@ type Source struct {
 	Paused              bool   `json:"paused"`
 	KeepDays            int    `json:"keepDays"`
 	PaceSec             int    `json:"paceSec"`
+	ExtractSelector     string `json:"extractSelector"`
+	ExtractReferer      string `json:"extractReferer"`
+	ExtractRewrites     string `json:"extractRewrites"`
 	UnreadCount         int    `json:"unreadCount"`
 	PromptSummary       string `json:"promptSummary"`
 	PromptTranslate     string `json:"promptTranslate"`
@@ -345,7 +348,11 @@ type SourcePatch struct {
 	// else a number of days up to 3650. Starred entries are always kept.
 	KeepDays *int `json:"keepDays,omitempty"`
 	// PaceSec is how long an unread entry stays in All and Unread, in seconds: 0 turns it off, else 3600 to 2592000.
-	PaceSec         *int    `json:"paceSec,omitempty"`
+	PaceSec *int `json:"paceSec,omitempty"`
+	// ExtractSelector, ExtractReferer and ExtractRewrites are the source's extraction rules; an empty string clears one.
+	ExtractSelector *string `json:"extractSelector,omitempty"`
+	ExtractReferer  *string `json:"extractReferer,omitempty"`
+	ExtractRewrites *string `json:"extractRewrites,omitempty"`
 	PromptSummary   *string `json:"promptSummary,omitempty"`
 	PromptTranslate *string `json:"promptTranslate,omitempty"`
 	AutoSummary     *bool   `json:"autoSummary,omitempty"`

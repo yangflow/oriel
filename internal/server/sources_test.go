@@ -79,14 +79,17 @@ func TestSourceLifecycle(t *testing.T) {
 		t.Fatalf("patch: %d %v", w.Code, patched)
 	}
 	for body, code := range map[string]string{
-		`{"kind":"link"}`:           "invalid_kind",
-		`{"fetchIntervalSec":30}`:   "invalid_interval",
-		`{"keepDays":-2}`:           "invalid_keep_days",
-		`{"keepDays":3651}`:         "invalid_keep_days",
-		`{"paceSec":-1}`:            "invalid_pace",
-		`{"paceSec":60}`:            "invalid_pace",
-		`{"paceSec":2592001}`:       "invalid_pace",
-		`{"url":"https://a.org/x"}`: "invalid_body",
+		`{"kind":"link"}`:                  "invalid_kind",
+		`{"fetchIntervalSec":30}`:          "invalid_interval",
+		`{"keepDays":-2}`:                  "invalid_keep_days",
+		`{"keepDays":3651}`:                "invalid_keep_days",
+		`{"paceSec":-1}`:                   "invalid_pace",
+		`{"paceSec":60}`:                   "invalid_pace",
+		`{"paceSec":2592001}`:              "invalid_pace",
+		`{"extractSelector":"div["}`:       "invalid_extract_selector",
+		`{"extractReferer":"example.org"}`: "invalid_extract_referer",
+		`{"extractRewrites":"m.example.com => https://www.example.com/"}`: "invalid_extract_rewrites",
+		`{"url":"https://a.org/x"}`:                                       "invalid_body",
 	} {
 		if w := do(s, "PATCH", "/api/sources/"+id, body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
 			t.Errorf("patch %s: %d %s", body, w.Code, w.Body)
@@ -94,6 +97,14 @@ func TestSourceLifecycle(t *testing.T) {
 	}
 	if got := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"paceSec":0}`, bearer(token))); got["paceSec"] != 0.0 || got["keepDays"] != 90.0 {
 		t.Fatalf("pace off: %v", got)
+	}
+	w = do(s, "PATCH", "/api/sources/"+id, `{"extractSelector":" .post ","extractReferer":" https://example.org/front ","extractRewrites":" m.example.com=>www.example.com \n\n"}`, bearer(token))
+	if got := decode(t, w); w.Code != http.StatusOK || got["extractSelector"] != ".post" || got["extractReferer"] != "https://example.org/front" ||
+		got["extractRewrites"] != "m.example.com => www.example.com" || got["paceSec"] != 0.0 {
+		t.Fatalf("extraction rules: %d %v", w.Code, got)
+	}
+	if got := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"extractSelector":""}`, bearer(token))); got["extractSelector"] != "" || got["extractReferer"] != "https://example.org/front" {
+		t.Fatalf("clearing the selector only: %v", got)
 	}
 	if w := do(s, "POST", "/api/sources/"+id+"/refresh", "", bearer(token)); w.Code != http.StatusConflict || decode(t, w)["error"] != "source_paused" {
 		t.Fatalf("refresh paused: %d %s", w.Code, w.Body)

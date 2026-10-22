@@ -345,6 +345,10 @@ type ExtractTarget struct {
 	URL      string
 	Title    string
 	Attempts int // extractions already tried and failed
+	// The extraction rules of the entry's source; see docs/product.md "正文抽取".
+	Selector string
+	Referer  string
+	Rewrites string
 }
 
 // PendingExtractions lists article entries never tried first, newest first, then failed ones whose next attempt is
@@ -352,7 +356,7 @@ type ExtractTarget struct {
 // are left alone.
 func (s *Store) PendingExtractions(ctx context.Context, now time.Time, limit int) ([]ExtractTarget, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.id, e.url, e.title, e.extract_attempts FROM entries e JOIN sources s ON s.id = e.source_id
+		SELECT e.id, e.url, e.title, e.extract_attempts, s.extract_selector, s.extract_referer, s.extract_rewrites FROM entries e JOIN sources s ON s.id = e.source_id
 		WHERE s.kind = 'article'
 			AND (e.extract_status = 'pending' OR (e.extract_status = 'failed' AND e.next_extract_at <= ?))
 		ORDER BY e.extract_status = 'failed', e.created_at DESC, e.id DESC
@@ -364,7 +368,7 @@ func (s *Store) PendingExtractions(ctx context.Context, now time.Time, limit int
 	var targets []ExtractTarget
 	for rows.Next() {
 		var t ExtractTarget
-		if err := rows.Scan(&t.ID, &t.URL, &t.Title, &t.Attempts); err != nil {
+		if err := rows.Scan(&t.ID, &t.URL, &t.Title, &t.Attempts, &t.Selector, &t.Referer, &t.Rewrites); err != nil {
 			return nil, err
 		}
 		targets = append(targets, t)
