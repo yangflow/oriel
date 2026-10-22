@@ -167,9 +167,9 @@ func TestTimelineAPI(t *testing.T) {
 				return
 			}
 			w.Write([]byte(`{"entries":[{"id":7,"kind":"video","title":"T","publishedAt":null,"durationSec":95,"readingSec":600,
-				"images":[{"url":"https://i/1.jpg","width":4,"height":3}],"createdAt":1700000000000}],"nextCursor":null}`))
+				"images":[{"url":"https://i/1.jpg","width":4,"height":3}],"createdAt":1700000000000,"group":{"by":"link","entries":[{"id":8,"sourceId":2,"sourceTitle":"Other","title":"T2","url":"https://x/t","isRead":true,"starred":false,"createdAt":1700000001000}]}}],"nextCursor":null}`))
 		case "/api/sources":
-			w.Write([]byte(`{"sources":[{"id":1,"title":"Feed","kind":"article","unreadCount":3,"lastError":"boom","lastErrorKind":"blocked","fetchIntervalSec":900,"fetchIntervalAuto":true,"suggestedKind":"video"}]}`))
+			w.Write([]byte(`{"sources":[{"id":1,"title":"Feed","kind":"article","unreadCount":3,"lastError":"boom","lastErrorKind":"blocked","fetchIntervalSec":900,"fetchIntervalAuto":true,"suggestedKind":"video"}],"unreadTotal":2}`))
 		case "/api/sources/health":
 			w.Write([]byte(`{"windowDays":30,"sources":[{"id":2,"title":"Old","state":"dead","cause":"silent","days":143,"recent":0},
 				{"id":3,"title":"Busy","state":"rarelyRead","recent":120,"recentRead":3,"recentStarred":1}]}`))
@@ -221,7 +221,7 @@ func TestTimelineAPI(t *testing.T) {
 			w.WriteHeader(http.StatusConflict)
 			w.Write([]byte(`{"error":"source_paused"}`))
 		case "/api/settings":
-			w.Write([]byte(`{"rsshubBaseUrl":"https://rsshub.app","retentionDays":30}`))
+			w.Write([]byte(`{"rsshubBaseUrl":"https://rsshub.app","retentionDays":30,"groupSameLink":true}`))
 		}
 	}))
 	defer srv.Close()
@@ -233,6 +233,8 @@ func TestTimelineAPI(t *testing.T) {
 	}
 	if e := page.Entries[0]; e.DurationSec != 95 || e.ReadingSec != 600 || e.PublishedAt != 0 || e.Images[0].Width != 4 || e.CreatedAt != 1700000000000 {
 		t.Errorf("entry = %+v", e)
+	} else if g := e.Group; g == nil || g.By != "link" || len(g.Entries) != 1 || g.Entries[0].ID != 8 || g.Entries[0].SourceTitle != "Other" || !g.Entries[0].IsRead {
+		t.Errorf("group = %+v", g)
 	}
 	var apiErr *APIError
 	if _, err := session.Entries(ctx, Query{Search: "ab"}); !errors.As(err, &apiErr) || apiErr.Code != "query_too_short" {
@@ -241,8 +243,9 @@ func TestTimelineAPI(t *testing.T) {
 	if article, err := session.RetryExtraction(ctx, 7); err != nil || article.ID != 7 || article.ExtractStatus != "pending" {
 		t.Errorf("RetryExtraction = %+v, %v", article, err)
 	}
-	sources, err := session.Sources(ctx)
-	if err != nil || len(sources) != 1 || sources[0].UnreadCount != 3 || sources[0].LastError != "boom" || sources[0].LastErrorKind != "blocked" ||
+	list, err := session.Sources(ctx)
+	sources := list.Sources
+	if err != nil || list.UnreadTotal != 2 || len(sources) != 1 || sources[0].UnreadCount != 3 || sources[0].LastError != "boom" || sources[0].LastErrorKind != "blocked" ||
 		sources[0].FetchIntervalSec != 900 || !sources[0].FetchIntervalAuto || sources[0].SuggestedKind != "video" {
 		t.Errorf("Sources = %+v, %v", sources, err)
 	}
@@ -325,7 +328,7 @@ func TestTimelineAPI(t *testing.T) {
 	if src, err := session.RestoreSource(ctx, 5); err != nil || src.ID != 5 || src.Title != "Back" {
 		t.Errorf("RestoreSource = %+v, %v", src, err)
 	}
-	if settings, err := session.Settings(ctx); err != nil || settings.RetentionDays != 30 {
+	if settings, err := session.Settings(ctx); err != nil || settings.RetentionDays != 30 || !settings.GroupSameLink {
 		t.Errorf("Settings = %+v, %v", settings, err)
 	}
 	root := "https://rsshub.app"

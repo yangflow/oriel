@@ -63,7 +63,7 @@ type copy struct {
 	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                string
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                         string
 	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                      string
-	ViewWall, ViewCard, ViewAsHelp, Timeline, Density, DensityHelp, DensityComfortable, DensityCompact                                                                                                        string
+	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact                                                                      string
 	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, Compacting                                                                                  string
 	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                                                                                                          string
 	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                            string
@@ -151,7 +151,8 @@ type API interface {
 // returns on the UI thread; Now is the clock, time.Now by default. Open and Save ask for the OPML file to import and
 // the one to export to, filter naming its kind; they block until the user answers, so they run in Go's work and
 // return "" when cancelled; Folder is the same for the folder of automatic backups, and nil when it cannot be
-// chosen here, as with a remote server. Back returns to the timeline, Imported tells it subscriptions were added, and Expired
+// chosen here, as with a remote server. Back returns to the timeline, Imported tells it its content changed (subscriptions were added or restored, or articles
+// are grouped differently), and Expired
 // shows the connect screen because the server no longer takes the session. The appearance preferences belong to this
 // device: Preferences gives them, Fonts the installed font families once they are known (nil until then), ReadingFont
 // the font list of an article's body that they come to ("" for the interface font), and Change takes new ones, which
@@ -269,6 +270,7 @@ type Screen struct {
 	backupFile string // the backup file the dialog is about
 	autoFolder string // the folder of automatic backups as typed, where it is typed
 	autoKeep   string // the number to keep as typed
+	grouping   bool   // the choice to show an article once is being saved
 	autoSaving bool   // a choice about automatic backups is being chosen or saved
 	autoStatus status
 	result     result
@@ -326,6 +328,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.group, s.busy, s.importing, s.result, s.revoking = fetching, false, "", result{}, false
 	s.working, s.confirming, s.backupFile = "", false, ""
 	s.autoSaving, s.autoStatus = false, status{}
+	s.grouping = false
 	s.saving, s.keeping, s.aiSaving, s.testing, s.promptSaving = false, false, false, false, false
 	s.state, s.deviceState, s.restored = loading, loading, nil
 	s.activity, s.storage, s.actState, s.actBusy, s.actOpen = client.Activity{}, client.Storage{}, loading, false, 0
@@ -562,6 +565,32 @@ func (s *Screen) saveRetention() {
 				s.keepStatus = status{ok: true, text: s.text.RetentionSaved}
 			}
 			s.announce = s.keepStatus.text
+		}
+	})
+}
+
+// saveGrouping saves whether the timeline shows an article once when several subscriptions carry it, and has the
+// timeline load again when it is saved. The switch moves at once and goes back when the server refuses.
+func (s *Screen) saveGrouping(on bool) {
+	if s.api == nil || s.grouping {
+		return
+	}
+	s.grouping = true
+	s.settings.GroupSameLink = on
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		_, err := api.SetSettings(context.Background(), client.SettingsPatch{GroupSameLink: &on})
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			s.grouping = false
+			if err != nil {
+				s.settings.GroupSameLink = !on
+				s.announce = s.text.SaveFailed
+				return
+			}
+			s.deps.Imported()
 		}
 	})
 }
@@ -2219,6 +2248,15 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			if i, changed := s.segments(c, s.text.Density, names, slices.Index(prefs.Densities, p.Density)); changed {
 				p.Density = prefs.Densities[i]
 				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		labeled(c, s.text.GroupSameLink, s.text.GroupSameLinkHelp, func() {
+			on := s.settings.GroupSameLink
+			ui.Switch(c, &on).Label(s.text.GroupSameLink).Description(s.text.GroupSameLinkHelp).
+				Disabled(s.state != loaded || s.grouping)
+			if on != s.settings.GroupSameLink {
+				s.saveGrouping(on)
 			}
 		})
 	})

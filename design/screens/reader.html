@@ -182,6 +182,14 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .page h1 { margin:12px 0 0; font-size:24px; line-height:1.28; font-weight:600; letter-spacing:-.015em; text-wrap:pretty; color:var(--text) }
 .min .page h1 { font-size:21px }
 :root:lang(zh-Hans) .page h1 { line-height:1.42; letter-spacing:-.005em }
+.also-line { display:flex; align-items:center; flex-wrap:wrap; gap:2px 4px; margin:10px 0 0; font-size:12px; color:var(--muted) }
+.also-line .head { flex:none; margin-right:4px; font-weight:500 }
+.also-line button { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 8px; border-radius:8px; font:inherit; font-size:13px; color:var(--text2) }
+.also-line button:hover, .also-line button.hover { background:var(--hover); color:var(--text) }
+.also-line .fav, .also-line .mono { width:15px; height:15px; border-radius:4px; flex:none }
+.also-line .mono { font-size:9px }
+.also-line .src { font-weight:500 }
+.also-line .when { font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap }
 .prose { margin-top:26px; font:400 calc(16px * var(--scale))/1.7 var(--reading); color:var(--prose); font-feature-settings:"kern","liga" }
 :root:lang(zh-Hans) .prose { line-height:1.85 }
 .prose > * { margin:0 0 1.05em }
@@ -309,7 +317,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled'];
+const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
@@ -399,7 +407,7 @@ const copy={
     translationFailed:'Couldn’t translate. {reason}',
     aiCap:'Automatic AI work reached its daily cap, so this was not done. Try it yourself, or raise the cap in Settings.', aiTimeout:'The AI endpoint took too long to answer.', aiUnauthorized:'The AI endpoint turned down the API key. Check it in Settings.',
     aiOff:'Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.',
-    noMoreUnread:'No unread articles after this one', resumed:'Back where you left off', aiOffTitle:'AI isn’t set up', openSettings:'Open Settings…', close:'Close',
+    alsoHead:'Also in', noMoreUnread:'No unread articles after this one', resumed:'Back where you left off', aiOffTitle:'AI isn’t set up', openSettings:'Open Settings…', close:'Close',
     translateSel:'Translate selection', explainSel:'Explain selection', copyAction:'Copy', selectAll:'Select All', selTranslation:'Translation', selExplanation:'Explanation',
     selFailed:'Couldn’t get an answer. {reason}', selTooLong:'Select less text', selTooLongHint:'Up to 2000 characters can be translated or explained at a time.', selAiOff:'Translating and explaining use an AI endpoint of your choosing. Set one up in Settings first.',
   },
@@ -421,7 +429,7 @@ const copy={
     translationFailed:'没能翻译。{reason}',
     aiCap:'今天的自动 AI 请求已达上限，所以没有处理这篇。可以自己重试，或在设置里调高上限。', aiTimeout:'AI 接口太久没有响应。', aiUnauthorized:'AI 接口不接受这个 API key，去设置里检查一下。',
     aiOff:'摘要和翻译走你自己选的 AI 接口，例如 OpenAI 或本机的模型。先在设置里配好。',
-    noMoreUnread:'后面没有未读文章了', resumed:'回到上次读到的位置', aiOffTitle:'还没配置 AI', openSettings:'打开设置…', close:'关闭',
+    alsoHead:'另见', noMoreUnread:'后面没有未读文章了', resumed:'回到上次读到的位置', aiOffTitle:'还没配置 AI', openSettings:'打开设置…', close:'关闭',
     translateSel:'翻译所选', explainSel:'解释所选', copyAction:'复制', selectAll:'全选', selTranslation:'译文', selExplanation:'解释',
     selFailed:'没能得到回答。{reason}', selTooLong:'请少选一些文字', selTooLongHint:'一次最多翻译或解释 2000 个字。', selAiOff:'翻译和解释使用你自己选定的 AI 端点，请先在设置里配置。',
   },
@@ -518,7 +526,9 @@ const title=titleOf(zh), full=fullOf(zh);
 const feed=zh?cjk(`<p>trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。</p><p><a href="#">继续阅读 →</a></p>`):`<p>The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.</p><p><a href="#">Continue reading →</a></p>`;
 const note=(cls,glyph,text)=>`<div class="note ${cls}" role="note">${icon(glyph,glyph==='loader'?'spin':'')}<span>${text} ${cls?`<a class="link" href="#">${copy.openOriginal}</a>`:''}</span>${cls==='warn'?`<a class="textlink" href="#">${copy.tryAgain}</a>`:''}</div>`;
 const switcher=feedOn=>`<div class="switch"><div class="segmented" role="radiogroup" aria-label="${copy.textSwitch}"><button role="radio" aria-checked="${!feedOn}" class="${feedOn?'':'on'}">${copy.fullText}</button><button role="radio" aria-checked="${feedOn}" class="${feedOn?'on':''}">${copy.feedText}</button></div></div>`;
-const article=(extra,html)=>`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1>${extra}<div class="prose">${html}</div></article>`;
+const article=(extra,html)=>`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1>${state==='also'?alsoLine():''}${extra}<div class="prose">${html}</div></article>`;
+const alsoLine=()=>{const rows=[[zh?'少数派':'Sspai','sspai',zh?'10月18日 15:02':'Oct 18, 15:02'],['Hacker News',null,zh?'10月19日 08:40':'Oct 19, 08:40']];
+  return `<nav class="also-line" aria-label="${copy.alsoHead}"><span class="head">${copy.alsoHead}</span>${rows.map(([n,f,w],k)=>`<button${k===0?' class="hover"':''}><span class="mono" aria-hidden="true">${n[0]}</span><span class="src">${n}</span><span class="when">${w}</span></button>`).join('')}</nav>`};
 const empty=(tile,heading,hint,buttons,cls='')=>`<div class="empty" role="status"><div class="tile ${cls}">${icon(tile,tile==='loader'?'spin':'')}</div><h2>${heading}</h2><p>${hint}</p><div class="buttons">${buttons}</div></div>`;
 const openButton=(cls='')=>`<button class="button ${cls}">${icon('external')}${copy.openOriginal}</button>`;
 
@@ -566,7 +576,7 @@ switch(state){
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
-  case 'full':case 'no-more-unread':case 'resumed':case 'more-menu':case 'more-narrow':case 'copied':case 'link-copied':case 'scrolled':page=article('',full);break;
+  case 'full':case 'no-more-unread':case 'resumed':case 'more-menu':case 'more-narrow':case 'copied':case 'link-copied':case 'scrolled':case 'also':page=article('',full);break;
   case 'translate-disabled':page=zh?article('',full):original('');break;
   case 'full-switch':page=article(switcher(false),full);break;
   case 'feed-text':page=article(switcher(true),feed);break;

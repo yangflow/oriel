@@ -127,6 +127,9 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	if patch.PromptTranslate != nil {
 		f.settings.PromptTranslate = cmp.Or(*patch.PromptTranslate, f.settings.DefaultPromptTranslate)
 	}
+	if patch.GroupSameLink != nil {
+		f.settings.GroupSameLink = *patch.GroupSameLink
+	}
 	if patch.AutoBackupEnabled != nil {
 		f.settings.AutoBackupEnabled = *patch.AutoBackupEnabled
 	}
@@ -1361,6 +1364,46 @@ func TestListDensity(t *testing.T) {
 	press(t, tt, s.text.DensityComfortable)
 	if f.prefs.Density != prefs.DensityComfortable {
 		t.Fatalf("density %q", f.prefs.Density)
+	}
+}
+
+// TestGroupSameLinkSwitch shows the Timeline card offers the switch for showing an article once, on by default, that
+// flipping it saves only that setting and has the timeline load again, and that a refusal puts it back.
+func TestGroupSameLinkSwitch(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	tt.SetSize(900, 1600)
+	tt.Frame()
+	for _, want := range []string{s.text.GroupSameLink, s.text.GroupSameLinkHelp} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q in %v", want, tt.Texts())
+		}
+	}
+	density, _ := tt.Find(s.text.Density)
+	row, _ := tt.Find(s.text.GroupSameLink)
+	if row.Y <= density.Y {
+		t.Fatalf("switch %v is not after the density %v", row, density)
+	}
+	f.settings.GroupSameLink = true
+	s.settings.GroupSameLink = true
+	f.set, f.refreshed = nil, 0
+	// The switch sits at the right of its label and help, centered on them.
+	help, _ := tt.Find(s.text.GroupSameLinkHelp)
+	toggle := func() {
+		tt.ClickAt(row.X+row.W+30, (row.Y+help.Y+help.H)/2)
+		f.settle(tt)
+		tt.Frame()
+	}
+	toggle()
+	if len(f.set) != 1 || f.set[0].GroupSameLink == nil || *f.set[0].GroupSameLink || f.settings.GroupSameLink {
+		t.Fatalf("saved %+v, settings %+v", f.set, f.settings)
+	}
+	if f.refreshed != 1 {
+		t.Fatalf("the timeline was refreshed %d times", f.refreshed)
+	}
+	f.setErr = errors.New("down")
+	toggle()
+	if s.settings.GroupSameLink || f.refreshed != 1 {
+		t.Fatalf("a refused change stayed: %+v, refreshed %d", s.settings, f.refreshed)
 	}
 }
 

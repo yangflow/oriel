@@ -52,6 +52,7 @@ var (
 	Languages      = parse("languages")
 	LayoutGrid     = parse("layout-grid")
 	Laptop         = parse("laptop")
+	Layers         = parse("layers")
 	Link           = parse("link")
 	List           = parse("list")
 	LoaderCircle   = parse("loader-circle")
