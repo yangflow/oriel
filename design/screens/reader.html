@@ -52,6 +52,10 @@
      menu; the answer shows in a card over the bottom of the reader): selection-menu, selection-loading,
      selection-translate (result), selection-explain (result), selection-failed, selection-ai-off, selection-too-long
      (over 2000 characters: no request is made). Escape closes the card; so does opening another entry.
+     Toolbar (docs/design.md, Toolbar buttons): one order, back, previous, next, summary, translate, star, read/unread, open
+     in browser, copy link, more; buttons are 32 square, radius 8, 4 apart. translate-disabled: an article already in the
+     target language keeps a dimmed Translate with its reason as tooltip; more-narrow: the minimum window, copy link moved
+     into More. The bar is solid Background; scrolled shows its hairline (the reader scrolled 96).
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
@@ -62,7 +66,6 @@
   --danger:#b4533c; --danger-soft:rgba(180,83,60,.09); --warning:#9a7222; --warning-soft:rgba(154,114,34,.10); --success:#4c7c59; --star:#b98a22;
   --chrome:#37332e; --chrome-ink:255,248,235; --chrome-text:#ece7dd; --chrome-text2:#cdc7bb; --chrome-muted:#a49e91;
   --glass:rgba(255,254,251,.66); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.95), 0 0 0 .5px rgba(var(--ink),.12), 0 2px 12px rgba(var(--ink),.07);
-  --edge:color-mix(in srgb,var(--background) 96%,transparent);
   --reading:system-ui,-apple-system,"SF Pro Text","PingFang SC","Segoe UI",sans-serif; --scale:1; --col:680px }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0b0c0c; --stage-text:#8a918f;
   --background:#171918; --surface:#1d1f1e; --raised:#252827; --track:#2c2f2e; --disabled:#565b59;
@@ -71,8 +74,7 @@
   --accent:#78beb1; --accent-hover:#8ccbbf; --accent-text:#10241f; --accent-soft:rgba(120,190,177,.12); --focus:rgba(120,190,177,.5);
   --danger:#e0897a; --danger-soft:rgba(224,137,122,.13); --warning:#d6aa55; --warning-soft:rgba(214,170,85,.13); --success:#8ab997; --star:#e2b24f;
   --chrome:#1a2422; --chrome-ink:235,248,244; --chrome-text:#e8eeec; --chrome-text2:#cbd5d2; --chrome-muted:#93a39f;
-  --glass:rgba(58,63,62,.52); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 .5px rgba(0,0,0,.55);
-  --edge:color-mix(in srgb,var(--background) 96%,transparent) }
+  --glass:rgba(58,63,62,.52); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 .5px rgba(0,0,0,.55) }
 * { box-sizing:border-box }
 html { -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility }
 body { margin:0; padding:24px; font:13px/1.5 system-ui,-apple-system,"SF Pro Text","PingFang SC","Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
@@ -140,24 +142,30 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .server .name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .server .dot { width:6px; height:6px; border-radius:50%; background:var(--success) }
 
-/* Toolbar: no bar. Bare icons over the content, which fades under them (the soft scroll edge); the one glass capsule
-   holds Summarize and Translate. The ends line up with the article column. */
+/* Toolbar: a solid Background bar, 52 high, the full width of the column, over the article; a hairline (Border, 0.5)
+   appears under it once the article scrolls beneath (.main.scrolled; state=scrolled). The buttons are bare icons, one spec
+   (32 square, radius 8, 4 apart); the one glass capsule holds Summarize and Translate. The ends line up with the article column. */
 .main { flex:1; min-width:0; display:flex; flex-direction:column; position:relative }
-.main::after { content:""; position:absolute; top:0; left:0; right:0; height:76px; background:linear-gradient(var(--edge) 52px,transparent); pointer-events:none; z-index:1 }
-.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:6px; padding:0 max(16px,calc((100% - var(--col))/2 + 32px)) 0 max(12px,calc((100% - var(--col))/2 + 28px)) }
+.main::before { content:""; position:absolute; top:0; left:0; right:0; height:52px; background:var(--background); z-index:1; pointer-events:none }
+.main::after { content:""; position:absolute; top:52px; left:0; right:0; height:.5px; background:var(--border); opacity:0; transition:opacity 120ms ease-out; z-index:1; pointer-events:none }
+.main.scrolled::after { opacity:1 }
+.toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:4px; padding:0 max(16px,calc((100% - var(--col))/2 + 32px)) 0 max(12px,calc((100% - var(--col))/2 + 28px)) }
 .spacer { flex:1 }
-.back { height:32px; display:flex; align-items:center; gap:2px; min-width:0; padding:0 10px 0 4px; border-radius:10px; color:var(--text2); font-weight:500 }
+.back { height:32px; display:flex; align-items:center; gap:2px; min-width:0; padding:0 10px 0 4px; border-radius:8px; color:var(--text2); font-weight:500 }
 .back span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .back:hover { background:var(--hover); color:var(--text) }
 .back:active { background:var(--pressed) }
-.bare { display:flex; align-items:center; flex:none }
-.tool { width:32px; height:32px; display:grid; place-items:center; border-radius:10px; color:var(--muted) }
+.bare { display:flex; align-items:center; gap:4px; flex:none }
+/* The toolbar icon button (docs/design.md, Toolbar buttons): 32 square, icon 16, radius 8. No fill; SurfaceHover under the pointer,
+   SurfacePressed pressed; icon TextMuted, Text under the pointer; Disabled with no fill; on: the star in Star, a toggle on Soft(Accent). */
+.tool { width:32px; height:32px; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
 .tool:hover { background:var(--hover); color:var(--text) }
 .tool:active { background:var(--pressed) }
 .tool.on { color:var(--star) }
-.tool:disabled { background:none; color:var(--disabled) }
-.group { flex:none; display:flex; align-items:center; gap:1px; height:34px; padding:0 4px; margin:0 6px 0 0; border-radius:17px; background:var(--glass); box-shadow:var(--glass-rim); -webkit-backdrop-filter:blur(22px) saturate(1.5); backdrop-filter:blur(22px) saturate(1.5) }
+.tool:disabled, .tool[aria-disabled=true], .tool:disabled:hover, .tool[aria-disabled=true]:hover { background:none; color:var(--disabled) }
+.group { flex:none; display:flex; align-items:center; gap:1px; height:34px; padding:0 4px; margin:0; border-radius:17px; background:var(--glass); box-shadow:var(--glass-rim); -webkit-backdrop-filter:blur(22px) saturate(1.5); backdrop-filter:blur(22px) saturate(1.5) }
 .group .tool { height:28px; width:30px; border-radius:14px }
+.group .tool:disabled, .group .tool[aria-disabled=true] { background:none }
 .group .tool.labeled { width:auto; display:flex; gap:6px; padding:0 11px 0 9px; font-size:12px; font-weight:500; letter-spacing:.01em }
 .group .tool.pressed { background:var(--accent-soft); color:var(--accent) }
 .min .group .tool.labeled { width:30px; padding:0; display:grid }
@@ -285,6 +293,8 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .more-menu { position:absolute; z-index:5; min-width:208px; padding:4px; border-radius:10px; background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 12px 32px rgba(var(--shadow),.22); font-size:13px }
 :root[data-scheme=dark] .more-menu { box-shadow:0 0 0 1px rgba(255,255,255,.08), 0 12px 32px rgba(0,0,0,.55) }
 .more-menu button { width:100%; height:28px; display:flex; align-items:center; padding:0 8px; border-radius:6px; text-align:left; white-space:nowrap }
+.more-menu hr { border:0; border-top:1px solid var(--border); margin:4px 0 }
+.tip { position:absolute; z-index:5; max-width:260px; padding:5px 9px; border-radius:6px; font-size:12px; line-height:1.4; color:var(--text); background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--shadow),.18),0 4px 14px rgba(var(--shadow),.16) }
 .more-menu button:hover, .more-menu button.hover { background:var(--sel) }
 .toast .msg { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 </style>
@@ -299,14 +309,14 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied'];
+const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
 const state=pick('state',states,'full');
 const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
-const size=pick('size',options.size,'default');
+const size=state==='more-narrow'?'min':pick('size',options.size,'default');
 const textsize=pick('textsize',options.textsize,'medium');
 const font=pick('font',options.font,'interface');
 const cjkOn=pick('cjk',options.cjk,'on')==='on';
@@ -322,7 +332,7 @@ document.getElementById('window').classList.toggle('wide',size==='wide');
 for(const [id,list] of Object.entries(options)){
   const select=document.getElementById(id);
   select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
-  select.value={state,scheme,lang,size,textsize,font,cjk:cjkOn?'on':'off'}[id];
+  select.value={state,scheme,lang,size:pick('size',options.size,'default'),textsize,font,cjk:cjkOn?'on':'off'}[id];
   select.onchange=()=>{query.set(id,select.value);location.search=query};
 }
 
@@ -374,7 +384,7 @@ const copy={
   en:{
     all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
     back:'Back to {scope}', previous:'Previous entry', next:'Next entry',
-    star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', more:'More', copyMd:'Copy as Markdown', saveMd:'Save as Markdown…', copied:'Copied', copyLink:'Copy link', linkCopied:'Link copied',
+    translateDone:'Already in {language}', language:'Simplified Chinese', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', more:'More', copyMd:'Copy as Markdown', saveMd:'Save as Markdown…', copied:'Copied', copyLink:'Copy link', linkCopied:'Link copied',
     feedNote:'This isn’t the full text: the page could not be extracted, so this is what the feed carries.',
     extractingNote:'Getting the full text. Until then, this is what the feed carries.',
     openOriginal:'Open the original', tryAgain:'Try again', textSwitch:'Text to read', fullText:'Full text', feedText:'Feed',
@@ -396,7 +406,7 @@ const copy={
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
     back:'回到{scope}', previous:'上一篇', next:'下一篇',
-    star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', more:'更多', copyMd:'复制为 Markdown', saveMd:'存为 Markdown…', copied:'已复制', copyLink:'复制链接', linkCopied:'已复制链接',
+    translateDone:'已经是{language}', language:'简体中文', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', more:'更多', copyMd:'复制为 Markdown', saveMd:'存为 Markdown…', copied:'已复制', copyLink:'复制链接', linkCopied:'已复制链接',
     feedNote:'这不是全文：网页抽不出正文，下面是订阅里带的内容。',
     extractingNote:'正在取全文，先显示订阅里带的内容。',
     openOriginal:'打开原文', tryAgain:'重试', textSwitch:'要读的正文', fullText:'全文', feedText:'原文',
@@ -430,16 +440,23 @@ const sidebar=`<aside><nav class="kind-list" aria-label="${copy.kinds}">${[['all
 
 const summaryOn=['summarizing','summary','summary-failed'].includes(state), translated=state==='translation';
 const starred=state==='full', read=true, off=state==='error'||state==='loading'?' disabled':'';
+// The fixed order (docs/design.md, Reader): back, previous, next, summary, translate, star, read/unread, open in browser,
+// copy link, more. Every article has the same buttons: one that does not apply is disabled (aria-disabled, so it keeps
+// the focus and its reason is read), never hidden. In a narrow window the end buttons go into More, copy link first, then
+// open in browser, then read/unread; the 640 wide minimum window only gets to the first step.
+const narrow=size==='min';
+const translateOff=state==='translate-disabled', translateWhy=t('translateDone',{language:copy.language});
+const translateName=translateOff?translateWhy:translated?copy.showOriginal:copy.translate;
 const tools=`<button class="back" aria-label="${t('back',{scope:'Simon Willison'})}" title="${t('back',{scope:'Simon Willison'})} (Esc)">${icon('chevronLeft')}<span>Simon Willison</span></button><span class="spacer"></span>
 <div class="bare"><button class="tool" aria-label="${copy.previous}" title="${copy.previous} (K)">${icon('chevronUp')}</button>
 <button class="tool" aria-label="${copy.next}" title="${copy.next} (J)">${icon('chevronDown')}</button></div><div class="group">
 <button class="tool labeled${summaryOn?' pressed':''}"${off} aria-pressed="${summaryOn}" aria-label="${summaryOn?copy.hideSummary:copy.summarize}" title="${summaryOn?copy.hideSummary:copy.summarize}">${icon('sparkles')}<span>${copy.summarize}</span></button>
-<button class="tool labeled${translated?' pressed':''}"${off} aria-pressed="${translated}" aria-label="${translated?copy.showOriginal:copy.translate}" title="${translated?copy.showOriginal:copy.translate}">${icon('languages')}<span>${copy.translate}</span></button></div><div class="bare">
+<button class="tool labeled${translated?' pressed':''}"${off}${translateOff?' id="tipped" aria-disabled="true"':` aria-pressed="${translated}"`} aria-label="${translateName}" title="${translateName}">${icon('languages')}<span>${copy.translate}</span></button></div><div class="bare">
 <button class="tool${starred?' on':''}"${off} aria-pressed="${starred}" aria-label="${starred?copy.unstar:copy.star}" title="${starred?copy.unstar:copy.star} (S)">${icon('star',starred?'filled':'')}</button>
 <button class="tool"${off} aria-label="${read?copy.markUnread:copy.markRead}" title="${read?copy.markUnread:copy.markRead} (M)">${icon(read?'mail':'mailOpen')}</button>
 <button class="tool"${off} aria-label="${copy.open}" title="${copy.open} (O)">${icon('external')}</button>
-<button class="tool"${off} aria-label="${copy.copyLink}" title="${copy.copyLink}">${icon('link')}</button>
-<button class="tool"${off} aria-haspopup="menu" aria-expanded="${state==='more-menu'}" aria-label="${copy.more}" title="${copy.more}">${icon('ellipsis')}</button></div>`;
+${narrow?'':`<button class="tool"${off} aria-label="${copy.copyLink}" title="${copy.copyLink}">${icon('link')}</button>
+`}<button class="tool"${off} aria-haspopup="menu" aria-expanded="${state==='more-menu'||state==='more-narrow'}" aria-label="${copy.more}" title="${copy.more}">${icon('ellipsis')}</button></div>`;
 
 // Chinese typesetting (docs/design.md). Han and Latin letters or digits: 0.25em after the character before the
 // boundary. Full-width punctuation: -0.5em after the first of a pair with a blank half between the two. Code is
@@ -548,7 +565,8 @@ switch(state){
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
-  case 'full':case 'no-more-unread':case 'resumed':case 'more-menu':case 'copied':case 'link-copied':page=article('',full);break;
+  case 'full':case 'no-more-unread':case 'resumed':case 'more-menu':case 'more-narrow':case 'copied':case 'link-copied':case 'scrolled':page=article('',full);break;
+  case 'translate-disabled':page=zh?article('',full):original('');break;
   case 'full-switch':page=article(switcher(false),full);break;
   case 'feed-text':page=article(switcher(true),feed);break;
   case 'feed':page=article(note('warn','triangle',copy.feedNote),feed);break;
@@ -559,11 +577,16 @@ switch(state){
   case 'error':page=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');break;
 }
 document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${selMenu}${isSel?selCard():''}${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}${state==='link-copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.linkCopied}</span></div>`:''}${state==='copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.copied}</span></div>`:''}${state==='resumed'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${copy.resumed}</span></div>`:''}</section>`;
-if(state==='more-menu'){
+if(state==='more-menu'||state==='more-narrow'){
   const w=document.getElementById('window'),a=document.querySelector('.toolbar .tool[aria-haspopup]').getBoundingClientRect(),b=w.getBoundingClientRect();
-  w.insertAdjacentHTML('beforeend',`<div class="more-menu" role="menu" aria-label="${copy.more}"><button role="menuitem" class="hover">${copy.copyMd}</button><button role="menuitem">${copy.saveMd}</button></div>`);
+  w.insertAdjacentHTML('beforeend',`<div class="more-menu" role="menu" aria-label="${copy.more}">${narrow?`<button role="menuitem" class="hover">${copy.copyLink}</button><hr>`:''}<button role="menuitem"${narrow?'':' class="hover"'}>${copy.copyMd}</button><button role="menuitem">${copy.saveMd}</button></div>`);
   const m=w.lastElementChild;m.style.left=Math.min(a.left-b.left,b.width-m.offsetWidth-8)+'px';m.style.top=(a.bottom-b.top+4)+'px';
 }
 if(state==='resumed'){const box=document.querySelector('.scroll');box.scrollTop=(box.scrollHeight-box.clientHeight)*.4}
+if(state==='scrolled')document.querySelector('.scroll').scrollTop=96;
+const tipped=document.getElementById('tipped');
+if(tipped){const w=document.getElementById('window').getBoundingClientRect(),r=tipped.getBoundingClientRect();
+  document.getElementById('window').insertAdjacentHTML('beforeend',`<div class="tip" role="tooltip" style="left:${r.left-w.left-8}px;top:${r.bottom-w.top+6}px">${tipped.title}</div>`)}
+{const sc=document.querySelector('.scroll'),mn=document.querySelector('.main');if(sc&&mn){const bar=()=>mn.classList.toggle('scrolled',sc.scrollTop>0);sc.addEventListener('scroll',bar);bar()}}
 </script>
 </html>

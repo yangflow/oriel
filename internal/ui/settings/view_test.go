@@ -1758,3 +1758,23 @@ func TestBackHasNoTooltip(t *testing.T) {
 		t.Errorf("%q has a tooltip", s.text.BackTimeline)
 	}
 }
+
+// The title bar gets its hairline once the page is scrolled, and loses it at the top.
+func TestBarEdge(t *testing.T) {
+	s, _, tt := setup(t, "en", true)
+	tt.SetSize(1000, 300)
+	tt.Frame()
+	if s.scroll.Y != 0 {
+		t.Fatalf("the page opens at %v", s.scroll.Y)
+	}
+	tt.Scroll(600, 200, 0, 100)
+	tt.Frame()
+	if s.scroll.Y <= 0 {
+		t.Fatal("the page does not scroll")
+	}
+	tt.Scroll(600, 200, 0, -1000)
+	tt.Frame()
+	if s.scroll.Y != 0 {
+		t.Fatalf("the page is at %v after scrolling back", s.scroll.Y)
+	}
+}

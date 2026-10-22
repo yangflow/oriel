@@ -93,12 +93,12 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   own light-on-dark theme (see [Glass and ink](#windows-menus-and-navigation)); its first 40 are left to the window
   buttons. Then the five kinds (All, Articles, Videos, Social, Images) as 30 high rows, each an icon, its name and its
   unread count; then the subscriptions of the chosen kind, 30 high rows; at the bottom the server bar, 40 high. The main
-  column is the paper: `Background`. It has a 52 high toolbar row with no bar and no divider, in three parts: the title and its count at the leading end,
+  column is the paper: `Background`. It has a 52 high toolbar row on a solid `Background` bar (see Glass and ink), with no divider at the top and a hairline once the list has scrolled under it, in three parts: the title and its count at the leading end,
   one capsule with the Everything/Unread/Starred segments in the middle, and at the trailing end an evenly spaced
   group of bare icon buttons (the reading-time button, the grid switch (only where it applies), mark all as read, whose name and
   tooltip say its scope: "Mark all in “Videos” as read"; right click opens its menu, see Components), 4 apart, with search
-  last, at the far right. The segments are one 32 high capsule of glass floating over the entries, which fade under the row (the
-  soft scroll edge). The title's part and the trailing part take equal room, so the segments are centered in the main
+  last, at the far right. The segments are one 32 high capsule of glass on the bar; the entries scroll under the bar,
+  not through it. The title's part and the trailing part take equal room, so the segments are centered in the main
   column, whatever the title or the buttons are. Search is a flat ink field 200 wide; it gives up width before anything else,
   down to 48 (the magnifier and a letter), when the column is tight. Under a 736 wide main column (the column, not the window, so
   hiding the sidebar gives room back) search is a 32 square magnifier button after the other buttons; clicked, it opens the field
@@ -107,7 +107,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   ellipsis, 40 wide at least; the buttons never shrink, so mark all as read is always inside the window. The Tab order is the visual one:
   the sidebar button, the segments, the buttons, search. The reading-time button is a bare 32 square clock icon right of the capsule, named "Reading time: any
   length"; its menu lists Any length (the default), Up to 5, 10, 15 and 30 minutes, each a 28 high menu row with a
-  check on the current one. With a budget chosen it becomes a 32 high pill (radius 16) with the `Soft(Accent)` fill,
+  check on the current one. With a budget chosen it becomes a 32 high button (radius 8) with the `Soft(Accent)` fill,
   "≤ 10 min" in `Accent` at 12 medium beside the icon, tabular numerals, named "Reading time: up to 10 minutes"; below
   a 760 wide window it keeps only the icon, with a 7 `Accent` dot at its top right. It is a view filter: it does not
   mark or move anything, the title's unread count is hidden while it is on, and mark all as read, mark above and V are
@@ -163,7 +163,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   semibold `Text`, one line, ellipsis, taking the rest; read: 500 `TextMuted`), the star mark when starred, and the
   time (12 `TextMuted`, tabular figures, right-aligned, 56 wide at least). The reading time is left out, the summary
   and the thumbnail too. The row actions replace the time while the pointer rests on the row or it is chosen or
-  focused (27 by 24, centered vertically, no longer in the meta band because there is none).
+  focused (28 by 24, centered vertically, no longer in the meta band because there is none).
   **Social, Compact.** A row padded 12 16 12 28 with 4 between its parts: the meta line (author, handle, time), the
   text at 13 `Text` clamped to 2 lines (6 in the default viewer), then the pictures shrunk to thumbnails. One picture
   is a 56 square, radius 8, at the right of the text, starting under the meta line (as an article's thumbnail does);
@@ -295,8 +295,9 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   preference and is remembered.
 - **The reader.** It takes the main column's place; the pane stays. A 52 high toolbar row over the article, as in the
   timeline: "Back to {scope}" (a chevron and the scope's name) at the left as a bare button; at the right
-  [previous, next] and [star (`Star` when starred), read toggle, open in browser, copy link (link icon), more] as bare icon buttons (more is the ellipsis, a menu button whose menu, the platform's own with text only, holds Copy as Markdown and Save as Markdown…; it is dimmed with the other article buttons), and between
-  them the one glass capsule, [Summarize (sparkles), Translate (languages)], carrying their names beside the icon (12
+  [previous, next] and [star (`Star` when starred), read toggle, open in browser, copy link (link icon), more] as bare icon buttons (more is the ellipsis, a menu button whose menu, the platform's own with text only, holds Copy as Markdown and Save as Markdown…; it is dimmed with the other article buttons). The order is fixed, the same in every article: back, previous, next, summary, translate, star, read/unread, open in
+  browser, copy link, more. The one glass capsule, [Summarize (sparkles), Translate (languages)], takes the summary and translate places,
+  carrying their names beside the icon (12
   medium, icon only below a 760 wide window). The read toggle is an envelope: closed (mail) to mark unread, open
   (mail-open) to mark read, the same icons as the timeline's row action. Summarize and Translate are toggles: pressed,
   they sit on `Soft(Accent)` in `Accent` and their names become "Hide the summary" and "Show the original". In a wide
@@ -742,7 +743,10 @@ Overlays share focus and Escape behavior; see
   `theme.PaneTheme`, calls `c.SetTheme(paneTheme)` before building the sidebar and sets the main theme back after. The
   toolbar has one glass capsule (a 32 high pill, tint rgba(255, 254, 251, 0.66) in light and rgba(58, 63, 62, 0.52) in
   dark, radius 16, 0.5 DIP rim): the segmented control in the timeline, Summarize and Translate in the reader.
-  `glass.ScrollEdge{}` fades content under the toolbar row into `Background` (88% in light, 90% in dark, 72 high).
+  The toolbar row is a solid bar: `Background`, 52 high, over the content and under the controls, in the timeline, the
+  reader and Settings alike (`theme.Edge` draws it; `glass.ScrollEdge{}` is not used). At the top of the content it has no edge; once the content has
+  scrolled under it a 0.5 DIP `Border` hairline shows along its bottom, which fades in over 120 ms. A fade, even a tall and opaque one, let text show through
+  behind the icons; the bar does not.
   Content stays on opaque `Background`; glass is for chrome only, never for entries, the article, dialogs, search or
   bare toolbar icons. Text on glass keeps AA contrast, and with high contrast glass becomes opaque (the capsule
   `Surface`, the pane is already opaque) with a `Border` rim (MyGo reports no Reduce Transparency setting, so high
@@ -767,6 +771,17 @@ Overlays share focus and Escape behavior; see
   browser. Say so in the control ("Open in browser"), not only with an icon.
 - **Toolbar.** Frequent window-level commands, in order of importance; controls that do not fit overflow into a menu.
   One glass capsule at most per toolbar; everything else is a bare icon or the flat search field. Search is last, at the far right.
+- **Toolbar buttons.** One spec for every bare icon button in a toolbar, in the timeline and the reader alike: 32 by 32, a 16
+  icon, radius 8, 4 between neighbors. No fill at rest; hovered `SurfaceHover`, pressed `SurfacePressed`; the icon is
+  `TextMuted`, `Text` when hovered or pressed; disabled keeps no fill and the icon turns `Disabled`; an on button (the
+  reading-time budget, a pressed toggle) sits on `Soft(Accent)` in `Accent`, and a starred one is `Star`. A button that does not apply to the
+  current article is disabled, never hidden, so the toolbar keeps its shape; it keeps its place and its label, greyed, and its
+  tooltip and accessible name give the reason (Translate on an article already in the target language still reads
+  "Translate"; the tooltip and name say "Already in Simplified Chinese"). It takes no focus or click. The glass capsule and search are pills (radius 16) of their own. The row actions on a row
+  (28 by 24, radius 6, 2 apart) are their own smaller spec with the same colors, but their hover fill is `SurfacePressed`, since
+  they sit on a row that is itself `SurfaceHover`-filled; a 32 button would not fit the meta line. In a narrow window the end buttons of the reader move into More in a
+  fixed order, copy link first, then open in browser, then read/unread (below 500, 440 and 380 wide in the main column); the
+  640 wide minimum window reaches the first step only. The menu then lists them above Copy as Markdown, under a hairline.
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.
 - **Timeline keys.** J or Down and K or Up move between entries, N goes to the next unread entry below the chosen one
   (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in the

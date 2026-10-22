@@ -39,7 +39,7 @@ type copy struct {
 	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AIUpstream, AIEmpty, AIOff, AIOffTitle        string
 	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                 string
 	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint  string
-	SelectionAIOff, ExplanationReady                                                                       string
+	SelectionAIOff, ExplanationReady, TranslateDone, LanguageZhHans, LanguageEn                            string
 	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles string
 }
 
@@ -105,6 +105,7 @@ type Nav struct {
 	Previous, Next bool
 	Keys           bool
 	Controls       bool
+	Column         float32 // width of the column the reader fills, which decides what the toolbar moves into More; 0 is the window
 }
 
 const (
@@ -831,7 +832,7 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 		default:
 			s.page(c, narrow)
 		}
-		theme.Edge(c)
+		theme.Edge(c, s.scroll.Y > 0)
 		s.toolbar(c, nav, ready, narrow)
 		s.selectionCard(c)
 	})
@@ -859,7 +860,7 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready, narrow bool) {
 	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).Padding(0, bar.Right, 0, inset).DragWindow().
 		Children(func() {
 			ui.Row(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Height(theme.Bar).AlignItems(ui.Center).
-				Gap(px(t, 6)).Padding(0, right, 0, left).Children(func() {
+				Gap(px(t, 4)).Padding(0, right, 0, left).Children(func() {
 				s.toolbarItems(c, nav, e, ready, narrow)
 			})
 		})
@@ -869,7 +870,7 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 	t := c.Theme()
 	back := strings.ReplaceAll(s.text.Back, "{scope}", nav.Scope)
 	b := ui.ButtonBase(c).Height(px(t, 32)).MinWidth(0).Shrink(1).Gap(px(t, 2)).Padding(0, px(t, 10), 0, px(t, 4)).
-		Radius(px(t, 10)).Label(back)
+		Radius(px(t, 8)).Label(back)
 	color := theme.Text2(t)
 	switch {
 	case b.Pressed():
@@ -887,66 +888,88 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 		s.deps.Back()
 	}
 	ui.Box(c).Grow(1)
-	if s.tool(c, icons.ChevronUp, s.text.Previous, "K", t.TextMuted, !nav.Previous).Clicked() {
+	if s.tool(c, icons.ChevronUp, s.text.Previous, "K", theme.ToolState{Disabled: !nav.Previous}).Clicked() {
 		s.deps.Move(-1)
 	}
-	if s.tool(c, icons.ChevronDown, s.text.Next, "J", t.TextMuted, !nav.Next).Clicked() {
+	if s.tool(c, icons.ChevronDown, s.text.Next, "J", theme.ToolState{Disabled: !nav.Next}).Clicked() {
 		s.deps.Move(1)
 	}
 	// The one capsule of glass holds the two AI toggles, in place of separators.
-	g := ui.Row(c).Height(px(t, 34)).AlignItems(ui.Center).Gap(1).PaddingX(px(t, 4)).Radius(px(t, 17)).
-		Margin(0, px(t, 6), 0, px(t, 6))
+	g := ui.Row(c).Height(px(t, 34)).AlignItems(ui.Center).Gap(1).PaddingX(px(t, 4)).Radius(px(t, 17))
 	theme.Capsule(c, g, false).Children(func() {
 		on, label := s.jobs[summary].on, s.text.Summarize
 		if on {
 			label = s.text.HideSummary
 		}
-		if s.toggle(c, icons.Sparkles, label, on, !ready, narrow).Clicked() {
+		if s.toggle(c, icons.Sparkles, label, label, on, !ready, narrow).Clicked() {
 			if on {
 				s.cancel(summary)
 			} else {
 				s.request(summary)
 			}
 		}
-		if s.canTranslate(e) {
-			on, label = s.translating(), s.text.Translate
-			if on {
-				label = s.text.ShowOriginal
-			}
-			if s.toggle(c, icons.Languages, label, on, !ready, narrow).Clicked() {
-				j := s.jobs[translation]
-				switch {
-				case j.on && j.working:
-					s.cancel(translation)
-				case j.on && !j.failed:
-					s.shown = 1 - s.shown
-				default:
-					s.request(translation)
-				}
+		// A translation the article cannot use stays in place, disabled, still labelled Translate; its name says why.
+		if !s.canTranslate(e) {
+			reason := s.translateDone()
+			ui.Box(c).Key("translate-done").Tooltip(reason).Children(func() {
+				s.toggle(c, icons.Languages, s.text.Translate, reason, false, true, narrow)
+			})
+			return
+		}
+		on, label = s.translating(), s.text.Translate
+		if on {
+			label = s.text.ShowOriginal
+		}
+		if s.toggle(c, icons.Languages, label, label, on, !ready, narrow).Clicked() {
+			j := s.jobs[translation]
+			switch {
+			case j.on && j.working:
+				s.cancel(translation)
+			case j.on && !j.failed:
+				s.shown = 1 - s.shown
+			default:
+				s.request(translation)
 			}
 		}
 	})
-	star, starColor := s.text.Star, t.TextMuted
+	star, starState := s.text.Star, theme.ToolState{Disabled: !ready}
 	if e.Starred {
-		star, starColor = s.text.Unstar, theme.Star(t)
+		star, starState.On, starState.Tint = s.text.Unstar, true, theme.Star(t)
 	}
-	if s.tool(c, icons.Star, star, "S", starColor, !ready).Role(ui.RoleToggleButton).Checked(e.Starred).Clicked() {
+	if s.tool(c, icons.Star, star, "S", starState).Role(ui.RoleToggleButton).Checked(e.Starred).Clicked() {
 		s.deps.Star()
 	}
 	read, readIcon := s.text.MarkRead, icons.MailOpen
 	if e.IsRead {
 		read, readIcon = s.text.MarkUnread, icons.Mail
 	}
-	if s.tool(c, readIcon, read, "M", t.TextMuted, !ready).Clicked() {
-		s.deps.ToggleRead()
+	// Read, open and copy link are the buttons a narrow column moves into More, the last of them first.
+	buttons := [...]struct {
+		icon     *ui.SVG
+		label    string
+		key      string
+		disabled bool
+		do       func()
+	}{
+		{readIcon, read, "M", !ready, s.deps.ToggleRead},
+		{icons.ExternalLink, s.text.Open, "O", !ready || e.URL == "", func() { s.openOriginal(c) }},
+		{icons.Link, s.text.CopyLink, "", !ready || e.URL == "", func() { s.CopyLink(e) }},
 	}
-	if s.tool(c, icons.ExternalLink, s.text.Open, "O", t.TextMuted, !ready || e.URL == "").Clicked() {
-		s.openOriginal(c)
+	inline := len(buttons) - overflow(s.columnWidth(c, nav))
+	for _, bt := range buttons[:inline] {
+		if s.tool(c, bt.icon, bt.label, bt.key, theme.ToolState{Disabled: bt.disabled}).Clicked() {
+			bt.do()
+		}
 	}
-	if s.tool(c, icons.Link, s.text.CopyLink, "", t.TextMuted, !ready || e.URL == "").Clicked() {
-		s.CopyLink(e)
-	}
-	s.tool(c, icons.Ellipsis, s.text.More, "", t.TextMuted, !ready).Menu(func(m *ui.Menu) {
+	s.tool(c, icons.Ellipsis, s.text.More, "", theme.ToolState{Disabled: !ready}).Menu(func(m *ui.Menu) {
+		for _, bt := range buttons[inline:] {
+			if m.Item(bt.label).Disabled(bt.disabled).Chosen() {
+				bt.do()
+			}
+		}
+		if inline < len(buttons) {
+			m.Separator()
+		}
 		if m.Item(s.text.CopyMarkdown).Chosen() {
 			s.Export(e, false)
 		}
@@ -954,6 +977,41 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 			s.Export(e, true)
 		}
 	})
+}
+
+// overflow is how many of the toolbar's read, open and copy link buttons move into More in a main column this wide:
+// copy link below 500, open too below 440, and mark read too below 380. See docs/design.md, Reader.
+func overflow(column float32) int {
+	switch {
+	case column < 380:
+		return 3
+	case column < 440:
+		return 2
+	case column < 500:
+		return 1
+	}
+	return 0
+}
+
+// columnWidth is the width of the column the reader fills: what the timeline says, else the window.
+func (s *Screen) columnWidth(c *ui.Context, nav Nav) float32 {
+	if nav.Column > 0 {
+		return nav.Column
+	}
+	w, _ := c.Size()
+	return w
+}
+
+// translateDone is why Translate is disabled: the article is already in the language translations are made in.
+func (s *Screen) translateDone() string {
+	name := s.target
+	switch s.target {
+	case "zh-Hans":
+		name = s.text.LanguageZhHans
+	case "en":
+		name = s.text.LanguageEn
+	}
+	return strings.ReplaceAll(s.text.TranslateDone, "{language}", name)
 }
 
 // CopyLink puts the original link of the entry e on the clipboard and says so in a toast and to screen readers. It
@@ -1038,39 +1096,30 @@ func (s *Screen) Flush(c *ui.Context) {
 	}
 }
 
-// tool is a bare icon button of the toolbar: an icon, named by label, its key, if any, in the tooltip. Its fill is
-// the hover and pressed fill of the one scale; a muted icon turns to Text under the pointer.
-func (s *Screen) tool(c *ui.Context, icon *ui.SVG, label, key string, color ui.Color, disabled bool) ui.Element {
+// tool is a bare icon button of the toolbar: an icon, named by label, its key, if any, in the tooltip. Its look is
+// the one toolbar button of theme.ToolButton.
+func (s *Screen) tool(c *ui.Context, icon *ui.SVG, label, key string, st theme.ToolState) ui.Element {
 	t := c.Theme()
 	tip := label
 	if key != "" {
 		tip = s.shortcut(label, key)
 	}
-	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Radius(px(t, 10)).Label(label).Tooltip(tip).Disabled(disabled)
-	switch {
-	case disabled:
-		color = theme.Disabled(t)
-	case b.Pressed():
-		b.Background(t.SurfacePressed)
-		if color == t.TextMuted {
-			color = t.Text
-		}
-	case b.Hovered():
-		b.Background(t.SurfaceHover)
-		if color == t.TextMuted {
-			color = t.Text
-		}
-	}
+	b, color := theme.ToolButton(c, st)
+	b.Label(label).Tooltip(tip)
 	theme.Fade(b).Children(func() { ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(color) })
 	return b
 }
 
 // toggle is a button of the capsule that stays pressed while on, in the accent color on its soft tint. It carries its
-// name beside the icon, and only the icon in a narrow window.
-func (s *Screen) toggle(c *ui.Context, icon *ui.SVG, label string, on, disabled, narrow bool) ui.Element {
+// label beside the icon, and only the icon in a narrow window. Its name is the label, or the reason it is disabled; only
+// a reason gets a tooltip, as a label alone is never repeated in one.
+func (s *Screen) toggle(c *ui.Context, icon *ui.SVG, label, name string, on, disabled, narrow bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Height(px(t, 28)).Gap(px(t, 6)).Radius(px(t, 14)).Label(label).
+	b := ui.ButtonBase(c).Height(px(t, 28)).Gap(px(t, 6)).Radius(px(t, 14)).Label(name).
 		Disabled(disabled).Role(ui.RoleToggleButton).Checked(on)
+	if name != label {
+		b.Tooltip(name)
+	}
 	if narrow {
 		b.Width(px(t, 30))
 	} else {

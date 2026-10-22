@@ -286,6 +286,8 @@ type Screen struct {
 	list      ui.ListState
 	grid      ui.GridState
 	wall      ui.ScrollState
+	scrolls   [2]ui.ScrollState // how far the rows and the grid cells are scrolled, as the last frame left them
+	edge      bool              // the content shown is scrolled away from its top, which gives the toolbar its edge
 
 	pictures  map[string]*picture
 	wanted    []string // pictures to download, the latest asked first
@@ -2292,7 +2294,8 @@ func (s *Screen) View(c *ui.Context) {
 		if s.reading != 0 {
 			e := s.entries[s.index(s.reading)]
 			s.reader.View(c, reader.Nav{Entry: e, Icon: s.bitmap(s.iconOf(e.SourceID)), Scope: s.scopeName(),
-				Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "", Keys: !open, Controls: hidden})
+				Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "", Keys: !open, Controls: hidden,
+				Column: mainColumn(t, width, hidden, compact)})
 			return
 		}
 		// The toolbar row floats over the content, which scrolls under it and fades under the scroll edge.
@@ -2300,7 +2303,7 @@ func (s *Screen) View(c *ui.Context) {
 			s.hint(c)
 			s.stale(c)
 			s.content(c, now, compact)
-			theme.Edge(c)
+			theme.Edge(c, s.edge)
 			s.toolbar(c, compact, hidden)
 			s.pill(c)
 		})
@@ -2647,6 +2650,14 @@ func (s *Screen) keyGroup(c *ui.Context, name string, rows []key) {
 			})
 		})
 	}
+}
+
+// mainColumn is the width of the column right of the sidebar, the whole window while the sidebar is hidden.
+func mainColumn(t *ui.Theme, width float32, hidden, compact bool) float32 {
+	if hidden {
+		return width
+	}
+	return width - (sideWidth(t, compact) + 8)
 }
 
 // sideWidth is the width of the sidebar, in units of the main theme.
@@ -3153,10 +3164,7 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 		left += bar.Left
 	}
 	width, _ := c.Size()
-	column := float32(width)
-	if !hidden {
-		column -= sideWidth(t, compact) + 8
-	}
+	column := mainColumn(t, width, hidden, compact)
 	narrow := column < narrowColumn
 	field := column >= fieldColumn
 	gap := px(t, 10)
@@ -3265,7 +3273,7 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 	}
 	timed := s.budget != 0
 	on := timed || s.oldest
-	b := ui.ButtonBase(c).Key("budget").Height(px(t, 32)).Shrink(0).Radius(px(t, 16)).Label(name).Tooltip(name)
+	b := ui.ButtonBase(c).Key("budget").Height(px(t, 32)).Shrink(0).Radius(px(t, 8)).Label(name).Tooltip(name)
 	color := toolFill(t, b)
 	if on {
 		color = t.Accent
@@ -3337,7 +3345,7 @@ func (s *Screen) gridButton(c *ui.Context) {
 	if s.gridOn() {
 		icon, name = icons.List, s.text.ShowList
 	}
-	b := ui.ButtonBase(c).Key("grid").Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 16)).Label(name).Tooltip(name)
+	b := ui.ButtonBase(c).Key("grid").Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 8)).Label(name).Tooltip(name)
 	color := toolFill(t, b)
 	b.Children(func() { ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(color) })
 	if b.Clicked() {
@@ -3455,7 +3463,7 @@ func (s *Screen) searchField(c *ui.Context, opened bool) {
 // searchIcon is search in a toolbar too narrow for the field: a bare 32 square icon button that opens the field.
 func (s *Screen) searchIcon(c *ui.Context) {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Key("search").Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 16)).Label(s.text.Search).
+	b := ui.ButtonBase(c).Key("search").Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 8)).Label(s.text.Search).
 		Tooltip(s.text.Search)
 	color := toolFill(t, b)
 	b.Children(func() { ui.Icon(c, icons.Search).FontSize(px(t, 16)).TextColor(color) })
@@ -3503,7 +3511,7 @@ func (s *Screen) markAllButton(c *ui.Context) {
 	t := c.Theme()
 	can := s.canMarkAll()
 	label := s.markAllLabel()
-	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 16)).Label(label).Tooltip(label).Disabled(!can)
+	b := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Shrink(0).Radius(px(t, 8)).Label(label).Tooltip(label).Disabled(!can)
 	color := theme.Disabled(t)
 	if can {
 		color = toolFill(t, b)
@@ -3621,6 +3629,7 @@ func (s *Screen) pill(c *ui.Context) {
 // content is the list, or the state that stands in for it.
 func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 	s.divider = -1
+	s.edge = false
 	area := ui.Column(c).Grow(1).FillWidth().MinHeight(0)
 	area.Children(func() {
 		switch {
@@ -3927,7 +3936,7 @@ const (
 func (s *Screen) actions(c *ui.Context, i int, at place) {
 	t := c.Theme()
 	e := s.entries[i]
-	bar := ui.Row(c).Key("actions").Gap(px(t, 1)).Transition(actionFade)
+	bar := ui.Row(c).Key("actions").Gap(px(t, 2)).Transition(actionFade)
 	switch at {
 	case onCard:
 		bar.Attach(ui.AnchorBottomRight, ui.AnchorBottomRight)
@@ -3963,7 +3972,7 @@ func (s *Screen) actions(c *ui.Context, i int, at place) {
 // keeps its own color.
 func (s *Screen) action(c *ui.Context, label string, icon *ui.SVG, color ui.Color, keep bool) bool {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Size(px(t, 27), px(t, 24)).Radius(px(t, 7)).Label(label).Tooltip(label)
+	b := ui.ButtonBase(c).Size(px(t, 28), px(t, 24)).Radius(px(t, 6)).Label(label).Tooltip(label)
 	switch {
 	case b.Pressed():
 		b.Background(theme.Chosen(t))
@@ -4077,8 +4086,9 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 			}
 			s.row(c, i, now, compact)
 		})
-	}).Grow(1).FillWidth().Padding(s.top()+t.Space(1), 0, t.Space(6), 0).ScrollbarInsets(s.top(), 0, 0, 0).
-		Label(s.scopeName())
+	}).TrackScroll(&s.scrolls[0]).Grow(1).FillWidth().Padding(s.top()+t.Space(1), 0, t.Space(6), 0).
+		ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName())
+	s.edge = s.scrolls[0].Y > 0
 }
 
 // divide is the divider above the first entry at or older than the marker of what the reader last looked at: a hairline
@@ -4820,8 +4830,9 @@ func (s *Screen) cells(c *ui.Context, now time.Time, compact, square bool) {
 				s.actions(c, i, onCard)
 			}
 		})
-	}).Grow(1).FillWidth().Gap(gap).Padding(s.top()+t.Space(4), px(t, 24), t.Space(6), px(t, 24)).
+	}).TrackScroll(&s.scrolls[1]).Grow(1).FillWidth().Gap(gap).Padding(s.top()+t.Space(4), px(t, 24), t.Space(6), px(t, 24)).
 		ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName())
+	s.edge = s.scrolls[1].Y > 0
 	if s.hasFooter() {
 		s.footer(c)
 	}
@@ -4890,6 +4901,7 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 			}
 		}
 	}
+	s.edge = s.wall.Y > 0
 	ui.Scroll(c).TrackScroll(&s.wall).Grow(1).FillWidth().ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName()).
 		Children(func() {
 			ui.Row(c).FillWidth().Gap(gap).Padding(top, px(t, 24), t.Space(6), px(t, 24)).

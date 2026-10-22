@@ -253,15 +253,67 @@ func Capsule(c *ui.Context, e ui.Element, hover bool) ui.Element {
 	return e.Material(glass.Glass{Tint: tint})
 }
 
-// Edge fades the content scrolling under the toolbar row into the background (the soft scroll edge); with high
-// contrast it is an opaque Background strip as high as the bar. Paint it over the content and before the toolbar.
-func Edge(c *ui.Context) {
-	e := ui.Box(c).Absolute().Top(0).Left(0).Right(0).PassThrough()
-	if c.Preferences().HighContrast {
-		e.Height(Bar).Background(c.Theme().Background)
-		return
+var edgeFade = ui.ElementTransition{Duration: 120 * time.Millisecond, Colors: true}
+
+// Edge draws the solid bar behind a toolbar row: Background, Bar high, with a 0.5 DIP Border hairline under it once
+// the content has scrolled (1 DIP with high contrast). The hairline fades in and out over 120 ms, colors only. Paint
+// it over the content and before the toolbar.
+func Edge(c *ui.Context, scrolled bool) {
+	t := c.Theme()
+	ui.Box(c).Key("edge-bar").Absolute().Top(0).Left(0).Right(0).Height(Bar).Background(t.Background).PassThrough()
+	line := t.Border.Alpha(0)
+	if scrolled {
+		line = t.Border
 	}
-	e.Height(Bar + 10).Material(glass.ScrollEdge{})
+	width := float32(0.5)
+	if c.Preferences().HighContrast {
+		width = 1
+	}
+	ui.Box(c).Key("edge-line").Absolute().Top(Bar).Left(0).Right(0).Height(width).Background(line).
+		Transition(edgeFade).PassThrough()
+}
+
+// ToolState is how a toolbar icon button looks: Disabled has no fill and the Disabled icon, On has the Soft tint of
+// Tint (the Accent when zero) and an icon in Tint.
+type ToolState struct {
+	Disabled, On bool
+	Tint         ui.Color
+}
+
+// ToolButton is the one toolbar icon button: 32 by 32, radius 8, icon 16, TextMuted becoming Text under the pointer,
+// SurfaceHover under the pointer and SurfacePressed pressed. It returns the button and the color for its icon.
+func ToolButton(c *ui.Context, st ToolState) (ui.Element, ui.Color) {
+	t := c.Theme()
+	b := ui.ButtonBase(c).Size(t.Rem(32.0/13), t.Rem(32.0/13)).Shrink(0).Radius(t.Rem(8.0 / 13)).Disabled(st.Disabled)
+	return b, ToolFill(t, b, st)
+}
+
+// ToolFill fills b for its state and returns the color of its icon.
+func ToolFill(t *ui.Theme, b ui.Element, st ToolState) ui.Color {
+	if st.Disabled {
+		return Disabled(t)
+	}
+	if st.On {
+		tint := st.Tint
+		if tint == (ui.Color{}) {
+			tint = t.Accent
+		}
+		fill := Soft(t, tint)
+		if b.Hovered() || b.Pressed() {
+			fill = fill.Mix(tint, 0.12)
+		}
+		b.Background(fill)
+		return tint
+	}
+	switch {
+	case b.Pressed():
+		b.Background(t.SurfacePressed)
+		return t.Text
+	case b.Hovered():
+		b.Background(t.SurfaceHover)
+		return t.Text
+	}
+	return t.TextMuted
 }
 
 // Han reports whether a text has Chinese characters; Chinese runs taller, so such text gets a larger line height.

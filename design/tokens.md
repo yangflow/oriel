@@ -26,7 +26,8 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | sheet | `t.Space(80)` | 320 | widest a centered sheet (the connect screen) grows |
 | symbol-button | `t.Space(11)` | 44 | width of square symbol buttons |
 | radius | `Theme.Radius` | 8 | corners of controls |
-| toolbar | `t.Space(13)` | 52 | the toolbar row; the window buttons are centered in it |
+| toolbar | `t.Space(13)` | 52 | the toolbar row, a solid `Background` bar; the window buttons are centered in it |
+| toolbar button | radius 8, 4 between neighbors | 32 square, icon 16 | no fill; hover `SurfaceHover`, pressed `SurfacePressed`; icon `TextMuted`, `Text` hovered; disabled icon `Disabled`, no fill; on `Soft(Accent)` with `Accent` |
 | sidebar button | top 40 of the pane, right inset `t.Space(8)` | 32 | centered on the toolbar row's middle line |
 | search | width 200 (min 48) from a 736 wide column, else a 32 square icon | 32 | flat ink field at the far right of the toolbar |
 | capsule | `t.Space(8)`, radius 16 | 32 | glass toolbar controls: the segmented control, the Summarize/Translate capsule |
@@ -287,11 +288,12 @@ fills are 8% / 12% / 16%, and glass (the capsules, the scroll edge) becomes opaq
 | Part | Light | Dark | Notes |
 |---|---|---|---|
 | Toolbar capsule | tint rgba(255, 254, 251, 0.66) | tint rgba(58, 63, 62, 0.52) | radius 16, rim 0.5 DIP |
-| Scroll edge under the toolbar | `Background` 88% | `Background` 90% | 72 high, over the content and under the toolbar |
+| Toolbar bar | `Background` | `Background` | 52 high, opaque, over the content and under the controls |
+| Toolbar hairline | `Border` | `Border` | 0.5 DIP, along the bar's bottom once the content has scrolled; none at the top |
 
 The timeline's toolbar has one capsule, the segmented control (Everything / Unread / Starred); the reader's has one
 capsule, Summarize and Translate. Search is a flat ink 5.5% fill and every other toolbar button is a bare icon.
-The reading-time button is a bare 32 square icon; with a budget it is a 32 high pill, radius 16, filled `Soft(Accent)`, with `Accent` text and icon, and in a narrow window an icon with a 7 `Accent` dot.
+The reading-time button is a bare 32 square icon; with a budget it is a 32 high button, radius 8, filled `Soft(Accent)`, with `Accent` text and icon, and in a narrow window an icon with a 7 `Accent` dot.
 The ink pane is not glass: it is opaque (see above). Content never sits on glass.
 
 ## Shape
@@ -307,7 +309,7 @@ The ink pane is not glass: it is opaque (see above). Content never sits on glass
 
 ## Row actions
 
-Star, mark read and open in browser are icon buttons, 27 wide and 24 high, radius 8, in `TextMuted` (hovered:
+Star, mark read and open in browser are icon buttons, 28 wide and 24 high, radius 6, 2 apart (their own spec, the toolbar button's fills at a smaller size), in `TextMuted` (hovered:
 `SurfacePressed` fill and `Text`; a starred one in `theme.Star`). They sit at the right of the row's meta line,
 which keeps 88 free (84 in a video card and a picture tile), and never over a thumbnail or a title. Shown on hover,
 on the selected row and on the row with the focus; the fade is 120 ms.

@@ -207,6 +207,7 @@ type result struct {
 // Screen keeps the settings as loaded and the work under way.
 type Screen struct {
 	deps     Deps
+	scroll   ui.ScrollState // the page of the group shown, for the bar's edge
 	text     copy
 	api      API
 	server   string // the host of the server, "" for this computer
@@ -1278,7 +1279,7 @@ func (s *Screen) View(c *ui.Context) {
 		bar := c.TitleBar()
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 			s.content(c, compact, room)
-			theme.Edge(c)
+			theme.Edge(c, s.scroll.Y > 0)
 			ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).
 				Padding(0, t.Space(3)+bar.Right, 0, s.titleLeft(t, compact, room)).DragWindow().Children(func() {
 				ui.Text(c, s.groupName(s.group)).FontSize(px(t, 15)).FontWeight(600).SingleLine().MinWidth(0).
@@ -1515,7 +1516,7 @@ func (s *Screen) titleLeft(t *ui.Theme, compact bool, room float32) float32 {
 
 func (s *Screen) page(c *ui.Context, compact bool, maxWidth float32, children func()) {
 	t := c.Theme()
-	ui.Scroll(c).Grow(1).FillWidth().ScrollbarInsets(theme.Bar, 0, 0, 0).Children(func() {
+	ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).FillWidth().ScrollbarInsets(theme.Bar, 0, 0, 0).Children(func() {
 		p := ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto)
 		if compact {
 			p.Padding(theme.Bar+px(t, 20), px(t, 20), px(t, 40), px(t, 20))
