@@ -112,6 +112,10 @@ func (s *Server) startImport(w http.ResponseWriter, r *http.Request) {
 		Username   string `json:"username"`
 		Credential string `json:"credential"`
 	}
+	if !jsonContent(r) {
+		fail(w, http.StatusUnsupportedMediaType, "unsupported_media_type")
+		return
+	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxImportRequest)).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_json")
 		return

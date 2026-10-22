@@ -38,6 +38,10 @@ func newServer(t *testing.T, password string) (*Server, *clock) {
 
 func do(s *Server, method, target, body string, header map[string]string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(method, target, strings.NewReader(body))
+	r.Host = "127.0.0.1:7470"
+	if body != "" {
+		r.Header.Set("Content-Type", "application/json")
+	}
 	for k, v := range header {
 		r.Header.Set(k, v)
 	}
@@ -268,5 +272,108 @@ func TestThrottlePrunesOldRecords(t *testing.T) {
 	}
 	if len(th.failures) > maxTracked {
 		t.Fatalf("%d records", len(th.failures))
+	}
+}
+
+func TestRequestOrigin(t *testing.T) {
+	s, _ := newServer(t, "")
+	post := func(host string, header map[string]string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "/api/entries/read", strings.NewReader(`{"kind":"social"}`))
+		r.Host = host
+		r.Header.Set("Content-Type", "application/json")
+		for k, v := range header {
+			r.Header.Set(k, v)
+		}
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, r)
+		return w
+	}
+	for name, tc := range map[string]struct {
+		host   string
+		header map[string]string
+		status int
+		code   string
+	}{
+		"no origin":         {"127.0.0.1:7470", nil, http.StatusOK, ""},
+		"same origin":       {"127.0.0.1:7470", map[string]string{"Origin": "http://127.0.0.1:7470"}, http.StatusOK, ""},
+		"localhost":         {"localhost:7470", map[string]string{"Origin": "http://localhost:7470"}, http.StatusOK, ""},
+		"ipv6 loopback":     {"[::1]:7470", nil, http.StatusOK, ""},
+		"other origin":      {"127.0.0.1:7470", map[string]string{"Origin": "https://example.org"}, http.StatusForbidden, "forbidden_origin"},
+		"other port":        {"127.0.0.1:7470", map[string]string{"Origin": "http://127.0.0.1:3000"}, http.StatusForbidden, "forbidden_origin"},
+		"null origin":       {"127.0.0.1:7470", map[string]string{"Origin": "null"}, http.StatusForbidden, "forbidden_origin"},
+		"cross-site fetch":  {"127.0.0.1:7470", map[string]string{"Sec-Fetch-Site": "cross-site"}, http.StatusForbidden, "forbidden_origin"},
+		"same-origin fetch": {"127.0.0.1:7470", map[string]string{"Sec-Fetch-Site": "same-origin"}, http.StatusOK, ""},
+		"other host":        {"rebind.example.org:7470", nil, http.StatusForbidden, "forbidden_host"},
+		"other host origin": {"rebind.example.org:7470", map[string]string{"Origin": "http://rebind.example.org:7470"}, http.StatusForbidden, "forbidden_host"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := post(tc.host, tc.header)
+			if w.Code != tc.status {
+				t.Fatalf("%d %s", w.Code, w.Body)
+			}
+			if tc.code != "" && decode(t, w)["error"] != tc.code {
+				t.Fatalf("%s", w.Body)
+			}
+		})
+	}
+	if w := do(s, "GET", "/api/sources", "", map[string]string{"Origin": "https://example.org"}); w.Code != http.StatusOK {
+		t.Errorf("GET with another origin: %d", w.Code)
+	}
+}
+
+func TestRequestOriginWithPassword(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "agent")
+	header := bearer(token)
+	if w := do(s, "GET", "/api/sources", "", header); w.Code != http.StatusOK {
+		t.Fatalf("%d", w.Code)
+	}
+	r := httptest.NewRequest("GET", "/api/sources", nil)
+	r.Host = "oriel.example.org"
+	r.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("any host with a password: %d", w.Code)
+	}
+	header["Origin"] = "https://example.org"
+	if w := do(s, "POST", "/api/entries/read", `{"kind":"social"}`, header); w.Code != http.StatusForbidden {
+		t.Errorf("other origin with a password: %d", w.Code)
+	}
+}
+
+func TestWebSubIgnoresHostRule(t *testing.T) {
+	s, _ := newServer(t, "")
+	r := httptest.NewRequest("POST", "/websub/unknown", strings.NewReader("x"))
+	r.Host = "oriel.example.org"
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound || decode(t, w)["error"] != "not_found" {
+		t.Errorf("%d %s", w.Code, w.Body)
+	}
+}
+
+func TestJSONBodyNeedsContentType(t *testing.T) {
+	s, _ := newServer(t, "")
+	for contentType, status := range map[string]int{
+		"text/plain":                      http.StatusUnsupportedMediaType,
+		"multipart/form-data":             http.StatusUnsupportedMediaType,
+		"":                                http.StatusUnsupportedMediaType,
+		"application/json":                http.StatusOK,
+		"application/json; charset=utf-8": http.StatusOK,
+	} {
+		r := httptest.NewRequest("POST", "/api/entries/read", strings.NewReader(`{"kind":"social"}`))
+		r.Host = "127.0.0.1:7470"
+		if contentType != "" {
+			r.Header.Set("Content-Type", contentType)
+		}
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, r)
+		if w.Code != status {
+			t.Errorf("%q: %d %s", contentType, w.Code, w.Body)
+		}
+		if status != http.StatusOK && decode(t, w)["error"] != "unsupported_media_type" {
+			t.Errorf("%q: %s", contentType, w.Body)
+		}
 	}
 }
