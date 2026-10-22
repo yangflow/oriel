@@ -20,6 +20,7 @@ import (
 
 	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/fetch"
+	"github.com/yangflow/oriel/internal/importer"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -86,13 +87,16 @@ type Server struct {
 	handler  http.Handler
 	fetching func() []int64
 
+	imports      importState
+	importClient func() *importer.Client // makes the client of one import; tests replace it
+
 	vacuumMu sync.Mutex // guards vacuum
 	vacuum   vacuumState
 }
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, version: cfg.Version, now: time.Now, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
+	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
 	if s.routes == nil {
 		s.routes = fetch.NewRoutes(cfg.Version)
 	}
@@ -140,6 +144,10 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("PATCH /api/settings", s.authed(s.updateSettings))
 	mux.HandleFunc("POST /api/opml/import", s.authed(s.importOPML))
 	mux.HandleFunc("GET /api/opml/export", s.authed(s.exportOPML))
+	mux.HandleFunc("POST /api/import/start", s.authed(s.startImport))
+	mux.HandleFunc("GET /api/import", s.authed(s.importStatus))
+	mux.HandleFunc("POST /api/import/confirm", s.authed(s.confirmImport))
+	mux.HandleFunc("POST /api/import/cancel", s.authed(s.cancelImport))
 	mux.HandleFunc("GET /api/image", s.authed(s.image))
 	mux.HandleFunc("GET /api/activity", s.authed(s.activity))
 	mux.HandleFunc("GET /api/storage", s.authed(s.storage))

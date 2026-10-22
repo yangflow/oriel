@@ -60,6 +60,16 @@ type copy struct {
 	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Compact, Compacting            string
 	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep               string
 	NewCount, NothingNew, FailedWord, ShowAttempts                                                                 string
+
+	ReaderLabel, ReaderHelp, ReaderButton, ReaderTitle, ReaderService, ReaderAddress, ReaderAddressHint    string
+	ReaderUser, ReaderToken, ReaderPassword, ReaderMemory, ReaderConnect, ReaderClose, ReaderCancel        string
+	ReaderImport, ReaderDone, ReaderTryAgain, ReaderProgress, ReaderProgressOpen, ReaderFound              string
+	ReaderStageSubscriptions, ReaderStageStarred, ReaderStageRead, ReaderStageWriting                      string
+	ReaderSources, ReaderStarred, ReaderRead, ReaderFolders, ReaderFoldersNote                             string
+	ReaderResultSources, ReaderResultStarred, ReaderResultRead, ReaderResultUnmatched, ReaderResultFolders string
+	ReaderSkipped, ReaderMore, ReaderUnknownSource, ReaderInvalidLink                                      string
+	ReaderErrAddress, ReaderErrUnauthorized, ReaderErrUnreachable, ReaderErrRate, ReaderErrBad             string
+	ReaderErrLarge, ReaderErrRedirect, ReaderErrBusy, ReaderErrOther                                       string
 }
 
 var translations = func() map[string]copy {
@@ -114,6 +124,10 @@ type API interface {
 	ImportOPML(ctx context.Context, opml []byte) (client.Imported, error)
 	ExportOPML(ctx context.Context) ([]byte, error)
 	TestAI(ctx context.Context) (client.AITest, error)
+	StartImport(ctx context.Context, req client.ImportRequest) (client.ImportStatus, error)
+	ImportStatus(ctx context.Context) (client.ImportStatus, error)
+	ConfirmImport(ctx context.Context) (client.ImportStatus, error)
+	CancelImport(ctx context.Context) (client.ImportStatus, error)
 }
 
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it
@@ -228,6 +242,7 @@ type Screen struct {
 	busy      bool   // a file is being chosen, imported or exported
 	importing string // the name of the file being imported
 	result    result
+	reader    reader // the dialog that imports from another reader
 
 	revoking bool
 	doomed   client.Device
@@ -283,6 +298,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.state, s.deviceState, s.restored = loading, loading, nil
 	s.activity, s.storage, s.actState, s.actBusy, s.actOpen = client.Activity{}, client.Storage{}, loading, false, 0
 	s.vacStarting, s.vacError, s.actAt = false, "", time.Time{}
+	s.reader = reader{}
 }
 
 // OpenAI opens the screen on the AI group, from an entry point of summaries and translations.
@@ -338,6 +354,7 @@ func (s *Screen) expired(err error) bool {
 	s.busy, s.saving, s.keeping, s.revoking = false, false, false, false
 	s.aiSaving, s.testing, s.promptSaving = false, false, false
 	s.actBusy, s.vacStarting = false, false
+	s.reader = reader{}
 	s.deps.Expired()
 	return true
 }
@@ -1052,7 +1069,7 @@ func px(t *ui.Theme, v float32) float32 { return t.Rem(v / 13) }
 // View draws the settings; it does no disk or network work, which runs through Deps.
 func (s *Screen) View(c *ui.Context) {
 	t := c.Theme()
-	if !s.revoking && !s.uiFont.open && !s.rdFont.open {
+	if !s.revoking && !s.reader.open && !s.uiFont.open && !s.rdFont.open {
 		c.OnShortcut(0, ui.KeyEscape, s.deps.Back)
 	}
 	width, _ := c.Size()
@@ -1079,6 +1096,7 @@ func (s *Screen) View(c *ui.Context) {
 			s.revoke()
 		}
 	}
+	s.readerDialog(c)
 	if s.announce != "" {
 		c.Announce(s.announce)
 		s.announce = ""
@@ -2129,6 +2147,14 @@ func (s *Screen) opmlPage(c *ui.Context) {
 		if s.result.text != "" && !s.result.export {
 			s.resultBox(c)
 		}
+	}, func() {
+		labeled(c, s.text.ReaderLabel, s.text.ReaderHelp, func() {
+			b := button(c, secondary, s.busy)
+			textButton(c, b, secondary, icons.ArrowUpDown, s.text.ReaderButton, false)
+			if b.Clicked() {
+				s.openReader()
+			}
+		})
 	}, func() {
 		labeled(c, s.text.ExportLabel, s.text.ExportHelp, func() {
 			b := button(c, secondary, s.busy)

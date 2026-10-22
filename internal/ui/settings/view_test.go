@@ -58,6 +58,11 @@ type fake struct {
 	check client.AITest // what else the test finds; its Model is model
 	tests int
 
+	importReqs                      []client.ImportRequest // what starting an import sent
+	startAns, statusAns, confirmAns client.ImportStatus
+	startErr, statusErr, confirmErr error
+	polls, cancels                  int
+
 	open, save string // the paths the dialogs answer, "" for cancelled
 	filters    []string
 	back       int
@@ -127,6 +132,25 @@ func (f *fake) TestAI(context.Context) (client.AITest, error) {
 	found := f.check
 	found.Model = f.model
 	return found, f.testErr
+}
+
+func (f *fake) StartImport(_ context.Context, req client.ImportRequest) (client.ImportStatus, error) {
+	f.importReqs = append(f.importReqs, req)
+	return f.startAns, f.startErr
+}
+
+func (f *fake) ImportStatus(context.Context) (client.ImportStatus, error) {
+	f.polls++
+	return f.statusAns, f.statusErr
+}
+
+func (f *fake) ConfirmImport(context.Context) (client.ImportStatus, error) {
+	return f.confirmAns, f.confirmErr
+}
+
+func (f *fake) CancelImport(context.Context) (client.ImportStatus, error) {
+	f.cancels++
+	return client.ImportStatus{Phase: "idle"}, nil
 }
 
 func (f *fake) deps() Deps {

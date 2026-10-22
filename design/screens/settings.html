@@ -8,14 +8,18 @@
      gear button in the timeline's server bar or the app menu's "Settings…" (CmdOrCtrl+,); the back button and Escape
      return to the timeline where it was. Groups: Appearance (first; theme, interface language, interface font and the
      reading text and how each kind is viewed, kept on this device only, not on the server), Fetching (the RSSHub instances, an ordered list, and how long entries are
-     kept), Import and export (OPML), AI (the endpoint for summaries and translations, and the global prompts), Devices
+     kept), Import and export (OPML, and a dialog that imports from Miniflux or FreshRSS), AI (the endpoint for summaries and translations, and the global prompts), Devices
      (the sessions signed in to the server), Activity and storage (what is being fetched, how each subscription's recent
      fetches went, the database size and the Compact database action).
      Appearance is saved and applied as soon as a control is changed; it has no Save button. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License).
      States: appearance, fetching (one RSSHub instance), several (three instances: the first is the primary, the others
      take over in order), edited (the list changed, not saved), invalid (a line is not a valid address; nothing is sent), saved, opml,
-     importing, imported (with failures), import-error, exported, devices (a remote server and its sessions),
+     importing, imported (with failures), import-error, exported, reader (the Import from Reader dialog, Miniflux: service,
+     address, token), reader-freshrss (adds the user name; the credential is the API password), reader-invalid (the address
+     is not http or https), reader-fetching (progress, Cancel), reader-preview (what was found, nothing added yet; Import),
+     reader-writing, reader-done (what was added and what was left out), reader-failed (the server turned the credential
+     down; Try again), devices (a remote server and its sessions),
      devices-local (this computer's server, no sessions), revoke (confirming a revocation), loading, error;
      activity (storage figures, one fetch under way, recent fetches with the newest attempt of each source),
      activity-open (one source expanded to its attempts, a failed one with its reason), activity-empty (nothing fetching,
@@ -307,6 +311,24 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .alert h2 { margin:0; font-size:15px; font-weight:600 }
 .alert p { margin:8px 0 0; color:var(--muted) }
 .alert .buttons { display:flex; justify-content:flex-end; gap:8px; margin-top:20px }
+.alert.dialog { width:440px; padding:0; display:flex; flex-direction:column; max-height:calc(100% - 48px) }
+.alert.dialog .head { display:flex; align-items:center; gap:8px; padding:16px 20px 12px }
+.alert.dialog .head h2 { flex:1 }
+.alert.dialog .form { padding:0 20px; overflow-y:auto }
+.alert.dialog .buttons { margin:0; padding:16px 20px 20px }
+.dlg-x { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
+.dlg-x:hover { background:var(--hover); color:var(--text) }
+.dlg-x svg.icon { width:14px; height:14px }
+.alert.dialog p { margin:0 0 12px }
+.fieldset { margin:0 0 14px } .fieldset .label { margin-bottom:6px; font-size:12px }
+.fieldset .field { width:100% }
+.seg { display:flex; gap:8px }
+.counts { margin:0 0 12px; padding:0; list-style:none; border-radius:8px; background:rgba(var(--ink),.045) }
+.counts li { display:flex; align-items:baseline; gap:8px; padding:8px 12px }
+.counts li + li { border-top:1px solid var(--border) }
+.counts .what { flex:1 } .counts .n { font-variant-numeric:tabular-nums; font-weight:500 }
+.counts .note { padding-top:0; color:var(--muted); font-size:12px; border:0 }
+.bar { height:6px; border-radius:3px; background:var(--track); overflow:hidden; margin:8px 0 12px } .bar i { display:block; height:100%; background:var(--accent) }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>
@@ -316,7 +338,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -437,6 +459,21 @@ const copy={
     invalidOpml:'{file} is not an OPML file. Nothing was added.', tooLarge:'{file} is larger than 1 MB.',
     exported:'Exported {n} subscriptions to {file}.', dismiss:'Dismiss', undo:'Undo', promptRestored:'{name} restored to default',
     invalidUrl:'Not an http or https address', invalidKind:'Unknown kind',
+    readerLabel:'From another reader', readerHelp:'Brings subscriptions, starred entries and read state from Miniflux or FreshRSS.', readerButton:'Import from Reader…',
+    readerTitle:'Import from another reader', readerService:'Service', readerAddress:'Server address', readerAddressHint:'https://miniflux.example.com',
+    readerUser:'User name', readerToken:'API token', readerPassword:'API password', readerMemory:'Used for this import only. It is kept in memory and never saved.',
+    readerConnect:'Connect', readerClose:'Close', readerCancel:'Cancel', readerImport:'Import', readerDone:'Done', readerTryAgain:'Try again',
+    readerStageSubscriptions:'Reading subscriptions…', readerStageStarred:'Reading starred entries…', readerStageRead:'Reading read state…', readerStageWriting:'Importing…',
+    readerProgress:'{done} of {total}', readerProgressOpen:'{done} so far',
+    readerFound:'Found in {service}. Nothing has been added yet.', readerSources:'Subscriptions', readerStarred:'Starred entries', readerRead:'Read entries', readerFolders:'Folders and tags',
+    readerFoldersNote:'Oriel has no folders yet, so these are not imported.',
+    readerResultSources:'{added} subscriptions added, {existing} already subscribed', readerResultStarred:'{added} starred entries added, {existing} already here',
+    readerResultRead:'{n} entries marked as read', readerResultUnmatched:'{n} read entries are not in Oriel and were left out', readerResultFolders:'{n} folders and tags were not imported',
+    readerSkipped:'Not imported', readerMore:'and {n} more', readerUnknownSource:'Its subscription is not in Oriel', readerInvalidLink:'The link is not usable',
+    readerErrAddress:'Not an http or https address.', readerErrUnauthorized:'The server turned the credential down. Check the token, or the user name and password.',
+    readerErrUnreachable:'Couldn’t reach the server. Check the address.', readerErrRate:'The server asked Oriel to slow down. Try again later.',
+    readerErrBad:'The server answered with something Oriel does not understand.', readerErrLarge:'The server’s answer was too large.',
+    readerErrRedirect:'The server redirects to another address. Use the final address.', readerErrBusy:'Another import is already running.', readerErrOther:'Couldn’t import. Try again.',
     devicesHelp:'Every sign-in is a device. Sign one out and it needs the password to connect again.',
     localDevices:'This computer’s server has no password, so no device signs in to it. Devices show up here when you connect to a server that has one.',
     thisDevice:'This device', colDevice:'Device', colPlatform:'Platform', colSigned:'Signed in', colLastUsed:'Last used', connection:'Connection', revoke:'Sign out…', signedIn:'Signed in {date} · last used {seen}',
@@ -502,6 +539,21 @@ const copy={
     invalidOpml:'{file} 不是 OPML 文件，什么都没有添加。', tooLarge:'{file} 超过 1 MB。',
     exported:'已把 {n} 个订阅导出到 {file}。', dismiss:'关闭', undo:'撤销', promptRestored:'{name}已恢复默认',
     invalidUrl:'不是 http 或 https 地址', invalidKind:'不认识的形态',
+    readerLabel:'从别的阅读器', readerHelp:'从 Miniflux 或 FreshRSS 取来订阅、加星标的条目和已读状态。', readerButton:'从阅读器导入…',
+    readerTitle:'从别的阅读器导入', readerService:'服务', readerAddress:'服务器地址', readerAddressHint:'https://miniflux.example.com',
+    readerUser:'用户名', readerToken:'API 令牌', readerPassword:'API 密码', readerMemory:'只用于这次导入，只放在内存里，不会保存。',
+    readerConnect:'连接', readerClose:'关闭', readerCancel:'取消', readerImport:'导入', readerDone:'完成', readerTryAgain:'再试一次',
+    readerStageSubscriptions:'正在读取订阅…', readerStageStarred:'正在读取加星标的条目…', readerStageRead:'正在读取已读状态…', readerStageWriting:'正在导入…',
+    readerProgress:'{done} / {total}', readerProgressOpen:'已读取 {done}',
+    readerFound:'在 {service} 里找到了这些，还没有添加任何内容。', readerSources:'订阅', readerStarred:'加星标的条目', readerRead:'已读的条目', readerFolders:'分组和标签',
+    readerFoldersNote:'Oriel 还没有分组，这些不会导入。',
+    readerResultSources:'新增 {added} 个订阅，{existing} 个已经订阅', readerResultStarred:'新增 {added} 条加星标的条目，{existing} 条已经有了',
+    readerResultRead:'{n} 条标为已读', readerResultUnmatched:'{n} 条已读的条目不在 Oriel 里，没有导入', readerResultFolders:'{n} 个分组和标签没有导入',
+    readerSkipped:'没有导入的', readerMore:'还有 {n} 条', readerUnknownSource:'它的订阅不在 Oriel 里', readerInvalidLink:'链接不可用',
+    readerErrAddress:'不是 http 或 https 地址。', readerErrUnauthorized:'服务器不认这个凭据。检查令牌，或者用户名和密码。',
+    readerErrUnreachable:'连不上服务器。检查地址。', readerErrRate:'服务器要求慢一点。请稍后再试。',
+    readerErrBad:'服务器的回应 Oriel 看不懂。', readerErrLarge:'服务器的回应太大。',
+    readerErrRedirect:'服务器会跳转到别的地址。请用最终的地址。', readerErrBusy:'已经有一个导入在进行。', readerErrOther:'没能导入。请再试一次。',
     devicesHelp:'每次登录是一台设备。让它退出登录后，要重新输入口令才能连上。',
     localDevices:'本机的服务端没有设口令，没有设备需要登录。连到设了口令的服务端后，登录过的设备会列在这里。',
     thisDevice:'本设备', colDevice:'设备', colPlatform:'平台', colSigned:'登录', colLastUsed:'最近使用', connection:'连接', revoke:'退出登录…', signedIn:'{date}登录 · 最近使用：{seen}',
@@ -514,7 +566,7 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':['opml','importing','imported','import-error','exported'].includes(state)?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')?'activity':'fetching';
+const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','importing','imported','import-error','exported'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')?'activity':'fetching';
 
 const groups=[['appearance','palette'],['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop'],['activity','database']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
@@ -584,6 +636,7 @@ if(state==='import-error')result=`<div class="result error" role="alert"><div cl
 if(state==='exported')result=`<div class="result" role="status"><div class="head" style="color:var(--success)">${icon('check')}<span class="grow" style="color:var(--text)">${t('exported',{n:18,file:'oriel.opml'})}</span><button class="close" aria-label="${copy.dismiss}">${icon('x')}</button></div></div>`;
 const opml=`<p class="lead">${copy.opmlHelp}</p><div class="card">
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.importLabel}</span><p class="help">${copy.importHelp}</p></div><button class="button"${busy?' disabled':''}>${icon('upload')}${copy.import}</button></div>${result}</div>
+<div class="row"><div class="device"><div class="text"><span class="label">${copy.readerLabel}</span><p class="help">${copy.readerHelp}</p></div><button class="button"${busy?' disabled':''}>${icon('arrowUpDown')}${copy.readerButton}</button></div></div>
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.exportLabel}</span><p class="help">${copy.exportHelp}</p></div><button class="button"${busy?' disabled':''}>${icon('download')}${copy.export}</button></div></div>
 </div>`;
 
@@ -694,6 +747,39 @@ if(readingOpen){
   overlay=picker([[copy.followInterface,'inherit'],[copy.serif,serifFace]],copy.serif,families,'',false,'Charter');
 }
 if(state==='revoke')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${t('revokeTitle',{name:'Safari · iPhone'})}</h2><p id="ab">${copy.revokeBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.revokeConfirm}</button></div></div></div>`;
+if(state.startsWith('reader')){
+  const field=(label,id,value,opts={})=>`<div class="fieldset"><label class="label" for="${id}">${label}</label><div class="field${opts.focused?' focused':''}${opts.invalid?' invalid':''}" id="${id}">${value?`<span>${value}</span>`:`<span class="placeholder">${opts.hint||''}</span>`}</div>${opts.error?`<div class="status error" role="alert">${icon('alert')}${opts.error}</div>`:''}${opts.help?`<p class="help">${opts.help}</p>`:''}</div>`;
+  const dlg=(body,buttons,closeLabel)=>`<div class="backdrop"><div class="alert dialog" role="dialog" aria-labelledby="rt"><div class="head"><h2 id="rt">${copy.readerTitle}</h2><button class="dlg-x" aria-label="${closeLabel||copy.readerClose}">${icon('x')}</button></div><div class="form">${body}</div><div class="buttons">${buttons}</div></div></div>`;
+  const count=(label,n,note)=>`<li><span class="what">${label}</span><span class="n">${n}</span></li>${note?`<li class="note">${note}</li>`:''}`;
+  if(state==='reader'||state==='reader-freshrss'||state==='reader-invalid'){
+    const two=state==='reader-freshrss', bad=state==='reader-invalid';
+    const seg=`<div class="fieldset"><span class="label" id="svc">${copy.readerService}</span><div class="seg" role="radiogroup" aria-labelledby="svc"><button class="button small${two?'':' on'}" role="radio" aria-checked="${!two}">Miniflux</button><button class="button small${two?' on':''}" role="radio" aria-checked="${two}">FreshRSS</button></div></div>`;
+    overlay=dlg(seg+field(copy.readerAddress,'addr',bad?'ftp://news.example.com':two?'https://rss.example.com':'https://miniflux.example.com',{focused:!bad,invalid:bad,error:bad?copy.readerErrAddress:'',hint:copy.readerAddressHint})
+      +(two?field(copy.readerUser,'user','alex'):'')
+      +field(two?copy.readerPassword:copy.readerToken,'cred','••••••••••••',{help:copy.readerMemory}),
+      `<button class="button">${copy.readerCancel}</button><button class="button primary"${bad?' disabled':''}>${copy.readerConnect}</button>`);
+  }
+  if(state==='reader-fetching'||state==='reader-writing'){
+    const writing=state==='reader-writing';
+    overlay=dlg(`<p role="status">${icon('loader','spin')} ${writing?copy.readerStageWriting:copy.readerStageStarred}</p><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${writing?60:35}"><i style="width:${writing?60:35}%"></i></div><p class="help">${t(writing?'readerProgress':'readerProgressOpen',{done:writing?'204':'300',total:'340'})}</p>`,
+      `<button class="button">${copy.readerCancel}</button>`,copy.readerCancel);
+  }
+  if(state==='reader-preview'){
+    overlay=dlg(`<p>${t('readerFound',{service:'FreshRSS'})}</p><ul class="counts">${count(copy.readerSources,'340')}${count(copy.readerStarred,'58')}${count(copy.readerRead,'2,310')}${count(copy.readerFolders,'12',copy.readerFoldersNote)}</ul>`,
+      `<button class="button">${copy.readerCancel}</button><button class="button primary">${copy.readerImport}</button>`);
+  }
+  if(state==='reader-done'){
+    const lines=[t('readerResultSources',{added:332,existing:6}),t('readerResultStarred',{added:51,existing:7}),t('readerResultRead',{n:1840}),t('readerResultUnmatched',{n:470}),t('readerResultFolders',{n:12})];
+    overlay=dlg(`<div class="result warn" role="status" style="margin:0 0 12px"><div class="head">${icon('triangle')}<span class="grow">${lines.join('<br>')}</span></div></div>
+<h3 class="label" style="margin:0 0 6px;font-size:12px">${copy.readerSkipped}</h3><div class="result" style="margin:0 0 12px"><ul style="margin:0;padding:0"><li><span class="what">Gopher Weekly · <span class="mono-text">ftp://example.org/feed</span></span><span class="why">${copy.invalidUrl}</span></li>
+<li><span class="what">${zh?'某个已删除的订阅':'A deleted feed'} · <span class="mono-text">https://example.com/old.xml</span></span><span class="why">${copy.invalidUrl}</span></li></ul></div>`,
+      `<button class="button primary">${copy.readerDone}</button>`);
+  }
+  if(state==='reader-failed'){
+    overlay=dlg(`<div class="result error" role="alert" style="margin:0 0 12px"><div class="head">${icon('alert')}<span class="grow">${copy.readerErrUnauthorized}</span></div></div>`,
+      `<button class="button">${copy.readerClose}</button><button class="button primary">${copy.readerTryAgain}</button>`);
+  }
+}
 const toast=state==='prompt-restored'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${t('promptRestored',{name:copy.promptSummary})}</span><button class="act">${copy.undo}</button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`:'';
 document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar"><h1>${copy[group]}</h1></div><div class="scroll">${page}</div>${toast}</section>${overlay}`;
 if(fontOpen||readingOpen){
