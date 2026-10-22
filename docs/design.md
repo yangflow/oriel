@@ -757,6 +757,12 @@ Overlays share focus and Escape behavior; see
   in the field Escape clears the text and, when it is empty, gives the focus to the chosen item of the sidebar; Down or
   Enter gives it to the first match. While the field has the focus the keys of the list and sidebar (J K O S M N V,
   H L, 1 to 5) type into it instead, as in the search field.
+- **Waiting for a first fetch.** After a subscription is added or refreshed its row in the sidebar swaps the warning
+  mark (if any) for a 13 `Spinner` in `TextMuted` before the unread count, and the row's name for a screen reader gains
+  ", fetching" (`fetching` in the mockup). When the fetch is done the spinner goes and one plain toast (a check-circle
+  icon, or the circle-alert in `Warning` on failure; no Undo) says the result: "Fetched 12 entries from “Go Blog”" (or "“Go Blog” fetched, but has no entries yet"),
+  "“Go Blog” has 3 new entries", "“Go Blog” has nothing new", or "Couldn't fetch “Go Blog”: reason" (`fetched`,
+  `fetched-failed` in the mockup). It is announced like any toast. The wait ends silently after 60 seconds.
 - **Sidebar keys.** 1 to 5 switch to All and the four kinds, in the sidebar's order, from anywhere in the timeline. H or
   Left (expanding the sidebar first if it is hidden) moves the focus to the chosen item of the sidebar (the kind, or the subscription when the scope is one), Up and
   Down walk its kinds, which choose as the focus passes, and its subscriptions, which wait for Enter (one vertical

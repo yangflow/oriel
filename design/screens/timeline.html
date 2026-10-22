@@ -52,6 +52,10 @@
      With no subscription yet (no-subscriptions) the empty state offers two ways in: the primary "Add your first
      subscription" opens the add dialog, and the quiet "Import OPML…" beside it opens Settings on Import and export.
      The hint adds one line saying that links to YouTube, X, GitHub and the like work too.
+     After a subscription is added or refreshed its row shows a spinner in place of the warning mark until the first
+     fetch is done (fetching; the row's name for a screen reader gains ", fetching"), then one plain toast with no Undo
+     says the result: "Fetched 12 entries from ..." (fetched) or "Couldn't fetch ...: reason" with the Warning alert mark
+     (fetched-failed). Polling ends silently after 60 seconds.
      Mark all as read has a menu of its own on right click (menu-markall): Mark all as read, as the click, a hairline, then Mark older than 1 day,
      1 week, 1 month as read. They mark the unread entries of the scope whose time, the one the row shows, is before now minus that long, act at once and offer
      Undo in the same toast (marked-older: it says how old and how many); when none is that old a plain toast says so (marked-older-none), without Undo.
@@ -207,6 +211,8 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .item .count { font-size:11px; font-weight:500; letter-spacing:.02em; font-variant-numeric:tabular-nums; color:var(--muted) }
 .item:hover .count, .item.chosen .count { color:var(--text2) }
 .item .warn { color:var(--warning) }
+.item .busy { display:inline-flex; color:var(--muted) }
+.item .busy svg.icon { width:13px; height:13px }
 .kind-list .item svg.icon { color:var(--muted) }
 .kind-list .item:hover svg.icon { color:var(--text2) }
 .kind-list .item.chosen svg.icon { color:var(--accent) }
@@ -468,6 +474,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .toast .x { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; color:inherit; opacity:.7 }
 .toast .x svg.icon { width:14px; height:14px }
 .toast.plain { padding-right:14px }
+.toast svg.icon.warn { color:var(--warning) }
 .menu { position:absolute; z-index:5; min-width:208px; padding:4px; border-radius:10px; background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 12px 32px rgba(var(--shadow),.22) }
 :root[data-scheme=dark] .menu { box-shadow:0 0 0 1px rgba(255,255,255,.08), 0 12px 32px rgba(0,0,0,.55) }
 .menu button { width:100%; height:28px; display:flex; align-items:center; gap:8px; padding:0 8px; border-radius:6px; text-align:left; white-space:nowrap }
@@ -551,7 +558,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','dense'];
+const states=['list','sidebar-hidden','offline','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','dense'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -655,7 +662,7 @@ const copy={
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
-    marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below', refreshingName:'Refreshing, {done} of {n} checked', refreshed:'Checked {n} subscriptions', refreshedFailed:'Checked {n} subscriptions, {failed} failed', refreshedPart:'Checked {done} of {n} subscriptions, the rest will follow', refreshNone:'No subscriptions to refresh', kRefreshAll:'Refresh all subscriptions',
+    marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below', fetching:'{name}, fetching', fetchedNew:'Fetched {n} entries from “{name}”', fetchedNone:'“{name}” fetched, but has no entries yet', fetchedFailed:'Couldn’t fetch “{name}”: {error}', refreshingName:'Refreshing, {done} of {n} checked', refreshed:'Checked {n} subscriptions', refreshedFailed:'Checked {n} subscriptions, {failed} failed', refreshedPart:'Checked {done} of {n} subscriptions, the rest will follow', refreshNone:'No subscriptions to refresh', kRefreshAll:'Refresh all subscriptions',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
     kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
@@ -688,7 +695,7 @@ const copy={
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
-    marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了', refreshingName:'正在更新，已查 {done}/{n}', refreshed:'已查完 {n} 个订阅', refreshedFailed:'已查完 {n} 个订阅，其中 {failed} 个失败', refreshedPart:'已查 {done}/{n} 个订阅，其余会陆续抓', refreshNone:'没有可更新的订阅', kRefreshAll:'全部更新',
+    marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了', fetching:'{name}，正在抓取', fetchedNew:'「{name}」抓到 {n} 条', fetchedNone:'「{name}」抓取成功，但还没有条目', fetchedFailed:'「{name}」抓取失败：{error}', refreshingName:'正在更新，已查 {done}/{n}', refreshed:'已查完 {n} 个订阅', refreshedFailed:'已查完 {n} 个订阅，其中 {failed} 个失败', refreshedPart:'已查 {done}/{n} 个订阅，其余会陆续抓', refreshNone:'没有可更新的订阅', kRefreshAll:'全部更新',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
     kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
     kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
@@ -839,7 +846,8 @@ const shown=oldest?[...entries].reverse().slice(0,7):newestFirst;
 const navItem=(glyph,name,count,chosen,extra='',label='')=>`<button class="item${chosen?' chosen':''}" aria-current="${chosen}"${label?` aria-label="${label}"`:''}>${glyph}<span class="name">${name}</span>${extra}${count?`<span class="count">${count}</span>`:''}</button>`;
 const failedText=s=>s.failing>1?t('failedTimes',{n:s.failing,error:s.error}):t('failedOnce',{error:s.error});
 const failingName=s=>s.unread?t('failingUnread',{name:s.name,n:s.unread}):t('failingName',{name:s.name});
-const sourceItem=s=>navItem(glyph(s),s.name,s.unread,scope==='source'&&s.id===focusId,s.failing?`<span class="warn" role="img" aria-label="${failedText(s)}" title="${failedText(s)}"${state==='failing'&&s.id===3?' id="tipped"':''}>${icon('alert')}</span>`:'',s.failing?failingName(s):'');
+const fetchingNow=s=>state==='fetching'&&s.id===2;
+const sourceItem=s=>navItem(glyph(s),s.name,s.unread,scope==='source'&&s.id===focusId,fetchingNow(s)?`<span class="busy" role="progressbar" aria-label="${t('fetching',{name:s.name})}">${icon('loader','spin')}</span>`:s.failing?`<span class="warn" role="img" aria-label="${failedText(s)}" title="${failedText(s)}"${state==='failing'&&s.id===3?' id="tipped"':''}>${icon('alert')}</span>`:'',fetchingNow(s)?t('fetching',{name:s.name}):s.failing?failingName(s):'');
 const failingSources=sources.filter(s=>s.failing);
 const tabKind=scope==='source'?byId[focusId].kind:scope;
 const kindList=[['all','inbox'],...kinds.map(k=>[k,k])];
@@ -959,6 +967,8 @@ const toast=state==='marked-read'?`<div class="toast" role="status">${icon('chec
   :state==='refreshed-failed'?`<div class="toast plain" role="status">${icon('alert')}<span class="msg">${t('refreshedFailed',{n:12,failed:2})}</span></div>`
   :state==='refreshed-part'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('refreshedPart',{done:5,n:12})}</span></div>`
   :state==='refresh-none'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.refreshNone}</span></div>`
+  :state==='fetched'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('fetchedNew',{n:12,name:byId[2].name})}</span></div>`
+  :state==='fetched-failed'?`<div class="toast plain" role="status">${icon('alert','warn')}<span class="msg">${t('fetchedFailed',{name:byId[3].name,error:byId[3].error})}</span></div>`
   :state==='no-more-unread'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:'';
 const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
 const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${keys(...k)}</dd>`).join('')}</dl>`;
