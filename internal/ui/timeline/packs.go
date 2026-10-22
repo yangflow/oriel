@@ -22,13 +22,12 @@ type pack struct {
 	feeds []string
 }
 
-// packs are kept small: well-known sites with public, free and long-lived feeds, at most six per pack, each checked
-// by hand to answer with a feed before it went in.
+// packs are kept small: well-known sites with public, free and long-lived feeds over https, at most six per pack.
 var packs = []pack{
 	{"technology", []string{
 		"https://news.ycombinator.com/rss",
 		"https://www.theverge.com/rss/index.xml",
-		"http://feeds.arstechnica.com/arstechnica/index",
+		"https://feeds.arstechnica.com/arstechnica/index",
 		"https://www.wired.com/feed/rss",
 		"https://daringfireball.net/feeds/main",
 	}},
