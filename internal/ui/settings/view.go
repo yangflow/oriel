@@ -34,41 +34,41 @@ import (
 var catalog []byte
 
 type copy struct {
-	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Lead, Fetching, OPML, Devices, RSSHub                            string
-	RSSHubHelp, RSSHubPlaceholder, Save, Saved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp            string
-	InvalidBaseAny, TooManyBase                                                                                              string
-	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp           string
-	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed                  string
-	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind                        string
-	BackupLabel, BackupHelp, BackupButton, RestoreLabel, RestoreHelp, RestoreButton, BackupFiles, BackingUp, BackedUp        string
-	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge                    string
-	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                                    string
-	AutoLabel, AutoHelp, AutoFolder, AutoChoose, AutoNoFolder, AutoFrequency, AutoDaily, AutoWeekly, AutoKeep                string
-	AutoCopies, AutoNever, AutoLast, AutoFailed, AutoRemote, AutoPlaceholder                                                 string
-	AutoReasonMissing, AutoReasonNotDir, AutoReasonNoWrite, AutoReasonDisk, AutoReasonOther                                  string
-	AutoNeedFolder, AutoBadFolder, AutoInvalidKeep, AutoSaveFailed                                                           string
-	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                       string
-	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry, Now, Minutes                 string
-	Hours, Yesterday, DaysAgo, DateLayout, YearLayout                                                                        string
-	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset               string
-	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested                string
-	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase                   string
-	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                          string
-	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp             string
-	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                     string
-	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                     string
-	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed                     string
-	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                string
-	Preset, SummaryLimit, ChunkLimit, LimitsHelp, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit           string
-	ChineseTypesetting, ChineseTypesettingHelp                                                                               string
-	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                        string
-	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid                     string
-	ViewWall, ViewCard, ViewAsHelp, Timeline, Density, DensityHelp, DensityComfortable, DensityCompact                       string
-	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, Compacting string
-	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                         string
-	NewCount, NothingNew, FailedWord, ShowAttempts                                                                           string
-	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported             string
-	DiagnosticsFailed, DiagnosticsMenu                                                                                       string
+	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Lead, Fetching, OPML, Devices, RSSHub                                                                                                             string
+	RSSHubHelp, RSSHubPlaceholder, Save, Saved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp                                                                                             string
+	InvalidBaseAny, TooManyBase                                                                                                                                                                               string
+	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp                                                                                            string
+	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed                                                                                                   string
+	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind                                                                                                         string
+	BackupLabel, BackupHelp, BackupButton, RestoreLabel, RestoreHelp, RestoreButton, BackupFiles, BackingUp, BackedUp                                                                                         string
+	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge                                                                                                     string
+	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                                                                                                                     string
+	AutoLabel, AutoHelp, AutoFolder, AutoChoose, AutoNoFolder, AutoFrequency, AutoDaily, AutoWeekly, AutoKeep                                                                                                 string
+	AutoCopies, AutoNever, AutoLast, AutoFailed, AutoRemote, AutoPlaceholder                                                                                                                                  string
+	AutoReasonMissing, AutoReasonNotDir, AutoReasonNoWrite, AutoReasonDisk, AutoReasonOther                                                                                                                   string
+	AutoNeedFolder, AutoBadFolder, AutoInvalidKeep, AutoSaveFailed                                                                                                                                            string
+	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                                                                                                        string
+	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry, Now, Minutes                                                                                                  string
+	Hours, Yesterday, DaysAgo, DateLayout, YearLayout                                                                                                                                                         string
+	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset                                                                                                string
+	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested                                                                                                 string
+	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase                                                                                                    string
+	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                                                                                                           string
+	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp                                                                                              string
+	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                                                                                                      string
+	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                                                                                                      string
+	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed                                                                                                      string
+	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                 string
+	Preset, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit string
+	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                string
+	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                         string
+	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                      string
+	ViewWall, ViewCard, ViewAsHelp, Timeline, Density, DensityHelp, DensityComfortable, DensityCompact                                                                                                        string
+	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, Compacting                                                                                  string
+	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                                                                                                          string
+	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                            string
+	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                              string
+	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                        string
 
 	ReaderLabel, ReaderHelp, ReaderButton, ReaderTitle, ReaderService, ReaderAddress, ReaderAddressHint    string
 	ReaderUser, ReaderToken, ReaderPassword, ReaderMemory, ReaderConnect, ReaderClose, ReaderCancel        string
@@ -251,7 +251,7 @@ type Screen struct {
 
 	aiBase, aiModel, aiKey string // as typed; the key saved is never sent back
 	aiLanguage             string
-	aiLimits               [2]string // the summary limit and the chunk size as typed; "" follows the default
+	aiLimits               [4]string // the summary limit, chunk size, daily cap and per-fetch cap as typed; "" follows the default
 	aiChecks               []status  // what the last test found besides the answer
 	aiSaving               bool
 	aiInvalid              bool // the server refused the endpoint
@@ -573,21 +573,28 @@ func (s *Screen) aiDirty() bool {
 }
 
 // savedLimits are the limits saved as the fields show them: empty for the default.
-func savedLimits(settings client.Settings) [2]string {
+func savedLimits(settings client.Settings) [4]string {
 	text := func(v, def int) string {
 		if v == def || v <= 0 {
 			return ""
 		}
 		return strconv.Itoa(v)
 	}
-	return [2]string{text(settings.AISummaryLimit, settings.DefaultAISummaryLimit),
-		text(settings.AIChunkLimit, settings.DefaultAIChunkLimit)}
+	return [4]string{text(settings.AISummaryLimit, settings.DefaultAISummaryLimit),
+		text(settings.AIChunkLimit, settings.DefaultAIChunkLimit),
+		text(settings.AIAutoDailyLimit, settings.DefaultAIAutoDaily),
+		text(settings.AIAutoFetchLimit, settings.DefaultAIAutoFetch)}
 }
 
 // limitsDirty reports whether a limit as typed is not the one saved.
 func (s *Screen) limitsDirty() bool {
 	saved := savedLimits(s.settings)
-	return strings.TrimSpace(s.aiLimits[0]) != saved[0] || strings.TrimSpace(s.aiLimits[1]) != saved[1]
+	for i, typed := range s.aiLimits {
+		if strings.TrimSpace(typed) != saved[i] {
+			return true
+		}
+	}
+	return false
 }
 
 // limit reads a limit as typed: 0 for empty, which follows the default, and false when it is not a number.
@@ -629,7 +636,7 @@ func (s *Screen) saveAI(removeKey bool) {
 			patch.AILanguage = &language
 		}
 		saved := savedLimits(s.settings)
-		fields := [2]**int{&patch.AISummaryLimit, &patch.AIChunkLimit}
+		fields := [4]**int{&patch.AISummaryLimit, &patch.AIChunkLimit, &patch.AIAutoDaily, &patch.AIAutoFetch}
 		for i, typed := range s.aiLimits {
 			if strings.TrimSpace(typed) == saved[i] {
 				continue
@@ -657,6 +664,8 @@ func (s *Screen) saveAI(removeKey bool) {
 				s.settings.AIBaseURL, s.settings.AIModel = settings.AIBaseURL, settings.AIModel
 				s.settings.AIAPIKeySet, s.settings.AILanguage = settings.AIAPIKeySet, settings.AILanguage
 				s.settings.AISummaryLimit, s.settings.AIChunkLimit = settings.AISummaryLimit, settings.AIChunkLimit
+				s.settings.AIAutoDailyLimit, s.settings.AIAutoFetchLimit = settings.AIAutoDailyLimit, settings.AIAutoFetchLimit
+				s.settings.AIAutoCallsToday, s.settings.AIEndpointLocal = settings.AIAutoCallsToday, settings.AIEndpointLocal
 				if removeKey {
 					s.aiStatus = status{ok: true, text: s.text.KeyRemoved}
 				} else {
@@ -1815,7 +1824,7 @@ func sectionTitle(c *ui.Context, text string, top float32) {
 func (s *Screen) aiConnection(c *ui.Context, top float32) {
 	t := c.Theme()
 	sectionTitle(c, s.text.Connection, top)
-	before := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage, s.aiLimits[0], s.aiLimits[1]}
+	before := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage, s.aiLimits[0], s.aiLimits[1], s.aiLimits[2], s.aiLimits[3]}
 	submit := func(in ui.Element) {
 		if in.Submitted() {
 			s.saveAI(false)
@@ -1824,6 +1833,9 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 	card(c, func() {
 		ui.Text(c, s.text.Endpoint).FontWeight(500)
 		coded(c, s.text.EndpointHelp, "{address}", s.text.EndpointPlaceholder).Margin(px(t, 4), 0, 0, 0)
+		if line := s.destination(); line != "" {
+			ui.Text(c, line).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(px(t, 4), 0, 0, 0)
+		}
 		ui.Row(c).FillWidth().Margin(px(t, 12), 0, 0, 0).Children(func() {
 			field(c, "endpoint", &s.aiBase, 0, s.aiInvalid, func(in ui.Element) {
 				in.Font("monospace").Label(s.text.Endpoint).Placeholder(s.text.EndpointPlaceholder).Disabled(s.aiSaving)
@@ -1921,7 +1933,7 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 			statusLine(c, st)
 		}
 	})
-	if after := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage, s.aiLimits[0], s.aiLimits[1]}; after != before {
+	if after := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage, s.aiLimits[0], s.aiLimits[1], s.aiLimits[2], s.aiLimits[3]}; after != before {
 		s.aiInvalid, s.aiStatus, s.aiChecks = s.aiInvalid && after[0] == before[0], status{}, nil
 	}
 }
@@ -1948,27 +1960,73 @@ func (s *Screen) presetRow(c *ui.Context) {
 	})
 }
 
-// limitFields are the summary limit and the chunk size, in characters; empty follows the default.
+// limitFields are the summary limit and the chunk size in characters, and the two caps on automatic work; empty
+// follows the default. Below them, the sentence about the daily cap, once it is reached.
 func (s *Screen) limitFields(c *ui.Context) {
 	t := c.Theme()
-	names := [2]string{s.text.SummaryLimit, s.text.ChunkLimit}
-	defaults := [2]int{s.settings.DefaultAISummaryLimit, s.settings.DefaultAIChunkLimit}
-	ui.Row(c).FillWidth().Gap(t.Space(3)).Children(func() {
-		for i, name := range names {
-			ui.Column(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
-				ui.Text(c, name).FontWeight(500)
-				ui.Row(c).FillWidth().Margin(px(t, 8), 0, 0, 0).Children(func() {
-					field(c, "limit"+strconv.Itoa(i), &s.aiLimits[i], 0, false, func(in ui.Element) {
-						in.Font("monospace").Label(name).Placeholder(strconv.Itoa(defaults[i])).Disabled(s.aiSaving)
-						if in.Submitted() {
-							s.saveAI(false)
-						}
+	names := [4]string{s.text.SummaryLimit, s.text.ChunkLimit, s.text.DailyCap, s.text.FetchCap}
+	defaults := [4]int{s.settings.DefaultAISummaryLimit, s.settings.DefaultAIChunkLimit,
+		s.settings.DefaultAIAutoDaily, s.settings.DefaultAIAutoFetch}
+	for row := 0; row < 2; row++ {
+		margin := float32(0)
+		if row > 0 {
+			margin = px(t, 12)
+		}
+		ui.Row(c).FillWidth().Gap(t.Space(3)).Margin(margin, 0, 0, 0).Children(func() {
+			for i := row * 2; i < row*2+2; i++ {
+				ui.Column(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
+					ui.Text(c, names[i]).FontWeight(500)
+					ui.Row(c).FillWidth().Margin(px(t, 8), 0, 0, 0).Children(func() {
+						field(c, "limit"+strconv.Itoa(i), &s.aiLimits[i], 0, false, func(in ui.Element) {
+							in.Font("monospace").Label(names[i]).Placeholder(strconv.Itoa(defaults[i])).Disabled(s.aiSaving)
+							if in.Submitted() {
+								s.saveAI(false)
+							}
+						})
 					})
 				})
-			})
+			}
+		})
+		help := s.text.LimitsHelp
+		if row == 1 {
+			help = s.text.CapsHelp
 		}
-	})
-	ui.Text(c, s.text.LimitsHelp).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(px(t, 4), 0, 0, 0)
+		ui.Text(c, help).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(px(t, 4), 0, 0, 0)
+	}
+	if st := s.capStatus(); st.text != "" {
+		statusLine(c, st)
+	}
+}
+
+// capStatus is the plain sentence about the automatic requests of today: the count, and a warning once the daily
+// cap is reached. It is empty while AI is not set up.
+func (s *Screen) capStatus() status {
+	set := s.settings
+	if !set.AIConfigured() || set.AIAutoDailyLimit <= 0 {
+		return status{}
+	}
+	text, warn := s.text.UsageToday, false
+	if set.AIAutoCallsToday >= set.AIAutoDailyLimit {
+		text, warn = s.text.CapReached, true
+	}
+	text = strings.NewReplacer("{used}", strconv.Itoa(set.AIAutoCallsToday), "{limit}", strconv.Itoa(set.AIAutoDailyLimit)).Replace(text)
+	return status{muted: !warn, warn: warn, text: text}
+}
+
+// destination says where entry text goes once AI is set up, and whether that is this computer.
+func (s *Screen) destination() string {
+	if !s.settings.AIConfigured() {
+		return ""
+	}
+	address := s.settings.AIBaseURL
+	if u, err := url.Parse(address); err == nil && u.Host != "" {
+		address = u.Host
+	}
+	text := s.text.DestinationRemote
+	if s.settings.AIEndpointLocal {
+		text = s.text.DestinationLocal
+	}
+	return strings.ReplaceAll(text, "{address}", address)
 }
 
 // aiPrompts is the summary and translation prompts, with Save.

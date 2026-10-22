@@ -51,6 +51,8 @@ func TestMigrationMakesDefaultIntervalAuto(t *testing.T) {
 		"INSERT INTO sources (url, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at) VALUES ('https://a.org/a', 'article', 900, 0, 0, 0)",
 		"INSERT INTO sources (url, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at) VALUES ('https://a.org/b', 'article', 3600, 0, 0, 0)",
 		"INSERT INTO sources (url, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at) VALUES ('https://a.org/c', 'article', 901, 0, 0, 0)",
+		"DROP TABLE entry_ai_chunks",
+		"DROP TABLE ai_usage",
 		"PRAGMA user_version = 9",
 	} {
 		if _, err := s.db.ExecContext(ctx, q); err != nil {

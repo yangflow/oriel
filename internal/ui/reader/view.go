@@ -31,16 +31,16 @@ import (
 var catalog []byte
 
 type copy struct {
-	Back, Previous, Next, Star, Unstar, MarkRead, MarkUnread, Open, FeedNote, ExtractingNote, OpenOriginal string
-	Extracting, ExtractingHint, Failed, FailedHint, Error, ErrorHint, Retry, Loading, FullText, OpenFailed string
-	DateLayout, YearLayout, Shortcut                                                                       string
-	Summarize, HideSummary, Translate, ShowOriginal, Summary, By, Summarizing, Cancel, SummaryFailed       string
-	Translating, Translated, Translation, Original, TranslationFailed, SummaryReady, TranslationReady      string
-	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AIUpstream, AIEmpty, AIOff, AIOffTitle        string
-	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                 string
-	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint  string
-	SelectionAIOff, ExplanationReady, TranslateDone, LanguageZhHans, LanguageEn                            string
-	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles string
+	Back, Previous, Next, Star, Unstar, MarkRead, MarkUnread, Open, FeedNote, ExtractingNote, OpenOriginal        string
+	Extracting, ExtractingHint, Failed, FailedHint, Error, ErrorHint, Retry, Loading, FullText, OpenFailed        string
+	DateLayout, YearLayout, Shortcut                                                                              string
+	Summarize, HideSummary, Translate, ShowOriginal, Summary, By, Summarizing, Cancel, SummaryFailed              string
+	Translating, Translated, Translation, Original, TranslationFailed, SummaryReady, TranslationReady             string
+	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AICapReached, AIUpstream, AIEmpty, AIOff, AIOffTitle string
+	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                        string
+	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint         string
+	SelectionAIOff, ExplanationReady, TranslateDone, LanguageZhHans, LanguageEn                                   string
+	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles        string
 }
 
 var translations = func() map[string]copy {
@@ -602,6 +602,8 @@ func (s *Screen) reason(code string) string {
 		return s.text.AIRateLimited
 	case "ai_empty":
 		return s.text.AIEmpty
+	case "ai_cap_reached":
+		return s.text.AICapReached
 	case "":
 		return s.text.ErrorHint
 	}

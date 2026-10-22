@@ -85,6 +85,13 @@ func (w *Worker) dispatch(ctx context.Context, wg *sync.WaitGroup) {
 	if !cfg.Configured() {
 		return
 	}
+	if used, err := w.store.AIUsage(ctx, w.now()); err == nil && used >= cfg.AutoDailyLimit {
+		if n, err := w.store.StopPendingAI(ctx, w.now()); err != nil {
+			slog.Error("Cannot stop the automatic AI tasks", "error", err)
+		} else if n > 0 {
+			slog.Warn("The daily cap of automatic AI work is reached", "stopped", n, "limit", cfg.AutoDailyLimit)
+		}
+	}
 	w.mu.Lock()
 	busy := len(w.inFlight)
 	w.mu.Unlock()
@@ -135,11 +142,18 @@ func (w *Worker) process(ctx context.Context, cfg Config, job store.AIJob) {
 	if !ready {
 		return
 	}
-	text, model, err := w.run(ctx, cfg, prepared)
+	text, model, err := w.run(ctx, cfg, job, prepared)
 	if ctx.Err() != nil {
 		return
 	}
 	var code Code
+	if errors.Is(err, ErrCapReached) {
+		if err := w.store.StopAI(ctx, job.EntryID, job.Task, w.now()); err != nil && ctx.Err() == nil {
+			slog.Error("Cannot save an AI result", "entry", job.EntryID, "task", job.Task, "error", err)
+		}
+		slog.Warn("AI task stopped by the daily cap", "entry", job.EntryID, "task", job.Task)
+		return
+	}
 	if err != nil && !errors.As(err, &code) {
 		slog.Error("AI task failed", "entry", job.EntryID, "task", job.Task, "error", err)
 		code = ErrUpstream
@@ -158,17 +172,37 @@ func (w *Worker) process(ctx context.Context, cfg Config, job store.AIJob) {
 	slog.Info("AI task done", "entry", job.EntryID, "task", job.Task, "model", model, "duration", elapsed)
 }
 
-// run sends every chunk in order and joins the replies.
-func (w *Worker) run(ctx context.Context, cfg Config, j job) (string, string, error) {
+// run sends every chunk in order and joins the replies. A chunk finished before, by an earlier try, is not sent
+// again, and every chunk finished here is kept until the whole task succeeds. Each request of an automatic task
+// counts against the daily cap; it returns ErrCapReached once that is used up.
+func (w *Worker) run(ctx context.Context, cfg Config, queued store.AIJob, j job) (string, string, error) {
 	if len(j.chunks) == 0 {
 		return "", "", ErrEmpty
 	}
 	var parts []string
 	var model string
-	for _, chunk := range j.chunks {
+	for i, chunk := range j.chunks {
+		if text, m, found, err := w.store.AIChunk(ctx, queued.EntryID, queued.Task, j.keys[i]); err == nil && found {
+			parts, model = append(parts, text), m
+			continue
+		}
+		if !queued.Requested {
+			ok, err := w.store.ReserveAICall(ctx, cfg.AutoDailyLimit, w.now())
+			if err != nil {
+				return "", "", err
+			}
+			if !ok {
+				return "", "", ErrCapReached
+			}
+		}
 		text, m, err := w.call(ctx, cfg, j.prompt, chunk)
 		if err != nil {
 			return "", "", err
+		}
+		if len(j.chunks) > 1 {
+			if err := w.store.SaveAIChunk(ctx, queued.EntryID, queued.Task, j.keys[i], text, m); err != nil && ctx.Err() == nil {
+				slog.Error("Cannot keep a finished AI chunk", "entry", queued.EntryID, "task", queued.Task, "error", err)
+			}
 		}
 		parts, model = append(parts, text), m
 	}

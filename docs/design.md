@@ -322,7 +322,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   13 at line height 1.65 (1.75 in Chinese), its head 12 medium: while it is made, `Soft(Accent)` with a spinner,
   "Summarizing…", a Cancel text button and three skeleton lines; done, `Soft(Accent)` with "Summary · by {model}", the
   head in `Accent`, the model in `TextMuted`, and a close button; failed, the `Danger` soft fill with what went wrong
-  and a small "Try again"; while AI is not set up, `Surface` with "AI isn't set up", one line on where to set it and a
+  and a small "Try again" (when the daily cap on automatic work stopped it, the reason says so and points to Settings;
+  state `summary-cap` in the mockup); while AI is not set up, `Surface` with "AI isn't set up", one line on where to set it and a
   small primary "Open Settings…". The translation replaces the title and text in place; the note under the title says
   what is shown. While it is made, the original stays with a note (`Surface`, a spinner, Cancel); done, the note is
   `Soft(Accent)`, "Translated by {model}" and a segmented Translation | Original switch, and the translated text is
@@ -942,7 +943,12 @@ Overlays share focus and Escape behavior; see
   or key already typed, and the button matching the current address is shown pressed (`Accent` soft fill). The model
   placeholder is a hint, not a value. After the language row come two number fields side by side, "Summary limit" and
   "Chunk size" (characters; the placeholder is the default, 24000 and 6000), monospace like the endpoint, with a one-line
-  help and an error line under a refused value.
+  help and an error line under a refused value. Under the endpoint a 12 `TextMuted` line says where the text goes: it
+  leaves this device for the endpoint's host, or, for localhost and loopback addresses, stays on this computer
+  (`ai-local`). A second pair of number fields, "Automatic requests a day" and "New entries per fetch" (defaults 200
+  and 10), follows with a one-line help that your own requests are not counted; under it a 12 `TextMuted` status line
+  shows today's count, and once the day's cap is reached an alert icon in `Warning` with the line in `Text`
+  (`ai-cap-reached`).
   Test sends a short request with the saved settings, so it is disabled while there are unsaved edits; its result
   stays beside the buttons. A success is the "Connected" line with a check; under it, one 12 line per further result
   (check and "Success" color for "The model is in the endpoint's list" and "The context holds the limits"; the alert

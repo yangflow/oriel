@@ -567,6 +567,7 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 		if !cfg.Configured() {
 			src.AITasks = nil
 		}
+		src.AIFetchLimit = cfg.AutoFetchLimit
 		target = cfg.Language
 	}
 	created, err := p.store.SaveFeed(ctx, src, feed.title, feed.siteURL, feed.entries, target, expired, now)

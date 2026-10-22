@@ -29,6 +29,8 @@ type FeedSource struct {
 	// AITasks are the AI tasks queued for each new entry, from the source's automatic switches.
 	// The fetcher clears them while AI is not configured.
 	AITasks []string
+	// AIFetchLimit is the most new entries of one fetch that get AITasks, 0 for all of them.
+	AIFetchLimit int
 	// WebSubHub and WebSubTopic are the hub and topic the feed declared at its last fetch, empty for none.
 	WebSubHub, WebSubTopic string
 	// WebSubUntil is when the active push subscription runs out, zero when there is none.
@@ -183,7 +185,8 @@ type FeedEntry struct {
 // An existing entry keeps its read and starred state, and its updated_at changes only when its content did.
 // A new item published before expired would be pruned again at once, so it is not added; zero keeps all.
 // Each new entry gets a pending result for every task in src.AITasks, except the translation of an entry
-// already in targetLanguage, the language translations are made in.
+// already in targetLanguage, the language translations are made in. Only the newest src.AIFetchLimit entries of the
+// fetch get them (no cap when it is 0); the older ones get a failed result with the code AICapReached.
 // It returns how many entries are new.
 func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL string, entries []FeedEntry, targetLanguage string, expired, now time.Time) (int, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -196,6 +199,12 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		extract = "pending"
 	}
 	created := 0
+	// The new entries that get automatic AI tasks, oldest first.
+	type queuedAI struct {
+		guid  string
+		tasks []string
+	}
+	var queued []queuedAI
 	// Counts of the links and GUIDs in this fetch, and the source's stored links, read when first needed.
 	var itemLinks, itemGUIDs map[string]int
 	var stored map[string][]linkedEntry
@@ -267,14 +276,28 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		if !isNew {
 			continue
 		}
+		var tasks []string
 		for _, task := range src.AITasks {
 			if task == TaskTranslation && e.Language != "" && e.Language == targetLanguage {
 				continue
 			}
+			tasks = append(tasks, task)
+		}
+		if len(tasks) > 0 {
+			queued = append(queued, queuedAI{guid: e.GUID, tasks: tasks})
+		}
+	}
+	// The newest entries get the automatic tasks; the ones beyond the cap of this fetch are recorded as stopped by it.
+	for i, q := range queued {
+		status, code := "pending", ""
+		if src.AIFetchLimit > 0 && i < len(queued)-src.AIFetchLimit {
+			status, code = "failed", AICapReached
+		}
+		for _, task := range q.tasks {
 			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO entry_ai (entry_id, task, status, updated_at)
-				SELECT id, ?, 'pending', ? FROM entries WHERE source_id = ? AND guid = ?`,
-				task, now.UnixMilli(), src.ID, e.GUID); err != nil {
+				INSERT INTO entry_ai (entry_id, task, status, error, updated_at)
+				SELECT id, ?, ?, ?, ? FROM entries WHERE source_id = ? AND guid = ?`,
+				task, status, code, now.UnixMilli(), src.ID, q.guid); err != nil {
 				return 0, err
 			}
 		}
