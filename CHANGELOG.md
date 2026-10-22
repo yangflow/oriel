@@ -23,6 +23,53 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.7.0](https://github.com/yangflow/oriel/compare/v0.6.0...v0.7.0) (2026-10-22)
+
+
+### Added
+
+* **fetch:** check each subscription as often as it publishes, and suggest a kind after the first fetch ([#265](https://github.com/yangflow/oriel/issues/265)) ([593d9c9](https://github.com/yangflow/oriel/commit/593d9c957b9dcbda9a8cbaefc28ac003b7e1433b))
+* **fetch:** fall back to another RSSHub instance when one fails ([#266](https://github.com/yangflow/oriel/issues/266)) ([f4f05c5](https://github.com/yangflow/oriel/commit/f4f05c577bf814df03f587c46cf336bc853d6016))
+* **fetch:** get new entries within seconds from sources that support WebSub ([#281](https://github.com/yangflow/oriel/issues/281)) ([6b66bf2](https://github.com/yangflow/oriel/commit/6b66bf2a59937d62f0d859c369b63178fa4475cc))
+* **reader:** copy an entry's link from its menu or the reader toolbar ([#270](https://github.com/yangflow/oriel/issues/270)) ([7f275d3](https://github.com/yangflow/oriel/commit/7f275d3b52cae1a6889ccd629b79738528978c71))
+* **settings:** add presets for Ollama and LM Studio and a connection check for the AI endpoint ([#276](https://github.com/yangflow/oriel/issues/276)) ([cce6ed5](https://github.com/yangflow/oriel/commit/cce6ed520303329362eadd809d32180693e6d2bc))
+* **settings:** import subscriptions, stars and read state from Miniflux and FreshRSS ([#291](https://github.com/yangflow/oriel/issues/291)) ([3d7c3b5](https://github.com/yangflow/oriel/commit/3d7c3b5d48ad415293053c958fbf782c4f2ecbe1))
+* **settings:** see recent fetches and database size, and compact the database ([#282](https://github.com/yangflow/oriel/issues/282)) ([c0bc530](https://github.com/yangflow/oriel/commit/c0bc5306a083aa573c40da9fc2b5a9b6c18609df))
+* **settings:** undo Restore default on an edited prompt ([#272](https://github.com/yangflow/oriel/issues/272)) ([057e774](https://github.com/yangflow/oriel/commit/057e7745cfa03da76fd9c5e4c35bbb4b6a185daf))
+* **sidebar:** say when a new or refreshed subscription has finished its first fetch ([#275](https://github.com/yangflow/oriel/issues/275)) ([e822412](https://github.com/yangflow/oriel/commit/e822412964f78c448452e35737c83b0cdacd00dc))
+* **subscriptions:** add several subscriptions without reopening the dialog ([#279](https://github.com/yangflow/oriel/issues/279)) ([45f7ae4](https://github.com/yangflow/oriel/commit/45f7ae4515150ddd17c930b5f9dff3929bc4883f))
+* **subscriptions:** find the feed of any pasted website address ([#286](https://github.com/yangflow/oriel/issues/286)) ([8f6b260](https://github.com/yangflow/oriel/commit/8f6b2609f1fd78ca97093db8a2e33869f3653824))
+* **subscriptions:** find the RSSHub route for a site and preview it before subscribing ([#289](https://github.com/yangflow/oriel/issues/289)) ([86e2a11](https://github.com/yangflow/oriel/commit/86e2a111dd0412d769400ef33a86d744ce7eb4ba))
+* **subscriptions:** let a subscription set its own content selector and link rewrites for full text ([#290](https://github.com/yangflow/oriel/issues/290)) ([b3019d9](https://github.com/yangflow/oriel/commit/b3019d96694933e49c52dd0a561db249b669db6e))
+* **subscriptions:** let each source set how long its entries stay in the timeline ([#288](https://github.com/yangflow/oriel/issues/288)) ([1a78d97](https://github.com/yangflow/oriel/commit/1a78d9767db68b65ce113806acdc4dde8ee94f2f))
+* **subscriptions:** set how long each subscription keeps its entries ([#284](https://github.com/yangflow/oriel/issues/284)) ([a05a01c](https://github.com/yangflow/oriel/commit/a05a01c23f8380fe97622b8b07945eeaf6c646a5))
+* **subscriptions:** show how many entries the mute keywords hide ([#280](https://github.com/yangflow/oriel/issues/280)) ([77e49ca](https://github.com/yangflow/oriel/commit/77e49ca195080fff64ea224de3ccc4954adcd64a))
+* **subscriptions:** show which subscriptions are dead, failing or rarely read ([#277](https://github.com/yangflow/oriel/issues/277)) ([1840659](https://github.com/yangflow/oriel/commit/184065972c55d6f2857e8343be25bf682e0e7710))
+* **timeline:** add keys for the filters, mark all read and loading new entries ([#273](https://github.com/yangflow/oriel/issues/273)) ([e109bd2](https://github.com/yangflow/oriel/commit/e109bd24b6317e434d5024655efdd3dcdb227dd9))
+* **timeline:** move the sidebar button to the pane's corner and rearrange the toolbar ([#283](https://github.com/yangflow/oriel/issues/283)) ([8dfaacf](https://github.com/yangflow/oriel/commit/8dfaacf018d20d9a364c61cd510f616375cf9c53))
+* **timeline:** offer topic starter packs on the empty first-run screen ([#287](https://github.com/yangflow/oriel/issues/287)) ([80512b9](https://github.com/yangflow/oriel/commit/80512b9ff5b998cd5d1505b882d4b5e096468725))
+* **timeline:** recover faster from a dropped server and keep stars and reads made offline ([#285](https://github.com/yangflow/oriel/issues/285)) ([d0e21a0](https://github.com/yangflow/oriel/commit/d0e21a059a84b4e81e97f9ddf716416031f70ed2))
+* **timeline:** refresh all subscriptions at once ([#274](https://github.com/yangflow/oriel/issues/274)) ([5cac8ff](https://github.com/yangflow/oriel/commit/5cac8ffd6a5c24d8a90a8618b0ea04eb4df036cd))
+* **timeline:** reopen in the scope and filter you left on each server ([#257](https://github.com/yangflow/oriel/issues/257)) ([26517c2](https://github.com/yangflow/oriel/commit/26517c21cb7e77297d5369309bbe2b8ce979185d))
+* **window:** reopen the window at the size and position you left it ([#268](https://github.com/yangflow/oriel/issues/268)) ([79a1b37](https://github.com/yangflow/oriel/commit/79a1b375e06089f1c86e49457999f8d34696e1c1))
+
+
+### Fixed
+
+* **connect:** announce the show-password button as a toggle with a pressed state ([#258](https://github.com/yangflow/oriel/issues/258)) ([7384286](https://github.com/yangflow/oriel/commit/73842860de6546918af0b09b3cea049491a26749))
+* **fetch:** retry full-text extraction later when a site is briefly down ([#252](https://github.com/yangflow/oriel/issues/252)) ([8ed2df3](https://github.com/yangflow/oriel/commit/8ed2df3f702ce4294c0516a35edbf357b62a966a))
+* **server:** slow down and limit repeated login attempts ([#251](https://github.com/yangflow/oriel/issues/251)) ([5e4fa7c](https://github.com/yangflow/oriel/commit/5e4fa7cc84b9bde9351876e2ccf7ed0543385cc1))
+* **sidebar:** line up the add button in the Subscriptions header with the rows below it ([#269](https://github.com/yangflow/oriel/issues/269)) ([b86838e](https://github.com/yangflow/oriel/commit/b86838ea30d9af77e1de978fd7dfa6718c16b6f1))
+* **store:** keep an article once when its feed changes the GUID, and refuse a duplicate subscription with a trailing slash ([#255](https://github.com/yangflow/oriel/issues/255)) ([ad99ab3](https://github.com/yangflow/oriel/commit/ad99ab319849939ef52e017d5bb1324f08082e82))
+* **store:** wait for concurrent writes instead of failing with database is locked ([#250](https://github.com/yangflow/oriel/issues/250)) ([22985e9](https://github.com/yangflow/oriel/commit/22985e94544077f9f0888f621ce85d1c1cfcdddd))
+* **timeline:** stop the skeleton flashing when you switch the filter or kind ([#278](https://github.com/yangflow/oriel/issues/278)) ([14a90b7](https://github.com/yangflow/oriel/commit/14a90b7c28b1c134aa318ba5dbe8115de5597352))
+
+
+### Performance
+
+* **fetch:** keep many subscriptions on schedule and space out requests to one host ([#256](https://github.com/yangflow/oriel/issues/256)) ([fcd7fc6](https://github.com/yangflow/oriel/commit/fcd7fc6f503a1d8fa3a99b3b5d4bca4203e0f072))
+* **store:** count unread entries per subscription with an index ([#254](https://github.com/yangflow/oriel/issues/254)) ([f87d112](https://github.com/yangflow/oriel/commit/f87d11215f9102fdf2351692f234dfd145c4cce6))
+
 ## [0.6.0](https://github.com/yangflow/oriel/compare/v0.5.0...v0.6.0) (2026-10-21)
 
 
