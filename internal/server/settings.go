@@ -19,15 +19,20 @@ const (
 // settingsJSON lists every setting a client may read. Secrets are never listed, only whether they are set.
 type settingsJSON struct {
 	// The RSSHub instances in priority order; RSSHubBaseURL is the first, for clients that know one.
-	RSSHubBaseURLs  []string `json:"rsshubBaseUrls"`
-	RSSHubBaseURL   string   `json:"rsshubBaseUrl"`
-	RetentionDays   int      `json:"retentionDays"`
-	AIBaseURL       string   `json:"aiBaseUrl"`
-	AIModel         string   `json:"aiModel"`
-	AIAPIKeySet     bool     `json:"aiApiKeySet"`
-	AILanguage      string   `json:"aiLanguage"`
-	PromptSummary   string   `json:"promptSummary"`
-	PromptTranslate string   `json:"promptTranslate"`
+	RSSHubBaseURLs []string `json:"rsshubBaseUrls"`
+	RSSHubBaseURL  string   `json:"rsshubBaseUrl"`
+	RetentionDays  int      `json:"retentionDays"`
+	AIBaseURL      string   `json:"aiBaseUrl"`
+	AIModel        string   `json:"aiModel"`
+	AIAPIKeySet    bool     `json:"aiApiKeySet"`
+	AILanguage     string   `json:"aiLanguage"`
+	// The characters sent for a summary and per piece of a translation, and their defaults.
+	AISummaryLimit        int    `json:"aiSummaryLimit"`
+	AIChunkLimit          int    `json:"aiChunkLimit"`
+	DefaultAISummaryLimit int    `json:"defaultAiSummaryLimit"`
+	DefaultAIChunkLimit   int    `json:"defaultAiChunkLimit"`
+	PromptSummary         string `json:"promptSummary"`
+	PromptTranslate       string `json:"promptTranslate"`
 	// The built-in prompts, so a client can tell a changed prompt and restore it.
 	DefaultPromptSummary   string `json:"defaultPromptSummary"`
 	DefaultPromptTranslate string `json:"defaultPromptTranslate"`
@@ -64,7 +69,9 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	reply(w, http.StatusOK, settingsJSON{
 		RSSHubBaseURLs: instances, RSSHubBaseURL: primary, RetentionDays: days, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
-		AIAPIKeySet: cfg.APIKey != "", AILanguage: cfg.Language, PromptSummary: cfg.PromptSummary,
+		AIAPIKeySet: cfg.APIKey != "", AILanguage: cfg.Language,
+		AISummaryLimit: cfg.SummaryLimit, AIChunkLimit: cfg.ChunkLimit, DefaultAISummaryLimit: ai.DefaultSummary,
+		DefaultAIChunkLimit: ai.DefaultChunk, PromptSummary: cfg.PromptSummary,
 		PromptTranslate: cfg.PromptTranslate, DefaultPromptSummary: ai.DefaultPromptSummary,
 		DefaultPromptTranslate: ai.DefaultPromptTranslate,
 	})
@@ -79,6 +86,8 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		AIModel         *string   `json:"aiModel"`
 		AIAPIKey        *string   `json:"aiApiKey"`
 		AILanguage      *string   `json:"aiLanguage"`
+		AISummaryLimit  *int      `json:"aiSummaryLimit"`
+		AIChunkLimit    *int      `json:"aiChunkLimit"`
 		PromptSummary   *string   `json:"promptSummary"`
 		PromptTranslate *string   `json:"promptTranslate"`
 	}
@@ -145,6 +154,28 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		changes = append(changes, [2]string{ai.LanguageSetting, *body.AILanguage})
+	}
+	for _, field := range []struct {
+		value *int
+		key   string
+		high  int
+	}{
+		{body.AISummaryLimit, ai.SummaryLimitSetting, ai.MaxSummary},
+		{body.AIChunkLimit, ai.ChunkLimitSetting, ai.MaxChunk},
+	} {
+		if field.value == nil {
+			continue
+		}
+		n := *field.value
+		if n != 0 && (n < ai.MinLimit || n > field.high) {
+			fail(w, http.StatusBadRequest, "invalid_ai_limit")
+			return
+		}
+		stored := ""
+		if n != 0 {
+			stored = strconv.Itoa(n)
+		}
+		changes = append(changes, [2]string{field.key, stored})
 	}
 	for _, change := range changes {
 		if err := s.store.SetSetting(r.Context(), change[0], change[1]); err != nil {

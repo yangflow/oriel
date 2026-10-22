@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -29,6 +30,17 @@ const (
 	LanguageSetting        = "ai_language"
 	PromptSummarySetting   = "prompt_summary"
 	PromptTranslateSetting = "prompt_translate"
+	SummaryLimitSetting    = "ai_summary_limit"
+	ChunkLimitSetting      = "ai_chunk_limit"
+)
+
+// The bounds of the two limits a user can set, in characters. 0 or an unset value means the default.
+const (
+	MinLimit       = 500
+	MaxSummary     = 100000
+	MaxChunk       = 20000
+	DefaultSummary = 24000
+	DefaultChunk   = 6000
 )
 
 // Built-in prompts, used while the global prompt is not set.
@@ -48,9 +60,7 @@ const (
 )
 
 const (
-	summaryLimit     = 24000
 	translationLimit = 60000
-	chunkLimit       = 6000
 	maxResponse      = 1 << 20
 )
 
@@ -71,6 +81,8 @@ const (
 	ErrRateLimited   Code = "ai_rate_limited"
 	ErrUpstream      Code = "ai_upstream"
 	ErrEmpty         Code = "ai_empty"
+
+	ErrModelNotFound Code = "ai_model_not_found"
 )
 
 // Config is the AI part of the settings.
@@ -81,6 +93,8 @@ type Config struct {
 	Language        string
 	PromptSummary   string
 	PromptTranslate string
+	SummaryLimit    int // characters of an article sent for a summary
+	ChunkLimit      int // characters of a piece sent for a translation
 }
 
 // Configured reports whether both the endpoint and the model are set.
@@ -103,6 +117,8 @@ func Load(ctx context.Context, st *store.Store) (Config, error) {
 		}
 		*field.dst = value
 	}
+	c.SummaryLimit = storedLimit(ctx, st, SummaryLimitSetting, MinLimit, MaxSummary, DefaultSummary)
+	c.ChunkLimit = storedLimit(ctx, st, ChunkLimitSetting, MinLimit, MaxChunk, DefaultChunk)
 	if _, ok := Languages[c.Language]; !ok {
 		c.Language = "zh-Hans"
 	}
@@ -113,6 +129,19 @@ func Load(ctx context.Context, st *store.Store) (Config, error) {
 		c.PromptTranslate = DefaultPromptTranslate
 	}
 	return c, nil
+}
+
+// storedLimit reads a limit setting, falling back to the default when it is unset, unreadable or out of range.
+func storedLimit(ctx context.Context, st *store.Store, key string, low, high, fallback int) int {
+	value, err := st.Setting(ctx, key)
+	if err != nil {
+		return fallback
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil || n < low || n > high {
+		return fallback
+	}
+	return n
 }
 
 // Configured reports whether the stored settings name an endpoint and a model.
@@ -133,7 +162,7 @@ func prepare(c Config, in store.AIInput, task string) (job, bool) {
 	if in.Kind == "article" && in.ExtractStatus == "pending" {
 		return job{}, false
 	}
-	prompt, override, limit := c.PromptSummary, in.PromptSummary, summaryLimit
+	prompt, override, limit := c.PromptSummary, in.PromptSummary, c.SummaryLimit
 	if task == store.TaskTranslation {
 		prompt, override, limit = c.PromptTranslate, in.PromptTranslate, translationLimit
 	}
@@ -158,7 +187,7 @@ func prepare(c Config, in store.AIInput, task string) (job, bool) {
 		return j, true
 	}
 	if task == store.TaskTranslation {
-		j.chunks = chunks(strings.Split(text, "\n\n"), chunkLimit)
+		j.chunks = chunks(strings.Split(text, "\n\n"), c.ChunkLimit)
 	} else {
 		j.chunks = []string{text}
 	}
@@ -293,6 +322,8 @@ func complete(ctx context.Context, client *http.Client, c Config, userAgent, sys
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
 		return "", "", ErrUnauthorized
+	case resp.StatusCode == http.StatusNotFound:
+		return "", "", ErrModelNotFound
 	case resp.StatusCode == http.StatusTooManyRequests:
 		return "", "", ErrRateLimited
 	case resp.StatusCode < 200 || resp.StatusCode > 299:

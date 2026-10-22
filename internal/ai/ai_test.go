@@ -24,6 +24,8 @@ type upstream struct {
 	requests []chatRequest
 	auth     []string
 	answer   func(req chatRequest) (int, string) // status and message content
+	models   func() (int, string)                // status and body of GET /v1/models; nil means no such route
+	listAuth []string
 }
 
 type chatRequest struct {
@@ -38,6 +40,20 @@ type chatRequest struct {
 func newUpstream(t *testing.T) *upstream {
 	u := &upstream{answer: func(req chatRequest) (int, string) { return http.StatusOK, " reply: " + req.Messages[1].Content + " " }}
 	u.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/v1/models" {
+			u.mu.Lock()
+			models := u.models
+			u.listAuth = append(u.listAuth, r.Header.Get("Authorization"))
+			u.mu.Unlock()
+			if models == nil {
+				http.NotFound(w, r)
+				return
+			}
+			status, body := models()
+			w.WriteHeader(status)
+			io.WriteString(w, body)
+			return
+		}
 		if r.Method != http.MethodPost || r.URL.Path != "/v1/chat/completions" {
 			t.Errorf("%s %s", r.Method, r.URL.Path)
 		}
@@ -232,7 +248,7 @@ func lengths(parts []string) []int {
 }
 
 func TestInput(t *testing.T) {
-	cfg := Config{Model: "m", Language: "en", PromptSummary: DefaultPromptSummary, PromptTranslate: DefaultPromptTranslate}
+	cfg := Config{Model: "m", Language: "en", PromptSummary: DefaultPromptSummary, PromptTranslate: DefaultPromptTranslate, SummaryLimit: DefaultSummary, ChunkLimit: DefaultChunk}
 	in := store.AIInput{Title: "T", Kind: "article", ExtractStatus: "ok", ExtractedHTML: "<div>Full<br>text</div>", ContentHTML: "<p>feed</p>", Summary: "short"}
 	if j, ready := prepare(cfg, in, store.TaskSummary); !ready || j.chunks[0] != "T\n\nFull\n\ntext" {
 		t.Fatalf("extracted text first: %q", j.chunks)
@@ -284,8 +300,8 @@ func TestErrors(t *testing.T) {
 		t.Errorf("empty reply: %v", err)
 	}
 	u.answer = func(chatRequest) (int, string) { return http.StatusOK, "OK" }
-	if model, err := f.worker.Test(ctx); err != nil || model != "test-model-0613" {
-		t.Errorf("test: %q %v", model, err)
+	if got, err := f.worker.Test(ctx); err != nil || got.Model != "test-model-0613" || got.ModelFound != nil || got.ContextFits != nil {
+		t.Errorf("test: %+v %v", got, err)
 	}
 
 	closed := httptest.NewServer(http.NotFoundHandler())
@@ -293,6 +309,132 @@ func TestErrors(t *testing.T) {
 	f.set(BaseURLSetting, closed.URL)
 	if _, err := f.worker.Test(ctx); err != ErrUnreachable {
 		t.Errorf("closed endpoint: %v", err)
+	}
+}
+
+func TestInputLimits(t *testing.T) {
+	cfg := Config{Model: "m", Language: "en", PromptSummary: DefaultPromptSummary, PromptTranslate: DefaultPromptTranslate, SummaryLimit: 600, ChunkLimit: 500}
+	in := store.AIInput{Kind: "social", Summary: strings.Repeat("a", 2000)}
+	if j, _ := prepare(cfg, in, store.TaskSummary); len(j.chunks) != 1 || len([]rune(j.chunks[0])) != 600 {
+		t.Errorf("summary cut at the configured limit: %v", lengths(j.chunks))
+	}
+	if j, _ := prepare(cfg, in, store.TaskTranslation); len(j.chunks) != 4 || len(j.chunks[0]) != 500 {
+		t.Errorf("translation pieces of the configured size: %v", lengths(j.chunks))
+	}
+}
+
+func TestLoadLimits(t *testing.T) {
+	f := newFixture(t, "")
+	ctx := context.Background()
+	if c, err := Load(ctx, f.store); err != nil || c.SummaryLimit != DefaultSummary || c.ChunkLimit != DefaultChunk {
+		t.Fatalf("defaults: %+v %v", c, err)
+	}
+	f.set(SummaryLimitSetting, "4000")
+	f.set(ChunkLimitSetting, "1500")
+	if c, _ := Load(ctx, f.store); c.SummaryLimit != 4000 || c.ChunkLimit != 1500 {
+		t.Errorf("stored: %+v", c)
+	}
+	f.set(SummaryLimitSetting, "many")
+	f.set(ChunkLimitSetting, "3")
+	if c, _ := Load(ctx, f.store); c.SummaryLimit != DefaultSummary || c.ChunkLimit != DefaultChunk {
+		t.Errorf("unreadable or out of range falls back: %+v", c)
+	}
+}
+
+func TestSelfCheck(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	ctx := context.Background()
+	list := func(entry string) func() (int, string) {
+		return func() (int, string) { return http.StatusOK, `{"data":[` + entry + `]}` }
+	}
+
+	u.models = list(`{"id":"other"},{"id":"Test-Model:latest","loaded_context_length":32768}`)
+	got, err := f.worker.Test(ctx)
+	if err != nil || got.ModelFound == nil || !*got.ModelFound || got.ContextTokens == nil || *got.ContextTokens != 32768 ||
+		got.ContextFits == nil || !*got.ContextFits || got.Model != "test-model-0613" {
+		t.Fatalf("listed, fits: %+v %v", got, err)
+	}
+	if len(u.listAuth) != 1 || u.listAuth[0] != "Bearer test-key" {
+		t.Errorf("the list is asked with the key: %v", u.listAuth)
+	}
+
+	u.models = list(`{"id":"test-model","context_length":4096}`)
+	if got, err = f.worker.Test(ctx); err != nil || got.ContextFits == nil || *got.ContextFits || *got.ContextTokens != 4096 {
+		t.Errorf("too small a context is a hint, not a failure: %+v %v", got, err)
+	}
+	f.set(SummaryLimitSetting, "2000")
+	f.set(ChunkLimitSetting, "1000")
+	if got, err = f.worker.Test(ctx); err != nil || got.ContextFits == nil || !*got.ContextFits {
+		t.Errorf("lower limits fit: %+v %v", got, err)
+	}
+
+	u.models = list(`{"id":"test-model"}`)
+	if got, err = f.worker.Test(ctx); err != nil || got.ModelFound == nil || got.ContextTokens != nil || got.ContextFits != nil {
+		t.Errorf("a list without contexts: %+v %v", got, err)
+	}
+
+	before := len(u.calls())
+	u.models = list(`{"id":"another"}`)
+	if _, err = f.worker.Test(ctx); err != ErrModelNotFound || len(u.calls()) != before {
+		t.Errorf("model missing from the list: %v, %d chat calls", err, len(u.calls())-before)
+	}
+
+	u.models = func() (int, string) { return http.StatusUnauthorized, `{"error":"bad key test-key"}` }
+	if _, err = f.worker.Test(ctx); err != ErrUnauthorized {
+		t.Errorf("list turns the key down: %v", err)
+	}
+	for _, status := range []int{http.StatusNotFound, http.StatusInternalServerError} {
+		u.models = func() (int, string) { return status, "x" }
+		if got, err = f.worker.Test(ctx); err != nil || got.ModelFound != nil {
+			t.Errorf("a list that does not work is skipped (%d): %+v %v", status, got, err)
+		}
+	}
+	u.models = func() (int, string) { return http.StatusOK, "not json" }
+	if got, err = f.worker.Test(ctx); err != nil || got.ModelFound != nil {
+		t.Errorf("an unreadable list is skipped: %+v %v", got, err)
+	}
+
+	u.models = nil
+	u.answer = func(chatRequest) (int, string) { return http.StatusNotFound, "x" }
+	if _, err = f.worker.Test(ctx); err != ErrModelNotFound {
+		t.Errorf("chat 404: %v", err)
+	}
+}
+
+func TestSelfCheckLoopbackAndNoKeyInErrors(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	if !strings.HasPrefix(u.URL, "http://127.0.0.1:") {
+		t.Fatalf("the fake endpoint is not on the loopback address: %s", u.URL)
+	}
+	u.answer = func(chatRequest) (int, string) { return http.StatusUnauthorized, "denied test-key" }
+	_, err := f.worker.Test(context.Background())
+	if err != ErrUnauthorized || strings.Contains(err.Error(), "test-key") {
+		t.Errorf("error: %v", err)
+	}
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
+	f.set(BaseURLSetting, closed.URL)
+	if _, err = f.worker.Test(context.Background()); err != ErrUnreachable || strings.Contains(err.Error(), "test-key") {
+		t.Errorf("unreachable error: %v", err)
+	}
+}
+
+func TestSelfCheckTimeout(t *testing.T) {
+	release := make(chan struct{})
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer slow.Close()
+	defer close(release)
+	f := newFixture(t, slow.URL)
+	f.worker.timeout = 50 * time.Millisecond
+	if _, err := f.worker.Test(context.Background()); err != ErrTimeout {
+		t.Errorf("slow endpoint: %v", err)
 	}
 }
 

@@ -351,6 +351,10 @@ type Settings struct {
 	AIModel                string   `json:"aiModel"`
 	AIAPIKeySet            bool     `json:"aiApiKeySet"`
 	AILanguage             string   `json:"aiLanguage"`
+	AISummaryLimit         int      `json:"aiSummaryLimit"`
+	AIChunkLimit           int      `json:"aiChunkLimit"`
+	DefaultAISummaryLimit  int      `json:"defaultAiSummaryLimit"`
+	DefaultAIChunkLimit    int      `json:"defaultAiChunkLimit"`
 	PromptSummary          string   `json:"promptSummary"`
 	PromptTranslate        string   `json:"promptTranslate"`
 	DefaultPromptSummary   string   `json:"defaultPromptSummary"`
@@ -361,7 +365,7 @@ type Settings struct {
 func (s Settings) AIConfigured() bool { return s.AIBaseURL != "" && s.AIModel != "" }
 
 // SettingsPatch changes the settings that are not nil. AIAPIKey replaces the key, and "" removes it; an empty
-// prompt restores the default.
+// prompt restores the default, and so does a limit of 0.
 type SettingsPatch struct {
 	RSSHubBaseURL   *string   `json:"rsshubBaseUrl,omitempty"`
 	RSSHubBaseURLs  *[]string `json:"rsshubBaseUrls,omitempty"`
@@ -370,6 +374,8 @@ type SettingsPatch struct {
 	AIModel         *string   `json:"aiModel,omitempty"`
 	AIAPIKey        *string   `json:"aiApiKey,omitempty"`
 	AILanguage      *string   `json:"aiLanguage,omitempty"`
+	AISummaryLimit  *int      `json:"aiSummaryLimit,omitempty"`
+	AIChunkLimit    *int      `json:"aiChunkLimit,omitempty"`
 	PromptSummary   *string   `json:"promptSummary,omitempty"`
 	PromptTranslate *string   `json:"promptTranslate,omitempty"`
 }
@@ -662,20 +668,28 @@ func (s Session) RequestAI(ctx context.Context, id int64, task string) (AIResult
 	return result, err
 }
 
-// TestAI sends a short request to the AI endpoint with the saved settings and returns the model that answered.
-func (s Session) TestAI(ctx context.Context) (string, error) {
+// AITest is what the server's self-check of the AI endpoint found. The pointers are nil when the endpoint did not
+// say: ModelFound whether its list has the model, ContextTokens the model's context length, ContextFits whether the
+// summary limit and chunk size fit in it.
+type AITest struct {
+	Model         string `json:"model"`
+	ModelFound    *bool  `json:"modelFound"`
+	ContextTokens *int   `json:"contextTokens"`
+	ContextFits   *bool  `json:"contextFits"`
+}
+
+// TestAI has the server check the AI endpoint with the saved settings and returns what it found.
+func (s Session) TestAI(ctx context.Context) (AITest, error) {
 	resp, err := s.send(ctx, aiClient, http.MethodPost, "/api/ai/test", "", nil)
 	if err != nil {
-		return "", err
+		return AITest{}, err
 	}
 	defer resp.Body.Close()
-	var reply struct {
-		Model string `json:"model"`
-	}
+	var reply AITest
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&reply); err != nil {
-		return "", fmt.Errorf("test AI: %w", err)
+		return AITest{}, fmt.Errorf("test AI: %w", err)
 	}
-	return reply.Model, nil
+	return reply, nil
 }
 
 // Selection has the server translate (task "translate") or explain ("explain") a text selected while reading, and

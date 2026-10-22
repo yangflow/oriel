@@ -52,6 +52,7 @@ type copy struct {
 	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium           string
 	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed           string
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                      string
+	Preset, SummaryLimit, ChunkLimit, LimitsHelp, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit string
 	ChineseTypesetting, ChineseTypesettingHelp                                                                     string
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                              string
 	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid           string
@@ -78,6 +79,13 @@ var interfaceLanguages = []struct{ code, name string }{{prefs.LanguageChinese, "
 // languages are the languages summaries and translations can be written in, each named in itself.
 var languages = []struct{ code, name string }{{"zh-Hans", "简体中文"}, {"en", "English"}}
 
+// presets are the local servers the AI group offers to fill the endpoint for, each with a model name to hint at; an
+// empty hint keeps the usual one.
+var presets = []struct{ name, base, hint string }{
+	{"Ollama", "http://127.0.0.1:11434/v1", "qwen3:8b"},
+	{"LM Studio", "http://127.0.0.1:1234/v1", ""},
+}
+
 // The groups of the sidebar.
 const (
 	appearance = iota
@@ -98,7 +106,7 @@ type API interface {
 	RevokeDevice(ctx context.Context, id int64) error
 	ImportOPML(ctx context.Context, opml []byte) (client.Imported, error)
 	ExportOPML(ctx context.Context) ([]byte, error)
-	TestAI(ctx context.Context) (string, error)
+	TestAI(ctx context.Context) (client.AITest, error)
 }
 
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it
@@ -135,10 +143,10 @@ const (
 )
 
 // status is the line under a setting after it was saved, or why it was not; muted for a note, spinning while
-// something is under way.
+// something is under way, warn for a hint that is not a failure.
 type status struct {
-	ok, muted, spin bool
-	text            string
+	ok, muted, spin, warn bool
+	text                  string
 }
 
 // The tones of the result of an import or export.
@@ -189,6 +197,8 @@ type Screen struct {
 
 	aiBase, aiModel, aiKey string // as typed; the key saved is never sent back
 	aiLanguage             string
+	aiLimits               [2]string // the summary limit and the chunk size as typed; "" follows the default
+	aiChecks               []status  // what the last test found besides the answer
 	aiSaving               bool
 	aiInvalid              bool // the server refused the endpoint
 	focusAIBase            bool
@@ -291,7 +301,7 @@ func (s *Screen) PreferenceFailed() {
 // Open loads the settings and the devices again, as the screen is shown.
 func (s *Screen) Open() {
 	s.baseStatus, s.keepStatus, s.invalid, s.revoking = status{}, status{}, false, false
-	s.aiStatus, s.promptStatus, s.aiInvalid = status{}, status{}, false
+	s.aiStatus, s.promptStatus, s.aiInvalid, s.aiChecks = status{}, status{}, false, nil
 	if !s.busy {
 		s.result = result{}
 	}
@@ -340,6 +350,7 @@ func (s *Screen) loadSettings() {
 			s.state, s.settings = loaded, settings
 			s.base, s.retention = strings.Join(settings.RSSHubBaseURLs, "\n"), settings.RetentionDays
 			s.aiBase, s.aiModel, s.aiKey, s.aiLanguage = settings.AIBaseURL, settings.AIModel, "", settings.AILanguage
+			s.aiLimits = savedLimits(settings)
 			s.prompts = [2]string{settings.PromptSummary, settings.PromptTranslate}
 		}
 	})
@@ -484,7 +495,41 @@ func (s *Screen) saveRetention() {
 // aiDirty reports whether the AI endpoint as typed is not the one saved; a key typed is always a change.
 func (s *Screen) aiDirty() bool {
 	return strings.TrimSpace(s.aiBase) != s.settings.AIBaseURL || strings.TrimSpace(s.aiModel) != s.settings.AIModel ||
-		strings.TrimSpace(s.aiKey) != "" || s.aiLanguage != s.settings.AILanguage
+		strings.TrimSpace(s.aiKey) != "" || s.aiLanguage != s.settings.AILanguage || s.limitsDirty()
+}
+
+// savedLimits are the limits saved as the fields show them: empty for the default.
+func savedLimits(settings client.Settings) [2]string {
+	text := func(v, def int) string {
+		if v == def || v <= 0 {
+			return ""
+		}
+		return strconv.Itoa(v)
+	}
+	return [2]string{text(settings.AISummaryLimit, settings.DefaultAISummaryLimit),
+		text(settings.AIChunkLimit, settings.DefaultAIChunkLimit)}
+}
+
+// limitsDirty reports whether a limit as typed is not the one saved.
+func (s *Screen) limitsDirty() bool {
+	saved := savedLimits(s.settings)
+	return strings.TrimSpace(s.aiLimits[0]) != saved[0] || strings.TrimSpace(s.aiLimits[1]) != saved[1]
+}
+
+// limit reads a limit as typed: 0 for empty, which follows the default, and false when it is not a number.
+func limit(typed string) (int, bool) {
+	typed = strings.TrimSpace(typed)
+	if typed == "" {
+		return 0, true
+	}
+	n, err := strconv.Atoi(typed)
+	return n, err == nil && n > 0
+}
+
+// preset is the index of the preset whose address the endpoint holds, or -1.
+func (s *Screen) preset() int {
+	base := strings.TrimSuffix(strings.TrimSpace(s.aiBase), "/")
+	return slices.IndexFunc(presets, func(p struct{ name, base, hint string }) bool { return p.base == base })
 }
 
 // saveAI saves the changes to the AI endpoint, or removes the key; only what changed is sent.
@@ -509,6 +554,20 @@ func (s *Screen) saveAI(removeKey bool) {
 			language := s.aiLanguage
 			patch.AILanguage = &language
 		}
+		saved := savedLimits(s.settings)
+		fields := [2]**int{&patch.AISummaryLimit, &patch.AIChunkLimit}
+		for i, typed := range s.aiLimits {
+			if strings.TrimSpace(typed) == saved[i] {
+				continue
+			}
+			n, ok := limit(typed)
+			if !ok {
+				s.aiStatus = status{text: s.text.InvalidLimit}
+				s.announce = s.aiStatus.text
+				return
+			}
+			*fields[i] = &n
+		}
 	}
 	s.aiSaving, s.aiStatus, s.aiInvalid = true, status{}, false
 	gen, api := s.gen, s.api
@@ -523,16 +582,21 @@ func (s *Screen) saveAI(removeKey bool) {
 			case err == nil:
 				s.settings.AIBaseURL, s.settings.AIModel = settings.AIBaseURL, settings.AIModel
 				s.settings.AIAPIKeySet, s.settings.AILanguage = settings.AIAPIKeySet, settings.AILanguage
+				s.settings.AISummaryLimit, s.settings.AIChunkLimit = settings.AISummaryLimit, settings.AIChunkLimit
 				if removeKey {
 					s.aiStatus = status{ok: true, text: s.text.KeyRemoved}
 				} else {
 					s.aiBase, s.aiModel, s.aiKey, s.aiLanguage = settings.AIBaseURL, settings.AIModel, "", settings.AILanguage
+					s.aiLimits = savedLimits(settings)
 					s.aiStatus = status{ok: true, text: s.text.AISaved}
 				}
 				s.announce = s.aiStatus.text
 			case code(err) == "invalid_ai_base_url":
 				s.aiInvalid, s.focusAIBase = true, true
 				s.announce = s.text.InvalidAIBase
+			case code(err) == "invalid_ai_limit":
+				s.aiStatus = status{text: s.text.InvalidLimit}
+				s.announce = s.aiStatus.text
 			default:
 				s.aiStatus = status{text: s.text.SaveFailed}
 				s.announce = s.aiStatus.text
@@ -546,24 +610,43 @@ func (s *Screen) test() {
 	if s.testing || s.api == nil || !s.settings.AIConfigured() || s.aiDirty() {
 		return
 	}
-	s.testing, s.aiStatus = true, status{}
+	s.testing, s.aiStatus, s.aiChecks = true, status{}, nil
 	s.announce = s.text.Testing
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
-		model, err := api.TestAI(context.Background())
+		found, err := api.TestAI(context.Background())
 		return func() {
 			if gen != s.gen || s.expired(err) {
 				return
 			}
 			s.testing = false
 			if err == nil {
-				s.aiStatus = status{ok: true, text: s.fill(s.text.Tested, "{model}", model)}
+				s.aiStatus = status{ok: true, text: s.fill(s.text.Tested, "{model}", found.Model)}
+				s.aiChecks = s.checks(found)
 			} else {
 				s.aiStatus = status{text: s.reason(code(err))}
 			}
 			s.announce = s.aiStatus.text
 		}
 	})
+}
+
+// checks are the lines under a passed test: the model is in the endpoint's list, and its context fits the limits.
+// Whatever the endpoint did not tell is left out.
+func (s *Screen) checks(found client.AITest) []status {
+	var lines []status
+	if found.ModelFound != nil && *found.ModelFound {
+		lines = append(lines, status{ok: true, text: s.text.CheckListed})
+	}
+	if found.ContextTokens != nil && found.ContextFits != nil {
+		n := strconv.Itoa(*found.ContextTokens)
+		if *found.ContextFits {
+			lines = append(lines, status{ok: true, text: s.fill(s.text.CheckFits, "{n}", n)})
+		} else {
+			lines = append(lines, status{warn: true, text: s.fill(s.text.CheckSmall, "{n}", n)})
+		}
+	}
+	return lines
 }
 
 // reason says why the AI endpoint failed a test, from the code the server gave.
@@ -577,6 +660,10 @@ func (s *Screen) reason(code string) string {
 		return s.text.AIUnreachable
 	case "ai_timeout":
 		return s.text.AITimeout
+	case "ai_model_not_found":
+		return s.text.AIModelMissing
+	case "invalid_ai_limit":
+		return s.text.InvalidLimit
 	case "ai_rate_limited":
 		return s.text.AIRateLimited
 	}
@@ -1271,7 +1358,10 @@ func statusLine(c *ui.Context, st status) {
 func statusText(c *ui.Context, st status) {
 	t := c.Theme()
 	icon, color := icons.CircleAlert, t.Danger
+	iconColor := color
 	switch {
+	case st.warn:
+		color, iconColor = t.Text, t.Warning
 	case st.spin:
 		icon, color = icons.LoaderCircle, t.TextMuted
 	case st.muted:
@@ -1279,8 +1369,11 @@ func statusText(c *ui.Context, st status) {
 	case st.ok:
 		icon, color = icons.Check, t.Success
 	}
+	if st.spin || st.muted || st.ok {
+		iconColor = color
+	}
 	if icon != nil {
-		i := ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(color).Margin(1, 0, 0, 0)
+		i := ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(iconColor).Margin(1, 0, 0, 0)
 		if st.spin {
 			i.Rotate(i.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 		}
@@ -1475,7 +1568,7 @@ func sectionTitle(c *ui.Context, text string, top float32) {
 func (s *Screen) aiConnection(c *ui.Context, top float32) {
 	t := c.Theme()
 	sectionTitle(c, s.text.Connection, top)
-	before := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage}
+	before := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage, s.aiLimits[0], s.aiLimits[1]}
 	submit := func(in ui.Element) {
 		if in.Submitted() {
 			s.saveAI(false)
@@ -1500,11 +1593,16 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 		if s.aiInvalid {
 			statusLine(c, status{text: s.text.InvalidAIBase})
 		}
+		s.presetRow(c)
 	}, func() {
 		ui.Text(c, s.text.Model).FontWeight(500)
+		hint := s.text.ModelPlaceholder
+		if i := s.preset(); i >= 0 && presets[i].hint != "" {
+			hint = presets[i].hint
+		}
 		ui.Row(c).FillWidth().Margin(px(t, 12), 0, 0, 0).Children(func() {
 			field(c, "model", &s.aiModel, 0, false, func(in ui.Element) {
-				in.Font("monospace").Label(s.text.Model).Placeholder(s.text.ModelPlaceholder).Disabled(s.aiSaving)
+				in.Font("monospace").Label(s.text.Model).Placeholder(hint).Disabled(s.aiSaving)
 				submit(in)
 			})
 		})
@@ -1541,6 +1639,8 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 	}, func() {
 		labeled(c, s.text.Language, s.text.LanguageHelp, func() { s.languageSelect(c) })
 	}, func() {
+		s.limitFields(c)
+	}, func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 			dirty := s.aiDirty()
 			st := s.aiStatus
@@ -1570,10 +1670,58 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 				s.saveAI(false)
 			}
 		})
+		for _, st := range s.aiChecks {
+			statusLine(c, st)
+		}
 	})
-	if after := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage}; after != before {
-		s.aiInvalid, s.aiStatus = s.aiInvalid && after[0] == before[0], status{}
+	if after := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage, s.aiLimits[0], s.aiLimits[1]}; after != before {
+		s.aiInvalid, s.aiStatus, s.aiChecks = s.aiInvalid && after[0] == before[0], status{}, nil
 	}
+}
+
+// presetRow is the buttons that fill the endpoint with the address of a server on this computer. They change only
+// what is typed: the key stays, and nothing is saved until Save.
+func (s *Screen) presetRow(c *ui.Context) {
+	t := c.Theme()
+	picked := s.preset()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(px(t, 10), 0, 0, 0).Role(ui.RoleGroup).
+		Label(s.text.Preset).Children(func() {
+		ui.Text(c, s.text.Preset).FontSize(px(t, 12)).TextColor(t.TextMuted).Margin(0, px(t, 4), 0, 0)
+		for i, p := range presets {
+			style := small
+			if i == picked {
+				style = chosen
+			}
+			b := button(c, style, s.aiSaving).Role(ui.RoleToggleButton).Checked(i == picked).Label(p.name)
+			textButton(c, b, style, nil, p.name, false)
+			if b.Clicked() {
+				s.aiBase, s.aiInvalid = p.base, false
+			}
+		}
+	})
+}
+
+// limitFields are the summary limit and the chunk size, in characters; empty follows the default.
+func (s *Screen) limitFields(c *ui.Context) {
+	t := c.Theme()
+	names := [2]string{s.text.SummaryLimit, s.text.ChunkLimit}
+	defaults := [2]int{s.settings.DefaultAISummaryLimit, s.settings.DefaultAIChunkLimit}
+	ui.Row(c).FillWidth().Gap(t.Space(3)).Children(func() {
+		for i, name := range names {
+			ui.Column(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
+				ui.Text(c, name).FontWeight(500)
+				ui.Row(c).FillWidth().Margin(px(t, 8), 0, 0, 0).Children(func() {
+					field(c, "limit"+strconv.Itoa(i), &s.aiLimits[i], 0, false, func(in ui.Element) {
+						in.Font("monospace").Label(name).Placeholder(strconv.Itoa(defaults[i])).Disabled(s.aiSaving)
+						if in.Submitted() {
+							s.saveAI(false)
+						}
+					})
+				})
+			})
+		}
+	})
+	ui.Text(c, s.text.LimitsHelp).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(px(t, 4), 0, 0, 0)
 }
 
 // aiPrompts is the summary and translation prompts, with Save.
@@ -2147,6 +2295,7 @@ const (
 	primary
 	danger // small, in the danger color
 	small
+	chosen // small, the one picked of a few: in the accent
 )
 
 func button(c *ui.Context, style int, disabled bool) ui.Element {
@@ -2162,10 +2311,14 @@ func button(c *ui.Context, style int, disabled bool) ui.Element {
 		fallthrough
 	case small:
 		b.Height(px(t, 26)).PaddingX(px(t, 10))
+	case chosen:
+		fill, color = theme.Soft(t, t.Accent), t.Accent
+		b.Height(px(t, 26)).PaddingX(px(t, 10))
 	}
 	switch {
 	case disabled:
 		fill, color = t.Surface, t.TextMuted
+	case style == chosen:
 	case b.Pressed() && style == primary:
 		fill = t.AccentPressed
 	case b.Hovered() && style == primary:
@@ -2196,7 +2349,7 @@ func textButton(c *ui.Context, b ui.Element, style int, icon *ui.SVG, text strin
 		switch style {
 		case primary:
 			label.FontWeight(500)
-		case danger, small:
+		case danger, small, chosen:
 			label.FontSize(px(t, 12))
 		}
 	})

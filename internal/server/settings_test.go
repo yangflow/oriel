@@ -26,7 +26,8 @@ func TestSettings(t *testing.T) {
 		body["rsshubBaseUrl"] != "" || len(body["rsshubBaseUrls"].([]any)) != 0 || body["retentionDays"] != 0.0 || body["aiBaseUrl"] != "" || body["aiModel"] != "" ||
 		body["aiApiKeySet"] != true || body["aiLanguage"] != "zh-Hans" || body["promptSummary"] != ai.DefaultPromptSummary ||
 		body["promptTranslate"] != ai.DefaultPromptTranslate || body["defaultPromptSummary"] != ai.DefaultPromptSummary ||
-		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 11 {
+		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 15 || body["aiSummaryLimit"] != 24000.0 ||
+		body["aiChunkLimit"] != 6000.0 || body["defaultAiSummaryLimit"] != 24000.0 || body["defaultAiChunkLimit"] != 6000.0 {
 		t.Fatalf("defaults: %d %s", w.Code, w.Body)
 	}
 
@@ -93,6 +94,10 @@ func TestSettings(t *testing.T) {
 		`{"aiModel":"` + strings.Repeat("m", 201) + `"}`:          "invalid_ai_model",
 		`{"aiApiKey":"` + strings.Repeat("k", 4097) + `"}`:        "invalid_ai_api_key",
 		`{"aiLanguage":"fr"}`:                                     "invalid_ai_language",
+		`{"aiSummaryLimit":499}`:                                  "invalid_ai_limit",
+		`{"aiSummaryLimit":100001}`:                               "invalid_ai_limit",
+		`{"aiChunkLimit":20001}`:                                  "invalid_ai_limit",
+		`{"aiChunkLimit":-1}`:                                     "invalid_ai_limit",
 		`{"promptSummary":"` + strings.Repeat("p", 4001) + `"}`:   "invalid_prompt",
 		`{"promptTranslate":"` + strings.Repeat("p", 4001) + `"}`: "invalid_prompt",
 		`{"retentionDays":7,"rsshubBaseUrl":"file:///"}`:          "invalid_rsshub_base_url",
@@ -113,6 +118,14 @@ func TestSettings(t *testing.T) {
 		body["aiApiKeySet"] != false || body["aiLanguage"] != "en" || body["promptSummary"] != "Short {language}" ||
 		body["promptTranslate"] != ai.DefaultPromptTranslate {
 		t.Fatalf("AI settings: %d %v", w.Code, body)
+	}
+	w = do(s, "PATCH", "/api/settings", `{"aiSummaryLimit":4000,"aiChunkLimit":1500}`, bearer(token))
+	if body := decode(t, w); w.Code != http.StatusOK || body["aiSummaryLimit"] != 4000.0 || body["aiChunkLimit"] != 1500.0 {
+		t.Fatalf("limits: %d %s", w.Code, w.Body)
+	}
+	w = do(s, "PATCH", "/api/settings", `{"aiSummaryLimit":0,"aiChunkLimit":0}`, bearer(token))
+	if body := decode(t, w); w.Code != http.StatusOK || body["aiSummaryLimit"] != 24000.0 || body["aiChunkLimit"] != 6000.0 {
+		t.Fatalf("limits restored: %d %s", w.Code, w.Body)
 	}
 	w = do(s, "PATCH", "/api/settings", `{"aiApiKey":" new-value ","promptSummary":"  "}`, bearer(token))
 	if body := decode(t, w); body["aiApiKeySet"] != true || body["promptSummary"] != ai.DefaultPromptSummary || strings.Contains(w.Body.String(), "new-value") {

@@ -811,8 +811,19 @@ Overlays share focus and Escape behavior; see
   output language in one card with its own Save; each field, the model's too, has its label above and takes the
   card's width; and the two prompts in a second card. The key field is always
   empty; a badge says "Configured" or "Not configured", a new key replaces the old one and "Remove key" deletes it.
+  The card opens with a Preset row: a "Preset" label and two small buttons, Ollama and LM Studio. Choosing one fills the
+  endpoint (unsaved) and swaps the model field's placeholder for that runtime's usual name; it never touches a model name
+  or key already typed, and the button matching the current address is shown pressed (`Accent` soft fill). The model
+  placeholder is a hint, not a value. After the language row come two number fields side by side, "Summary limit" and
+  "Chunk size" (characters; the placeholder is the default, 24000 and 6000), monospace like the endpoint, with a one-line
+  help and an error line under a refused value.
   Test sends a short request with the saved settings, so it is disabled while there are unsaved edits; its result
-  stays beside the buttons. Each prompt has "Restore default", disabled while it is the default; it acts at once, puts the default in the box (still unsaved) and offers Undo in a toast, "Summary prompt restored to default", with a close button (`prompt-restored` in the mockup). Undo puts back exactly the text that was there, and does nothing if the box was edited again since. The Appearance group, first in the list, is
+  stays beside the buttons. A success is the "Connected" line with a check; under it, one 12 line per further result
+  (check and "Success" color for "The model is in the endpoint's list" and "The context holds the limits"; the alert
+  icon in `Warning` and the text in `Text`, since `Warning` is never text, for a context too small for the limits, which is a hint, not a failure). A result the
+  endpoint cannot give is not drawn at all. A failure is one `Danger` line that says what to do: cannot connect (check the
+  address; start the server if it is on this computer), the key was turned down, no such model (check the model name), or
+  too slow. Errors never show the key. Each prompt has "Restore default", disabled while it is the default; it acts at once, puts the default in the box (still unsaved) and offers Undo in a toast, "Summary prompt restored to default", with a close button (`prompt-restored` in the mockup). Undo puts back exactly the text that was there, and does nothing if the box was edited again since. The Appearance group, first in the list, is
   different: it is kept on this device, not on the server, and a line at the top of its page says so ("These apply only
   to this device."), where the other pages say settings are kept on the server. One card holds a row each for Theme
   (segmented: System, Light, Dark), Interface language (a menu: System, 简体中文, English, each language name in its own
