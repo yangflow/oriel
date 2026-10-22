@@ -713,6 +713,8 @@ type Storage struct {
 	Entries          int64  `json:"entries"`
 	Images           int    `json:"images"`
 	ImageBytes       int64  `json:"imageBytes"`
+	Copies           int    `json:"copies"`
+	CopyBytes        int64  `json:"copyBytes"`
 	Vacuum           Vacuum `json:"vacuum"`
 }
 

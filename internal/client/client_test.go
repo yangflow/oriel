@@ -385,7 +385,7 @@ func TestActivityAndStorageAPI(t *testing.T) {
 				"attempts":[{"at":1700000000000,"durationMs":1500,"ok":false,"status":503,"newEntries":0,"error":"status 503"},
 				{"at":1699999000000,"durationMs":90,"ok":true,"status":200,"newEntries":4,"error":""}]}]}`))
 		case "GET /api/storage":
-			w.Write([]byte(`{"databaseBytes":1000,"reclaimableBytes":200,"entries":30,"images":4,"imageBytes":5000,
+			w.Write([]byte(`{"databaseBytes":1000,"reclaimableBytes":200,"entries":30,"images":4,"imageBytes":5000,"copies":2,"copyBytes":700,
 				"vacuum":{"state":"done","startedAt":1,"finishedAt":2,"freedBytes":150,"error":""}}`))
 		case "POST /api/storage/vacuum":
 			if len(seen) > 3 {
@@ -411,7 +411,7 @@ func TestActivityAndStorageAPI(t *testing.T) {
 	}
 	storage, err := session.Storage(ctx)
 	if err != nil || storage.DatabaseBytes != 1000 || storage.ReclaimableBytes != 200 || storage.Entries != 30 ||
-		storage.Images != 4 || storage.ImageBytes != 5000 || storage.Vacuum.State != VacuumDone || storage.Vacuum.FreedBytes != 150 {
+		storage.Images != 4 || storage.ImageBytes != 5000 || storage.Copies != 2 || storage.CopyBytes != 700 || storage.Vacuum.State != VacuumDone || storage.Vacuum.FreedBytes != 150 {
 		t.Errorf("Storage = %+v, %v", storage, err)
 	}
 	started, err := session.StartVacuum(ctx)

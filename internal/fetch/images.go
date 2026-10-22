@@ -15,11 +15,18 @@ import (
 // ErrNotImage reports a response that is not a picture the interface can decode.
 var ErrNotImage = errors.New("not a decodable image")
 
+// StatusError reports an origin that answered a picture request with a status other than 2xx.
+type StatusError struct{ Code int }
+
+func (e *StatusError) Error() string { return fmt.Sprintf("status %d", e.Code) }
+
 // imageTypes are the formats the interface decodes, by their sniffed content type. SVG is left out:
 // it can carry script, and opened from the server it would run with the session cookie.
 var imageTypes = map[string]bool{
 	"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true, "image/bmp": true,
 }
+
+var errNotWebAddress = errors.New("not a web address")
 
 // Images downloads pictures found inside feeds for the interface, through the guarded client.
 type Images struct {
@@ -46,7 +53,7 @@ func NewImages(version, cacheDir string) *Images {
 func (im *Images) Get(ctx context.Context, address string) (string, []byte, error) {
 	link, err := url.Parse(address)
 	if err != nil || (link.Scheme != "http" && link.Scheme != "https") || link.Host == "" {
-		return "", nil, fmt.Errorf("not a web address: %q", address)
+		return "", nil, fmt.Errorf("%w: %q", errNotWebAddress, address)
 	}
 	if tracker.KnownAddress(address) {
 		return "", nil, ErrBlockedAddress
@@ -85,7 +92,7 @@ func (im *Images) download(ctx context.Context, address string) (string, []byte,
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return "", nil, fmt.Errorf("status %d", resp.StatusCode)
+		return "", nil, &StatusError{Code: resp.StatusCode}
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {

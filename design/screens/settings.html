@@ -409,6 +409,7 @@ const copy={
     fetching:'Fetching', opml:'Import and export', devices:'Devices', ai:'AI', activity:'Activity and storage',
     activityLead:'What is being fetched, how the recent fetches went, and the space the database uses.', refresh:'Refresh',
     storage:'Storage', dbSize:'Database size', entries:'Entries', images:'Cached images', imagesValue:'{n} images, {size}',
+    copies:'Starred copies', copiesValue:'{n} images, {size}',
     diagnostics:'Diagnostics', diagnosticsHelp:'Saves the version, the system, the recent errors and the host name and failures of each subscription as a text file. It has no password, keys, full addresses or article text, and it stays on this computer.', exportDiagnostics:'Export diagnostics…', diagnosticsExported:'Exported to {file}.', diagnosticsFailed:'Couldn’t export. Check the connection and try again.',
     compact:'Compact database', compacting:'Compacting…', compacted:'Compacted. Freed {size}', compactFailed:'Could not compact: {reason}',
     compactHelp:'Rewrites the database file to give back unused space. It can take a while and runs in the background; Oriel stays usable, and new fetches wait until it is done. About {size} can be freed.',
@@ -493,6 +494,7 @@ const copy={
     fetching:'抓取', opml:'导入和导出', devices:'设备', ai:'AI', activity:'活动与存储',
     activityLead:'现在在抓什么、最近抓得怎么样，以及数据库占用的空间。', refresh:'刷新',
     storage:'存储', dbSize:'数据库大小', entries:'条目', images:'图片缓存', imagesValue:'{n} 张，{size}',
+    copies:'收藏的副本', copiesValue:'{n} 张，{size}',
     diagnostics:'诊断', diagnosticsHelp:'把版本、系统、最近的错误，以及每个订阅的主机名和失败情况存成一个文本文件。里面没有口令、密钥、完整网址和文章内容，只存在这台电脑上。', exportDiagnostics:'导出诊断文件…', diagnosticsExported:'已导出到 {file}。', diagnosticsFailed:'没能导出。检查一下连接再试。',
     compact:'压缩数据库', compacting:'正在压缩…', compacted:'已压缩，腾出 {size}', compactFailed:'没能压缩：{reason}',
     compactHelp:'重写数据库文件，把空闲的空间还给系统。可能要一会儿，在后台进行，Oriel 照常可用；压缩期间不开始新的抓取。大约能腾出 {size}。',
@@ -730,6 +732,7 @@ const activity=`<div class="lead-row"><p class="lead">${copy.activityLead}</p><b
 <div class="row kv"><span>${copy.dbSize}</span><span class="value">${vac==='done'?'86.4 MB':'124.6 MB'}</span></div>
 <div class="row kv"><span>${copy.entries}</span><span class="value">48,213</span></div>
 <div class="row kv"><span>${copy.images}</span><span class="value">${t('imagesValue',{n:'1,284',size:'212.3 MB'})}</span></div>
+<div class="row kv"><span>${copy.copies}</span><span class="value">${t('copiesValue',{n:'86',size:'31.4 MB'})}</span></div>
 <div class="row"><div class="compact"><p class="help">${t('compactHelp',{size:free})}</p><button class="button"${vac==='running'?' disabled':''}>${vac==='running'?icon('loader','spin'):icon('database')}${vac==='running'?copy.compacting:copy.compact}</button></div>${vacStatus}</div>
 </div>
 <h2 class="section-title" style="margin-top:28px">${copy.diagnostics}</h2><div class="card">

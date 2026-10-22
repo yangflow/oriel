@@ -93,7 +93,13 @@ func (s *Server) storage(w http.ResponseWriter, r *http.Request) {
 	if stats, ok := s.images.(imageStats); ok {
 		images, imageBytes = stats.CacheStats()
 	}
+	copies, copyBytes, err := s.store.CopyStats(r.Context())
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	reply(w, http.StatusOK, map[string]any{
+		"copies": copies, "copyBytes": copyBytes,
 		"databaseBytes": st.DatabaseBytes, "reclaimableBytes": st.ReclaimableBytes, "entries": st.Entries,
 		"images": images, "imageBytes": imageBytes, "vacuum": s.vacuumNow(),
 	})

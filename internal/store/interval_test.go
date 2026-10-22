@@ -17,6 +17,14 @@ func TestMigrationMakesDefaultIntervalAuto(t *testing.T) {
 	}
 	// Take the database back to what version 9 left: no fetch log, the columns of the later migrations gone, three sources with their intervals.
 	for _, q := range []string{
+		"DROP TRIGGER entries_star_insert",
+		"DROP TRIGGER entries_star_on",
+		"DROP TRIGGER entries_star_off",
+		"DROP TABLE entry_image_copies",
+		"DROP INDEX entries_copy_due",
+		"ALTER TABLE entries DROP COLUMN copy_status",
+		"ALTER TABLE entries DROP COLUMN copy_attempts",
+		"ALTER TABLE entries DROP COLUMN next_copy_at",
 		"DROP TABLE fetch_log",
 		"ALTER TABLE sources DROP COLUMN websub_hub",
 		"ALTER TABLE sources DROP COLUMN websub_topic",

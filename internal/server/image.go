@@ -20,15 +20,22 @@ func (s *Server) image(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadGateway, "image_unavailable")
 		return
 	}
-	if s.images == nil {
-		fail(w, http.StatusBadGateway, "image_unavailable")
-		return
-	}
-	kind, body, err := s.images.Get(r.Context(), address)
+	// The copy kept for a starred entry answers first, so a picture its site has taken down still shows.
+	kind, body, found, err := s.store.ImageCopy(r.Context(), address)
 	if err != nil {
-		slog.Debug("Image unavailable", "error", err)
-		fail(w, http.StatusBadGateway, "image_unavailable")
-		return
+		slog.Debug("Cannot read a picture copy", "error", err)
+	}
+	if !found {
+		if s.images == nil {
+			fail(w, http.StatusBadGateway, "image_unavailable")
+			return
+		}
+		kind, body, err = s.images.Get(r.Context(), address)
+		if err != nil {
+			slog.Debug("Image unavailable", "error", err)
+			fail(w, http.StatusBadGateway, "image_unavailable")
+			return
+		}
 	}
 	w.Header().Set("Content-Type", kind)
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
