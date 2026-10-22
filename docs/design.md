@@ -115,7 +115,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   Appearance, Timeline) tightens only the spacing of rows, grid cells and wall tiles, by the values in
   `design/tokens.md`; no content is dropped. Drawn in `design/screens/timeline.html`, `dense`. When a background check fails after the list loaded, a quiet 28 high status line sits under the toolbar,
   lined up with the list: a 14 `Warning` wifi-off icon and 12 `TextMuted` text, "Can't reach the server · last updated
-  10:42", with no fill; it is a polite status, announced once, and goes away on the next successful check. With no subscriptions the list is an empty state: a 48 tile, a
+  10:42", with no fill; it is a polite status, announced once, and goes away on the next successful check. Loading the first page of a list (a switch of scope, filter or kind, a reload) draws the skeleton only after 300 ms; an answer that comes sooner shows no loading state, so switching never flashes bars. With no subscriptions the list is an empty state: a 48 tile, a
   15 semibold heading, a hint at most 320 wide that names the links Oriel recognises, then a row of two buttons 8 apart,
   wrapping when narrow: the primary "Add your first subscription" and the secondary "Import OPML…", which opens
   Settings on Import and export. When a reading-time budget leaves nothing, the list shows the same pattern: a 48
