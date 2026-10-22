@@ -53,6 +53,7 @@ type copy struct {
 	OrderNewest, OrderOldest                                                                                                                                            string
 	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                                 string
 	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu                            string
+	Retrying, Pending                                                                                                                                                   string
 	Fetching, FetchedEntries, FetchedEntry, FetchedNone, FetchFailed, FreshEntries, FreshEntry, NothingNewIn                                                            string
 }
 
@@ -70,6 +71,7 @@ const (
 	lookEvery    = 15 * time.Second // how often the last-looked marker is kept while the list rests at the top
 	maxNewCount  = 50               // the most new entries the divider counts; more show as "50+"
 	pollEvery    = 60 * time.Second // how often the sources and the first page are checked for new entries
+	checkGap     = 10 * time.Second // the least time between a check and one asked for by the window coming to the front
 	watchEvery   = 3 * time.Second  // how often a subscription just added or refreshed is checked for its fetch
 	watchFor     = 60 * time.Second // how long it is waited for
 	debounce     = 300 * time.Millisecond
@@ -80,6 +82,10 @@ const (
 	keepPictures = 300 // decoded pictures kept in memory
 	wallAhead    = 800 // how far beyond the view the image wall loads pictures and the next page
 )
+
+// retryAfter is how long to wait to check again after the first, second, third and later failures in a row while the
+// server is out of reach; the last one repeats.
+var retryAfter = []time.Duration{3 * time.Second, 5 * time.Second, 10 * time.Second, 30 * time.Second}
 
 // kinds are the tabs of the sidebar, "" for all.
 var kinds = []string{"", "article", "video", "social", "image"}
@@ -255,6 +261,9 @@ type Screen struct {
 	polledAt time.Time
 	polling  bool
 	offline  bool      // a background check failed after the list loaded
+	failures int       // checks that failed in a row; picks the wait before the next one
+	queue    []waiting // star and read changes the server did not get, kept in memory and sent when it is back
+	sending  bool      // the queue is being sent
 	updated  time.Time // the last load or check that succeeded
 	fresh    int       // entries newer than the top one, found by polling
 
@@ -392,6 +401,7 @@ func (s *Screen) Use(api API, server string) {
 	s.pictures, s.wanted, s.downloads = map[string]*picture{}, nil, 0
 	s.undoable, s.seeking, s.keys, s.pal = nil, false, false, paletteState{}
 	s.refresh, s.result = nil, nil
+	s.queue, s.sending, s.failures = nil, false, 0
 	s.watching, s.watchBusy, s.notes = nil, false, nil
 	s.subs.Use(api)
 	s.reader.Use(api)
@@ -641,7 +651,7 @@ func (s *Screen) reload() {
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
 	s.loadedAt = s.deps.Now()
 	s.entries, s.next, s.loading, s.loadErr, s.more, s.moreErr, s.fresh = nil, "", true, false, false, false, 0
-	s.offline = false
+	s.offline, s.failures = false, 0
 	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = -1, -1, -1, true, 0, false
 	s.checking = false
 	s.divider, s.away = -1, false
@@ -663,6 +673,8 @@ func (s *Screen) reload() {
 			}
 			s.entries, s.next, s.polledAt = page.Entries, page.Next, s.deps.Now()
 			s.updated = s.polledAt
+			s.overlay()
+			s.flush()
 		}
 	})
 }
@@ -824,8 +836,9 @@ func (s *Screen) restore(snap snapshot) {
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
 	s.entries, s.next, s.anchor = snap.entries, snap.next, snap.anchor
 	s.loading, s.loadErr, s.more, s.moreErr, s.fresh, s.offline, s.checking = false, false, false, false, 0, false, true
+	s.failures = 0
 	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = s.index(snap.selected), -1, -1, false, 0, false
-	s.polledAt = s.deps.Now()
+	s.polledAt, s.failures = s.deps.Now(), 0
 	s.retryPictures()
 	s.reader.Forget()
 	switch i := s.index(snap.anchor); {
@@ -848,13 +861,11 @@ func (s *Screen) restore(snap snapshot) {
 				return
 			}
 			if err != nil {
-				if !s.offline {
-					s.offline, s.announce = true, s.staleText()
-				}
+				s.lost()
 				return
 			}
-			s.offline, s.polledAt = false, s.deps.Now()
-			s.updated = s.polledAt
+			s.polledAt = s.deps.Now()
+			s.found()
 			s.merge(page)
 		}
 	})
@@ -1050,6 +1061,7 @@ func (s *Screen) merge(page client.Page) {
 		}
 	}
 	s.entries, s.next = merged, next
+	s.overlay()
 	s.selected, s.focusRow, s.hovered = s.index(selected), s.index(focus), -1
 }
 
@@ -1104,6 +1116,7 @@ func (s *Screen) loadMore() {
 				return
 			}
 			s.entries, s.next = append(s.entries, page.Entries...), page.Next
+			s.overlay()
 			if s.next == "" {
 				s.announce = s.text.AllLoaded
 			}
@@ -1207,13 +1220,58 @@ func (s *Screen) finishRefresh(text string, alert bool) {
 	s.polledAt = time.Time{}
 }
 
+// interval is how long to wait between background checks: pollEvery, or while the server is out of reach the wait
+// that the failures in a row call for.
+func (s *Screen) interval() time.Duration {
+	if !s.offline || s.failures == 0 {
+		return pollEvery
+	}
+	return retryAfter[min(s.failures, len(retryAfter))-1]
+}
+
+// Check looks at the server now, as the window coming to the front and the computer waking ask. While it is out of
+// reach it does at once; otherwise it does unless a check ran in the last checkGap.
+func (s *Screen) Check() {
+	if s.api == nil {
+		return
+	}
+	if s.offline || s.deps.Now().Sub(s.polledAt) >= checkGap {
+		s.polledAt = time.Time{}
+	}
+}
+
+// lost notes a background check that failed: the line under the toolbar shows, and the next check comes sooner.
+func (s *Screen) lost() {
+	s.failures++
+	if !s.offline {
+		s.offline, s.announce = true, s.staleText()
+	}
+}
+
+// drop notes a write that did not reach the server: it takes the first wait before the next check, unless checks
+// already failed.
+func (s *Screen) drop() {
+	if !s.offline {
+		s.offline, s.announce = true, s.staleText()
+		s.failures = 1
+		s.polledAt = s.deps.Now()
+	}
+}
+
+// found notes that the server answered: the line goes, the waits start over, and the changes waiting are sent.
+func (s *Screen) found() {
+	s.offline, s.failures = false, 0
+	s.updated = s.deps.Now()
+	s.flush()
+}
+
 // poll checks the sources and the first page for new entries every pollEvery, without moving the list.
 func (s *Screen) poll(c *ui.Context) {
 	if s.api == nil || s.loading || s.loadErr || s.checking || s.polling || s.searched != "" {
 		return
 	}
 	now := s.deps.Now()
-	if wait := pollEvery - now.Sub(s.polledAt); wait > 0 {
+	if wait := s.interval() - now.Sub(s.polledAt); wait > 0 {
 		c.After(wait)
 		return
 	}
@@ -1237,14 +1295,13 @@ func (s *Screen) poll(c *ui.Context) {
 				return
 			}
 			if sourcesErr != nil || err != nil {
-				if !s.offline {
-					s.offline, s.announce = true, s.staleText()
-				}
+				s.lost()
 				return
 			}
-			s.offline, s.updated = false, s.deps.Now()
+			s.found()
 			if len(s.entries) == 0 {
 				s.entries, s.next = page.Entries, page.Next
+				s.overlay()
 				return
 			}
 			if s.oldest {
@@ -1335,6 +1392,11 @@ func (s *Screen) change(id int64, patch client.EntryPatch) {
 	if patch.Starred != nil {
 		back.Starred = &before.Starred
 	}
+	if s.offline || s.waitingFor(id) >= 0 {
+		// The server is out of reach, or an earlier change of this entry is still waiting and must go first.
+		s.enqueue(id, patch, back)
+		return
+	}
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		_, err := api.SetEntry(context.Background(), id, patch)
@@ -1342,11 +1404,120 @@ func (s *Screen) change(id int64, patch client.EntryPatch) {
 			if gen != s.gen || err == nil || s.expired(err) {
 				return
 			}
-			if i := s.index(id); i >= 0 {
-				s.set(i, back)
+			if unreached(err) {
+				s.enqueue(id, patch, back)
+				s.drop()
+				return
 			}
-			s.patchLists([]int64{id}, back)
-			s.toast = s.text.ActionFailed
+			s.revert(id, back)
+		}
+	})
+}
+
+// revert puts an entry back the way it was when the server refused its change.
+func (s *Screen) revert(id int64, back client.EntryPatch) {
+	if i := s.index(id); i >= 0 {
+		s.set(i, back)
+	}
+	s.patchLists([]int64{id}, back)
+	s.toast = s.text.ActionFailed
+}
+
+// unreached tells whether err says the server could not be reached, not that it refused: a refusal is an answer, and
+// an expired session has its own way.
+func unreached(err error) bool {
+	var refused *client.APIError
+	return err != nil && !errors.Is(err, client.ErrUnauthorized) && !errors.As(err, &refused)
+}
+
+// waiting is a star or read change the server did not get. back is how the entry was before the first change that
+// is waiting, which a refusal puts it back to; version counts the changes folded into it.
+type waiting struct {
+	id          int64
+	patch, back client.EntryPatch
+	version     int
+}
+
+// waitingFor is the place in the queue of the changes waiting for entry id, -1 for none.
+func (s *Screen) waitingFor(id int64) int {
+	return slices.IndexFunc(s.queue, func(w waiting) bool { return w.id == id })
+}
+
+// enqueue keeps a change the server did not get. A second change of the same entry folds into the first: the last
+// value of each field is sent, and the way back is the state before the first.
+func (s *Screen) enqueue(id int64, patch, back client.EntryPatch) {
+	i := s.waitingFor(id)
+	if i < 0 {
+		s.queue = append(s.queue, waiting{id: id, patch: patch, back: back, version: 1})
+		return
+	}
+	w := &s.queue[i]
+	if patch.IsRead != nil {
+		w.patch.IsRead = patch.IsRead
+	}
+	if patch.Starred != nil {
+		w.patch.Starred = patch.Starred
+	}
+	if w.back.IsRead == nil {
+		w.back.IsRead = back.IsRead
+	}
+	if w.back.Starred == nil {
+		w.back.Starred = back.Starred
+	}
+	w.version++
+}
+
+// overlay puts the changes waiting back on the entries just loaded, which the server answered without them.
+func (s *Screen) overlay() {
+	for _, w := range s.queue {
+		if i := s.index(w.id); i >= 0 {
+			s.set(i, w.patch)
+		}
+	}
+}
+
+// flush sends the changes waiting, in order, now that the server answered. One the server takes is done; one it
+// refuses goes back with a note; one that finds the server out of reach again waits for the next time.
+func (s *Screen) flush() {
+	if len(s.queue) == 0 || s.sending || s.api == nil {
+		return
+	}
+	s.sending = true
+	batch := slices.Clone(s.queue)
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		errs := make([]error, 0, len(batch))
+		for _, w := range batch {
+			_, err := api.SetEntry(context.Background(), w.id, w.patch)
+			errs = append(errs, err)
+			if unreached(err) || errors.Is(err, client.ErrUnauthorized) {
+				break
+			}
+		}
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			s.sending = false
+			for i, err := range errs {
+				w := batch[i]
+				if s.expired(err) {
+					return
+				}
+				if unreached(err) {
+					s.drop()
+					return
+				}
+				if j := s.waitingFor(w.id); j >= 0 && s.queue[j].version == w.version {
+					s.queue = slices.Delete(s.queue, j, j+1)
+				}
+				if err != nil {
+					s.revert(w.id, w.back)
+				}
+			}
+			if !s.offline {
+				s.flush()
+			}
 		}
 	})
 }
@@ -1887,6 +2058,9 @@ func (s *Screen) label(e client.Entry, now time.Time) string {
 	}
 	if e.Starred {
 		parts = append(parts, s.text.Starred)
+	}
+	if s.waitingFor(e.ID) >= 0 {
+		parts = append(parts, s.text.Pending)
 	}
 	return strings.Join(parts, s.text.Separator)
 }
@@ -3348,6 +3522,22 @@ func (s *Screen) stale(c *ui.Context) {
 		ui.Icon(c, icons.WifiOff).FontSize(px(t, 14)).TextColor(t.Warning)
 		ui.Text(c, s.staleText()).FontSize(px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).SingleLine().
 			MinWidth(0).Shrink(1)
+		busy := s.polling || s.checking
+		name, color := s.text.Retry, t.Accent
+		if busy {
+			name, color = s.text.Retrying, t.TextMuted
+		}
+		b := ui.ButtonBase(c).Height(px(t, 22)).PaddingX(px(t, 8)).Radius(px(t, 6)).Shrink(0).Label(name).Disabled(busy)
+		if b.Hovered() && !busy {
+			b.Background(t.SurfaceHover)
+		}
+		b.Children(func() {
+			ui.Text(c, name).FontSize(px(t, 12)).FontWeight(500).TextColor(color).NoWrap()
+		})
+		if b.Clicked() {
+			s.polledAt = time.Time{}
+			c.Invalidate()
+		}
 	})
 }
 
@@ -3755,6 +3945,9 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 			if e.Starred {
 				ui.Icon(c, icons.Star).FontSize(px(t, 13)).TextColor(theme.Star(t))
 			}
+			if s.waitingFor(e.ID) >= 0 {
+				ui.Icon(c, icons.Upload).FontSize(px(t, 13)).TextColor(muted)
+			}
 			if platform && e.Platform != "" {
 				ui.Text(c, "·").FontSize(px(t, 12)).TextColor(muted).Opacity(0.7)
 				ui.Icon(c, icons.Play).FontSize(px(t, 13)).TextColor(muted)
@@ -4021,6 +4214,9 @@ func (s *Screen) compactRow(c *ui.Context, e client.Entry, now time.Time, narrow
 		MinWidth(0)
 	if e.Starred {
 		ui.Icon(c, icons.Star).FontSize(px(t, 13)).TextColor(theme.Star(t))
+	}
+	if s.waitingFor(e.ID) >= 0 {
+		ui.Icon(c, icons.Upload).FontSize(px(t, 13)).TextColor(muted)
 	}
 	when, width := ui.Color(muted), px(t, 56)
 	if acting {

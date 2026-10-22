@@ -219,6 +219,8 @@ func desktop() {
 		window.OnBlur(focus(false))
 		window.OnHide(focus(false))
 		window.OnMinimize(focus(false))
+		// A computer that wakes may have its network back: the timeline checks the server at once.
+		mygo.Power.OnResume(func() { window.Update(root.wake) })
 		root.restore()
 	})
 	mygo.App.OnSecondInstance(func([]string, string) {

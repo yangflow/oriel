@@ -1116,7 +1116,7 @@ func TestOpenFails(t *testing.T) {
 
 func TestChangeFails(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	f.setErr = errors.New("status 500")
+	f.setErr = &client.APIError{Status: 500, Code: "internal"}
 	tt.Key(0, ui.KeyJ)
 	tt.Key(0, ui.KeyM)
 	if !s.entries[0].IsRead || s.sources[0].UnreadCount != 1 {
@@ -4559,3 +4559,195 @@ func TestFetchResultInChinese(t *testing.T) {
 }
 
 func (f *fake) MutedCount(context.Context, int64, string) (int, error) { return 0, nil }
+
+// polls counts the checks of the first page so far.
+func (f *fake) polls() int { return len(f.queries) }
+
+// pass moves the clock on by wait and draws a frame, then lets the work it started finish.
+func (f *fake) pass(t *testing.T, tt *ui.Tester, wait time.Duration) {
+	t.Helper()
+	f.now = f.now.Add(wait)
+	tt.Frame()
+	f.settle(t, tt)
+}
+
+func TestOfflineBackoff(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.entriesErr = errors.New("offline")
+	f.pass(t, tt, pollEvery)
+	if !s.offline {
+		t.Fatal("the failed check did not take the screen offline")
+	}
+	for i, wait := range []time.Duration{3, 5, 10, 30, 30} {
+		wait *= time.Second
+		before := f.polls()
+		f.pass(t, tt, wait-time.Second)
+		if f.polls() != before {
+			t.Fatalf("retry %d checked %v early", i+1, time.Second)
+		}
+		f.pass(t, tt, time.Second)
+		if f.polls() != before+1 {
+			t.Fatalf("retry %d did not check after %v", i+1, wait)
+		}
+	}
+	f.entriesErr = nil
+	f.pass(t, tt, 30*time.Second)
+	if s.offline || s.failures != 0 {
+		t.Fatal("the check that got through did not end the outage")
+	}
+	before := f.polls()
+	f.pass(t, tt, pollEvery-time.Second)
+	if f.polls() != before {
+		t.Fatal("the usual wait did not come back after the outage")
+	}
+	f.pass(t, tt, time.Second)
+	if f.polls() != before+1 {
+		t.Fatal("the usual check did not run")
+	}
+}
+
+func TestOfflineRetryButton(t *testing.T) {
+	for language, names := range map[string][3]string{
+		"en":      {"Can’t reach the server · last updated 12:00", "Try again", "Retrying…"},
+		"zh-Hans": {"连不上服务端 · 上次更新于 12:00", "重试", "正在重试…"},
+	} {
+		t.Run(language, func(t *testing.T) {
+			s, f, tt := setup(t, language)
+			line, retry, retrying := names[0], names[1], names[2]
+			has := func(text string) bool { return slices.Contains(tt.Texts(), text) }
+			f.entriesErr = errors.New("offline")
+			f.pass(t, tt, pollEvery)
+			if !has(line) || !has(retry) {
+				t.Fatalf("texts %v", tt.Texts())
+			}
+			before := f.polls()
+			if err := tt.Click(retry); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if !has(retrying) || has(retry) {
+				t.Fatalf("the click did not start a check at once: texts %v", tt.Texts())
+			}
+			f.settle(t, tt)
+			tt.Frame()
+			if f.polls() != before+1 {
+				t.Fatalf("the click made %d checks", f.polls()-before)
+			}
+			if !has(retry) || has(retrying) || !s.offline {
+				t.Fatalf("texts %v", tt.Texts())
+			}
+			f.entriesErr = nil
+			if err := tt.Click(retry); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			f.settle(t, tt)
+			tt.Frame()
+			if s.offline || has(line) || has(retry) {
+				t.Fatalf("the line stayed after the server answered: %v", tt.Texts())
+			}
+		})
+	}
+}
+
+func TestCheckOnActivation(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	before := f.polls()
+	s.Check()
+	f.pass(t, tt, time.Second)
+	if f.polls() != before {
+		t.Fatal("bringing the window forward right after a check checked again")
+	}
+	f.now = f.now.Add(checkGap)
+	s.Check()
+	f.pass(t, tt, 0)
+	if f.polls() != before+1 {
+		t.Fatalf("bringing the window forward after %v did not check", checkGap)
+	}
+	f.entriesErr = errors.New("offline")
+	f.pass(t, tt, pollEvery)
+	before = f.polls()
+	s.Check()
+	f.pass(t, tt, 0)
+	if f.polls() != before+1 {
+		t.Fatal("bringing the window forward while offline did not check at once")
+	}
+	f.entriesErr = nil
+	s.Check()
+	f.pass(t, tt, 0)
+	if s.offline {
+		t.Fatal("the check on waking did not notice the server back")
+	}
+	s.Use(nil, "")
+	s.Check()
+}
+
+func TestQueuedChangesKept(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.setErr = errors.New("offline")
+	tt.Key(0, ui.KeyJ)
+	tt.Key(0, ui.KeyM)
+	f.settle(t, tt)
+	if !s.entries[0].IsRead || len(s.queue) != 1 || !s.offline {
+		t.Fatalf("read %v, %d waiting, offline %v", s.entries[0].IsRead, len(s.queue), s.offline)
+	}
+	if tt.HasText("Couldn’t save the change") || !strings.Contains(s.label(s.entries[0], f.now), "Waiting to save") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	// Another change of the same entry while offline is not sent; it folds into the one waiting.
+	sent := len(f.patches[8])
+	tt.Key(0, ui.KeyS)
+	f.settle(t, tt)
+	if len(f.patches[8]) != sent || len(s.queue) != 1 || !s.entries[0].Starred {
+		t.Fatalf("sent %d, waiting %d, starred %v", len(f.patches[8])-sent, len(s.queue), s.entries[0].Starred)
+	}
+	// The server answers the check but still does not take the writes: they wait on.
+	f.pass(t, tt, 3*time.Second)
+	if !s.offline || len(s.queue) != 1 || !s.entries[0].IsRead || !s.entries[0].Starred {
+		t.Fatalf("offline %v, waiting %d", s.offline, len(s.queue))
+	}
+	// Loading the list again shows the changes on top of what the server still has.
+	s.reload()
+	f.settle(t, tt)
+	if !s.entries[0].IsRead || !s.entries[0].Starred {
+		t.Fatal("a list loaded while changes wait lost them")
+	}
+	f.setErr = nil
+	f.pass(t, tt, 30*time.Second)
+	last := f.patches[8][len(f.patches[8])-1]
+	if len(s.queue) != 0 || last.IsRead == nil || !*last.IsRead || last.Starred == nil || !*last.Starred {
+		t.Fatalf("waiting %d, last sent %+v", len(s.queue), last)
+	}
+	if !s.entries[0].IsRead || !s.entries[0].Starred || s.offline || tt.HasText("Couldn’t save the change") {
+		t.Fatal("the changes did not stay after they were sent")
+	}
+	if strings.Contains(s.label(s.entries[0], f.now), "Waiting to save") {
+		t.Fatal("the mark stayed after the change was sent")
+	}
+}
+
+func TestQueuedChangeRefused(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.setErr = errors.New("offline")
+	tt.Key(0, ui.KeyJ)
+	tt.Key(0, ui.KeyM)
+	f.settle(t, tt)
+	f.setErr = &client.APIError{Status: 404, Code: "not_found"}
+	f.pass(t, tt, 3*time.Second)
+	if s.entries[0].IsRead || len(s.queue) != 0 || !tt.HasText("Couldn’t save the change") {
+		t.Fatalf("read %v, waiting %d, texts %v", s.entries[0].IsRead, len(s.queue), tt.Texts())
+	}
+}
+
+func TestQueuedChangesLostWithServer(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.setErr = errors.New("offline")
+	tt.Key(0, ui.KeyJ)
+	tt.Key(0, ui.KeyM)
+	f.settle(t, tt)
+	s.Use(f, "other:7470")
+	f.settle(t, tt)
+	if len(s.queue) != 0 {
+		t.Fatal("the queue outlived the server it was made for")
+	}
+}
