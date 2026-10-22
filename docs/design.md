@@ -775,11 +775,11 @@ Overlays share focus and Escape behavior; see
   icon, radius 8, 4 between neighbors. No fill at rest; hovered `SurfaceHover`, pressed `SurfacePressed`; the icon is
   `TextMuted`, `Text` when hovered or pressed; disabled keeps no fill and the icon turns `Disabled`; an on button (the
   reading-time budget, a pressed toggle) sits on `Soft(Accent)` in `Accent`, and a starred one is `Star`. A button that does not apply to the
-  current article is disabled, never hidden, so the toolbar keeps its shape; it is `aria-disabled`, keeps the focus, and its
-  tooltip and accessible name give the reason (Translate on an article already in the target language: "Already in
-  Simplified Chinese"). The glass capsule and search are pills (radius 16) of their own. The row actions on a row
-  (28 by 24, radius 6, 2 apart) are their own smaller spec with the same fills and colors: they sit on a row that is itself
-  filled, and a 32 button would not fit the meta line. In a narrow window the end buttons of the reader move into More in a
+  current article is disabled, never hidden, so the toolbar keeps its shape; it keeps its place and its label, greyed, and its
+  tooltip and accessible name give the reason (Translate on an article already in the target language still reads
+  "Translate"; the tooltip and name say "Already in Simplified Chinese"). It takes no focus or click. The glass capsule and search are pills (radius 16) of their own. The row actions on a row
+  (28 by 24, radius 6, 2 apart) are their own smaller spec with the same colors, but their hover fill is `SurfacePressed`, since
+  they sit on a row that is itself `SurfaceHover`-filled; a 32 button would not fit the meta line. In a narrow window the end buttons of the reader move into More in a
   fixed order, copy link first, then open in browser, then read/unread (below 500, 440 and 380 wide in the main column); the
   640 wide minimum window reaches the first step only. The menu then lists them above Copy as Markdown, under a hairline.
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.

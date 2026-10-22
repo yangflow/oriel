@@ -901,18 +901,18 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 		if on {
 			label = s.text.HideSummary
 		}
-		if s.toggle(c, icons.Sparkles, label, on, !ready, narrow).Clicked() {
+		if s.toggle(c, icons.Sparkles, label, label, on, !ready, narrow).Clicked() {
 			if on {
 				s.cancel(summary)
 			} else {
 				s.request(summary)
 			}
 		}
-		// A translation the article cannot use stays in place, disabled, and its name says why.
+		// A translation the article cannot use stays in place, disabled, still labelled Translate; its name says why.
 		if !s.canTranslate(e) {
 			reason := s.translateDone()
 			ui.Box(c).Key("translate-done").Tooltip(reason).Children(func() {
-				s.toggle(c, icons.Languages, reason, false, true, narrow)
+				s.toggle(c, icons.Languages, s.text.Translate, reason, false, true, narrow)
 			})
 			return
 		}
@@ -920,7 +920,7 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 		if on {
 			label = s.text.ShowOriginal
 		}
-		if s.toggle(c, icons.Languages, label, on, !ready, narrow).Clicked() {
+		if s.toggle(c, icons.Languages, label, label, on, !ready, narrow).Clicked() {
 			j := s.jobs[translation]
 			switch {
 			case j.on && j.working:
@@ -1111,11 +1111,15 @@ func (s *Screen) tool(c *ui.Context, icon *ui.SVG, label, key string, st theme.T
 }
 
 // toggle is a button of the capsule that stays pressed while on, in the accent color on its soft tint. It carries its
-// name beside the icon, and only the icon in a narrow window.
-func (s *Screen) toggle(c *ui.Context, icon *ui.SVG, label string, on, disabled, narrow bool) ui.Element {
+// label beside the icon, and only the icon in a narrow window. Its name is the label, or the reason it is disabled; only
+// a reason gets a tooltip, as a label alone is never repeated in one.
+func (s *Screen) toggle(c *ui.Context, icon *ui.SVG, label, name string, on, disabled, narrow bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Height(px(t, 28)).Gap(px(t, 6)).Radius(px(t, 14)).Label(label).
+	b := ui.ButtonBase(c).Height(px(t, 28)).Gap(px(t, 6)).Radius(px(t, 14)).Label(name).
 		Disabled(disabled).Role(ui.RoleToggleButton).Checked(on)
+	if name != label {
+		b.Tooltip(name)
+	}
 	if narrow {
 		b.Width(px(t, 30))
 	} else {

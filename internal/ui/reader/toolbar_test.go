@@ -42,14 +42,15 @@ func TestTranslateDisabledInTargetLanguage(t *testing.T) {
 		_, f, tt := setup(t, "en", art)
 		f.ai = client.AIResults{TargetLanguage: "zh-Hans"}
 		f.settle(tt)
-		_, done := tt.Find("Already in Simplified Chinese")
-		_, plain := tt.Find("Translate")
-		if done != tc.done || plain == tc.done {
-			t.Errorf("language %q: reason shows = %v, Translate shows = %v, want %v", tc.language, done, plain, tc.done)
+		// The visible label is Translate either way; the reason is only the accessible name (and the tooltip).
+		done, plain := slices.Contains(tt.Texts(), "Already in Simplified Chinese"), slices.Contains(tt.Texts(), "Translate")
+		if done != tc.done || !plain {
+			t.Errorf("language %q: name is the reason = %v, label is Translate = %v, want %v and true", tc.language, done,
+				plain, tc.done)
 		}
 		expect(t, tt, "Summarize")
 		if tc.done {
-			if err := tt.Click("Already in Simplified Chinese"); err == nil && len(f.queue) > 0 {
+			if err := tt.Click("Translate"); err == nil && len(f.queue) > 0 {
 				t.Errorf("the disabled button asked for a translation")
 			}
 		}
@@ -69,19 +70,17 @@ func TestTranslateDisabledSaysWhy(t *testing.T) {
 		_, f, tt := setup(t, tc.ui, art)
 		f.ai = client.AIResults{TargetLanguage: tc.target}
 		f.settle(tt)
-		r, ok := tt.Find(tc.want)
+		label := map[string]string{"en": "Translate", "zh-Hans": "翻译"}[tc.ui]
+		r, ok := tt.Find(label)
 		if !ok {
-			t.Fatalf("%s: no %q in %v", tc.ui, tc.want, tt.Texts())
+			t.Fatalf("%s: no %q in %v", tc.ui, label, tt.Texts())
+		}
+		if n := count(tt.Texts(), tc.want); n != 1 {
+			t.Errorf("%s: the reason %q shows %d times before any hover, want once, as the accessible name", tc.ui, tc.want, n)
 		}
 		tt.Move(r.X+r.W/2, r.Y+r.H/2)
 		tt.Advance(time.Second)
-		n := 0
-		for _, text := range tt.Texts() {
-			if text == tc.want {
-				n++
-			}
-		}
-		if n < 2 {
+		if count(tt.Texts(), tc.want) != 2 {
 			t.Errorf("%s: the tooltip %q does not show on hover: %v", tc.ui, tc.want, tt.Texts())
 		}
 	}
@@ -175,4 +174,14 @@ func TestBarEdge(t *testing.T) {
 	if again := row(); again != top {
 		t.Errorf("the hairline stays at the top: %v, want %v", again, top)
 	}
+}
+
+func count(texts []string, want string) int {
+	n := 0
+	for _, text := range texts {
+		if text == want {
+			n++
+		}
+	}
+	return n
 }
