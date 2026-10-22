@@ -34,7 +34,7 @@ import (
 var catalog []byte
 
 type copy struct {
-	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Shortcut, Lead, Fetching, OPML, Devices, RSSHub                  string
+	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Lead, Fetching, OPML, Devices, RSSHub                            string
 	RSSHubHelp, RSSHubPlaceholder, Save, Saved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp            string
 	InvalidBaseAny, TooManyBase                                                                                              string
 	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp           string
@@ -1347,9 +1347,8 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 		ui.Box(c).FillWidth().Height(40).DragWindow()
 		ui.Row(c).FillWidth().Height(px(t, 36)).AlignItems(ui.Center).PaddingX(t.Space(2)).Children(func() {
 			label := s.text.BackTimeline
-			tip := strings.NewReplacer("{action}", label, "{key}", "Esc").Replace(s.text.Shortcut)
 			b := ui.ButtonBase(c).Height(px(t, 28)).MinWidth(0).Shrink(1).Gap(2).Padding(0, t.Space(2), 0, t.Space(1)).
-				Radius(t.Space(1.5)).Label(label).Tooltip(tip)
+				Radius(t.Space(1.5)).Label(label)
 			color := t.TextMuted
 			if b.Pressed() {
 				b.Background(t.SurfacePressed)

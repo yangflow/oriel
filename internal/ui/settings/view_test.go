@@ -1700,3 +1700,42 @@ func TestReadingFontEscape(t *testing.T) {
 		t.Fatalf("back %d", f.back)
 	}
 }
+
+// tipShows hovers the element with the given text and says whether a tooltip with the same text came up: the text then
+// shows once more, as the tooltip's own.
+func tipShows(t *testing.T, tt *ui.Tester, name string) bool {
+	t.Helper()
+	count := func() int {
+		n := 0
+		for _, text := range tt.Texts() {
+			if text == name {
+				n++
+			}
+		}
+		return n
+	}
+	r, ok := tt.Find(name)
+	if !ok {
+		t.Fatalf("no %q in %v", name, tt.Texts())
+	}
+	tt.Move(0, 0)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	before := count()
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	return count() > before
+}
+
+// "Back to the timeline" shows its name and has no tooltip.
+func TestBackHasNoTooltip(t *testing.T) {
+	s, _, tt := setup(t, "en", true)
+	tt.SetSize(1400, 900)
+	tt.Frame()
+	if tipShows(t, tt, s.text.BackTimeline) {
+		t.Errorf("%q has a tooltip", s.text.BackTimeline)
+	}
+}

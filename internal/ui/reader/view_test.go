@@ -1486,3 +1486,53 @@ func TestToolbarInset(t *testing.T) {
 		t.Fatalf("Back moved from %v to %v, want at least 78 further right", shown.X, hidden.X)
 	}
 }
+
+// tipShows hovers the element with the given text and says whether a tooltip with the same text came up: the text then
+// shows once more, as the tooltip's own.
+func tipShows(t *testing.T, tt *ui.Tester, name string) bool {
+	t.Helper()
+	count := func() int {
+		n := 0
+		for _, text := range tt.Texts() {
+			if text == name {
+				n++
+			}
+		}
+		return n
+	}
+	r, ok := tt.Find(name)
+	if !ok {
+		t.Fatalf("no %q in %v", name, tt.Texts())
+	}
+	tt.Move(0, 0)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	before := count()
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	return count() > before
+}
+
+// The back button names itself in text and has no tooltip, nor has the Summarize toggle, in a wide window or a narrow
+// one where only its icon shows; the icon-only buttons of the toolbar keep theirs.
+func TestTooltips(t *testing.T) {
+	for _, width := range []int{1400, 700} {
+		s, f, tt := setup(t, "en", full())
+		tt.SetSize(width, 900)
+		f.settle(tt)
+		tt.Frame()
+		back := strings.ReplaceAll(s.text.Back, "{scope}", "All")
+		if tipShows(t, tt, back) {
+			t.Errorf("width %d: %q has a tooltip", width, back)
+		}
+		if tipShows(t, tt, "Summarize") {
+			t.Errorf("width %d: Summarize has a tooltip", width)
+		}
+		if !tipShows(t, tt, s.text.CopyLink) {
+			t.Errorf("width %d: %q has no tooltip", width, s.text.CopyLink)
+		}
+	}
+}

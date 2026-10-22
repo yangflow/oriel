@@ -9,7 +9,6 @@ import (
 	"errors"
 	"net/url"
 	"path"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,7 +27,7 @@ import (
 var catalog []byte
 
 type copy struct {
-	Add, AddShort, AddContinue, AddContinueTip, Done, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs                           string
+	Add, AddShort, AddContinue, Done, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs                                           string
 	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute                                                        string
 	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo                                                               string
 	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder, PublicNote, PublicNoInstance, UseMine, Blocked, BlockedPublic string
@@ -534,14 +533,6 @@ func (s *Screen) submit(more bool) {
 			}
 		}
 	})
-}
-
-// continueKey writes the shortcut of "Add and continue", ⌘Enter on macOS and Ctrl+Enter elsewhere.
-func continueKey() string {
-	if runtime.GOOS == "darwin" {
-		return "⌘Enter"
-	}
-	return "Ctrl+Enter"
 }
 
 // addedLine says what the dialog has added so far, "" before the first.
@@ -1223,7 +1214,6 @@ func (s *Screen) addDialog(c *ui.Context) {
 			a.open = false
 		}
 		more := button(c, secondary, !s.canAdd() && !a.busy)
-		more.Tooltip(strings.ReplaceAll(s.text.AddContinueTip, "{key}", continueKey()))
 		textButton(c, more, secondary, nil, s.text.AddContinue, false)
 		if more.Clicked() {
 			s.submit(true)
@@ -1529,7 +1519,7 @@ func (s *Screen) kindPicker(c *ui.Context, value *int) {
 				for i, kind := range kinds {
 					name := s.kindName(kind)
 					b := theme.Fade(seg.Segment(i).Grow(1).Basis(0).Height(px(t, 28)).Gap(t.Space(1.5)).Radius(7).
-						Label(name).Tooltip(name))
+						Label(name))
 					color, iconColor := t.TextMuted, t.TextMuted
 					switch {
 					case i == *value:

@@ -1232,3 +1232,48 @@ func TestHealthDialogChinese(t *testing.T) {
 		}
 	}
 }
+
+// tipShows hovers the element with the given text and says whether a tooltip with the same text came up: the text then
+// shows once more, as the tooltip's own.
+func tipShows(t *testing.T, tt *ui.Tester, name string) bool {
+	t.Helper()
+	count := func() int {
+		n := 0
+		for _, text := range tt.Texts() {
+			if text == name {
+				n++
+			}
+		}
+		return n
+	}
+	r, ok := tt.Find(name)
+	if !ok {
+		t.Fatalf("no %q in %v", name, tt.Texts())
+	}
+	tt.Move(0, 0)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	before := count()
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	return count() > before
+}
+
+// The kinds of the add dialog and "Add and continue" show their names and have no tooltip; the close button, which
+// shows only an icon, keeps its own.
+func TestAddDialogTooltips(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	tt.SetSize(1400, 900)
+	open(t, s, f, tt)
+	for _, name := range []string{s.text.Video, "Add and continue"} {
+		if tipShows(t, tt, name) {
+			t.Errorf("%q has a tooltip", name)
+		}
+	}
+	if !tipShows(t, tt, s.text.Close) {
+		t.Errorf("%q has no tooltip", s.text.Close)
+	}
+}
