@@ -29,6 +29,10 @@ type FeedSource struct {
 	// AITasks are the AI tasks queued for each new entry, from the source's automatic switches.
 	// The fetcher clears them while AI is not configured.
 	AITasks []string
+	// WebSubHub and WebSubTopic are the hub and topic the feed declared at its last fetch, empty for none.
+	WebSubHub, WebSubTopic string
+	// WebSubUntil is when the active push subscription runs out, zero when there is none.
+	WebSubUntil time.Time
 }
 
 // NewSource describes a subscription to add. Exactly one of URL and RSSHubPath is set.
@@ -47,7 +51,8 @@ type NewSource struct {
 func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]FeedSource, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, fetch_interval_auto, last_success_at IS NULL, consecutive_failures,
-			auto_summary, auto_translate, site_url, icon_url, icon_checked_site
+			auto_summary, auto_translate, site_url, icon_url, icon_checked_site, websub_hub, websub_topic,
+			CASE WHEN websub_state = 'active' THEN websub_expires_at END
 		FROM sources WHERE paused = 0 AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
@@ -59,10 +64,14 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		var src FeedSource
 		var interval int64
 		var summary, translate bool
+		var until sql.NullInt64
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
 			&interval, &src.FetchIntervalAuto, &src.FirstSuccess, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
-			&src.IconCheckedSite); err != nil {
+			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until); err != nil {
 			return nil, err
+		}
+		if until.Valid {
+			src.WebSubUntil = time.UnixMilli(until.Int64)
 		}
 		src.FetchInterval = time.Duration(interval) * time.Second
 		if summary {

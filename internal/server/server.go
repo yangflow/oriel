@@ -84,6 +84,8 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("POST /auth/logout", s.authed(s.logout))
 	mux.HandleFunc("GET /api/sessions", s.authed(s.sessions))
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.authed(s.revoke))
+	mux.HandleFunc("GET /websub/{key}", s.websub)
+	mux.HandleFunc("POST /websub/{key}", s.websub)
 	mux.HandleFunc("GET /api/sources", s.authed(s.listSources))
 	mux.HandleFunc("POST /api/sources", s.authed(s.createSource))
 	mux.HandleFunc("GET /api/sources/health", s.authed(s.sourcesHealth))

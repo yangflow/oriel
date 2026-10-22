@@ -202,6 +202,7 @@ func (p *Poller) Run(ctx context.Context) {
 	}
 	wg.Go(func() { every(ctx, extractEvery, p.extractAll) })
 	wg.Go(func() { every(ctx, pruneCheck, p.prune) })
+	wg.Go(func() { every(ctx, websubEvery, p.websubRound) })
 	wg.Wait()
 }
 
@@ -489,6 +490,9 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 	if err != nil {
 		return 0, fmt.Errorf("not a feed: %w", err)
 	}
+	if err := p.noteWebSub(ctx, src, resp.Header, body, base); err != nil {
+		return 0, err
+	}
 	var expired time.Time
 	if keep := p.retention(ctx); keep > 0 {
 		expired = now.Add(-keep)
@@ -533,7 +537,11 @@ func (p *Poller) recordSuccess(ctx context.Context, src store.FeedSource, etag, 
 		interval = AutoInterval(published)
 		stored = interval
 	}
-	return p.store.FetchSuccess(ctx, src.ID, etag, lastModified, instance, now, now.Add(interval), stored)
+	next, err := p.nextFetch(ctx, src, interval, now)
+	if err != nil {
+		return err
+	}
+	return p.store.FetchSuccess(ctx, src.ID, etag, lastModified, instance, now, next, stored)
 }
 
 // unavailable marks a network failure of an RSSHub instance, so that the route goes on to the next one. A canceled

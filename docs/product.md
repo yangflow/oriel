@@ -80,6 +80,9 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `auto_summary`、`auto_translate` | 按源开关，默认关。没有全局开关。 |
 | `mute_keywords` | 按行分隔的屏蔽词，见「屏蔽词」。 |
 | `paused` | 暂停的源不抓，也不能标到期。 |
+| `websub_hub`、`websub_topic` | 订阅里声明的 WebSub hub 和主题（`rel="self"`），没有为空串，见「WebSub 推送」。迁移 0012 加这组 `websub_*` 列。 |
+| `websub_key`、`websub_secret` | 这个源的回调路径令牌和签名密钥，各自随机生成，只存库里，接口不下发。 |
+| `websub_state`、`websub_expires_at`、`websub_requested_at`、`websub_base`、`websub_next_at`、`websub_failures`、`websub_error` | 订阅状态：`''`（没订）、`pending`（等 hub 验证）、`active`（租约有效到 `websub_expires_at`）；最近一次请求的时间和当时用的公开地址；下一次动作（订阅或续订）的时间；连续失败次数和最近的原因。 |
 
 `url` 和 `rsshub_path` 合起来唯一，同一订阅不能加两次。比较订阅地址时先规范化：协议和主机名小写、去掉默认端口（http 的 80、https 的 443）和 `#` 片段、路径末尾的 `/` 忽略（空路径等于 `/`），所以 `https://a/feed` 和 `https://A:443/feed/` 算同一个订阅；查询串不同则不同。库里仍存用户给的原样地址，不改写。数据库的唯一索引只拦完全相同的写法，规范化比较在添加时做（订阅数不大，逐个比较，不加索引）。
 
@@ -242,6 +245,29 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 
 抓订阅时认 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，不读系统代理设置。
 
+## WebSub 推送
+
+默认关闭。声明了 WebSub hub 的源可以让 hub 在有新内容时主动通知 Oriel，新条目几秒内出现，而不必等下一次轮询。推送只是让源「马上到期」，内容仍由正常的抓取取回；轮询一直都在，推送失效时回到原来的节奏。
+
+**开关。** 设置 `websub_base_url` 是服务端对外可达的公开根地址（例如 `https://oriel.example.com`），hub 要能从公网连到它。没设（默认）时整个功能关闭：不发现、不订阅、不续订，回调路由返回 404，所有源照旧轮询。这个地址必须是带主机名的 https 绝对地址，不带查询串和片段，末尾的 `/` 去掉；可以带路径前缀（服务端放在反向代理的子路径下时）。服务端自己不做 TLS，也不替用户开放端口：没设口令时仍只听 `127.0.0.1`（见「鉴权」），要收推送得用户自己用反向代理或隧道把公开地址转到本机端口。
+
+**发现。** 开关打开时，每次成功抓到订阅内容（不含 304）就从中找 hub 和主题：HTTP 响应头 `Link` 的 `rel="hub"` 和 `rel="self"`，Atom 或 RSS 里属于订阅本身（不是某个条目）的 `<atom:link rel="hub|self">`，JSON Feed 的 `hubs[0].url` 和 `feed_url`。响应头优先。hub 必须是 http 或 https 地址，主题没有 `self` 时用这次抓取的地址；RSSHub 源也一样处理。hub 或主题和库里的不同就更新，同时作废旧的订阅（状态回到 `''`，下一轮重新订阅）；订阅里不再声明 hub 就清掉。
+
+**订阅。** 后台有自己的循环（不占抓取线程），每 30 秒一轮，每轮最多处理 50 个到了 `websub_next_at` 的源：未暂停、有 hub，且 `websub_next_at` 已到或 `websub_base` 和现在的公开地址不同。流程：
+
+1. 没有时先生成 `websub_key`（16 字节随机，十六进制）和 `websub_secret`（32 字节随机，十六进制），记下 `websub_requested_at`、`websub_base`，再发请求。先写库再发，因为 hub 可能在请求返回之前就来验证。
+2. 向 hub 发 `POST`，表单 `hub.mode=subscribe`、`hub.topic`、`hub.callback=<公开地址>/websub/<websub_key>`、`hub.secret`、`hub.lease_seconds=864000`（10 天）。请求经同一个受限客户端发出（hub 地址来自订阅内容，规则同「正文抽取」：只连公网地址，不走代理，重定向最多 5 次）。
+3. hub 回 202 或 204 算受理，之后等验证；`websub_next_at` 设为 10 分钟后，验证没到就重新订阅。其他状态码、连不上、超时都算失败：`websub_failures` 加一，原因写进 `websub_error`，下一次不早于 `min(10 分钟 × 2^(n−1), 24 小时)` 之后。
+
+**验证和推送。** 回调路由 `/websub/{key}` 不要会话（设了口令时也一样），它是唯一不要会话的路由（`GET /health` 和登录除外）；保护靠不可猜的 `key`、逐项核对和签名。`key` 对不上任何源、开关没打开、源已暂停，一律 404。
+
+- `GET`（hub 的验证）：只有 `hub.mode=subscribe`，且 `hub.topic` 等于该源的 `websub_topic`，且一小时内发过订阅请求（`websub_requested_at`）时才接受，否则 404。接受时原样回 `hub.challenge`（`200`，`text/plain`，最长 1000 字符，更长或缺失 400），记 `websub_state=active`，`websub_expires_at = 现在 + hub.lease_seconds`（缺省按 24 小时，最长按 90 天，最短按 60 秒），`websub_next_at = 现在 + 租约 × 0.8`（到点续订，续订就是再发一次 subscribe），清掉 `websub_requested_at`、`websub_failures` 和 `websub_error`。`hub.mode=denied`（同样要核对主题和一小时内的请求）：回 200，`websub_failures` 加一，`hub.reason` 写进 `websub_error`，按上面的退避排下一次，租约还没过期的订阅保持有效。我们从不发 `unsubscribe`，收到它回 404。
+- `POST`（推送）：要求状态是 `active` 且租约没过期，否则 404。整个请求体（最大 8 MiB，超过 413）必须带 `X-Hub-Signature: <算法>=<十六进制>`，算法是 `sha1`、`sha256`、`sha384`、`sha512` 之一，用 `websub_secret` 做 HMAC，常数时间比较。签名缺失或不对时按规范回 2xx（202）但整条丢掉，什么都不做。签名对时把源标为马上到期（和「更新」一样，暂停的源不动），回 202；**推送的内容不当作条目**，抓取循环几秒内会照常取订阅，经过同一条路径（条件请求、解析、去重、保留期限）。
+
+**轮询兜底。** 源的 `websub_state` 是 `active`、租约没过期，且开关还开着时，叫「推送中」。推送中的源每次成功抓取后，下一次抓取排在 `min(max(抓取间隔, 6 小时), 租约到期时刻)`；其余情况（没订阅、等验证、失败、租约过期、开关关了、hub 不见了）都按原来的间隔，所以丢了 hub 或续订失败，最迟在租约到期时就回到正常轮询。失败的抓取不受影响，仍按失败退避。用户点「更新」不受推送影响。
+
+不主动退订：源删除、暂停或不再有 hub 时，回调回 404，hub 会因此放弃，租约到期后也自然失效。
+
 ## 正文抽取
 
 抽取在自己的循环里，每 5 秒一轮，不等抓取，也不挡抓取：每轮取最多 4 条等待抽取的文章，同时抽，先取从没试过的（新的在前），再取失败且到了 `next_extract_at` 的。同一个网站（主机名加端口）两次请求至少隔 5 秒，一轮里每个网站最多取一条，轮到不了的留到下一轮。抽取和订阅抓取共用「抓取」里的每主机限制：同一个主机上正在进行的请求（抓取加抽取）最多 2 个。源后来改成别的形态时，它的条目不再抽。
@@ -271,7 +297,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 ## 鉴权
 
 - 没设口令时，服务端只听 `127.0.0.1`，不校验。桌面模式默认这样。
-- 设了口令时听所有网卡，除 `GET /health` 和 `POST /auth/login` 外都要会话。
+- 设了口令时听所有网卡，除 `GET /health`、`POST /auth/login` 和 WebSub 回调 `/websub/{key}` 外都要会话。回调只在设了 `websub_base_url` 时才有效，靠不可猜的 `key` 和每个源自己的签名密钥保护，见「WebSub 推送」。
 - 口令不写进日志和数据库。启动时用 PBKDF2-SHA256（60 万轮、随机盐）派生一次，登录时同样派生后用常数时间比较。
 - 登录请求的坏 JSON 返回 401，不是字段校验错误。
 - 登录限速，防止猜口令和拖垮服务：同一个客户端地址（`RemoteAddr`，不看 `X-Forwarded-For`）连续输错 5 次不受限，第 6 次错起锁 1 秒，之后每多错一次翻倍，最长 15 分钟；锁定期间的登录不再派生密钥，直接返回 429、`error` 为 `too_many_attempts`，`Retry-After` 给出剩余秒数。登录成功清掉该地址的记录，安静满 1 小时的记录也会清掉，内存里最多留 1 万条。
@@ -285,12 +311,12 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 - 只用标准库 `net/http`。JSON 字段用 camelCase。
 - 出错时返回 `{ "error": "<代码>" }`，代码是稳定的小写英文，界面据此显示本地化文案。
 - `GET /health` 不要鉴权，返回版本、是否要求口令、数据库是否可写。数据库不可写时 503。
-- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「设置接口」「OPML 接口」「AI 摘要和翻译」「图片代理」六节的路由。其余路由随各自的功能加进来，并写进这一节。
+- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「设置接口」「OPML 接口」「AI 摘要和翻译」「图片代理」六节的路由。`GET|POST /websub/{key}`（WebSub 回调，不要会话，见「WebSub 推送」），其余路由随各自的功能加进来，并写进这一节。
 - 请求体是 JSON，最大 64 KiB；坏 JSON、多出未知字段或类型不对返回 400 `invalid_body`。
 
 ## 订阅接口
 
-都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
+都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
 
 | 路由 | 作用 |
 |---|---|
@@ -380,6 +406,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 - `rsshubBaseUrls`：RSSHub 根地址的列表，按优先级排，第一个是主实例，没设为 `[]`。
 - `rsshubBaseUrl`：旧字段，等于 `rsshubBaseUrls` 的第一个，没设为空串。老客户端还读它；新客户端读列表。
 - `retentionDays`：保留期限的天数，`0` 是永久。
+- `websubBaseUrl`：WebSub 回调用的公开根地址，没设（功能关闭）为空串，见「WebSub 推送」。
 - `aiBaseUrl`：OpenAI 兼容接口的根地址，例如 `https://api.openai.com/v1`，没设为空串。
 - `aiModel`：模型名，没设为空串。
 - `aiApiKeySet`：是否存了 API key。key 本身只能写（`PATCH` 的 `aiApiKey`），不下发。
@@ -397,6 +424,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 - `rsshubBaseUrls` 是字符串数组，每个去掉首尾空白，必须是带主机名的 http 或 https 绝对地址，可以指向本机或内网，不然 `invalid_rsshub_base_url`；空数组表示不设；末尾的 `/` 去掉，重复的（不分大小写）只留第一个，空串忽略；规整后超过 5 个时 `too_many_rsshub_base_urls`。库里按行存（设置 `rsshub_base_url`，一行一个）。
 - `rsshubBaseUrl` 是旧字段，仍可写：去掉首尾空白，空串表示不设，否则等同于只有这一个地址的 `rsshubBaseUrls`，同样的规则和错误码。同一个请求里两个字段都带时，`rsshubBaseUrls` 为准。
 - `retentionDays` 是 0 到 3650 的整数，否则 `invalid_retention_days`；不是整数时 `invalid_body`。库里存的值读不成天数时按永久处理，返回 `0`（见「保留期限」）。
+- `websubBaseUrl` 去掉首尾空白，空串表示关闭；否则必须是带主机名的 https 绝对地址，不带用户信息、查询串和片段，不然 `invalid_websub_base_url`。末尾的 `/` 去掉。库里存在 `websub_base_url`。
 - `aiBaseUrl` 去掉首尾空白，空串表示不设；否则必须是带主机名的 http 或 https 绝对地址，可以指向本机或内网（例如本机的 Ollama），不然 `invalid_ai_base_url`。末尾的 `/` 去掉。
 - `aiModel` 去掉首尾空白，最多 200 个字符，否则 `invalid_ai_model`。
 - `aiApiKey` 去掉首尾空白后存下，空串表示删掉；最多 4096 个字符，否则 `invalid_ai_api_key`。本机的模型可以不要 key。

@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -22,10 +23,12 @@ type settingsJSON struct {
 	RSSHubBaseURLs []string `json:"rsshubBaseUrls"`
 	RSSHubBaseURL  string   `json:"rsshubBaseUrl"`
 	RetentionDays  int      `json:"retentionDays"`
-	AIBaseURL      string   `json:"aiBaseUrl"`
-	AIModel        string   `json:"aiModel"`
-	AIAPIKeySet    bool     `json:"aiApiKeySet"`
-	AILanguage     string   `json:"aiLanguage"`
+	// The public address of this server that WebSub hubs call back, empty while WebSub is off.
+	WebSubBaseURL string `json:"websubBaseUrl"`
+	AIBaseURL     string `json:"aiBaseUrl"`
+	AIModel       string `json:"aiModel"`
+	AIAPIKeySet   bool   `json:"aiApiKeySet"`
+	AILanguage    string `json:"aiLanguage"`
 	// The characters sent for a summary and per piece of a translation, and their defaults.
 	AISummaryLimit        int    `json:"aiSummaryLimit"`
 	AIChunkLimit          int    `json:"aiChunkLimit"`
@@ -54,6 +57,11 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	if err != nil || days < 0 || days > fetch.MaxRetentionDays {
 		days = 0
 	}
+	websub, err := fetch.WebSubBase(r.Context(), s.store)
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	cfg, err := ai.Load(r.Context(), s.store)
 	if err != nil {
 		internal(w, err)
@@ -68,7 +76,7 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		primary = instances[0]
 	}
 	reply(w, http.StatusOK, settingsJSON{
-		RSSHubBaseURLs: instances, RSSHubBaseURL: primary, RetentionDays: days, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
+		RSSHubBaseURLs: instances, RSSHubBaseURL: primary, RetentionDays: days, WebSubBaseURL: websub, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
 		AIAPIKeySet: cfg.APIKey != "", AILanguage: cfg.Language,
 		AISummaryLimit: cfg.SummaryLimit, AIChunkLimit: cfg.ChunkLimit, DefaultAISummaryLimit: ai.DefaultSummary,
 		DefaultAIChunkLimit: ai.DefaultChunk, PromptSummary: cfg.PromptSummary,
@@ -82,6 +90,7 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		RSSHubBaseURLs  *[]string `json:"rsshubBaseUrls"`
 		RSSHubBaseURL   *string   `json:"rsshubBaseUrl"`
 		RetentionDays   *int      `json:"retentionDays"`
+		WebSubBaseURL   *string   `json:"websubBaseUrl"`
 		AIBaseURL       *string   `json:"aiBaseUrl"`
 		AIModel         *string   `json:"aiModel"`
 		AIAPIKey        *string   `json:"aiApiKey"`
@@ -118,6 +127,14 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		changes = append(changes, [2]string{fetch.RetentionSetting, strconv.Itoa(days)})
+	}
+	if body.WebSubBaseURL != nil {
+		root := strings.TrimRight(strings.TrimSpace(*body.WebSubBaseURL), "/")
+		if root != "" && !websubBase(root) {
+			fail(w, http.StatusBadRequest, "invalid_websub_base_url")
+			return
+		}
+		changes = append(changes, [2]string{fetch.WebSubSetting, root})
 	}
 	if body.AIBaseURL != nil {
 		root := strings.TrimSpace(*body.AIBaseURL)
@@ -205,4 +222,12 @@ func rsshubInstances(roots []string) (string, string) {
 		return "", "too_many_rsshub_base_urls"
 	}
 	return strings.Join(instances, "\n"), ""
+}
+
+// websubBase reports whether root can be the public address hubs call back: an https address with a host, and no
+// credentials, query or fragment.
+func websubBase(root string) bool {
+	u, err := url.Parse(root)
+	return err == nil && u.Scheme == "https" && u.Hostname() != "" && u.User == nil && u.RawQuery == "" &&
+		u.Fragment == "" && !strings.ContainsAny(root, "\r\n ")
 }

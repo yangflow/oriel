@@ -44,6 +44,8 @@ type sourceJSON struct {
 	MuteKeywords        string `json:"muteKeywords"`
 	Paused              bool   `json:"paused"`
 	RSSHubInstance      string `json:"rsshubInstance"`
+	WebSubHub           string `json:"websubHub"`
+	WebSubActive        bool   `json:"websubActive"`
 	UnreadCount         int    `json:"unreadCount"`
 	CreatedAt           int64  `json:"createdAt"`
 	UpdatedAt           int64  `json:"updatedAt"`
@@ -62,7 +64,8 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, RSSHubInstance: src.RSSHubInstance, UnreadCount: src.UnreadCount,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, RSSHubInstance: src.RSSHubInstance, WebSubHub: src.WebSubHub,
+		WebSubActive: src.WebSubUntil.After(time.Now()), UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
 }
