@@ -32,6 +32,8 @@
      beside it, and ". Oldest first" added to its name); it is a device preference, and in the oldest-first order no
      "N new" pill ever shows. dense is Settings > Appearance > Timeline > List density
      Compact: the same rows with less padding and smaller gaps, nothing left out.
+     The bar is solid: it has no edge at the top, and scrolled (the list moved up under it) shows a hairline.
+     Toolbar icon buttons are one spec, 32 square, 8 radius, 4 apart; a row's actions are smaller, 28 by 24 (docs/design.md, Toolbar buttons).
      Mark all as read names its scope in its tooltip, acts at once and offers Undo in a toast (marked-read), never a confirmation. N goes to the next
      unread entry; no-more-unread is what it says when there is none below. ? opens the keyboard shortcuts (keys).
      Cmd/Ctrl+K opens the command palette: palette (empty query: Actions, Kinds, then every subscription, the first
@@ -143,8 +145,7 @@
   --accent:#2a6d65; --accent-hover:#225a54; --accent-text:#ffffff; --accent-soft:rgba(42,109,101,.09); --focus:rgba(42,109,101,.45);
   --danger:#b4533c; --danger-soft:rgba(180,83,60,.09); --warning:#9a7222; --warning-soft:rgba(154,114,34,.10); --success:#4c7c59; --star:#b98a22;
   --chrome:#37332e; --chrome-ink:255,248,235; --chrome-text:#ece7dd; --chrome-text2:#cdc7bb; --chrome-muted:#a49e91;
-  --glass:rgba(255,254,251,.66); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.95), 0 0 0 .5px rgba(var(--ink),.12), 0 2px 12px rgba(var(--ink),.07);
-  --edge:color-mix(in srgb,var(--background) 96%,transparent) }
+  --glass:rgba(255,254,251,.66); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.95), 0 0 0 .5px rgba(var(--ink),.12), 0 2px 12px rgba(var(--ink),.07) }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0b0c0c; --stage-text:#8a918f;
   --background:#171918; --surface:#1d1f1e; --raised:#252827; --track:#2c2f2e; --disabled:#565b59;
   --text:#dde1df; --text2:#aab0ae; --muted:#8a918f; --prose:#c3c9c7;
@@ -152,8 +153,7 @@
   --accent:#78beb1; --accent-hover:#8ccbbf; --accent-text:#10241f; --accent-soft:rgba(120,190,177,.12); --focus:rgba(120,190,177,.5);
   --danger:#e0897a; --danger-soft:rgba(224,137,122,.13); --warning:#d6aa55; --warning-soft:rgba(214,170,85,.13); --success:#8ab997; --star:#e2b24f;
   --chrome:#1a2422; --chrome-ink:235,248,244; --chrome-text:#e8eeec; --chrome-text2:#cbd5d2; --chrome-muted:#93a39f;
-  --glass:rgba(58,63,62,.52); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 .5px rgba(0,0,0,.55);
-  --edge:color-mix(in srgb,var(--background) 96%,transparent) }
+  --glass:rgba(58,63,62,.52); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 .5px rgba(0,0,0,.55) }
 * { box-sizing:border-box }
 html { -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility }
 body { margin:0; padding:24px; font:13px/1.5 system-ui,-apple-system,"SF Pro Text","PingFang SC","Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
@@ -256,7 +256,9 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 /* Toolbar: no bar. The title is bare over the content, which fades under it (the soft scroll edge). The segmented
    control is the one glass capsule; search is a flat ink fill and the tools are bare icons. */
 .main { flex:1; min-width:0; display:flex; flex-direction:column; position:relative }
-.main::after { content:""; position:absolute; top:0; left:0; right:0; height:76px; background:linear-gradient(var(--edge) 52px,transparent); pointer-events:none; z-index:1 }
+.main::before { content:""; position:absolute; top:0; left:0; right:0; height:52px; background:var(--background); z-index:1; pointer-events:none }
+.main::after { content:""; position:absolute; top:52px; left:0; right:0; height:.5px; background:var(--border); opacity:0; transition:opacity 120ms ease-out; z-index:1; pointer-events:none }
+.main.scrolled::after { opacity:1 }
 .toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:10px; padding:0 12px 0 12px }
 .toolbar .lead, .toolbar .trail { flex:1 1 0; min-width:0; display:flex; align-items:center; gap:10px }
 .toolbar .trail { justify-content:flex-end }
@@ -294,12 +296,12 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .search input::placeholder { color:var(--muted) }
 .search .clear { width:20px; height:20px; display:grid; place-items:center; border-radius:6px }
 .search .clear svg.icon { width:14px; height:14px }
-.tool { width:32px; height:32px; display:grid; place-items:center; border-radius:16px; color:var(--muted) }
+.tool { width:32px; height:32px; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
 .tool:hover { background:var(--hover); color:var(--text) }
 .tool:active { background:var(--pressed) }
 .tool[aria-disabled=true] { color:var(--disabled) }
 .tool[aria-disabled=true]:hover { background:none; color:var(--disabled) }
-.timebtn { flex:none; position:relative; height:32px; min-width:32px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:16px; color:var(--muted) }
+.timebtn { flex:none; position:relative; height:32px; min-width:32px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:8px; color:var(--muted) }
 .timebtn:hover { background:var(--hover); color:var(--text) }
 .timebtn.on, .timebtn.on:hover { padding:0 12px 0 9px; background:var(--accent-soft); color:var(--accent); font-size:12px; font-weight:500; letter-spacing:.01em; white-space:nowrap; font-variant-numeric:tabular-nums }
 .timebtn.tint, .timebtn.tint:hover { background:var(--accent-soft); color:var(--accent) }
@@ -389,9 +391,9 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .single { margin-top:8px; aspect-ratio:3/2; max-height:320px; border-radius:12px }
 
 /* Row actions: bare icons that fade in over the meta band, never a popover. */
-.actions { position:absolute; top:14px; right:10px; display:flex; visibility:hidden; opacity:0; transition:opacity 120ms ease-out, visibility 0s 120ms }
+.actions { position:absolute; top:14px; right:10px; display:flex; gap:2px; visibility:hidden; opacity:0; transition:opacity 120ms ease-out, visibility 0s 120ms }
 .row.hover .actions, .row.chosen .actions, .row:hover .actions, .vcard.hover .actions, .vcard:hover .actions, .mtile.hover .actions, .mtile:hover .actions { visibility:visible; opacity:1; transition:opacity 120ms ease-out, visibility 0s }
-.actions button { width:27px; height:24px; display:grid; place-items:center; border-radius:7px; color:var(--muted) }
+.actions button { width:28px; height:24px; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
 .actions button:hover { background:var(--pressed); color:var(--text) }
 .actions button:active { background:var(--sel) }
 .actions button.starred { color:var(--star) }
@@ -591,7 +593,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense'];
+const states=['list','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -1092,5 +1094,7 @@ if(state==='long-titles'){const item=[...document.querySelectorAll('.nav .item')
 const tipped=document.getElementById('tipped');
 if(tipped){const w=document.getElementById('window').getBoundingClientRect(),r=tipped.getBoundingClientRect();
   document.getElementById('window').insertAdjacentHTML('beforeend',`<div class="tip" role="tooltip" style="left:${r.left-w.left-8}px;top:${r.bottom-w.top+6}px">${tipped.title}</div>`)}
+if(state==='scrolled')document.querySelector('.scroll').scrollTop=120;
+{const sc=document.querySelector('.scroll'),mn=document.querySelector('.main');if(sc&&mn){const bar=()=>mn.classList.toggle('scrolled',sc.scrollTop>0);sc.addEventListener('scroll',bar);bar()}}
 </script>
 </html>
