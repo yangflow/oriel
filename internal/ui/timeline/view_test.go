@@ -210,6 +210,8 @@ func (f *fake) SetSettings(context.Context, client.SettingsPatch) (client.Settin
 	return client.Settings{}, nil
 }
 
+func (f *fake) Discover(context.Context, string) ([]client.Candidate, error) { return nil, nil }
+
 func (f *fake) AI(_ context.Context, id int64) (client.AIResults, error) {
 	f.aiReads = append(f.aiReads, id)
 	return client.AIResults{}, nil

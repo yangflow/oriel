@@ -6,7 +6,11 @@
 <!-- Adding, editing and deleting subscriptions, over the timeline. "+" next to Subscriptions in the sidebar, the
      button of the empty timeline, and Cmd/Ctrl+N open the add dialog; right click on a subscription, or the pencil
      in the toolbar while one subscription is chosen, edits it. The address field recognizes platform links and
-     says what it will subscribe to before anything is sent; the server checks again. Colors are the Oriel palette of
+     says what it will subscribe to before anything is sent; the server checks again.
+     A page address that is not a platform link is looked up after a short pause in typing: add-searching shows
+     "Looking for feeds…" and holds Add; add-found-list lists every feed found, one row each in the found row's
+     style (the chosen row filled with a check, the others outlined), the first chosen; add-none-found says nothing
+     was found and Add tries the address as typed. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License). The edit dialog ends with the subscription's summaries and
      translations: switches that queue new entries, and prompts that replace the global ones in Settings; edit-ai
      shows that part scrolled into view, edit-ai-off the same while AI is not set up. edit-backup is the dialog of an RSSHub route whose last fetch
@@ -182,6 +186,12 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 .found .what { flex:1; min-width:0; display:flex; flex-direction:column }
 .found .what b { font-weight:600 }
 .found code { font:12px ui-monospace,Menlo,Consolas,monospace; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.found.pick { background:transparent; box-shadow:inset 0 0 0 1px var(--border); cursor:pointer }
+.found.pick.on { background:var(--accent-soft); box-shadow:none }
+.found.pick > svg.icon:last-child { visibility:hidden }
+.found.pick.on > svg.icon:last-child { visibility:visible }
+.picks { display:flex; flex-direction:column; gap:6px }
+.picks .head { font-size:12px; color:var(--muted) }
 .needs { display:flex; flex-direction:column; gap:8px; padding:10px 12px; border-radius:8px; background:var(--warning-soft) }
 .needs .head { display:flex; gap:8px; color:var(--warning); font-weight:500 }
 .needs .head svg.icon { width:14px; height:14px; margin-top:3px; flex:none }
@@ -258,7 +268,7 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','edit-mute-none','delete','health','health-loading','health-error','health-empty','health-delete'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','add-searching','add-found-list','add-none-found','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','edit-mute-none','delete','health','health-loading','health-error','health-empty','health-delete'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -313,6 +323,8 @@ const copy={
     keep:'Keep entries', keepFollow:'Follow settings · 1 month', keepHelp:'Older entries are removed. Starred entries are always kept.',
     feed:'Feed', viaRsshub:'RSSHub route',
     found:{bilibili:'Bilibili · videos of user 2267573', feed:'Feed at go.dev', route:'RSSHub route'},
+    searching:'Looking for feeds…', foundMany:'Found {n} feeds. Choose one.', noneFound:'No feed found at this address. “Add” tries it as typed.',
+    pickGo:'The Go Blog', pickGoCode:'https://go.dev/blog/feed.atom', pickAll:'All posts', pickAllCode:'https://go.dev/blog/rss.xml', pickCom:'Comments', pickComCode:'https://go.dev/blog/comments.atom',
     needsBase:'RSSHub routes need an RSSHub instance. Enter its address; it is saved in Settings.',
     rsshubAddress:'RSSHub address', rsshubPlaceholder:'https://rsshub.example.com',
     invalidUrl:'Enter a full address starting with http:// or https://, or a route starting with /.',
@@ -345,6 +357,8 @@ const copy={
     keep:'保留条目', keepFollow:'跟随设置 · 1 个月', keepHelp:'更早的条目会被清理，收藏的条目一直保留。',
     feed:'订阅地址', viaRsshub:'RSSHub 路由',
     found:{bilibili:'哔哩哔哩 · 用户 2267573 的视频', feed:'go.dev 的订阅', route:'RSSHub 路由'},
+    searching:'正在找订阅…', foundMany:'找到 {n} 个订阅，选一个。', noneFound:'这个地址下没有找到订阅。点「添加」会按原样试一次。',
+    pickGo:'The Go Blog', pickGoCode:'https://go.dev/blog/feed.atom', pickAll:'全部文章', pickAllCode:'https://go.dev/blog/rss.xml', pickCom:'评论', pickComCode:'https://go.dev/blog/comments.atom',
     needsBase:'RSSHub 路由要先有一个 RSSHub 实例。填上它的地址，会存进设置。',
     rsshubAddress:'RSSHub 地址', rsshubPlaceholder:'https://rsshub.example.com',
     invalidUrl:'填完整地址（以 http:// 或 https:// 开头），或以 / 开头的路由。',
@@ -400,7 +414,7 @@ const select=(label,value)=>`<div class="field"><label>${label}</label><div clas
 const foundCard=(kind,what,code)=>`<div class="found" role="status">${icon(kind==='feed'?'rss':kind)}<div class="what"><b>${what}</b><code>${code}</code></div>${icon('check')}</div>`;
 
 function addDialog(){
-  const value={add:'','add-link':'https://space.bilibili.com/2267573','add-feed':'https://go.dev/blog/feed.atom','add-route':'/github/trending/daily','add-route-no-base':'/github/trending/daily','add-more':'','add-invalid':'go.dev/blog','add-exists':'https://go.dev/blog/feed.atom',adding:'https://space.bilibili.com/2267573'}[state];
+  const value={add:'','add-link':'https://space.bilibili.com/2267573','add-feed':'https://go.dev/blog/feed.atom','add-route':'/github/trending/daily','add-route-no-base':'/github/trending/daily','add-more':'','add-invalid':'go.dev/blog','add-exists':'https://go.dev/blog/feed.atom',adding:'https://space.bilibili.com/2267573','add-searching':'https://go.dev/blog','add-found-list':'https://go.dev/blog','add-none-found':'https://example.org/about'}[state];
   const kind=['add-link','adding'].includes(state)?'video':'article';
   const invalid=state==='add-invalid'||state==='add-exists';
   let below=`<span class="help" id="ah">${copy.addressHelp}</span>`;
@@ -408,6 +422,9 @@ function addDialog(){
   if(state==='add-feed')below=foundCard('feed',copy.found.feed,'https://go.dev/blog/feed.atom');
   if(state==='add-route')below=foundCard('article',copy.found.route,'/github/trending/daily');
   if(state==='add-route-no-base')below=`<div class="needs" role="status"><div class="head">${icon('triangle')}<span>${copy.needsBase}</span></div><div class="box focused">${icon('link')}<input aria-label="${copy.rsshubAddress}" placeholder="${copy.rsshubPlaceholder}"></div></div>`;
+  if(state==='add-searching')below=`<span class="help" role="status">${icon('loader','spin')} ${copy.searching}</span>`;
+  if(state==='add-found-list')below=`<div class="picks" role="radiogroup" aria-label="${copy.foundMany.replace('{n}',3)}"><span class="head" role="status">${copy.foundMany.replace('{n}',3)}</span>${[['pickGo','pickGoCode',1],['pickAll','pickAllCode',0],['pickCom','pickComCode',0]].map(([a,b,on])=>`<div class="found pick${on?' on':''}" role="radio" aria-checked="${!!on}">${icon('rss')}<div class="what"><b>${copy[a]}</b><code>${copy[b]}</code></div>${icon('check')}</div>`).join('')}</div>`;
+  if(state==='add-none-found')below=`<span class="help" role="status">${copy.noneFound}</span>`;
   if(state==='add-invalid')below=`<span class="error" id="ae">${icon('alert')}${copy.invalidUrl}</span>`;
   if(state==='add-exists')below=`<span class="error" id="ae">${icon('alert')}<span>${copy.exists} <a href="#" style="color:inherit;font-weight:500">${copy.show}</a></span></span>`;
   const busy=state==='adding';
@@ -419,7 +436,7 @@ function addDialog(){
       ${kindPicker(kind)}
       <div class="pair"><div class="field"><label>${copy.title}</label><div class="box"><input placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.auto)}</div>
     </div>
-    <footer><span class="spacer"></span><button class="button">${state==='add-more'?copy.done:copy.cancel}</button><button class="button" title="${copy.addContinue} (⌘Enter)"${state==='add'||state==='add-more'||invalid?' disabled':''}>${copy.addContinue}</button><button class="button primary"${state==='add'||state==='add-more'||invalid?' disabled':''}>${busy?icon('loader','spin')+copy.adding:copy.addShort}</button></footer>
+    <footer><span class="spacer"></span><button class="button">${state==='add-more'?copy.done:copy.cancel}</button><button class="button" title="${copy.addContinue} (⌘Enter)"${state==='add'||state==='add-more'||state==='add-searching'||invalid?' disabled':''}>${copy.addContinue}</button><button class="button primary"${state==='add'||state==='add-more'||state==='add-searching'||invalid?' disabled':''}>${busy?icon('loader','spin')+copy.adding:copy.addShort}</button></footer>
   </div></div>`;
 }
 

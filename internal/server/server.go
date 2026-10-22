@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/ai"
+	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -41,6 +42,8 @@ type Config struct {
 	Version  string
 	// Images downloads pictures for GET /api/image; nil answers every request with image_unavailable.
 	Images Images
+	// Discover finds the feeds of a web address for GET /api/discover; nil answers every request with page_unavailable.
+	Discover Discoverer
 	// AI works through the queue of summaries and translations. Nil makes one that is never run, so
 	// requests stay queued.
 	AI *ai.Worker
@@ -53,10 +56,17 @@ type Images interface {
 	Get(ctx context.Context, address string) (string, []byte, error)
 }
 
+// Discoverer finds the feeds a web address leads to. It returns fetch.ErrInvalidAddress, fetch.ErrBlockedAddress or
+// fetch.ErrPageUnavailable for the failures the API tells apart.
+type Discoverer interface {
+	Discover(ctx context.Context, address string) ([]fetch.Candidate, error)
+}
+
 // Server serves the HTTP API on top of a store.
 type Server struct {
 	store    *store.Store
 	images   Images
+	discover Discoverer
 	ai       *ai.Worker
 	version  string
 	salt     []byte
@@ -72,7 +82,7 @@ type Server struct {
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, ai: cfg.AI, fetching: cfg.Fetching, version: cfg.Version, now: time.Now, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
+	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, ai: cfg.AI, fetching: cfg.Fetching, version: cfg.Version, now: time.Now, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
 	if s.ai == nil {
 		s.ai = ai.New(st, cfg.Version)
 	}
@@ -121,6 +131,7 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("GET /api/activity", s.authed(s.activity))
 	mux.HandleFunc("GET /api/storage", s.authed(s.storage))
 	mux.HandleFunc("POST /api/storage/vacuum", s.authed(s.startVacuum))
+	mux.HandleFunc("GET /api/discover", s.authed(s.findFeeds))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "not_found") })
 	s.handler = mux
 	return s, nil
