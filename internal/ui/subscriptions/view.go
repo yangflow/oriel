@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,19 +26,20 @@ import (
 var catalog []byte
 
 type copy struct {
-	Add, AddShort, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs               string
-	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute         string
-	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo                string
-	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder                 string
-	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added               string
-	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn     string
-	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody          string
-	ServedBy, ServedByBackup                                                                                           string
-	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                    string
-	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff            string
-	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind  string
-	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare string
-	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                              string
+	Add, AddShort, AddContinue, AddContinueTip, Done, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs string
+	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute                              string
+	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo                                     string
+	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder                                      string
+	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added                                    string
+	AddedSoFar                                                                                                                              string
+	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn                          string
+	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                               string
+	ServedBy, ServedByBackup                                                                                                                string
+	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                         string
+	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                 string
+	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                       string
+	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                      string
+	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                   string
 }
 
 var translations = func() map[string]copy {
@@ -121,6 +123,8 @@ type adding struct {
 	formErr    string
 	busy       bool
 	focus      field
+	count      int    // the subscriptions added since the dialog opened, with "Add and continue"
+	last       string // the name of the last of them
 }
 
 // editing is the edit dialog of src.
@@ -278,7 +282,8 @@ func (s *Screen) canAdd() bool {
 		a.settings != settingsLoading
 }
 
-func (s *Screen) submit() {
+// submit adds the address. With more it keeps the dialog open and clears the address for the next one.
+func (s *Screen) submit(more bool) {
 	a := &s.add
 	if !s.canAdd() {
 		return
@@ -334,9 +339,17 @@ func (s *Screen) submit() {
 			}
 			switch {
 			case err == nil:
-				a.open = false
 				s.deps.Added(added)
-				s.toast = s.fill(s.text.Added, Name(added))
+				if !more {
+					a.open = false
+					s.toast = s.fill(s.text.Added, Name(added))
+					return
+				}
+				a.count++
+				a.last = Name(added)
+				a.address, a.title, a.kind, a.suggested = "", "", 0, 0
+				a.addressErr, a.exists, a.formErr, a.focus = "", 0, "", addressField
+				s.announce = s.addedLine()
 			case code(err) == "source_exists":
 				a.addressErr, a.exists = s.text.ExistsUnknown, 0
 				for _, known := range s.deps.Sources() {
@@ -353,6 +366,26 @@ func (s *Screen) submit() {
 			}
 		}
 	})
+}
+
+// continueKey writes the shortcut of "Add and continue", ⌘Enter on macOS and Ctrl+Enter elsewhere.
+func continueKey() string {
+	if runtime.GOOS == "darwin" {
+		return "⌘Enter"
+	}
+	return "Ctrl+Enter"
+}
+
+// addedLine says what the dialog has added so far, "" before the first.
+func (s *Screen) addedLine() string {
+	switch a := s.add; {
+	case a.count == 0:
+		return ""
+	case a.count == 1:
+		return s.fill(s.text.Added, a.last)
+	default:
+		return strings.NewReplacer("{name}", a.last, "{n}", strconv.Itoa(a.count)).Replace(s.text.AddedSoFar)
+	}
 }
 
 // Edit opens the edit dialog of src.
@@ -890,13 +923,19 @@ func (s *Screen) addDialog(c *ui.Context) {
 	if suggested := max(0, slices.Index(kinds, t.Kind)); a.kind == a.suggested {
 		a.kind, a.suggested = suggested, suggested
 	}
+	if a.open {
+		c.OnShortcut(ui.Cmd, ui.KeyEnter, func() { s.submit(true) })
+	}
 	s.dialog(c, &a.open, &a.form, 440, s.text.Add, func() {
 		s.header(c, &a.open, func() { tile(c, icons.Rss) }, s.text.Add, "")
 	}, func() {
+		if line := s.addedLine(); line != "" {
+			s.addedCard(c, line)
+		}
 		s.addressField(c, t, valid)
 		s.kindPicker(c, &a.kind)
 		s.pair(c, func() {
-			s.titleField(c, &a.title, a.busy, a.focus == titleField, s.submit)
+			s.titleField(c, &a.title, a.busy, a.focus == titleField, func() { s.submit(false) })
 		}, func() {
 			s.intervalSelect(c, &a.interval, 0, a.busy)
 		})
@@ -906,9 +945,19 @@ func (s *Screen) addDialog(c *ui.Context) {
 	}, func() {
 		ui.Box(c).Grow(1)
 		cancel := button(c, secondary, false)
-		textButton(c, cancel, secondary, nil, s.text.Cancel, false)
+		done := s.text.Cancel
+		if a.count > 0 {
+			done = s.text.Done
+		}
+		textButton(c, cancel, secondary, nil, done, false)
 		if cancel.Clicked() {
 			a.open = false
+		}
+		more := button(c, secondary, !s.canAdd() && !a.busy)
+		more.Tooltip(strings.ReplaceAll(s.text.AddContinueTip, "{key}", continueKey()))
+		textButton(c, more, secondary, nil, s.text.AddContinue, false)
+		if more.Clicked() {
+			s.submit(true)
 		}
 		add := button(c, primary, !s.canAdd() && !a.busy)
 		text := s.text.AddShort
@@ -917,7 +966,7 @@ func (s *Screen) addDialog(c *ui.Context) {
 		}
 		textButton(c, add, primary, nil, text, a.busy)
 		if add.Clicked() {
-			s.submit()
+			s.submit(false)
 		}
 	})
 }
@@ -933,7 +982,14 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 		what, where := s.describe(t)
 		box(c, "address", icons.Link, a.addressErr != "", th.Surface, func() {
 			in := ui.TextInputBase(c, &a.address).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.Address).
-				Placeholder(s.text.AddressPlaceholder).Disabled(a.busy)
+				Placeholder(s.text.AddressPlaceholder).Disabled(a.busy).
+				OnTextKey(func(k ui.TextKey) bool { // the input takes Enter itself, so the shortcut comes here
+					if k.Key == ui.KeyEnter && k.Mods == ui.Cmd {
+						s.submit(true)
+						return true
+					}
+					return false
+				})
 			switch {
 			case a.addressErr != "":
 				in.Error(a.addressErr)
@@ -949,7 +1005,7 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 				a.focus = noField
 			}
 			if in.Submitted() {
-				s.submit()
+				s.submit(false)
 			}
 		})
 		if a.address != before {
@@ -1013,6 +1069,16 @@ func (s *Screen) found(c *ui.Context, t target, what, where string) {
 		})
 }
 
+// addedCard says what "Add and continue" has added so far, above the address for the next one.
+func (s *Screen) addedCard(c *ui.Context, line string) {
+	th := c.Theme()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(px(th, 10)).Padding(th.Space(2), px(th, 10)).Radius(th.Radius).
+		Background(theme.Soft(th, th.Success)).Role(ui.RoleStatus).Label(line).Children(func() {
+		ui.Icon(c, icons.Check).FontSize(px(th, 16)).TextColor(th.Success)
+		ui.Text(c, line).Grow(1).MinWidth(0).FontWeight(500).SingleLine()
+	})
+}
+
 // baseCard asks for the RSSHub instance a route needs, which the settings do not have yet.
 func (s *Screen) baseCard(c *ui.Context) {
 	t := c.Theme()
@@ -1035,7 +1101,7 @@ func (s *Screen) baseCard(c *ui.Context) {
 				a.focus = noField
 			}
 			if in.Submitted() {
-				s.submit()
+				s.submit(false)
 			}
 		})
 		if a.base != before {
