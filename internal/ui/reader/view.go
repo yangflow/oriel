@@ -869,7 +869,7 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 	t := c.Theme()
 	back := strings.ReplaceAll(s.text.Back, "{scope}", nav.Scope)
 	b := ui.ButtonBase(c).Height(px(t, 32)).MinWidth(0).Shrink(1).Gap(px(t, 2)).Padding(0, px(t, 10), 0, px(t, 4)).
-		Radius(px(t, 10)).Label(back).Tooltip(s.shortcut(back, "Esc"))
+		Radius(px(t, 10)).Label(back)
 	color := theme.Text2(t)
 	switch {
 	case b.Pressed():
@@ -1069,7 +1069,7 @@ func (s *Screen) tool(c *ui.Context, icon *ui.SVG, label, key string, color ui.C
 // name beside the icon, and only the icon in a narrow window.
 func (s *Screen) toggle(c *ui.Context, icon *ui.SVG, label string, on, disabled, narrow bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Height(px(t, 28)).Gap(px(t, 6)).Radius(px(t, 14)).Label(label).Tooltip(label).
+	b := ui.ButtonBase(c).Height(px(t, 28)).Gap(px(t, 6)).Radius(px(t, 14)).Label(label).
 		Disabled(disabled).Role(ui.RoleToggleButton).Checked(on)
 	if narrow {
 		b.Width(px(t, 30))

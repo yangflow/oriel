@@ -2228,7 +2228,7 @@ func TestKeySheet(t *testing.T) {
 	if !s.keys || !tt.HasText("Keyboard shortcuts") || !tt.HasText("Next unread") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
-	for _, name := range []string{"Switch kind", "Go to the sidebar", "Context menu"} {
+	for _, name := range []string{"Switch kind", "Go to the sidebar", "Context menu", "Add and continue (in the add dialog)"} {
 		if !tt.HasText(name) {
 			t.Fatalf("no %q in %v", name, tt.Texts())
 		}
@@ -2658,17 +2658,10 @@ func TestLongTitles(t *testing.T) {
 	}
 }
 
-// A subscription's name shows in full in a tooltip once the pointer rests on its item.
-func TestSourceTooltip(t *testing.T) {
-	sources, entries := sample()
-	name := "Ars Technica » Technology Lab: Tech Policy, Gadgets, Science and Culture, Plus Long Reads and Reviews"
-	sources[1].Title = name
-	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
-	s := New("en", f.deps())
-	tt := ui.NewTester(s.View, 1100, 800)
-	s.Use(f, "")
-	tt.Frame()
-	f.settle(t, tt)
+// tipShows hovers the element with the given text and says whether a tooltip with the same text came up: the text then
+// shows once more, as the tooltip's own.
+func tipShows(t *testing.T, tt *ui.Tester, name string) bool {
+	t.Helper()
 	count := func() int {
 		n := 0
 		for _, text := range tt.Texts() {
@@ -2678,17 +2671,85 @@ func TestSourceTooltip(t *testing.T) {
 		}
 		return n
 	}
-	item, ok := tt.Find(name)
+	r, ok := tt.Find(name)
 	if !ok {
-		t.Fatalf("no pane item in %v", tt.Texts())
+		t.Fatalf("no %q in %v", name, tt.Texts())
 	}
-	before := count()
-	tt.Move(item.X+item.W/2, item.Y+item.H/2)
+	tt.Move(0, 0)
 	tt.Frame()
 	tt.Advance(2 * time.Second)
 	tt.Frame()
-	if count() <= before {
-		t.Fatalf("no tooltip with the full name in %v", tt.Texts())
+	before := count()
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	return count() > before
+}
+
+// A button that shows its name, a segmented control and a sidebar item carry no tooltip, whatever their text; a bare
+// icon button keeps one with its name.
+func TestTooltips(t *testing.T) {
+	sources, entries := sample()
+	name := "Ars Technica » Technology Lab: Tech Policy, Gadgets, Science and Culture, Plus Long Reads and Reviews"
+	sources[1].Title = name
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New("en", f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1400, 900)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	for _, text := range []string{name, "Everything", "Unread"} {
+		if tipShows(t, tt, text) {
+			t.Errorf("%q has a tooltip", text)
+		}
+	}
+	for _, text := range []string{"Add subscription", "Unread first", "Hide sidebar"} {
+		if !tipShows(t, tt, text) {
+			t.Errorf("%q has no tooltip", text)
+		}
+	}
+
+	refreshAll(t, f, tt, 4)
+	tt.Frame()
+	if tipShows(t, tt, "Refreshing, 0 of 4 checked") {
+		t.Error("the refresh progress has a tooltip")
+	}
+}
+
+// The icon-only filter segments of a narrow window carry no tooltip either.
+func TestFilterTooltipsNarrow(t *testing.T) {
+	sources, entries := sample()
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New("en", f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 900, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	if tipShows(t, tt, "Starred") {
+		t.Error("a filter segment has a tooltip")
+	}
+}
+
+// The picture viewer's "Open in browser" shows its name in a wide window and only the icon in a narrow one, and has
+// no tooltip in either; its icon-only buttons keep theirs.
+func TestLightboxTooltips(t *testing.T) {
+	for _, width := range []int{1400, 700} {
+		p := prefs.Default()
+		s, f, _ := viewing(t, &p)
+		tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, width, 900)
+		tt.Frame()
+		f.settle(t, tt)
+		s.openPictures(2, 2)
+		tt.Frame()
+		f.settle(t, tt)
+		tt.Frame()
+		if tipShows(t, tt, "Open in browser") {
+			t.Errorf("width %d: Open in browser has a tooltip", width)
+		}
+		if !tipShows(t, tt, "Open picture in browser") {
+			t.Errorf("width %d: Open picture in browser has no tooltip", width)
+		}
 	}
 }
 

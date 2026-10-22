@@ -40,7 +40,7 @@ type copy struct {
 	AddSource, EditSource, AddFirst, ImportOPML, RestoreBackup, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                  string
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                                                    string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
-	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                                        string
+	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                        string
 	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                                         string
 	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                                        string
 	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteActions, PaletteUnreadOnly, PaletteShowAll                    string
@@ -2584,7 +2584,7 @@ func (s *Screen) keySheet(c *ui.Context) {
 	reading := []key{{s.text.KeyNextArticle, one("J")}, {s.text.KeyPreviousArticle, one("K")},
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyStar, one("S")}, {s.text.KeyRead, one("M")},
 		{s.text.KeyOpenBrowser, one("O")}, {s.text.KeyBack, one("Esc")}}
-	anywhere := []key{{s.text.KeyPalette, [][]string{{cmd, "K"}}}, {s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.RefreshAll, [][]string{{cmd, "R"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
+	anywhere := []key{{s.text.KeyPalette, [][]string{{cmd, "K"}}}, {s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.KeyAddContinue, [][]string{{cmd, "↩"}}}, {s.text.RefreshAll, [][]string{{cmd, "R"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
 		{s.text.KeyToggleSidebar, [][]string{{cmd, "\\"}}}, {s.text.KeyKeys, one("?")}}
 	ui.DialogBase(c, &s.keys, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Padding(t.Space(4))
@@ -2967,7 +2967,7 @@ func (s *Screen) progressLink(c *ui.Context) {
 	t := c.Theme()
 	r := s.refresh
 	label := strings.ReplaceAll(strings.ReplaceAll(s.text.RefreshingName, "{done}", strconv.Itoa(r.done)), "{n}", strconv.Itoa(r.queued))
-	ui.Row(c).Height(px(t, 20)).AlignItems(ui.Center).Gap(px(t, 4)).PaddingX(px(t, 6)).Label(label).Tooltip(label).
+	ui.Row(c).Height(px(t, 20)).AlignItems(ui.Center).Gap(px(t, 4)).PaddingX(px(t, 6)).Label(label).
 		Children(func() {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 12)).TextColor(t.TextMuted)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
@@ -2990,8 +2990,6 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 	}
 	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(px(t, 30)).Gap(px(t, 10)).PaddingX(px(t, 10)).
 		Radius(px(t, 8)).Label(label).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
-	// MyGo's tooltip cannot be asked to show only when the text is cut, so the full name is always the tip.
-	item.Tooltip(name)
 	count := t.TextMuted
 	switch {
 	case chosen:
@@ -3231,7 +3229,7 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 					pad = px(t, 7)
 				}
 				b := seg.Segment(i).Height(px(t, 26)).Gap(px(t, 4)).PaddingX(pad).Radius(px(t, 13)).
-					Label(item.name).Tooltip(item.name)
+					Label(item.name)
 				color := t.TextMuted
 				switch {
 				case on:
@@ -4651,8 +4649,11 @@ func (s *Screen) viewPictures(c *ui.Context) {
 		}
 		// button is a bare control of the bar or beside the picture: the pane's hover and pressed fills, and the focus
 		// ring when the keyboard reached it.
-		button := func(b ui.Element, label string, radius float32) bool {
-			b.Radius(radius).Label(label).Tooltip(label)
+		button := func(b ui.Element, label string, radius float32, tip bool) bool {
+			b.Radius(radius).Label(label)
+			if tip {
+				b.Tooltip(label)
+			}
 			switch {
 			case b.Pressed():
 				b.Background(theme.Ink(p, 0.085))
@@ -4676,7 +4677,7 @@ func (s *Screen) viewPictures(c *ui.Context) {
 			if width < 760 {
 				browser.Width(px(t, 32))
 			}
-			if button(browser, s.text.Open, px(t, 8)) {
+			if button(browser, s.text.Open, px(t, 8), false) {
 				s.browse(c, i)
 			}
 			browser.Children(func() {
@@ -4688,7 +4689,7 @@ func (s *Screen) viewPictures(c *ui.Context) {
 				})
 			})
 			pic := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Center()
-			if button(pic, s.text.LbOpenPicture, px(t, 8)) {
+			if button(pic, s.text.LbOpenPicture, px(t, 8), true) {
 				c.OpenURLThen(list[at], func(err error) {
 					if err != nil {
 						s.toast = s.text.OpenFailed
@@ -4698,7 +4699,7 @@ func (s *Screen) viewPictures(c *ui.Context) {
 			}
 			pic.Children(func() { ui.Icon(c, icons.Image).FontSize(px(t, 16)).TextColor(theme.Text2(p)) })
 			closer := ui.ButtonBase(c).Size(px(t, 32), px(t, 32)).Center()
-			if button(closer, s.text.Close, px(t, 8)) {
+			if button(closer, s.text.Close, px(t, 8), true) {
 				s.lb.open = false
 			}
 			closer.Children(func() { ui.Icon(c, icons.X).FontSize(px(t, 16)).TextColor(theme.Text2(p)) })
@@ -4720,7 +4721,7 @@ func (s *Screen) viewPictures(c *ui.Context) {
 					} else if b.Hovered() {
 						b.Background(theme.Ink(p, 0.18))
 					}
-					if button(b, label, px(t, 22)) {
+					if button(b, label, px(t, 22), true) {
 						s.page(to)
 					}
 					b.Children(func() { ui.Icon(c, icon).FontSize(px(t, 22)).TextColor(color) })
