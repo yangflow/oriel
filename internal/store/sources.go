@@ -42,6 +42,9 @@ type Source struct {
 	Paused              bool
 	KeepDays            int       // 0 follows the global retention, -1 keeps forever, else days
 	PaceSec             int       // how long an unread entry stays in All and Unread, in seconds; 0 is off
+	ExtractSelector     string    // CSS selector of the element that holds the article, empty for automatic extraction
+	ExtractReferer      string    // Referer sent with the request for an entry page, empty for none
+	ExtractRewrites     string    // rewrite rules for an entry link before it is fetched, one "from => to" per line
 	RSSHubInstance      string    // the RSSHub instance that served the last successful fetch, empty when none did
 	WebSubHub           string    // the hub the feed declares, empty for none
 	WebSubUntil         time.Time // when the active push subscription runs out, zero when there is none
@@ -66,12 +69,15 @@ type SourcePatch struct {
 	Paused            *bool
 	KeepDays          *int
 	PaceSec           *int
+	ExtractSelector   *string
+	ExtractReferer    *string
+	ExtractRewrites   *string
 }
 
 const sourceColumns = `
 	s.id, s.url, s.rsshub_path, s.title, s.site_url, s.icon_url, s.kind, s.fetch_interval_sec, s.fetch_interval_auto, s.suggested_kind, s.next_fetch_at,
 	s.last_fetched_at, s.last_success_at, s.last_error, s.consecutive_failures, s.prompt_summary, s.prompt_translate,
-	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused, s.keep_days, s.pace_sec, s.rsshub_instance,
+	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused, s.keep_days, s.pace_sec, s.extract_selector, s.extract_referer, s.extract_rewrites, s.rsshub_instance,
 	s.websub_hub, CASE WHEN s.websub_state = 'active' THEN s.websub_expires_at END,
 	(SELECT count(*) FROM entries e WHERE e.source_id = s.id AND e.is_read = 0 AND ` + shown + ` AND ` + live + `), s.created_at, s.updated_at`
 
@@ -175,6 +181,15 @@ func (s *Store) UpdateSource(ctx context.Context, id int64, patch SourcePatch, n
 	if patch.PaceSec != nil {
 		set("pace_sec", *patch.PaceSec)
 	}
+	if patch.ExtractSelector != nil {
+		set("extract_selector", *patch.ExtractSelector)
+	}
+	if patch.ExtractReferer != nil {
+		set("extract_referer", *patch.ExtractReferer)
+	}
+	if patch.ExtractRewrites != nil {
+		set("extract_rewrites", *patch.ExtractRewrites)
+	}
 	if len(sets) > 0 {
 		set("updated_at", now.UnixMilli())
 		result, err := s.db.ExecContext(ctx, "UPDATE sources SET "+strings.Join(sets, ", ")+" WHERE id = ?", append(args, id)...)
@@ -252,7 +267,7 @@ func scanSource(row interface{ Scan(...any) error }) (Source, error) {
 	var fetched, success, websubUntil sql.NullInt64
 	if err := row.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Title, &src.SiteURL, &src.IconURL, &src.Kind, &interval,
 		&src.FetchIntervalAuto, &src.SuggestedKind, &next, &fetched, &success, &src.LastError, &src.ConsecutiveFailures, &src.PromptSummary, &src.PromptTranslate,
-		&src.AutoSummary, &src.AutoTranslate, &src.MuteKeywords, &src.Paused, &src.KeepDays, &src.PaceSec, &src.RSSHubInstance, &src.WebSubHub, &websubUntil, &src.UnreadCount, &created, &updated); err != nil {
+		&src.AutoSummary, &src.AutoTranslate, &src.MuteKeywords, &src.Paused, &src.KeepDays, &src.PaceSec, &src.ExtractSelector, &src.ExtractReferer, &src.ExtractRewrites, &src.RSSHubInstance, &src.WebSubHub, &websubUntil, &src.UnreadCount, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Source{}, ErrNotFound
 		}

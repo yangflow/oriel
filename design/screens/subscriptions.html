@@ -39,6 +39,10 @@
      global setting after the dot; a help line says that older entries are removed and starred ones are kept.
      Pace is a select of the same style right under Keep entries: Off by default, then Breaking (3 h), Daily (2 days)
      and Weekly (7 days); a help line says unread entries fade and leave All and Unread when the time is up.
+     Extraction is a collapsed row under Pace, a chevron and its name with a help line: a subscription whose pages
+     the automatic full-text extraction gets wrong can name the content element (a CSS selector), a Referer to send
+     and link rewrites, one "from => to" per line in a monospace field. Collapsed by default, and expanded
+     (edit-extract) once any of the three is set; the help lines say what an empty field does.
      Subscription health (health, health-loading, health-error, health-empty) is a dialog the command palette opens
      ("Subscription health…"); the sidebar has no entry for it. It lists unpaused sources that are dead, keep failing
      or are rarely read, each with its reason, the last 30 days in numbers and two buttons, Pause and Unsubscribe….
@@ -181,6 +185,9 @@ aside { width:216px; flex:none; margin:8px 0 8px 8px; padding-top:40px; display:
 .box.select svg.icon { color:var(--muted); width:14px; height:14px }
 textarea { width:100%; min-height:72px; resize:none; padding:7px 10px; border:0; outline:0; border-radius:8px; background:var(--surface); box-shadow:inset 0 0 0 .5px var(--edge-line); font:inherit; color:var(--text); line-height:1.5 }
 textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace }
+.disclosure { display:flex; align-items:center; gap:6px; align-self:flex-start; padding:2px 0; border:0; background:none; font:inherit; font-size:12px; font-weight:500; color:var(--text); cursor:pointer }
+.disclosure svg.icon { width:14px; height:14px; color:var(--muted); transition:transform var(--t) }
+.disclosure[aria-expanded=false] svg.icon { transform:rotate(-90deg) }
 .help { font-size:12px; color:var(--muted) }
 .help.count { font-variant-numeric:tabular-nums }
 .error { display:flex; gap:6px; font-size:12px; color:var(--danger) }
@@ -280,7 +287,7 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','add-searching','add-found-list','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','edit-mute-none','delete','health','health-loading','health-error','health-empty','health-delete'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-invalid','add-exists','add-searching','add-found-list','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-extract','edit-suggest','edit-backup','edit-mute-none','delete','health','health-loading','health-error','health-empty','health-delete'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -333,6 +340,10 @@ const copy={
     addressHelp:'Links to YouTube, Bilibili, X, GitHub, Telegram and Weibo are turned into feeds.',
     showAs:'Show as', title:'Title', titlePlaceholder:'From the feed', every:'Check every', auto:'Auto', autoEvery:'Auto · {every}', every6h:'6 h', suggest:'Most entries in this feed are videos.', suggestUse:'Show as Videos',
     keep:'Keep entries', keepFollow:'Follow settings · 1 month', keepHelp:'Older entries are removed. Starred entries are always kept.',
+    extract:'Extraction', extractHelp:'For feeds whose full text comes out wrong. Empty fields use automatic extraction.',
+    extractSelector:'Content selector', extractSelectorHelp:'A CSS selector for the element that holds the article. If it matches nothing, automatic extraction is used.',
+    extractReferer:'Referer', extractRefererHelp:'Sent with the request for the entry page. Nothing else is added.',
+    extractRewrites:'Link rewrites', extractRewritesHelp:'One per line, from => to: a host (www.example.com => m.example.com) or an address prefix (https://example.com/a/ => https://example.com/b/). Top to bottom; the entry link is rewritten before it is fetched.',
     pace:'Pace', paceOff:'Off', paceHelp:'Unread entries fade and leave All and Unread when their time is up. Search, Starred and the source still show them.',
     feed:'Feed', viaRsshub:'RSSHub route',
     found:{bilibili:'Bilibili · videos of user 2267573', feed:'Feed at go.dev', route:'RSSHub route'},
@@ -370,6 +381,10 @@ const copy={
     addressHelp:'YouTube、哔哩哔哩、X、GitHub、Telegram 和微博的链接会自动转成订阅。',
     showAs:'显示为', title:'标题', titlePlaceholder:'用订阅里的标题', every:'检查间隔', auto:'自动', autoEvery:'自动 · {every}', every6h:'6 小时', suggest:'这个订阅的条目大多是视频。', suggestUse:'显示为视频',
     keep:'保留条目', keepFollow:'跟随设置 · 1 个月', keepHelp:'更早的条目会被清理，收藏的条目一直保留。',
+    extract:'正文抽取', extractHelp:'抽取出的正文不对时使用。留空则用自动抽取。',
+    extractSelector:'正文选择器', extractSelectorHelp:'用 CSS 选择器指出装着文章的元素；匹配不到时改用自动抽取。',
+    extractReferer:'Referer', extractRefererHelp:'抓取条目页面时带上，不会再添加别的请求头。',
+    extractRewrites:'链接改写', extractRewritesHelp:'每行一条，from => to：可以改写主机（www.example.com => m.example.com），也可以改写地址前缀（https://example.com/a/ => https://example.com/b/）。从上到下依次应用，改写后才抓取条目链接。',
     pace:'节奏', paceOff:'关闭', paceHelp:'未读条目到期前会逐渐变淡，到期后离开全部和未读；搜索、收藏和该订阅源里仍能看到。',
     feed:'订阅地址', viaRsshub:'RSSHub 路由',
     found:{bilibili:'哔哩哔哩 · 用户 2267573 的视频', feed:'go.dev 的订阅', route:'RSSHub 路由'},
@@ -417,7 +432,7 @@ const sources=[
   {kind:'image',name:'NASA APOD',mono:'N',unread:1,fav:favs.nasa},
 ];
 const empty=state==='empty';
-const editing=['menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-suggest','edit-backup','edit-mute-none','delete'].includes(state);
+const editing=['menu','menu-failing','edit','edit-failing','edit-paused','edit-ai','edit-ai-off','edit-extract','edit-suggest','edit-backup','edit-mute-none','delete'].includes(state);
 const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
 const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
@@ -479,6 +494,13 @@ function editDialog(){
     ?`<div class="health bad" role="status">${icon('alert')}<span>${copy.failing}</span><button class="button small">${icon('refresh')}${copy.retry}</button></div>`
     :paused?`<div class="health" role="status">${icon('pause')}<span>${copy.paused}</span></div>`
     :`<div class="health" role="status">${icon('check')}<span>${copy.checked}</span><button class="button small">${icon('refresh')}${copy.refresh}</button></div>`;
+  const open=state==='edit-extract';
+  const extractGroup=`<div class="field"><button class="disclosure" aria-expanded="${open}" aria-controls="xg">${icon('chevron')}${copy.extract}</button><span class="help">${copy.extractHelp}</span></div>`
+    +(open?`<div id="xg" class="field" style="gap:12px">
+      <div class="field"><label for="xs">${copy.extractSelector}</label><div class="box"><input id="xs" value="article .post-body" placeholder="article"></div><span class="help">${copy.extractSelectorHelp}</span></div>
+      <div class="field"><label for="xr">${copy.extractReferer}</label><div class="box"><input id="xr" value="https://go.dev/" placeholder="https://example.com/"></div><span class="help">${copy.extractRefererHelp}</span></div>
+      <div class="field"><label for="xw">${copy.extractRewrites}</label><textarea id="xw" class="prompt">www.go.dev => go.dev\nhttps://go.dev/blog/amp/ => https://go.dev/blog/</textarea><span class="help">${copy.extractRewritesHelp}</span></div>
+    </div>`:'');
   const backup=state==='edit-backup';
   const served=backup?`<span class="help">${copy.servedByBackup.replace('{host}','rsshub.backup.example')}</span>`:'';
   return `<div class="scrim"><div class="dialog wide" role="dialog" aria-labelledby="dt">
@@ -490,6 +512,7 @@ function editDialog(){
       ${state==='edit-suggest'?`<div class="health" role="status">${icon('video')}<span>${copy.suggest}</span><button class="button small">${copy.suggestUse}</button></div>`:''}
       ${select(copy.keep,copy.keepFollow).replace('</div></div>',`</div><span class="help">${copy.keepHelp}</span></div>`)}
       ${select(copy.pace,copy.paceOff).replace('</div></div>',`</div><span class="help">${copy.paceHelp}</span></div>`)}
+      ${extractGroup}
       <div class="switch-row"><div class="text"><span class="label">${copy.pauseLabel}</span><span class="help">${copy.pauseHelp}</span></div><span class="switch${paused?' on':''}" role="switch" aria-checked="${paused}" aria-label="${copy.pauseLabel}"></span></div>
       <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" aria-describedby="mh mc">${state==='edit-mute-none'?(lang==='en'?'giveaway':'抽奖'):lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span><span class="help count" id="mc" role="status">${state==='edit-mute-none'?copy.muteNone:copy.muteHidden.replace('{n}','7')}</span></div>
       <h3 class="group-title">${icon('sparkles')}${copy.aiGroup}</h3>
@@ -536,6 +559,7 @@ if(form){
   const edges=()=>{const d=form.closest('.dialog');d.classList.toggle('scrolled',form.scrollTop>0);d.classList.toggle('more',form.scrollTop+form.clientHeight<form.scrollHeight-1)};
   form.addEventListener('scroll',edges);
   if(state.startsWith('edit-ai'))form.scrollTop=1e4;
+  if(state==='edit-extract')document.getElementById('xg').scrollIntoView({block:'center'});
   edges();
 }
 </script>

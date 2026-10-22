@@ -82,6 +82,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `paused` | 暂停的源不抓，也不能标到期。 |
 | `keep_days` | 这个源自己的保留期限，单位天：`0` 跟随全局的 `retention_days`（默认），`-1` 永久保留，`1` 到 3650 是天数。其它值（小于 -1，大于 3650）不接受，见「保留期限」。迁移 0014 加这一列。 |
 | `pace_sec` | 这个源的节奏：条目在「全部」和「未读」里停留多久，单位秒。`0` 是关（默认，条目一直在），否则是 3600 到 2592000（30 天）的整数，见「节奏」。迁移 0015 加这一列。 |
+| `extract_selector`、`extract_referer`、`extract_rewrites` | 这个源自己的正文抽取规则，默认都是空串（不用规则，行为不变）：一个 CSS 选择器，抽取时要发的 `Referer`，以及抽取前改写条目链接的规则（按行分隔）。语法、上限和失败时的行为见「正文抽取」的「按源规则」。迁移 0016 加这三列。 |
 | `websub_hub`、`websub_topic` | 订阅里声明的 WebSub hub 和主题（`rel="self"`），没有为空串，见「WebSub 推送」。迁移 0012 加这组 `websub_*` 列。 |
 | `websub_key`、`websub_secret` | 这个源的回调路径令牌和签名密钥，各自随机生成，只存库里，接口不下发。 |
 | `websub_state`、`websub_expires_at`、`websub_requested_at`、`websub_base`、`websub_next_at`、`websub_failures`、`websub_error` | 订阅状态：`''`（没订）、`pending`（等 hub 验证）、`active`（租约有效到 `websub_expires_at`）；最近一次请求的时间和当时用的公开地址；下一次动作（订阅或续订）的时间；连续失败次数和最近的原因。 |
@@ -344,6 +345,24 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
    用户在阅读器里点「重试」（`POST /api/entries/{id}/extract`）算重新开始：`extract_attempts` 清零、`next_extract_at` 清空、状态回到 `pending`，又有完整的 6 次，下一轮抽取照常取它，仍走同一个受限的客户端。
 4. 抽取的结果是派生内容，不改条目的 `updated_at`。
 
+**按源规则。** 自动抽取在个别网站上抓不准，每个源可以有三项自己的规则，在编辑订阅的对话框里设置。三项都为空（默认）时，上面 1 到 4 步一字不变。规则只改变读哪里、请求哪个地址，不改变请求怎么发：所有请求，包括改写后的地址，仍走同一个受限客户端，受下面同样的地址限制。
+
+- `extract_selector`：一个 CSS 选择器，指向正文所在的元素，最长 500 个字符，必须能被解析（cascadia 支持的选择器）。
+- `extract_referer`：抽取这个源的网页时带上的 `Referer` 请求头，一个带主机名的 http 或 https 绝对地址，最长 2000 个字符。只发这一个头；不发 Cookie，也不发别的头。
+- `extract_rewrites`：改写条目链接的规则，一行一条，最多 10 条，每条最长 500 个字符，写法 `from => to`（`=>` 两边的空白忽略）：
+  - **换主机**：`from` 和 `to` 都不含 `/`，写成主机名（可带端口），例如 `m.example.com => www.example.com`。链接的主机名（不分大小写）等于 `from` 时，换成 `to`，协议、路径、查询串和片段不变。
+  - **换前缀**：`from` 和 `to` 都以 `http://` 或 `https://` 开头，例如 `https://example.com/amp/ => https://example.com/`。链接以 `from` 开头（逐字比较）时，把这段前缀换成 `to`，后面的部分不变。
+  - 两种之外的写法不接受。
+
+有规则时，一条文章的抽取按这个顺序做：
+
+1. **改写**：规则从上到下依次用到条目链接上，后一条看到的是前一条改写后的结果；不匹配的规则跳过。改写不改库里的条目链接，只决定这次抽取请求哪个地址。
+2. **请求**：对改写后的地址发请求（有 `extract_referer` 就带上 `Referer`）。改写的结果不是带主机名的 http 或 https 地址，或者被下面的地址限制拦下，这一条的抽取就失败，是永久的失败（不自动重试，用户点「重试」会再走一遍）；不会退回去请求改写前的地址。
+3. **选择**：有 `extract_selector` 时，取页面里第一个匹配的元素，它里面的内容（HTML，相对链接按最终地址补全）就是正文，不再跑 Discourse 和 Readability。
+4. **选不到就退回自动**：选择器在页面上没有匹配，或者匹配的元素里没有可读的文字，这一条退回上面第 2 步的自动抽取（Discourse，其他用 Readability），并在日志里记一笔。选择器不会让条目变成 `ok`：状态完全由自动抽取的结果决定，抽出来是 `ok`，抽不出来是 `failed`，此时条目照常显示订阅里的内容，不算全文。
+
+规则改了之后，只对之后才抽取的条目生效；已经抽好的条目不重抽。
+
 条目链接来自订阅内容，不是用户填的，所以只能访问公网地址：
 
 - 检查发生在建立连接的那一刻，对象是实际要连的 IP，所以 DNS 解析和每一次重定向都绕不过去。重定向最多 5 次，只能到 http 或 https。
@@ -407,7 +426,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 
 ## 订阅接口
 
-都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
+都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见「正文抽取」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
 
 | 路由 | 作用 |
 |---|---|
@@ -434,10 +453,13 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 - `fetchIntervalSec` 是 60 到 604800（7 天）的整数，否则 `invalid_interval`。给了它就是固定间隔；`fetchIntervalAuto` 是布尔值，缺省为 `true`，即两个都不给时间隔「自动」，起点 900。`fetchIntervalAuto` 为 `true` 又给了 `fetchIntervalSec`，返回 `invalid_interval`。
 - 同一订阅已经有了（订阅地址按「源」一节规范化后比较，末尾多一个 `/`、主机名大小写或默认端口不同都算已有），返回 409 `source_exists`。
 
-能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`。订阅地址不能改，要换就删了重加。
+能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`、`extractSelector`、`extractReferer`、`extractRewrites`。订阅地址不能改，要换就删了重加。
 
 - `keepDays` 是 -1 到 3650 的整数，否则 `invalid_keep_days`。
 - `paceSec` 是 `0` 或 3600 到 2592000 的整数，否则 `invalid_pace`。
+- `extractSelector` 去掉首尾空白后最长 500 个字符，且是能解析的 CSS 选择器，否则 `invalid_extract_selector`；空串是不用。
+- `extractReferer` 去掉首尾空白后是空串，或带主机名的 http 或 https 绝对地址、最长 2000 个字符，否则 `invalid_extract_referer`。
+- `extractRewrites` 按行保存，每行去掉首尾空白，丢掉空行。最多 10 条，每条最长 500 个字符，写法是「正文抽取」里的两种，否则 `invalid_extract_rewrites`。
 - 标题改成空串时，下次抓取用订阅里的标题补上。
 - 改 `kind` 后条目的形态跟着变（见「数据模型」）；改成别的形态的源不再抽取正文。
 - 改 `fetchIntervalSec` 从下一次抓取之后生效，同时把间隔改成固定（`fetchIntervalAuto` 变 `false`）；想马上抓就「更新」。`fetchIntervalAuto` 改成 `true` 后，现在用的间隔留着，下一次成功抓取时重新算；同时给 `fetchIntervalSec` 和 `true` 返回 `invalid_interval`。

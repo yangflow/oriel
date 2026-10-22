@@ -247,7 +247,12 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   12 help line under it says starred entries are always kept. "Pace" follows in the same style: Off is the
   default, then Breaking (3 h), Daily (2 days) and Weekly (7 days), and an "N h" or "N d" row when the stored number is
   none of those; a muted 12 help line says unread entries fade and leave All and Unread when the time is up, and
-  stay in search, Starred and the source. The dialog ends with "Summaries and
+  stay in search, Starred and the source. "Extraction" follows, a disclosure row (12 medium, a chevron that turns
+  from right to down) with a muted 12 help line, collapsed unless one of its three fields is set (`edit-extract`
+  in the mockup). Opened, it holds a "Content selector" box, a "Referer" box and a "Link rewrites" box (monospace,
+  three lines that grow to eight, one `from => to` per line), each with a muted 12 help line that says what an empty
+  field does. Saving checks the three on the server, and a refusal shows under the field it concerns, in the
+  field's error style. The dialog ends with "Summaries and
   translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
   Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".

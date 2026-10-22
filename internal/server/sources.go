@@ -46,6 +46,9 @@ type sourceJSON struct {
 	Paused              bool   `json:"paused"`
 	KeepDays            int    `json:"keepDays"`
 	PaceSec             int    `json:"paceSec"`
+	ExtractSelector     string `json:"extractSelector"`
+	ExtractReferer      string `json:"extractReferer"`
+	ExtractRewrites     string `json:"extractRewrites"`
 	RSSHubInstance      string `json:"rsshubInstance"`
 	WebSubHub           string `json:"websubHub"`
 	WebSubActive        bool   `json:"websubActive"`
@@ -67,7 +70,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, RSSHubInstance: src.RSSHubInstance, WebSubHub: src.WebSubHub,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, RSSHubInstance: src.RSSHubInstance, WebSubHub: src.WebSubHub,
 		WebSubActive: src.WebSubUntil.After(time.Now()), UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
@@ -250,6 +253,9 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		Paused            *bool   `json:"paused"`
 		KeepDays          *int    `json:"keepDays"`
 		PaceSec           *int    `json:"paceSec"`
+		ExtractSelector   *string `json:"extractSelector"`
+		ExtractReferer    *string `json:"extractReferer"`
+		ExtractRewrites   *string `json:"extractRewrites"`
 	}
 	if !readBody(w, r, &body) {
 		return
@@ -292,6 +298,30 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		patch.PaceSec = body.PaceSec
+	}
+	if body.ExtractSelector != nil {
+		selector, err := fetch.ParseSelector(*body.ExtractSelector)
+		if err != nil {
+			fail(w, http.StatusBadRequest, "invalid_extract_selector")
+			return
+		}
+		patch.ExtractSelector = &selector
+	}
+	if body.ExtractReferer != nil {
+		referer, err := fetch.ParseReferer(*body.ExtractReferer)
+		if err != nil {
+			fail(w, http.StatusBadRequest, "invalid_extract_referer")
+			return
+		}
+		patch.ExtractReferer = &referer
+	}
+	if body.ExtractRewrites != nil {
+		rewrites, err := fetch.ParseRewrites(*body.ExtractRewrites)
+		if err != nil {
+			fail(w, http.StatusBadRequest, "invalid_extract_rewrites")
+			return
+		}
+		patch.ExtractRewrites = &rewrites
 	}
 	if body.MuteKeywords != nil {
 		keywords := muteLines(*body.MuteKeywords)
