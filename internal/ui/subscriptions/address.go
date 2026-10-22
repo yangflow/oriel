@@ -30,6 +30,25 @@ type target struct {
 	Kind       string
 	Platform   platform
 	Name       string
+	// Public marks a full address on the public RSSHub instance, which blocks automated requests.
+	Public bool
+}
+
+// PublicHost is the public RSSHub instance, which turns Oriel's requests away.
+const PublicHost = "rsshub.app"
+
+// publicInstance reports whether u is an address on the public RSSHub instance, with a route after the host.
+func publicInstance(u *url.URL) bool {
+	return strings.EqualFold(u.Hostname(), PublicHost) && strings.HasPrefix(u.Path, "/") && len(u.Path) > 1
+}
+
+// publicRoute is the route of an address on the public instance: its path and query, as a route typed by hand.
+func publicRoute(input string) string {
+	u, err := url.Parse(strings.TrimSpace(input))
+	if err != nil || !publicInstance(u) {
+		return input
+	}
+	return u.RequestURI()
 }
 
 var (
@@ -69,7 +88,7 @@ func recognize(input, base string) (target, bool) {
 	if t, ok := known(u); ok {
 		return t, true
 	}
-	return target{URL: input, Platform: feed, Name: u.Hostname()}, true
+	return target{URL: input, Platform: feed, Name: u.Hostname(), Public: publicInstance(u)}, true
 }
 
 // known recognizes the links of the platforms in docs/product.md; an address ending as a feed does is one already.

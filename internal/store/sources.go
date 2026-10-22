@@ -33,6 +33,7 @@ type Source struct {
 	LastFetchedAt       time.Time
 	LastSuccessAt       time.Time
 	LastError           string
+	LastErrorKind       string // stable code of the reason, "" when it has none
 	ConsecutiveFailures int
 	PromptSummary       string
 	PromptTranslate     string
@@ -76,7 +77,7 @@ type SourcePatch struct {
 
 const sourceColumns = `
 	s.id, s.url, s.rsshub_path, s.title, s.site_url, s.icon_url, s.kind, s.fetch_interval_sec, s.fetch_interval_auto, s.suggested_kind, s.next_fetch_at,
-	s.last_fetched_at, s.last_success_at, s.last_error, s.consecutive_failures, s.prompt_summary, s.prompt_translate,
+	s.last_fetched_at, s.last_success_at, s.last_error, s.last_error_kind, s.consecutive_failures, s.prompt_summary, s.prompt_translate,
 	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused, s.keep_days, s.pace_sec, s.extract_selector, s.extract_referer, s.extract_rewrites, s.rsshub_instance,
 	s.websub_hub, CASE WHEN s.websub_state = 'active' THEN s.websub_expires_at END,
 	(SELECT count(*) FROM entries e WHERE e.source_id = s.id AND e.is_read = 0 AND ` + shown + ` AND ` + live + `), s.created_at, s.updated_at`
@@ -332,7 +333,7 @@ func scanSource(row interface{ Scan(...any) error }) (Source, error) {
 	var interval, next, created, updated int64
 	var fetched, success, websubUntil sql.NullInt64
 	if err := row.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Title, &src.SiteURL, &src.IconURL, &src.Kind, &interval,
-		&src.FetchIntervalAuto, &src.SuggestedKind, &next, &fetched, &success, &src.LastError, &src.ConsecutiveFailures, &src.PromptSummary, &src.PromptTranslate,
+		&src.FetchIntervalAuto, &src.SuggestedKind, &next, &fetched, &success, &src.LastError, &src.LastErrorKind, &src.ConsecutiveFailures, &src.PromptSummary, &src.PromptTranslate,
 		&src.AutoSummary, &src.AutoTranslate, &src.MuteKeywords, &src.Paused, &src.KeepDays, &src.PaceSec, &src.ExtractSelector, &src.ExtractReferer, &src.ExtractRewrites, &src.RSSHubInstance, &src.WebSubHub, &websubUntil, &src.UnreadCount, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Source{}, ErrNotFound

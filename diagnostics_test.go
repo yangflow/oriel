@@ -26,7 +26,7 @@ func TestDiagnosticsCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := st.FetchFailure(ctx, src.ID, `Get "https://feeds.example.com/private/feed.xml?token=abc": EOF`, at, at.Add(time.Hour)); err != nil {
+	if err := st.FetchFailure(ctx, src.ID, `Get "https://feeds.example.com/private/feed.xml?token=abc": EOF`, "", at, at.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.SetSetting(ctx, ai.APIKeySetting, "sk-seeded-ai-key"); err != nil {

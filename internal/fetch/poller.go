@@ -157,6 +157,25 @@ type unavailableError struct{ error }
 
 func (e *unavailableError) Unwrap() error { return e.error }
 
+// ErrorBlocked is the stable reason code of a fetch that a site's bot protection turned away (a Cloudflare
+// challenge). It is stored as the source's last_error_kind and sent as lastErrorKind; last_error keeps the text.
+const ErrorBlocked = "blocked"
+
+// blockedError is a failure that the site's bot protection caused. Retrying with other headers does not help and
+// Oriel does not try to get around it.
+type blockedError struct{ error }
+
+func (e *blockedError) Unwrap() error { return e.error }
+
+// errorKind is the stable code of the reason behind err, empty when it has none.
+func errorKind(err error) string {
+	var blocked *blockedError
+	if errors.As(err, &blocked) {
+		return ErrorBlocked
+	}
+	return ""
+}
+
 // Poller fetches due sources, extracts article text and prunes old entries, each in its own loop.
 type Poller struct {
 	store     *store.Store
@@ -377,7 +396,7 @@ func (p *Poller) fetchSource(ctx context.Context, job queued) int {
 			// The site asked for quiet: its other sources wait too, and no other site does.
 			p.hosts.holdUntil(job.host, now.Add(asked.wait))
 		}
-		if err := p.store.FetchFailure(ctx, src.ID, err.Error(), now, now.Add(wait)); err != nil {
+		if err := p.store.FetchFailure(ctx, src.ID, err.Error(), errorKind(err), now, now.Add(wait)); err != nil {
 			slog.Error("Cannot record a fetch failure", "source", src.ID, "error", err)
 		}
 		return 0
@@ -413,6 +432,7 @@ func (p *Poller) fetchRoute(ctx context.Context, src store.FeedSource, instances
 		return p.fetchFrom(ctx, src, sourceAddress(src, instances[0]), instances[0])
 	}
 	var reasons []string
+	var blocked bool
 	var soonest time.Duration // until the first failed instance can be tried again
 	tried, busy := 0, false
 	for _, base := range instances {
@@ -454,6 +474,7 @@ func (p *Poller) fetchRoute(ctx context.Context, src store.FeedSource, instances
 		if errors.As(err, &asked) {
 			wait = asked.wait
 		}
+		blocked = blocked || errorKind(err) == ErrorBlocked
 		until := p.rsshub.fail(base, now, err.Error(), wait)
 		p.hosts.holdUntil(host, until)
 		tried++
@@ -463,7 +484,10 @@ func (p *Poller) fetchRoute(ctx context.Context, src store.FeedSource, instances
 	if tried == 0 || busy {
 		return 0, errDeferred
 	}
-	err := fmt.Errorf("%s", strings.Join(reasons, "; "))
+	var err error = fmt.Errorf("%s", strings.Join(reasons, "; "))
+	if blocked {
+		err = &blockedError{err}
+	}
 	return 0, &retryAfterError{error: err, wait: soonest}
 }
 
@@ -590,12 +614,25 @@ func unavailable(ctx context.Context, instance string, err error) error {
 	return &unavailableError{err}
 }
 
+// cloudflareChallenge reports whether a 403, 429 or 503 is Cloudflare's challenge to an automated client: marked
+// with cf-mitigated, or sent by Cloudflare as an HTML page where a feed was asked for.
+func cloudflareChallenge(resp *http.Response) bool {
+	switch resp.StatusCode {
+	case http.StatusForbidden, http.StatusTooManyRequests, http.StatusServiceUnavailable:
+	default:
+		return false
+	}
+	if strings.EqualFold(resp.Header.Get("Cf-Mitigated"), "challenge") {
+		return true
+	}
+	return strings.Contains(strings.ToLower(resp.Header.Get("Server")), "cloudflare") &&
+		strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/html")
+}
+
 // statusError names the likely cause for the statuses users can act on.
 func statusError(resp *http.Response, src store.FeedSource) error {
-	server := strings.ToLower(resp.Header.Get("Server"))
-	if (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) &&
-		(strings.EqualFold(resp.Header.Get("Cf-Mitigated"), "challenge") || strings.Contains(server, "cloudflare")) {
-		return fmt.Errorf("status %d: blocked by Cloudflare", resp.StatusCode)
+	if cloudflareChallenge(resp) {
+		return &blockedError{fmt.Errorf("status %d: blocked by Cloudflare", resp.StatusCode)}
 	}
 	if resp.StatusCode == http.StatusNotFound && src.RSSHubPath != "" {
 		return errors.New("status 404: this RSSHub route no longer exists")
