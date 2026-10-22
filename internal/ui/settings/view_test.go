@@ -115,6 +115,12 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	if patch.AIChunkLimit != nil {
 		f.settings.AIChunkLimit = cmp.Or(*patch.AIChunkLimit, f.settings.DefaultAIChunkLimit)
 	}
+	if patch.AIAutoDaily != nil {
+		f.settings.AIAutoDailyLimit = cmp.Or(*patch.AIAutoDaily, f.settings.DefaultAIAutoDaily)
+	}
+	if patch.AIAutoFetch != nil {
+		f.settings.AIAutoFetchLimit = cmp.Or(*patch.AIAutoFetch, f.settings.DefaultAIAutoFetch)
+	}
 	if patch.PromptSummary != nil {
 		f.settings.PromptSummary = cmp.Or(*patch.PromptSummary, f.settings.DefaultPromptSummary)
 	}
@@ -239,6 +245,7 @@ func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Te
 			PromptSummary: summaryPrompt, PromptTranslate: translatePrompt,
 			DefaultPromptSummary: summaryPrompt, DefaultPromptTranslate: translatePrompt,
 			AISummaryLimit: 24000, AIChunkLimit: 6000, DefaultAISummaryLimit: 24000, DefaultAIChunkLimit: 6000,
+			AIAutoDailyLimit: 200, AIAutoFetchLimit: 10, DefaultAIAutoDaily: 200, DefaultAIAutoFetch: 10,
 			AutoBackupFrequency: "daily", AutoBackupKeep: 7},
 		devices: []client.Device{
 			{ID: 4, UserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 " +
@@ -1038,18 +1045,18 @@ func TestPresetKeepsSavedKey(t *testing.T) {
 // TestLimits saves the limits as typed, takes empty for the default, and refuses what is not a number.
 func TestLimits(t *testing.T) {
 	s, f, tt := openAI(t, "en", true)
-	if s.aiLimits != [2]string{} || s.aiDirty() {
+	if s.aiLimits != [4]string{} || s.aiDirty() {
 		t.Fatalf("limits %q", s.aiLimits)
 	}
-	edit(tt, func() { s.aiLimits = [2]string{"8000", ""} })
+	edit(tt, func() { s.aiLimits = [4]string{"8000"} })
 	press(t, tt, s.text.Save)
 	f.settle(tt)
 	if len(f.set) != 1 || *f.set[0].AISummaryLimit != 8000 || f.set[0].AIChunkLimit != nil || f.set[0].AIBaseURL != nil ||
-		s.settings.AISummaryLimit != 8000 || s.aiLimits != [2]string{"8000", ""} || s.aiDirty() {
+		s.settings.AISummaryLimit != 8000 || s.aiLimits != [4]string{"8000"} || s.aiDirty() {
 		t.Fatalf("set %+v, limits %q", f.set, s.aiLimits)
 	}
 
-	edit(tt, func() { s.aiLimits = [2]string{"8000", "many"} })
+	edit(tt, func() { s.aiLimits = [4]string{"8000", "many"} })
 	press(t, tt, s.text.Save)
 	f.settle(tt)
 	if len(f.set) != 1 || !tt.HasText(s.text.InvalidLimit) || !slices.Contains(tt.Announcements(), s.text.InvalidLimit) {
@@ -1057,7 +1064,7 @@ func TestLimits(t *testing.T) {
 	}
 
 	// The server's refusal says the same.
-	edit(tt, func() { s.aiLimits = [2]string{"8000", "9"} })
+	edit(tt, func() { s.aiLimits = [4]string{"8000", "9"} })
 	f.setErr = &client.APIError{Status: 400, Code: "invalid_ai_limit"}
 	press(t, tt, s.text.Save)
 	f.settle(tt)
@@ -1067,11 +1074,43 @@ func TestLimits(t *testing.T) {
 	f.setErr = nil
 
 	// Emptied, the limit goes back to the default.
-	edit(tt, func() { s.aiLimits = [2]string{" ", ""} })
+	edit(tt, func() { s.aiLimits = [4]string{" "} })
 	press(t, tt, s.text.Save)
 	f.settle(tt)
-	if len(f.set) != 3 || *f.set[2].AISummaryLimit != 0 || s.settings.AISummaryLimit != 24000 || s.aiLimits != [2]string{} {
+	if len(f.set) != 3 || *f.set[2].AISummaryLimit != 0 || s.settings.AISummaryLimit != 24000 || s.aiLimits != [4]string{} {
 		t.Fatalf("set %+v, limits %q", f.set, s.aiLimits)
+	}
+}
+
+// TestAutomaticCaps saves the caps on automatic work as typed.
+func TestAutomaticCaps(t *testing.T) {
+	s, f, tt := openAI(t, "en", true)
+	edit(tt, func() { s.aiLimits = [4]string{"", "", "50", "5"} })
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 1 || *f.set[0].AIAutoDaily != 50 || *f.set[0].AIAutoFetch != 5 || f.set[0].AISummaryLimit != nil ||
+		s.settings.AIAutoDailyLimit != 50 || s.settings.AIAutoFetchLimit != 5 || s.aiDirty() {
+		t.Fatalf("set %+v, settings %+v", f.set, s.settings)
+	}
+}
+
+// TestDestinationAndCap says where entry text goes and whether that is this computer, and says plainly when the
+// daily cap is reached.
+func TestDestinationAndCap(t *testing.T) {
+	s, _, tt := openAI(t, "en", true)
+	edit(tt, func() { s.settings.AIAutoCallsToday = 12 })
+	remote := strings.ReplaceAll(s.text.DestinationRemote, "{address}", "api.example.com")
+	usage := strings.NewReplacer("{used}", "12", "{limit}", "200").Replace(s.text.UsageToday)
+	if !tt.HasText(remote) || !tt.HasText(usage) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	edit(tt, func() {
+		s.settings.AIBaseURL, s.settings.AIEndpointLocal, s.settings.AIAutoCallsToday = "http://localhost:1234/v1", true, 200
+	})
+	local := strings.ReplaceAll(s.text.DestinationLocal, "{address}", "localhost:1234")
+	reached := strings.ReplaceAll(s.text.CapReached, "{limit}", "200")
+	if !tt.HasText(local) || !tt.HasText(reached) {
+		t.Fatalf("texts %v", tt.Texts())
 	}
 }
 

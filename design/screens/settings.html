@@ -31,7 +31,8 @@
      diagnostics-exported (Export diagnostics… finished, the file name), diagnostics-failed (the export did not work);
      ai (not set up), ai-configured (saved, the key only shown as set), ai-edited (changed, not saved; testing waits
      for the save), ai-invalid (the server refused the address), ai-preset (Ollama picked from the Preset row: address filled in, unsaved,
-     model placeholder is that runtime's hint, key untouched), ai-testing, ai-tested (connected, model listed, context
+     model placeholder is that runtime's hint, key untouched), ai-local (the endpoint is on this computer, with the count of automatic requests today), ai-cap-reached (the daily cap of
+     automatic requests is used up: a plain sentence under the caps), ai-testing, ai-tested (connected, model listed, context
      holds the limits), ai-tested-small (connected, but the model's context is too small for the limits: a hint, not a
      failure), ai-test-failed (key turned down), ai-model-missing (no model of that name), ai-unreachable (cannot connect),
      prompt-restored (Restore default on an edited summary prompt: the default is back in the box, unsaved, so Save is
@@ -349,7 +350,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -447,6 +448,9 @@ const copy={
     aiLead:'Summaries and translations go through an OpenAI-compatible endpoint of your choosing: OpenAI, another provider, or a model on this computer such as Ollama.',
     endpoint:'Endpoint', endpointHelp:'The base address of the API, such as <code>https://api.openai.com/v1</code>.', endpointPlaceholder:'https://api.openai.com/v1',
     model:'Model', modelPlaceholder:'gpt-4o-mini', modelHintOllama:'qwen3:8b',
+    dailyCap:'Automatic requests a day', fetchCap:'New entries per fetch', capsHelp:'Automatic summaries and translations share both caps. Your own requests are not counted or capped.',
+    destLocal:'Entry text is sent to {address}, which is on this computer.', destRemote:'Entry text leaves this device for {address}, which is not on this computer.',
+    usageToday:'Automatic requests today: {used} of {limit}.', capReached:'The daily cap of {limit} automatic requests is reached. Automatic summaries and translations stop until tomorrow; you can still ask for one yourself.',
     preset:'Preset', summaryLimit:'Summary limit', chunkLimit:'Chunk size', limitsHelp:'In characters. Lower them for a model with a small context window.',
     checkListed:'The model is in the endpoint’s list.', checkFits:'The model’s context is {n} tokens, enough for the limits.',
     checkSmall:'The model’s context is only {n} tokens, too small for the limits. Lower the summary limit and the chunk size.',
@@ -533,6 +537,9 @@ const copy={
     aiLead:'摘要和翻译走你自己选的 OpenAI 兼容接口：OpenAI、别的服务商，或者本机的模型（例如 Ollama）。',
     endpoint:'接口地址', endpointHelp:'API 的根地址，例如 <code>https://api.openai.com/v1</code>。', endpointPlaceholder:'https://api.openai.com/v1',
     model:'模型', modelPlaceholder:'gpt-4o-mini', modelHintOllama:'qwen3:8b',
+    dailyCap:'每日自动请求上限', fetchCap:'每次抓取的新文章数', capsHelp:'自动摘要和自动翻译共用这两个上限。你自己发起的请求不计数，也不受限。',
+    destLocal:'文章内容会发送到 {address}，它在这台电脑上。', destRemote:'文章内容会离开这台设备，发送到 {address}，它不在这台电脑上。',
+    usageToday:'今天的自动请求：{used} / {limit}。', capReached:'今天的 {limit} 次自动请求已用完，自动摘要和自动翻译到明天才继续；你仍可以自己发起。',
     preset:'预设', summaryLimit:'摘要上限', chunkLimit:'翻译分块', limitsHelp:'单位是字符。模型的上下文窗口小时，把它们调小。',
     checkListed:'模型在接口的列表里。', checkFits:'模型的上下文有 {n} 个 token，够用。',
     checkSmall:'模型的上下文只有 {n} 个 token，放不下现在的限制。调小摘要上限和翻译分块。',
@@ -699,10 +706,12 @@ const devices=remote?`<p class="lead">${copy.devicesHelp}</p><div class="card"><
 
 const aiSet=state!=='ai', aiDirty=state==='ai-edited'||state==='ai-invalid'||state==='ai-preset';
 const aiField=(label,value,placeholder,cls='')=>`<div class="field${cls}" role="textbox" aria-label="${label}"${cls.includes('invalid')?' aria-invalid="true"':''}>${value||`<span class="placeholder">${placeholder}</span>`}</div>`;
-const endpoint=state==='ai-invalid'?'api.openai.com/v1':state==='ai-edited'||state==='ai-preset'?'http://127.0.0.1:11434/v1':aiSet?'https://api.openai.com/v1':'';
+const endpoint=state==='ai-invalid'?'api.openai.com/v1':state==='ai-local'?'http://localhost:11434/v1':state==='ai-edited'||state==='ai-preset'?'http://127.0.0.1:11434/v1':aiSet?'https://api.openai.com/v1':'';
 const modelName=state==='ai-edited'?'qwen3:8b':state==='ai-preset'?'':aiSet?'gpt-4o-mini':'';
 const modelHint=state==='ai-preset'?copy.modelHintOllama:copy.modelPlaceholder;
 let aiStatus='', checks='';
+const destination=!aiSet?'':state==='ai-local'?t('destLocal',{address:'localhost:11434'}):t('destRemote',{address:'api.openai.com'});
+const capLine=!aiSet?'':state==='ai-cap-reached'?`<div class="status warn" role="status">${icon('alert')}${t('capReached',{limit:'200'})}</div>`:`<div class="status busy" role="status">${t('usageToday',{used:state==='ai-local'?'37':'12',limit:'200'})}</div>`;
 if(state==='ai-edited'||state==='ai-preset')aiStatus=`<div class="status busy">${copy.testFirst}</div>`;
 if(state==='ai-testing')aiStatus=`<div class="status busy" role="status">${icon('loader','spin')}${copy.testing}</div>`;
 if(state==='ai-tested'||state==='ai-tested-small')aiStatus=`<div class="status ok" role="status">${icon('check')}${t('tested',{model:state==='ai-tested'?'gpt-4o-mini-2024-07-18':'qwen3:8b'})}</div>`;
@@ -714,13 +723,13 @@ if(state==='ai-unreachable')aiStatus=`<div class="status error" role="alert">${i
 const prompt=(label,text,dim=true)=>`<div class="row"><div class="label-row"><span class="label">${label}</span><button class="button small"${dim?' disabled':''}>${icon('rotateCcw')}${copy.reset}</button></div><div class="textarea" role="textbox" aria-multiline="true" aria-label="${label}">${text}</div></div>`;
 const ai=`<p class="lead">${copy.aiLead}</p><div class="two"><div class="col"><h2 class="section-title">${copy.connection}</h2><div class="card">
 <div class="row"><div class="presets" role="group" aria-label="${copy.preset}"><span class="label">${copy.preset}</span><button class="button small${state==='ai-preset'?' on':''}" aria-pressed="${state==='ai-preset'}">Ollama</button><button class="button small" aria-pressed="false">LM Studio</button></div></div>
-<div class="row"><span class="label">${copy.endpoint}</span><p class="help">${copy.endpointHelp}</p><div class="control">${aiField(copy.endpoint,endpoint,copy.endpointPlaceholder,state==='ai-invalid'?' invalid':state==='ai'||state==='ai-edited'?' focused':'')}</div>${state==='ai-invalid'?`<div class="status error" role="alert">${icon('alert')}${copy.invalidAiBase}</div>`:''}</div>
+<div class="row"><span class="label">${copy.endpoint}</span><p class="help">${copy.endpointHelp}</p>${destination?`<p class="help">${destination}</p>`:''}<div class="control">${aiField(copy.endpoint,endpoint,copy.endpointPlaceholder,state==='ai-invalid'?' invalid':state==='ai'||state==='ai-edited'?' focused':'')}</div>${state==='ai-invalid'?`<div class="status error" role="alert">${icon('alert')}${copy.invalidAiBase}</div>`:''}</div>
 <div class="row"><span class="label">${copy.model}</span><div class="control">${aiField(copy.model,modelName,modelHint)}</div></div>
 <div class="row"><div class="label-row"><span class="label">${copy.apiKey}</span><span class="badge${aiSet?'':' off'}">${aiSet?copy.keySet:copy.keyUnset}</span></div><p class="help">${copy.keyHelp}</p>
 <div class="control">${aiField(copy.apiKey,'',aiSet?copy.keyReplace:copy.keyPlaceholder)}${aiSet?`<button class="button">${copy.removeKey}</button>`:''}</div></div>
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.language}</span><p class="help">${copy.languageHelp}</p></div>
 <button class="select" aria-haspopup="listbox" aria-label="${copy.language}"><span>${copy.zhHans}</span>${icon('chevronDown')}</button></div></div>
-<div class="row"><div class="pair"><div><span class="label">${copy.summaryLimit}</span><div class="control">${aiField(copy.summaryLimit,'','24000')}</div></div><div><span class="label">${copy.chunkLimit}</span><div class="control">${aiField(copy.chunkLimit,'','6000')}</div></div></div><p class="help">${copy.limitsHelp}</p></div>
+<div class="row"><div class="pair"><div><span class="label">${copy.summaryLimit}</span><div class="control">${aiField(copy.summaryLimit,'','24000')}</div></div><div><span class="label">${copy.chunkLimit}</span><div class="control">${aiField(copy.chunkLimit,'','6000')}</div></div></div><p class="help">${copy.limitsHelp}</p><div class="pair" style="margin-top:12px"><div><span class="label">${copy.dailyCap}</span><div class="control">${aiField(copy.dailyCap,'','200')}</div></div><div><span class="label">${copy.fetchCap}</span><div class="control">${aiField(copy.fetchCap,'','10')}</div></div></div><p class="help">${copy.capsHelp}</p>${capLine}</div>
 <div class="row"><div class="actions">${aiStatus||'<span class="status"></span>'}<button class="button"${aiSet&&!aiDirty&&state!=='ai-testing'?'':' disabled'}>${icon('plug')}${copy.test}</button><button class="button${aiDirty?' primary':''}"${aiDirty?'':' disabled'}>${copy.save}</button></div>${checks}</div>
 </div></div>
 <div class="col"><h2 class="section-title">${copy.prompts}</h2><div class="card">

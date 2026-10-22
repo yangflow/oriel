@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/yangflow/oriel/internal/ai"
@@ -33,12 +34,20 @@ type settingsJSON struct {
 	AIAPIKeySet   bool   `json:"aiApiKeySet"`
 	AILanguage    string `json:"aiLanguage"`
 	// The characters sent for a summary and per piece of a translation, and their defaults.
-	AISummaryLimit        int    `json:"aiSummaryLimit"`
-	AIChunkLimit          int    `json:"aiChunkLimit"`
-	DefaultAISummaryLimit int    `json:"defaultAiSummaryLimit"`
-	DefaultAIChunkLimit   int    `json:"defaultAiChunkLimit"`
-	PromptSummary         string `json:"promptSummary"`
-	PromptTranslate       string `json:"promptTranslate"`
+	AISummaryLimit        int `json:"aiSummaryLimit"`
+	AIChunkLimit          int `json:"aiChunkLimit"`
+	DefaultAISummaryLimit int `json:"defaultAiSummaryLimit"`
+	DefaultAIChunkLimit   int `json:"defaultAiChunkLimit"`
+	// The caps on automatic AI work (requests a day, new entries per fetch), their defaults, the requests sent today
+	// and whether the endpoint is on this computer.
+	AIAutoDailyLimit        int    `json:"aiAutoDailyLimit"`
+	AIAutoFetchLimit        int    `json:"aiAutoFetchLimit"`
+	DefaultAIAutoDailyLimit int    `json:"defaultAiAutoDailyLimit"`
+	DefaultAIAutoFetchLimit int    `json:"defaultAiAutoFetchLimit"`
+	AIAutoCallsToday        int    `json:"aiAutoCallsToday"`
+	AIEndpointLocal         bool   `json:"aiEndpointLocal"`
+	PromptSummary           string `json:"promptSummary"`
+	PromptTranslate         string `json:"promptTranslate"`
 	// The built-in prompts, so a client can tell a changed prompt and restore it.
 	DefaultPromptSummary   string `json:"defaultPromptSummary"`
 	DefaultPromptTranslate string `json:"defaultPromptTranslate"`
@@ -92,7 +101,15 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	if len(instances) > 0 {
 		primary = instances[0]
 	}
+	calls, err := s.store.AIUsage(r.Context(), time.Now())
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	reply(w, http.StatusOK, settingsJSON{
+		AIAutoDailyLimit: cfg.AutoDailyLimit, AIAutoFetchLimit: cfg.AutoFetchLimit,
+		DefaultAIAutoDailyLimit: ai.DefaultAutoDaily, DefaultAIAutoFetchLimit: ai.DefaultAutoFetch,
+		AIAutoCallsToday: calls, AIEndpointLocal: ai.IsLocalEndpoint(cfg.BaseURL),
 		RSSHubBaseURLs: instances, RSSHubBaseURL: primary, RetentionDays: days, WebSubBaseURL: websub, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
 		AIAPIKeySet: cfg.APIKey != "", AILanguage: cfg.Language,
 		AISummaryLimit: cfg.SummaryLimit, AIChunkLimit: cfg.ChunkLimit, DefaultAISummaryLimit: ai.DefaultSummary,
@@ -117,6 +134,8 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		AILanguage      *string   `json:"aiLanguage"`
 		AISummaryLimit  *int      `json:"aiSummaryLimit"`
 		AIChunkLimit    *int      `json:"aiChunkLimit"`
+		AIAutoDaily     *int      `json:"aiAutoDailyLimit"`
+		AIAutoFetch     *int      `json:"aiAutoFetchLimit"`
 		PromptSummary   *string   `json:"promptSummary"`
 		PromptTranslate *string   `json:"promptTranslate"`
 
@@ -200,16 +219,19 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 	for _, field := range []struct {
 		value *int
 		key   string
+		low   int
 		high  int
 	}{
-		{body.AISummaryLimit, ai.SummaryLimitSetting, ai.MaxSummary},
-		{body.AIChunkLimit, ai.ChunkLimitSetting, ai.MaxChunk},
+		{body.AISummaryLimit, ai.SummaryLimitSetting, ai.MinLimit, ai.MaxSummary},
+		{body.AIChunkLimit, ai.ChunkLimitSetting, ai.MinLimit, ai.MaxChunk},
+		{body.AIAutoDaily, ai.AutoDailySetting, ai.MinAuto, ai.MaxAutoDaily},
+		{body.AIAutoFetch, ai.AutoFetchSetting, ai.MinAuto, ai.MaxAutoFetch},
 	} {
 		if field.value == nil {
 			continue
 		}
 		n := *field.value
-		if n != 0 && (n < ai.MinLimit || n > field.high) {
+		if n != 0 && (n < field.low || n > field.high) {
 			fail(w, http.StatusBadRequest, "invalid_ai_limit")
 			return
 		}

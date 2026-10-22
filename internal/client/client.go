@@ -374,6 +374,12 @@ type Settings struct {
 	AIChunkLimit           int      `json:"aiChunkLimit"`
 	DefaultAISummaryLimit  int      `json:"defaultAiSummaryLimit"`
 	DefaultAIChunkLimit    int      `json:"defaultAiChunkLimit"`
+	AIAutoDailyLimit       int      `json:"aiAutoDailyLimit"`
+	AIAutoFetchLimit       int      `json:"aiAutoFetchLimit"`
+	DefaultAIAutoDaily     int      `json:"defaultAiAutoDailyLimit"`
+	DefaultAIAutoFetch     int      `json:"defaultAiAutoFetchLimit"`
+	AIAutoCallsToday       int      `json:"aiAutoCallsToday"`
+	AIEndpointLocal        bool     `json:"aiEndpointLocal"`
 	PromptSummary          string   `json:"promptSummary"`
 	PromptTranslate        string   `json:"promptTranslate"`
 	DefaultPromptSummary   string   `json:"defaultPromptSummary"`
@@ -405,6 +411,8 @@ type SettingsPatch struct {
 	AILanguage      *string   `json:"aiLanguage,omitempty"`
 	AISummaryLimit  *int      `json:"aiSummaryLimit,omitempty"`
 	AIChunkLimit    *int      `json:"aiChunkLimit,omitempty"`
+	AIAutoDaily     *int      `json:"aiAutoDailyLimit,omitempty"`
+	AIAutoFetch     *int      `json:"aiAutoFetchLimit,omitempty"`
 	PromptSummary   *string   `json:"promptSummary,omitempty"`
 	PromptTranslate *string   `json:"promptTranslate,omitempty"`
 

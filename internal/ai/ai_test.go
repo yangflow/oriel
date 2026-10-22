@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -543,5 +544,176 @@ func TestShutdownKeepsJobQueued(t *testing.T) {
 	<-done
 	if got := f.result(id, store.TaskSummary); got.Status != "pending" || got.Attempts != 0 {
 		t.Fatalf("shutdown counted an attempt: %+v", got)
+	}
+}
+
+func TestIsLocalEndpoint(t *testing.T) {
+	for base, want := range map[string]bool{
+		"http://localhost:11434/v1":    true,
+		"http://LocalHost/v1":          true,
+		"http://127.0.0.1:1234/v1":     true,
+		"http://[::1]:8080/v1":         true,
+		"https://api.openai.com/v1":    false,
+		"http://192.168.1.20:11434/v1": false,
+		"http://localhost.example.com": false,
+		"":                             false,
+		"not a url":                    false,
+	} {
+		if got := IsLocalEndpoint(base); got != want {
+			t.Errorf("%q: %v, want %v", base, got, want)
+		}
+	}
+}
+
+// The daily cap stops automatic work and says so, while a request of the user is neither counted nor capped.
+func TestDailyCapStopsAutomaticWork(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	ctx := context.Background()
+	f.set(AutoDailySetting, "2")
+	var ids []int64
+	for _, guid := range []string{"a", "b", "c", "d"} {
+		ids = append(ids, f.entry("social", store.FeedEntry{GUID: guid, Title: guid}, store.TaskSummary))
+	}
+	f.drain()
+	f.drain()
+	if len(u.calls()) != 2 {
+		t.Fatalf("%d requests with a cap of 2", len(u.calls()))
+	}
+	done, stopped := 0, 0
+	for _, id := range ids {
+		switch got := f.result(id, store.TaskSummary); {
+		case got.Status == "ok":
+			done++
+		case got.Status == "failed" && got.Error == string(ErrCapReached) && got.Attempts == 0:
+			stopped++
+		default:
+			t.Fatalf("unexpected result %+v", got)
+		}
+	}
+	if done != 2 || stopped != 2 {
+		t.Fatalf("done %d, stopped %d", done, stopped)
+	}
+	if used, _ := f.store.AIUsage(ctx, f.now); used != 2 {
+		t.Fatalf("usage %d", used)
+	}
+
+	// Stopped work is not retried the same day, but the user can still ask, and that is not counted.
+	f.now = f.now.Add(10 * time.Minute)
+	f.drain()
+	var stoppedID int64
+	for _, id := range ids {
+		if f.result(id, store.TaskSummary).Status == "failed" {
+			stoppedID = id
+		}
+	}
+	if len(u.calls()) != 2 {
+		t.Fatalf("stopped work was retried: %d requests", len(u.calls()))
+	}
+	if _, err := f.worker.Request(ctx, stoppedID, store.TaskSummary); err != nil {
+		t.Fatal(err)
+	}
+	f.drain()
+	if got := f.result(stoppedID, store.TaskSummary); got.Status != "ok" || len(u.calls()) != 3 {
+		t.Fatalf("manual request: %+v, %d requests", got, len(u.calls()))
+	}
+	if used, _ := f.store.AIUsage(ctx, f.now); used != 2 {
+		t.Fatalf("a manual request was counted: %d", used)
+	}
+}
+
+// The count starts from zero on a new day.
+func TestDailyCapResetsTomorrow(t *testing.T) {
+	f := newFixture(t, "")
+	ctx := context.Background()
+	now := time.Date(2026, 3, 1, 23, 0, 0, 0, time.UTC)
+	for range 2 {
+		if ok, err := f.store.ReserveAICall(ctx, 2, now); err != nil || !ok {
+			t.Fatalf("reserve: %v, %v", ok, err)
+		}
+	}
+	if ok, _ := f.store.ReserveAICall(ctx, 2, now); ok {
+		t.Fatal("a third request fit under a cap of 2")
+	}
+	if used, _ := f.store.AIUsage(ctx, now); used != 2 {
+		t.Fatalf("usage %d", used)
+	}
+	if ok, _ := f.store.ReserveAICall(ctx, 2, now.Add(2*time.Hour)); !ok {
+		t.Fatal("the next day is capped")
+	}
+}
+
+// Only the newest entries of one fetch get automatic tasks; the rest are marked as stopped by the cap.
+func TestFetchCap(t *testing.T) {
+	f := newFixture(t, "")
+	ctx := context.Background()
+	src, err := f.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/feed", Kind: "social", FetchInterval: time.Hour}, "", f.now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var items []store.FeedEntry
+	for i := range 5 {
+		items = append(items, store.FeedEntry{GUID: strconv.Itoa(i), Title: "t", PublishedAt: f.now.Add(time.Duration(i) * time.Minute)})
+	}
+	fs := store.FeedSource{ID: src.ID, Kind: "social", AITasks: []string{store.TaskSummary}, AIFetchLimit: 2}
+	if _, err := f.store.SaveFeed(ctx, fs, "", "", items, "", time.Time{}, f.now); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := f.store.Entries(ctx, store.EntryFilter{SourceID: src.ID}, 10)
+	if err != nil || len(entries) != 5 {
+		t.Fatalf("entries %d, %v", len(entries), err)
+	}
+	pending, stopped := 0, 0
+	for _, e := range entries {
+		switch got := f.result(e.ID, store.TaskSummary); {
+		case got.Status == "pending":
+			pending++
+		case got.Status == "failed" && got.Error == string(ErrCapReached):
+			stopped++
+		}
+	}
+	if pending != 2 || stopped != 3 {
+		t.Fatalf("pending %d, stopped %d", pending, stopped)
+	}
+}
+
+// A retry of a translation sends only the chunks that did not finish.
+func TestRetryKeepsFinishedChunks(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	ctx := context.Background()
+	long := strings.Repeat("a", 4000)
+	id := f.entry("social", store.FeedEntry{GUID: "r", Title: "T", Summary: long + "\n\n" + long + "\n\n" + strings.Repeat("b", 7000)})
+	failing := true
+	u.answer = func(req chatRequest) (int, string) {
+		if failing && strings.HasPrefix(req.Messages[1].Content, "bbbb") {
+			return http.StatusBadGateway, ""
+		}
+		return http.StatusOK, "ok:" + req.Messages[1].Content[:1]
+	}
+	if _, err := f.worker.Request(ctx, id, store.TaskTranslation); err != nil {
+		t.Fatal(err)
+	}
+	f.drain()
+	if got := f.result(id, store.TaskTranslation); got.Status != "failed" || len(u.calls()) != 3 {
+		t.Fatalf("first try: %+v, %d requests", got, len(u.calls()))
+	}
+
+	failing = false
+	if _, err := f.worker.Request(ctx, id, store.TaskTranslation); err != nil {
+		t.Fatal(err)
+	}
+	f.drain()
+	calls := u.calls()
+	if got := f.result(id, store.TaskTranslation); got.Status != "ok" || len(calls) != 5 {
+		t.Fatalf("retry: %+v, %d requests", got, len(calls))
+	}
+	// The two chunks that finished are not sent again: the retry sends the failed one, then the last.
+	if !strings.HasPrefix(calls[3].Messages[1].Content, "bbbb") || len(calls[3].Messages[1].Content) != 6000 ||
+		len(calls[4].Messages[1].Content) != 1000 {
+		t.Fatalf("retry sent %d and %d characters", len(calls[3].Messages[1].Content), len(calls[4].Messages[1].Content))
+	}
+	if got := f.result(id, store.TaskTranslation); got.Text != "ok:T\n\nok:a\n\nok:b\n\nok:b" {
+		t.Fatalf("text %q", got.Text)
 	}
 }

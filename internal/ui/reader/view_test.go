@@ -725,6 +725,7 @@ func TestReasons(t *testing.T) {
 		"ai_upstream":     "The AI endpoint answered with an error.",
 		"ai_unknown":      "The AI endpoint answered with an error.",
 		"ai_empty":        "This entry has no text to send.",
+		"ai_cap_reached":  "Automatic AI work reached its daily cap, so this was not done. Try it yourself, or raise the cap in Settings.",
 		"":                "The server didn’t answer. Check the connection and try again.",
 	} {
 		if got := s.reason(code); got != want {

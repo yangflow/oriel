@@ -26,7 +26,7 @@ func TestSettings(t *testing.T) {
 		body["rsshubBaseUrl"] != "" || len(body["rsshubBaseUrls"].([]any)) != 0 || body["retentionDays"] != 0.0 || body["aiBaseUrl"] != "" || body["aiModel"] != "" ||
 		body["aiApiKeySet"] != true || body["aiLanguage"] != "zh-Hans" || body["promptSummary"] != ai.DefaultPromptSummary ||
 		body["promptTranslate"] != ai.DefaultPromptTranslate || body["defaultPromptSummary"] != ai.DefaultPromptSummary ||
-		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 24 || body["websubBaseUrl"] != "" || body["aiSummaryLimit"] != 24000.0 ||
+		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 30 || body["websubBaseUrl"] != "" || body["aiSummaryLimit"] != 24000.0 ||
 		body["aiChunkLimit"] != 6000.0 || body["defaultAiSummaryLimit"] != 24000.0 || body["defaultAiChunkLimit"] != 6000.0 {
 		t.Fatalf("defaults: %d %s", w.Code, w.Body)
 	}
@@ -98,6 +98,9 @@ func TestSettings(t *testing.T) {
 		`{"aiSummaryLimit":100001}`:                               "invalid_ai_limit",
 		`{"aiChunkLimit":20001}`:                                  "invalid_ai_limit",
 		`{"aiChunkLimit":-1}`:                                     "invalid_ai_limit",
+		`{"aiAutoDailyLimit":10001}`:                              "invalid_ai_limit",
+		`{"aiAutoFetchLimit":101}`:                                "invalid_ai_limit",
+		`{"aiAutoFetchLimit":-1}`:                                 "invalid_ai_limit",
 		`{"promptSummary":"` + strings.Repeat("p", 4001) + `"}`:   "invalid_prompt",
 		`{"promptTranslate":"` + strings.Repeat("p", 4001) + `"}`: "invalid_prompt",
 		`{"retentionDays":7,"rsshubBaseUrl":"file:///"}`:          "invalid_rsshub_base_url",
@@ -139,5 +142,23 @@ func TestSettings(t *testing.T) {
 	s.store.SetSetting(ctx, fetch.RetentionSetting, "a week")
 	if body := decode(t, do(s, "GET", "/api/settings", "", bearer(token))); body["retentionDays"] != 0.0 {
 		t.Fatalf("unreadable retention: %v", body)
+	}
+}
+
+// The caps on automatic AI work are saved, 0 puts the default back, and settings says where the text goes.
+func TestSettingsAutomaticCaps(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	w := do(s, "PATCH", "/api/settings", `{"aiAutoDailyLimit":50,"aiAutoFetchLimit":5,"aiBaseUrl":"http://localhost:11434/v1"}`, bearer(token))
+	body := decode(t, w)
+	if w.Code != http.StatusOK || body["aiAutoDailyLimit"] != 50.0 || body["aiAutoFetchLimit"] != 5.0 ||
+		body["defaultAiAutoDailyLimit"] != 200.0 || body["defaultAiAutoFetchLimit"] != 10.0 || body["aiEndpointLocal"] != true ||
+		body["aiAutoCallsToday"] != 0.0 {
+		t.Fatalf("patch: %d %v", w.Code, body)
+	}
+	w = do(s, "PATCH", "/api/settings", `{"aiAutoDailyLimit":0,"aiBaseUrl":"https://api.example.com/v1"}`, bearer(token))
+	if body := decode(t, w); w.Code != http.StatusOK || body["aiAutoDailyLimit"] != 200.0 || body["aiAutoFetchLimit"] != 5.0 ||
+		body["aiEndpointLocal"] != false {
+		t.Fatalf("reset: %d %v", w.Code, body)
 	}
 }

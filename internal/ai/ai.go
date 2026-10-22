@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -32,6 +33,8 @@ const (
 	PromptTranslateSetting = "prompt_translate"
 	SummaryLimitSetting    = "ai_summary_limit"
 	ChunkLimitSetting      = "ai_chunk_limit"
+	AutoDailySetting       = "ai_auto_daily_limit"
+	AutoFetchSetting       = "ai_auto_fetch_limit"
 )
 
 // The bounds of the two limits a user can set, in characters. 0 or an unset value means the default.
@@ -41,6 +44,16 @@ const (
 	MaxChunk       = 20000
 	DefaultSummary = 24000
 	DefaultChunk   = 6000
+)
+
+// The caps on automatic work: requests a day, and new entries of one fetch that are queued. An unset value means
+// the default.
+const (
+	MinAuto          = 1
+	MaxAutoDaily     = 10000
+	MaxAutoFetch     = 100
+	DefaultAutoDaily = 200
+	DefaultAutoFetch = 10
 )
 
 // Built-in prompts, used while the global prompt is not set.
@@ -81,6 +94,7 @@ const (
 	ErrRateLimited   Code = "ai_rate_limited"
 	ErrUpstream      Code = "ai_upstream"
 	ErrEmpty         Code = "ai_empty"
+	ErrCapReached    Code = Code(store.AICapReached)
 
 	ErrModelNotFound Code = "ai_model_not_found"
 )
@@ -95,6 +109,8 @@ type Config struct {
 	PromptTranslate string
 	SummaryLimit    int // characters of an article sent for a summary
 	ChunkLimit      int // characters of a piece sent for a translation
+	AutoDailyLimit  int // requests of automatic tasks per day
+	AutoFetchLimit  int // new entries of one fetch that get automatic tasks
 }
 
 // Configured reports whether both the endpoint and the model are set.
@@ -119,6 +135,8 @@ func Load(ctx context.Context, st *store.Store) (Config, error) {
 	}
 	c.SummaryLimit = storedLimit(ctx, st, SummaryLimitSetting, MinLimit, MaxSummary, DefaultSummary)
 	c.ChunkLimit = storedLimit(ctx, st, ChunkLimitSetting, MinLimit, MaxChunk, DefaultChunk)
+	c.AutoDailyLimit = storedLimit(ctx, st, AutoDailySetting, MinAuto, MaxAutoDaily, DefaultAutoDaily)
+	c.AutoFetchLimit = storedLimit(ctx, st, AutoFetchSetting, MinAuto, MaxAutoFetch, DefaultAutoFetch)
 	if _, ok := Languages[c.Language]; !ok {
 		c.Language = "zh-Hans"
 	}
@@ -144,6 +162,20 @@ func storedLimit(ctx context.Context, st *store.Store, key string, low, high, fa
 	return n
 }
 
+// IsLocalEndpoint reports whether baseURL points at this computer: localhost or a loopback address.
+func IsLocalEndpoint(baseURL string) bool {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 // Configured reports whether the stored settings name an endpoint and a model.
 func Configured(ctx context.Context, st *store.Store) (bool, error) {
 	c, err := Load(ctx, st)
@@ -154,6 +186,7 @@ func Configured(ctx context.Context, st *store.Store) (bool, error) {
 type job struct {
 	prompt      string
 	chunks      []string
+	keys        []string // per chunk, what identifies its reply: the model, the prompt, the language and the text
 	fingerprint string
 }
 
@@ -190,6 +223,10 @@ func prepare(c Config, in store.AIInput, task string) (job, bool) {
 		j.chunks = chunks(strings.Split(text, "\n\n"), c.ChunkLimit)
 	} else {
 		j.chunks = []string{text}
+	}
+	for _, chunk := range j.chunks {
+		key := sha256.Sum256([]byte(strings.Join([]string{c.Model, prompt, c.Language, chunk}, "\x00")))
+		j.keys = append(j.keys, hex.EncodeToString(key[:]))
 	}
 	return j, true
 }

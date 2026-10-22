@@ -13,7 +13,7 @@
      in the note), extracting (full text not tried yet, or being tried again after "Try again"; the feed's content
      meanwhile), extracting-empty (the same with no feed content), failed (no full text and no feed content; "Try again"
      beside "Open the original"), loading, error.
-     AI states: summarizing, summary, summary-failed, translating (the original stays readable), translation (the
+     AI states: summarizing, summary, summary-failed, summary-cap (the daily cap on automatic work is reached), translating (the original stays readable), translation (the
      translated text, with a switch back to the original), translation-failed, ai-off (AI is not set up: the
      summary or translate button leads to Settings instead of failing). no-more-unread: N found no unread article
      after this one, so a toast says so and the reader stays put. resumed: the article was left part way (read progress
@@ -309,7 +309,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled'];
+const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
@@ -397,7 +397,7 @@ const copy={
     summaryFailed:'Couldn’t summarize', translating:'Translating. The original stays here until it’s done.',
     translated:'Translated by {model}', translation:'Translation', original:'Original',
     translationFailed:'Couldn’t translate. {reason}',
-    aiTimeout:'The AI endpoint took too long to answer.', aiUnauthorized:'The AI endpoint turned down the API key. Check it in Settings.',
+    aiCap:'Automatic AI work reached its daily cap, so this was not done. Try it yourself, or raise the cap in Settings.', aiTimeout:'The AI endpoint took too long to answer.', aiUnauthorized:'The AI endpoint turned down the API key. Check it in Settings.',
     aiOff:'Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.',
     noMoreUnread:'No unread articles after this one', resumed:'Back where you left off', aiOffTitle:'AI isn’t set up', openSettings:'Open Settings…', close:'Close',
     translateSel:'Translate selection', explainSel:'Explain selection', copyAction:'Copy', selectAll:'Select All', selTranslation:'Translation', selExplanation:'Explanation',
@@ -419,7 +419,7 @@ const copy={
     summaryFailed:'摘要没能生成', translating:'正在翻译，完成前先看原文。',
     translated:'由 {model} 翻译', translation:'译文', original:'原文',
     translationFailed:'没能翻译。{reason}',
-    aiTimeout:'AI 接口太久没有响应。', aiUnauthorized:'AI 接口不接受这个 API key，去设置里检查一下。',
+    aiCap:'今天的自动 AI 请求已达上限，所以没有处理这篇。可以自己重试，或在设置里调高上限。', aiTimeout:'AI 接口太久没有响应。', aiUnauthorized:'AI 接口不接受这个 API key，去设置里检查一下。',
     aiOff:'摘要和翻译走你自己选的 AI 接口，例如 OpenAI 或本机的模型。先在设置里配好。',
     noMoreUnread:'后面没有未读文章了', resumed:'回到上次读到的位置', aiOffTitle:'还没配置 AI', openSettings:'打开设置…', close:'关闭',
     translateSel:'翻译所选', explainSel:'解释所选', copyAction:'复制', selectAll:'全选', selTranslation:'译文', selExplanation:'解释',
@@ -438,7 +438,7 @@ const sidebar=`<aside><nav class="kind-list" aria-label="${copy.kinds}">${[['all
 <nav class="nav" aria-label="${copy.sources}"><div class="section">${copy.article}</div>${sources.map(s=>`<button class="item${s.chosen?' chosen':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failing}">${icon('alert')}</span>`:''}${s.unread?`<span class="count">${s.unread}</span>`:''}</button>`).join('')}</nav>
 <button class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></button></aside>`;
 
-const summaryOn=['summarizing','summary','summary-failed'].includes(state), translated=state==='translation';
+const summaryOn=['summarizing','summary','summary-failed','summary-cap'].includes(state), translated=state==='translation';
 const starred=state==='full', read=true, off=state==='error'||state==='loading'?' disabled':'';
 // The fixed order (docs/design.md, Reader): back, previous, next, summary, translate, star, read/unread, open in browser,
 // copy link, more. Every article has the same buttons: one that does not apply is disabled (aria-disabled, so it keeps
@@ -529,6 +529,7 @@ const close=`<button class="mini" aria-label="${copy.hideSummary}" title="${copy
 const card={
   summarizing:`<section class="ai" aria-label="${copy.summary}" aria-busy="true"><div class="head" role="status">${icon('loader','spin')}<span>${copy.summarizing}</span><button class="textbutton">${copy.cancel}</button></div><div class="bars" aria-hidden="true"><div class="bar" style="width:96%"></div><div class="bar" style="width:90%"></div><div class="bar" style="width:58%"></div></div></section>`,
   summary:`<section class="ai" aria-label="${copy.summary}"><div class="head">${icon('sparkles')}<span>${copy.summary}</span><span class="by">· ${t('by',{model})}</span>${close}</div><p>${summaryText}</p></section>`,
+  'summary-cap':`<section class="ai error" aria-label="${copy.summary}"><div class="head" role="alert">${icon('alert')}<span>${copy.summaryFailed}</span>${close}</div><p>${copy.aiCap}</p><div class="buttons"><button class="button small">${icon('refresh')}${copy.retry}</button></div></section>`,
   'summary-failed':`<section class="ai error" aria-label="${copy.summary}"><div class="head" role="alert">${icon('alert')}<span>${copy.summaryFailed}</span>${close}</div><p>${copy.aiTimeout}</p><div class="buttons"><button class="button small">${icon('refresh')}${copy.retry}</button></div></section>`,
   'ai-off':`<section class="ai plain" aria-label="${copy.aiOffTitle}"><div class="head" role="status">${icon('sparkles')}<span>${copy.aiOffTitle}</span><button class="mini" aria-label="${copy.close}" title="${copy.close}">${icon('x')}</button></div><p class="muted">${copy.aiOff}</p><div class="buttons"><button class="button small primary">${icon('settings')}${copy.openSettings}</button></div></section>`,
 };
@@ -561,7 +562,7 @@ let page;
 switch(state){
   case 'selection-menu':case 'selection-explain':page=article('',markExplain(full));break;
   case 'selection-loading':case 'selection-translate':case 'selection-failed':case 'selection-too-long':case 'selection-ai-off':page=original('').replace(zh?'it indexes every run of three characters':'把文本切成所有连续的三个字符',m=>`<mark class="sel">${m}</mark>`);break;
-  case 'summarizing':case 'summary':case 'summary-failed':case 'ai-off':page=article(card[state],full);break;
+  case 'summarizing':case 'summary':case 'summary-failed':case 'summary-cap':case 'ai-off':page=article(card[state],full);break;
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
