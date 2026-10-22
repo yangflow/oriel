@@ -75,6 +75,35 @@ func TestImageCacheHitAndMiss(t *testing.T) {
 	}
 }
 
+func TestImageCacheStats(t *testing.T) {
+	origin := newCacheOrigin(t, 10)
+	dir := filepath.Join(t.TempDir(), "image-cache")
+	im := cachedImages(dir)
+	ctx := context.Background()
+	if n, size := im.CacheStats(); n != 0 || size != 0 {
+		t.Fatalf("empty: %d, %d", n, size)
+	}
+	for _, name := range []string{"/a", "/b", "/a"} {
+		if _, _, err := im.Get(ctx, origin.URL+name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var onDisk int64
+	for _, name := range cacheFiles(t, dir) {
+		info, err := os.Stat(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		onDisk += info.Size()
+	}
+	if n, size := im.CacheStats(); n != 2 || size != onDisk || size == 0 {
+		t.Fatalf("stats: %d, %d (on disk %d)", n, size, onDisk)
+	}
+	if n, size := NewImages("test", "").CacheStats(); n != 0 || size != 0 {
+		t.Fatalf("without a cache: %d, %d", n, size)
+	}
+}
+
 func TestImageCacheExpiry(t *testing.T) {
 	origin := newCacheOrigin(t, 10)
 	im := cachedImages(t.TempDir())

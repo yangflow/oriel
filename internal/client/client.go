@@ -561,6 +561,94 @@ func (s Session) SourcesHealth(ctx context.Context) (Health, error) {
 	return health, err
 }
 
+// FetchAttempt is the result of one fetch of a subscription. At is Unix milliseconds; Status is the last HTTP
+// status received, 0 when there was none.
+type FetchAttempt struct {
+	At         int64  `json:"at"`
+	DurationMs int64  `json:"durationMs"`
+	OK         bool   `json:"ok"`
+	Status     int    `json:"status"`
+	NewEntries int    `json:"newEntries"`
+	Error      string `json:"error"`
+}
+
+// ActivitySource is a subscription with its recent fetch attempts, newest first.
+type ActivitySource struct {
+	ID         int64          `json:"id"`
+	URL        string         `json:"url"`
+	RSSHubPath string         `json:"rsshubPath"`
+	Title      string         `json:"title"`
+	Paused     bool           `json:"paused"`
+	Attempts   []FetchAttempt `json:"attempts"`
+}
+
+// FetchingSource is a subscription being fetched right now.
+type FetchingSource struct {
+	ID         int64  `json:"id"`
+	URL        string `json:"url"`
+	RSSHubPath string `json:"rsshubPath"`
+	Title      string `json:"title"`
+}
+
+// Activity is what is being fetched now and how the recent fetches of each subscription went. Keep is how many
+// attempts the server keeps for each subscription.
+type Activity struct {
+	Keep     int              `json:"keep"`
+	Fetching []FetchingSource `json:"fetching"`
+	Sources  []ActivitySource `json:"sources"`
+}
+
+// Activity asks the server what it is fetching and how the recent fetches went.
+func (s Session) Activity(ctx context.Context) (Activity, error) {
+	var activity Activity
+	err := s.call(ctx, http.MethodGet, "/api/activity", nil, &activity)
+	return activity, err
+}
+
+// The states of a Vacuum.
+const (
+	VacuumIdle    = "idle"
+	VacuumRunning = "running"
+	VacuumDone    = "done"
+	VacuumFailed  = "failed"
+)
+
+// Vacuum is the state of the database compaction on the server. Times are Unix milliseconds, 0 when not yet.
+type Vacuum struct {
+	State      string `json:"state"`
+	StartedAt  int64  `json:"startedAt"`
+	FinishedAt int64  `json:"finishedAt"`
+	FreedBytes int64  `json:"freedBytes"`
+	Error      string `json:"error"`
+}
+
+// Storage is what the server's data takes up, and the state of the last vacuum.
+type Storage struct {
+	DatabaseBytes    int64  `json:"databaseBytes"`
+	ReclaimableBytes int64  `json:"reclaimableBytes"`
+	Entries          int64  `json:"entries"`
+	Images           int    `json:"images"`
+	ImageBytes       int64  `json:"imageBytes"`
+	Vacuum           Vacuum `json:"vacuum"`
+}
+
+// Storage asks the server how big its database and image cache are.
+func (s Session) Storage(ctx context.Context) (Storage, error) {
+	var storage Storage
+	err := s.call(ctx, http.MethodGet, "/api/storage", nil, &storage)
+	return storage, err
+}
+
+// StartVacuum asks the server to compact its database in the background and returns the state it started in. A vacuum
+// already running is an *APIError with the code "vacuum_running".
+func (s Session) StartVacuum(ctx context.Context) (Vacuum, error) {
+	var started struct {
+		Vacuum Vacuum `json:"vacuum"`
+	}
+	err := s.call(ctx, http.MethodPost, "/api/storage/vacuum", nil, &started)
+	return started.Vacuum, err
+}
+
 // AddSource subscribes to a feed or an RSSHub route and returns the subscription.
 func (s Session) AddSource(ctx context.Context, src NewSource) (Source, error) {
 	var added Source

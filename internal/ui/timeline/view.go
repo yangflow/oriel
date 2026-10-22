@@ -30,30 +30,30 @@ import (
 var catalog []byte
 
 type copy struct {
-	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show                                                           string
-	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                      string
-	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                                       string
-	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                              string
-	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                               string
-	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                              string
-	MorePictures, Pictures, AISummary, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                                            string
-	AddSource, EditSource, AddFirst, ImportOPML, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                   string
-	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                                      string
-	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                            string
-	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                          string
-	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                           string
-	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                          string
-	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteActions, PaletteUnreadOnly, PaletteShowAll      string
-	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, HideSidebar, ShowSidebar, KeyToggleSidebar string
-	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                        string
-	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                            string
-	CopyLink, CopyMarkdown, SaveMarkdown                                                                                                                  string
-	LastLooked                                                                                                                                            string
-	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                              string
-	OrderNewest, OrderOldest                                                                                                                              string
-	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                   string
-	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu              string
-	Fetching, FetchedEntries, FetchedEntry, FetchedNone, FetchFailed, FreshEntries, FreshEntry, NothingNewIn                                              string
+	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Show                                                                         string
+	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
+	MarkUnread, Open, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                                                     string
+	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                                            string
+	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                                             string
+	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                            string
+	MorePictures, Pictures, AISummary, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                                                          string
+	AddSource, EditSource, AddFirst, ImportOPML, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                                 string
+	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                                                    string
+	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
+	KeyBack, KeyAdd, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                                        string
+	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                                         string
+	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                                        string
+	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteActions, PaletteUnreadOnly, PaletteShowAll                    string
+	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, PageActivity, HideSidebar, ShowSidebar, KeyToggleSidebar string
+	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                                      string
+	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                                          string
+	CopyLink, CopyMarkdown, SaveMarkdown                                                                                                                                string
+	LastLooked                                                                                                                                                          string
+	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                                            string
+	OrderNewest, OrderOldest                                                                                                                                            string
+	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                                 string
+	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu                            string
+	Fetching, FetchedEntries, FetchedEntry, FetchedNone, FetchFailed, FreshEntries, FreshEntry, NothingNewIn                                                            string
 }
 
 var translations = func() map[string]copy {
@@ -102,7 +102,7 @@ type API interface {
 // OpenSettings the settings, from the gear beside it, OpenAISettings the settings on the AI group, from the entry
 // points of summaries and translations while AI is not set up, OpenImport the settings on the import and export
 // group, from the empty timeline of a first run, OpenSettingsPage the settings on the group called page
-// ("appearance", "fetching", "opml", "ai" or "devices"), from the command palette, and Expired the connect screen
+// ("appearance", "fetching", "opml", "ai", "devices" or "activity"), from the command palette, and Expired the connect screen
 // because the server no longer takes the session. Reading gives the reading preferences of this device, for the reader, and ReadingFont the
 // font list of the article's body that they come to, "" for the interface font. Change keeps preferences the
 // screen changed itself, the list or grid of a scope. Save asks where to save a file, for the reader's export.

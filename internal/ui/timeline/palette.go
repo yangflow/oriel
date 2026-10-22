@@ -108,7 +108,7 @@ func (s *Screen) paletteItems() []paletteItem {
 		icon     *ui.SVG
 	}{{"appearance", s.text.PageAppearance, icons.Palette}, {"fetching", s.text.PageFetching, icons.Rss},
 		{"opml", s.text.PageImport, icons.ArrowUpDown}, {"ai", s.text.PageAI, icons.Sparkles},
-		{"devices", s.text.PageDevices, icons.Laptop}} {
+		{"devices", s.text.PageDevices, icons.Laptop}, {"activity", s.text.PageActivity, icons.Database}} {
 		add(paletteItem{group: groupSettings, name: page.name, icon: page.icon, run: func() {
 			if s.deps.OpenSettingsPage != nil {
 				s.deps.OpenSettingsPage(page.id)

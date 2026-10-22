@@ -1,6 +1,6 @@
 // Package settings is the settings screen, in the place of the timeline: the RSSHub instance and how long entries are
-// kept, OPML import and export, the AI endpoint and prompts, and the devices signed in to the server; see
-// design/screens/settings.html. Everything
+// kept, OPML import and export, the AI endpoint and prompts, the devices signed in to the server, and what the server
+// is fetching with the space its database uses; see design/screens/settings.html. Everything
 // goes through the HTTP API; the settings belong to the server, so every device connected to it shares them.
 package settings
 
@@ -57,6 +57,9 @@ type copy struct {
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                              string
 	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid           string
 	ViewWall, ViewCard, ViewAsHelp, Timeline, Density, DensityHelp, DensityComfortable, DensityCompact             string
+	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Compact, Compacting            string
+	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep               string
+	NewCount, NothingNew, FailedWord, ShowAttempts                                                                 string
 }
 
 var translations = func() map[string]copy {
@@ -93,16 +96,20 @@ const (
 	opml
 	ai
 	devices
+	activity
 )
 
 // pages are the names of the groups, in the order of the constants above, as the command palette calls them.
-var pages = []string{appearance: "appearance", fetching: "fetching", opml: "opml", ai: "ai", devices: "devices"}
+var pages = []string{appearance: "appearance", fetching: "fetching", opml: "opml", ai: "ai", devices: "devices", activity: "activity"}
 
 // API is what the screen reads and writes on the server; client.Session is one.
 type API interface {
 	Settings(ctx context.Context) (client.Settings, error)
 	SetSettings(ctx context.Context, patch client.SettingsPatch) (client.Settings, error)
 	Devices(ctx context.Context) ([]client.Device, error)
+	Activity(ctx context.Context) (client.Activity, error)
+	Storage(ctx context.Context) (client.Storage, error)
+	StartVacuum(ctx context.Context) (client.Vacuum, error)
 	RevokeDevice(ctx context.Context, id int64) error
 	ImportOPML(ctx context.Context, opml []byte) (client.Imported, error)
 	ExportOPML(ctx context.Context) ([]byte, error)
@@ -195,6 +202,16 @@ type Screen struct {
 	devices     []client.Device
 	deviceState int
 
+	activity    client.Activity
+	storage     client.Storage
+	actState    int
+	actLoads    int       // counts requests for the activity, so a result a newer one has passed is dropped
+	actBusy     bool      // the activity is being fetched
+	actAt       time.Time // when it was last asked for
+	actOpen     int64     // the subscription whose attempts are shown, 0 for none
+	vacStarting bool      // the request to compact is under way
+	vacError    string    // why the request to compact failed
+
 	aiBase, aiModel, aiKey string // as typed; the key saved is never sent back
 	aiLanguage             string
 	aiLimits               [2]string // the summary limit and the chunk size as typed; "" follows the default
@@ -264,6 +281,8 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.group, s.busy, s.importing, s.result, s.revoking = fetching, false, "", result{}, false
 	s.saving, s.keeping, s.aiSaving, s.testing, s.promptSaving = false, false, false, false, false
 	s.state, s.deviceState, s.restored = loading, loading, nil
+	s.activity, s.storage, s.actState, s.actBusy, s.actOpen = client.Activity{}, client.Storage{}, loading, false, 0
+	s.vacStarting, s.vacError, s.actAt = false, "", time.Time{}
 }
 
 // OpenAI opens the screen on the AI group, from an entry point of summaries and translations.
@@ -284,7 +303,7 @@ func (s *Screen) OpenAppearance() {
 	s.Open()
 }
 
-// OpenPage opens the screen on the group called name: "appearance", "fetching", "opml", "ai" or "devices", from the
+// OpenPage opens the screen on the group called name: "appearance", "fetching", "opml", "ai", "devices" or "activity", from the
 // command palette of the timeline. Any other name opens it on the group it showed last.
 func (s *Screen) OpenPage(name string) {
 	if g := slices.Index(pages, name); g >= 0 {
@@ -307,6 +326,7 @@ func (s *Screen) Open() {
 	}
 	s.loadSettings()
 	s.loadDevices()
+	s.actState, s.actAt = loading, time.Time{}
 }
 
 func (s *Screen) expired(err error) bool {
@@ -317,6 +337,7 @@ func (s *Screen) expired(err error) bool {
 	s.api = nil
 	s.busy, s.saving, s.keeping, s.revoking = false, false, false, false
 	s.aiSaving, s.testing, s.promptSaving = false, false, false
+	s.actBusy, s.vacStarting = false, false
 	s.deps.Expired()
 	return true
 }
@@ -1000,6 +1021,8 @@ func (s *Screen) groupName(g int) string {
 		return s.text.AI
 	case devices:
 		return s.text.Devices
+	case activity:
+		return s.text.Activity
 	}
 	return s.text.Fetching
 }
@@ -1145,7 +1168,7 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 			ui.Column(c).FillWidth().Padding(t.Space(2)).Label(s.text.Settings).Children(func() {
 				ui.Text(c, s.text.Settings).SingleLine().FontSize(px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
 					Margin(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
-				for g, icon := range []*ui.SVG{icons.Palette, icons.Rss, icons.ArrowUpDown, icons.Sparkles, icons.Laptop} {
+				for g, icon := range []*ui.SVG{icons.Palette, icons.Rss, icons.ArrowUpDown, icons.Sparkles, icons.Laptop, icons.Database} {
 					s.navItem(c, g, icon)
 				}
 			})
@@ -1205,6 +1228,9 @@ func (s *Screen) content(c *ui.Context, compact bool, room float32) {
 		state = loaded
 	case devices:
 		state = s.deviceState
+	case activity:
+		state = s.actState
+		s.watchActivity(c)
 	}
 	switch state {
 	case failed:
@@ -1224,6 +1250,8 @@ func (s *Screen) content(c *ui.Context, compact bool, room float32) {
 			s.aiPage(c, s.twoColumns(c.Theme(), room))
 		case devices:
 			s.devicesPage(c, s.wideTable(c.Theme(), room))
+		case activity:
+			s.activityPage(c)
 		default:
 			s.fetchingPage(c)
 		}
@@ -1304,9 +1332,12 @@ func (s *Screen) failure(c *ui.Context) {
 			retry := button(c, secondary, false)
 			textButton(c, retry, secondary, icons.RefreshCw, s.text.Retry, false)
 			if retry.Clicked() {
-				if s.group == devices {
+				switch s.group {
+				case devices:
 					s.loadDevices()
-				} else {
+				case activity:
+					s.fetchActivity()
+				default:
 					s.loadSettings()
 				}
 			}
