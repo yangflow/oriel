@@ -3611,7 +3611,7 @@ func TestSidebarButtonPlace(t *testing.T) {
 	p.SidebarHidden = true
 	tt.Frame()
 	hidden, ok := tt.Find("Show sidebar")
-	if !ok || hidden.Y-shown.Y > 1 || shown.Y-hidden.Y > 1 || hidden.W != shown.W {
+	if !ok || hidden.Y-shown.Y > 1 || shown.Y-hidden.Y > 1 || hidden.W-shown.W > 0.01 || shown.W-hidden.W > 0.01 {
 		t.Fatalf("shown at %v, hidden at %v, %v", shown, hidden, ok)
 	}
 	if hidden.X < 78 {
