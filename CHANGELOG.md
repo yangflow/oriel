@@ -23,6 +23,26 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.8.0](https://github.com/yangflow/oriel/compare/v0.7.0...v0.8.0) (2026-10-22)
+
+
+### Added
+
+* **backup:** back up and restore all data from Settings or the command line ([#298](https://github.com/yangflow/oriel/issues/298)) ([9ad2eb4](https://github.com/yangflow/oriel/commit/9ad2eb44970ac822df40352c5f6af328a7fd1435))
+* **backup:** back up automatically to a folder every day or week ([#308](https://github.com/yangflow/oriel/issues/308)) ([fe2ca44](https://github.com/yangflow/oriel/commit/fe2ca4434e39f5074c5c4bc67eb5cc0f59dc01d9))
+* **reader:** keep a local copy of starred entries' pictures and text ([#306](https://github.com/yangflow/oriel/issues/306)) ([990f68f](https://github.com/yangflow/oriel/commit/990f68feb45094a39221031cae4f6032b087b7b6))
+* **reader:** one toolbar button style, a fixed reader toolbar and a solid bar once scrolled ([#310](https://github.com/yangflow/oriel/issues/310)) ([5031863](https://github.com/yangflow/oriel/commit/503186392a44ce6b16ec218de616eba3c8233509))
+* **settings:** export a diagnostics file without secrets ([#294](https://github.com/yangflow/oriel/issues/294)) ([98bebe9](https://github.com/yangflow/oriel/commit/98bebe9fb06a8909940a6e002d082e1e8965ed28))
+* **subscriptions:** explain when the public rsshub.app blocks a fetch and point to your own instance ([#307](https://github.com/yangflow/oriel/issues/307)) ([a2c109d](https://github.com/yangflow/oriel/commit/a2c109dfea5cbcf994e7c77342209f4339cdfa79))
+* **subscriptions:** undo deleting a subscription ([#295](https://github.com/yangflow/oriel/issues/295)) ([fbdb2d2](https://github.com/yangflow/oriel/commit/fbdb2d231ad24d53d8e6fdd8c92cd39ad02045cd))
+* **timeline:** drop the topic starter packs from the empty timeline ([#305](https://github.com/yangflow/oriel/issues/305)) ([7bafe40](https://github.com/yangflow/oriel/commit/7bafe404740950f4f2754a35ce594e23af693f39))
+* **timeline:** undo a bulk mark as read only for the entries it marked ([#296](https://github.com/yangflow/oriel/issues/296)) ([56d227c](https://github.com/yangflow/oriel/commit/56d227c9c41d980e9ec0196b95333220ff0d5596))
+
+
+### Fixed
+
+* **ui:** drop tooltips that repeat a button's visible label ([#309](https://github.com/yangflow/oriel/issues/309)) ([95a4638](https://github.com/yangflow/oriel/commit/95a4638da3903260c7bc3b02839725b87573fd43))
+
 ## [0.7.0](https://github.com/yangflow/oriel/compare/v0.6.0...v0.7.0) (2026-10-22)
 
 
