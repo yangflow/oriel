@@ -1245,8 +1245,8 @@ func TestSearch(t *testing.T) {
 	f.now = f.now.Add(debounce)
 	tt.Frame()
 	f.settle(t, tt)
-	if tt.HasText("Only titles and summaries are searched, up to 200 entries shown") {
-		t.Fatal("the hint stays for a longer search")
+	if !tt.HasText("Only titles and summaries are searched, up to 200 entries shown") {
+		t.Fatal("the hint goes although a word is still under three characters")
 	}
 	if q := f.queries[len(f.queries)-1]; q.Search != "go t" {
 		t.Fatalf("query %v", q)
@@ -5599,5 +5599,72 @@ func TestUnreadCountCap(t *testing.T) {
 	}
 	if got := countText(1000); got != "999+" {
 		t.Errorf("countText(1000) = %q", got)
+	}
+}
+
+// TestSearchSyntaxHint shows the syntax line while the search field has the focus and is empty, in both languages,
+// and drops it once something is typed.
+func TestSearchSyntaxHint(t *testing.T) {
+	for _, c := range []struct{ language, lead, from string }{{"en", "Try", "from:name"}, {"zh-Hans", "可以写", "from:名称"}} {
+		_, _, tt := setup(t, c.language)
+		if tt.HasText(c.lead) {
+			t.Fatalf("%s: the syntax shows before the search is opened", c.language)
+		}
+		tt.Key(ui.Cmd, ui.KeyF)
+		if !tt.HasText(c.lead) {
+			t.Fatalf("%s: no syntax line: %v", c.language, tt.Texts())
+		}
+		tt.Type("x")
+		if tt.HasText(c.lead) {
+			t.Fatalf("%s: the syntax stays after typing", c.language)
+		}
+	}
+}
+
+// TestSearchSyntaxDescription gives the search field the syntax line as its description.
+func TestSearchSyntaxDescription(t *testing.T) {
+	s, _, _ := setup(t, "en")
+	d := s.syntaxDescription()
+	for _, want := range []string{"Try", "from:name", "kind:video", "after:2026-01-01", `"exact phrase"`, "-exclude"} {
+		if !strings.Contains(d, want) {
+			t.Fatalf("description %q misses %q", d, want)
+		}
+	}
+}
+
+// TestMatches marks several terms and phrases, ignores case, joins touching ranges and stops at eight pieces.
+func TestMatches(t *testing.T) {
+	got := matches("Go Blog: go fmt", []string{"go", "fmt"})
+	if want := [][2]int{{0, 2}, {9, 11}, {12, 15}}; !slices.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if got := matches("abcd", []string{"ab", "bc"}); !slices.Equal(got, [][2]int{{0, 3}}) {
+		t.Fatalf("touching ranges: %v", got)
+	}
+	if got := matches("a a a a a a a a a a a a", []string{"a"}); len(got) != maxMarked {
+		t.Fatalf("%d pieces, want %d", len(got), maxMarked)
+	}
+	if got := matches("nothing", nil); len(got) != 0 {
+		t.Fatalf("no terms: %v", got)
+	}
+}
+
+// TestSearchTerms takes only the included words and phrases from the search, not the operators or the exclusions.
+func TestSearchTerms(t *testing.T) {
+	s, _, _ := setup(t, "en")
+	s.searched = `go "fmt tool" -cats from:blog kind:video`
+	if got := s.terms(); !slices.Equal(got, []string{"go", "fmt tool"}) {
+		t.Fatalf("terms %q", got)
+	}
+}
+
+// TestLimitedWithOperators keeps the limit for a short word beside operators and drops it for operators alone.
+func TestLimitedWithOperators(t *testing.T) {
+	s, _, _ := setup(t, "en")
+	for q, want := range map[string]bool{"go": true, "go kind:video": true, "kind:video": false, "golang kind:video": false} {
+		s.searched = q
+		if s.limited() != want {
+			t.Fatalf("%q: limited %v, want %v", q, !want, want)
+		}
 	}
 }

@@ -11,7 +11,38 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestEntriesSendsZoneOnlyForSearch(t *testing.T) {
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.URL.RawQuery)
+		w.Write([]byte(`{"entries":[],"nextCursor":null}`))
+	}))
+	defer srv.Close()
+	local := zoneName
+	defer func() { zoneName = local }()
+	session := Session{Server: srv.URL, Token: "t1"}
+	for _, c := range []struct {
+		zone   *time.Location
+		search string
+		want   string
+	}{
+		{time.FixedZone("Europe/Paris", 3600), "after:2026-01-01", "q=after%3A2026-01-01&tz=Europe%2FParis"},
+		{time.FixedZone("Europe/Paris", 3600), "", ""},
+		{time.FixedZone("Local", 0), "go", "q=go"},
+		{time.FixedZone("", 0), "go", "q=go"},
+	} {
+		zoneName = c.zone.String
+		if _, err := session.Entries(context.Background(), Query{Search: c.search}); err != nil {
+			t.Fatal(err)
+		}
+		if last := got[len(got)-1]; last != c.want {
+			t.Errorf("zone %q, search %q: %q, want %q", c.zone, c.search, last, c.want)
+		}
+	}
+}
 
 func TestAddress(t *testing.T) {
 	for input, want := range map[string]string{
@@ -227,6 +258,9 @@ func TestTimelineAPI(t *testing.T) {
 	defer srv.Close()
 	session := Session{Server: srv.URL, Token: "t1"}
 
+	local := zoneName
+	zoneName = func() string { return "Asia/Shanghai" }
+	defer func() { zoneName = local }()
 	page, err := session.Entries(ctx, Query{Kind: "video", Unread: true, Search: "go fmt", MaxMinutes: 10, Oldest: true, Limit: 50, Cursor: "1.2"})
 	if err != nil || len(page.Entries) != 1 || page.Next != "" {
 		t.Fatalf("Entries = %+v, %v", page, err)
@@ -337,7 +371,7 @@ func TestTimelineAPI(t *testing.T) {
 		t.Errorf("SetSettings = %+v, %v", settings, err)
 	}
 	want := []string{
-		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&order=asc&q=go+fmt&unread=1 ",
+		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&order=asc&q=go+fmt&tz=Asia%2FShanghai&unread=1 ",
 		"GET /api/entries?cursor=bad ",
 		"POST /api/entries/7/extract ",
 		"GET /api/sources ",

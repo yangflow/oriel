@@ -6,7 +6,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata" // zone names for the tz parameter on hosts without a zone database, such as a minimal container
 
+	"github.com/yangflow/oriel/internal/search"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -152,6 +154,19 @@ func parseCursor(raw string) (store.Position, bool) {
 	return p, err1 == nil && err2 == nil && p.ID > 0
 }
 
+// zone is the time zone named by the tz parameter, where the days of after: and before: begin. A missing, unknown or
+// "Local" name gives nil, which is the zone of the server; it is never an error.
+func zone(name string) *time.Location {
+	if name == "" || name == "Local" {
+		return nil
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return nil
+	}
+	return loc
+}
+
 func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	filter := store.EntryFilter{
@@ -208,7 +223,8 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filter.Group = group
-	limited := store.ShortQuery(filter.Query)
+	filter.Location = zone(query.Get("tz"))
+	limited := search.Parse(filter.Query).Short()
 	if limited {
 		limit = shortQueryLimit
 	}

@@ -150,6 +150,34 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `TextMuted`, a pause mark instead of the failure mark, and no count. With one subscription chosen, a pencil button
   after the count edits it. A row is chosen with a fill (ink 6.5%) and the selection marker; see
   [States](#color-and-dark-mode).
+- **Search syntax and matches** (product.md, Search syntax). Drawn in `design/screens/timeline.html`: `search-syntax`
+  (the hint), `search` (highlights) and `search-operators` (a query that uses the syntax).
+  - *Syntax hint.* No help page and no chips. While the search field has the focus and is empty, one line sits under
+    the toolbar in the place of the "Only titles and summaries" notice, in the same strip: 12 `Text2` on a `Track` fill
+    (not the `Warning` soft fill, it is information, not a caution), radius 12, 7 by 14 padding, a 14 `TextMuted`
+    info icon, then the syntax as text: `from:name  kind:video  after:2026-01-01  "exact phrase"  -exclude`. The
+    operator words are 12 medium `Text`, the rest 12 regular `Text2`, 12 apart, and the line wraps to two lines in a
+    narrow column instead of cutting. It is tied to the field with `aria-describedby` (read with the field's name,
+    never announced on its own) and goes away on the first character typed, and when the field loses the focus. The
+    field keeps the placeholder "Search"; 200 wide has no room for the syntax. When the field is drawn as the 32
+    square button, the hint still shows once the field is open.
+  - *No chips.* The parsed filters are not drawn as tags. The text stays in the field exactly as typed, so the
+    query reads, edits and copies as one string (and is what #76 will save). Chips would add controls to the Tab
+    order, take width the 200 field does not have, and need a second place to say a token was not understood, which
+    the grammar says is never an error.
+  - *Highlights.* The words and phrases the query asks for (not the excluded ones, not `from:`, `kind:` or dates) are
+    marked in the row's title and in its summary or text, at most 8 pieces in each. A piece is drawn with the
+    `Warning` soft fill (radius 4, 1 padding either side) **and** a 1.5 underline in the text's own color, 2 below
+    the baseline, so it does not depend on color: the fill alone is only 1.1:1 against the ground and is not a cue by
+    itself. The text keeps its size and weight and does not move. Its color is `Text` in a title, `Text2` in a
+    summary; in a read row, where titles and summaries are `TextMuted`, a marked piece uses `Text2`, because
+    `TextMuted` falls to 4.4 / 4.3 on the soft fill (light / dark) and `Text2` holds 6.6 / 6.3 (6.2 / 5.9 on
+    `Surface`); `Text` holds 13.7 / 10.6. All are over 4.5:1 in light and dark; check them with high contrast on, where
+    the underline becomes 2 and the fill 16%.
+  - *Screen readers.* A highlight is paint only: it is not its own element, it takes no focus and is not announced, and
+    it does not split the row's name, which stays the title, the source and the state, as without a search. Copying
+    and selecting give the plain text. Compact rows, cards and grid cells mark their title the same way; a picture
+    result has no text to mark.
 - **"Last looked" divider.** In the column of rows only, a 28 high row of its own between two entries, in the row
   column (at most 680, the same side padding): a 1 high `Border` hairline across it with the label centered on the
   hairline, 12 medium `Accent` on the `Background` with 10 of padding at each side, tabular numerals: "12 new since you

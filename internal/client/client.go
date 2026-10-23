@@ -613,6 +613,9 @@ var discoverClient = &http.Client{Timeout: 30 * time.Second, Transport: agent{}}
 // imageClient waits longer than httpClient: the server itself may take 25 seconds to get a picture.
 var imageClient = &http.Client{Timeout: 40 * time.Second, Transport: agent{}}
 
+// zoneName is the name of the zone of this computer; the tests replace it.
+var zoneName = func() string { return time.Local.String() }
+
 // Entries returns a page of the timeline.
 func (s Session) Entries(ctx context.Context, q Query) (Page, error) {
 	values := url.Values{}
@@ -630,6 +633,10 @@ func (s Session) Entries(ctx context.Context, q Query) (Page, error) {
 	}
 	if q.Search != "" {
 		values.Set("q", q.Search)
+		// The server cannot know where the reader's days begin, which after: and before: need.
+		if zone := zoneName(); zone != "" && zone != "Local" {
+			values.Set("tz", zone)
+		}
 	}
 	if q.MaxMinutes != 0 {
 		values.Set("maxMinutes", strconv.Itoa(q.MaxMinutes))

@@ -19,6 +19,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/prefs"
+	"github.com/yangflow/oriel/internal/search"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/pictures"
@@ -35,6 +36,7 @@ type copy struct {
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
 	MarkUnread, Open, Blocked, BlockedPublic, FeedRemoved, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                string
+	SyntaxLead, SyntaxFrom, SyntaxPhrase, SyntaxExclude                                                                                                                 string
 	Limited, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                                             string
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                                             string
 	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                            string
@@ -81,7 +83,6 @@ const (
 	debounce     = 300 * time.Millisecond
 	refreshEvery = 2 * time.Second // how often the progress of "refresh all" is read
 	refreshLimit = 3 * time.Minute // how long it counts before it stops waiting for the rest
-	minIndexed   = 3               // characters the server's trigram index needs; a shorter search only reads titles and summaries
 	keepPictures = 300             // decoded pictures kept in memory
 	wallAhead    = 800             // how far beyond the view the image wall loads pictures and the next page
 )
@@ -240,6 +241,8 @@ type Screen struct {
 
 	query      string    // as typed
 	searched   string    // the search in effect, trimmed
+	termsOf    string    // the search termList was read from
+	termList   []string  // the words and phrases of the search, to mark
 	editedAt   time.Time // when the query last changed, for the debounce
 	editing    bool
 	searchBox  bool // give the search field the focus in the next frame
@@ -1392,8 +1395,7 @@ func indexOf(list []string, v string) int {
 // limited reports whether the search applied is one or two characters, which the server answers from titles and
 // summaries only, at most 200 entries.
 func (s *Screen) limited() bool {
-	n := utf8.RuneCountInString(s.searched)
-	return n > 0 && n < minIndexed
+	return search.Parse(s.searched).Short()
 }
 
 // search applies the query typed.
@@ -3552,6 +3554,9 @@ func (s *Screen) searchField(c *ui.Context, opened bool) {
 		ui.Icon(c, icons.Search).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 		input = ui.TextInputBase(c, &s.query).Grow(1).MinWidth(0).Label(s.text.SearchLabel).
 			Placeholder(s.text.Search)
+		if s.syntaxShown() {
+			input.Description(s.syntaxDescription())
+		}
 		if s.query != "" {
 			input.OnShortcut(0, ui.KeyEscape, func() { s.clearing = true })
 			clear := ui.ButtonBase(c).Label(s.text.Clear)
@@ -3670,17 +3675,57 @@ func (s *Screen) markAllButton(c *ui.Context) {
 }
 
 func (s *Screen) hint(c *ui.Context) {
-	if !s.limited() {
-		return
-	}
 	t := c.Theme()
-	// Under the toolbar row, the content starting below it.
-	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(theme.Px(t, 8)).Margin(theme.Bar+4, theme.Px(t, 12), 4).
-		Padding(theme.Px(t, 7), theme.Px(t, 14)).Radius(theme.Px(t, 12)).Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).
-		Children(func() {
-			ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning)
-			ui.Text(c, s.text.Limited).FontSize(theme.Px(t, 12)).TextColor(theme.Text2(t))
+	switch {
+	case s.limited():
+		// Under the toolbar row, the content starting below it.
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(theme.Px(t, 8)).Margin(theme.Bar+4, theme.Px(t, 12), 4).
+			Padding(theme.Px(t, 7), theme.Px(t, 14)).Radius(theme.Px(t, 12)).Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).
+			Children(func() {
+				ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning)
+				ui.Text(c, s.text.Limited).FontSize(theme.Px(t, 12)).TextColor(theme.Text2(t))
+			})
+	case s.syntaxShown():
+		s.syntax(c)
+	}
+}
+
+// syntaxShown tells whether the line of search syntax shows: while the search field has the focus and is empty.
+func (s *Screen) syntaxShown() bool {
+	return s.typing && s.query == ""
+}
+
+// syntaxWords are the operator words of the syntax line with what follows each, in the order shown; the operator is
+// drawn medium and the example regular. A phrase and an exclusion put the example inside and after the mark.
+func (s *Screen) syntaxWords() [][2]string {
+	return [][2]string{{"from:", s.text.SyntaxFrom}, {"kind:", "video"}, {"after:", "2026-01-01"},
+		{`"`, s.text.SyntaxPhrase + `"`}, {"-", s.text.SyntaxExclude}}
+}
+
+// syntaxDescription is the syntax line as one text, which the search field takes as its description.
+func (s *Screen) syntaxDescription() string {
+	parts := []string{s.text.SyntaxLead}
+	for _, w := range s.syntaxWords() {
+		parts = append(parts, w[0]+w[1])
+	}
+	return strings.Join(parts, " ")
+}
+
+// syntax is the one line of search syntax in the strip under the toolbar: information, not a caution, so the Track fill
+// and not the warning tint. It wraps to a second line in a narrow column.
+func (s *Screen) syntax(c *ui.Context) {
+	t := c.Theme()
+	ui.Row(c).Key("syntax").AlignSelf(ui.Stretch).AlignItems(ui.Start).Gap(theme.Px(t, 8)).Margin(theme.Bar+4, theme.Px(t, 12), 4).
+		Padding(theme.Px(t, 7), theme.Px(t, 14)).Radius(theme.Px(t, 12)).Background(theme.Track(t)).Children(func() {
+		ui.Icon(c, icons.Info).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted).Margin(theme.Px(t, 1), 0, 0, 0)
+		ui.Row(c).Wrap().Grow(1).MinWidth(0).GapX(theme.Px(t, 12)).GapY(theme.Px(t, 4)).Children(func() {
+			ui.Text(c, s.text.SyntaxLead).FontSize(theme.Px(t, 12)).TextColor(theme.Text2(t)).NoWrap()
+			for _, w := range s.syntaxWords() {
+				ui.RichText(c, ui.Span{Text: w[0], Weight: 500, Color: t.Text}, ui.Span{Text: w[1], Color: theme.Text2(t)}).
+					FontSize(theme.Px(t, 12)).NoWrap()
+			}
 		})
+	})
 }
 
 // staleHeight is the height of the line that says the server is out of reach.
@@ -4322,25 +4367,80 @@ func (s *Screen) shownCopy(e client.Entry) client.Entry {
 	return e
 }
 
-// marked splits text into spans, the parts matching the search on the warning tint.
-func (s *Screen) marked(c *ui.Context, text string, color ui.Color) []ui.Span {
-	q := strings.ToLower(s.searched)
-	lower := strings.ToLower(text)
-	if q == "" || len(lower) != len(text) {
-		return []ui.Span{{Text: text, Color: color}}
+// maxMarked is the most pieces marked in one text.
+const maxMarked = 8
+
+// terms is what the search asks to find, its words and phrases; the excluded ones and the operators are not in it.
+func (s *Screen) terms() []string {
+	if s.termsOf != s.searched {
+		s.termsOf, s.termList = s.searched, search.Parse(s.searched).Include
 	}
+	return s.termList
+}
+
+// asciiLower lowers A to Z only, so the result is as long as the text and its offsets are the text's.
+func asciiLower(text string) string {
+	b := []byte(text)
+	for i, ch := range b {
+		if ch >= 'A' && ch <= 'Z' {
+			b[i] = ch + 'a' - 'A'
+		}
+	}
+	return string(b)
+}
+
+// matches returns the byte ranges of text that hold one of the terms, ignoring the case of A to Z, in order and with
+// overlapping or touching ranges joined, the first maxMarked of them.
+func matches(text string, terms []string) [][2]int {
+	lower := asciiLower(text)
+	var found [][2]int
+	for _, term := range terms {
+		term = asciiLower(term)
+		for from := 0; term != ""; {
+			i := strings.Index(lower[from:], term)
+			if i < 0 {
+				break
+			}
+			found = append(found, [2]int{from + i, from + i + len(term)})
+			from += i + len(term)
+		}
+	}
+	slices.SortFunc(found, func(a, b [2]int) int { return cmp.Compare(a[0], b[0]) })
+	var joined [][2]int
+	for _, r := range found {
+		if n := len(joined); n > 0 && r[0] <= joined[n-1][1] {
+			joined[n-1][1] = max(joined[n-1][1], r[1])
+		} else {
+			joined = append(joined, r)
+		}
+	}
+	return joined[:min(len(joined), maxMarked)]
+}
+
+// marked splits text into spans, the pieces holding the words and phrases of the search drawn on the warning tint
+// and underlined, so that they do not rest on color alone. A marked piece is Text2 where the text is TextMuted, which
+// is under 4.5:1 on the tint. The marks are paint only: they are not read out and do not split the row's name.
+func (s *Screen) marked(c *ui.Context, text string, color ui.Color) []ui.Span {
 	t := c.Theme()
 	var spans []ui.Span
-	for {
-		i := strings.Index(lower, q)
-		if i < 0 {
-			break
-		}
-		spans = append(spans, ui.Span{Text: text[:i], Color: color},
-			ui.Span{Text: text[i : i+len(q)], Color: color, Background: theme.Soft(t, t.Warning)})
-		text, lower = text[i+len(q):], lower[i+len(q):]
+	at := 0
+	fill, thickness := theme.Soft(t, t.Warning), theme.Px(t, 1.5)
+	if c.Preferences().HighContrast {
+		fill, thickness = t.Warning.Alpha(0.16), theme.Px(t, 2)
 	}
-	return append(spans, ui.Span{Text: text, Color: color})
+	ink := color
+	if color == t.TextMuted {
+		ink = theme.Text2(t)
+	}
+	for _, r := range matches(text, s.terms()) {
+		if r[0] > at {
+			spans = append(spans, ui.Span{Text: text[at:r[0]], Color: color})
+		}
+		spans = append(spans, ui.Span{Text: text[r[0]:r[1]], Color: ink, Background: fill, Radius: theme.Px(t, 4),
+			Underline: true, DecorationColor: ink, DecorationThickness: thickness})
+		at = r[1]
+	}
+	return append(spans, ui.Span{Text: text[at:], Color: color})
 }
 
 // rows is one column of entries, each drawn by its kind: All, Articles, Social, a source, and any search.
@@ -4536,7 +4636,11 @@ func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted 
 				color = muted
 			}
 			line := func() {
-				text := ui.RichText(c, s.marked(c, summary, color)...).FontSize(theme.Px(t, 13)).MaxLines(2).LineHeight(1.5)
+				spans := []ui.Span{{Text: summary, Color: color}} // a generated summary is not the text searched
+				if !generated {
+					spans = s.marked(c, summary, color)
+				}
+				text := ui.RichText(c, spans...).FontSize(theme.Px(t, 13)).MaxLines(2).LineHeight(1.5)
 				if theme.Han(summary) {
 					text.LineHeight(1.7)
 				}

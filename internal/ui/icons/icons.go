@@ -47,6 +47,7 @@ var (
 	ImageOff       = parse("image-off")
 	Images         = parse("images")
 	Inbox          = parse("inbox")
+	Info           = parse("info")
 	Keyboard       = parse("keyboard")
 	KeyRound       = parse("key-round")
 	Languages      = parse("languages")

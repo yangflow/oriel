@@ -6,14 +6,6 @@ import (
 	"testing"
 )
 
-func TestShortQuery(t *testing.T) {
-	for q, want := range map[string]bool{"": false, "a": true, "苹果": true, "ab": true, "abc": false, "苹果派": false, "%_": true, "🎉": true, "🎉🎉": true, "🎉🎉🎉": false, "a中": true, "a中文": false} {
-		if got := ShortQuery(q); got != want {
-			t.Errorf("ShortQuery(%q) = %v, want %v", q, got, want)
-		}
-	}
-}
-
 // TestShortSearchWalksTimelineIndex checks that a short search reads the newest entries by the timeline index and
 // stops at the limit, instead of sorting every entry that matches or going through the full-text index.
 func TestShortSearchWalksTimelineIndex(t *testing.T) {
