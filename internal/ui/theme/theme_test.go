@@ -399,7 +399,7 @@ func TestMonogramSizes(t *testing.T) {
 			t.Fatalf("%q at %v has no letter %q", tc.name, tc.size, tc.want)
 		}
 	}
-	if GlyphRadius(15) != 4 || GlyphRadius(18) != 5 || GlyphRadius(32) != 8 {
+	if GlyphRadius(15) != 4 || GlyphRadius(18) != 4 || GlyphRadius(20) != 4 || GlyphRadius(32) != 8 {
 		t.Fatal("glyph radii")
 	}
 }

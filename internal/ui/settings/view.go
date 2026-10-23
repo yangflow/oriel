@@ -1506,7 +1506,7 @@ func (s *Screen) serverBar(c *ui.Context) {
 		Tooltip(s.text.ServerNote).Children(func() {
 		ui.Icon(c, icon).FontSize(theme.Px(t, 16)).TextColor(t.TextMuted)
 		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
-		ui.Box(c).Size(6, 6).Radius(3).Background(t.Success)
+		ui.Box(c).Size(6, 6).Radius(theme.Pill(6)).Background(t.Success)
 	})
 }
 
@@ -1609,7 +1609,7 @@ func (s *Screen) page(c *ui.Context, compact bool, maxWidth float32, children fu
 func (s *Screen) skeleton(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).FillWidth().Label(s.text.Loading).Role(ui.RoleProgress).Children(func() {
-		ui.Box(c).Width(theme.Px(t, 320)).MaxWidth(theme.Px(t, 360)).Height(theme.Px(t, 12)).Radius(6).Background(theme.Track(t)).
+		ui.Box(c).Width(theme.Px(t, 320)).MaxWidth(theme.Px(t, 360)).Height(theme.Px(t, 12)).Radius(theme.Pill(theme.Px(t, 12))).Background(theme.Track(t)).
 			Margin(theme.Px(t, 10), 0)
 		ui.Box(c).FillWidth().Height(theme.Px(t, 160)).Radius(10).Background(theme.Track(t)).Margin(t.Space(4), 0, 0, 0)
 	})
@@ -1852,7 +1852,7 @@ func (s *Screen) retentionSelect(c *ui.Context) {
 		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160))
 		theme.Sheet(c, panel, theme.Popup)
 		for _, v := range options {
-			item := sel.Item(v).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(5)
+			item := sel.Item(v).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(6)
 			if item.Highlighted() {
 				item.Background(theme.Chosen(t))
 			}
@@ -1943,7 +1943,7 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 			if s.settings.AIAPIKeySet {
 				badge, fill, color = s.text.KeySet, theme.Soft(t, t.Accent), t.Accent
 			}
-			ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Px(t, 9)).Center().Background(fill).Children(func() {
+			ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 18))).Center().Background(fill).Children(func() {
 				ui.Text(c, badge).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(color).NoWrap()
 			})
 		})
@@ -2169,7 +2169,7 @@ func (s *Screen) languageSelect(c *ui.Context) {
 		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160))
 		theme.Sheet(c, panel, theme.Popup)
 		for _, l := range languages {
-			item := sel.Item(l.code).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(5)
+			item := sel.Item(l.code).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(6)
 			if item.Highlighted() {
 				item.Background(theme.Chosen(t))
 			}
@@ -2412,9 +2412,9 @@ func (s *Screen) segments(c *ui.Context, label string, names []string, current i
 	t := c.Theme()
 	chosen := max(current, 0)
 	seg := ui.SegmentedBase(c, &chosen, len(names))
-	seg.Track.Padding(3).Gap(2).Radius(9).Background(theme.Track(t)).Label(label).Children(func() {
+	seg.Track.Padding(3).Gap(2).Radius(10).Background(theme.Track(t)).Label(label).Children(func() {
 		for i, name := range names {
-			b := seg.Segment(i).Height(theme.Px(t, 26)).PaddingX(theme.Px(t, 12)).Radius(7).Label(name)
+			b := seg.Segment(i).Height(theme.Px(t, 26)).PaddingX(theme.Px(t, 12)).Radius(6).Label(name)
 			color := theme.Text2(t)
 			switch {
 			case i == chosen:
@@ -2465,7 +2465,7 @@ func (s *Screen) pick(c *ui.Context, current, label string, options []choice) (s
 		theme.Sheet(c, panel, theme.Popup)
 		ui.Scroll(c).MaxHeight(theme.Px(t, 320)).Children(func() {
 			for _, o := range options {
-				item := sel.Item(o.value).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(5)
+				item := sel.Item(o.value).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(6)
 				if item.Highlighted() {
 					item.Background(theme.Chosen(t))
 				}
@@ -2758,7 +2758,7 @@ func (s *Screen) resultBox(c *ui.Context) {
 				xFill = t.SurfaceHover
 				xColor = t.Text
 			}
-			mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: 5, Fill: xFill}.Apply(c, x, func() {
+			mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: 6, Fill: xFill}.Apply(c, x, func() {
 				ui.Icon(c, icons.X).FontSize(theme.Px(t, 13)).TextColor(xColor)
 			})
 			x.Margin(my, mx, my, mx)
@@ -2866,7 +2866,7 @@ func (s *Screen) deviceCells(c *ui.Context, d client.Device, now time.Time) {
 		})
 		ui.Text(c, name).FontWeight(500).SingleLine().MinWidth(0).Shrink(1)
 		if d.Current {
-			ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Px(t, 9)).Center().
+			ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 18))).Center().
 				Background(theme.Soft(t, t.Accent)).Children(func() {
 				ui.Text(c, s.text.ThisDevice).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.Accent).NoWrap()
 			})
@@ -2900,7 +2900,7 @@ func (s *Screen) deviceRow(c *ui.Context, d client.Device, now time.Time) {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 6)).Children(func() {
 				ui.Text(c, name).FontWeight(500).SingleLine().MinWidth(0).Shrink(1)
 				if d.Current {
-					ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Px(t, 9)).Center().
+					ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 18))).Center().
 						Background(theme.Soft(t, t.Accent)).Children(func() {
 						ui.Text(c, s.text.ThisDevice).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.Accent).NoWrap()
 					})

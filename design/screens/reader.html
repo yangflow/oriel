@@ -136,7 +136,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .kind-list .item.chosen svg.icon { color:var(--accent) }
 
 /* One shape for every source icon: size, radius and hairline; monograms are neutral, never colored by kind. */
-.fav, .mono { width:18px; height:18px; flex:none; border-radius:5px }
+.fav, .mono { width:18px; height:18px; flex:none; border-radius:4px }
 .fav { position:relative; overflow:hidden }
 .fav::after { content:""; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 0 0 .5px rgba(var(--ink),.2) }
 .fav svg { display:block; width:100%; height:100% }
@@ -210,7 +210,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .prose li { margin:.3em 0 }
 .prose li::marker { color:var(--muted) }
 .prose blockquote { padding:0 0 0 18px; border-left:2px solid rgba(var(--ink),.16); color:var(--text2) }
-.prose code { font:.86em/1.5 ui-monospace,"SF Mono",Menlo,Consolas,monospace; padding:.08em .38em; border-radius:5px; background:rgba(var(--ink),.055); color:var(--text) }
+.prose code { font:.86em/1.5 ui-monospace,"SF Mono",Menlo,Consolas,monospace; padding:.08em .38em; border-radius:4px; background:rgba(var(--ink),.055); color:var(--text) }
 .prose pre { padding:14px 16px; border-radius:12px; background:var(--surface); overflow-x:auto; font-size:calc(13px * var(--scale)); line-height:1.6 }
 .prose pre code { font-size:inherit; padding:0; background:none }
 .prose figure { margin:1.4em 0 }
@@ -277,7 +277,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .button:hover { background:color-mix(in srgb,var(--track) 90%,var(--text)) }
 .button.primary { background:var(--accent); color:var(--accent-text) }
 .button.primary:hover { background:var(--accent-hover) }
-.button.small { height:28px; padding:0 10px; border-radius:9px; font-size:12px }
+.button.small { height:32px; padding:0 10px; border-radius:10px; font-size:12px }
 .button.small svg.icon { width:14px; height:14px }
 .spin { animation:spin .9s linear infinite }
 @keyframes spin { to { transform:rotate(360deg) } }
@@ -286,7 +286,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .sel { background:var(--accent-soft); border-radius:3px; box-shadow:0 0 0 1px var(--accent-soft) }
 .menu { position:absolute; z-index:5; left:50%; top:300px; min-width:200px; padding:5px; border-radius:12px; background:var(--raised); box-shadow:inset 0 0 0 .5px rgba(var(--ink),.12), 0 8px 28px rgba(var(--shadow),.2); font-size:13px }
 :root[data-scheme=dark] .menu { background:var(--track) }
-.menu .row { display:flex; align-items:center; gap:8px; height:28px; padding:0 10px; border-radius:7px; color:var(--text) }
+.menu .row { display:flex; align-items:center; gap:8px; height:28px; padding:0 10px; border-radius:6px; color:var(--text) }
 .menu .row.on { background:var(--accent); color:var(--accent-text) }
 .menu .row svg.icon { width:14px; height:14px }
 .menu hr { border:0; border-top:1px solid var(--border); margin:5px 6px }

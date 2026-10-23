@@ -188,7 +188,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   at the top. A cell: a square picture (radius 10, 0.5 outline, centered and cropped), 4 below it the title in 13
   semibold on one line with an ellipsis, then the meta line with the inline unread dot. The cell is square before the
   picture arrives, so a late picture moves nothing; the stored width and height are not used. An entry with more than
-  one picture shows the count in a badge at the top right, a dark pill (11 medium white on ink 62%, radius 5, 6 in
+  one picture shows the count in a badge at the top right, a dark pill (11 medium white on ink 62%, radius 4, 6 in
   from the corner) with an 11 images mark and the number ("3 pictures" as the picture's name). Like a video card, the
   cell has no fill, chosen ring or focus ring of its own; hover, the actions and the keyboard are as the Videos grid
   has them. Keyboard and the V rule treat a row of cells whole, as the Videos grid does.

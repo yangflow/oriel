@@ -1426,11 +1426,11 @@ func (s *Screen) kindPicker(c *ui.Context, value *int) {
 	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
 		label(c, s.text.ShowAs)
 		seg := ui.SegmentedBase(c, value, len(kinds))
-		seg.Track.FillWidth().Padding(3).Gap(2).Radius(9).Background(theme.Track(t)).Label(s.text.ShowAs).
+		seg.Track.FillWidth().Padding(3).Gap(2).Radius(10).Background(theme.Track(t)).Label(s.text.ShowAs).
 			Children(func() {
 				for i, kind := range kinds {
 					name := s.kindName(kind)
-					b := theme.Fade(seg.Segment(i).Grow(1).Basis(0).Height(theme.Px(t, 28)).Gap(t.Space(1.5)).Radius(7).
+					b := theme.Fade(seg.Segment(i).Grow(1).Basis(0).Height(theme.Px(t, 28)).Gap(t.Space(1.5)).Radius(6).
 						Label(name))
 					color, iconColor := theme.Text2(t), t.TextMuted
 					switch {

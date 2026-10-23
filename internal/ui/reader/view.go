@@ -895,7 +895,7 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 		s.deps.Move(1)
 	}
 	// The one capsule of glass holds the two AI toggles, in place of separators.
-	g := ui.Row(c).Height(theme.Px(t, 34)).AlignItems(ui.Center).Gap(1).PaddingX(theme.Px(t, 4)).Radius(theme.Px(t, 17))
+	g := ui.Row(c).Height(theme.Px(t, 34)).AlignItems(ui.Center).Gap(1).PaddingX(theme.Px(t, 4)).Radius(theme.Pill(theme.Px(t, 34)))
 	theme.Capsule(c, g, false).Children(func() {
 		on, label := s.jobs[summary].on, s.text.Summarize
 		if on {
@@ -1118,7 +1118,7 @@ func (s *Screen) tool(c *ui.Context, icon *ui.SVG, label, key string, st theme.T
 // a reason gets a tooltip, as a label alone is never repeated in one.
 func (s *Screen) toggle(c *ui.Context, icon *ui.SVG, label, name string, on, disabled, narrow bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Height(theme.Px(t, 28)).Gap(theme.Px(t, 6)).Radius(theme.Px(t, 14)).Label(name).
+	b := ui.ButtonBase(c).Height(theme.Px(t, 28)).Gap(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 28))).Label(name).
 		Disabled(disabled).Role(ui.RoleToggleButton).Checked(on)
 	if name != label {
 		b.Tooltip(name)
@@ -1261,7 +1261,7 @@ func (s *Screen) alsoLine(c *ui.Context, e client.Entry) {
 			Margin(0, theme.Px(t, 4), 0, 0)
 		for _, m := range e.Group.Entries {
 			label := m.SourceTitle + " " + s.when(client.Entry{CreatedAt: m.CreatedAt})
-			b := ui.ButtonBase(c).Key(m.ID).Height(theme.Px(t, 28)).PaddingX(theme.Px(t, 8)).Gap(theme.Px(t, 6)).Radius(theme.Px(t, 8)).
+			b := ui.ButtonBase(c).Key(m.ID).Height(theme.Px(t, 28)).PaddingX(theme.Px(t, 8)).Gap(theme.Px(t, 6)).Radius(theme.Px(t, 6)).
 				Role(ui.RoleListItem).Label(label)
 			color := theme.Text2(t)
 			switch {
@@ -1304,7 +1304,7 @@ func (s *Screen) skeleton(c *ui.Context, pad []float32) {
 		Role(ui.RoleProgress).Children(func() {
 		bar := func(width, height, top, bottom float32) {
 			ui.Row(c).FillWidth().Margin(theme.Px(t, top), 0, theme.Px(t, bottom), 0).Children(func() {
-				ui.Box(c).Grow(width).Basis(0).Height(theme.Px(t, height)).Radius(theme.Px(t, height) / 2).Background(theme.Track(t))
+				ui.Box(c).Grow(width).Basis(0).Height(theme.Px(t, height)).Radius(theme.Pill(theme.Px(t, height))).Background(theme.Track(t))
 				ui.Box(c).Grow(100 - width).Basis(0)
 			})
 		}
@@ -1481,7 +1481,7 @@ func (s *Screen) summaryCard(c *ui.Context) {
 			}).Role(ui.RoleStatus)
 			for _, width := range []float32{96, 90, 58} {
 				ui.Row(c).FillWidth().Margin(theme.Px(t, 9), 0, 0, 0).Children(func() {
-					ui.Box(c).Grow(width).Basis(0).Height(theme.Px(t, 10)).Radius(theme.Px(t, 5)).
+					ui.Box(c).Grow(width).Basis(0).Height(theme.Px(t, 10)).Radius(theme.Pill(theme.Px(t, 10))).
 						Background(theme.Ink(t, 0.08))
 					ui.Box(c).Grow(100 - width).Basis(0)
 				})

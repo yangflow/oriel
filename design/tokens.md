@@ -51,7 +51,7 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | video-grid | cells at least 200 wide, gap 16 across and 24 down, padding 16 24 32 | 200 | Videos scope; 16:9 cover, title 13 up to two lines, 7 below the cover |
 | picture-wall | up to three columns at least 170 wide, column gap 14, tile gap 20 below, padding 16 24 32 | 170 | Images scope (Wall); each picture at its own aspect ratio, 4:3 when unknown; caption 13 semibold, one line |
 | picture-grid | cells at least 170 wide, same gaps and padding as video-grid | 170 | Images scope (Grid); square picture, radius 10, title 13 semibold one line, 4 below |
-| badge | radius 5, 11 medium white on ink 62%, 6 from the corner | | duration (bottom right) and picture count (top right) on a cover |
+| badge | radius 4, 11 medium white on ink 62%, 6 from the corner | | duration (bottom right) and picture count (top right) on a cover |
 | icon | `t.Rem(1.25)` | about 16 / 18 | icons in fields and buttons; 1.05 rem in error lines; 14 in segments, 13 in the meta line |
 | icon stroke | 1.6 | 1.6 | every Lucide icon, at every size |
 
@@ -333,7 +333,7 @@ The ink pane is not glass: it is opaque (see above). Content never sits on glass
 
 | Token | Value |
 |---|---|
-| Radii | 4 (site icon, small tile, inline code, duration badge), 8 (controls, pane items, row actions, thumbnails), 12 (rows, code blocks, notes, pictures, video covers), 14 (the ink pane, the AI card), 16 (capsules, dialogs), 22 (the window in mockups; the system draws it) |
+| Radii | 4 (site icon, glyph up to 20, small tile, inline code, badges), 6 (list rows in popups, select options, small icon buttons, the segments of a segmented control, the strip pictures of a post), 8 (controls, pane items, row actions, thumbnails, glyph above 20), 10 (the segmented control track, the Compact row, grid pictures), 12 (rows, code blocks, notes, pictures, video covers), 14 (the ink pane, the AI card), 16 (capsules, dialogs), 22 (the window in mockups; the system draws it). Two more that follow their shape: a pill or a circle is half its height (`theme.Pill`), and the 2 of the selection marker. The box of a checkbox (5) is drawn by MyGo. `internal/ui/theme/radii_test.go` fails on any other radius in the code |
 | Hairline | 1 DIP, `Border`, between rows only (28 in from the left, 16 from the right); never around a card or control |
 | Image outline | 0.5 DIP, ink 10% |
 | Link | `Accent`, underline 1 DIP, offset 3, `Accent` at 38%, full `Accent` on hover |
