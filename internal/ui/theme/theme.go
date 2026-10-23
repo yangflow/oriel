@@ -439,13 +439,14 @@ func Monogram(c *ui.Context, name string, size float32) {
 	})
 }
 
-// GlyphRadius is the corner radius of a glyph of size: 4 up to 16, 5 up to 20 and 8 above.
+// GlyphRadius is the corner radius of a glyph of size: 4 up to 20 and 8 above.
 func GlyphRadius(size float32) float32 {
-	switch {
-	case size > 20:
+	if size > 20 {
 		return 8
-	case size > 16:
-		return 5
 	}
 	return 4
 }
+
+// Pill is the corner radius of a pill or a circle of the given height: half of it. It is the one radius that is
+// not a tier of design/tokens.md, because it follows the shape it rounds.
+func Pill(height float32) float32 { return height / 2 }

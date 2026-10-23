@@ -82,7 +82,7 @@ func Tip(c *ui.Context, el ui.Element, text string) {
 		ink = t.Background
 	}
 	ui.TooltipBase(c, el, func(tip ui.Element) {
-		tip.MaxWidth(t.Space(80)).Padding(t.Space(1.25), t.Space(2)).Radius(t.Space(1.25)).
+		tip.MaxWidth(t.Space(80)).Padding(t.Space(1.25), t.Space(2)).Radius(t.Space(1.5)).
 			Background(fill).TextColor(ink).FontSize(Px(t, 12))
 		tip.Shadow(0, 2, 8, 0, ui.RGBA(0, 0, 0, 0.2))
 		tip.Children(func() { ui.Text(c, text) })

@@ -134,7 +134,7 @@ func (s *Screen) selectionCard(c *ui.Context) {
 				case sel.working:
 					for _, width := range []float32{96, 80, 52} {
 						ui.Row(c).FillWidth().Margin(theme.Px(t, 9), 0, 0, 0).Children(func() {
-							ui.Box(c).Grow(width).Basis(0).Height(theme.Px(t, 10)).Radius(theme.Px(t, 5)).Background(theme.Ink(t, 0.08))
+							ui.Box(c).Grow(width).Basis(0).Height(theme.Px(t, 10)).Radius(theme.Pill(theme.Px(t, 10))).Background(theme.Ink(t, 0.08))
 							ui.Box(c).Grow(100 - width).Basis(0)
 						})
 					}
