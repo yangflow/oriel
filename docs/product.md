@@ -45,6 +45,8 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 - 版本号只写在 `mygo.json`，打包和未打包的程序都从这里读，`/health` 返回它。
 - 无窗口的备份和恢复命令（见「备份与恢复」）：`oriel backup [-data 目录] -o 文件` 把数据目录里的数据备份成一个文件，`oriel restore [-data 目录] [-force] 文件` 用备份替换数据。备份可以在应用运行时做；恢复要先退出占着这个数据目录的 Oriel，目录里已经有订阅或条目时要加 `-force`。命令不加载界面库，口令不参与，因为它们直接读写本机的数据目录。
 
+- 健康检查命令 `oriel healthcheck [-port 端口] [-timeout 时长]`，见「部署」。
+
 ### 连接远程服务端
 
 桌面应用默认读写本机的服务端。应用菜单的「连接服务端…」打开连接界面，填地址和口令，改连另一台电脑上的 `oriel serve`。
@@ -55,6 +57,94 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 - 再次打开应用时，用保存的 token 请求 `GET /api/settings` 检查会话。401 时打开连接界面，写明哪个服务端的登录失效了，地址已填好，焦点在口令框；连不上时也打开连接界面，显示连不上。
 - 连接界面的「本机」按钮回到本机服务端，删掉 `remote.json`。
 - 网络和磁盘操作都在后台做，界面不卡；连接中再点「连接」不会重复发请求。
+
+## 部署
+
+`oriel serve` 在家用服务器、NAS 或 VPS 上长期运行，有两种现成的做法。示例文件在 `deploy/`，下面的文字和它们逐字相同（测试会核对）。示例里没有口令：口令写在只有管理员能读的文件里，文件不进仓库（`deploy/.env` 在 `.gitignore` 里）。
+
+- **口令是必须的。** 没设 `ORIEL_PASSWORD` 时服务端只听 `127.0.0.1`（见「鉴权」）。在容器里这是容器自己的回环地址，宿主机和其他设备都连不上，所以容器和系统服务都要设口令，口令只从环境变量读。
+- **数据目录。** 一律用 `-data` 指到专门的目录：容器里是卷 `/data`，系统服务是 `/var/lib/oriel`。数据库、会话、API key、日志和图片缓存都在里面，只有运行服务的用户能读写。
+- **端口。** 默认 7470。容器里固定监听 7470，用端口映射改对外的端口；系统服务改 `ExecStart` 里的 `-port`。
+- **反向代理和 HTTPS。** 服务端自己只说 HTTP，口令和会话 token 在明文网络上会被看到，要在公网或不可信的网络上用就放在反向代理后面，由它终结 HTTPS。代理和服务端在同一台机器上时，把端口只发布在回环地址上（compose 里的注释写了写法），并加 `-trusted-proxy`（见「鉴权」）。
+- **健康检查。** `oriel healthcheck [-port 端口] [-timeout 时长]` 请求本机 `127.0.0.1` 上服务端的 `GET /health`：回答 200 且是 Oriel（`app` 为 `oriel`，数据库可写）就在标准输出写 `ok`、退出码 0；连不上、超时、状态码不是 200、回答的不是 Oriel 时在标准错误写原因、退出码 1；参数不对是 2。有没有口令都一样，因为 `/health` 不要会话，回环地址也总是听的。不加载界面库，镜像里不需要 curl。
+- **备份和升级。** 备份用 `oriel backup`（见「备份与恢复」）：容器里 `docker compose -f deploy/compose.yaml exec oriel /oriel backup -data /data -o /data/oriel.oriel-backup`，再用 `docker compose cp` 取出；系统服务以 root 运行 `oriel backup -data /var/lib/private/oriel -o 文件`（`DynamicUser` 的数据真正放在这里，`/var/lib/oriel` 是指向它的链接）。也可以在应用里导出，或开自动备份。自动备份写到的文件夹要放在卷里，或另外挂载进容器、加进 `ReadWritePaths`，因为容器的根文件系统是只读的，系统服务除 `StateDirectory` 外整个文件系统也是只读的。升级前先备份；之后换上新版本重启：容器 `git pull` 后 `docker compose -f deploy/compose.yaml up -d --build`，系统服务替换 `/usr/local/bin/oriel` 再 `systemctl restart oriel`。迁移前的副本和退回旧版本的办法见「存储」。恢复要先停服务端（`docker compose stop`，或 `systemctl stop oriel`）。
+
+### 容器
+
+`Dockerfile` 做出同时支持 `linux/amd64` 和 `linux/arm64` 的镜像：在构建机上为目标平台交叉编译，不用模拟器。分两个阶段：Go 官方镜像（版本与 `.go-version` 相同）编译，`gcr.io/distroless/base-debian12:nonroot` 运行。程序需要 glibc（见「技术基线」），所以不用 Alpine 等 musl 镜像；这个基底带 glibc 和 HTTPS 用的 CA 证书，不带 shell，也没有 GTK，因为无窗口模式不加载界面库。
+
+- 以用户 65532（`nonroot`）运行，入口是 `/oriel`，默认参数 `serve -data /data -port 7470`；`/data` 是卷，第一次挂载命名卷时属于这个用户。
+- `HEALTHCHECK` 是 `/oriel healthcheck -port 7470`，间隔 30 秒、超时 5 秒、启动宽限 20 秒、连续 3 次失败算不健康。
+- 示例用 compose 构建本地镜像：`docker compose -f deploy/compose.yaml up -d --build`，根文件系统只读，去掉所有 capability，禁止提权。口令来自 `deploy/.env` 里的 `ORIEL_PASSWORD`，没设时 compose 直接报错，不会悄悄起一个连不上的服务。
+
+`deploy/compose.yaml`：
+
+```yaml
+# Oriel server. From the repository root:
+#   echo 'ORIEL_PASSWORD=<your password>' > deploy/.env && chmod 600 deploy/.env
+#   docker compose -f deploy/compose.yaml up -d --build
+services:
+  oriel:
+    build:
+      context: ..
+    image: oriel:local
+    restart: unless-stopped
+    ports:
+      # Behind a reverse proxy on this host, publish on the loopback interface only: "127.0.0.1:7470:7470"
+      - "7470:7470"
+    environment:
+      # Without a password the server listens on 127.0.0.1 inside the container and cannot be reached.
+      ORIEL_PASSWORD: ${ORIEL_PASSWORD:?set ORIEL_PASSWORD in deploy/.env}
+    volumes:
+      - oriel-data:/data
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  oriel-data:
+```
+
+### 系统服务
+
+`deploy/oriel.service` 放在 `/etc/systemd/system/`，程序放在 `/usr/local/bin/oriel`，口令在 `/etc/oriel/oriel.env`（权限 `0600`，内容 `ORIEL_PASSWORD=<口令>`）。单元用 `DynamicUser` 和 `StateDirectory`，不用另建用户；systemd 以 root 读 `EnvironmentFile`，服务用户读不到。失败时 5 秒后重启；停止时服务端最多等 10 秒（见「运行模式」），所以 `TimeoutStopSec` 是 20 秒。
+
+```ini
+# /etc/systemd/system/oriel.service
+#   install -m 0755 oriel /usr/local/bin/oriel
+#   install -d -m 0700 /etc/oriel
+#   echo 'ORIEL_PASSWORD=<your password>' > /etc/oriel/oriel.env && chmod 600 /etc/oriel/oriel.env
+#   systemctl enable --now oriel
+[Unit]
+Description=Oriel server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# A user that exists only while the service runs; the data is in /var/lib/oriel.
+DynamicUser=yes
+StateDirectory=oriel
+# systemd reads this file as root; the service user never needs to read it.
+EnvironmentFile=/etc/oriel/oriel.env
+ExecStart=/usr/local/bin/oriel serve -data %S/oriel -port 7470
+Restart=on-failure
+RestartSec=5
+# The server waits up to 10 seconds for running requests when it is stopped.
+TimeoutStopSec=20
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 发布镜像
+
+镜像只在 CI 里构建和跑一遍健康检查，不推送到任何注册表：推送是向外部服务发东西，要维护者确认（见 [release.md](release.md)）。READMEs 把发布镜像标为计划。
 
 ## 数据模型
 

@@ -11,3 +11,4 @@ __pycache__/
 mygo-update.key
 *.p12
 *.pfx
+/deploy/.env

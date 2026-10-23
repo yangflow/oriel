@@ -15,6 +15,23 @@ before the user confirms in the update window, which shows the version's section
 ([auto-updates](https://github.com/egoist/mygo/blob/v0.5.5/docs/updates.md),
 [GitHub Actions](https://github.com/egoist/mygo/blob/v0.5.5/docs/github-actions.md)).
 
+## Container image (proposal, not active)
+
+The `docker` job of `ci.yml` builds the `Dockerfile` for `linux/amd64` and `linux/arm64` and runs it for the CI
+machine until Docker calls it healthy (`scripts/docker_smoke.sh`). It pushes nothing and uses no secrets. Publishing
+the image sends it to an external registry, so it waits for the maintainer's confirmation. Proposed, once confirmed:
+
+- Registry: GitHub Container Registry, `ghcr.io/yangflow/oriel`, public. It needs no extra secret, because the
+  workflow's own `GITHUB_TOKEN` can push with `packages: write`.
+- A job in `release.yml`, after the platform builds and before the draft is published, in the environment `release`
+  and only on `v*` tags: log in with `GITHUB_TOKEN`, build both architectures with `docker buildx build --push` and
+  tag the image `X.Y.Z` and `latest` (a pre-release tag gets no `latest`).
+- A failed image build stops the release before it is published, as a failed platform does.
+- If a registry other than GHCR is chosen, its credentials are secrets of the environment `release`, set like the
+  others, never in files.
+
+Until then, `deploy/compose.yaml` builds the image from the checkout.
+
 ## One-time setup
 
 **Release App.** release-please acts as a GitHub App, because a tag or pull request made with the workflow's own

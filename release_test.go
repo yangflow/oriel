@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -71,4 +72,35 @@ func TestBackupTypeIsExported(t *testing.T) {
 		}
 	}
 	t.Error("mygo.json does not export a type for the oriel-backup extension")
+}
+
+// The deployment files are the ones docs/product.md shows, and the image builds with the Go version of the repository.
+func TestDeploymentFiles(t *testing.T) {
+	doc, err := os.ReadFile("docs/product.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range []string{"deploy/compose.yaml", "deploy/oriel.service"} {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(doc), "\n"+strings.TrimRight(string(b), "\n")+"\n```") {
+			t.Errorf("docs/product.md does not show %s as it is", file)
+		}
+		if regexp.MustCompile(`(?i)password=[^<\s]`).Match(b) {
+			t.Errorf("%s sets a password rather than a <placeholder>", file)
+		}
+	}
+	dockerfile, err := os.ReadFile("Dockerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	goVersion, err := os.ReadFile(".go-version")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "ARG GO_VERSION=" + strings.TrimSpace(string(goVersion)) + "\n"; !strings.Contains(string(dockerfile), want) {
+		t.Errorf("Dockerfile does not have %q", want)
+	}
 }

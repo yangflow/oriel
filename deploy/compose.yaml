@@ -1,0 +1,25 @@
+# Oriel server. From the repository root:
+#   echo 'ORIEL_PASSWORD=<your password>' > deploy/.env && chmod 600 deploy/.env
+#   docker compose -f deploy/compose.yaml up -d --build
+services:
+  oriel:
+    build:
+      context: ..
+    image: oriel:local
+    restart: unless-stopped
+    ports:
+      # Behind a reverse proxy on this host, publish on the loopback interface only: "127.0.0.1:7470:7470"
+      - "7470:7470"
+    environment:
+      # Without a password the server listens on 127.0.0.1 inside the container and cannot be reached.
+      ORIEL_PASSWORD: ${ORIEL_PASSWORD:?set ORIEL_PASSWORD in deploy/.env}
+    volumes:
+      - oriel-data:/data
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  oriel-data:

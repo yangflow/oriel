@@ -119,6 +119,24 @@ so it never appears in the process list. `-data` defaults to the user data direc
 Behind a reverse proxy, pass `-trusted-proxy <ip-or-cidr,...>` so the login throttle reads `X-Forwarded-For` for requests
 that come from those addresses; it is off by default. List only your proxies, never client networks or `0.0.0.0/0` (a `/0` range is refused).
 
+### Docker or systemd
+
+`oriel serve` also runs as a container or a system service; the files are in [`deploy/`](deploy/) and the details (data
+directory, port, reverse proxy and HTTPS, health check, backups, upgrading) in [docs/product.md](docs/product.md)
+("部署", in Chinese). The image is not published to a registry yet (planned); build it from a checkout, for
+`linux/amd64` and `linux/arm64`:
+
+```bash
+echo 'ORIEL_PASSWORD=<password>' > deploy/.env && chmod 600 deploy/.env
+docker compose -f deploy/compose.yaml up -d --build
+```
+
+The password is required in a container: without `ORIEL_PASSWORD` the server listens on `127.0.0.1` inside the container
+only, and nothing outside reaches it. The image runs as a non-root user, keeps its data in the volume `/data` and
+answers Docker's health check with `oriel healthcheck`, which asks the local `/health` and exits 0 or 1. For systemd,
+install `deploy/oriel.service` with the password in a `0600` environment file; it runs the server as a dynamic user
+with its data in `/var/lib/oriel`.
+
 ## Development
 
 ```bash

@@ -2,12 +2,17 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/yangflow/oriel/internal/store"
@@ -146,4 +151,53 @@ func restoreProblem(err error) string {
 		return "the backup is too large."
 	}
 	return err.Error()
+}
+
+// healthcheckCommand is `oriel healthcheck`: it asks the server on this computer for /health and exits 0 when that
+// answers 200 for an Oriel server, 1 otherwise. It is for a container's HEALTHCHECK, so the image needs no curl. The
+// server listens on the loopback interface with or without a password, so the address is always 127.0.0.1.
+func healthcheckCommand(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("oriel healthcheck", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	port := flags.Int("port", defaultPort, "TCP port of the server")
+	timeout := flags.Duration("timeout", 5*time.Second, "how long to wait for the answer")
+	flags.Usage = func() {
+		fmt.Fprintln(stderr, "Usage: oriel healthcheck [-port n] [-timeout duration]")
+		flags.PrintDefaults()
+	}
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() > 0 || *port < 1 || *port > 65535 || *timeout <= 0 {
+		flags.Usage()
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(ctx, *timeout)
+	defer cancel()
+	url := "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(*port)) + "/health"
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		fmt.Fprintln(stderr, "Unhealthy:", err)
+		return 1
+	}
+	response, err := (&http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Do(request)
+	if err != nil {
+		fmt.Fprintln(stderr, "Unhealthy: no answer from", url)
+		return 1
+	}
+	defer response.Body.Close()
+	var body struct {
+		App      string `json:"app"`
+		Database string `json:"database"`
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&body); err != nil || body.App != "oriel" {
+		fmt.Fprintln(stderr, "Unhealthy: the answer of", url, "is not from Oriel")
+		return 1
+	}
+	if response.StatusCode != http.StatusOK {
+		fmt.Fprintf(stderr, "Unhealthy: status %d, database %s\n", response.StatusCode, body.Database)
+		return 1
+	}
+	fmt.Fprintln(stdout, "ok")
+	return 0
 }
