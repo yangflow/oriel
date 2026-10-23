@@ -221,6 +221,8 @@ type Screen struct {
 	gen    int    // counts servers used, so the results of the one before are dropped
 
 	sources       []client.Source
+	sourcesGen    uint64 // counts the changes to sources, to tell when side is out of date
+	side          sideCache
 	failingOnly   bool // the sidebar lists only the subscriptions whose last fetch failed
 	sourcesLoaded bool
 	// unreadTotal is the unread entries of All as the server counts them: an article several sources carry is one.
@@ -400,6 +402,7 @@ func (s *Screen) Use(api API, server string) {
 	s.gen++
 	s.pics.Stop()
 	s.sources, s.unreadTotal, s.sourcesLoaded = nil, 0, false
+	s.sourcesGen++
 	s.scope, s.tab, s.filter, s.budget = scope{}, 0, everything, 0
 	s.restorePlace()
 	s.oldest = s.views().OldestFirst
@@ -487,6 +490,7 @@ func (s *Screen) kindOf(id int64) string {
 // added shows a subscription the server took, until the sources load again with it.
 func (s *Screen) added(src client.Source) {
 	s.sources = append(s.sources, src)
+	s.sourcesGen++
 	s.loadSources()
 	s.watch(src, true)
 }
@@ -587,6 +591,7 @@ func (s *Screen) changed(src client.Source) {
 	}
 	old := s.sources[i]
 	s.sources[i] = src
+	s.sourcesGen++
 	s.loadSources()
 	if s.scope.source == src.ID && src.Kind != old.Kind {
 		s.scope.kind = src.Kind
@@ -601,6 +606,7 @@ func (s *Screen) changed(src client.Source) {
 // removed drops a subscription the server no longer has, with its entries.
 func (s *Screen) removed(id int64) {
 	s.sources = slices.DeleteFunc(s.sources, func(src client.Source) bool { return src.ID == id })
+	s.sourcesGen++
 	s.loadSources()
 	s.lists = nil
 	if s.scope.source == id {
@@ -615,6 +621,7 @@ func (s *Screen) removed(id int64) {
 func (s *Screen) restored(src client.Source) {
 	if !slices.ContainsFunc(s.sources, func(old client.Source) bool { return old.ID == src.ID }) {
 		s.sources = append(s.sources, src)
+		s.sourcesGen++
 	}
 	s.loadSources()
 	s.lists = nil
@@ -624,6 +631,7 @@ func (s *Screen) restored(src client.Source) {
 // setSources takes the subscriptions as the server counts them.
 func (s *Screen) setSources(list client.SourceList) {
 	s.sources, s.unreadTotal, s.sourcesLoaded = list.Sources, list.UnreadTotal, true
+	s.sourcesGen++
 }
 
 func (s *Screen) loadSources() {
@@ -1397,6 +1405,7 @@ func (s *Screen) count(e client.Entry, delta int) {
 	for i := range s.sources {
 		if s.sources[i].ID == e.SourceID {
 			s.sources[i].UnreadCount = max(0, s.sources[i].UnreadCount+delta)
+			s.sourcesGen++
 		}
 	}
 }
@@ -2699,32 +2708,9 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 		// on the toolbar row's middle line (the pane floats 8 from the top); the rest of it drags the window.
 		ui.Row(c).FillWidth().Height(40).AlignItems(ui.Start).Justify(ui.End).
 			Padding(theme.Bar/2-8-theme.Px(t, 32)/2, theme.Px(t, paneLine-32/2), 0, 0).DragWindow().Children(func() { s.sidebarButton(c, false) })
-		onSource := slices.ContainsFunc(s.sources, func(src client.Source) bool {
-			return src.ID == s.scope.source && (!s.failingOnly || failed(src)) && s.named(src)
-		})
-		s.tabs(c, s.sideFocus && !onSource)
-		list := s.sources
-		if s.scope.kind != "" {
-			list = nil
-			for _, src := range s.sources {
-				if src.Kind == s.scope.kind {
-					list = append(list, src)
-				}
-			}
-		}
-		failing := 0
-		for _, src := range list {
-			if failed(src) {
-				failing++
-			}
-		}
-		if failing == 0 {
-			s.failingOnly = false
-		}
-		if s.failingOnly {
-			list = slices.DeleteFunc(slices.Clone(list), func(src client.Source) bool { return !failed(src) })
-		}
-		list = s.arranged(list)
+		side := s.sidebarList()
+		list, failing := side.list, side.failing
+		s.tabs(c, s.sideFocus && !side.onSource)
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 			ui.Column(c).FillWidth().Padding(theme.Px(t, 4), theme.Px(t, 8), theme.Px(t, 6)).Label(s.text.Sources).Children(func() {
 				s.section(c, failing)
@@ -2862,35 +2848,81 @@ func (s *Screen) section(c *ui.Context, failing int) {
 		})
 }
 
-// named reports whether src matches the sidebar's filter: its name holds the text typed, ignoring case, anywhere.
-func (s *Screen) named(src client.Source) bool {
-	q := strings.ToLower(strings.TrimSpace(s.sideQuery))
-	return q == "" || strings.Contains(strings.ToLower(subscriptions.Name(src)), q)
+// sideCache is the subscriptions the sidebar lists, kept while what they come from stays the same: drawing a frame
+// must not copy and sort them again when nothing changed.
+type sideCache struct {
+	valid       bool
+	gen         uint64
+	query       string
+	unreadFirst bool
+	kind        string
+	source      int64
+	failingOnly bool
+
+	list     []client.Source
+	failing  int  // subscriptions of the kind that failed, before the list narrows to them
+	onSource bool // the open subscription is in the list, whatever its kind
+	runs     int  // how many times it was built
 }
 
-// arranged narrows list to the subscriptions the filter matches and, with Unread first on, orders it by unread count
-// descending and then by name, ignoring case; a paused subscription counts as none. The store's order is by name.
-func (s *Screen) arranged(list []client.Source) []client.Source {
-	if strings.TrimSpace(s.sideQuery) != "" {
-		list = slices.DeleteFunc(slices.Clone(list), func(src client.Source) bool { return !s.named(src) })
+// sidebarList is the subscriptions to list in the sidebar: those of the open kind, narrowed to the failing ones when
+// asked, to the ones the filter matches, and ordered by unread count with Unread first on. It is built again only
+// when the subscriptions, the filter, the order, the kind, the open subscription or the failing narrowing change.
+func (s *Screen) sidebarList() *sideCache {
+	c := &s.side
+	unreadFirst := s.views().SourceSort == prefs.SortUnread
+	if c.valid && c.gen == s.sourcesGen && c.query == s.sideQuery && c.unreadFirst == unreadFirst &&
+		c.kind == s.scope.kind && c.source == s.scope.source && c.failingOnly == s.failingOnly {
+		return c
 	}
-	if s.views().SourceSort != prefs.SortUnread {
-		return list
+	*c = sideCache{valid: true, gen: s.sourcesGen, query: s.sideQuery, unreadFirst: unreadFirst, kind: s.scope.kind,
+		source: s.scope.source, failingOnly: s.failingOnly, runs: c.runs + 1}
+	q := strings.ToLower(strings.TrimSpace(s.sideQuery))
+	type row struct {
+		src  client.Source
+		name string
 	}
-	unread := func(src client.Source) int {
-		if src.Paused {
-			return 0
+	var rows []row
+	for _, src := range s.sources {
+		name := strings.ToLower(subscriptions.Name(src))
+		named := strings.Contains(name, q)
+		if src.ID == s.scope.source && named && (!s.failingOnly || failed(src)) {
+			c.onSource = true
 		}
-		return src.UnreadCount
-	}
-	list = slices.Clone(list)
-	slices.SortStableFunc(list, func(a, b client.Source) int {
-		if c := cmp.Compare(unread(b), unread(a)); c != 0 {
-			return c
+		if s.scope.kind != "" && src.Kind != s.scope.kind {
+			continue
 		}
-		return strings.Compare(strings.ToLower(subscriptions.Name(a)), strings.ToLower(subscriptions.Name(b)))
-	})
-	return list
+		if failed(src) {
+			c.failing++
+		}
+		if named && (!s.failingOnly || failed(src)) {
+			rows = append(rows, row{src, name})
+		}
+	}
+	if unreadFirst {
+		unread := func(src client.Source) int {
+			if src.Paused {
+				return 0
+			}
+			return src.UnreadCount
+		}
+		slices.SortStableFunc(rows, func(a, b row) int {
+			if d := cmp.Compare(unread(b.src), unread(a.src)); d != 0 {
+				return d
+			}
+			return strings.Compare(a.name, b.name)
+		})
+	}
+	if c.failing == 0 && s.failingOnly {
+		// Nothing fails any more, so the narrowing to failing subscriptions ends and the list is built without it.
+		s.failingOnly = false
+		return s.sidebarList()
+	}
+	c.list = make([]client.Source, len(rows))
+	for i, r := range rows {
+		c.list[i] = r.src
+	}
+	return c
 }
 
 // paneLine is how far from the pane's right edge the centers of its icon buttons are: the button that hides the

@@ -4133,6 +4133,63 @@ func TestSourceSort(t *testing.T) {
 	}
 }
 
+// TestSidebarListCached builds the sidebar list once while nothing it comes from changes, and again for each input:
+// the subscriptions, an unread count, the filter, the order and the open kind.
+func TestSidebarListCached(t *testing.T) {
+	p := prefs.Default()
+	s, _, tt := crowded(t, "en", &p)
+	runs := func() int { return s.side.runs }
+	base := runs()
+	for range 5 {
+		tt.Frame()
+	}
+	if runs() != base {
+		t.Fatalf("repeated frames built the list %d more times", runs()-base)
+	}
+	changes := []struct {
+		name string
+		do   func()
+	}{
+		{"subscriptions reload", func() { s.setSources(client.SourceList{Sources: slices.Clone(s.sources)}) }},
+		{"unread count", func() { s.count(client.Entry{SourceID: 1}, -1) }},
+		{"filter", func() { s.sideQuery = "blog" }},
+		{"order", func() { p.SourceSort = prefs.SortUnread }},
+		{"kind", func() { s.scope.kind = "article" }},
+		{"failing only", func() { s.failingOnly = true }},
+	}
+	for _, c := range changes {
+		before := runs()
+		c.do()
+		tt.Frame()
+		if runs() <= before {
+			t.Fatalf("%s does not build the list again", c.name)
+		}
+		after := runs()
+		for range 3 {
+			tt.Frame()
+		}
+		if runs() != after {
+			t.Fatalf("%s: repeated frames built the list %d more times", c.name, runs()-after)
+		}
+	}
+}
+
+// BenchmarkSidebarList measures a frame's sidebar list with a thousand subscriptions, sorted by unread count and
+// filtered, while nothing changes.
+func BenchmarkSidebarList(b *testing.B) {
+	p := prefs.Default()
+	p.SourceSort = prefs.SortUnread
+	s := New("en", Deps{Reading: func() prefs.Preferences { return p }})
+	for i := range 1000 {
+		s.sources = append(s.sources, client.Source{ID: int64(i + 1), Title: fmt.Sprintf("Blog %d", i), Kind: "article", UnreadCount: i % 17})
+	}
+	s.sideQuery = "blog"
+	b.ReportAllocs()
+	for b.Loop() {
+		s.sidebarList()
+	}
+}
+
 // TestSourceToolsHidden has no filter while there is nothing to filter.
 func TestSourceToolsHidden(t *testing.T) {
 	s, f, tt := setup(t, "en")
