@@ -1134,3 +1134,21 @@ func TestRequestedFailureKeepsLongerWait(t *testing.T) {
 		t.Fatalf("the wait moved from %v to %v", until, f.worker.health.until)
 	}
 }
+
+// A job that panics is recorded as a failed attempt, so it is retried a limited number of times, and the worker goes on.
+func TestPanickingJobCountsAsAnAttempt(t *testing.T) {
+	f := newFixture(t, "http://127.0.0.1:1")
+	f.worker.client = &http.Client{Transport: panicTransport{}}
+	id := f.entry("social", store.FeedEntry{GUID: "p", Title: "T"}, store.TaskSummary)
+	for range 6 {
+		f.drain()
+		f.now = f.now.Add(maxBackoff)
+	}
+	if got := f.result(id, store.TaskSummary); got.Status != "failed" || got.Error != "ai_upstream" || got.Attempts != maxAttempts {
+		t.Fatalf("always panicking: %+v", got)
+	}
+}
+
+type panicTransport struct{}
+
+func (panicTransport) RoundTrip(*http.Request) (*http.Response, error) { panic("transport broke") }

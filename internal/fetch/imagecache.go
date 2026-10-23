@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/yangflow/oriel/internal/diag"
 )
 
 const (
@@ -228,44 +230,81 @@ func (c *imageCache) put(address, kind string, body []byte) {
 // and puts wait for one unlink at most.
 func (c *imageCache) evictPass(keep string) {
 	defer c.bg.Done()
-	target := int64(float64(c.maxBytes) * imageCacheTrim)
-	for {
-		removed := 0
-		c.mu.Lock()
-		type candidate struct {
-			key string
-			cacheEntry
-		}
-		list := make([]candidate, 0, len(c.entries))
-		for key, e := range c.entries {
-			if key != keep {
-				list = append(list, candidate{key, e})
-			}
-		}
-		c.mu.Unlock()
-		sort.Slice(list, func(i, j int) bool { return list[i].access.Before(list[j].access) })
-		for _, item := range list {
-			c.disk("remove")
+	// Whatever ends the pass, a panic included, the flag is cleared (unless the pass did it already) so that a later
+	// put can start another one; every lock below is held with a deferred unlock, so a panic never leaves mu locked.
+	finished := false
+	defer func() {
+		if !finished {
 			c.mu.Lock()
-			if c.total <= target {
-				c.mu.Unlock()
-				break
-			}
-			if cur, ok := c.entries[item.key]; ok && cur.seq == item.seq {
-				if c.remove(item.key) {
-					removed++
-				}
-			}
-			c.mu.Unlock()
-		}
-		c.mu.Lock()
-		if c.total <= c.maxBytes || removed == 0 {
 			c.evicting = false
 			c.mu.Unlock()
+		}
+	}()
+	defer diag.Recover("image cache eviction")
+	target := int64(float64(c.maxBytes) * imageCacheTrim)
+	for {
+		list := c.evictionCandidates(keep)
+		sort.Slice(list, func(i, j int) bool { return list[i].access.Before(list[j].access) })
+		removed := 0
+		for _, item := range list {
+			c.disk("remove")
+			done, ok := c.evictOne(item.key, item.seq, target)
+			if done {
+				break
+			}
+			if ok {
+				removed++
+			}
+		}
+		if c.endPass(removed) {
+			finished = true
 			return
 		}
-		c.mu.Unlock()
 	}
+}
+
+type evictionCandidate struct {
+	key string
+	cacheEntry
+}
+
+// evictionCandidates is a snapshot of the stored files except keep.
+func (c *imageCache) evictionCandidates(keep string) []evictionCandidate {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	list := make([]evictionCandidate, 0, len(c.entries))
+	for key, e := range c.entries {
+		if key != keep {
+			list = append(list, evictionCandidate{key, e})
+		}
+	}
+	return list
+}
+
+// evictOne removes a file if it is still the stored copy with seq. It reports done when the total is already under
+// target, and ok when it removed the file.
+func (c *imageCache) evictOne(key string, seq uint64, target int64) (done, ok bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.total <= target {
+		return true, false
+	}
+	if cur, found := c.entries[key]; found && cur.seq == seq {
+		return false, c.remove(key)
+	}
+	return false, false
+}
+
+// endPass reports whether the pass is over, clearing the flag in the same step; it is when the total is under the cap
+// or the last round removed nothing.
+func (c *imageCache) endPass(removed int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.total <= c.maxBytes || removed == 0 {
+		c.evicting = false
+		return true
+	}
+	return false
 }
 
 // A cache file is the content type, a line feed, the store time in Unix nanoseconds, a line feed and the bytes.

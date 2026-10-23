@@ -379,3 +379,42 @@ func TestRunStopsWithContext(t *testing.T) {
 		t.Fatal("Run did not stop")
 	}
 }
+
+// A fetch that panics is a failed one: the other sources are fetched, the panicking one waits for its retry and is
+// not taken again at once.
+func TestPanickingFetchCountsAsAFailure(t *testing.T) {
+	f := newFixture(t)
+	good := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(rssFeed)) }))
+	defer good.Close()
+	broken := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer broken.Close()
+	f.poller.client = &http.Client{Transport: panicTo{host: strings.TrimPrefix(broken.URL, "http://")}}
+	okID := f.add(store.NewSource{URL: good.URL + "/feed.xml"})
+	badID := f.add(store.NewSource{URL: broken.URL + "/feed.xml"})
+
+	if n := f.poller.fetchDue(context.Background()); n != 2 {
+		t.Fatalf("fetchDue brought %d entries, want 2 from the source that works", n)
+	}
+	if got := f.int("SELECT consecutive_failures FROM sources WHERE id = ?", badID); got != 1 {
+		t.Errorf("failures %d, want 1", got)
+	}
+	if got := f.int("SELECT consecutive_failures FROM sources WHERE id = ?", okID); got != 0 {
+		t.Errorf("the working source has %d failures", got)
+	}
+	if n := f.poller.fetchDue(context.Background()); n != 0 {
+		t.Errorf("the second round brought %d entries; the panicking source was taken again at once", n)
+	}
+	if len(f.poller.Fetching()) != 0 {
+		t.Errorf("sources still marked as fetching: %v", f.poller.Fetching())
+	}
+}
+
+// panicTo panics for requests to one host and passes the rest on.
+type panicTo struct{ host string }
+
+func (p panicTo) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.URL.Host == p.host {
+		panic("transport broke")
+	}
+	return http.DefaultTransport.RoundTrip(r)
+}

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -276,5 +277,55 @@ func TestTailOfABigFileDropsTheCutLine(t *testing.T) {
 		if !strings.HasPrefix(l, `{"msg":"`) {
 			t.Fatalf("a cut line: %q", l)
 		}
+	}
+}
+
+func TestRotatorTruncatesWhenRenamingFails(t *testing.T) {
+	r, dir := openRotator(t, 100)
+	logs := filepath.Join(dir, LogDir)
+	// Folders with content cannot be replaced by a rename, which stands in for a file another process holds open.
+	for _, name := range []string{LogName + ".1", LogName + ".2"} {
+		if err := os.MkdirAll(filepath.Join(logs, name, "x"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	line := strings.Repeat("x", 39) + "\n"
+	for range 10 {
+		if _, err := r.Write([]byte(line)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	info, err := os.Stat(filepath.Join(logs, LogName))
+	if err != nil || info.Size() == 0 || info.Size() > 100 {
+		t.Errorf("the log after a failed rename: %v, %v", info, err)
+	}
+}
+
+func TestRotatorWritesFromManyGoroutines(t *testing.T) {
+	r, dir := openRotator(t, 1000)
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			for range 100 {
+				r.Write([]byte(strings.Repeat("y", 49) + "\n"))
+			}
+		})
+	}
+	wg.Wait()
+	entries, _ := os.ReadDir(filepath.Join(dir, LogDir))
+	for _, e := range entries {
+		data, _ := os.ReadFile(filepath.Join(dir, LogDir, e.Name()))
+		if len(data) > 1000 || len(data)%50 != 0 {
+			t.Errorf("%s has %d bytes, which is a cut or torn record", e.Name(), len(data))
+		}
+	}
+}
+
+func TestRedactWritesAWindowsHomeInSlashes(t *testing.T) {
+	saved := home
+	defer func() { home = saved }()
+	home = `C:\Users\someone`
+	if got := Redact("C:/Users/someone/go/pkg/mod/x.go and " + home + `\Oriel`); strings.Contains(got, "someone") {
+		t.Errorf("the home directory stays: %s", got)
 	}
 }

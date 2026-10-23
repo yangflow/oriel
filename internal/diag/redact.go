@@ -44,6 +44,10 @@ func redact(text string, limit int) string {
 	text = address.ReplaceAllStringFunc(text, hostOnly)
 	if len(home) > 1 {
 		text = strings.ReplaceAll(text, home, "~")
+		// Go writes the file names of a stack with forward slashes on Windows too.
+		if slash := strings.ReplaceAll(home, `\`, "/"); slash != home {
+			text = strings.ReplaceAll(text, slash, "~")
+		}
 	}
 	text = assignment.ReplaceAllString(text, "$1=[redacted]")
 	text = bearer.ReplaceAllString(text, "$1 [redacted]")
