@@ -2756,7 +2756,10 @@ func TestTooltips(t *testing.T) {
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
-	for _, text := range []string{name, "Everything", "Unread"} {
+	if !tipShows(t, tt, name) {
+		t.Error("a subscription name cut short has no tooltip")
+	}
+	for _, text := range []string{"Go Blog", "Everything", "Unread"} {
 		if tipShows(t, tt, text) {
 			t.Errorf("%q has a tooltip", text)
 		}
