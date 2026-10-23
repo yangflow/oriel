@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -128,7 +129,13 @@ func (s *Server) startVacuum(w http.ResponseWriter, r *http.Request) {
 	s.vacuum = vacuumState{State: "running", StartedAt: s.now().UnixMilli()}
 	started := s.vacuum
 	s.vacuumMu.Unlock()
-	go s.runVacuum(before.DatabaseBytes)
+	go func() {
+		if diag.Guard("vacuum", func() { s.runVacuum(before.DatabaseBytes) }) {
+			s.vacuumMu.Lock()
+			defer s.vacuumMu.Unlock()
+			s.vacuum.State, s.vacuum.Error, s.vacuum.FinishedAt = "failed", "internal", s.now().UnixMilli()
+		}
+	}()
 	reply(w, http.StatusAccepted, map[string]any{"vacuum": started})
 }
 

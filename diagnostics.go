@@ -57,7 +57,7 @@ func diagnostics(args []string, stdout io.Writer) int {
 		return 1
 	}
 	defer st.Close()
-	body, err := diag.Build(ctx, st, diag.Info{Version: version, Mode: diag.ModeDataDir, Now: time.Now()})
+	body, err := diag.Build(ctx, st, diag.Info{Version: version, Mode: diag.ModeDataDir, DataDir: *dataDir, Now: time.Now()})
 	if err != nil {
 		slog.Error("Cannot write the diagnostics", "error", err)
 		return 1

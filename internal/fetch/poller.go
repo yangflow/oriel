@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/ai"
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -176,6 +177,9 @@ func errorKind(err error) string {
 	return ""
 }
 
+// errFetchPanic is the failure recorded on a source whose fetch panicked; the panic itself is in the log.
+var errFetchPanic = errors.New("internal error while fetching")
+
 // Poller fetches due sources, extracts article text and prunes old entries, each in its own loop.
 type Poller struct {
 	store     *store.Store
@@ -230,7 +234,7 @@ func (p *Poller) Run(ctx context.Context) {
 	p.resetQueue()
 	var wg sync.WaitGroup
 	for range workers {
-		wg.Go(func() { p.work(ctx, true) })
+		wg.Go(func() { diag.Supervise(ctx, "fetch worker", func() { p.work(ctx, true) }) })
 	}
 	wg.Go(func() { every(ctx, extractEvery, p.extractAll) })
 	wg.Go(func() { every(ctx, pruneCheck, p.prune) })
@@ -264,7 +268,7 @@ func every(ctx context.Context, interval time.Duration, f func(context.Context))
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		f(ctx)
+		diag.Guard("fetch loop", func() { f(ctx) })
 		select {
 		case <-ctx.Done():
 			return
@@ -281,7 +285,9 @@ func (p *Poller) fetchDue(ctx context.Context) int {
 	var total atomic.Int64
 	var wg sync.WaitGroup
 	for range workers {
-		wg.Go(func() { total.Add(int64(p.work(ctx, false))) })
+		wg.Go(func() {
+			diag.Guard("fetch worker", func() { total.Add(int64(p.work(ctx, false))) })
+		})
 	}
 	wg.Wait()
 	return int(total.Load())
@@ -303,10 +309,24 @@ func (p *Poller) work(ctx context.Context, idle bool) int {
 			}
 			continue
 		}
-		total += p.fetchSource(ctx, job)
-		p.finish(job)
+		total += p.fetchGuarded(ctx, job)
 	}
 	return total
+}
+
+// fetchGuarded fetches one source and releases it. A panic is logged with its stack and costs only this fetch; it
+// counts as a failed one, so a source that always panics is tried on the retry schedule and not again at once.
+func (p *Poller) fetchGuarded(ctx context.Context, job queued) (added int) {
+	defer p.finish(job)
+	if diag.Guard("fetch source", func() { added = p.fetchSource(ctx, job) }) {
+		added = 0
+		now := p.now()
+		wait := retryDelay(job.src.ConsecutiveFailures + 1)
+		if err := p.store.FetchFailure(ctx, job.src.ID, errFetchPanic.Error(), "", now, now.Add(wait)); err != nil && ctx.Err() == nil {
+			slog.Error("Cannot record a fetch failure", "source", job.src.ID, "error", err)
+		}
+	}
+	return added
 }
 
 // take claims the oldest due source whose host has room, or reports that there is none. Sources whose host is busy

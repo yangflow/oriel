@@ -24,6 +24,7 @@ const (
 const (
 	timeLayout   = "2006-01-02T15:04:05Z"
 	noErrors     = "none"
+	unreadable   = "not available: the log file cannot be read"
 	notAvailable = "not available: this file was written from a data directory, not from a running server"
 )
 
@@ -33,7 +34,9 @@ type Info struct {
 	Mode    string
 	// Log holds the recent errors of the running server; nil for a file written from a data directory.
 	Log *Handler
-	Now time.Time
+	// DataDir holds the log file whose end the file shows; empty says there is none.
+	DataDir string
+	Now     time.Time
 }
 
 // Build writes the diagnostics file. It reads only counts and the failure state of each subscription; titles, entries,
@@ -77,6 +80,17 @@ func Build(ctx context.Context, st *store.Store, info Info) ([]byte, error) {
 			b.WriteString(" last_error=" + strconv.Quote(strings.NewReplacer("\n", " ", "\r", " ").Replace(Redact(src.LastError))))
 		}
 		b.WriteString("\n")
+	}
+
+	fmt.Fprintf(&b, "\nLog file (the last lines of %s/%s, at most %d)\n", LogDir, LogName, tailLines)
+	tail, err := Tail(info.DataDir)
+	if err != nil {
+		b.WriteString(unreadable + "\n")
+	} else if len(tail) == 0 {
+		b.WriteString(noErrors + "\n")
+	}
+	for _, line := range tail {
+		b.WriteString(line + "\n")
 	}
 	return b.Bytes(), nil
 }

@@ -59,6 +59,8 @@ type Config struct {
 	Fetching func() []int64
 	// Log holds the recent warnings and errors for GET /api/diagnostics; nil says the file has none to show.
 	Log *diag.Handler
+	// DataDir is where the log file lives, whose end GET /api/diagnostics shows; empty says there is none.
+	DataDir string
 	// Mode is diag.ModeDesktop or diag.ModeHeadless.
 	Mode string
 	// Pause stops the fetch loop and the AI worker, and waits until they have, while a restore replaces the data. The
@@ -108,6 +110,7 @@ type Server struct {
 	handler  http.Handler
 	fetching func() []int64
 	log      *diag.Handler
+	dataDir  string
 	mode     string
 
 	imports      importState
@@ -124,7 +127,7 @@ type Server struct {
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, log: cfg.Log, mode: cfg.Mode, pause: cfg.Pause, auto: cfg.AutoBackup, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), proxies: cfg.TrustedProxies, vacuum: vacuumState{State: "idle"}}
+	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, log: cfg.Log, dataDir: cfg.DataDir, mode: cfg.Mode, pause: cfg.Pause, auto: cfg.AutoBackup, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), proxies: cfg.TrustedProxies, vacuum: vacuumState{State: "idle"}}
 	if s.routes == nil {
 		s.routes = fetch.NewRoutes(cfg.Version)
 	}

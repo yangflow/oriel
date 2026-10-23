@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/importer"
 	"github.com/yangflow/oriel/internal/store"
 )
@@ -146,8 +147,21 @@ func (s *Server) startImport(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	job := &importJob{phase: phaseFetching, service: body.Service, cancel: cancel}
 	s.imports.job = job
-	go s.fetchImport(ctx, job, imp, req)
+	go s.guardImport(job, func() { s.fetchImport(ctx, job, imp, req) })
 	reply(w, http.StatusAccepted, s.imports.status())
+}
+
+// guardImport runs one step of an import in its own goroutine. A panic in it is logged with its stack and fails the
+// import, so the page does not wait for a job that is gone.
+func (s *Server) guardImport(job *importJob, step func()) {
+	if !diag.Guard("import", step) {
+		return
+	}
+	s.imports.mu.Lock()
+	defer s.imports.mu.Unlock()
+	if job.busy() {
+		job.phase, job.err, job.snap, job.progress = phaseFailed, "internal", nil, importProgress{}
+	}
 }
 
 // fetchImport reads the snapshot. It is the only place the credential goes, and drops it when the fetch ends.
@@ -199,7 +213,7 @@ func (s *Server) confirmImport(w http.ResponseWriter, r *http.Request) {
 	job.snap = nil
 	ctx, cancel := context.WithCancel(context.Background())
 	job.cancel = cancel
-	go s.writeImport(ctx, job, snap)
+	go s.guardImport(job, func() { s.writeImport(ctx, job, snap) })
 	reply(w, http.StatusOK, s.imports.status())
 }
 

@@ -433,3 +433,38 @@ func TestImageCachePutDuringReadKeepsNewCopy(t *testing.T) {
 		t.Errorf("stats %d, %d", n, b)
 	}
 }
+
+// A panic in an eviction pass is recovered, leaves mu unlocked and clears the flag, so the cache keeps working and a
+// later put can start another pass.
+func TestImageCacheEvictionPanicKeepsCacheUsable(t *testing.T) {
+	c := newImageCache(t.TempDir())
+	body := append(append([]byte{}, pngHeader...), make([]byte, 100)...)
+	c.maxBytes = int64(len(encodeCacheFile("image/png", time.Now(), body))) * 2
+	var panics atomic.Int32
+	c.beforeDisk = func(op string) {
+		if op == "remove" && panics.Add(1) == 1 {
+			panic("boom")
+		}
+	}
+	for _, key := range []string{"a", "b", "c"} {
+		c.put(key, "image/png", body)
+	}
+	c.bg.Wait()
+	if panics.Load() == 0 {
+		t.Fatal("the pass did not reach the hook")
+	}
+	c.mu.Lock()
+	evicting := c.evicting
+	c.mu.Unlock()
+	if evicting {
+		t.Error("the flag stuck after a panic")
+	}
+	c.put("d", "image/png", body) // would deadlock if mu stayed locked
+	c.bg.Wait()
+	c.mu.Lock()
+	total := c.total
+	c.mu.Unlock()
+	if total > c.maxBytes {
+		t.Errorf("total %d over the cap %d after the next pass", total, c.maxBytes)
+	}
+}

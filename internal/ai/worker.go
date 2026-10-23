@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -207,11 +208,20 @@ func (w *Worker) dispatch(ctx context.Context, wg *sync.WaitGroup) {
 		}
 		w.inFlight[job] = true
 		wg.Go(func() {
-			w.process(ctx, cfg, job)
+			panicked := diag.Guard("ai job", func() { w.process(ctx, cfg, job) })
+			if panicked {
+				// A failed attempt, so that the job is retried a limited number of times and not at every tick.
+				if err := w.store.SaveAI(ctx, job.EntryID, job.Task, "", "", "", string(ErrUpstream), w.now()); err != nil && ctx.Err() == nil {
+					slog.Error("Cannot save an AI result", "entry", job.EntryID, "task", job.Task, "error", err)
+				}
+			}
 			w.mu.Lock()
 			delete(w.inFlight, job)
 			w.mu.Unlock()
-			w.Wake()
+			// Waking at once after a panic would only run the job into the same panic again.
+			if !panicked {
+				w.Wake()
+			}
 		})
 	}
 }
