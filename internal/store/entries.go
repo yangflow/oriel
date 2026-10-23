@@ -98,10 +98,15 @@ const entryColumns = `
 	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec, e.read_progress,
 	s.pace_sec, coalesce(nullif(e.published_at, 0), e.created_at)`
 
-// shown keeps the entries of s that none of its mute keywords hides, and drops those of a deleted source. Starred
+// shown keeps the entries of s that none of its mute keywords and none of the global ones hides, and drops those of a deleted source. Starred
 // entries are never hidden by keywords. A source without keywords is decided in SQL, so the Go function runs only for
 // sources that have some.
-const shown = "(s.deleted_at IS NULL AND (e.starred = 1 OR s.mute_keywords = '' OR NOT muted(s.mute_keywords, e.title, e.rss_summary)))"
+const shown = "(s.deleted_at IS NULL AND (e.starred = 1 OR " +
+	"((s.mute_keywords = '' OR NOT muted(s.mute_keywords, e.title, e.rss_summary)) AND " +
+	"(" + globalMute + " = '' OR NOT muted(" + globalMute + ", e.title, e.rss_summary)))))"
+
+// globalMute is the global muted keywords, empty while the setting is not set.
+const globalMute = "coalesce((SELECT value FROM settings WHERE key = '" + MuteSetting + "'), '')"
 
 // live keeps out the unread entries whose source has a pace and whose time is up: they leave All and Unread and
 // their counts, and stay in search, Starred and the source's own view. The time is the published time, else the

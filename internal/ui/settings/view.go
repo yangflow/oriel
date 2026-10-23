@@ -70,6 +70,12 @@ type copy struct {
 	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                              string
 	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                        string
 
+	Rules, RulesLead, RulesNone, RulesNoneHelp, AddRule, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs     string
+	RwKeywords, RwAuthor, RwOnly, ActStar, ActRead, MenuEdit, MenuDelete, RuleDeleted, RuleAddTitle, RuleEditTitle string
+	RuleWhen, RuleWhenHelp, RuleSub, RuleKind, KindAny, RuleKeywords, RuleKeywordsHelp, RuleAuthor, RuleAuthorHint string
+	RuleThen, RuleNote, ErrNoCondition, ErrNoAction, ErrKeywords, ErrAuthor, ErrSource, ErrTooMany, RuleClose      string
+	MutedTitle, MutedHelp, MutedNone, MutedMany, MutedInvalid, RulesError, RulesErrorHint                          string
+
 	ReaderLabel, ReaderHelp, ReaderButton, ReaderTitle, ReaderService, ReaderAddress, ReaderAddressHint    string
 	ReaderUser, ReaderToken, ReaderPassword, ReaderMemory, ReaderConnect, ReaderClose, ReaderCancel        string
 	ReaderImport, ReaderDone, ReaderTryAgain, ReaderProgress, ReaderProgressOpen, ReaderFound              string
@@ -117,6 +123,7 @@ var presets = []struct{ name, base, hint string }{
 const (
 	appearance = iota
 	fetching
+	rules
 	opml
 	ai
 	devices
@@ -124,7 +131,7 @@ const (
 )
 
 // pages are the names of the groups, in the order of the constants above, as the command palette calls them.
-var pages = []string{appearance: "appearance", fetching: "fetching", opml: "opml", ai: "ai", devices: "devices", activity: "activity"}
+var pages = []string{appearance: "appearance", fetching: "fetching", rules: "rules", opml: "opml", ai: "ai", devices: "devices", activity: "activity"}
 
 // API is what the screen reads and writes on the server; client.Session is one.
 type API interface {
@@ -145,6 +152,14 @@ type API interface {
 	ImportStatus(ctx context.Context) (client.ImportStatus, error)
 	ConfirmImport(ctx context.Context) (client.ImportStatus, error)
 	CancelImport(ctx context.Context) (client.ImportStatus, error)
+	Sources(ctx context.Context) (client.SourceList, error)
+	Rules(ctx context.Context) ([]client.Rule, error)
+	CreateRule(ctx context.Context, rule client.NewRule) (client.Rule, error)
+	RestoreRule(ctx context.Context, rule client.Rule) (client.Rule, error)
+	UpdateRule(ctx context.Context, id int64, rule client.NewRule) (client.Rule, error)
+	SetRuleEnabled(ctx context.Context, id int64, enabled bool) (client.Rule, error)
+	DeleteRule(ctx context.Context, id int64) error
+	MutedCountAll(ctx context.Context, keywords string) (int, error)
 }
 
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it
@@ -275,6 +290,7 @@ type Screen struct {
 	autoStatus status
 	result     result
 	reader     reader // the dialog that imports from another reader
+	rules      rulesPage
 
 	revoking bool
 	doomed   client.Device
@@ -323,6 +339,7 @@ func (s *Screen) SetLanguage(systemLocale string) {
 // Use makes the screen work on api, whose host is server ("" for this computer); signedIn is whether its session
 // signed in with a password, without which the server has no devices.
 func (s *Screen) Use(api API, server string, signedIn bool) {
+	sameServer, deleted := server == s.server, s.rules.deleted
 	s.api, s.server, s.signedIn = api, server, signedIn
 	s.gen++
 	s.group, s.busy, s.importing, s.result, s.revoking = fetching, false, "", result{}, false
@@ -334,6 +351,10 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.activity, s.storage, s.actState, s.actBusy, s.actOpen = client.Activity{}, client.Storage{}, loading, false, 0
 	s.vacStarting, s.vacError, s.actAt = false, "", time.Time{}
 	s.reader = reader{}
+	s.rules = rulesPage{state: loading}
+	if sameServer { // signing in again keeps the Undo of a rule just deleted
+		s.rules.deleted = deleted
+	}
 }
 
 // OpenAI opens the screen on the AI group, from an entry point of summaries and translations.
@@ -354,7 +375,7 @@ func (s *Screen) OpenAppearance() {
 	s.Open()
 }
 
-// OpenPage opens the screen on the group called name: "appearance", "fetching", "opml", "ai", "devices" or "activity", from the
+// OpenPage opens the screen on the group called name: "appearance", "fetching", "rules", "opml", "ai", "devices" or "activity", from the
 // command palette of the timeline. Any other name opens it on the group it showed last.
 func (s *Screen) OpenPage(name string) {
 	if g := slices.Index(pages, name); g >= 0 {
@@ -378,6 +399,7 @@ func (s *Screen) Open() {
 	}
 	s.loadSettings()
 	s.loadDevices()
+	s.loadRules()
 	s.actState, s.actAt = loading, time.Time{}
 }
 
@@ -393,6 +415,7 @@ func (s *Screen) expired(err error) bool {
 	s.aiSaving, s.testing, s.promptSaving = false, false, false
 	s.actBusy, s.vacStarting = false, false
 	s.reader = reader{}
+	s.rules = rulesPage{state: loading, deleted: s.rules.deleted} // the Undo of a deleted rule outlives the reset
 	s.deps.Expired()
 	return true
 }
@@ -429,6 +452,7 @@ func (s *Screen) loadSettings() {
 			s.aiLimits = savedLimits(settings)
 			s.prompts = [2]string{settings.PromptSummary, settings.PromptTranslate}
 			s.autoFolder, s.autoKeep = settings.AutoBackupFolder, strconv.Itoa(settings.AutoBackupKeep)
+			s.rules.takeMuted(settings.MuteKeywords)
 		}
 	})
 }
@@ -1268,6 +1292,8 @@ func (s *Screen) groupName(g int) string {
 	switch g {
 	case appearance:
 		return s.text.Appearance
+	case rules:
+		return s.text.Rules
 	case opml:
 		return s.text.OPML
 	case ai:
@@ -1305,7 +1331,7 @@ func px(t *ui.Theme, v float32) float32 { return t.Rem(v / 13) }
 // View draws the settings; it does no disk or network work, which runs through Deps.
 func (s *Screen) View(c *ui.Context) {
 	t := c.Theme()
-	if !s.revoking && !s.reader.open && !s.uiFont.open && !s.rdFont.open {
+	if !s.revoking && !s.reader.open && !s.rules.dialog.open && !s.uiFont.open && !s.rdFont.open {
 		c.OnShortcut(0, ui.KeyEscape, s.deps.Back)
 	}
 	width, _ := c.Size()
@@ -1333,6 +1359,7 @@ func (s *Screen) View(c *ui.Context) {
 		}
 	}
 	s.readerDialog(c)
+	s.ruleDialog(c)
 	s.restoreDialog(c)
 	if s.announce != "" {
 		c.Announce(s.announce)
@@ -1343,6 +1370,7 @@ func (s *Screen) View(c *ui.Context) {
 		s.toast = ""
 	}
 	s.restoreToast(c)
+	s.deletedToast(c)
 }
 
 // restoreToast shows the toast of Restore default on a prompt, with Undo.
@@ -1422,7 +1450,7 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 			ui.Column(c).FillWidth().Padding(t.Space(2)).Label(s.text.Settings).Children(func() {
 				ui.Text(c, s.text.Settings).SingleLine().FontSize(px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
 					Margin(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
-				for g, icon := range []*ui.SVG{icons.Palette, icons.Rss, icons.ArrowUpDown, icons.Sparkles, icons.Laptop, icons.Database} {
+				for g, icon := range []*ui.SVG{icons.Palette, icons.Rss, icons.ListFilter, icons.ArrowUpDown, icons.Sparkles, icons.Laptop, icons.Database} {
 					s.navItem(c, g, icon)
 				}
 			})
@@ -1480,6 +1508,10 @@ func (s *Screen) content(c *ui.Context, compact bool, room float32) {
 	switch s.group {
 	case appearance, opml:
 		state = loaded
+	case rules:
+		if state == loaded {
+			state = s.rules.state
+		}
 	case devices:
 		state = s.deviceState
 	case activity:
@@ -1498,6 +1530,8 @@ func (s *Screen) content(c *ui.Context, compact bool, room float32) {
 		switch s.group {
 		case appearance:
 			s.appearancePage(c)
+		case rules:
+			s.rulesPage(c)
 		case opml:
 			s.opmlPage(c)
 		case ai:
@@ -1576,17 +1610,24 @@ func (s *Screen) skeleton(c *ui.Context) {
 
 func (s *Screen) failure(c *ui.Context) {
 	t := c.Theme()
+	title, hint := s.text.Error, s.text.ErrorHint
+	if s.group == rules {
+		title, hint = s.text.RulesError, s.text.RulesErrorHint
+	}
 	ui.Column(c).Grow(1).FillWidth().Center().Gap(t.Space(3)).Padding(theme.Bar+t.Space(6), t.Space(6), t.Space(6)).
 		Role(ui.RoleStatus).
 		Children(func() {
 			ui.Box(c).Size(t.Space(12), t.Space(12)).Radius(t.Space(3)).Center().Background(theme.Soft(t, t.Danger)).
 				Children(func() { ui.Icon(c, icons.WifiOff).FontSize(t.Space(6)).TextColor(t.Danger) })
-			ui.Text(c, s.text.Error).FontSize(px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(2)
-			ui.Text(c, s.text.ErrorHint).MaxWidth(px(t, 320)).TextColor(t.TextMuted).Wrap()
+			ui.Text(c, title).FontSize(px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(2)
+			ui.Text(c, hint).MaxWidth(px(t, 320)).TextColor(t.TextMuted).Wrap()
 			retry := button(c, secondary, false)
 			textButton(c, retry, secondary, icons.RefreshCw, s.text.Retry, false)
 			if retry.Clicked() {
 				switch s.group {
+				case rules:
+					s.loadRules()
+					s.loadSettings()
 				case devices:
 					s.loadDevices()
 				case activity:

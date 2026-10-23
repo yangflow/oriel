@@ -63,6 +63,8 @@ type settingsJSON struct {
 	AutoBackupLastFile  string `json:"autoBackupLastFile"`
 	AutoBackupFailedAt  int64  `json:"autoBackupFailedAt"`
 	AutoBackupError     string `json:"autoBackupError"`
+	// The muted keywords of every source, one per line.
+	MuteKeywords string `json:"muteKeywords"`
 }
 
 func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
@@ -101,6 +103,11 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	mute, err := s.store.Setting(r.Context(), store.MuteSetting)
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	instances := fetch.Instances(root)
 	if instances == nil {
 		instances = []string{}
@@ -127,6 +134,7 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		AutoBackupEnabled:      backup.Enabled, AutoBackupFolder: backup.Folder, AutoBackupFrequency: backup.Frequency,
 		AutoBackupKeep: backup.Keep, AutoBackupLastAt: status.LastAt, AutoBackupLastFile: status.LastFile,
 		AutoBackupFailedAt: status.FailedAt, AutoBackupError: status.Error,
+		MuteKeywords: mute,
 	})
 }
 
@@ -147,6 +155,7 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		AIAutoFetch     *int      `json:"aiAutoFetchLimit"`
 		PromptSummary   *string   `json:"promptSummary"`
 		PromptTranslate *string   `json:"promptTranslate"`
+		MuteKeywords    *string   `json:"muteKeywords"`
 
 		AutoBackupEnabled   *bool   `json:"autoBackupEnabled"`
 		AutoBackupFolder    *string `json:"autoBackupFolder"`
@@ -172,6 +181,14 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		changes = append(changes, [2]string{fetch.RSSHubSetting, stored})
+	}
+	if body.MuteKeywords != nil {
+		keywords := muteLines(*body.MuteKeywords)
+		if !store.LinesWithin(keywords, store.MaxMuteKeywords) {
+			fail(w, http.StatusBadRequest, "invalid_mute_keywords")
+			return
+		}
+		changes = append(changes, [2]string{store.MuteSetting, keywords})
 	}
 	if body.RetentionDays != nil {
 		days := *body.RetentionDays

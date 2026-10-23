@@ -598,3 +598,74 @@ func TestAIAPI(t *testing.T) {
 		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+func TestRulesAPI(t *testing.T) {
+	ctx := context.Background()
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		seen = append(seen, r.Method+" "+r.URL.Path+" "+string(body))
+		switch r.Method + " " + r.URL.Path {
+		case "GET /api/rules":
+			w.Write([]byte(`{"rules":[{"id":3,"sourceId":null,"kind":"video","keywords":"ad","author":"","star":true,"markRead":false,"enabled":true,"createdAt":5}]}`))
+		case "POST /api/rules":
+			if strings.Contains(string(body), `"keywords":"full"`) {
+				w.WriteHeader(http.StatusConflict)
+				w.Write([]byte(`{"error":"too_many_rules"}`))
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"id":4,"sourceId":7,"kind":"","keywords":"","author":"Ann","star":false,"markRead":true,"enabled":true,"createdAt":6}`))
+		case "PATCH /api/rules/4":
+			w.Write([]byte(`{"id":4,"sourceId":null,"kind":"","keywords":"","author":"Bob","star":true,"markRead":false,"enabled":false,"createdAt":6}`))
+		case "POST /api/muted-count":
+			w.Write([]byte(`{"count":9}`))
+		case "DELETE /api/rules/4":
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer srv.Close()
+	session := Session{Server: srv.URL, Token: "t"}
+
+	rules, err := session.Rules(ctx)
+	if err != nil || len(rules) != 1 || rules[0].ID != 3 || rules[0].SourceID != nil || rules[0].Kind != "video" || !rules[0].Star {
+		t.Errorf("Rules = %+v, %v", rules, err)
+	}
+	src := int64(7)
+	created, err := session.CreateRule(ctx, NewRule{SourceID: &src, Author: "Ann", MarkRead: true, Enabled: true})
+	if err != nil || created.ID != 4 || created.SourceID == nil || *created.SourceID != 7 {
+		t.Errorf("CreateRule = %+v, %v", created, err)
+	}
+	var apiErr *APIError
+	if _, err := session.CreateRule(ctx, NewRule{Keywords: "full", Star: true}); !errors.As(err, &apiErr) || apiErr.Code != "too_many_rules" {
+		t.Errorf("CreateRule full: %v", err)
+	}
+	if back, err := session.RestoreRule(ctx, Rule{ID: 4, SourceID: &src, Author: "Ann", MarkRead: true, Enabled: true, CreatedAt: 6}); err != nil || back.ID != 4 {
+		t.Errorf("RestoreRule = %+v, %v", back, err)
+	}
+	if changed, err := session.UpdateRule(ctx, 4, NewRule{Author: "Bob", Star: true, Enabled: true}); err != nil || changed.Author != "Bob" {
+		t.Errorf("UpdateRule = %+v, %v", changed, err)
+	}
+	if changed, err := session.SetRuleEnabled(ctx, 4, false); err != nil || changed.Enabled {
+		t.Errorf("SetRuleEnabled = %+v, %v", changed, err)
+	}
+	if n, err := session.MutedCountAll(ctx, "ad"); err != nil || n != 9 {
+		t.Errorf("MutedCountAll = %d, %v", n, err)
+	}
+	if err := session.DeleteRule(ctx, 4); err != nil {
+		t.Errorf("DeleteRule: %v", err)
+	}
+	want := []string{
+		"GET /api/rules ",
+		`POST /api/rules {"sourceId":7,"kind":"","keywords":"","author":"Ann","star":false,"markRead":true,"enabled":true}`,
+		`POST /api/rules {"sourceId":null,"kind":"","keywords":"full","author":"","star":true,"markRead":false,"enabled":false}`,
+		`POST /api/rules {"id":4,"createdAt":6,"sourceId":7,"kind":"","keywords":"","author":"Ann","star":false,"markRead":true,"enabled":true}`,
+		`PATCH /api/rules/4 {"sourceId":null,"kind":"","keywords":"","author":"Bob","star":true,"markRead":false,"enabled":true}`,
+		`PATCH /api/rules/4 {"enabled":false}`,
+		`POST /api/muted-count {"muteKeywords":"ad"}`,
+		"DELETE /api/rules/4 ",
+	}
+	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
+		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))
+	}
+}

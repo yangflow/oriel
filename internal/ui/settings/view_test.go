@@ -79,6 +79,18 @@ type fake struct {
 	back       int
 	refreshed  int
 	expired    int
+
+	rules      []client.Rule
+	sources    []client.Source
+	rulesErr   error // what listing the rules and the subscriptions answers
+	ruleErr    error // what changing a rule answers
+	ruleSent   []client.NewRule
+	ruleBack   []client.Rule
+	deletedIDs []int64
+	nextRule   int64
+	counted    []string // the keywords a count was asked for
+	mutedCount int
+	mutedErr   error
 }
 
 func (f *fake) Settings(context.Context) (client.Settings, error) { return f.settings, f.settingsErr }
@@ -87,6 +99,9 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	f.set = append(f.set, patch)
 	if f.setErr != nil {
 		return client.Settings{}, f.setErr
+	}
+	if patch.MuteKeywords != nil {
+		f.settings.MuteKeywords = *patch.MuteKeywords
 	}
 	if patch.RSSHubBaseURLs != nil {
 		f.settings.RSSHubBaseURLs = nil
@@ -200,6 +215,80 @@ func (f *fake) ConfirmImport(context.Context) (client.ImportStatus, error) {
 func (f *fake) CancelImport(context.Context) (client.ImportStatus, error) {
 	f.cancels++
 	return client.ImportStatus{Phase: "idle"}, nil
+}
+
+func (f *fake) Sources(context.Context) (client.SourceList, error) {
+	return client.SourceList{Sources: slices.Clone(f.sources)}, f.rulesErr
+}
+
+func (f *fake) Rules(context.Context) ([]client.Rule, error) {
+	return slices.Clone(f.rules), f.rulesErr
+}
+
+func (f *fake) CreateRule(_ context.Context, rule client.NewRule) (client.Rule, error) {
+	f.ruleSent = append(f.ruleSent, rule)
+	if f.ruleErr != nil {
+		return client.Rule{}, f.ruleErr
+	}
+	f.nextRule++
+	r := client.Rule{ID: 100 + f.nextRule, SourceID: rule.SourceID, Kind: rule.Kind, Keywords: rule.Keywords,
+		Author: rule.Author, Star: rule.Star, MarkRead: rule.MarkRead, Enabled: rule.Enabled}
+	f.rules = append(f.rules, r)
+	return r, nil
+}
+
+func (f *fake) RestoreRule(_ context.Context, rule client.Rule) (client.Rule, error) {
+	f.ruleBack = append(f.ruleBack, rule)
+	if f.ruleErr != nil {
+		return client.Rule{}, f.ruleErr
+	}
+	f.rules = append(f.rules, rule)
+	slices.SortStableFunc(f.rules, func(a, b client.Rule) int {
+		return cmp.Or(cmp.Compare(a.CreatedAt, b.CreatedAt), cmp.Compare(a.ID, b.ID))
+	})
+	return rule, nil
+}
+
+func (f *fake) UpdateRule(_ context.Context, id int64, rule client.NewRule) (client.Rule, error) {
+	f.ruleSent = append(f.ruleSent, rule)
+	if f.ruleErr != nil {
+		return client.Rule{}, f.ruleErr
+	}
+	for i, r := range f.rules {
+		if r.ID == id {
+			f.rules[i] = client.Rule{ID: id, SourceID: rule.SourceID, Kind: rule.Kind, Keywords: rule.Keywords,
+				Author: rule.Author, Star: rule.Star, MarkRead: rule.MarkRead, Enabled: rule.Enabled}
+			return f.rules[i], nil
+		}
+	}
+	return client.Rule{}, &client.APIError{Status: 404, Code: "not_found"}
+}
+
+func (f *fake) SetRuleEnabled(_ context.Context, id int64, enabled bool) (client.Rule, error) {
+	if f.ruleErr != nil {
+		return client.Rule{}, f.ruleErr
+	}
+	for i, r := range f.rules {
+		if r.ID == id {
+			f.rules[i].Enabled = enabled
+			return f.rules[i], nil
+		}
+	}
+	return client.Rule{}, &client.APIError{Status: 404, Code: "not_found"}
+}
+
+func (f *fake) DeleteRule(_ context.Context, id int64) error {
+	if f.ruleErr != nil {
+		return f.ruleErr
+	}
+	f.deletedIDs = append(f.deletedIDs, id)
+	f.rules = slices.DeleteFunc(f.rules, func(r client.Rule) bool { return r.ID == id })
+	return nil
+}
+
+func (f *fake) MutedCountAll(_ context.Context, keywords string) (int, error) {
+	f.counted = append(f.counted, keywords)
+	return f.mutedCount, f.mutedErr
 }
 
 func (f *fake) deps() Deps {
@@ -1721,7 +1810,7 @@ func TestPalettes(t *testing.T) {
 				s.View(c)
 			}, 1000, 760)
 			tt.SetPreferences(ui.Preferences{HighContrast: high})
-			for g := range 5 {
+			for g := range len(pages) {
 				s.group = g
 				tt.Frame()
 				f.settle(tt)

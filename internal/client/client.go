@@ -416,6 +416,8 @@ type Settings struct {
 	AutoBackupLastFile  string `json:"autoBackupLastFile"`
 	AutoBackupFailedAt  int64  `json:"autoBackupFailedAt"`
 	AutoBackupError     string `json:"autoBackupError"`
+	// MuteKeywords hides, in every subscription, the entries that contain one of its lines.
+	MuteKeywords string `json:"muteKeywords"`
 }
 
 // AIConfigured reports whether the settings name an AI endpoint and a model.
@@ -443,6 +445,8 @@ type SettingsPatch struct {
 	AutoBackupFolder    *string `json:"autoBackupFolder,omitempty"`
 	AutoBackupFrequency *string `json:"autoBackupFrequency,omitempty"`
 	AutoBackupKeep      *int    `json:"autoBackupKeep,omitempty"`
+
+	MuteKeywords *string `json:"muteKeywords,omitempty"`
 }
 
 // AIResult is a summary or translation of an entry: Status is "pending", "ok" or "failed", Error the code of a
@@ -811,6 +815,95 @@ func (s Session) MutedCount(ctx context.Context, id int64, keywords string) (int
 	}{keywords}
 	err := s.call(ctx, http.MethodPost, "/api/sources/"+strconv.FormatInt(id, 10)+"/muted-count", body, &reply)
 	return reply.Count, err
+}
+
+// MutedCountAll is how many entries the global keywords, one per line, would hide now; they are not saved.
+func (s Session) MutedCountAll(ctx context.Context, keywords string) (int, error) {
+	var reply struct {
+		Count int `json:"count"`
+	}
+	body := struct {
+		MuteKeywords string `json:"muteKeywords"`
+	}{keywords}
+	err := s.call(ctx, http.MethodPost, "/api/muted-count", body, &reply)
+	return reply.Count, err
+}
+
+// Rule acts on the new entries that match its conditions: all of the filled ones. SourceID nil is every
+// subscription, Kind "" any kind. It stars them, marks them read, or both.
+type Rule struct {
+	ID        int64  `json:"id"`
+	SourceID  *int64 `json:"sourceId"`
+	Kind      string `json:"kind"`
+	Keywords  string `json:"keywords"`
+	Author    string `json:"author"`
+	Star      bool   `json:"star"`
+	MarkRead  bool   `json:"markRead"`
+	Enabled   bool   `json:"enabled"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
+// NewRule is a rule to add, or the whole of a rule to replace one with: the ID and creation time are the server's.
+type NewRule struct {
+	SourceID *int64 `json:"sourceId"`
+	Kind     string `json:"kind"`
+	Keywords string `json:"keywords"`
+	Author   string `json:"author"`
+	Star     bool   `json:"star"`
+	MarkRead bool   `json:"markRead"`
+	Enabled  bool   `json:"enabled"`
+}
+
+// Rules lists the rules, the oldest first.
+func (s Session) Rules(ctx context.Context) ([]Rule, error) {
+	var reply struct {
+		Rules []Rule `json:"rules"`
+	}
+	err := s.call(ctx, http.MethodGet, "/api/rules", nil, &reply)
+	return reply.Rules, err
+}
+
+// CreateRule adds a rule and returns it. The fifty-first is an *APIError with the code "too_many_rules".
+func (s Session) CreateRule(ctx context.Context, rule NewRule) (Rule, error) {
+	var created Rule
+	err := s.call(ctx, http.MethodPost, "/api/rules", rule, &created)
+	return created, err
+}
+
+// RestoreRule adds a deleted rule back with its old ID and creation time, so that it takes its old place in the list.
+// The server gives it a new ID when the old one is taken.
+func (s Session) RestoreRule(ctx context.Context, rule Rule) (Rule, error) {
+	body := struct {
+		ID        int64 `json:"id"`
+		CreatedAt int64 `json:"createdAt"`
+		NewRule
+	}{rule.ID, rule.CreatedAt, NewRule{SourceID: rule.SourceID, Kind: rule.Kind, Keywords: rule.Keywords,
+		Author: rule.Author, Star: rule.Star, MarkRead: rule.MarkRead, Enabled: rule.Enabled}}
+	var created Rule
+	err := s.call(ctx, http.MethodPost, "/api/rules", body, &created)
+	return created, err
+}
+
+// UpdateRule replaces the conditions and actions of a rule, and returns it as changed.
+func (s Session) UpdateRule(ctx context.Context, id int64, rule NewRule) (Rule, error) {
+	var changed Rule
+	err := s.call(ctx, http.MethodPatch, "/api/rules/"+strconv.FormatInt(id, 10), rule, &changed)
+	return changed, err
+}
+
+// SetRuleEnabled turns a rule on or off.
+func (s Session) SetRuleEnabled(ctx context.Context, id int64, enabled bool) (Rule, error) {
+	var changed Rule
+	body := struct {
+		Enabled bool `json:"enabled"`
+	}{enabled}
+	err := s.call(ctx, http.MethodPatch, "/api/rules/"+strconv.FormatInt(id, 10), body, &changed)
+	return changed, err
+}
+
+// DeleteRule deletes a rule.
+func (s Session) DeleteRule(ctx context.Context, id int64) error {
+	return s.call(ctx, http.MethodDelete, "/api/rules/"+strconv.FormatInt(id, 10), nil, nil)
 }
 
 // DeleteSource deletes a subscription with its entries, starred ones included. RestoreSource undoes it for a short
