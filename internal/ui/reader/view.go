@@ -857,12 +857,16 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready, narrow bool) {
 	if narrow {
 		left, right = px(t, 12), px(t, 16)
 	}
-	// With the timeline's sidebar hidden the window controls sit over the toolbar, and its left leaves them room.
-	inset := float32(0)
+	// The row is centered in the whole column, as the article is. With the timeline's sidebar hidden the window
+	// controls sit over the toolbar: only where the column's own edge leaves them too little room does the row give
+	// way, by padding that side more, so it keeps its width and every button stays on the article's lines otherwise.
+	wide := s.columnWidth(c, nav)
+	edge := (wide - min(wide, s.column(t))) / 2
 	if nav.Controls {
-		inset = bar.Left
+		left = max(left, bar.Left-edge)
 	}
-	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).Padding(0, bar.Right, 0, inset).DragWindow().
+	right = max(right, bar.Right-edge)
+	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).DragWindow().
 		Children(func() {
 			ui.Row(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Height(theme.Bar).AlignItems(ui.Center).
 				Gap(px(t, 4)).Padding(0, right, 0, left).Children(func() {

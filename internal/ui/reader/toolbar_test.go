@@ -185,3 +185,49 @@ func count(texts []string, want string) int {
 	}
 	return n
 }
+
+// The toolbar lines up with the article column in every window width, with the window controls over it or not: the
+// back button begins 28 inside the column's left edge (its icon on the text's 32) and More ends 32 inside the right
+// one. The controls move the row only where the column leaves them no room.
+func TestToolbarAlignsWithColumn(t *testing.T) {
+	for _, tc := range []struct {
+		width    int
+		controls bool
+	}{{1400, false}, {1400, true}, {1000, true}, {800, true}, {700, true}, {640, false}} {
+		a := full()
+		f := &fake{now: now, article: a, nav: Nav{Entry: a.Entry, Scope: "All", Keys: true, Controls: tc.controls}}
+		s := New("en", f.deps())
+		s.Use(f)
+		var column float32
+		tt := ui.NewTester(func(c *ui.Context) { column = s.column(c.Theme()); s.View(c, f.nav) }, tc.width, 900)
+		s.Open(a.Entry)
+		tt.SetTitleBar(ui.TitleBar{Height: 52, Left: 78, Right: 0})
+		f.settle(tt)
+		tt.Frame()
+		back, ok1 := tt.Find("Back to All")
+		more, ok2 := tt.Find("More")
+		source, ok3 := tt.Find(a.Entry.SourceTitle)
+		if !ok1 || !ok2 || !ok3 {
+			t.Fatalf("width %d: back %v, more %v, source %v in %v", tc.width, ok1, ok2, ok3, tt.Texts())
+		}
+		w := float32(tc.width)
+		col := min(w, column)
+		left, right := (w-col)/2+28, (w-col)/2+col-32
+		narrow := tc.width < 760
+		if narrow {
+			left, right = (w-col)/2+12, (w-col)/2+col-16
+		}
+		if tc.controls {
+			left = max(left, 78)
+		}
+		if got := back.X; got < left-0.5 || got > left+0.5 {
+			t.Errorf("width %d controls %v: Back begins at %v, want %v", tc.width, tc.controls, got, left)
+		}
+		if got := more.X + more.W; got < right-0.5 || got > right+0.5 {
+			t.Errorf("width %d controls %v: More ends at %v, want %v", tc.width, tc.controls, got, right)
+		}
+		if !tc.controls && !narrow && back.X+4 > source.X {
+			t.Errorf("width %d: Back icon at %v is right of the source line at %v", tc.width, back.X+4, source.X)
+		}
+	}
+}
