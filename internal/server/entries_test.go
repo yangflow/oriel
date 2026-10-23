@@ -239,7 +239,18 @@ func TestTimeline(t *testing.T) {
 	if w := do(s, "POST", "/api/entries/read", fmt.Sprintf(`{"newerThan":%d,"kind":"video"}`, newestVideo), bearer(token)); decode(t, w)["marked"] != 0.0 {
 		t.Fatalf("nothing newer than the newest video: %s", w.Body)
 	}
-	for body, want := range map[string]int{`{"upTo":999}`: http.StatusNotFound, `{"newerThan":999}`: http.StatusNotFound, `{"kind":"link"}`: http.StatusBadRequest} {
+	// From an entry on: the entry itself and the newer ones, which with upTo bounds the entries below a video.
+	for _, id := range []int{oldestVideo, newestVideo} {
+		do(s, "PATCH", fmt.Sprintf("/api/entries/%d", id), `{"isRead":false}`, bearer(token))
+	}
+	w = do(s, "POST", "/api/entries/read", fmt.Sprintf(`{"from":%d,"upTo":%d,"kind":"video"}`, oldestVideo, oldestVideo), bearer(token))
+	if got := decode(t, w); w.Code != http.StatusOK || got["marked"] != 1.0 || int(got["ids"].([]any)[0].(float64)) != oldestVideo {
+		t.Fatalf("mark from an entry up to it: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "POST", "/api/entries/read", fmt.Sprintf(`{"from":%d,"kind":"video"}`, newestVideo), bearer(token)); decode(t, w)["marked"] != 1.0 {
+		t.Fatalf("mark from the newest video: %s", w.Body)
+	}
+	for body, want := range map[string]int{`{"from":999}`: http.StatusNotFound, `{"upTo":999}`: http.StatusNotFound, `{"newerThan":999}`: http.StatusNotFound, `{"kind":"link"}`: http.StatusBadRequest} {
 		if w := do(s, "POST", "/api/entries/read", body, bearer(token)); w.Code != want {
 			t.Errorf("%s: %d", body, w.Code)
 		}

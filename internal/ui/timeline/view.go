@@ -44,7 +44,7 @@ type copy struct {
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
 	KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                                                     string
 	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                        string
-	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                         string
+	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkBelow, MarkedBelow, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                 string
 	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                                        string
 	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteActions, PaletteUnreadOnly, PaletteShowAll                    string
 	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, PageActivity, HideSidebar, ShowSidebar, KeyToggleSidebar string
@@ -1884,6 +1884,38 @@ func (s *Screen) markAbove(id int64) {
 		scope.Kind = s.scope.kind
 	}
 	s.markScope(scope, s.text.MarkedAbove, "")
+}
+
+// canMarkBelow says whether an unread entry is loaded below the entry id, where "Mark below as read" can apply: not
+// under Starred or a search, which the server's scopes do not know.
+func (s *Screen) canMarkBelow(id int64) bool {
+	if s.filter == starred || s.budget != 0 || s.searched != "" {
+		return false
+	}
+	i := s.index(id)
+	if i < 0 {
+		return false
+	}
+	return slices.ContainsFunc(s.entries[i+1:], func(e client.Entry) bool { return !e.IsRead })
+}
+
+// markBelow marks the loaded entries below the entry id read, in the scope, and offers to undo it.
+func (s *Screen) markBelow(id int64) {
+	if !s.canMarkBelow(id) || s.api == nil {
+		return
+	}
+	last := s.entries[len(s.entries)-1].ID
+	// The entries below are the older ones, from the one after id to the last loaded: not the ones the list has not
+	// loaded yet, and not those that arrived after it was opened.
+	scope := client.ReadScope{SourceID: s.scope.source, UpTo: s.entries[s.index(id)+1].ID, From: last}
+	if s.oldest {
+		// The entries below are the newer ones, from the one after id up to the last loaded.
+		scope = client.ReadScope{SourceID: s.scope.source, Newer: id, UpTo: last}
+	}
+	if s.scope.source == 0 {
+		scope.Kind = s.scope.kind
+	}
+	s.markScope(scope, s.text.MarkedBelow, "")
 }
 
 // fullyShown says whether the entry i was drawn whole in the last frame: between the toolbar, which the list scrolls
@@ -3986,7 +4018,7 @@ func (s *Screen) item(c *ui.Context, e ui.Element, i int, now time.Time, ringCho
 	return hovered, chosen
 }
 
-// entryMenu fills the context menu of the entry id: the actions of its row, and "Mark above as read" under them.
+// entryMenu fills the context menu of the entry id: the actions of its row, and "Mark above as read" and "Mark below as read" under them.
 func (s *Screen) entryMenu(c *ui.Context, m *ui.Menu, id int64) {
 	i := s.index(id)
 	if i < 0 {
@@ -4023,6 +4055,9 @@ func (s *Screen) entryMenu(c *ui.Context, m *ui.Menu, id int64) {
 	m.Separator()
 	if m.Item(s.text.MarkAbove).Disabled(!s.canMarkAbove(id)).Chosen() {
 		s.markAbove(id)
+	}
+	if m.Item(s.text.MarkBelow).Disabled(!s.canMarkBelow(id)).Chosen() {
+		s.markBelow(id)
 	}
 }
 

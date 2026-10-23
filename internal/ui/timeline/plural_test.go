@@ -17,6 +17,7 @@ func TestSingularCounts(t *testing.T) {
 		{"AlsoChip", s.text.AlsoChip, [3]string{"0 more sources", "1 more source", "2 more sources"}},
 		{"AlsoName", s.text.AlsoName, [3]string{"Also in 0 other sources, show them", "Also in 1 other source, show them", "Also in 2 other sources, show them"}},
 		{"MarkedAbove", s.text.MarkedAbove, [3]string{"Marked 0 entries above as read", "Marked 1 entry above as read", "Marked 2 entries above as read"}},
+		{"MarkedBelow", s.text.MarkedBelow, [3]string{"Marked 0 entries below as read", "Marked 1 entry below as read", "Marked 2 entries below as read"}},
 		{"MarkedVisible", s.text.MarkedVisible, [3]string{"Marked 0 visible entries as read", "Marked 1 visible entry as read", "Marked 2 visible entries as read"}},
 		{"Marked", s.text.Marked, [3]string{"Marked 0 entries in “{scope}” as read", "Marked 1 entry in “{scope}” as read", "Marked 2 entries in “{scope}” as read"}},
 		{"MarkedOlder", s.text.MarkedOlder, [3]string{"Marked 0 entries in “{scope}” older than {age} as read", "Marked 1 entry in “{scope}” older than {age} as read", "Marked 2 entries in “{scope}” older than {age} as read"}},

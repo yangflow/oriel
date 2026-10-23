@@ -317,6 +317,7 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 		Kind     string `json:"kind"`
 		UpTo     int64  `json:"upTo"`
 		Newer    int64  `json:"newerThan"`
+		From     int64  `json:"from"`
 		Older    *int64 `json:"olderThan"`
 	}
 	if r.ContentLength != 0 && !readBody(w, r, &body) {
@@ -341,7 +342,7 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 	for _, bound := range []struct {
 		id  int64
 		set **store.Position
-	}{{body.UpTo, &filter.UpTo}, {body.Newer, &filter.Newer}} {
+	}{{body.UpTo, &filter.UpTo}, {body.Newer, &filter.Newer}, {body.From, &filter.From}} {
 		if bound.id == 0 {
 			continue
 		}

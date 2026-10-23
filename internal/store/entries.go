@@ -79,6 +79,7 @@ type EntryFilter struct {
 	After         *Position // the next page after this position: older entries, or newer ones when Oldest
 	UpTo          *Position // only this position and older ones
 	Newer         *Position // only entries newer than this position
+	From          *Position // only this position and newer ones
 	OlderThan     int64     // only entries shown as before this time, in Unix milliseconds: published_at, else created_at; 0 does not filter
 	// Group shows entries with the same link once: only the earliest visible one of them matches, and read and starred are
 	// those of the whole group. It has no effect with SourceID or Query set.
@@ -225,6 +226,9 @@ func (f EntryFilter) where() (string, []any) {
 	}
 	if f.Newer != nil {
 		add("(e.created_at, e.id) > (?, ?)", f.Newer.CreatedAt, f.Newer.ID)
+	}
+	if f.From != nil {
+		add("(e.created_at, e.id) >= (?, ?)", f.From.CreatedAt, f.From.ID)
 	}
 	if f.OlderThan > 0 {
 		add("coalesce(nullif(e.published_at, 0), e.created_at) < ?", f.OlderThan)
