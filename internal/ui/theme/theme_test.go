@@ -381,3 +381,25 @@ func TestHanLanguage(t *testing.T) {
 		}
 	}
 }
+
+func TestMonogramSizes(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		size float32
+		want string
+	}{
+		{"go.dev", 15, "G"},
+		{"@alice", 18, "A"},
+		{"/r/golang", 32, "R"},
+		{"", 15, "·"},
+	} {
+		tt := ui.NewTester(func(c *ui.Context) { Monogram(c, tc.name, tc.size) }, 100, 100)
+		tt.Frame()
+		if !tt.HasText(tc.want) {
+			t.Fatalf("%q at %v has no letter %q", tc.name, tc.size, tc.want)
+		}
+	}
+	if GlyphRadius(15) != 4 || GlyphRadius(18) != 5 || GlyphRadius(32) != 8 {
+		t.Fatal("glyph radii")
+	}
+}

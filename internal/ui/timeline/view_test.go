@@ -21,6 +21,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/prefs"
+	"github.com/yangflow/oriel/internal/ui/pictures"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
@@ -2473,7 +2474,7 @@ func TestSiteIcons(t *testing.T) {
 	if !slices.Contains(f.pictures, "https://go.dev/favicon.ico") {
 		t.Fatalf("pictures %v", f.pictures)
 	}
-	if p := s.pictures["https://go.dev/favicon.ico"]; p == nil || p.bitmap == nil {
+	if p := s.pics.Peek("https://go.dev/favicon.ico"); p == nil || p.Bitmap == nil {
 		t.Fatal("the icon is not decoded")
 	}
 	if s.iconOf(1) != "https://go.dev/favicon.ico" || s.iconOf(2) != "" {
@@ -2805,7 +2806,7 @@ func TestBrokenImages(t *testing.T) {
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
-	if p := s.pictures["https://go.dev/t.png"]; p == nil || !p.failed || p.bitmap != nil {
+	if p := s.pics.Peek("https://go.dev/t.png"); p == nil || !p.Failed || p.Bitmap != nil {
 		t.Fatalf("the thumbnail did not fail: %+v", p)
 	}
 	track, muted := theme.Track(main), main.TextMuted
@@ -2822,7 +2823,7 @@ func TestBrokenImages(t *testing.T) {
 		}
 	}
 	// The box is 96 by 64 at the default text size and scales with it.
-	if w, h, bw, bh := maxX-minX, maxY-minY, px(main, 96), px(main, 64); w < bw-6 || w > bw+2 || h < bh-6 || h > bh+2 {
+	if w, h, bw, bh := maxX-minX, maxY-minY, theme.Px(main, 96), theme.Px(main, 64); w < bw-6 || w > bw+2 || h < bh-6 || h > bh+2 {
 		t.Fatalf("the failed thumbnail box is %v by %v, not %v by %v", w, h, bw, bh)
 	}
 	icon := 0
@@ -2850,7 +2851,7 @@ func TestPicturesCancelledByServer(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); s.View(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
-	for s.downloads == 0 {
+	for s.pics.Active() == 0 {
 		f.step(t, tt)
 	}
 	other := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
@@ -2866,15 +2867,16 @@ func TestPicturesCancelledByServer(t *testing.T) {
 			t.Fatal("a download for the server before was not cancelled")
 		}
 	}
-	for address, p := range s.pictures {
-		if p.bitmap != nil || p.failed {
+	for _, address := range f.pictures {
+		p := s.pics.Peek(address)
+		if p != nil && (p.Bitmap != nil || p.Failed) {
 			t.Fatalf("a result for the server before was applied to %s", address)
 		}
 	}
 }
 
-// TestPictureRetried tries a picture that failed again when it is drawn after pictureRetry, and gives up after
-// pictureTries downloads.
+// TestPictureRetried tries a picture that failed again when it is drawn after pictures.Retry, and gives up after
+// pictures.Tries downloads.
 func TestPictureRetried(t *testing.T) {
 	const address = "https://go.dev/t.png"
 	run := func(t *testing.T, fails int) (*Screen, *fake, *ui.Tester) {
@@ -2897,7 +2899,7 @@ func TestPictureRetried(t *testing.T) {
 	}
 	t.Run("works the second time", func(t *testing.T) {
 		s, f, tt := run(t, 100)
-		if p := s.pictures[address]; p == nil || !p.failed {
+		if p := s.pics.Peek(address); p == nil || !p.Failed {
 			t.Fatalf("the thumbnail did not fail: %+v", p)
 		}
 		f.imageFails = 0
@@ -2906,22 +2908,22 @@ func TestPictureRetried(t *testing.T) {
 		if count(f) != 1 {
 			t.Fatalf("asked again at once: %v", f.pictures)
 		}
-		f.now = f.now.Add(pictureRetry)
+		f.now = f.now.Add(pictures.Retry)
 		tt.Frame()
 		f.settle(t, tt)
-		if p := s.pictures[address]; count(f) != 2 || p == nil || p.failed || p.bitmap == nil {
+		if p := s.pics.Peek(address); count(f) != 2 || p == nil || p.Failed || p.Bitmap == nil {
 			t.Fatalf("the thumbnail was not got the second time: %d %+v", count(f), p)
 		}
 	})
 	t.Run("gives up", func(t *testing.T) {
 		s, f, tt := run(t, 1000)
-		for range 2 * pictureTries {
-			f.now = f.now.Add(pictureRetry)
+		for range 2 * pictures.Tries {
+			f.now = f.now.Add(pictures.Retry)
 			tt.Frame()
 			f.settle(t, tt)
 		}
-		if count(f) != pictureTries || !s.pictures[address].failed {
-			t.Fatalf("asked %d times, want %d", count(f), pictureTries)
+		if count(f) != pictures.Tries || !s.pics.Peek(address).Failed {
+			t.Fatalf("asked %d times, want %d", count(f), pictures.Tries)
 		}
 	})
 }
@@ -5248,7 +5250,7 @@ func TestSidebarTrailingButtonsShareALine(t *testing.T) {
 		var edge float32
 		tt := ui.NewTester(func(c *ui.Context) {
 			c.Theme().FontSize = tc.font
-			edge = 8 + sideWidth(c.Theme(), tc.compact) - px(c.Theme(), paneLine)
+			edge = 8 + sideWidth(c.Theme(), tc.compact) - theme.Px(c.Theme(), paneLine)
 			s.View(c)
 		}, tc.width, 800)
 		s.Use(f, "")

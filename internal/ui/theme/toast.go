@@ -32,42 +32,42 @@ func Toasts(c *ui.Context) {
 		for _, ts := range toasts {
 			look, _ := ts.Data.(ToastLook)
 			p := ui.ToastBase(c, ts)
-			box := p.Root.Row().AlignItems(ui.Center).Gap(px(t, 10)).MinHeight(px(t, 40)).MaxWidth(width-t.Space(10)).
-				Padding(px(t, 6), px(t, 14)).Radius(px(t, 12)).Background(fill).TextColor(text).
+			box := p.Root.Row().AlignItems(ui.Center).Gap(Px(t, 10)).MinHeight(Px(t, 40)).MaxWidth(width-t.Space(10)).
+				Padding(Px(t, 6), Px(t, 14)).Radius(Px(t, 12)).Background(fill).TextColor(text).
 				Shadow(0, 8, 28, 0, ui.RGBA(0, 0, 0, 0.28))
 			if ts.Action != "" {
-				box.Padding(px(t, 6), px(t, 6), px(t, 6), px(t, 14))
+				box.Padding(Px(t, 6), Px(t, 6), Px(t, 6), Px(t, 14))
 			}
 			box.Opacity(fade(c, p))
 			box.Children(func() {
 				if look.Icon != nil {
-					ui.Icon(c, look.Icon).FontSize(px(t, 16))
+					ui.Icon(c, look.Icon).FontSize(Px(t, 16))
 				}
-				ui.Text(c, ts.Title).Shrink(1).MinWidth(0).SingleLine().FontSize(px(t, 12.5))
+				ui.Text(c, ts.Title).Shrink(1).MinWidth(0).SingleLine().FontSize(Px(t, 12.5))
 				if ts.Action == "" {
 					return
 				}
-				action := p.ActionButton().Row().AlignItems(ui.Center).Gap(px(t, 6)).Height(px(t, 28)).
-					PaddingX(px(t, 10)).Radius(px(t, 8)).Background(text.Alpha(0.16))
+				action := p.ActionButton().Row().AlignItems(ui.Center).Gap(Px(t, 6)).Height(Px(t, 28)).
+					PaddingX(Px(t, 10)).Radius(Px(t, 8)).Background(text.Alpha(0.16))
 				if action.Hovered() {
 					action.Background(text.Alpha(0.24))
 				}
 				action.Children(func() {
-					ui.Text(c, ts.Action).FontSize(px(t, 12.5)).FontWeight(600).SingleLine()
+					ui.Text(c, ts.Action).FontSize(Px(t, 12.5)).FontWeight(600).SingleLine()
 					if look.Keys != "" {
-						ui.Text(c, look.Keys).FontSize(px(t, 12.5)).TextColor(text.Alpha(0.6)).SingleLine()
+						ui.Text(c, look.Keys).FontSize(Px(t, 12.5)).TextColor(text.Alpha(0.6)).SingleLine()
 					}
 				})
 				if look.Close == "" {
 					return
 				}
-				close := p.CloseButton().Label(look.Close).Tooltip(look.Close).Size(px(t, 28), px(t, 28)).Center().
-					Radius(px(t, 8))
+				close := p.CloseButton().Label(look.Close).Tooltip(look.Close).Size(Px(t, 28), Px(t, 28)).Center().
+					Radius(Px(t, 8))
 				if close.Hovered() {
 					close.Background(text.Alpha(0.16))
 				}
 				close.Children(func() {
-					ui.Icon(c, icons.X).FontSize(px(t, 14)).TextColor(text.Alpha(0.7))
+					ui.Icon(c, icons.X).FontSize(Px(t, 14)).TextColor(text.Alpha(0.7))
 				})
 			})
 		}
@@ -88,5 +88,3 @@ func fade(c *ui.Context, p ui.ToastParts) float32 {
 	c.After(left - length)
 	return 1
 }
-
-func px(t *ui.Theme, v float32) float32 { return t.Rem(v / 13) }

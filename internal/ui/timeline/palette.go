@@ -254,14 +254,14 @@ func (s *Screen) palette(c *ui.Context) {
 	var run func()
 	ui.DialogBase(c, &p.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Justify(ui.Start).Padding(top, t.Space(6), t.Space(3), t.Space(6))
-		panel.Column().Width(min(px(t, paletteWidth), width-t.Space(12))).MaxHeight(height-top-t.Space(3)).Radius(px(t, 14)).
+		panel.Column().Width(min(theme.Px(t, paletteWidth), width-t.Space(12))).MaxHeight(height-top-t.Space(3)).Radius(theme.Px(t, 14)).
 			Background(theme.RaisedFill(t)).Border(0.5, theme.LineStrong(t)).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.25)).
 			Label(s.text.PaletteTitle)
 		var in ui.Element
-		field := ui.Row(c).Margin(px(t, 8), px(t, 8), px(t, 4), px(t, 8)).Height(px(t, paletteRow)).AlignItems(ui.Center).
-			Gap(px(t, 8)).PaddingX(px(t, 10)).Radius(px(t, 8)).Background(theme.RaisedFill(t)).Shrink(0)
+		field := ui.Row(c).Margin(theme.Px(t, 8), theme.Px(t, 8), theme.Px(t, 4), theme.Px(t, 8)).Height(theme.Px(t, paletteRow)).AlignItems(ui.Center).
+			Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 10)).Radius(theme.Px(t, 8)).Background(theme.RaisedFill(t)).Shrink(0)
 		field.Children(func() {
-			ui.Icon(c, icons.Search).FontSize(px(t, 15)).TextColor(t.TextMuted)
+			ui.Icon(c, icons.Search).FontSize(theme.Px(t, 15)).TextColor(t.TextMuted)
 			in = ui.TextInputBase(c, &p.query).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.PaletteGoTo).
 				Placeholder(s.text.PaletteGoTo)
 			if p.focus {
@@ -292,7 +292,7 @@ func (s *Screen) palette(c *ui.Context) {
 		}
 
 		if n == 0 {
-			ui.Row(c).FillWidth().Justify(ui.Center).Padding(px(t, 20), px(t, 8), px(t, 24), px(t, 8)).Role(ui.RoleStatus).
+			ui.Row(c).FillWidth().Justify(ui.Center).Padding(theme.Px(t, 20), theme.Px(t, 8), theme.Px(t, 24), theme.Px(t, 8)).Role(ui.RoleStatus).
 				Children(func() {
 					ui.Text(c, s.text.PaletteNone).TextColor(t.TextMuted).TextAlign(ui.Center)
 				})
@@ -317,7 +317,7 @@ func (s *Screen) palette(c *ui.Context) {
 				run = shown[line.item].run
 			}
 		})
-		list.Height(min(px(t, listHeight), px(t, paletteList), height*paletteShare)).Padding(0, px(t, 8), px(t, paletteBottom), px(t, 8)).
+		list.Height(min(theme.Px(t, listHeight), theme.Px(t, paletteList), height*paletteShare)).Padding(0, theme.Px(t, 8), theme.Px(t, paletteBottom), theme.Px(t, 8)).
 			Label(s.text.PaletteGoTo)
 		if active.Valid() {
 			in.ActiveDescendant(active)
@@ -334,8 +334,8 @@ func (s *Screen) palette(c *ui.Context) {
 // paletteHeader is the muted header over the rows of a group.
 func (s *Screen) paletteHeader(c *ui.Context, group int) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().Height(px(t, paletteHead)).AlignItems(ui.End).Padding(0, px(t, 8), px(t, 4), px(t, 8)).Children(func() {
-		ui.Text(c, strings.ToUpper(s.groupName(group))).FontSize(px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
+	ui.Row(c).FillWidth().Height(theme.Px(t, paletteHead)).AlignItems(ui.End).Padding(0, theme.Px(t, 8), theme.Px(t, 4), theme.Px(t, 8)).Children(func() {
+		ui.Text(c, strings.ToUpper(s.groupName(group))).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
 			Role(ui.RoleHeading).Level(3)
 	})
 }
@@ -344,8 +344,8 @@ func (s *Screen) paletteHeader(c *ui.Context, group int) {
 // unread count or the keys that do the same.
 func (s *Screen) paletteRow(c *ui.Context, it paletteItem, highlighted, ranked bool) ui.Element {
 	t := c.Theme()
-	row := ui.Row(c).FillWidth().Height(px(t, paletteRow)).AlignItems(ui.Center).Gap(px(t, 8)).PaddingX(px(t, 8)).
-		Radius(px(t, 6)).Role(ui.RoleListItem).Label(s.paletteLabel(it)).KeepFocus()
+	row := ui.Row(c).FillWidth().Height(theme.Px(t, paletteRow)).AlignItems(ui.Center).Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 8)).
+		Radius(theme.Px(t, 6)).Role(ui.RoleListItem).Label(s.paletteLabel(it)).KeepFocus()
 	switch {
 	case highlighted:
 		row.Background(theme.Chosen(t))
@@ -354,23 +354,23 @@ func (s *Screen) paletteRow(c *ui.Context, it paletteItem, highlighted, ranked b
 	}
 	row.Children(func() {
 		if it.icon != nil {
-			ui.Icon(c, it.icon).FontSize(px(t, 16)).TextColor(t.TextMuted)
+			ui.Icon(c, it.icon).FontSize(theme.Px(t, 16)).TextColor(t.TextMuted)
 		} else {
 			s.glyph(c, it.name, it.site, 16)
 		}
-		ui.Text(c, it.name).Grow(1).MinWidth(0).SingleLine().Ellipsis("…").FontSize(px(t, 13))
+		ui.Text(c, it.name).Grow(1).MinWidth(0).SingleLine().Ellipsis("…").FontSize(theme.Px(t, 13))
 		if ranked {
-			ui.Text(c, s.groupName(it.group)).FontSize(px(t, 11)).TextColor(t.TextMuted).NoWrap().Shrink(0)
+			ui.Text(c, s.groupName(it.group)).FontSize(theme.Px(t, 11)).TextColor(t.TextMuted).NoWrap().Shrink(0)
 		}
 		if it.count > 0 {
-			ui.Text(c, strconv.Itoa(it.count)).FontSize(px(t, 11)).FontWeight(500).FontFeatures("tnum").
+			ui.Text(c, strconv.Itoa(it.count)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
 				TextColor(t.TextMuted).NoWrap().Shrink(0)
 		}
 		if len(it.keys) > 0 {
-			ui.Row(c).AlignItems(ui.Center).Gap(px(t, 4)).Shrink(0).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 4)).Shrink(0).Children(func() {
 				for _, k := range it.keys {
-					ui.Box(c).MinWidth(px(t, 22)).Height(px(t, 22)).PaddingX(px(t, 6)).Center().Radius(6).
-						Background(theme.Track(t)).Children(func() { ui.Text(c, k).FontSize(px(t, 11)).FontWeight(500).NoWrap() })
+					ui.Box(c).MinWidth(theme.Px(t, 22)).Height(theme.Px(t, 22)).PaddingX(theme.Px(t, 6)).Center().Radius(6).
+						Background(theme.Track(t)).Children(func() { ui.Text(c, k).FontSize(theme.Px(t, 11)).FontWeight(500).NoWrap() })
 				}
 			})
 		}

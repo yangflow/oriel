@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
@@ -372,4 +373,38 @@ func dark(t *ui.Theme) {
 	t.Inverse = ui.Hex("#333837")
 	t.InverseText = ui.Hex("#f4efe6")
 	t.Scrollbar = Ink(t, 0.3)
+}
+
+// Px converts a size of the mockup, drawn at a 13 px font, to the theme's text size.
+func Px(t *ui.Theme, v float32) float32 { return t.Rem(v / 13) }
+
+// Monogram draws the first letter of a subscription's name on a Track tile, in Text2, for a square of size DIPs
+// (in mockup pixels): 15 in the meta line and the reader, 18 in the timeline pane, 32 in the subscriptions list.
+func Monogram(c *ui.Context, name string, size float32) {
+	t := c.Theme()
+	letter := "·"
+	if r, _ := utf8.DecodeRuneInString(strings.TrimLeft(name, "@#·/ ")); r != utf8.RuneError {
+		letter = strings.ToUpper(string(r))
+	}
+	radius, font := GlyphRadius(size), float32(9)
+	switch {
+	case size > 20:
+		font = 15
+	case size > 16:
+		font = 10.5
+	}
+	ui.Box(c).Size(Px(t, size), Px(t, size)).Radius(radius).Center().Background(Track(t)).Children(func() {
+		ui.Text(c, letter).FontSize(Px(t, font)).FontWeight(600).TextColor(Text2(t))
+	})
+}
+
+// GlyphRadius is the corner radius of a glyph of size: 4 up to 16, 5 up to 20 and 8 above.
+func GlyphRadius(size float32) float32 {
+	switch {
+	case size > 20:
+		return 8
+	case size > 16:
+		return 5
+	}
+	return 4
 }

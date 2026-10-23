@@ -119,7 +119,7 @@ func (s *Screen) startVacuum() {
 // activityPage is the storage, what is being fetched now and how the recent fetches went.
 func (s *Screen) activityPage(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).Margin(0, 0, px(t, 20), 0).Children(func() {
+	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).Margin(0, 0, theme.Px(t, 20), 0).Children(func() {
 		ui.Text(c, s.text.ActivityLead).TextColor(t.TextMuted).Wrap().Grow(1).Shrink(1).MinWidth(0)
 		refresh := button(c, small, false)
 		textButton(c, refresh, small, icons.RefreshCw, s.text.Refresh, false)
@@ -138,7 +138,7 @@ func (s *Screen) storageCard(c *ui.Context) {
 	st := s.storage
 	sectionTitle(c, s.text.Storage, 0)
 	card(c, func() {
-		ui.Column(c).FillWidth().Gap(px(t, 8)).Children(func() {
+		ui.Column(c).FillWidth().Gap(theme.Px(t, 8)).Children(func() {
 			s.keyValue(c, s.text.DBSize, s.bytes(st.DatabaseBytes))
 			s.keyValue(c, s.text.Entries, strconv.FormatInt(st.Entries, 10))
 			s.keyValue(c, s.text.Images, s.fill(locale.Count(s.text.ImagesValue, "n", st.Images), "{size}", s.bytes(st.ImageBytes)))
@@ -157,7 +157,7 @@ func (s *Screen) storageCard(c *ui.Context) {
 			if compact.Clicked() {
 				s.startVacuum()
 			}
-			ui.Text(c, s.fill(s.text.CompactHelp, "{size}", s.bytes(st.ReclaimableBytes))).FontSize(px(t, 12)).
+			ui.Text(c, s.fill(s.text.CompactHelp, "{size}", s.bytes(st.ReclaimableBytes))).FontSize(theme.Px(t, 12)).
 				TextColor(t.TextMuted).Wrap().Grow(1).Shrink(1).MinWidth(0)
 		})
 		statusLine(c, s.vacuumStatus())
@@ -195,7 +195,7 @@ func (s *Screen) diagnosticsCard(c *ui.Context) {
 			if export.Clicked() {
 				s.exportDiagnostics()
 			}
-			ui.Text(c, s.text.DiagnosticsHelp).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Grow(1).Shrink(1).MinWidth(0)
+			ui.Text(c, s.text.DiagnosticsHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Grow(1).Shrink(1).MinWidth(0)
 		})
 		statusLine(c, s.diagStatus)
 	})
@@ -259,8 +259,8 @@ func (s *Screen) fetchingNowCard(c *ui.Context) {
 		}
 		ui.Column(c).FillWidth().Children(func() {
 			for _, f := range s.activity.Fetching {
-				ui.Row(c).Key(f.ID).FillWidth().Height(px(t, 36)).AlignItems(ui.Center).Gap(px(t, 10)).Children(func() {
-					spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 14)).TextColor(t.Accent)
+				ui.Row(c).Key(f.ID).FillWidth().Height(theme.Px(t, 36)).AlignItems(ui.Center).Gap(theme.Px(t, 10)).Children(func() {
+					spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 14)).TextColor(t.Accent)
 					spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 					ui.Text(c, sourceName(f.Title, f.RSSHubPath, f.URL)).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 				})
@@ -280,13 +280,13 @@ func (s *Screen) recentCard(c *ui.Context) {
 	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Children(func() {
 		for i, src := range s.activity.Sources {
 			if i > 0 {
-				ui.Box(c).FillWidth().Height(1).Margin(0, px(t, 20)).Background(t.Border)
+				ui.Box(c).FillWidth().Height(1).Margin(0, theme.Px(t, 20)).Background(t.Border)
 			}
 			s.sourceRow(c, src, now)
 		}
 	})
-	ui.Text(c, locale.Count(s.text.RecentKeep, "n", s.activity.Keep)).FontSize(px(t, 12)).
-		TextColor(t.TextMuted).Wrap().Margin(px(t, 8), px(t, 4), 0, px(t, 4))
+	ui.Text(c, locale.Count(s.text.RecentKeep, "n", s.activity.Keep)).FontSize(theme.Px(t, 12)).
+		TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 8), theme.Px(t, 4), 0, theme.Px(t, 4))
 }
 
 // sourceRow is a subscription with its last fetch, which opens the list of its recent fetches. Only the open row draws
@@ -296,7 +296,7 @@ func (s *Screen) sourceRow(c *ui.Context, src client.ActivitySource, now time.Ti
 	open := s.actOpen == src.ID
 	name := sourceName(src.Title, src.RSSHubPath, src.URL)
 	ui.Column(c).Key(src.ID).FillWidth().Children(func() {
-		row := ui.ButtonBase(c).FillWidth().Height(px(t, 44)).AlignItems(ui.Center).Gap(px(t, 10)).PaddingX(px(t, 20)).
+		row := ui.ButtonBase(c).FillWidth().Height(theme.Px(t, 44)).AlignItems(ui.Center).Gap(theme.Px(t, 10)).PaddingX(theme.Px(t, 20)).
 			Label(s.fill(s.text.ShowAttempts, "{name}", name)).Role(ui.RoleDisclosure).Expanded(open)
 		switch {
 		case row.Pressed():
@@ -316,13 +316,13 @@ func (s *Screen) sourceRow(c *ui.Context, src client.ActivitySource, now time.Ti
 			s.resultIcon(c, ok)
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 				ui.Text(c, name).FontWeight(500).SingleLine().MinWidth(0)
-				ui.Text(c, summary).FontSize(px(t, 12)).TextColor(t.TextMuted).SingleLine().MinWidth(0)
+				ui.Text(c, summary).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine().MinWidth(0)
 			})
 			chevron := icons.ChevronRight
 			if open {
 				chevron = icons.ChevronDown
 			}
-			ui.Icon(c, chevron).FontSize(px(t, 14)).TextColor(t.TextMuted)
+			ui.Icon(c, chevron).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 		})
 		if row.Clicked() {
 			if open {
@@ -332,7 +332,7 @@ func (s *Screen) sourceRow(c *ui.Context, src client.ActivitySource, now time.Ti
 			}
 		}
 		if open {
-			ui.Column(c).FillWidth().Padding(0, px(t, 20), px(t, 8), px(t, 20)).Children(func() {
+			ui.Column(c).FillWidth().Padding(0, theme.Px(t, 20), theme.Px(t, 8), theme.Px(t, 20)).Children(func() {
 				for i, a := range src.Attempts {
 					s.attemptLine(c, i, a, now)
 				}
@@ -346,16 +346,16 @@ func (s *Screen) sourceRow(c *ui.Context, src client.ActivitySource, now time.Ti
 func (s *Screen) attemptLine(c *ui.Context, i int, a client.FetchAttempt, now time.Time) {
 	t := c.Theme()
 	ui.Column(c).Key(i).FillWidth().Children(func() {
-		ui.Row(c).FillWidth().MinHeight(px(t, 28)).AlignItems(ui.Center).Gap(px(t, 10)).Children(func() {
+		ui.Row(c).FillWidth().MinHeight(theme.Px(t, 28)).AlignItems(ui.Center).Gap(theme.Px(t, 10)).Children(func() {
 			s.resultIcon(c, a.OK)
 			ui.Text(c, s.ago(a.At, now)).Grow(1).Shrink(1).MinWidth(0).SingleLine()
-			muted := ui.Text(c, s.status(a)).SingleLine().FontSize(px(t, 12)).TextColor(t.TextMuted)
-			muted.Width(px(t, 40))
-			ui.Text(c, s.duration(a.DurationMs)).SingleLine().FontSize(px(t, 12)).TextColor(t.TextMuted).Width(px(t, 56))
-			ui.Text(c, s.outcome(a)).SingleLine().FontSize(px(t, 12)).Width(px(t, 84))
+			muted := ui.Text(c, s.status(a)).SingleLine().FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+			muted.Width(theme.Px(t, 40))
+			ui.Text(c, s.duration(a.DurationMs)).SingleLine().FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Width(theme.Px(t, 56))
+			ui.Text(c, s.outcome(a)).SingleLine().FontSize(theme.Px(t, 12)).Width(theme.Px(t, 84))
 		})
 		if !a.OK && a.Error != "" {
-			ui.Text(c, a.Error).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(0, 0, px(t, 4), px(t, 24))
+			ui.Text(c, a.Error).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(0, 0, theme.Px(t, 4), theme.Px(t, 24))
 		}
 	})
 }
@@ -363,10 +363,10 @@ func (s *Screen) attemptLine(c *ui.Context, i int, a client.FetchAttempt, now ti
 func (s *Screen) resultIcon(c *ui.Context, ok bool) {
 	t := c.Theme()
 	if ok {
-		ui.Icon(c, icons.Check).FontSize(px(t, 14)).TextColor(t.Success)
+		ui.Icon(c, icons.Check).FontSize(theme.Px(t, 14)).TextColor(t.Success)
 		return
 	}
-	ui.Icon(c, icons.CircleAlert).FontSize(px(t, 14)).TextColor(t.Warning)
+	ui.Icon(c, icons.CircleAlert).FontSize(theme.Px(t, 14)).TextColor(t.Warning)
 }
 
 // outcome is what a fetch came to: how many new entries, nothing new, or that it failed.
