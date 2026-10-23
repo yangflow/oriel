@@ -79,6 +79,10 @@
      the sidebar keeps the existing menu of subscriptions.html): Mark subscription as read sits under Refresh and is
      dimmed when it has nothing unread (menu-feed-none); the three Mark older than ... as read items follow it and are dimmed with it. All act at once and offer Undo in the same toast as Mark all
      as read (marked-above, marked-feed).
+     With Mark as read set to After scrolling past (Settings, Timeline), the rows that scroll off the top mark themselves, in one batch
+     when the scrolling pauses (marked-scrolled, drawn after the batch: the first four entries have gone off the top and the list is
+     scrolled to the fifth; all four were unread, so the toast says 4). The toast is the shared one, with Undo; the rows keep
+     their place and only lose the dot and the bold title. After staying and When opened mark silently, as opening always did.
      V marks the entries fully in view as read and scrolls so the first entry below them is at the top, the keyboard choice
      on it (marked-visible, drawn after the press: eight entries were in view, five of them unread, so the toast says 5; the next one is chosen).
      It marks from the first entry fully in view to the last one fully in view; a row cut at the top or bottom edge stays
@@ -616,7 +620,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
+const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -725,7 +729,7 @@ const copy={
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…', restoreBackup:'Restore from backup…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
-    marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below', fetching:'{name}, fetching', fetchedNew:'Fetched {n} entries from “{name}”', fetchedNone:'“{name}” fetched, but has no entries yet', fetchedFailed:'Couldn’t fetch “{name}”: {error}', refreshingName:'Refreshing, {done} of {n} checked', refreshed:'Checked {n} subscriptions', refreshedFailed:'Checked {n} subscriptions, {failed} failed', refreshedPart:'Checked {done} of {n} subscriptions, the rest will follow', refreshNone:'No subscriptions to refresh', kRefreshAll:'Refresh all subscriptions',
+    marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedVisible:'Marked {n} visible entries as read', markedScrolled:'Marked {n} scrolled-past entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below', fetching:'{name}, fetching', fetchedNew:'Fetched {n} entries from “{name}”', fetchedNone:'“{name}” fetched, but has no entries yet', fetchedFailed:'Couldn’t fetch “{name}”: {error}', refreshingName:'Refreshing, {done} of {n} checked', refreshed:'Checked {n} subscriptions', refreshedFailed:'Checked {n} subscriptions, {failed} failed', refreshedPart:'Checked {done} of {n} subscriptions, the rest will follow', refreshNone:'No subscriptions to refresh', kRefreshAll:'Refresh all subscriptions',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
     kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
@@ -759,7 +763,7 @@ const copy={
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…', restoreBackup:'从备份恢复…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
-    marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了', fetching:'{name}，正在抓取', fetchedNew:'「{name}」抓到 {n} 条', fetchedNone:'「{name}」抓取成功，但还没有条目', fetchedFailed:'「{name}」抓取失败：{error}', refreshingName:'正在更新，已查 {done}/{n}', refreshed:'已查完 {n} 个订阅', refreshedFailed:'已查完 {n} 个订阅，其中 {failed} 个失败', refreshedPart:'已查 {done}/{n} 个订阅，其余会陆续抓', refreshNone:'没有可更新的订阅', kRefreshAll:'全部更新',
+    marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', markedScrolled:'已把滚过的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了', fetching:'{name}，正在抓取', fetchedNew:'「{name}」抓到 {n} 条', fetchedNone:'「{name}」抓取成功，但还没有条目', fetchedFailed:'「{name}」抓取失败：{error}', refreshingName:'正在更新，已查 {done}/{n}', refreshed:'已查完 {n} 个订阅', refreshedFailed:'已查完 {n} 个订阅，其中 {failed} 个失败', refreshedPart:'已查 {done}/{n} 个订阅，其余会陆续抓', refreshNone:'没有可更新的订阅', kRefreshAll:'全部更新',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
     kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
     kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
@@ -892,8 +896,10 @@ const olderCut=3;
 const markedOlderCount=entries.slice(olderCut).filter(e=>!e.read&&inScope(byId[e.source])).length;
 const feedMenu=state.startsWith('menu-feed');
 const menuSource=byId[state==='menu-feed-none'?3:2];
+const markedScrolledCount=entries.slice(0,4).filter(e=>!e.read).length;
 const markedVisibleCount=entries.slice(0,8).filter(e=>!e.read).length;
 if(state==='marked-visible'){entries.slice(0,8).forEach(e=>{if(!e.read){e.read=true;byId[e.source].unread--}})}
+if(state==='marked-scrolled'){entries.slice(0,4).forEach(e=>{if(!e.read){e.read=true;byId[e.source].unread--}})}
 if(state==='marked-above'){entries.slice(0,2).forEach(e=>{e.read=true;byId[e.source].unread--})}
 if(state==='marked-feed'){entries.forEach(e=>{if(e.source===2)e.read=true});byId[2].unread=0}
 if(state==='marked-older'){entries.slice(olderCut).forEach(e=>{if(!e.read&&inScope(byId[e.source])){e.read=true;byId[e.source].unread=Math.max(0,byId[e.source].unread-1)}})}
@@ -902,7 +908,7 @@ if(state==='offline-pending'){entries[0].pending=true;entries[0].starred=true;en
 total=sources.reduce((a,s)=>a+s.unread,0);
 const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[focusId].name:copy.all;
 const pool=edge||entries;
-const visible=kinds.includes(scope)?pool.filter(e=>e.kind===scope):scope==='source'?pool.filter(e=>e.source===focusId):edge?edge:state==='marked-visible'?entries.slice(8,15):entries.slice(0,7);
+const visible=kinds.includes(scope)?pool.filter(e=>e.kind===scope):scope==='source'?pool.filter(e=>e.source===focusId):edge?edge:state==='marked-visible'?entries.slice(8,15):state==='marked-scrolled'?entries.slice(4,11):entries.slice(0,7);
 const filter=state==='unread-done'||state==='time-empty'?1:state==='starred-none'?2:0;
 const q=state==='search'?'sqlite':state==='search-none'?'kubernetes':state==='search-short'?'go':'';
 const searching=q!=='';
@@ -1035,6 +1041,7 @@ const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries
 const mac=navigator.platform.startsWith('Mac'),mod=mac?'⌘':'Ctrl+',shift=mac?'⇧':'Shift+';
 const toast=state==='marked-read'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedCount,scope:scopeName})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-above'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedAbove',{n:2})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
+  :state==='marked-scrolled'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedScrolled',{n:markedScrolledCount})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-visible'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedVisible',{n:markedVisibleCount})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-feed'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('marked',{n:markedFeedCount,scope:byId[2].name})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`
   :state==='marked-older'?`<div class="toast" role="status">${icon('checkCheck')}<span class="msg">${t('markedOlder',{n:markedOlderCount,scope:scopeName,age:copy.age7})}</span><button class="act">${copy.undo}<kbd>${mod}Z</kbd></button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`

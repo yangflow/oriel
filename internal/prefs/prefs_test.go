@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadDefaults(t *testing.T) {
@@ -46,7 +47,7 @@ func TestLoadUnknownValues(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	os.WriteFile(path, []byte(`{"theme":"sepia","language":"fr","font":"Gone Sans","readingSize":"huge","lineSpacing":"relaxed","readingFont":"Gone Serif"}`), 0o600)
 	want := Preferences{Font: "Gone Sans", ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingFont: "Gone Serif", ChineseTypesetting: true, Density: DensityComfortable,
-		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle}
+		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle, MarkReadWhen: MarkOnOpen, MarkReadDwellSec: 5}
 	if got := Load(path); got != want {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
@@ -95,11 +96,39 @@ func TestDensityAndOrder(t *testing.T) {
 	}
 }
 
+// TestMarkReadWhen shows an entry is marked read when it opens by default, also in a file from before the setting
+// existed, that a choice the settings do not offer reads as the default, and that MarkRead agrees with Normalize.
+func TestMarkReadWhen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), File)
+	if d := Default(); d.MarkReadWhen != MarkOnOpen || d.MarkReadDwellSec != 5 {
+		t.Errorf("defaults: %+v", d)
+	}
+	os.WriteFile(path, []byte(`{"readingSize":"large"}`), 0o600)
+	if got := Load(path); got.MarkReadWhen != MarkOnOpen || got.MarkReadDwellSec != 5 {
+		t.Errorf("old file: %+v", got)
+	}
+	os.WriteFile(path, []byte(`{"markReadWhen":"soon","markReadDwellSec":7}`), 0o600)
+	if got := Load(path); got.MarkReadWhen != MarkOnOpen || got.MarkReadDwellSec != 5 {
+		t.Errorf("unknown values: %+v", got)
+	}
+	for _, when := range MarkReadChoices {
+		for _, sec := range DwellSeconds {
+			p := Preferences{MarkReadWhen: when, MarkReadDwellSec: sec}
+			if got, stay := p.MarkRead(); got != when || stay != time.Duration(sec)*time.Second {
+				t.Errorf("%s %d s: %s, %v", when, sec, got, stay)
+			}
+		}
+	}
+	if when, stay := (Preferences{MarkReadWhen: "x", MarkReadDwellSec: 1}).MarkRead(); when != MarkOnOpen || stay != 5*time.Second {
+		t.Errorf("unknown: %s, %v", when, stay)
+	}
+}
+
 func TestSaveLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	p := Preferences{Theme: ThemeDark, Language: LanguageChinese, Font: "Georgia", ReadingSize: SizeXLarge, LineSpacing: SpacingCompact, ReadingFont: ReadingSerif, ChineseTypesetting: false,
 		ArticleViewer: ViewCompact, VideoViewer: ViewCover, SocialViewer: ViewCompact, ImageViewer: ViewGrid, SourceSort: SortUnread,
-		Density: DensityCompact, OldestFirst: true}
+		Density: DensityCompact, OldestFirst: true, MarkReadWhen: MarkOnScroll, MarkReadDwellSec: 10}
 	if err := Save(path, p); err != nil {
 		t.Fatal(err)
 	}

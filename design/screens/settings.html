@@ -48,6 +48,10 @@
      in English is plain either way);
      density (the Timeline card, between Reading and View as, with List density set to Compact; Comfortable, the
      default, is the appearance state; under it, Show an article once, a switch that is on by default, in every state);
+     mark-read (the same card with Mark as read set to After staying: the Stay time row appears under it, 5 s chosen;
+     When opened, the default, is the appearance state and has no Stay time row), mark-read-scroll (set to After
+     scrolling past: the help names what scrolling does; no Stay time row; Never automatically has the same shape
+     with its own help line, so it has no state of its own);
      viewers (the View as card with the choices changed from the defaults: Articles Compact, Videos List, Images Grid;
      in appearance every row is on its default, the first segment: List, Grid, Card, Wall).
      The font picker is a popup anchored under its control, right edges aligned: a search field, a hairline, then the
@@ -389,7 +393,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','mark-read','mark-read-scroll','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -494,7 +498,7 @@ const copy={
     followInterface:'Follow interface', serif:'Serif', textSize:'Text size', textSizeHelp:'The text of an article in the reader.',
     sizeSmall:'Small', sizeMedium:'Medium', sizeLarge:'Large', sizeXLarge:'Extra large',
     lineSpacing:'Line spacing', lineSpacingHelp:'The space between the lines of an article.',
-    timeline:'Timeline', density:'List density', densityHelp:'How tight the rows sit. Compact keeps everything and only tightens the spacing.', dComfortable:'Comfortable', dCompact:'Compact', group:'Show an article once', groupHelp:'When several subscriptions carry the same article, the timeline shows one row.',
+    timeline:'Timeline', density:'List density', densityHelp:'How tight the rows sit. Compact keeps everything and only tightens the spacing.', dComfortable:'Comfortable', dCompact:'Compact', markRead:'Mark as read', markReadHelpOpen:'Opening an entry marks it as read.', markReadHelpDwell:'An entry opened in the reader or the picture viewer is marked once you stay on it for the time below. Anything opened in the browser is marked at once.', markReadHelpScroll:'Entries are marked as they scroll off the top of the list. Opening one does not mark it.', markReadHelpNever:'Nothing is marked unless you do it: the read button, M, V or Mark all as read.', mrOpen:'When opened', mrDwell:'After staying', mrScroll:'After scrolling past', mrNever:'Never automatically', dwell:'Stay time', dwellHelp:'How long an article stays open before it is marked.', sec3:'3 s', sec5:'5 s', sec10:'10 s', group:'Show an article once', groupHelp:'When several subscriptions carry the same article, the timeline shows one row.',
     viewAs:'View as',
     vArticles:'Articles', vVideos:'Videos', vSocial:'Social', vImages:'Images',
     vList:'List', vCompact:'Compact', vCover:'Large cover', vGrid:'Grid', vWall:'Wall', vCard:'Card',
@@ -595,7 +599,7 @@ const copy={
     followInterface:'跟随界面', serif:'衬线', textSize:'文字大小', textSizeHelp:'阅读窗格里文章正文的大小。',
     sizeSmall:'小', sizeMedium:'中', sizeLarge:'大', sizeXLarge:'特大',
     lineSpacing:'行距', lineSpacingHelp:'文章正文的行与行之间的距离。',
-    timeline:'时间线', density:'列表密度', densityHelp:'行与行之间的松紧。紧凑不删任何内容，只收紧间距。', dComfortable:'舒适', dCompact:'紧凑', group:'同一篇文章只显示一次', groupHelp:'几个订阅带同一篇文章时，时间线只显示一行。',
+    timeline:'时间线', density:'列表密度', densityHelp:'行与行之间的松紧。紧凑不删任何内容，只收紧间距。', dComfortable:'舒适', dCompact:'紧凑', markRead:'何时标为已读', markReadHelpOpen:'打开条目就标为已读。', markReadHelpDwell:'在阅读器或看图层里打开的条目，停留满下面的时间才标为已读；在浏览器里打开的立即标为已读。', markReadHelpScroll:'条目滚出列表顶部时标为已读，打开它不标。', markReadHelpNever:'不自动标，只有你自己标才算：已读按钮、M、V 或「全部标为已读」。', mrOpen:'打开时', mrDwell:'停留一会儿后', mrScroll:'滚过之后', mrNever:'从不自动', dwell:'停留时间', dwellHelp:'文章打开多久后标为已读。', sec3:'3 秒', sec5:'5 秒', sec10:'10 秒', group:'同一篇文章只显示一次', groupHelp:'几个订阅带同一篇文章时，时间线只显示一行。',
     viewAs:'查看方式',
     vArticles:'文章', vVideos:'视频', vSocial:'社交', vImages:'图片',
     vList:'列表', vCompact:'紧凑', vCover:'大封面', vGrid:'网格', vWall:'瀑布流', vCard:'卡片',
@@ -666,7 +670,7 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state.startsWith('rule')||state.startsWith('muted-')?'rules':state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
+const group=state.startsWith('rule')||state.startsWith('muted-')?'rules':state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'||state.startsWith('mark-read')?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
 
 const groups=[['appearance','palette'],['fetching','rss'],['rules','listFilter'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop'],['activity','database']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
@@ -682,6 +686,9 @@ if(state==='invalid')status=`<div class="status error" role="alert">${icon('aler
 if(state==='saved')status=`<div class="status ok" role="status">${icon('check')}${copy.saved}</div>`;
 const seg=(label,items,on)=>`<div class="segmented" role="radiogroup" aria-label="${label}">${items.map(([k,name])=>`<button role="radio" aria-checked="${k===on}"${k===on?' class="on"':''}>${name}</button>`).join('')}</div>`;
 const viewed=state==='viewers', dense=state==='density';
+const mrWhen=state==='mark-read'?'dwell':state==='mark-read-scroll'?'scroll':'open';
+const mrName={open:copy.mrOpen,dwell:copy.mrDwell,scroll:copy.mrScroll,never:copy.mrNever}[mrWhen];
+const mrHelp={open:copy.markReadHelpOpen,dwell:copy.markReadHelpDwell,scroll:copy.markReadHelpScroll,never:copy.markReadHelpNever}[mrWhen];
 const cjkOn=state!=='reading-cjk-off';
 const han=c=>/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(c), latin=c=>/[A-Za-z0-9\u00c0-\u024f]/.test(c);
 const closing=c=>'，。、；：！？）」』》〉】'.includes(c), opening=c=>'（「『《〈【'.includes(c);
@@ -710,6 +717,8 @@ ${switchRow(copy.cjk,copy.cjkHelp,cjkOn)}
 <div class="row"><div class="preview-box" aria-hidden="true"><p class="preview"${serifOn?` style="font-family:${serifFace}"`:''}>${lang==='zh-Hans'&&cjkOn?typeset(copy.previewText):copy.previewText}</p></div></div>
 </div><h2 class="section-title" id="timeline">${copy.timeline}</h2><div class="card">
 ${setting(copy.density,copy.densityHelp,seg(copy.density,[['comfortable',copy.dComfortable],['compact',copy.dCompact]],dense?'compact':'comfortable'))}
+${setting(copy.markRead,mrHelp,menu(copy.markRead,mrName))}
+${mrWhen==='dwell'?setting(copy.dwell,copy.dwellHelp,seg(copy.dwell,[['3',copy.sec3],['5',copy.sec5],['10',copy.sec10]],'5')):''}
 ${switchRow(copy.group,copy.groupHelp,true)}
 </div><h2 class="section-title" id="view-as">${copy.viewAs}</h2><div class="card">
 ${setting(copy.vArticles,'',seg(copy.vArticles,[['list',copy.vList],['compact',copy.vCompact]],viewed?'compact':'list'))}
@@ -969,7 +978,7 @@ if(state==='rule-menu'){
   m.style.left=(at.right-win.left-m.offsetWidth)+'px'; m.style.top=(at.bottom-win.top+4)+'px';
 }
 if(mEdited){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById('muted').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
-if(viewed||dense){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById(viewed?'view-as':'timeline').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
+if(viewed||dense||state.startsWith('mark-read')){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById(viewed?'view-as':'timeline').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
 {const sc=document.querySelector('.scroll'),mn=document.querySelector('.main');if(sc&&mn){const bar=()=>mn.classList.toggle('scrolled',sc.scrollTop>0);sc.addEventListener('scroll',bar);bar()}}
 </script>
 </html>

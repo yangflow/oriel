@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // File is the name of the preferences file in the data directory.
@@ -50,16 +51,30 @@ const (
 	ViewCard    = "card"    // a social post's card; an image's card
 	ViewWall    = "wall"    // the masonry wall of Images
 
+	// When the timeline marks an entry as read; the first is the default. MarkOnOpen marks it when it opens,
+	// MarkAfterStay once the reader has stayed on it for MarkReadDwellSec seconds, MarkOnScroll when it has scrolled
+	// past, and MarkNever leaves it to the reader.
+	MarkOnOpen    = "open"
+	MarkAfterStay = "dwell"
+	MarkOnScroll  = "scroll"
+	MarkNever     = "never"
+
 	// The orders of the sidebar's subscriptions; the first is the default.
 	SortTitle  = "title"  // by name
 	SortUnread = "unread" // unread count descending, then by name
 )
+
+// DefaultDwellSec is the stay MarkAfterStay waits for until the user picks another.
+const DefaultDwellSec = 5
 
 // Sizes and Spacings list the choices of the reading preferences in the order the settings show them.
 var (
 	Sizes     = []string{SizeSmall, SizeMedium, SizeLarge, SizeXLarge}
 	Spacings  = []string{SpacingCompact, SpacingStandard, SpacingRelaxed}
 	Densities = []string{DensityComfortable, DensityCompact}
+
+	MarkReadChoices = []string{MarkOnOpen, MarkAfterStay, MarkOnScroll, MarkNever}
+	DwellSeconds    = []int{3, 5, 10}
 
 	ArticleViewers = []string{ViewList, ViewCompact}
 	VideoViewers   = []string{ViewGrid, ViewCover, ViewList}
@@ -97,6 +112,10 @@ type Preferences struct {
 	// entry down instead of from the newest.
 	Density     string `json:"density"`
 	OldestFirst bool   `json:"oldestFirst,omitempty"`
+	// MarkReadWhen is when the timeline marks an entry as read: one of MarkReadChoices. MarkReadDwellSec is the stay
+	// that MarkAfterStay waits for: one of DwellSeconds.
+	MarkReadWhen     string `json:"markReadWhen"`
+	MarkReadDwellSec int    `json:"markReadDwellSec"`
 	// SidebarHidden is set while the reader has collapsed the sidebar of the timeline; the default is shown.
 	SidebarHidden bool `json:"sidebarHidden,omitempty"`
 	// Places are the scope and filter the timeline was left in, per server; see Places.
@@ -317,7 +336,8 @@ func (g Places) normalized() Places { return encodePlaces(g.entries()) }
 // Default has every preference at its default.
 func Default() Preferences {
 	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ChineseTypesetting: true,
-		Density: DensityComfortable, ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle}
+		Density: DensityComfortable, ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle,
+		MarkReadWhen: MarkOnOpen, MarkReadDwellSec: DefaultDwellSec}
 }
 
 // Normalize replaces every value it does not know with the default. A font is kept as it is: it may be installed
@@ -338,6 +358,7 @@ func (p Preferences) Normalize() Preferences {
 	if !slices.Contains(Densities, p.Density) {
 		p.Density = DensityComfortable
 	}
+	p.MarkReadWhen, p.MarkReadDwellSec = p.markRead()
 	if !slices.Contains(ArticleViewers, p.ArticleViewer) {
 		p.ArticleViewer = ViewList
 	}
@@ -363,6 +384,26 @@ func (p Preferences) Normalize() Preferences {
 		p.LastLooked = Marker{}
 	}
 	return p
+}
+
+// MarkRead is when the timeline marks an entry as read and, for MarkAfterStay, how long the reader stays on it, each
+// the default where it holds a value Normalize would replace. The timeline asks it on every frame, which Normalize
+// would make dear.
+func (p Preferences) MarkRead() (when string, stay time.Duration) {
+	when, seconds := p.markRead()
+	return when, time.Duration(seconds) * time.Second
+}
+
+// markRead is the one rule for both: each of the two values as it is when it is known, else its default.
+func (p Preferences) markRead() (when string, seconds int) {
+	when, seconds = p.MarkReadWhen, p.MarkReadDwellSec
+	if !slices.Contains(MarkReadChoices, when) {
+		when = MarkOnOpen
+	}
+	if !slices.Contains(DwellSeconds, seconds) {
+		seconds = DefaultDwellSec
+	}
+	return when, seconds
 }
 
 // Dark tells whether the theme is dark, given whether the system is.
