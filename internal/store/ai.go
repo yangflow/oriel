@@ -193,11 +193,15 @@ func (s *Store) StopAI(ctx context.Context, entryID int64, task string, now time
 	return err
 }
 
+// stopPendingAIQuery is the update of StopPendingAI. Like aiJobsQuery it repeats the condition of the partial index
+// entry_ai_open, so that the update searches the open results and not every row.
+const stopPendingAIQuery = `
+		UPDATE entry_ai SET status = 'failed', error = ?, updated_at = ?
+		WHERE status <> 'ok' AND status = 'pending' AND requested = 0`
+
 // StopPendingAI stops every automatic task still waiting, since the daily cap is reached. It returns how many.
 func (s *Store) StopPendingAI(ctx context.Context, now time.Time) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `
-		UPDATE entry_ai SET status = 'failed', error = ?, updated_at = ? WHERE status <> 'ok' AND status = 'pending' AND requested = 0`,
-		AICapReached, now.UnixMilli())
+	res, err := s.db.ExecContext(ctx, stopPendingAIQuery, AICapReached, now.UnixMilli())
 	if err != nil {
 		return 0, err
 	}

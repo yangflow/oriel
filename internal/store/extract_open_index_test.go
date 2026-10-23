@@ -42,3 +42,11 @@ func TestAIJobsUsesOpenIndex(t *testing.T) {
 		t.Errorf("want entry_ai_open, which holds the open results only, got\n%s", plan)
 	}
 }
+
+func TestStopPendingAIUsesOpenIndex(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	plan := queryPlan(t, s, stopPendingAIQuery, "cap", 1)
+	if !strings.Contains(plan, "SEARCH entry_ai USING INDEX entry_ai_open") {
+		t.Errorf("want entry_ai_open, got\n%s", plan)
+	}
+}
