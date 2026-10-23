@@ -59,6 +59,8 @@ type fake struct {
 	addErrs map[string]error // what AddSource answers for an address, if not success
 
 	entriesErr, setErr, markErr, imageErr            error
+	imageCtx                                         []context.Context // the context of each request for a picture
+	imageFails                                       int               // pictures that fail before they work again
 	connects, settings, aiSettings, imports, expired int
 }
 
@@ -191,8 +193,16 @@ func (f *fake) Entry(_ context.Context, id int64) (client.Article, error) {
 	return client.Article{}, &client.APIError{Status: 404, Code: "not_found"}
 }
 
-func (f *fake) Image(_ context.Context, address string) ([]byte, error) {
+func (f *fake) Image(ctx context.Context, address string) ([]byte, error) {
 	f.pictures = append(f.pictures, address)
+	f.imageCtx = append(f.imageCtx, ctx)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if f.imageFails > 0 {
+		f.imageFails--
+		return nil, errors.New("broken")
+	}
 	if f.imageErr != nil {
 		return nil, f.imageErr
 	}
@@ -2829,6 +2839,91 @@ func TestBrokenImages(t *testing.T) {
 	if _, ok := tt.Find("Duration 12:34"); !ok || !tt.HasText("12:34") {
 		t.Error("a failed video cover lost its duration")
 	}
+}
+
+// TestPicturesCancelledByServer switches the server while pictures are downloading: the requests are cancelled and
+// their results are not applied.
+func TestPicturesCancelledByServer(t *testing.T) {
+	sources, entries := sample()
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New("en", f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); s.View(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	for s.downloads == 0 {
+		f.step(t, tt)
+	}
+	other := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s.Use(other, "other.example")
+	for _, work := range f.queue {
+		work()()
+	}
+	if len(f.imageCtx) == 0 {
+		t.Fatal("no picture was asked for")
+	}
+	for _, ctx := range f.imageCtx {
+		if ctx.Err() == nil {
+			t.Fatal("a download for the server before was not cancelled")
+		}
+	}
+	for address, p := range s.pictures {
+		if p.bitmap != nil || p.failed {
+			t.Fatalf("a result for the server before was applied to %s", address)
+		}
+	}
+}
+
+// TestPictureRetried tries a picture that failed again when it is drawn after pictureRetry, and gives up after
+// pictureTries downloads.
+func TestPictureRetried(t *testing.T) {
+	const address = "https://go.dev/t.png"
+	run := func(t *testing.T, fails int) (*Screen, *fake, *ui.Tester) {
+		sources, entries := sample()
+		f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}, imageFails: fails}
+		s := New("en", f.deps())
+		tt := ui.NewTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); s.View(c) }, 1100, 800)
+		s.Use(f, "")
+		tt.Frame()
+		f.settle(t, tt)
+		return s, f, tt
+	}
+	count := func(f *fake) (n int) {
+		for _, a := range f.pictures {
+			if a == address {
+				n++
+			}
+		}
+		return n
+	}
+	t.Run("works the second time", func(t *testing.T) {
+		s, f, tt := run(t, 100)
+		if p := s.pictures[address]; p == nil || !p.failed {
+			t.Fatalf("the thumbnail did not fail: %+v", p)
+		}
+		f.imageFails = 0
+		tt.Frame()
+		f.settle(t, tt)
+		if count(f) != 1 {
+			t.Fatalf("asked again at once: %v", f.pictures)
+		}
+		f.now = f.now.Add(pictureRetry)
+		tt.Frame()
+		f.settle(t, tt)
+		if p := s.pictures[address]; count(f) != 2 || p == nil || p.failed || p.bitmap == nil {
+			t.Fatalf("the thumbnail was not got the second time: %d %+v", count(f), p)
+		}
+	})
+	t.Run("gives up", func(t *testing.T) {
+		s, f, tt := run(t, 1000)
+		for range 2 * pictureTries {
+			f.now = f.now.Add(pictureRetry)
+			tt.Frame()
+			f.settle(t, tt)
+		}
+		if count(f) != pictureTries || !s.pictures[address].failed {
+			t.Fatalf("asked %d times, want %d", count(f), pictureTries)
+		}
+	})
 }
 
 // twin is a timeline of two subscriptions, Alpha and Beta, with 80 entries each, alternating, newest first.
