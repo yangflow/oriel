@@ -69,6 +69,21 @@ ORIEL_PASSWORD=<口令> go run . serve -data ./data -port 7470
 不设 `ORIEL_PASSWORD` 时，服务端只监听 `127.0.0.1`。口令只从环境变量读取，不会出现在进程列表里。`-data` 默认是用户数据目录。
 放在反向代理后面时，加 `-trusted-proxy <IP或CIDR,...>`，来自这些地址的请求才按 `X-Forwarded-For` 给登录限速；默认关闭。只写你自己的代理，不要写客户端所在网段或 `0.0.0.0/0`（`/0` 会被拒绝）。
 
+### Docker 或 systemd
+
+`oriel serve` 也可以作为容器或系统服务运行；文件在 [`deploy/`](deploy/)，数据目录、端口、反向代理和 HTTPS、健康检查、
+备份、升级的细节在 [docs/product.md](docs/product.md)「部署」一节。镜像还没有发布到注册表（计划中），先从源码目录构建，
+支持 `linux/amd64` 和 `linux/arm64`：
+
+```bash
+echo 'ORIEL_PASSWORD=<口令>' > deploy/.env && chmod 600 deploy/.env
+docker compose -f deploy/compose.yaml up -d --build
+```
+
+示例只把端口发布在宿主机的 `127.0.0.1` 上（要让其他设备连，改 `ports`，最好放在 HTTPS 反向代理后面）。容器里必须设口令：不设 `ORIEL_PASSWORD` 时，服务端只监听容器内部的 `127.0.0.1`，外面连不上。镜像以非 root 用户运行，数据放在
+卷 `/data` 里，用 `oriel healthcheck` 回答 Docker 的健康检查（请求本机的 `/health`，退出码 0 或 1）。systemd 的话，安装
+`deploy/oriel.service`，口令放在权限 `0600` 的环境文件里；服务以动态用户运行，数据在 `/var/lib/oriel`。
+
 ## 开发
 
 ```bash

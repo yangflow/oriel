@@ -65,11 +65,14 @@ func main() {
 		switch os.Args[1] {
 		case "serve":
 			os.Exit(serve(os.Args[2:]))
-		case "backup", "restore":
+		case "backup", "restore", "healthcheck":
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			command := backupCommand
-			if os.Args[1] == "restore" {
+			switch os.Args[1] {
+			case "restore":
 				command = restoreCommand
+			case "healthcheck":
+				command = healthcheckCommand
 			}
 			code := command(ctx, os.Args[2:], os.Stdout, os.Stderr)
 			stop()

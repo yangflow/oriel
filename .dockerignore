@@ -1,0 +1,9 @@
+.git
+.github
+build
+.mygo
+.design-review
+design/screenshots
+deploy
+.env
+data

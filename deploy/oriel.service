@@ -1,0 +1,37 @@
+# /etc/systemd/system/oriel.service
+#   install -m 0755 oriel /usr/local/bin/oriel
+#   install -d -m 0700 /etc/oriel
+#   echo 'ORIEL_PASSWORD=<your password>' > /etc/oriel/oriel.env && chmod 600 /etc/oriel/oriel.env
+#   systemctl enable --now oriel
+[Unit]
+Description=Oriel server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# A user that exists only while the service runs; the data is in /var/lib/oriel.
+DynamicUser=yes
+StateDirectory=oriel
+# systemd reads this file as root; the service user never needs to read it.
+EnvironmentFile=/etc/oriel/oriel.env
+ExecStart=/usr/local/bin/oriel serve -data %S/oriel -port 7470
+Restart=on-failure
+RestartSec=5
+# The server waits up to 10 seconds for running requests when it is stopped.
+TimeoutStopSec=20
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+StateDirectoryMode=0700
+UMask=0077
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
