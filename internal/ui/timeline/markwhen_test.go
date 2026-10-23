@@ -18,9 +18,12 @@ type mode struct {
 	active bool
 }
 
-// whenMarked is crowd with the choice of when entries are marked read, and a window that has the focus.
+// whenMarked is crowd with the choice of when entries are marked read, and a window that has the focus. height is the
+// window's height with the 13 point font of macOS; the window grows with the font of the system (14 on Linux and
+// Windows) so that it shows as many rows, which the scrolling in the tests counts on.
 func whenMarked(t *testing.T, when string, n, height int) (*Screen, *fake, *ui.Tester, *mode) {
 	t.Helper()
+	height = int(float32(height) * theme.Px(ui.LightTheme(), 13) / 13)
 	m := &mode{p: prefs.Default(), active: true}
 	m.p.MarkReadWhen, m.p.MarkReadDwellSec = when, 5
 	f := &fake{now: now, patches: map[int64][]client.EntryPatch{},
@@ -474,5 +477,25 @@ func TestMarkWhenOtherModesLeaveTheScroll(t *testing.T) {
 	scrolled(t, f, tt)
 	if len(f.patches) != 0 {
 		t.Fatalf("scrolling marked %v", readIDs(s))
+	}
+}
+
+func TestPassSigIgnoresLayoutJitter(t *testing.T) {
+	base := passSig{first: 4, n: 6, sum: 1065.3462}
+	for _, tc := range []struct {
+		name string
+		sig  passSig
+		want bool
+	}{
+		{"the same", base, true},
+		{"rounded differently", passSig{first: 4, n: 6, sum: 1065.3463}, true},
+		{"rounded the other way", passSig{first: 4, n: 6, sum: 1065.0}, true},
+		{"scrolled a little", passSig{first: 4, n: 6, sum: 1066.5}, false},
+		{"another first row", passSig{first: 5, n: 6, sum: 1065.3462}, false},
+		{"another count", passSig{first: 4, n: 7, sum: 1065.3462}, false},
+	} {
+		if got := tc.sig.same(base) && base.same(tc.sig); got != tc.want {
+			t.Errorf("%s: same is %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

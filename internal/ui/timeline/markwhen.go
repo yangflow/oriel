@@ -37,6 +37,15 @@ type passSig struct {
 	sum      float32
 }
 
+// passJitter is how far the sum of the places may differ between two frames of a list that did not move: layout
+// rounds a little differently from frame to frame, and a list that seems to move at each frame never rests.
+const passJitter = 0.5
+
+// same tells that the list stands where o says, but for the rounding of the layout.
+func (g passSig) same(o passSig) bool {
+	return g.first == o.first && g.n == o.n && g.sum-o.sum < passJitter && o.sum-g.sum < passJitter
+}
+
 // passing follows the entries scrolled off the top of the list, for "After scrolling past".
 type passing struct {
 	seen    map[int64]bool // entries that were in view since the list was last put in place
@@ -168,7 +177,7 @@ func (s *Screen) passLook(now time.Time) {
 			sig.sum += r.Y
 		}
 	}
-	if sig.first < 0 || sig == p.sig {
+	if sig.first < 0 || sig.same(p.sig) {
 		return
 	}
 	p.sig, p.moved = sig, now
