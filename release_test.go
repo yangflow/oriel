@@ -46,3 +46,29 @@ func TestUpdateConfig(t *testing.T) {
 		}
 	}
 }
+
+// The save dialog on macOS adds the extension again unless the app exports the type of a backup file.
+func TestBackupTypeIsExported(t *testing.T) {
+	b, err := os.ReadFile("mygo.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		MacOS struct {
+			InfoPlist struct {
+				Types []struct {
+					Tags map[string][]string `json:"UTTypeTagSpecification"`
+				} `json:"UTExportedTypeDeclarations"`
+			} `json:"infoPlist"`
+		} `json:"macos"`
+	}
+	if err := json.Unmarshal(b, &config); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range config.MacOS.InfoPlist.Types {
+		if slices.Contains(d.Tags["public.filename-extension"], "oriel-backup") {
+			return
+		}
+	}
+	t.Error("mygo.json does not export a type for the oriel-backup extension")
+}

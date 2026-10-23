@@ -6,7 +6,24 @@
   "main": ".",
   "out": "build",
   "macos": {
-    "minimumSystemVersion": "12.0"
+    "minimumSystemVersion": "12.0",
+    "infoPlist": {
+      "UTExportedTypeDeclarations": [
+        {
+          "UTTypeIdentifier": "app.oriel.app.backup",
+          "UTTypeDescription": "Oriel Backup",
+          "UTTypeConformsTo": [
+            "public.data",
+            "public.archive"
+          ],
+          "UTTypeTagSpecification": {
+            "public.filename-extension": [
+              "oriel-backup"
+            ]
+          }
+        }
+      ]
+    }
   },
   "linux": {
     "maintainer": "yangflow <269347247+yangflow@users.noreply.github.com>",
