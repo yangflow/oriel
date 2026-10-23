@@ -533,7 +533,7 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 	set(s.text.RuleKeywords, func() {
 		before := d.keywords
 		area := ui.TextArea(c.Key("rulekeys"), &d.keywords).FillWidth().Lines(3, 6).Font("monospace").
-			FontSize(theme.Px(t, 12.5)).Label(s.text.RuleKeywords).Disabled(d.saving)
+			FontSize(theme.Px(t, 12)).Label(s.text.RuleKeywords).Disabled(d.saving)
 		area.Background(theme.RaisedFill(t)).Radius(t.Radius)
 		edge(c, area)
 		switch {
@@ -671,7 +671,7 @@ func (s *Screen) mutedCard(c *ui.Context) {
 			ui.Text(c, s.text.MutedHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 4), 0, 0, 0)
 			before := p.muted
 			area := ui.TextArea(c.Key("muted"), &p.muted).FillWidth().Lines(3, 8).Margin(theme.Px(t, 12), 0, 0, 0).
-				Font("monospace").FontSize(theme.Px(t, 12.5)).Label(s.text.MutedTitle).Disabled(p.saving)
+				Font("monospace").FontSize(theme.Px(t, 12)).Label(s.text.MutedTitle).Disabled(p.saving)
 			area.Background(theme.RaisedFill(t)).Radius(t.Radius)
 			edge(c, area)
 			switch {

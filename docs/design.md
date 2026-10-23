@@ -308,8 +308,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   button's icon starts at the text's left edge and the last button ends at its right edge. The window buttons over a
   hidden pane (above) move the row only where the column's edge leaves them too little room: the row then pads that
   side more and keeps its width, so in a wide window it does not move at all. Under the toolbar the article scrolls, a column at most 680 wide at Medium (680 times the Reading text size scale: 635, 680, 771, 861, tokens.md; the window can limit it further), centered,
-  padded 28/32/48 (20 below a 760 wide window): the source's monogram, name, full date and, after a dot, the reading time ("6 min read") at 12; the title at 24 (20
-  when narrow) weight 600 in `Text`; the note on where the text comes from (`Warning` soft fill when it is the feed's,
+  padded 28/32/48 (20 below a 760 wide window): the source's monogram, name, full date and, after a dot, the reading time ("6 min read") at 12; the title at 24 (21
+  when narrow, an exception in tokens.md) weight 600 in `Text`; the note on where the text comes from (`Warning` soft fill when it is the feed's,
   `Surface` with a spinner while the full text is being got), 12, its "Open the original" link underlined and, when the
   full text failed, a "Try again" text button at its end; when both the full text and the feed's text exist, the
   Full text | Feed switch, the segmented control of the translation note (24 high segments in a 2 padded `Track` of ink 7%, the chosen one
@@ -471,9 +471,11 @@ values are in [design/tokens.md](../design/tokens.md). See
   so custom text follows the user's text scale. Widgets use the theme size.
 - **Five sizes.** 24 (the title), 15 (row title, section head, screen title), 13 (body and widget text), 12 (meta,
   labels, segments) and 11 (small labels: counts, section labels in the pane, durations; 12 in Simplified Chinese).
+  No other size is drawn on the screen. The exceptions, each with its reason, are listed in
+  [design/tokens.md](../design/tokens.md) (Typography, Exceptions); a new size is a new row there first.
   Weights 400, 500 and 600 only. The reading body is the article's own scale, not interface type. The table of
   sizes, line heights and tracking is in [design/tokens.md](../design/tokens.md).
-- **The connect screen.** Title 24 semibold, hint 12 in `TextMuted`.
+- **The connect screen.** Title 15 semibold, hint 12 in `TextMuted`.
 - **The timeline.** Screen title 15 semibold, row titles 15 semibold in `Text` (read rows 500 in `TextMuted`), the
   source name 12 medium in `Text2`, time and other meta 12 in `TextMuted`, summaries 13 in `Text2`, social text 13 in
   `Text`, counts 11 medium with tabular figures. Titles in rows and video cards wrap and stop at two lines, summaries

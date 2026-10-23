@@ -1335,8 +1335,8 @@ func (s *Screen) note(c *ui.Context, warn bool, text string) {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 14)).TextColor(icon).Margin(2, 0, 0, 0)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 		}
-		ui.RichText(c).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12.5)).TextColor(color).Wrap().Children(func() {
-			s.pieces(c, &s.noteSet, text+" ", s.han, theme.Px(t, 12.5), 0)
+		ui.RichText(c).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap().Children(func() {
+			s.pieces(c, &s.noteSet, text+" ", s.han, theme.Px(t, 12), 0)
 			if s.article.URL != "" {
 				ui.Link(c, s.text.OpenOriginal, s.article.URL).TextColor(color).Underline().FontWeight(500)
 			}
@@ -1552,7 +1552,7 @@ func (s *Screen) translationNote(c *ui.Context) {
 		row.Background(t.Surface).Role(ui.RoleStatus).Children(func() {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-			ui.Text(c, s.text.Translating).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12.5)).TextColor(text2).Wrap()
+			ui.Text(c, s.text.Translating).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(text2).Wrap()
 			if s.textButton(c, s.text.Cancel, text2) {
 				s.cancel(translation)
 			}
@@ -1561,7 +1561,7 @@ func (s *Screen) translationNote(c *ui.Context) {
 		reason := strings.ReplaceAll(s.text.TranslationFailed, "{reason}", s.reason(j.code))
 		row.Background(theme.Soft(t, t.Danger)).Role(ui.RoleStatus).Children(func() {
 			ui.Icon(c, icons.TriangleAlert).FontSize(theme.Px(t, 14)).TextColor(t.Danger)
-			ui.Text(c, reason).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12.5)).TextColor(text2).Wrap()
+			ui.Text(c, reason).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(text2).Wrap()
 			if s.textButton(c, s.text.Retry, text2) {
 				s.request(translation)
 			}
@@ -1570,7 +1570,7 @@ func (s *Screen) translationNote(c *ui.Context) {
 		row.Background(theme.Soft(t, t.Accent)).Children(func() {
 			ui.Icon(c, icons.Languages).FontSize(theme.Px(t, 14)).TextColor(t.Accent)
 			by := strings.ReplaceAll(s.text.Translated, "{model}", j.model)
-			s.plain(c, &s.translatedSet, by, s.han, theme.Px(t, 12.5), 0).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12.5)).
+			s.plain(c, &s.translatedSet, by, s.han, theme.Px(t, 12), 0).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).
 				TextColor(text2).Wrap()
 			seg := ui.SegmentedBase(c, &s.shown, 2)
 			seg.Track.Margin(-4, -6, -4, 0).Padding(2).Gap(2).Radius(theme.Px(t, 8)).Background(theme.Ink(t, 0.07)).

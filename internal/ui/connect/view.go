@@ -218,7 +218,7 @@ func (s *Screen) header(c *ui.Context) {
 	ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
 		ui.Box(c).Size(t.Space(12), t.Space(12)).Radius(t.Space(3)).Center().Background(theme.Soft(t, t.Accent)).
 			Children(func() { ui.Icon(c, icons.Server).FontSize(t.Space(6)).TextColor(t.Accent) })
-		ui.Text(c, s.text.Title).FontSize(t.Rem(1.3)).FontWeight(600).Role(ui.RoleHeading).Level(1)
+		ui.Text(c, s.text.Title).FontSize(theme.Px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(1)
 		if s.expired != "" {
 			before, after, _ := strings.Cut(s.text.Expired, "{server}")
 			ui.Row(c).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
@@ -227,7 +227,7 @@ func (s *Screen) header(c *ui.Context) {
 					ui.Span{Text: before, Color: t.TextMuted},
 					ui.Span{Text: s.expired, Weight: 500},
 					ui.Span{Text: after, Color: t.TextMuted},
-				).FontSize(t.Rem(0.92))
+				).FontSize(theme.Px(t, 12))
 			})
 		}
 	})
@@ -353,7 +353,7 @@ func (s *Screen) errorLine(c *ui.Context, f field) {
 	t := c.Theme()
 	ui.Row(c).AlignItems(ui.Center).Gap(t.Space(1.5)).PaddingX(t.Space(0.5)).Children(func() {
 		ui.Icon(c, s.problem.icon).FontSize(t.Rem(1.05)).TextColor(t.Danger)
-		ui.Text(c, s.problem.message).FontSize(t.Rem(0.92)).TextColor(t.Danger)
+		ui.Text(c, s.problem.message).FontSize(theme.Px(t, 12)).TextColor(t.Danger)
 	})
 }
 

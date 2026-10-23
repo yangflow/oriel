@@ -1817,7 +1817,7 @@ func (s *Screen) baseField(c *ui.Context) {
 	t := c.Theme()
 	before := s.base
 	area := ui.TextArea(c.Key("base"), &s.base).FillWidth().Lines(2, 6).Margin(theme.Px(t, 12), 0, 0, 0).Font("monospace").
-		FontSize(theme.Px(t, 12.5)).Label(s.text.RSSHub).Placeholder(s.text.RSSHubPlaceholder).Disabled(s.saving)
+		FontSize(theme.Px(t, 12)).Label(s.text.RSSHub).Placeholder(s.text.RSSHubPlaceholder).Disabled(s.saving)
 	area.Background(theme.RaisedFill(t)).Radius(t.Radius)
 	edge(c, area)
 	switch {
@@ -2141,7 +2141,7 @@ func (s *Screen) promptField(c *ui.Context, i int, label string, two bool) {
 		}
 	})
 	area := ui.TextArea(c.Key(i), &s.prompts[i]).FillWidth().Lines(3, 10).Margin(theme.Px(t, 12), 0, 0, 0).Font("monospace").
-		FontSize(theme.Px(t, 12.5)).Label(label).Disabled(s.promptSaving)
+		FontSize(theme.Px(t, 12)).Label(label).Disabled(s.promptSaving)
 	if two {
 		area.MinHeight(theme.Px(t, 120))
 	}
@@ -2756,7 +2756,7 @@ func (s *Screen) resultBox(c *ui.Context) {
 		Background(fill).Role(ui.RoleStatus).Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Children(func() {
 			ui.Icon(c, icon).FontSize(theme.Px(t, 14)).TextColor(iconColor).Margin(2, 0, 0, 0)
-			ui.Text(c, r.text).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12.5)).TextColor(color).Wrap()
+			ui.Text(c, r.text).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap()
 			x := ui.ButtonBase(c).Label(s.text.Dismiss).Tooltip(s.text.Dismiss)
 			xColor := t.TextMuted
 			var xFill ui.Color
@@ -2800,8 +2800,8 @@ func (s *Screen) failRow(c *ui.Context, i int, f client.ImportFail) {
 				spans = append(spans, ui.Span{Text: title + " · "})
 			}
 			spans = append(spans, ui.Span{Text: f.Address, Font: "monospace", Size: theme.Px(t, 12)})
-			ui.RichText(c, spans...).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12.5)).SingleLine()
-			ui.Text(c, why).FontSize(theme.Px(t, 12.5)).TextColor(theme.Text2(t)).NoWrap()
+			ui.RichText(c, spans...).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).SingleLine()
+			ui.Text(c, why).FontSize(theme.Px(t, 12)).TextColor(theme.Text2(t)).NoWrap()
 		})
 }
 

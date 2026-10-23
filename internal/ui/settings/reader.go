@@ -582,7 +582,7 @@ func (s *Screen) skippedRow(c *ui.Context, i int, item client.ImportSkip) {
 			spans = append(spans, ui.Span{Text: title + " · "})
 		}
 		spans = append(spans, ui.Span{Text: item.Address, Font: "monospace", Size: theme.Px(t, 12)})
-		ui.RichText(c, spans...).FillWidth().FontSize(theme.Px(t, 12.5)).SingleLine()
+		ui.RichText(c, spans...).FillWidth().FontSize(theme.Px(t, 12)).SingleLine()
 		ui.Text(c, why).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
 	})
 }
@@ -607,7 +607,7 @@ func (s *Screen) noteBox(c *ui.Context, tone int, lines []string) {
 		ui.Icon(c, icon).FontSize(theme.Px(t, 14)).TextColor(iconColor).Margin(2, 0, 0, 0)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(theme.Px(t, 2)).Children(func() {
 			for i, line := range lines {
-				ui.Text(c, line).Key(i).FontSize(theme.Px(t, 12.5)).TextColor(color).Wrap()
+				ui.Text(c, line).Key(i).FontSize(theme.Px(t, 12)).TextColor(color).Wrap()
 			}
 		})
 	})
