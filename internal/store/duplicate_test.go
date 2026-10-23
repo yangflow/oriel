@@ -14,6 +14,8 @@ func TestFeedURLKey(t *testing.T) {
 		{"https://example.org", "http://example.org/", "https://www.example.org:443"},
 		{"https://example.org/feed?a=1&b=2", "https://example.org/feed?b=2&a=1", "http://example.org/feed/?utm_source=x&b=2&a=1&fbclid=z"},
 		{"https://example.org/feed?a=2&a=1", "https://example.org/feed?a=1&a=2"},
+		{"https://bücher.example/feed", "https://xn--bcher-kva.example/feed", "https://WWW.Bücher.example:443/feed/"},
+		{"https://[2001:db8::1]/feed", "http://[2001:DB8::1]:80/feed/"},
 	}
 	for _, group := range same {
 		for _, other := range group[1:] {
@@ -28,6 +30,10 @@ func TestFeedURLKey(t *testing.T) {
 		{"https://example.org/feed", "https://example.org:8443/feed"},
 		{"https://example.org/feed", "https://blog.example.org/feed"},
 		{"https://example.org/feed?a=1", "https://example.org/feed?a=2"},
+		{"https://example.org/a%2Fb", "https://example.org/a/b"},
+		{"https://one:pw@example.org/feed", "https://two:pw@example.org/feed"},
+		{"https://example.org/feed?page=1", "https://example.org/feed?page=1&format=rss"},
+		{"https://wwwexample.org/feed", "https://example.org/feed"},
 	}
 	for _, pair := range different {
 		if feedURLKey(pair[0]) == feedURLKey(pair[1]) {
@@ -112,5 +118,34 @@ func TestDuplicateRefusedAndForced(t *testing.T) {
 	src.URL = "https://example.org/feed"
 	if _, err := s.CreateSource(ctx, src, "", now); !errors.Is(err, ErrExists) {
 		t.Fatalf("the very same address, forced: %v", err)
+	}
+}
+
+func TestCreateSourceInKeepsIndexCurrent(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	now := time.UnixMilli(1_000_000)
+	idx, err := s.DuplicateIndex(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}
+	first, err := s.CreateSourceIn(ctx, idx, src, "", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var exists *ExistsError
+	same := NewSource{URL: "http://www.example.org/feed/", Kind: "article", FetchInterval: time.Hour}
+	if _, err := s.CreateSourceIn(ctx, idx, same, "", now); !errors.As(err, &exists) || exists.ID != first.ID {
+		t.Fatalf("a variant in the same batch should name the first source, got %v", err)
+	}
+	// Forced, a variant is added; the very same address still names the source it repeats.
+	src.AllowDuplicate = true
+	if _, err := s.CreateSourceIn(ctx, idx, src, "", now); !errors.As(err, &exists) || exists.ID != first.ID || !errors.Is(err, ErrExists) {
+		t.Fatalf("the same address with AllowDuplicate should name the first source, got %v", err)
+	}
+	same.AllowDuplicate = true
+	if _, err := s.CreateSourceIn(ctx, idx, same, "", now); err != nil {
+		t.Fatalf("a forced variant should be added: %v", err)
 	}
 }

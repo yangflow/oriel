@@ -259,6 +259,10 @@ func (s *Server) writeSnapshot(ctx context.Context, job *importJob, snap *import
 	res := &importResult{Skipped: []importSkipped{}, FoldersSkipped: len(snap.Folders)}
 	spread := min(importSpreadMax, time.Duration(len(snap.Feeds))*importSpreadEach)
 	ids := map[string]int64{}
+	idx, err := s.store.DuplicateIndex(ctx)
+	if err != nil {
+		return nil, err
+	}
 	for i, f := range snap.Feeds {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -273,14 +277,15 @@ func (s *Server) writeSnapshot(ctx context.Context, job *importJob, snap *import
 			continue
 		}
 		src.FirstFetchDelay = time.Duration(rand.Int64N(int64(max(spread, 1))))
-		created, err := s.store.CreateSource(ctx, src, title, s.now())
+		created, err := s.store.CreateSourceIn(ctx, idx, src, title, s.now())
+		var exists *store.ExistsError
 		switch {
+		case errors.As(err, &exists):
+			res.ExistingSources++
+			ids[f.URL] = exists.ID
 		case errors.Is(err, store.ErrExists):
 			res.ExistingSources++
-			var exists *store.ExistsError
-			if errors.As(err, &exists) {
-				ids[f.URL] = exists.ID
-			} else if ids[f.URL], err = s.store.SourceIDByFeedURL(ctx, src.URL); err != nil {
+			if ids[f.URL], err = s.store.SourceIDByFeedURL(ctx, src.URL); err != nil {
 				return nil, err
 			}
 		case err != nil:
@@ -307,13 +312,7 @@ func (s *Server) writeSnapshot(ctx context.Context, job *importJob, snap *import
 		entries := groups[feedURL]
 		id, ok := ids[feedURL]
 		if !ok && feedURL != "" {
-			var err error
-			switch id, err = s.store.SourceIDByFeedURL(ctx, feedURL); {
-			case err == nil:
-				ok = true
-			case !errors.Is(err, store.ErrNotFound):
-				return nil, err
-			}
+			id, ok = idx.Find(store.NewSource{URL: strings.TrimSpace(feedURL)})
 		}
 		if !ok {
 			for _, e := range entries {

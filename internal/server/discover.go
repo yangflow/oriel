@@ -39,15 +39,15 @@ func (s *Server) findFeeds(w http.ResponseWriter, r *http.Request) {
 		if found == nil {
 			found = []fetch.Candidate{}
 		}
+		idx, err := s.store.DuplicateIndex(r.Context())
+		if err != nil {
+			internal(w, err)
+			return
+		}
 		candidates := make([]candidateJSON, len(found))
 		for i, c := range found {
 			candidates[i] = candidateJSON{Candidate: c}
-			id, _, err := s.store.FindDuplicate(r.Context(), store.NewSource{URL: c.URL, RSSHubPath: c.RSSHubPath})
-			if err != nil {
-				internal(w, err)
-				return
-			}
-			candidates[i].SubscribedID = id
+			candidates[i].SubscribedID, _ = idx.Find(store.NewSource{URL: c.URL, RSSHubPath: c.RSSHubPath})
 		}
 		reply(w, http.StatusOK, map[string]any{"candidates": candidates})
 	}

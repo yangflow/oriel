@@ -109,18 +109,26 @@ const unreadByID = `(SELECT e.source_id AS source_id, count(*) AS n FROM entries
 // subscription; the address is stored as given. src.AllowDuplicate skips the comparison, but two sources still
 // cannot share the very same address.
 func (s *Store) CreateSource(ctx context.Context, src NewSource, title string, now time.Time) (Source, error) {
-	roots, err := s.rsshubRoots(ctx)
+	idx, err := s.DuplicateIndex(ctx)
 	if err != nil {
 		return Source{}, err
 	}
-	if err := s.purgeDeletedLike(ctx, src, roots); err != nil {
-		return Source{}, err
-	}
+	return s.CreateSourceIn(ctx, idx, src, title, now)
+}
+
+// CreateSourceIn is CreateSource with the identities of the existing subscriptions already read, for adding many:
+// idx is kept up to date, so it must not be shared between goroutines.
+func (s *Store) CreateSourceIn(ctx context.Context, idx *DuplicateIndex, src NewSource, title string, now time.Time) (Source, error) {
 	if !src.AllowDuplicate {
-		if id, found, err := s.FindDuplicate(ctx, src); err != nil {
-			return Source{}, err
-		} else if found {
+		if id, found := idx.Find(src); found {
 			return Source{}, &ExistsError{ID: id}
+		}
+	}
+	// A deleted subscription that src would repeat goes now, not at the end of its undo window: adding the feed again
+	// is a new subscription, not a restore.
+	for _, id := range idx.deletedLike(src) {
+		if _, err := s.db.ExecContext(ctx, "DELETE FROM sources WHERE id = ?", id); err != nil {
+			return Source{}, err
 		}
 	}
 	result, err := s.db.ExecContext(ctx, `
@@ -131,6 +139,9 @@ func (s *Store) CreateSource(ctx context.Context, src NewSource, title string, n
 	if err != nil {
 		var sqliteErr *sqlite.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
+			if id, found := idx.live[exactKey(src.URL, src.RSSHubPath)]; found {
+				return Source{}, &ExistsError{ID: id}
+			}
 			return Source{}, ErrExists
 		}
 		return Source{}, err
@@ -139,39 +150,8 @@ func (s *Store) CreateSource(ctx context.Context, src NewSource, title string, n
 	if err != nil {
 		return Source{}, err
 	}
+	idx.Add(id, src)
 	return s.Source(ctx, id)
-}
-
-// purgeDeletedLike removes the deleted subscriptions that src would clash with, now rather than at the end of their
-// undo window: adding the feed again is a new subscription, not a restore.
-func (s *Store) purgeDeletedLike(ctx context.Context, src NewSource, roots []rootAddress) error {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, url, rsshub_path FROM sources WHERE deleted_at IS NOT NULL")
-	if err != nil {
-		return err
-	}
-	var ids []int64
-	for rows.Next() {
-		var id int64
-		var url, path string
-		if err := rows.Scan(&id, &url, &path); err != nil {
-			rows.Close()
-			return err
-		}
-		if (url == src.URL && path == src.RSSHubPath) || sharesKey(sourceKeys(url, path, roots), sourceKeys(src.URL, src.RSSHubPath, roots)) {
-			ids = append(ids, id)
-		}
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return err
-	}
-	for _, id := range ids {
-		if _, err := s.db.ExecContext(ctx, "DELETE FROM sources WHERE id = ?", id); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // Sources lists every subscription by title, or by address when the title is empty.

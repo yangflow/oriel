@@ -102,6 +102,11 @@ func (s *Server) importOPML(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_opml")
 		return
 	}
+	idx, err := s.store.DuplicateIndex(r.Context())
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	added, existing, failed := 0, 0, []importFailure{}
 	spread := min(importSpreadMax, time.Duration(countOutlines(doc.Body))*importSpreadEach)
 	var walk func([]opmlOutline) error
@@ -114,7 +119,7 @@ func (s *Server) importOPML(w http.ResponseWriter, r *http.Request) {
 					failed = append(failed, importFailure{Title: title, Address: src.URL + src.RSSHubPath, Error: code})
 				default:
 					src.FirstFetchDelay = time.Duration(rand.Int64N(int64(max(spread, 1))))
-					_, err := s.store.CreateSource(r.Context(), src, title, s.now())
+					_, err := s.store.CreateSourceIn(r.Context(), idx, src, title, s.now())
 					switch {
 					case errors.Is(err, store.ErrExists):
 						existing++
