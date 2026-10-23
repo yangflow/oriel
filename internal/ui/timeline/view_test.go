@@ -2777,6 +2777,25 @@ func TestTooltips(t *testing.T) {
 	}
 }
 
+// A kind's name in the sidebar shows in full in a tooltip only when the pane cuts it short.
+func TestKindTooltipOnlyWhenCut(t *testing.T) {
+	sources, entries := sample()
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New("en", f.deps())
+	long := "Videos, talks, lectures, conference recordings and every other long form moving picture"
+	s.text.Video = long
+	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 900, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	if !tipShows(t, tt, long) {
+		t.Error("a kind name cut short has no tooltip")
+	}
+	if tipShows(t, tt, "Articles") {
+		t.Error("a kind name that fits has a tooltip")
+	}
+}
+
 // The icon-only filter segments of a narrow window carry no tooltip either.
 func TestFilterTooltipsNarrow(t *testing.T) {
 	sources, entries := sample()
