@@ -315,7 +315,7 @@ func TestRuleOfASourceInItsUndoWindow(t *testing.T) {
 		t.Fatalf("re-create in the window: %v", err)
 	}
 	// Purged for good, the source is invalid again and its rule is gone.
-	if _, err := s.PurgeDeletedSources(ctx, now.Add(DeleteUndoWindow+time.Second)); err != nil {
+	if _, _, err := s.PurgeDeletedSources(ctx, now.Add(DeleteUndoWindow+time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	if list, _ := s.Rules(ctx); len(list) != 0 {

@@ -22,7 +22,7 @@ func deleteForGood(t *testing.T, s *Store, id int64) {
 	if err := s.DeleteSource(ctx, id, now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.PurgeDeletedSources(ctx, now.Add(DeleteUndoWindow+time.Second)); err != nil {
+	if _, _, err := s.PurgeDeletedSources(ctx, now.Add(DeleteUndoWindow+time.Second)); err != nil {
 		t.Fatal(err)
 	}
 }

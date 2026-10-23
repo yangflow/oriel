@@ -150,10 +150,10 @@ func TestPurgeDeletedSources(t *testing.T) {
 	if err := s.DeleteSource(ctx, gone.ID, now); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := s.PurgeDeletedSources(ctx, now.Add(DeleteUndoWindow-time.Second)); err != nil || n != 0 {
+	if n, _, err := s.PurgeDeletedSources(ctx, now.Add(DeleteUndoWindow-time.Second)); err != nil || n != 0 {
 		t.Fatalf("purge inside the window = %d, %v", n, err)
 	}
-	if n, err := s.PurgeDeletedSources(ctx, now.Add(DeleteUndoWindow+time.Second)); err != nil || n != 1 {
+	if n, _, err := s.PurgeDeletedSources(ctx, now.Add(DeleteUndoWindow+time.Second)); err != nil || n != 1 {
 		t.Fatalf("purge after the window = %d, %v", n, err)
 	}
 	var sources, entries int
@@ -190,5 +190,18 @@ func TestAddingADeletedFeedAgainPurgesTheOldOne(t *testing.T) {
 	}
 	if _, err := s.CreateSource(ctx, NewSource{URL: "https://a.org/feed", Kind: "article", FetchInterval: time.Hour}, "Twice", now); !errors.Is(err, ErrExists) {
 		t.Fatalf("a live duplicate must still be refused: %v", err)
+	}
+}
+
+func TestPurgeDeletedSourcesCountsTheEntriesItRemoves(t *testing.T) {
+	ctx, now := context.Background(), time.Now()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	src := fillSource(t, s, 5)
+	if err := s.DeleteSource(ctx, src.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	sources, entries, err := s.PurgeDeletedSources(ctx, now.Add(DeleteUndoWindow+time.Second))
+	if err != nil || sources != 1 || entries != 5 {
+		t.Fatalf("purged %d sources, %d entries, %v", sources, entries, err)
 	}
 }

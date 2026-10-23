@@ -2,8 +2,10 @@ package fetch
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -103,6 +105,29 @@ func TestPurgeRemovesDeletedSourcesAfterTheUndoWindow(t *testing.T) {
 	f.poller.prune(ctx)
 	if count("sources") != 0 || count("entries") != 0 {
 		t.Fatalf("%d sources and %d entries left after the window", count("sources"), count("entries"))
+	}
+}
+
+func TestPurgeOfManyEntriesGivesTheDiskSpaceBack(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	id := f.add(store.NewSource{URL: "https://example.org/feed", Kind: "article"})
+	var entries []store.FeedEntry
+	for i := 0; i < store.MaintainAfter+50; i++ {
+		entries = append(entries, store.FeedEntry{GUID: fmt.Sprint("g", i), Title: "t", ContentHTML: strings.Repeat("<p>text</p>", 400), PublishedAt: f.now})
+	}
+	if _, err := f.store.SaveFeed(ctx, store.FeedSource{ID: id, Kind: "article"}, "", "", entries, "", time.Time{}, f.now); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.store.DeleteSource(ctx, id, f.now); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := f.store.Storage(ctx)
+	f.now = f.now.Add(store.DeleteUndoWindow + time.Second)
+	f.poller.prune(ctx)
+	after, _ := f.store.Storage(ctx)
+	if after.ReclaimableBytes != 0 || after.DatabaseBytes >= before.DatabaseBytes {
+		t.Fatalf("after the purge: %+v (before %+v)", after, before)
 	}
 }
 
