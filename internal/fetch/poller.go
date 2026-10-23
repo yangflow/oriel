@@ -196,6 +196,7 @@ type Poller struct {
 	refilling  chan struct{} // open while a refill is reading the database, closed when it is done
 	generation int           // counts resets of the queue, so a refill that began before one is dropped
 	inflight   map[int64]bool
+	settled    map[int64]bool // sources whose fetch ended while a refill was reading, which that read may still list as due
 
 	setMu  sync.Mutex // guards the cached RSSHub setting; never held across a database call
 	setRaw string     // the RSSHub setting as last read
@@ -331,6 +332,7 @@ func (p *Poller) take(ctx context.Context) (queued, bool) {
 	if p.refilling == nil && (p.loaded.IsZero() || now.Sub(p.loaded) >= refillEvery) {
 		p.refilling = make(chan struct{})
 		p.loaded = now
+		p.settled = nil
 		gen, busy := p.generation, len(p.inflight)
 		p.mu.Unlock()
 		sources, root, ok := p.readDue(ctx, now, busy)
@@ -378,7 +380,7 @@ func (p *Poller) readDue(ctx context.Context, now time.Time, busy int) ([]store.
 func (p *Poller) fill(sources []store.FeedSource, root string) {
 	p.queue = p.queue[:0]
 	for _, src := range sources {
-		if p.inflight[src.ID] {
+		if p.inflight[src.ID] || p.settled[src.ID] {
 			continue
 		}
 		var host string
@@ -428,6 +430,12 @@ func (p *Poller) finish(job queued) {
 	p.hosts.release(job.host)
 	p.mu.Lock()
 	delete(p.inflight, job.src.ID)
+	if p.refilling != nil {
+		if p.settled == nil {
+			p.settled = map[int64]bool{}
+		}
+		p.settled[job.src.ID] = true
+	}
 	p.mu.Unlock()
 }
 

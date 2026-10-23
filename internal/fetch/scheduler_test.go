@@ -351,3 +351,19 @@ func TestRSSHubSettingIsReadOncePerRefillInterval(t *testing.T) {
 		t.Errorf("setting = %q, want the changed value after the interval", got)
 	}
 }
+
+func TestSourceFinishedDuringRefillIsNotQueuedAgain(t *testing.T) {
+	f := newFixture(t)
+	f.add(store.NewSource{URL: "https://example.org/feed"})
+	ctx := context.Background()
+	job, ok := f.poller.take(ctx)
+	if !ok {
+		t.Fatal("the due source was not taken")
+	}
+	f.now = f.now.Add(refillEvery)
+	// The read still lists the source as due, because its outcome is not recorded; it ends while the read runs.
+	f.poller.readHook = func() { f.poller.finish(job) }
+	if _, ok := f.poller.take(ctx); ok {
+		t.Error("a source that finished during the refill was taken again")
+	}
+}
