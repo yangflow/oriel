@@ -351,6 +351,36 @@ func TestPollErrors(t *testing.T) {
 	}
 }
 
+func TestPollGoneRSSHubRoute(t *testing.T) {
+	for name, instances := range map[string]int{"one instance": 1, "two instances": 2} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			var requests atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				w.WriteHeader(http.StatusGone)
+			}))
+			defer srv.Close()
+			bases := srv.URL + "/"
+			if instances == 2 {
+				bases += "\n" + srv.URL + "/second/"
+			}
+			f.store.SetSetting(context.Background(), RSSHubSetting, bases)
+			id := f.add(store.NewSource{RSSHubPath: "/removed/route"})
+			f.poller.fetchDue(context.Background())
+			if got := f.text("SELECT last_error_kind FROM sources WHERE id = ?", id); got != ErrorGone {
+				t.Errorf("last_error_kind = %q, want %q", got, ErrorGone)
+			}
+			if got := requests.Load(); got != 1 {
+				t.Errorf("%d requests, want 1: a 410 is the route's answer and tries no other instance", got)
+			}
+			if got := time.UnixMilli(f.int("SELECT next_fetch_at FROM sources WHERE id = ?", id)).Sub(f.now); got != longBackoff {
+				t.Errorf("waits %s, want %s", got, longBackoff)
+			}
+		})
+	}
+}
+
 func TestPollSkipsPausedSources(t *testing.T) {
 	f := newFixture(t)
 	var requests atomic.Int32
