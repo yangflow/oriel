@@ -937,25 +937,6 @@ func (s *Screen) kindName(kind string) string {
 	return s.text.Article
 }
 
-// sheet gives a raised surface its rim and its shadow: a hairline in ink 12% in light, a 1 DIP white 8% line and a
-// deeper shadow in dark; with high contrast the rim is Border.
-func sheet(c *ui.Context, e ui.Element, offset, blur float32) {
-	t := c.Theme()
-	switch {
-	case c.Preferences().HighContrast:
-		e.Border(1, t.Border)
-	case t.Dark:
-		e.Border(1, ui.RGBA(255, 255, 255, 0.08))
-	default:
-		e.Border(0.5, theme.Ink(t, 0.12))
-	}
-	if t.Dark {
-		e.Shadow(0, offset, blur, 0, ui.RGBA(0, 0, 0, 0.55))
-	} else {
-		e.Shadow(0, offset, blur, 0, ui.RGBA(28, 24, 18, 0.25))
-	}
-}
-
 // dialog draws a dialog of the mockup: a header, a form that scrolls when the window is too low, and a footer. A line
 // under the header shows once the form is scrolled, and one above the footer while more of it is below.
 func (s *Screen) dialog(c *ui.Context, open *bool, scroll *ui.ScrollState, width float32, title string, header, form,
@@ -963,10 +944,10 @@ func (s *Screen) dialog(c *ui.Context, open *bool, scroll *ui.ScrollState, width
 	t := c.Theme()
 	_, height := c.Size()
 	ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(28, 24, 18, 0.32)).Padding(t.Space(4))
-		panel.Column().Width(theme.Px(t, width)).MaxHeight(height - t.Space(8)).Radius(16).Background(theme.RaisedFill(t)).
+		theme.Scrim(c, backdrop).Padding(t.Space(4))
+		panel.Column().Width(theme.Px(t, width)).MaxHeight(height - t.Space(8)).
 			Label(title)
-		sheet(c, panel, 20, 50)
+		theme.Sheet(c, panel, theme.Dialog)
 		edge := func(shown bool) {
 			color := t.Border
 			if !shown {
@@ -1718,8 +1699,8 @@ func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labe
 		ui.Icon(c, icons.ChevronDown).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160)).Radius(10).Background(theme.RaisedFill(t))
-		sheet(c, panel, 8, 24)
+		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160))
+		theme.Sheet(c, panel, theme.Popup)
 		for _, v := range options {
 			item := sel.Item(v).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(6)
 			if item.Highlighted() {

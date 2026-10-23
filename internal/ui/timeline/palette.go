@@ -259,10 +259,10 @@ func (s *Screen) palette(c *ui.Context) {
 
 	var run func()
 	ui.DialogBase(c, &p.open, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Justify(ui.Start).Padding(top, t.Space(6), t.Space(3), t.Space(6))
-		panel.Column().Width(min(theme.Px(t, paletteWidth), width-t.Space(12))).MaxHeight(height-top-t.Space(3)).Radius(theme.Px(t, 14)).
-			Background(theme.RaisedFill(t)).Border(0.5, theme.LineStrong(t)).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.25)).
+		theme.Scrim(c, backdrop).Justify(ui.Start).Padding(top, t.Space(6), t.Space(3), t.Space(6))
+		panel.Column().Width(min(theme.Px(t, paletteWidth), width-t.Space(12))).MaxHeight(height - top - t.Space(3)).
 			Label(s.text.PaletteTitle)
+		theme.Sheet(c, panel, theme.Dialog)
 		var in ui.Element
 		field := ui.Row(c).Margin(theme.Px(t, 8), theme.Px(t, 8), theme.Px(t, 4), theme.Px(t, 8)).Height(theme.Px(t, paletteRow)).AlignItems(ui.Center).
 			Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 10)).Radius(theme.Px(t, 8)).Background(theme.RaisedFill(t)).Shrink(0)

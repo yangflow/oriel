@@ -92,6 +92,7 @@
   --danger:#b4533c; --danger-soft:rgba(180,83,60,.09); --warning:#9a7222; --warning-soft:rgba(154,114,34,.10); --success:#4c7c59;
   --segment-on:#ffffff; --segment-shadow:0 1px 2px rgba(var(--ink),.12), 0 0 0 .5px rgba(var(--ink),.08);
   --scrim:rgba(28,24,18,.32); --sheet-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 20px 50px rgba(28,24,18,.25);
+  --popup-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 12px 32px rgba(28,24,18,.22);
   --t:140ms ease-out }
 :root[data-scheme=dark] { color-scheme:dark; --stage:#0b0c0c; --stage-text:#8a918f;
   --chrome:#1a2422; --chrome-ink:235,248,244; --chrome-text:#e8eeec; --chrome-text2:#cbd5d2; --chrome-muted:#93a39f;
@@ -101,7 +102,8 @@
   --accent:#78beb1; --accent-hover:#8ccbbf; --accent-text:#10241f; --accent-soft:rgba(120,190,177,.12); --focus:rgba(120,190,177,.7);
   --danger:#e0897a; --danger-soft:rgba(224,137,122,.13); --warning:#d6aa55; --warning-soft:rgba(214,170,85,.13); --success:#8ab997;
   --segment-on:rgba(var(--ink),.12); --segment-shadow:none;
-  --sheet-shadow:0 0 0 1px rgba(255,255,255,.08), 0 20px 50px rgba(0,0,0,.55) }
+  --scrim:rgba(0,0,0,.45); --sheet-shadow:0 0 0 1px rgba(255,255,255,.08), 0 20px 50px rgba(0,0,0,.55);
+  --popup-shadow:0 0 0 1px rgba(255,255,255,.08), 0 12px 32px rgba(0,0,0,.5) }
 * { box-sizing:border-box }
 html { -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility }
 body { margin:0; padding:24px; font:13px/1.5 system-ui,-apple-system,"SF Pro Text","PingFang SC","Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
@@ -202,7 +204,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .select svg.icon { width:14px; height:14px; color:var(--muted) }
 .select.open { background:var(--chosen) }
 /* Font picker: a popup on Raised over the page, anchored under its control. Search on top, a hairline, the list. */
-.picker { position:absolute; z-index:4; width:300px; max-height:360px; display:flex; flex-direction:column; border-radius:12px; background:var(--raised); box-shadow:var(--sheet-shadow) }
+.picker { position:absolute; z-index:4; width:300px; max-height:360px; display:flex; flex-direction:column; border-radius:12px; background:var(--raised); box-shadow:var(--popup-shadow) }
 .picker .search { flex:none; display:flex; align-items:center; gap:8px; margin:8px 8px 0; height:32px; padding:0 10px; border-radius:8px; background:var(--surface); box-shadow:0 0 0 2px var(--focus); color:var(--muted) }
 .picker .search svg.icon { width:15px; height:15px }
 .picker .search .typed { flex:1; min-width:0; color:var(--text); white-space:nowrap; overflow:hidden }
@@ -371,7 +373,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .rule .more:hover, .rule .more.open { background:var(--hover); color:var(--text) }
 .rule .more svg.icon { width:16px; height:16px }
 .count { margin-top:8px; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums }
-.menu { position:absolute; z-index:4; min-width:160px; padding:6px; border-radius:12px; background:var(--raised); box-shadow:var(--sheet-shadow) }
+.menu { position:absolute; z-index:4; min-width:160px; padding:6px; border-radius:12px; background:var(--raised); box-shadow:var(--popup-shadow) }
 .menu button { width:100%; height:32px; display:flex; align-items:center; gap:8px; padding:0 10px; border-radius:6px; text-align:left }
 .menu button:hover { background:var(--hover) }
 .menu button.danger { color:var(--danger) }

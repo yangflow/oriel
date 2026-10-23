@@ -210,6 +210,7 @@ and outlines are ink at an alpha, so they sit on any surface and step in lightne
 | `theme.Marker(t)` | `Accent` | `Accent` | `ChromeAccent` | the selection marker of a row |
 | `theme.Chosen(t)` | ink 6.5% | ink 8% | pane ink 12% | the selected fill of a row or a navigation item |
 | `theme.Soft(t, color)` | `color` 9% | `color` 12% | `color` 12% | a faint fill behind an icon or a status: the AI card, a note, a pressed labeled tool |
+| `theme.Sheet(c, e, level)`, `theme.Scrim(c, backdrop)` | see Sheet and scrim | | | the face of every dialog and popup, and the dim behind a dialog |
 | `theme.Ink(t, a)` | rgb(37, 34, 30) at `a` | rgb(234, 240, 238) at `a` | pane ink at `a` | the alpha fills below |
 
 Alpha fills built with `theme.Ink`: search field 5.5% (hover 7.5%), the chosen segment of the capsule 10%, inline
@@ -337,7 +338,27 @@ The ink pane is not glass: it is opaque (see above). Content never sits on glass
 | Image outline | 0.5 DIP, ink 10% |
 | Link | `Accent`, underline 1 DIP, offset 3, `Accent` at 38%, full `Accent` on hover |
 | Inline code | ink 5.5% fill, `Text`, radius 4 |
-| Shadow | only on raised things (dialogs, popovers, the focused search, the chosen segment in a control): `RaisedFill` and a soft ink shadow |
+| Shadow | only on raised things (dialogs, popups, the focused search, the chosen segment in a control): `RaisedFill` and a soft ink shadow; dialogs and popups take theirs from `theme.Sheet`, below |
+
+### Sheet and scrim
+
+Every floating surface (dialogs, the command palette, the key sheet, select menus, the font picker) goes through
+`theme.Sheet(c, e, level)`, which sets `RaisedFill`, the radius, the rim and the shadow; the dimmed window behind a
+dialog goes through `theme.Scrim(c, backdrop)`. Nothing else sets a shadow, a rim or a scrim on an overlay. The
+image viewer is no sheet: it fills the window with an opaque `rgb(20, 17, 13)`. The toast, the selection card and the
+new-entries pill are not sheets either; they keep their own shadows.
+
+| Level | Radius | Offset / blur | Shadow light | Shadow dark | Rim light | Rim dark | Rim high contrast |
+|---|---|---|---|---|---|---|---|
+| `theme.Popup` (select menus, font picker) | 12 | 12 / 32 | rgb(28, 24, 18) 22% | black 50% | 0.5 DIP, ink 12% | 1 DIP, white 8% | 1 DIP, `Border` |
+| `theme.Dialog` (dialogs, palette, key sheet) | 16 | 20 / 50 | rgb(28, 24, 18) 25% | black 55% | 0.5 DIP, ink 12% | 1 DIP, white 8% | 1 DIP, `Border` |
+
+The shadow keeps its colors with high contrast; the rim is what separates the sheet. Radii scale with `theme.Px`.
+
+| Scrim | Light | Dark |
+|---|---|---|
+| Normal | rgb(28, 24, 18) 32% | black 45% |
+| High contrast | rgb(28, 24, 18) 50% | black 60% |
 
 ## Row actions
 

@@ -441,10 +441,10 @@ func (s *Screen) ruleDialog(c *ui.Context) {
 	}
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(28, 24, 18, 0.32)).Padding(t.Space(4))
-		panel.Column().Width(theme.Px(t, 440)).MaxHeight(height - t.Space(8)).Radius(16).Background(theme.RaisedFill(t)).
+		theme.Scrim(c, backdrop).Padding(t.Space(4))
+		panel.Column().Width(theme.Px(t, 440)).MaxHeight(height - t.Space(8)).
 			Label(title)
-		sheet(c, panel, 20, 50)
+		theme.Sheet(c, panel, theme.Dialog)
 		line := func(shown bool) {
 			color := t.Border
 			if !shown {
