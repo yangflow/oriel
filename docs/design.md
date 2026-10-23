@@ -44,7 +44,7 @@ Related files: [design/README.md](../design/README.md) (mockups and how a UI cha
   dark appearance (unless the user chose one in Settings, Appearance) and its text size. A control that looks and behaves like the platform's is learned already. Style
   an element yourself only when no widget does the job, and build it on the
   [custom widget](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/custom-widgets.md) bases so focus, keyboard and
-  accessibility stay intact. No WebView and no HTML frontend.
+  accessibility stay intact. No HTML frontend, and no WebView except the official video player of ADR-0004.
 - **Consistent across platforms, respectful of each.** One view serves macOS, Windows and Linux. Follow each
   platform's conventions where MyGo exposes them: menu roles, the accent color, the system font, shortcuts that use
   `CmdOrCtrl`. Do not add chrome that imitates one platform on the others.

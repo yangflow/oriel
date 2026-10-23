@@ -54,8 +54,8 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
 
 ## Conventions
 
-- Only MyGo native views and the native updater plugin. No WebView, HTML frontend, cgo production dependency or
-  frontend toolchain.
+- Only MyGo native views and the native updater plugin. No HTML frontend, cgo production dependency or frontend
+  toolchain. No WebView, except the one that shows an official video player and nothing else (ADR-0004).
 - No disk or network work on the drawing path. Run slow work in the background and change state back on the UI
   thread.
 - Interface strings live in each screen package's `copy.json`, `en` and `zh-Hans` only; change both together. Do

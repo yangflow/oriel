@@ -18,8 +18,9 @@ native updater plugin.
 ## Cost
 
 Controls are drawn on the GPU, so accessibility and behavior on each platform have to be tested on real devices.
-Without a WebView, video and social content cannot embed the official players. MyGo is at an early version; every
-upgrade needs a look at API and packaging changes.
+Without a WebView, video and social content cannot embed the official players;
+[0004](0004-webview-for-official-video-players.md) allows one web view for the official video players only. MyGo is at
+an early version; every upgrade needs a look at API and packaging changes.
 
 ## When to revisit
 

@@ -7,6 +7,7 @@
 | [0001](0001-pure-go-native-ui.md) | Pure Go native UI | accepted |
 | [0002](0002-standalone-client-and-server.md) | A standalone app: one program is both the client and the server | accepted |
 | [0003](0003-pure-go-sqlite.md) | Pure Go SQLite | accepted |
+| [0004](0004-webview-for-official-video-players.md) | A WebView only for the official video players | accepted |
 
 ## Record format
 
