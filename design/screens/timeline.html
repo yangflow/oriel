@@ -111,6 +111,9 @@
      main column. Search is a 200 wide field (it gives up width before anything else, down to 48) from a 736 wide column;
      narrower (size=min) it is a 32 square magnifier button after the other buttons and, clicked, opens the field over them
      (search-open) until it loses the focus with no text in it.
+     Counts: an unread count above 999 is drawn "999+" in the same 11 tnum style (many-feeds: one subscription has 1234
+     unread, so its kind and All also read 999+); the column is not fixed, the text is only capped. The full number stays
+     in the row's accessible label.
      Edge cases (long-titles, many-feeds, broken-images; the rules are in docs/design.md, The timeline). A title stops
      at two lines in a row and in a video card, at one in a picture's caption, a subscription's name in the sidebar, the
      source name in the meta line and the screen title, each with an ellipsis; a Chinese title breaks between any two
@@ -813,7 +816,7 @@ const bigFeeds=[
 ];
 const focusId=state==='long-titles'?2:state==='source-grid'?8:1;
 if(state==='many-feeds'){
-  bigFeeds.forEach(([kind,name],i)=>sources.push({id:11+i,kind,name,mono:[...name.replace(/^[@#· ]+/,'')][0].toUpperCase(),unread:i%7===0?0:(i*5)%9+1}));
+  bigFeeds.forEach(([kind,name],i)=>sources.push({id:11+i,kind,name,mono:[...name.replace(/^[@#· ]+/,'')][0].toUpperCase(),unread:i===1?1234:i%7===0?0:(i*5)%9+1}));
   sources.sort((a,b)=>a.name.toLowerCase()<b.name.toLowerCase()?-1:1);
 }
 if(state==='long-titles')sources.find(s=>s.id===2).name=zh?'少数派 sspai：高效工作，快乐生活，关注数字生活、效率工具与软件使用技巧的社区':'Ars Technica » Technology Lab: Tech Policy, Gadgets, Science and Culture, Plus Long Reads and Reviews';
@@ -908,7 +911,8 @@ const newestFirst=state==='search'?entries.filter(e=>e.kind==='article'&&e.sourc
 const oldest=state==='order-oldest';
 const shown=oldest?[...entries].reverse().slice(0,7):newestFirst;
 
-const navItem=(glyph,name,count,chosen,extra='',label='')=>`<button class="item${chosen?' chosen':''}" aria-current="${chosen}"${label?` aria-label="${label}"`:''}>${glyph}<span class="name">${name}</span>${extra}${count?`<span class="count">${count}</span>`:''}</button>`;
+const capCount=n=>n>999?'999+':n;
+const navItem=(glyph,name,count,chosen,extra='',label='')=>{ if(count>999&&!label)label=`${name}, ${t('unreadCount',{n:count})}`; return `<button class="item${chosen?' chosen':''}" aria-current="${chosen}"${label?` aria-label="${label}"`:''}>${glyph}<span class="name">${name}</span>${extra}${count?`<span class="count">${capCount(count)}</span>`:''}</button>`; };
 const failedText=s=>s.failing>1?t('failedTimes',{n:s.failing,error:s.error}):t('failedOnce',{error:s.error});
 const failingName=s=>s.unread?t('failingUnread',{name:s.name,n:s.unread}):t('failingName',{name:s.name});
 const fetchingNow=s=>state==='fetching'&&s.id===2;
@@ -1061,8 +1065,8 @@ const paletteRows=()=>{
     ...[[copy.pActions,t('markAllIn',{scope:scopeLabel}),'checkCheck',''],[copy.pActions,copy.kAdd,'plus',chips(...[mod,'N'])],[copy.pActions,copy.kRefreshAll,'refresh',chips(mod,'R')],[copy.pActions,copy.pUnreadOnly,'dot',''],
         [copy.pActions,copy.pOpenSettings,'settings',chips(mod,',')],[copy.pActions,copy.kKeys,'keyboard',chips('?')]]
       .map(([g,name,ic,tail])=>({g,name,lead:icon(ic),tail})),
-    ...['all',...kinds].map(k=>({g:copy.kinds,name:k==='all'?copy.all:copy[k],lead:icon(k==='all'?'inbox':k),tail:`<span class="count">${k==='all'?sources.reduce((a,x)=>a+x.unread,0):kindUnread(k)}</span>`})),
-    ...sources.map(x=>({g:copy.sources,name:x.name,lead:glyph(x),tail:x.unread?`<span class="count">${x.unread}</span>`:''})),
+    ...['all',...kinds].map(k=>({g:copy.kinds,name:k==='all'?copy.all:copy[k],lead:icon(k==='all'?'inbox':k),tail:`<span class="count">${capCount(k==='all'?sources.reduce((a,x)=>a+x.unread,0):kindUnread(k))}</span>`})),
+    ...sources.map(x=>({g:copy.sources,name:x.name,lead:glyph(x),tail:x.unread?`<span class="count">${capCount(x.unread)}</span>`:''})),
     ...[['pAppearance','palette'],['pFetching','rss'],['pOpml','arrowUpDown'],['pAi','sparkles'],['pDevices','laptop']].map(([k,ic])=>({g:copy.pSettings,name:copy[k],lead:icon(ic),tail:''})),
   ].map((r,i)=>({...r,i,rank:rankOf(r.name,paletteQuery)})).filter(r=>r.rank>=0);
   return rows.sort((a,b)=>a.rank-b.rank||a.i-b.i).slice(0,50);

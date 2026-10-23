@@ -71,6 +71,7 @@ const (
 	pageSize     = 50
 	nearEnd      = 10               // rows from the end of what is loaded at which the next page loads
 	lookEvery    = 15 * time.Second // how often the last-looked marker is kept while the list rests at the top
+	maxCount     = 999              // the most an unread count shows in the sidebar and the palette; more read "999+"
 	maxNewCount  = 50               // the most new entries the divider counts; more show as "50+"
 	pollEvery    = 60 * time.Second // how often the sources and the first page are checked for new entries
 	checkGap     = 10 * time.Second // the least time between a check and one asked for by the window coming to the front
@@ -1768,6 +1769,15 @@ func (s *Screen) move(by int) {
 	s.grid.ScrollIntoView(i)
 }
 
+// countText is an unread count as the sidebar and the palette draw it: above maxCount it reads "999+", so the column
+// never grows past that text; the full number stays in the accessible description.
+func countText(n int) string {
+	if n > maxCount {
+		return strconv.Itoa(maxCount) + "+"
+	}
+	return strconv.Itoa(n)
+}
+
 // unreadIn returns the unread entries of the scope, as the sources count them; All is the server's total, which
 // counts an article several sources carry once.
 func (s *Screen) unreadIn(sc scope) int {
@@ -2761,7 +2771,7 @@ func (s *Screen) tabs(c *ui.Context, focus bool) {
 						label.TextColor(t.Text).FontWeight(500)
 					}
 					if n > 0 {
-						ui.Text(c, strconv.Itoa(n)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
+						ui.Text(c, countText(n)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
 							TextColor(count)
 					}
 				})
@@ -3055,6 +3065,9 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 	}
 	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(theme.Px(t, 30)).Gap(theme.Px(t, 10)).PaddingX(theme.Px(t, 10)).
 		Radius(theme.Px(t, 8)).Label(label).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
+	if src.UnreadCount > 0 && !src.Paused {
+		item.Description(s.format(s.text.UnreadCount, src.UnreadCount))
+	}
 	count := t.TextMuted
 	switch {
 	case chosen:
@@ -3096,7 +3109,7 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 			})
 		}
 		if src.UnreadCount > 0 && !src.Paused {
-			ui.Text(c, strconv.Itoa(src.UnreadCount)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
+			ui.Text(c, countText(src.UnreadCount)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
 				TextColor(count)
 		}
 	})
