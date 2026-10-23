@@ -7,7 +7,9 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -354,5 +356,80 @@ func TestImageCacheEvictionDoesNotBlock(t *testing.T) {
 	}
 	if len(cacheFiles(t, dir)) != len(c.entries) {
 		t.Errorf("files %d, entries %d", len(cacheFiles(t, dir)), len(c.entries))
+	}
+}
+
+// Gets, puts and eviction running together never surface an error: every get is a clean miss or a whole hit,
+// and the index matches the directory once the passes are done.
+func TestImageCacheConcurrentUse(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	c.maxBytes = 5000
+	body := make([]byte, 500)
+	var wg sync.WaitGroup
+	for w := 0; w < 8; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			for i := 0; i < 200; i++ {
+				addr := strconv.Itoa((w*7 + i) % 20)
+				if i%3 == 0 {
+					c.put(addr, "image/png", body)
+				} else if kind, got, ok := c.get(addr); ok && (kind != "image/png" || len(got) != len(body)) {
+					t.Errorf("partial hit: %q, %d bytes", kind, len(got))
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
+	c.bg.Wait()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var sum int64
+	for _, e := range c.entries {
+		sum += e.size
+	}
+	if sum != c.total || len(cacheFiles(t, dir)) != len(c.entries) {
+		t.Errorf("index %d bytes, total %d, files %d, entries %d", sum, c.total, len(cacheFiles(t, dir)), len(c.entries))
+	}
+	if c.total > c.maxBytes {
+		t.Errorf("total %d over the cap", c.total)
+	}
+}
+
+// A file that vanished behind the cache's back is a miss and leaves the accounting at zero.
+func TestImageCacheVanishedFileIsMiss(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	c.put("a", "image/png", pngHeader)
+	os.RemoveAll(dir)
+	if _, _, ok := c.get("a"); ok {
+		t.Error("hit on a deleted file")
+	}
+	if n, b := c.stats(); n != 0 || b != 0 {
+		t.Errorf("stats %d, %d", n, b)
+	}
+	c.put("a", "image/png", pngHeader) // the directory is made again
+	if _, _, ok := c.get("a"); !ok {
+		t.Error("miss after the directory was recreated")
+	}
+}
+
+// A late discard of an old copy leaves the copy a put stored in between, and a get that opens the file after
+// the replace reads the whole new copy.
+func TestImageCachePutDuringReadKeepsNewCopy(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	c.put("a", "image/png", pngHeader)
+	c.mu.Lock()
+	oldSeq := c.entries[cacheKey("a")].seq
+	c.mu.Unlock()
+	c.put("a", "image/png", pngHeader) // replaces the copy a reader may still hold
+	c.discard(cacheKey("a"), oldSeq)
+	if _, _, ok := c.get("a"); !ok {
+		t.Error("the new copy was discarded by a late discard")
+	}
+	if n, b := c.stats(); n != 1 || b == 0 {
+		t.Errorf("stats %d, %d", n, b)
 	}
 }

@@ -110,6 +110,18 @@ func (c *imageCache) drop(key string) {
 	}
 }
 
+// remove deletes the file of an index entry and forgets the entry. A file that is already gone counts as
+// removed; one that cannot be deleted (Windows refuses while a reader has it open) stays in the index, so the
+// accounting still matches the disk. It reports whether the entry is gone. The caller holds mu.
+func (c *imageCache) remove(key string) bool {
+	err := os.Remove(filepath.Join(c.dir, key))
+	if err != nil && !os.IsNotExist(err) {
+		return false
+	}
+	c.drop(key)
+	return true
+}
+
 // disk runs the test hook, if any, just before a piece of disk work that must happen outside mu.
 func (c *imageCache) disk(op string) {
 	if c.beforeDisk != nil {
@@ -154,8 +166,7 @@ func (c *imageCache) discard(key string, seq uint64) {
 		c.mu.Unlock()
 		return
 	}
-	c.drop(key)
-	os.Remove(filepath.Join(c.dir, key))
+	c.remove(key)
 	c.mu.Unlock()
 }
 
@@ -219,6 +230,7 @@ func (c *imageCache) evictPass(keep string) {
 	defer c.bg.Done()
 	target := int64(float64(c.maxBytes) * imageCacheTrim)
 	for {
+		removed := 0
 		c.mu.Lock()
 		type candidate struct {
 			key string
@@ -240,13 +252,14 @@ func (c *imageCache) evictPass(keep string) {
 				break
 			}
 			if cur, ok := c.entries[item.key]; ok && cur.seq == item.seq {
-				c.drop(item.key)
-				os.Remove(filepath.Join(c.dir, item.key))
+				if c.remove(item.key) {
+					removed++
+				}
 			}
 			c.mu.Unlock()
 		}
 		c.mu.Lock()
-		if c.total <= c.maxBytes || len(list) == 0 {
+		if c.total <= c.maxBytes || removed == 0 {
 			c.evicting = false
 			c.mu.Unlock()
 			return
