@@ -2,12 +2,12 @@ package settings
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/ui/icons"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
@@ -382,7 +382,7 @@ func (s *Screen) count(c *ui.Context, p *fontPicker, now time.Time, loaded bool)
 	case len(p.shown) == 1:
 		text = s.text.FontCountOne
 	default:
-		text = s.fill(s.text.FontCount, "{n}", strconv.Itoa(len(p.shown)))
+		text = locale.Count(s.text.FontCount, "n", len(p.shown))
 	}
 	if text != p.said {
 		p.said, p.saidAt = text, now

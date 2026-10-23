@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/ui/locale"
 )
 
 // fakeToken is an obvious stand-in; no real credential is used anywhere.
@@ -143,11 +144,11 @@ func TestReaderImports(t *testing.T) {
 		tt.Frame()
 		f.settle(tt)
 		for _, text := range []string{
-			s.fill(s.text.ReaderResultSources, "{added}", "2", "{existing}", "1"),
-			s.fill(s.text.ReaderResultStarred, "{added}", "3", "{existing}", "1"),
-			s.fill(s.text.ReaderResultRead, "{n}", "4"),
-			s.fill(s.text.ReaderResultUnmatched, "{n}", "2"),
-			s.fill(s.text.ReaderResultFolders, "{n}", "3"),
+			locale.Count(locale.Count(s.text.ReaderResultSources, "added", 2), "existing", 1),
+			locale.Count(locale.Count(s.text.ReaderResultStarred, "added", 3), "existing", 1),
+			locale.Count(s.text.ReaderResultRead, "n", 4),
+			locale.Count(s.text.ReaderResultUnmatched, "n", 2),
+			locale.Count(s.text.ReaderResultFolders, "n", 3),
 			s.text.ReaderSkipped, "https://c.example/s/3", s.text.ReaderUnknownSource, s.text.InvalidURL,
 			s.fill(s.text.ReaderMore, "{n}", "1"), s.text.ReaderDone,
 		} {

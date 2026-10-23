@@ -297,9 +297,7 @@ func FailureReason(src client.Source, blocked, blockedPublic, gone string) strin
 
 func (s *Screen) fill(text, name string) string { return strings.ReplaceAll(text, "{name}", name) }
 
-func (s *Screen) count(text string, n int) string {
-	return strings.ReplaceAll(text, "{n}", strconv.Itoa(n))
-}
+func (s *Screen) count(text string, n int) string { return locale.Count(text, "n", n) }
 
 func (s *Screen) expired(err error) bool {
 	if !errors.Is(err, client.ErrUnauthorized) {
@@ -550,7 +548,7 @@ func (s *Screen) addedLine() string {
 	case a.count == 1:
 		return s.fill(s.text.Added, a.last)
 	default:
-		return strings.NewReplacer("{name}", a.last, "{n}", strconv.Itoa(a.count)).Replace(s.text.AddedSoFar)
+		return strings.ReplaceAll(s.count(s.text.AddedSoFar, a.count), "{name}", a.last)
 	}
 }
 
@@ -2090,7 +2088,7 @@ func healthSource(h client.SourceHealth) client.Source {
 func (s *Screen) healthReason(h client.SourceHealth) string {
 	switch {
 	case h.State == client.HealthRarelyRead:
-		text := strings.ReplaceAll(s.count(s.text.HealthRare, h.Recent), "{days}", strconv.Itoa(s.report.days))
+		text := locale.Count(s.count(s.text.HealthRare, h.Recent), "days", s.report.days)
 		return strings.ReplaceAll(text, "{read}", strconv.Itoa(h.RecentRead))
 	case h.State == client.HealthDead && h.Cause == client.HealthCauseSilent:
 		return s.count(s.text.HealthSilent, h.Days)
@@ -2106,7 +2104,7 @@ func (s *Screen) healthReason(h client.SourceHealth) string {
 }
 
 func (s *Screen) healthNumbers(h client.SourceHealth) string {
-	text := strings.ReplaceAll(s.text.HealthNumbers, "{days}", strconv.Itoa(s.report.days))
+	text := locale.Count(s.text.HealthNumbers, "days", s.report.days)
 	text = strings.ReplaceAll(text, "{recent}", strconv.Itoa(h.Recent))
 	text = strings.ReplaceAll(text, "{read}", strconv.Itoa(h.RecentRead))
 	return strings.ReplaceAll(text, "{starred}", strconv.Itoa(h.RecentStarred))

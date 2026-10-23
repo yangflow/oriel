@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
@@ -697,7 +698,7 @@ func (s *Screen) mutedCard(c *ui.Context) {
 			} else if text := cleanLines(p.muted); text != "" && p.counted && p.asked == text {
 				line := s.text.MutedNone
 				if p.count > 0 {
-					line = s.fill(s.text.MutedMany, "{n}", strconv.Itoa(p.count))
+					line = locale.Count(s.text.MutedMany, "n", p.count)
 				}
 				ui.Text(c, line).FontSize(px(t, 12)).TextColor(t.TextMuted).Margin(px(t, 8), 0, 0, 0).
 					FontFeatures("tnum").Role(ui.RoleStatus)

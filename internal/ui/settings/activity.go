@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
@@ -140,8 +141,8 @@ func (s *Screen) storageCard(c *ui.Context) {
 		ui.Column(c).FillWidth().Gap(px(t, 8)).Children(func() {
 			s.keyValue(c, s.text.DBSize, s.bytes(st.DatabaseBytes))
 			s.keyValue(c, s.text.Entries, strconv.FormatInt(st.Entries, 10))
-			s.keyValue(c, s.text.Images, s.fill(s.text.ImagesValue, "{n}", strconv.Itoa(st.Images), "{size}", s.bytes(st.ImageBytes)))
-			s.keyValue(c, s.text.Copies, s.fill(s.text.CopiesValue, "{n}", strconv.Itoa(st.Copies), "{size}", s.bytes(st.CopyBytes)))
+			s.keyValue(c, s.text.Images, s.fill(locale.Count(s.text.ImagesValue, "n", st.Images), "{size}", s.bytes(st.ImageBytes)))
+			s.keyValue(c, s.text.Copies, s.fill(locale.Count(s.text.CopiesValue, "n", st.Copies), "{size}", s.bytes(st.CopyBytes)))
 		})
 	}, func() {
 		busy := s.compacting()
@@ -284,7 +285,7 @@ func (s *Screen) recentCard(c *ui.Context) {
 			s.sourceRow(c, src, now)
 		}
 	})
-	ui.Text(c, s.fill(s.text.RecentKeep, "{n}", strconv.Itoa(s.activity.Keep))).FontSize(px(t, 12)).
+	ui.Text(c, locale.Count(s.text.RecentKeep, "n", s.activity.Keep)).FontSize(px(t, 12)).
 		TextColor(t.TextMuted).Wrap().Margin(px(t, 8), px(t, 4), 0, px(t, 4))
 }
 

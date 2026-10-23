@@ -1,7 +1,10 @@
 // Package locale maps a system locale to one of the UI languages every copy catalog carries.
 package locale
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // Languages are the keys of every copy.json; English is the fallback.
 var Languages = []string{"en", "zh-Hans"}
@@ -24,4 +27,28 @@ func Resolve(chosen, systemLocale string) string {
 		}
 	}
 	return Language(systemLocale)
+}
+
+// Count fills the count called name into text. {name} becomes the number, and {name:one|other} becomes the first
+// form when n is 1 and the second otherwise, as in "{n} {n:entry|entries}". Chinese strings carry no such form.
+func Count(text, name string, n int) string {
+	num := strconv.Itoa(n)
+	for {
+		start := strings.Index(text, "{"+name+":")
+		if start < 0 {
+			break
+		}
+		end := strings.Index(text[start:], "}")
+		if end < 0 {
+			break
+		}
+		end += start
+		one, other, _ := strings.Cut(text[start+len(name)+2:end], "|")
+		form := other
+		if n == 1 {
+			form = one
+		}
+		text = text[:start] + form + text[end+1:]
+	}
+	return strings.ReplaceAll(text, "{"+name+"}", num)
 }
