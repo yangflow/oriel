@@ -201,9 +201,13 @@ value.
 | `TextMuted` | `#6f5f48` | `#a79a7c` | `#56616b` | `#8d9aa4` |
 | `Accent` | `#1f6258` | `#8cc9b8` | `#1d6470` | `#86c5d0` |
 | `AccentText` | `#ffffff` | `#10241f` | `#ffffff` | `#102329` |
+| `AccentHover` | `#22584e` | `#9acfc1` | `#1d5a65` | `#95ccd6` |
+| `AccentPressed` | `#255146` | `#7bb1a2` | `#1d525d` | `#76adb7` |
 | `Danger` | `#a2452f` | `#e0897a` | `#a2452f` | `#e0897a` |
 | `theme.Track` | `#e6dcc2` | `#3a3226` | `#d6dee4` | `#2b353d` |
 | `theme.RaisedFill` | `#fbf6e9` | `#433a2d` | `#f3f6f8` | `#34404a` |
+
+`AccentHover` is `Accent` mixed 17% toward `Text` in the light variants and 12% toward white in the dark ones; `AccentPressed` is 30% toward `Text` in light and 12% toward black in dark.
 
 `Warning`, `Success` and `Star` keep the theme's values: they are graphics (3:1), and on a preset page Warning is 3.7:1
 or more and Success 4.1:1 or more. `Danger` is darker in the light variants because the failure line is text, drawn on the page and never on a `Surface`. Alpha
