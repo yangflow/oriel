@@ -58,7 +58,7 @@ func TestThrottleEvictsAtTheCap(t *testing.T) {
 	}
 	later := now.Add(2 * time.Second)
 	th.fail("new", later)
-	if len(th.failures) != maxTracked {
+	if len(th.failures) != maxTracked-evictBatch+1 {
 		t.Fatalf("%d records", len(th.failures))
 	}
 	if _, ok := th.failures["1"]; ok {
@@ -320,7 +320,7 @@ func TestThrottleEvictsWhenAllAreLocked(t *testing.T) {
 		}
 	}
 	th.fail("new", now.Add(time.Second))
-	if len(th.failures) != maxTracked {
+	if len(th.failures) != maxTracked-evictBatch+1 {
 		t.Fatalf("%d records", len(th.failures))
 	}
 	if _, ok := th.failures["0"]; ok {

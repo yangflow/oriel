@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,6 +26,8 @@ const (
 	maxDerivations = 2
 	// maxTracked bounds the failure records kept in memory.
 	maxTracked = 10_000
+	// evictBatch is how many records go at once when the table is full.
+	evictBatch = maxTracked / 100
 	// pruneEvery is the longest time the expired records stay when requests keep coming, wrong passwords or not.
 	pruneEvery = time.Minute
 )
@@ -192,19 +195,31 @@ func (t *throttle) prune(now time.Time) {
 	}
 }
 
-// evict makes room at the cap by dropping the record that has been quiet longest, one that is not locked out
-// before any that is.
+// evict makes room at the cap by dropping the evictBatch records that have been quiet longest, those that are not
+// locked out before any that is. Dropping a batch keeps the cost of the scan per new address small when a flood of
+// addresses keeps the table full.
 func (t *throttle) evict(now time.Time) {
-	var oldest string
-	var found, oldestLocked bool
-	var oldestLast time.Time
-	for key, f := range t.failures {
-		locked := now.Before(f.until)
-		if !found || (oldestLocked && !locked) || (locked == oldestLocked && f.last.Before(oldestLast)) {
-			oldest, oldestLast, oldestLocked, found = key, f.last, locked, true
-		}
+	type entry struct {
+		key    string
+		locked bool
+		last   time.Time
 	}
-	delete(t.failures, oldest)
+	all := make([]entry, 0, len(t.failures))
+	for key, f := range t.failures {
+		all = append(all, entry{key, now.Before(f.until), f.last})
+	}
+	slices.SortFunc(all, func(a, b entry) int {
+		if a.locked != b.locked {
+			if a.locked {
+				return 1
+			}
+			return -1
+		}
+		return a.last.Compare(b.last)
+	})
+	for _, e := range all[:min(evictBatch, len(all))] {
+		delete(t.failures, e.key)
+	}
 }
 
 // acquire takes a derivation slot without waiting; false means all are busy.
