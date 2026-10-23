@@ -329,12 +329,12 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   never under them, and it is the drag area), the article keeps its own column (`MaxWidth` 680 at Medium, following the Text size), now centered in the
   whole window, and the scroll position, selection and focus stay. Pointer in that band shows the toolbar over it (no animation, no
   shift of the text, the hairline shown); it hides when the pointer leaves, unless the keyboard focus is in the toolbar or a menu from it is open.
-  Tab reaches the toolbar's buttons even while it is hidden, and a button taking the focus shows it. The toolbar's ends stay at the article column, but no
+  The hidden toolbar is only transparent, not removed, so Tab reaches its buttons and a button taking the focus shows it. The toolbar's ends stay at the article column, but no
   closer than 640 wide in all, so the buttons do not fold early in a wide window; below that the narrow-window steps apply as in the normal reader.
   Shown, the toolbar has one more button, "Exit immersive reading" (Lucide `minimize-2`, the toolbar button spec, tooltip "Exit immersive reading (Z)"), right
   before More; it exists only in immersive reading. There is no button that enters it: the key, the palette's "Immersive reading" action (reader only) and a
-  Timeline menu item of the same name without accelerator (enabled while the reader shows) do. J, K, N, S, M and O work as ever, so nothing needs the pointer.
-  Cmd/Ctrl+\ does nothing while it is on, and the device preference of the sidebar is not changed: leaving shows the sidebar as the preference says.
+  Timeline menu item of the same name without accelerator (it does nothing unless the reader shows) do. J, K, N, S, M and O work as ever, so nothing needs the pointer.
+  Cmd/Ctrl+\ leaves it too instead of toggling the sidebar; immersive reading never changes the device preference of the sidebar: leaving shows the sidebar as the preference says.
   It ends with the reader (back to the list, a lost session) and is not remembered across restarts. Resizing the window keeps it; the system's full screen is
   separate and untouched. Accessibility: entering announces "Immersive reading on" and leaving "Immersive reading off" with `Announce`, and the focus stays on the
   article (a focused toolbar button that disappears hands the focus to the article). Drawn in `design/screens/reader.html`, `immersive` and `immersive-bar`.
@@ -793,7 +793,7 @@ Overlays share focus and Escape behavior; see
   platform; no system vibrancy is used.
 - **Menus.** The macOS menu bar belongs to the app. Oriel's menu has an app menu (About, check for updates, Quit),
   the Edit menu (`RoleEditMenu`, so copy and paste work), the Timeline menu (the commands that have a single key:
-  show unread only, show all entries, show starred only, mark all as read, load new entries, and, while the reader shows, immersive reading; no accelerators, see
+  show unread only, show all entries, show starred only, mark all as read, load new entries, and, immersive reading (it does something only while the reader shows); no accelerators, see
   Timeline keys), a Subscriptions menu with "Refresh All" (Cmd/Ctrl+R) and the Window menu (`RoleWindowMenu`); "Connect to
   Server…" in the app menu opens the connect screen and "Settings…" (Cmd/Ctrl+,) the settings. Use roles
   (`RoleAbout`, `RoleQuit` and the others) for standard items: they carry the right label and shortcut, and items

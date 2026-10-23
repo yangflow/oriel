@@ -4591,7 +4591,7 @@ func TestRunCommands(t *testing.T) {
 		t.Fatalf("marked %v", f.marked)
 	}
 	name, items := TimelineMenu("en")
-	if name != "Timeline" || len(items) != 5 || items[3].Label != "Mark all as read" {
+	if name != "Timeline" || len(items) != 6 || items[3].Label != "Mark all as read" {
 		t.Fatalf("menu %q %v", name, items)
 	}
 	if name, _ := TimelineMenu("zh-Hans"); name != "时间线" {

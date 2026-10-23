@@ -42,6 +42,7 @@ type copy struct {
 	AddSource, EditSource, AddFirst, ImportOPML, RestoreBackup, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                  string
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                                                    string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
+	KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                                                     string
 	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                        string
 	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                         string
 	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                                        string
@@ -317,6 +318,7 @@ type Screen struct {
 	subs      *subscriptions.Screen // the dialogs that add and edit subscriptions
 	reader    *reader.Screen        // in the place of the list while an article is read
 	reading   int64                 // the entry read, 0 for none
+	immersive bool                  // immersive reading: the reader covers the sidebar and hides its toolbar; never kept
 	announce  string
 	toast     string
 	refresh   *refreshing // "refresh all" from the request to the result, nil for none
@@ -389,6 +391,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		Star:         func() { s.toggleStar(s.index(s.reading)) },
 		ToggleRead:   func() { s.toggleRead(s.index(s.reading)) },
 		OpenCopy:     s.showCopy,
+		Immerse:      s.toggleImmersive,
 	})
 	return s
 }
@@ -1755,7 +1758,7 @@ func (s *Screen) back() {
 	}
 	s.reader.Leave()
 	i := s.index(s.reading)
-	s.reading, s.copyID, s.seeking = 0, 0, false
+	s.reading, s.copyID, s.seeking, s.immersive = 0, 0, false, false
 	if i < 0 {
 		return
 	}
@@ -2289,7 +2292,13 @@ func (s *Screen) View(c *ui.Context) {
 		c.OnShortcut(ui.Cmd, ui.KeyN, s.subs.Add)
 		c.OnShortcut(ui.Cmd, ui.KeyR, s.RefreshAll)
 		c.OnShortcut(ui.Cmd, ui.KeySlash, s.ShowKeys)
-		c.OnShortcut(ui.Cmd, ui.KeyBackslash, s.toggleSidebar)
+		c.OnShortcut(ui.Cmd, ui.KeyBackslash, func() {
+			if s.immersive {
+				s.toggleImmersive()
+				return
+			}
+			s.toggleSidebar()
+		})
 		if m := s.undoable; m != nil && !s.typing && !s.filtering {
 			c.OnShortcut(ui.Cmd, ui.KeyZ, func() {
 				c.CloseToast(markedToast)
@@ -2303,7 +2312,11 @@ func (s *Screen) View(c *ui.Context) {
 	width, height := c.Size()
 	compact := width < 760
 	s.height = height
-	hidden := s.views().SidebarHidden
+	if s.reading == 0 {
+		s.immersive = false
+	}
+	// Immersive reading covers the sidebar without touching the preference, which comes back when it ends.
+	hidden := s.views().SidebarHidden || s.immersive
 	if v := s.viewerSet(); v != s.viewed {
 		// A viewer changed in Settings: the list is drawn again in place, at the entry that was first in view.
 		if s.viewed != (viewerSet{}) {
@@ -2327,7 +2340,7 @@ func (s *Screen) View(c *ui.Context) {
 		if s.reading != 0 {
 			e := s.shownCopy(s.entries[s.index(s.reading)])
 			s.reader.View(c, reader.Nav{Entry: e, Icon: s.bitmap(s.iconOf(e.SourceID)), Scope: s.scopeName(),
-				Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "", Keys: !open, Controls: hidden,
+				Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "", Keys: !open, Controls: hidden, Immersive: s.immersive,
 				Column: mainColumn(t, width, hidden, compact)})
 			return
 		}
@@ -2438,6 +2451,20 @@ func (s *Screen) toggleSidebar() {
 	s.deps.Change(p)
 }
 
+// toggleImmersive turns immersive reading on while an article is read, and off, and says so to screen readers. The
+// sidebar's focus goes with the sidebar. Outside the reader it does nothing.
+func (s *Screen) toggleImmersive() {
+	if s.reading == 0 {
+		return
+	}
+	s.immersive = !s.immersive
+	s.announce = s.text.ImmersiveOff
+	if s.immersive {
+		s.announce = s.text.ImmersiveOn
+		s.sideFocus, s.inSide, s.sideKeyed = false, false, false
+	}
+}
+
 // toList gives the focus back to the entry chosen, the first one when none is.
 func (s *Screen) toList() {
 	s.inSide = false
@@ -2528,6 +2555,7 @@ const (
 	ShowStarred
 	MarkAllRead
 	LoadNew
+	Immersive
 )
 
 // Run does the command, as its key or menu item does. Nothing happens while a dialog shows, and the commands that
@@ -2547,6 +2575,8 @@ func (s *Screen) Run(cmd Command) {
 		if s.reading == 0 {
 			s.markAll()
 		}
+	case Immersive:
+		s.toggleImmersive()
 	case LoadNew:
 		if s.fresh > 0 && s.reading == 0 {
 			s.renew()
@@ -2567,7 +2597,8 @@ type MenuItem struct {
 func TimelineMenu(systemLocale string) (name string, items []MenuItem) {
 	text := translations[locale.Language(systemLocale)]
 	return text.TimelineMenu, []MenuItem{{text.KeyUnread, ShowUnread}, {text.KeyAll, ShowAll},
-		{text.KeyStarred, ShowStarred}, {text.KeyMarkAll, MarkAllRead}, {text.KeyLoadNew, LoadNew}}
+		{text.KeyStarred, ShowStarred}, {text.KeyMarkAll, MarkAllRead}, {text.KeyLoadNew, LoadNew},
+		{text.KeyImmersive, Immersive}}
 }
 
 // RefreshMenuLabels are the Subscriptions menu and its item that refreshes all of them, in the language of the system
@@ -2619,7 +2650,8 @@ func (s *Screen) keySheet(c *ui.Context) {
 		{s.text.KeyBack, one("L", "→", "Esc")}, {s.text.KeyMenu, menu}, {s.text.KeyUndo, [][]string{{cmd, "Z"}}}}
 	reading := []key{{s.text.KeyNextArticle, one("J")}, {s.text.KeyPreviousArticle, one("K")},
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyStar, one("S")}, {s.text.KeyRead, one("M")},
-		{s.text.KeyOpenBrowser, one("O")}, {s.text.KeyBack, one("Esc")}}
+		{s.text.KeyOpenBrowser, one("O")}, {s.text.KeyImmersive, one("Z")}, {s.text.KeyImmersiveExit, one("Esc")},
+		{s.text.KeyBack, one("Esc")}}
 	anywhere := []key{{s.text.KeyPalette, [][]string{{cmd, "K"}}}, {s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.KeyAddContinue, [][]string{{cmd, "↩"}}}, {s.text.RefreshAll, [][]string{{cmd, "R"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
 		{s.text.KeyToggleSidebar, [][]string{{cmd, "\\"}}}, {s.text.KeyKeys, one("?")}}
 	ui.DialogBase(c, &s.keys, func(backdrop, panel ui.Element) {

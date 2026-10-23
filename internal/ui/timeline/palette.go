@@ -76,6 +76,13 @@ func (s *Screen) paletteItems() []paletteItem {
 		add(paletteItem{group: groupActions, name: strings.ReplaceAll(s.text.MarkAllIn, "{scope}", s.scopeName()),
 			icon: icons.CheckCheck, keys: []string{shiftKey(), "A"}, run: s.markAll})
 	}
+	if s.reading != 0 {
+		name, icon := s.text.KeyImmersive, icons.Maximize2
+		if s.immersive {
+			name, icon = s.text.PaletteExitImmersive, icons.Minimize2
+		}
+		add(paletteItem{group: groupActions, name: name, icon: icon, keys: []string{"Z"}, run: s.toggleImmersive})
+	}
 	add(paletteItem{group: groupActions, name: s.text.AddSource, icon: icons.Plus, keys: []string{cmd, "N"}, run: s.subs.Add})
 	add(paletteItem{group: groupActions, name: s.text.RefreshAll, icon: icons.RefreshCw, keys: []string{cmd, "R"}, run: s.RefreshAll})
 	add(paletteItem{group: groupActions, name: s.text.PaletteHealth, icon: icons.HeartPulse, run: s.subs.Health})
