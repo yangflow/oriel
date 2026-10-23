@@ -590,6 +590,100 @@ func TestImport(t *testing.T) {
 	}
 }
 
+func TestImportDropped(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	f.imported = client.Imported{Added: 3, Existing: 1}
+	s.ImportFiles([]string{writeOPML(t, "feeds.OPML", "<opml/>")})
+	tt.Frame()
+	if s.group != opml || !tt.HasText("Importing feeds.OPML") {
+		t.Fatalf("group %v, texts %v", s.group, tt.Texts())
+	}
+	f.settle(tt)
+	if len(f.sent) != 1 || string(f.sent[0]) != "<opml/>" || f.refreshed != 1 {
+		t.Fatalf("sent %q, refreshed %d", f.sent, f.refreshed)
+	}
+	if want := "Imported feeds.OPML: 3 added, 1 already subscribed."; !tt.HasText(want) {
+		t.Fatalf("no %q in %v", want, tt.Texts())
+	}
+}
+
+func TestImportDroppedNotOPML(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	s.ImportFiles([]string{writeOPML(t, "notes.txt", "hello")})
+	f.settle(tt)
+	if len(f.sent) != 0 || !tt.HasText("notes.txt is not an OPML file. Nothing was added.") {
+		t.Fatalf("sent %q, texts %v", f.sent, tt.Texts())
+	}
+}
+
+func TestImportDroppedSeveral(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	f.imported = client.Imported{Added: 2, Existing: 1, Failed: []client.ImportFail{
+		{Title: "Broken", Address: "ftp://example.com/feed", Error: "invalid_url"}}}
+	dir := t.TempDir()
+	paths := []string{
+		writeOPML(t, "a.opml", "<opml/>"),
+		filepath.Join(dir, "gone.opml"),
+		writeOPML(t, "big.xml", strings.Repeat("x", client.MaxOPML+1)),
+		writeOPML(t, "photo.png", "png"),
+		dir,
+		writeOPML(t, "b.xml", "<opml/>"),
+	}
+	s.ImportFiles(paths)
+	f.settle(tt)
+	if len(f.sent) != 2 || f.refreshed != 1 {
+		t.Fatalf("sent %d files, refreshed %d", len(f.sent), f.refreshed)
+	}
+	want := "Imported 6 files: 4 added, 2 already subscribed, 6 not added."
+	for _, text := range []string{want, "ftp://example.com/feed", "gone.opml", "Could not be read", "big.xml", "Larger than 1 MB",
+		"photo.png", "Not an OPML file"} {
+		if !tt.HasText(text) {
+			t.Errorf("no %q in %v", text, tt.Texts())
+		}
+	}
+}
+
+func TestImportDroppedAllFail(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	s.ImportFiles([]string{writeOPML(t, "a.txt", "x"), writeOPML(t, "b.txt", "x")})
+	f.settle(tt)
+	if s.result.tone != refused || f.refreshed != 0 || !tt.HasText("Imported 2 files: 0 added, 0 already subscribed, 2 not added.") {
+		t.Fatalf("result %+v, texts %v", s.result, tt.Texts())
+	}
+}
+
+func TestImportDroppedBusy(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	path := writeOPML(t, "a.opml", "<opml/>")
+	s.ImportFiles([]string{path})
+	tt.Frame()
+	s.ImportFiles([]string{path}) // while the first runs
+	tt.Frame()
+	if !tt.HasText(s.text.DropBusy) {
+		t.Fatalf("no busy message in %v", tt.Texts())
+	}
+	f.settle(tt)
+	if len(f.sent) != 1 {
+		t.Fatalf("sent %d files", len(f.sent))
+	}
+	s.confirming = true
+	s.ImportFiles([]string{path})
+	f.settle(tt)
+	if len(f.sent) != 1 {
+		t.Fatalf("sent %d files with a dialog open", len(f.sent))
+	}
+}
+
+func TestImportDroppedSignedOut(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	f.importErr = client.ErrUnauthorized
+	s.ImportFiles([]string{writeOPML(t, "a.opml", "<opml/>"), writeOPML(t, "b.opml", "<opml/>")})
+	f.settle(tt)
+	if len(f.sent) != 1 || s.api != nil || s.busy {
+		t.Fatalf("sent %d, api %v, busy %v", len(f.sent), s.api, s.busy)
+	}
+}
+
 func TestImportRefused(t *testing.T) {
 	s, f, tt := setup(t, "en", true)
 	s.group = opml

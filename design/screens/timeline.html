@@ -65,7 +65,8 @@
      (no-subscriptions-drop): a dashed 1.5 Accent outline inset 16 with radius 14 and a soft Accent fill, the tile and
      heading swapped for an upload mark and "Drop to import" with the hint "Release an OPML file to add its
      subscriptions." The words carry the state, not the color. Dropping opens Settings on Import and export, which
-     reads and imports it there; with subscriptions, or while a dialog is open, the timeline takes no drop.
+     reads and imports it there. Elsewhere in the window nothing lights up; a drop opens Settings on Import and export and
+     imports there. While a dialog is open the drop is refused with a toast (busy).
      Search: search is a result list with the matches highlighted (a fill and an underline, in the title and the
      summary only, at most 8 in each); search-operators is a query that uses from:, kind:, after: and -exclude,
      whose words stay as typed in the field, with no chips; search-syntax is the empty focused field with the one

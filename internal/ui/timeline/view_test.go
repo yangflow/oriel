@@ -5668,3 +5668,24 @@ func TestLimitedWithOperators(t *testing.T) {
 		}
 	}
 }
+
+// TestDropBusy turns a drop away, with a toast, while a dialog of the timeline is open.
+func TestDropBusy(t *testing.T) {
+	_, f, tt := setup(t, "en")
+	s := New("en", f.deps())
+	tt = ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	s.Use(f, "")
+	f.settle(t, tt)
+	if s.DropBusy() {
+		t.Fatal("a drop was turned away with no dialog open")
+	}
+	s.ShowKeys()
+	tt.Frame()
+	if !s.DropBusy() {
+		t.Fatal("a drop was taken with the key sheet open")
+	}
+	tt.Frame()
+	if !tt.HasText("Busy. Close the open window and try again.") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}

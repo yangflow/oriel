@@ -31,6 +31,7 @@ type home interface {
 	Run(cmd timeline.Command)
 	RefreshAll()
 	Check()
+	DropBusy() bool
 	View(c *ui.Context)
 }
 
@@ -76,6 +77,7 @@ func newShell(systemLocale, path, prefsPath string, local client.Session, goAsyn
 	s.newHome = func(language string) home {
 		return timeline.New(language, timeline.Deps{Go: goAsync, OpenConnect: s.openConnect,
 			OpenSettings: s.openSettings, OpenAISettings: s.openAISettings, OpenImport: s.openImportSettings,
+			DropFiles:        s.dropped,
 			OpenSettingsPage: s.openSettingsPage,
 			Expired:          s.expired,
 			Reading:          func() prefs.Preferences { return s.prefs }, ReadingFont: func() string { return s.face },
@@ -343,6 +345,23 @@ func (s *shell) openImportSettings() {
 	}
 	s.setting = true
 	s.settings.OpenImport()
+}
+
+// dropped imports the files dropped on the window, from the timeline's empty state or from any place no element
+// took them: it opens the settings on the import and export group, which show the result. The connect screen ignores
+// them; a dialog or an import under way turns them away with a toast.
+func (s *shell) dropped(paths []string) {
+	if s.showing || len(paths) == 0 {
+		return
+	}
+	if !s.setting {
+		if s.home.DropBusy() {
+			return
+		}
+		s.setting = true
+		s.settings.OpenImport()
+	}
+	s.settings.ImportFiles(paths)
 }
 
 // openSettingsPage shows the settings on the group called page, from the command palette of the timeline.
