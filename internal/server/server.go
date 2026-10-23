@@ -11,9 +11,11 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -195,8 +197,54 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("GET /api/routes", s.authed(s.findRoutes))
 	mux.HandleFunc("GET /api/routes/preview", s.authed(s.previewRoute))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "not_found") })
-	s.handler = mux
+	s.handler = s.guard(mux)
 	return s, nil
+}
+
+// guard turns away requests a browser page on another origin could make, and, without a password, requests that are
+// not addressed to a loopback host. Clients that are not browsers send no Origin, so they pass. The WebSub callback is
+// exempt from the host rule: hubs reach it through the public address the user forwards to this port.
+func (s *Server) guard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.derived == nil && !strings.HasPrefix(r.URL.Path, "/websub/") && !loopbackHost(r.Host) {
+			fail(w, http.StatusForbidden, "forbidden_host")
+			return
+		}
+		switch r.Method {
+		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+			if origin := r.Header.Get("Origin"); origin != "" {
+				u, err := url.Parse(origin)
+				if err != nil || !strings.EqualFold(u.Host, r.Host) {
+					fail(w, http.StatusForbidden, "forbidden_origin")
+					return
+				}
+			}
+			if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+				fail(w, http.StatusForbidden, "forbidden_origin")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// loopbackHost reports whether a Host header, port removed, names this machine: localhost or a loopback address.
+func loopbackHost(host string) bool {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.Trim(host, "[]"), ".")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && ip.IsLoopback()
+}
+
+// jsonContent reports whether the request declares a JSON body; parameters such as charset are allowed.
+func jsonContent(r *http.Request) bool {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	return err == nil && mediaType == "application/json"
 }
 
 // ServeHTTP implements http.Handler.
@@ -311,8 +359,8 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password string `json:"password"`
 	}
-	// A malformed body is treated as a wrong password, never as a field validation error.
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil {
+	// A malformed body, or one not declared as JSON, is treated as a wrong password, never as a field validation error.
+	if !jsonContent(r) || json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body) != nil {
 		s.throttle.fail(key, now)
 		fail(w, http.StatusUnauthorized, "wrong_password")
 		return

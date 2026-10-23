@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -130,8 +129,7 @@ func TestBackupFailureBeforeAnyByteIsAJSONError(t *testing.T) {
 		t.Fatal(err)
 	}
 	st.Close()
-	w := httptest.NewRecorder()
-	s.ServeHTTP(w, httptest.NewRequest("GET", "/api/backup", nil))
+	w := do(s, "GET", "/api/backup", "", nil)
 	if w.Code != http.StatusInternalServerError || decode(t, w)["error"] != "internal" {
 		t.Fatalf("%d %s", w.Code, w.Body)
 	}

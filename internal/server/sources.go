@@ -77,8 +77,13 @@ func toJSON(src store.Source) sourceJSON {
 	}
 }
 
-// readBody decodes a JSON body of at most maxBody bytes with no unknown fields, or replies invalid_body.
+// readBody decodes a JSON body of at most maxBody bytes with no unknown fields, or replies unsupported_media_type
+// when the request does not declare JSON, or invalid_body.
 func readBody(w http.ResponseWriter, r *http.Request, v any) bool {
+	if !jsonContent(r) {
+		fail(w, http.StatusUnsupportedMediaType, "unsupported_media_type")
+		return false
+	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(v); err != nil || decoder.More() {
