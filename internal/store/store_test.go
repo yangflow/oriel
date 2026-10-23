@@ -331,7 +331,10 @@ func TestEntries(t *testing.T) {
 	if page, _ := s.Entries(ctx, EntryFilter{After: &after}, 1); len(page) != 1 || page[0].ID != all[1].ID {
 		t.Fatalf("second page: %v", ids(page))
 	}
-	if got, _ := s.Entries(ctx, EntryFilter{Kind: "article", Query: `NATIVE "READ`}, 10); len(got) != 0 {
+	if got, _ := s.Entries(ctx, EntryFilter{Kind: "article", Query: `NATIVE "READ`}, 10); len(got) != 1 {
+		t.Fatalf("an open quote is a phrase to the end: %v", ids(got))
+	}
+	if got, _ := s.Entries(ctx, EntryFilter{Kind: "article", Query: `NATIVE "NOPE`}, 10); len(got) != 0 {
 		t.Fatalf("a quote matched: %v", ids(got))
 	}
 	if got, _ := s.Entries(ctx, EntryFilter{Kind: "article", Query: "NATIVE READ"}, 10); len(got) != 1 || got[0].Title != "Native readers" {
@@ -910,22 +913,23 @@ func TestSearchTextIsLiteral(t *testing.T) {
 		return titles
 	}
 	for query, want := range map[string]string{
-		"cats OR dogs": "Cats OR dogs", // OR is a word, not "cats or dogs"
-		"dogs OR cats": "",             // the phrase order matters
-		"NEAR the":     "Plain cats",
-		"cats":         "Cats OR dogs|Plain cats",
-		"f(x):":        "C++ and f(x): a -b test",
-		"wild*":        "C++ and f(x): a -b test",
-		"nothing here": "",
-		`"`:            "",
-		`""`:           "",
-		`cats" OR "a`:  "",
-		"title:cats":   "",
-		"NOT cats":     "",
-		"c++ and":      "C++ and f(x): a -b test",
-		"CATS":         "Cats OR dogs|Plain cats",
-		"quiet note":   "Cats OR dogs",
-		"note quiet":   "",
+		"cats OR dogs":   "Cats OR dogs", // OR is a word, not "cats or dogs"
+		"dogs OR cats":   "Cats OR dogs", // words are all required, in any order
+		`"dogs OR cats"`: "",             // a phrase keeps its order
+		"NEAR the":       "Plain cats",
+		"cats":           "Cats OR dogs|Plain cats",
+		"f(x):":          "C++ and f(x): a -b test",
+		"wild*":          "C++ and f(x): a -b test",
+		"nothing here":   "",
+		`"nothing`:       "",
+		`cats" OR "a`:    "",
+		"title:cats":     "",
+		"NOT cats":       "Cats OR dogs", // NOT is a word; "note" has it
+		"c++ and":        "C++ and f(x): a -b test",
+		"CATS":           "Cats OR dogs|Plain cats",
+		"quiet note":     "Cats OR dogs",
+		"note quiet":     "Cats OR dogs",
+		`"note quiet"`:   "",
 	} {
 		if got := strings.Join(search(query), "|"); got != want {
 			t.Errorf("search %q = %q, want %q", query, got, want)

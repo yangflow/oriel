@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/yangflow/oriel/internal/search"
 	"modernc.org/sqlite"
 )
 
@@ -73,14 +74,15 @@ type EntryFilter struct {
 	Kind          string
 	Unread        bool
 	Starred       bool
-	MaxReadingSec int       // only entries that take at most this many seconds; unknown ones never match; 0 does not filter
-	Query         string    // matched as one phrase in the full-text index
-	Oldest        bool      // list oldest first instead of newest first
-	After         *Position // the next page after this position: older entries, or newer ones when Oldest
-	UpTo          *Position // only this position and older ones
-	Newer         *Position // only entries newer than this position
-	From          *Position // only this position and newer ones
-	OlderThan     int64     // only entries shown as before this time, in Unix milliseconds: published_at, else created_at; 0 does not filter
+	MaxReadingSec int            // only entries that take at most this many seconds; unknown ones never match; 0 does not filter
+	Query         string         // the search syntax of internal/search; words, phrases and exclusions use the full-text index
+	Location      *time.Location // where after: and before: days begin; nil is time.Local
+	Oldest        bool           // list oldest first instead of newest first
+	After         *Position      // the next page after this position: older entries, or newer ones when Oldest
+	UpTo          *Position      // only this position and older ones
+	Newer         *Position      // only entries newer than this position
+	From          *Position      // only this position and newer ones
+	OlderThan     int64          // only entries shown as before this time, in Unix milliseconds: published_at, else created_at; 0 does not filter
 	// Group shows entries with the same link once: only the earliest visible one of them matches, and read and starred are
 	// those of the whole group. It has no effect with SourceID or Query set.
 	Group bool
@@ -149,29 +151,84 @@ func muted(keywords, title, summary string) bool {
 	return false
 }
 
-// MinIndexedQuery is the fewest characters the trigram index can match; a shorter query is a ShortQuery.
-const MinIndexedQuery = 3
-
-// ShortQuery reports whether q is a search of one or two characters, which the index cannot answer. It is matched
-// against the title and the summary only, by LIKE.
-func ShortQuery(q string) bool {
-	return q != "" && utf8.RuneCountInString(q) < MinIndexedQuery
+// searching reports whether the filter has a search: any non-empty query, even one of operators only.
+func (f EntryFilter) searching() bool {
+	return !search.Parse(f.Query).None()
 }
 
 // likeEscaper escapes the characters LIKE treats as patterns, with backslash as the escape character.
 var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
 
+// shownAt is the time an entry is shown as: published_at, else created_at, in Unix milliseconds.
+const shownAt = "coalesce(nullif(e.published_at, 0), e.created_at)"
+
+// displayName is the name of the subscription as the timeline shows it.
+const displayName = "CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN s.url ELSE s.rsshub_path END"
+
+// searchWhere adds the conditions of a parsed search. Words and phrases must all match and exclusions must not; a term
+// of fewer than three characters cannot use the trigram index and is matched by LIKE on the title and the summary. Any
+// of the from: names and any of the kinds may match; after: and before: bound the time the entry is shown as.
+func (f EntryFilter) searchWhere(q search.Query, add func(string, ...any)) {
+	term := func(t string) (string, []any) {
+		if utf8.RuneCountInString(t) < search.MinIndexed {
+			pattern := "%" + likeEscaper.Replace(t) + "%"
+			return `(coalesce(e.title, '') LIKE ? ESCAPE '\' OR coalesce(e.rss_summary, '') LIKE ? ESCAPE '\')`, []any{pattern, pattern}
+		}
+		return "e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH ?)", []any{`"` + strings.ReplaceAll(t, `"`, `""`) + `"`}
+	}
+	for _, t := range q.Include {
+		condition, args := term(t)
+		add(condition, args...)
+	}
+	for _, t := range q.Exclude {
+		condition, args := term(t)
+		add("NOT ("+condition+")", args...)
+	}
+	if len(q.From) > 0 {
+		var ors []string
+		var args []any
+		for _, name := range q.From {
+			ors = append(ors, `lower(`+displayName+`) LIKE ? ESCAPE '\'`)
+			args = append(args, "%"+likeEscaper.Replace(strings.ToLower(name))+"%")
+		}
+		add("("+strings.Join(ors, " OR ")+")", args...)
+	}
+	if len(q.Kinds) > 0 {
+		add("e.kind IN ("+strings.TrimSuffix(strings.Repeat("?,", len(q.Kinds)), ",")+")", stringArgs(q.Kinds)...)
+	}
+	loc := f.Location
+	if loc == nil {
+		loc = time.Local
+	}
+	if q.After != nil {
+		add(shownAt+" >= ?", q.After.Start(loc).UnixMilli())
+	}
+	if q.Before != nil {
+		add(shownAt+" < ?", q.Before.Start(loc).UnixMilli())
+	}
+}
+
+func stringArgs(values []string) []any {
+	args := make([]any, len(values))
+	for i, v := range values {
+		args[i] = v
+	}
+	return args
+}
+
 // where turns a filter into conditions on entries e joined with sources s. Muted entries never match.
 func (f EntryFilter) where() (string, []any) {
 	conditions := []string{shown}
 	var args []any
+	query := search.Parse(f.Query)
+	searching := !query.None()
 	add := func(condition string, values ...any) {
 		conditions = append(conditions, condition)
 		args = append(args, values...)
 	}
 	if f.SourceID != 0 {
 		add("e.source_id = ?", f.SourceID)
-	} else if f.Query == "" {
+	} else if !searching {
 		add(live)
 	}
 	// Inside one source the source index already gives the order. The unary plus keeps the kind and unread
@@ -185,7 +242,7 @@ func (f EntryFilter) where() (string, []any) {
 	if f.Kind != "" {
 		add(column("e.kind")+" = ?", f.Kind)
 	}
-	grouped := f.Group && f.SourceID == 0 && f.Query == ""
+	grouped := f.Group && f.SourceID == 0 && !searching
 	visible := " AND " + visibleCopy
 	if grouped {
 		// Only the earliest visible copy of an article is a row.
@@ -207,13 +264,7 @@ func (f EntryFilter) where() (string, []any) {
 	if f.MaxReadingSec > 0 {
 		add("e.reading_sec <= ?", f.MaxReadingSec) // NULL never compares true
 	}
-	if ShortQuery(f.Query) {
-		// The trigram index cannot match fewer than three characters: scan the title and the summary instead.
-		pattern := "%" + likeEscaper.Replace(f.Query) + "%"
-		add(`(e.title LIKE ? ESCAPE '\' OR e.rss_summary LIKE ? ESCAPE '\')`, pattern, pattern)
-	} else if f.Query != "" {
-		add("e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH ?)", `"`+strings.ReplaceAll(f.Query, `"`, `""`)+`"`)
-	}
+	f.searchWhere(query, add)
 	if f.After != nil {
 		if f.Oldest {
 			add("(e.created_at, e.id) > (?, ?)", f.After.CreatedAt, f.After.ID)
@@ -231,7 +282,7 @@ func (f EntryFilter) where() (string, []any) {
 		add("(e.created_at, e.id) >= (?, ?)", f.From.CreatedAt, f.From.ID)
 	}
 	if f.OlderThan > 0 {
-		add("coalesce(nullif(e.published_at, 0), e.created_at) < ?", f.OlderThan)
+		add(shownAt+" < ?", f.OlderThan)
 	}
 	return strings.Join(conditions, " AND "), args
 }
@@ -276,7 +327,7 @@ func (s *Store) Entries(ctx context.Context, filter EntryFilter, limit int) ([]E
 		return nil, err
 	}
 	rows.Close()
-	if filter.Group && filter.SourceID == 0 && filter.Query == "" {
+	if filter.Group && filter.SourceID == 0 && !filter.searching() {
 		err = s.AttachGroups(ctx, entries)
 	}
 	return entries, err
@@ -406,7 +457,7 @@ func (s *Store) MarkRead(ctx context.Context, filter EntryFilter, now time.Time)
 	where, args := filter.where()
 	query := "SELECT e.id FROM entries e JOIN sources s ON s.id = e.source_id WHERE " + where
 	args = append([]any{now.UnixMilli()}, args...)
-	if filter.Group && filter.SourceID == 0 && filter.Query == "" {
+	if filter.Group && filter.SourceID == 0 && !filter.searching() {
 		query += " UNION SELECT m.id FROM entries e JOIN sources s ON s.id = e.source_id JOIN entries m ON m.link_key = e.link_key AND m.link_key <> '' " +
 			"JOIN sources ms ON ms.id = m.source_id WHERE " + where + " AND " + visibleCopy
 		args = append(args, args[1:]...)

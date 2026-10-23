@@ -747,3 +747,60 @@ func TestShortSearchLimit(t *testing.T) {
 		}
 	}
 }
+
+// TestSearchSyntax checks the operators over the API: an operators-only search pages like the timeline and is not
+// limited, a short term makes the reply limited, and after: and before: begin their days in the zone of the tz
+// parameter, falling back to the zone of the server, with no error, when it is missing, unknown or Local.
+func TestSearchSyntax(t *testing.T) {
+	s, c := newServer(t, "")
+	ctx := context.Background()
+	blog, _ := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/blog", Kind: "article", FetchInterval: time.Hour}, "Blog", c.t)
+	tube, _ := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/tube", Kind: "video", FetchInterval: time.Hour}, "Tube", c.t)
+	at := func(day, hour int) time.Time { return time.Date(2026, 2, day, hour, 0, 0, 0, time.UTC) }
+	for src, items := range map[store.Source][]store.FeedEntry{
+		blog: {{GUID: "1", Title: "Early post", PublishedAt: at(10, 1)}, {GUID: "2", Title: "Late post", PublishedAt: at(10, 20)}, {GUID: "3", Title: "Third post", PublishedAt: at(11, 5)}},
+		tube: {{GUID: "4", Title: "A clip", PublishedAt: at(10, 12)}},
+	} {
+		if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: src.Kind}, "", "", items, "", time.Time{}, c.t); err != nil {
+			t.Fatal(err)
+		}
+	}
+	get := func(target string) (map[string]any, []string) {
+		t.Helper()
+		w := do(s, "GET", target, "", nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", target, w.Code, w.Body)
+		}
+		body := decode(t, w)
+		got := titles(t, body)
+		slices.Sort(got)
+		return body, got
+	}
+	q := func(query, extra string) string { return "/api/entries?q=" + url.QueryEscape(query) + extra }
+
+	body, got := get(q("kind:article -late", "&limit=1"))
+	if len(got) != 1 || body["nextCursor"] == nil || body["limited"] != nil {
+		t.Errorf("operators only: %v, next %v, limited %v", got, body["nextCursor"], body["limited"])
+	}
+	if body, got := get(q(`from:blog "post" -ar`, "")); fmt.Sprint(got) != "[Late post Third post]" || body["limited"] != true {
+		t.Errorf("short exclusion: %v, limited %v", got, body["limited"])
+	}
+
+	// The days are those of the zone asked for; without one they are those of the server, here UTC.
+	local := time.Local
+	time.Local = time.UTC
+	defer func() { time.Local = local }()
+	day := q("after:2026-02-10 before:2026-02-11", "")
+	for _, c := range []struct{ tz, want string }{
+		{"&tz=Asia/Shanghai", "[A clip Early post]"},
+		{"&tz=Pacific/Honolulu", "[A clip Late post Third post]"},
+		{"", "[A clip Early post Late post]"},
+		{"&tz=Local", "[A clip Early post Late post]"},
+		{"&tz=Not/AZone", "[A clip Early post Late post]"},
+		{"&tz=..%2F..%2Fetc%2Fpasswd", "[A clip Early post Late post]"},
+	} {
+		if _, got := get(day + c.tz); fmt.Sprint(got) != c.want {
+			t.Errorf("tz %q: %v, want %s", c.tz, got, c.want)
+		}
+	}
+}
