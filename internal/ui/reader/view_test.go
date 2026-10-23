@@ -133,6 +133,7 @@ func (f *fake) deps() Deps {
 		ToggleRead:   func() { f.calls = append(f.calls, "read") },
 		OpenSettings: func() { f.calls = append(f.calls, "settings") },
 		OpenCopy:     func(id int64) { f.calls = append(f.calls, fmt.Sprintf("copy %d", id)) },
+		Immerse:      func() { f.calls = append(f.calls, "immerse") },
 		Save: func(name, filter string) (string, error) {
 			f.dialogs = append(f.dialogs, name+" | "+filter)
 			return f.saveTo, nil

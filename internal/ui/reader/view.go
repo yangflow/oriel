@@ -41,6 +41,7 @@ type copy struct {
 	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint         string
 	SelectionAIOff, ExplanationReady, TranslateDone, LanguageZhHans, LanguageEn                                   string
 	AlsoHead                                                                                                      string
+	ExitImmersive                                                                                                 string
 	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles        string
 }
 
@@ -78,7 +79,8 @@ type API interface {
 // the font list of the article's body, "" (and nil) for the interface font; the shell works it out when the
 // preferences or the installed fonts change. Save asks where to save a file, offered under name and with the filter
 // label, and returns the path chosen, "" when none was; it runs off the UI thread. OpenCopy shows the copy of the
-// article that has the entry id, from the line of the other sources that carry it.
+// article that has the entry id, from the line of the other sources that carry it. Immerse turns immersive reading on
+// or off; the timeline owns it, as it owns the sidebar the reading covers.
 type Deps struct {
 	Go           func(work func() (apply func()))
 	Now          func() time.Time
@@ -94,6 +96,7 @@ type Deps struct {
 	ReadingFont  func() string
 	Save         func(name, filter string) (string, error)
 	OpenCopy     func(id int64)
+	Immerse      func()
 }
 
 // Nav is what the timeline tells the reader each frame: the entry as the list has it, with its read and starred
@@ -108,6 +111,7 @@ type Nav struct {
 	Keys           bool
 	Controls       bool
 	Column         float32 // width of the column the reader fills, which decides what the toolbar moves into More; 0 is the window
+	Immersive      bool    // immersive reading is on: the toolbar shows only under the pointer or with the focus in it
 }
 
 const (
@@ -781,10 +785,14 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 					s.openOriginal(c)
 				}
 			}},
+			{ui.KeyZ, s.immerse},
 			{ui.KeyEscape, func() {
-				if s.sel.on {
+				switch {
+				case s.sel.on:
 					s.closeSelection()
-				} else {
+				case nav.Immersive:
+					s.immerse()
+				default:
 					s.deps.Back()
 				}
 			}},
@@ -795,7 +803,8 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	width, _ := c.Size()
 	narrow := width < 760
 	// The toolbar row floats over the article, which scrolls under it and fades under the scroll edge.
-	ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+	// The column keeps its identity when the sidebar beside it comes and goes, so the focus in the article stays.
+	ui.Column(c).Key("reader").Grow(1).MinWidth(0).Children(func() {
 		switch {
 		case s.failed:
 			s.empty(c, icons.WifiOff, t.Danger, s.text.Error, s.text.ErrorHint, func() {
@@ -817,6 +826,13 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	s.Flush(c)
 }
 
+// immerse turns immersive reading on or off, as Z does.
+func (s *Screen) immerse() {
+	if s.deps.Immerse != nil {
+		s.deps.Immerse()
+	}
+}
+
 func (s *Screen) toolbar(c *ui.Context, nav Nav, ready, narrow bool) {
 	t := c.Theme()
 	e := nav.Entry
@@ -836,13 +852,18 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready, narrow bool) {
 		left = max(left, bar.Left-edge)
 	}
 	right = max(right, bar.Right-edge)
-	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).DragWindow().
-		Children(func() {
-			ui.Row(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Height(theme.Bar).AlignItems(ui.Center).
-				Gap(theme.Px(t, 4)).Padding(0, right, 0, left).Children(func() {
-				s.toolbarItems(c, nav, e, ready, narrow)
-			})
+	row := ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).DragWindow().Key("toolbar")
+	// In immersive reading the toolbar is only transparent while it is not wanted, so its buttons keep their place in the
+	// tab order and one that takes the focus brings it back.
+	if nav.Immersive && !row.Hovered() && !row.FocusWithin() {
+		row.Opacity(0)
+	}
+	row.Children(func() {
+		ui.Row(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Height(theme.Bar).AlignItems(ui.Center).
+			Gap(theme.Px(t, 4)).Padding(0, right, 0, left).Children(func() {
+			s.toolbarItems(c, nav, e, ready, narrow)
 		})
+	})
 }
 
 func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, narrow bool) {
@@ -939,6 +960,9 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 		if s.tool(c, bt.icon, bt.label, bt.key, theme.ToolState{Disabled: bt.disabled}).Clicked() {
 			bt.do()
 		}
+	}
+	if nav.Immersive && s.tool(c, icons.Minimize2, s.text.ExitImmersive, "Z", theme.ToolState{}).Clicked() {
+		s.immerse()
 	}
 	s.tool(c, icons.Ellipsis, s.text.More, "", theme.ToolState{Disabled: !ready}).Menu(func(m *ui.Menu) {
 		for _, bt := range buttons[inline:] {

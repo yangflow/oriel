@@ -58,6 +58,8 @@ var (
 	ListFilter     = parse("list-filter")
 	LoaderCircle   = parse("loader-circle")
 	LockKeyhole    = parse("lock-keyhole")
+	Maximize2      = parse("maximize-2")
+	Minimize2      = parse("minimize-2")
 	Mail           = parse("mail")
 	MailOpen       = parse("mail-open")
 	MessageCircle  = parse("message-circle")
