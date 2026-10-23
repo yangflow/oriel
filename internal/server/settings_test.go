@@ -26,7 +26,7 @@ func TestSettings(t *testing.T) {
 		body["rsshubBaseUrl"] != "" || len(body["rsshubBaseUrls"].([]any)) != 0 || body["retentionDays"] != 0.0 || body["aiBaseUrl"] != "" || body["aiModel"] != "" ||
 		body["aiApiKeySet"] != true || body["aiLanguage"] != "zh-Hans" || body["promptSummary"] != ai.DefaultPromptSummary ||
 		body["promptTranslate"] != ai.DefaultPromptTranslate || body["defaultPromptSummary"] != ai.DefaultPromptSummary ||
-		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 32 || body["groupSameLink"] != true || body["websubBaseUrl"] != "" || body["aiSummaryLimit"] != 24000.0 ||
+		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 34 || body["proxyUrl"] != "" || body["proxyAuthSet"] != false || body["groupSameLink"] != true || body["websubBaseUrl"] != "" || body["aiSummaryLimit"] != 24000.0 ||
 		body["aiChunkLimit"] != 6000.0 || body["defaultAiSummaryLimit"] != 24000.0 || body["defaultAiChunkLimit"] != 6000.0 {
 		t.Fatalf("defaults: %d %s", w.Code, w.Body)
 	}
@@ -222,5 +222,49 @@ func TestSettingsPatchIsAllOrNothing(t *testing.T) {
 		if got := decode(t, do(s, "PATCH", "/api/settings", body, bearer(token)))["aiSummaryLimit"]; got != want {
 			t.Errorf("%s: %v", body, got)
 		}
+	}
+}
+
+func TestSettingsProxy(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	for _, body := range []string{`{"proxyUrl":"ftp://127.0.0.1:21"}`, `{"proxyUrl":"not a url"}`, `{"proxyUrl":"http://"}`} {
+		if w := do(s, "PATCH", "/api/settings", body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_proxy_url" {
+			t.Errorf("patch %s: %d %s", body, w.Code, w.Body)
+		}
+	}
+	if w := do(s, "PATCH", "/api/settings", `{"proxyUser":"`+strings.Repeat("a", fetch.MaxProxyCredential+1)+`"}`, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_proxy_credentials" {
+		t.Errorf("long user: %d %s", w.Code, w.Body)
+	}
+
+	w := do(s, "PATCH", "/api/settings", `{"proxyUrl":" socks5://127.0.0.1:1080 ","proxyUser":"alice","proxyPassword":"pw-secret-1"}`, bearer(token))
+	body := decode(t, w)
+	if w.Code != http.StatusOK || body["proxyUrl"] != "socks5://127.0.0.1:1080" || body["proxyAuthSet"] != true ||
+		strings.Contains(w.Body.String(), "alice") || strings.Contains(w.Body.String(), "pw-secret-1") {
+		t.Fatalf("set: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "GET", "/api/settings", "", bearer(token)); strings.Contains(w.Body.String(), "alice") || strings.Contains(w.Body.String(), "pw-secret-1") || decode(t, w)["proxyAuthSet"] != true {
+		t.Fatalf("get: %s", w.Body)
+	}
+	if u, _ := s.store.Setting(ctx, fetch.ProxyUserSetting); u != "alice" {
+		t.Fatalf("stored user %q", u)
+	}
+
+	// The same address keeps the credentials; another address deletes them.
+	if body := decode(t, do(s, "PATCH", "/api/settings", `{"proxyUrl":"socks5://127.0.0.1:1080"}`, bearer(token))); body["proxyAuthSet"] != true {
+		t.Fatalf("same address: %v", body)
+	}
+	if body := decode(t, do(s, "PATCH", "/api/settings", `{"proxyUrl":"http://127.0.0.1:7890"}`, bearer(token))); body["proxyUrl"] != "http://127.0.0.1:7890" || body["proxyAuthSet"] != false {
+		t.Fatalf("new address: %v", body)
+	}
+	if p, _ := s.store.Setting(ctx, fetch.ProxyPasswordSetting); p != "" {
+		t.Fatalf("password kept: %q", p)
+	}
+	if body := decode(t, do(s, "PATCH", "/api/settings", `{"proxyUrl":"http://127.0.0.1:1","proxyPassword":"pw2"}`, bearer(token))); body["proxyAuthSet"] != true {
+		t.Fatalf("new address with password: %v", body)
+	}
+	if body := decode(t, do(s, "PATCH", "/api/settings", `{"proxyUrl":""}`, bearer(token))); body["proxyUrl"] != "" || body["proxyAuthSet"] != false {
+		t.Fatalf("cleared: %v", body)
 	}
 }

@@ -24,7 +24,7 @@ func (p *Poller) fillIcon(ctx context.Context, src store.FeedSource, feed parsed
 		if site == "" || site == src.IconCheckedSite {
 			return nil
 		}
-		doc, page, err := p.page(ctx, site, "")
+		doc, page, err := p.page(ctx, site, "", src.Proxy)
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()

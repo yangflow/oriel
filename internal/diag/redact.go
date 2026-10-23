@@ -14,7 +14,7 @@ const maxText = 300
 
 var (
 	address    = regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.\-]*://[^\s"'<>\\]+`)
-	assignment = regexp.MustCompile(`(?i)([\w.\-]*(?:key|token|password|passwd|secret|credential|authorization|cookie|signature)[\w.\-]*)=[^\s&"']+`)
+	assignment = regexp.MustCompile(`(?i)([\w.\-]*(?:key|token|password|passwd|secret|credential|authorization|cookie|signature|proxy)[\w.\-]*)=[^\s&"']+`)
 	bearer     = regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]+`)
 )
 
@@ -22,7 +22,7 @@ var (
 var home, _ = os.UserHomeDir()
 
 // sensitive are the words in the name of an attribute that make its value a secret.
-var sensitive = []string{"key", "token", "password", "passwd", "secret", "credential", "authorization", "cookie", "signature"}
+var sensitive = []string{"key", "token", "password", "passwd", "secret", "credential", "authorization", "cookie", "signature", "proxy"}
 
 // Sensitive reports whether an attribute with this name must not be written at all.
 func Sensitive(name string) bool {

@@ -31,17 +31,18 @@ type WebSub struct {
 	NextAt      time.Time // when the next request or renewal is due
 	Failures    int
 	Error       string // why the last request failed
+	Proxy       SourceProxy
 }
 
 const webSubColumns = `id, paused, websub_hub, websub_topic, websub_key, websub_secret, websub_state, websub_expires_at,
-	websub_requested_at, websub_base, websub_next_at, websub_failures, websub_error`
+	websub_requested_at, websub_base, websub_next_at, websub_failures, websub_error, proxy, proxy_user, proxy_password`
 
 func scanWebSub(row interface{ Scan(...any) error }) (WebSub, error) {
 	var w WebSub
 	var expires, requested sql.NullInt64
 	var next int64
 	if err := row.Scan(&w.SourceID, &w.Paused, &w.Hub, &w.Topic, &w.Key, &w.Secret, &w.State, &expires, &requested,
-		&w.Base, &next, &w.Failures, &w.Error); err != nil {
+		&w.Base, &next, &w.Failures, &w.Error, &w.Proxy.URL, &w.Proxy.User, &w.Proxy.Password); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return WebSub{}, ErrNotFound
 		}

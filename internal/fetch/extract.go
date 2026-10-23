@@ -204,7 +204,7 @@ func (p *Poller) startExtractions(ctx context.Context, limit int, tried map[int6
 // extractOne extracts one article and saves the result. Hold and retry times count from the moment of the failure,
 // not from when the attempt started.
 func (p *Poller) extractOne(ctx context.Context, target store.ExtractTarget, address, host string) {
-	content, err := p.extract(ctx, address, target.Selector, target.Referer)
+	content, err := p.extract(ctx, address, target.Selector, target.Referer, target.Proxy)
 	if ctx.Err() != nil {
 		return // shutting down: the attempt does not count
 	}
@@ -238,8 +238,8 @@ func targetAddress(target store.ExtractTarget) (string, error) {
 // extract downloads an article page through the guarded client and returns its main content as HTML. A selector, when
 // the page has a readable element for it, names the content; otherwise the page is extracted automatically. A
 // referer, when not empty, is sent with the request.
-func (p *Poller) extract(ctx context.Context, address, selector, referer string) (string, error) {
-	doc, page, err := p.page(ctx, address, referer)
+func (p *Poller) extract(ctx context.Context, address, selector, referer string, via store.SourceProxy) (string, error) {
+	doc, page, err := p.page(ctx, address, referer, via)
 	if err != nil {
 		return "", err
 	}
@@ -262,7 +262,7 @@ func (p *Poller) extract(ctx context.Context, address, selector, referer string)
 // page downloads a web page through the guarded client and parses it. The returned address is the one
 // reached after redirects, which relative links resolve against. A referer, when not empty, is the only header sent
 // besides the User-Agent.
-func (p *Poller) page(ctx context.Context, address, referer string) (*html.Node, *url.URL, error) {
+func (p *Poller) page(ctx context.Context, address, referer string, via store.SourceProxy) (*html.Node, *url.URL, error) {
 	page, err := url.Parse(address)
 	if err != nil || (page.Scheme != "http" && page.Scheme != "https") {
 		return nil, nil, permanent(fmt.Errorf("not a web address: %q", address))
@@ -275,7 +275,11 @@ func (p *Poller) page(ctx context.Context, address, referer string) (*html.Node,
 	if referer != "" {
 		req.Header.Set("Referer", referer)
 	}
-	resp, err := p.guarded.Do(req)
+	client, err := p.network.Guarded(ctx, via, p.guarded)
+	if err != nil {
+		return nil, nil, &extractError{error: err, temporary: true}
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		// A blocked address will not open up by waiting; a network failure may pass.
 		return nil, nil, &extractError{error: err, temporary: !errors.Is(err, ErrBlockedAddress)}

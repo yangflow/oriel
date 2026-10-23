@@ -116,6 +116,8 @@ type Server struct {
 	imports      importState
 	importClient func() *importer.Client // makes the client of one import; tests replace it
 
+	settingsMu sync.Mutex // serializes settings updates
+
 	vacuumMu sync.Mutex // guards vacuum
 	vacuum   vacuumState
 

@@ -26,6 +26,11 @@ const (
 	checkpoint    = "PRAGMA wal_checkpoint(TRUNCATE)"
 )
 
+// secretSettings are the settings a backup leaves out and a restore keeps: the API key and the credentials of the
+// global fetch proxy (the values of ai.APIKeySetting and fetch.ProxyUserSetting and ProxyPasswordSetting, which this
+// package cannot import). The credentials of each source's own proxy are columns and are cleared from the snapshot.
+const secretSettings = "('" + apiKeySetting + "', 'fetch_proxy_user', 'fetch_proxy_password')"
+
 // MaxBackup is the largest snapshot a restore unpacks, and the upload limit the server uses.
 const MaxBackup = 4 << 30
 
@@ -119,7 +124,8 @@ func strip(ctx context.Context, snapshot string) (int, error) {
 	for _, stmt := range []string{
 		"DELETE FROM sessions",
 		"DELETE FROM sources WHERE deleted_at IS NOT NULL",
-		"DELETE FROM settings WHERE key = '" + apiKeySetting + "'",
+		"DELETE FROM settings WHERE key IN " + secretSettings,
+		"UPDATE sources SET proxy_user = '', proxy_password = ''",
 		"INSERT INTO entries_fts (entries_fts) VALUES ('delete-all')",
 		"VACUUM",
 	} {
@@ -308,7 +314,7 @@ func (r *Restore) Apply(ctx context.Context) (result RestoreResult, err error) {
 	for i := len(tables) - 1; i >= 0; i-- {
 		stmt := "DELETE FROM main." + quote(tables[i])
 		if tables[i] == "settings" {
-			stmt += " WHERE key <> '" + apiKeySetting + "'"
+			stmt += " WHERE key NOT IN " + secretSettings
 		}
 		if _, err := conn.ExecContext(ctx, stmt); err != nil {
 			return result, fmt.Errorf("clear %s: %w", tables[i], err)
@@ -321,7 +327,7 @@ func (r *Restore) Apply(ctx context.Context) (result RestoreResult, err error) {
 		}
 		stmt := fmt.Sprintf("INSERT INTO main.%[1]s (%[2]s) SELECT %[2]s FROM backup.%[1]s", quote(table), columns)
 		if table == "settings" {
-			stmt += " WHERE key <> '" + apiKeySetting + "'"
+			stmt += " WHERE key NOT IN " + secretSettings
 		}
 		if _, err := conn.ExecContext(ctx, stmt); err != nil {
 			return result, fmt.Errorf("restore %s: %w", table, err)

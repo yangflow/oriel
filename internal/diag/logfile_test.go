@@ -120,11 +120,11 @@ func TestFileHandlerRedacts(t *testing.T) {
 	var out bytes.Buffer
 	log := slog.New(NewFileHandler(&out)).With("api_key", "sk-123").WithGroup("req")
 	log.Info("Fetched https://user:pw@feeds.example.com:8443/a/b?token=abc",
-		"url", "https://b.example/p?q=1", "password", "pw", "n", 3,
+		"url", "https://b.example/p?q=1", "password", "pw", "fetch_proxy", "10.9.8.7:1080", "n", 3,
 		"error", errors.New("open "+filepath.Join(home, "Oriel", "x")+": denied token=t0k3n"),
 		slog.Group("auth", slog.String("cookie", "c00kie"), slog.String("ok", "fine")))
 	text := out.String()
-	for _, secret := range []string{"sk-123", "user:pw", "/a/b", "token=abc", "/p?q=1", "pw\"", "someone", "t0k3n", "c00kie"} {
+	for _, secret := range []string{"sk-123", "user:pw", "/a/b", "token=abc", "/p?q=1", "pw\"", "someone", "t0k3n", "c00kie", "10.9.8.7"} {
 		if strings.Contains(text, secret) {
 			t.Errorf("the log has %q: %s", secret, text)
 		}

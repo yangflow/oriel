@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/yangflow/oriel/internal/diag"
+	"github.com/yangflow/oriel/internal/store"
 	"github.com/yangflow/oriel/internal/tracker"
 )
 
@@ -40,6 +41,7 @@ var errNotWebAddress = errors.New("not a web address")
 // Images downloads pictures found inside feeds for the interface, through the guarded client.
 type Images struct {
 	guarded   *http.Client
+	network   *Network // nil connects directly
 	userAgent string
 	cache     *imageCache
 
@@ -58,6 +60,10 @@ type imageFlight struct {
 	body    []byte
 	err     error
 }
+
+// UseNetwork makes downloads go through the global proxy n reads. Images belong to no source, so a per-source
+// proxy does not apply.
+func (im *Images) UseNetwork(n *Network) { im.network = n }
 
 // NewImages returns an image fetcher that identifies itself as Oriel/version. A non-empty cacheDir keeps the
 // pictures it downloads there, up to 256 MiB for 30 days; an empty one downloads every time.
@@ -169,7 +175,11 @@ func (im *Images) download(ctx context.Context, address string) (string, []byte,
 	}
 	req.Header.Set("User-Agent", im.userAgent)
 	req.Header.Set("Accept", "image/webp,image/png,image/jpeg,image/gif,image/bmp;q=0.9,*/*;q=0.1")
-	resp, err := im.guarded.Do(req)
+	client, err := im.network.Guarded(ctx, store.SourceProxy{}, im.guarded)
+	if err != nil {
+		return "", nil, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", nil, err
 	}
