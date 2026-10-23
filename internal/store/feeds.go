@@ -201,7 +201,7 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 	created := 0
 	// The new entries that get automatic AI tasks, oldest first.
 	type queuedAI struct {
-		guid  string
+		id    int64
 		tasks []string
 	}
 	var queued []queuedAI
@@ -212,20 +212,46 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 	if err != nil {
 		return 0, err
 	}
+	// The GUIDs the source already has, and whether each has extracted text, read once instead of one query per item.
+	known, err := sourceGUIDs(ctx, tx, src.ID)
+	if err != nil {
+		return 0, err
+	}
+	upsert, err := tx.PrepareContext(ctx, upsertEntrySQL)
+	if err != nil {
+		return 0, err
+	}
+	defer upsert.Close()
+	extractedText, err := tx.PrepareContext(ctx, "SELECT search_text FROM entries WHERE source_id = ? AND guid = ?")
+	if err != nil {
+		return 0, err
+	}
+	defer extractedText.Close()
+	addAI, err := tx.PrepareContext(ctx, "INSERT INTO entry_ai (entry_id, task, status, error, updated_at) VALUES (?, ?, ?, ?, ?)")
+	if err != nil {
+		return 0, err
+	}
+	defer addAI.Close()
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
-		var exists int
 		var extracted string // the full text of an entry that already has it
 		isNew := false
-		switch err := tx.QueryRowContext(ctx, "SELECT 1, CASE extract_status WHEN 'ok' THEN search_text ELSE '' END FROM entries WHERE source_id = ? AND guid = ?",
-			src.ID, e.GUID).Scan(&exists, &extracted); {
-		case errors.Is(err, sql.ErrNoRows):
+		switch hasText, exists := known[e.GUID]; {
+		case exists:
+			// Only the reading time uses the text, and only when nothing else decides it.
+			if hasText && e.DurationSec <= 0 && src.Kind != "video" && src.Kind != "image" {
+				if err := extractedText.QueryRowContext(ctx, src.ID, e.GUID).Scan(&extracted); err != nil {
+					return 0, err
+				}
+			}
+		default:
 			if stored == nil {
 				itemLinks, itemGUIDs = map[string]int{}, map[string]int{}
 				for _, it := range entries {
 					itemLinks[linkKey(it.URL)]++
 					itemGUIDs[it.GUID]++
 				}
+				var err error
 				if stored, err = sourceLinks(ctx, tx, src.ID); err != nil {
 					return 0, err
 				}
@@ -237,6 +263,7 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 					return 0, err
 				}
 				delete(stored, linkKey(e.URL))
+				known[e.GUID] = false
 				break
 			}
 			if !expired.IsZero() && !e.PublishedAt.IsZero() && e.PublishedAt.Before(expired) {
@@ -244,8 +271,6 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 			}
 			created++
 			isNew = true
-		case err != nil:
-			return 0, err
 		}
 		images := e.Images
 		if images == nil {
@@ -255,40 +280,29 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		if err != nil {
 			return 0, err
 		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO entries (source_id, guid, title, url, author, published_at, rss_summary, rss_content_html,
-				extract_status, thumbnail_url, duration_sec, platform, images, language, reading_sec, created_at, updated_at, link_key)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, group_key(?4, ?2))
-			ON CONFLICT (source_id, guid) DO UPDATE SET
-				title = excluded.title, url = excluded.url, link_key = excluded.link_key, author = excluded.author, published_at = excluded.published_at,
-				rss_summary = excluded.rss_summary, rss_content_html = excluded.rss_content_html,
-				thumbnail_url = excluded.thumbnail_url, duration_sec = excluded.duration_sec,
-				platform = excluded.platform, images = excluded.images,
-				language = coalesce(excluded.language, language), reading_sec = excluded.reading_sec,
-				updated_at = excluded.updated_at
-			WHERE title IS NOT excluded.title OR url IS NOT excluded.url OR author IS NOT excluded.author
-				OR published_at IS NOT excluded.published_at OR rss_summary IS NOT excluded.rss_summary
-				OR rss_content_html IS NOT excluded.rss_content_html OR thumbnail_url IS NOT excluded.thumbnail_url
-				OR duration_sec IS NOT excluded.duration_sec OR platform IS NOT excluded.platform
-				OR images IS NOT excluded.images`,
+		// RETURNING gives the id of a new entry; an existing entry that did not change returns no row.
+		var id int64
+		if err := upsert.QueryRowContext(ctx,
 			src.ID, e.GUID, e.Title, e.URL, e.Author, nullTime(e.PublishedAt), e.Summary, e.ContentHTML,
 			extract, e.ThumbnailURL, nullInt(e.DurationSec), e.Platform, string(imagesJSON), nullString(e.Language),
 			readingValue(src.Kind, e.DurationSec, extracted, e.ContentHTML, e.Summary), now.UnixMilli(), now.UnixMilli(),
-		); err != nil {
+		).Scan(&id); err != nil && !(errors.Is(err, sql.ErrNoRows) && !isNew) {
 			return 0, err
+		}
+		if _, ok := known[e.GUID]; !ok {
+			known[e.GUID] = false
 		}
 		if !isNew {
 			continue
 		}
 		star, read := ruleActions(rules, e)
 		if star {
-			if _, err := tx.ExecContext(ctx, "UPDATE entries SET starred = 1 WHERE source_id = ? AND guid = ?", src.ID, e.GUID); err != nil {
+			if _, err := tx.ExecContext(ctx, "UPDATE entries SET starred = 1 WHERE id = ?", id); err != nil {
 				return 0, err
 			}
 		}
 		if read {
-			if _, err := tx.ExecContext(ctx, "UPDATE entries SET is_read = 1, read_at = ? WHERE source_id = ? AND guid = ?",
-				now.UnixMilli(), src.ID, e.GUID); err != nil {
+			if _, err := tx.ExecContext(ctx, "UPDATE entries SET is_read = 1, read_at = ? WHERE id = ?", now.UnixMilli(), id); err != nil {
 				return 0, err
 			}
 		}
@@ -300,7 +314,7 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 			tasks = append(tasks, task)
 		}
 		if len(tasks) > 0 {
-			queued = append(queued, queuedAI{guid: e.GUID, tasks: tasks})
+			queued = append(queued, queuedAI{id: id, tasks: tasks})
 		}
 	}
 	// The newest entries get the automatic tasks; the ones beyond the cap of this fetch are recorded as stopped by it.
@@ -310,10 +324,7 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 			status, code = "failed", AICapReached
 		}
 		for _, task := range q.tasks {
-			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO entry_ai (entry_id, task, status, error, updated_at)
-				SELECT id, ?, ?, ?, ? FROM entries WHERE source_id = ? AND guid = ?`,
-				task, status, code, now.UnixMilli(), src.ID, q.guid); err != nil {
+			if _, err := addAI.ExecContext(ctx, q.id, task, status, code, now.UnixMilli()); err != nil {
 				return 0, err
 			}
 		}
@@ -325,6 +336,44 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		return 0, err
 	}
 	return created, tx.Commit()
+}
+
+// upsertEntrySQL writes one item of a fetch and returns the id of an entry that was added or changed.
+const upsertEntrySQL = `
+	INSERT INTO entries (source_id, guid, title, url, author, published_at, rss_summary, rss_content_html,
+		extract_status, thumbnail_url, duration_sec, platform, images, language, reading_sec, created_at, updated_at, link_key)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, group_key(?4, ?2))
+	ON CONFLICT (source_id, guid) DO UPDATE SET
+		title = excluded.title, url = excluded.url, link_key = excluded.link_key, author = excluded.author, published_at = excluded.published_at,
+		rss_summary = excluded.rss_summary, rss_content_html = excluded.rss_content_html,
+		thumbnail_url = excluded.thumbnail_url, duration_sec = excluded.duration_sec,
+		platform = excluded.platform, images = excluded.images,
+		language = coalesce(excluded.language, language), reading_sec = excluded.reading_sec,
+		updated_at = excluded.updated_at
+	WHERE title IS NOT excluded.title OR url IS NOT excluded.url OR author IS NOT excluded.author
+		OR published_at IS NOT excluded.published_at OR rss_summary IS NOT excluded.rss_summary
+		OR rss_content_html IS NOT excluded.rss_content_html OR thumbnail_url IS NOT excluded.thumbnail_url
+		OR duration_sec IS NOT excluded.duration_sec OR platform IS NOT excluded.platform
+		OR images IS NOT excluded.images
+	RETURNING id`
+
+// sourceGUIDs maps the GUID of every entry of the source to whether it has extracted full text.
+func sourceGUIDs(ctx context.Context, tx *sql.Tx, sourceID int64) (map[string]bool, error) {
+	rows, err := tx.QueryContext(ctx, "SELECT guid, extract_status = 'ok' FROM entries WHERE source_id = ?", sourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	known := map[string]bool{}
+	for rows.Next() {
+		var guid string
+		var extracted bool
+		if err := rows.Scan(&guid, &extracted); err != nil {
+			return nil, err
+		}
+		known[guid] = extracted
+	}
+	return known, rows.Err()
 }
 
 // renamedEntry finds the stored entry an item with an unknown GUID really is: the one entry of the source with the
