@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/url"
 	"os"
 	"path"
@@ -75,6 +76,10 @@ func Open(ctx context.Context, file string) (*Store, error) {
 		return nil, err
 	}
 	s := &Store{db: db, lock: lockFile, path: file}
+	if err := s.backupBeforeMigrate(ctx); err != nil {
+		s.Close()
+		return nil, fmt.Errorf("the database was not updated because its copy before the update failed (check the free space and that the data folder is writable): %w", err)
+	}
 	if err := s.migrate(ctx); err != nil {
 		s.Close()
 		return nil, err
@@ -109,6 +114,61 @@ func (s *Store) Close() error {
 	s.optimize(ctx)
 	s.db.ExecContext(ctx, checkpoint)
 	return errors.Join(s.db.Close(), s.lock.Close())
+}
+
+// PreMigrateSuffix is appended to the database file name for the copy made before pending migrations run.
+const PreMigrateSuffix = ".pre-migrate"
+
+// backupBeforeMigrate writes a consistent copy of the database to <file>.pre-migrate when it is not new and migrations
+// are pending, replacing the previous copy. The copy is written aside and renamed into place, so a failure leaves the
+// previous copy as it was. An error means the caller must not migrate.
+func (s *Store) backupBeforeMigrate(ctx context.Context) error {
+	names, err := fs.Glob(migrations, "migrations/*.sql")
+	if err != nil {
+		return err
+	}
+	var current int
+	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&current); err != nil {
+		return err
+	}
+	if current == 0 || current >= len(names) {
+		return nil // a new database has nothing to lose; a newer one is refused by migrate
+	}
+	scratch, err := os.MkdirTemp(filepath.Dir(s.path), scratchPrefix+"*")
+	if err != nil {
+		return withoutDirectory(err)
+	}
+	defer os.RemoveAll(scratch)
+	tmp := filepath.Join(scratch, "copy")
+	// The file name is a bound value, so it needs no quoting.
+	if _, err := s.db.ExecContext(ctx, "VACUUM INTO ?", tmp); err != nil {
+		return withoutDirectory(err)
+	}
+	// The copy holds sessions and the AI API key, like the database.
+	if err := os.Chmod(tmp, 0o600); err != nil {
+		return withoutDirectory(err)
+	}
+	dest := s.path + PreMigrateSuffix
+	// os.Rename replaces an existing file on every platform, Windows included.
+	if err := os.Rename(tmp, dest); err != nil {
+		return withoutDirectory(err)
+	}
+	slog.Info("Copied the database before migrating", "file", filepath.Base(dest), "from", current, "to", len(names))
+	return nil
+}
+
+// withoutDirectory keeps only the file name in a path error, so that the message, which reaches the log, carries no
+// local path.
+func withoutDirectory(err error) error {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return fmt.Errorf("%s %s: %w", pathErr.Op, filepath.Base(pathErr.Path), pathErr.Err)
+	}
+	var linkErr *os.LinkError
+	if errors.As(err, &linkErr) {
+		return fmt.Errorf("%s %s: %w", linkErr.Op, filepath.Base(linkErr.New), linkErr.Err)
+	}
+	return err
 }
 
 // migrate runs every embedded migration newer than PRAGMA user_version, each in its own transaction.
