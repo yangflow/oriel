@@ -63,9 +63,9 @@
      before More; it hides again when the pointer leaves and the focus is not in it. J and K still change the article.
      Find in the article (docs/design.md, Find in the article; Cmd/Ctrl+F once the article shows): a 44 high row under the toolbar band with the
      field, the count, Previous and Next, and Done. find-empty: just opened (the last query, if any, selected; no count), find: typed, every
-     match marked and the current one ringed ("2 of 9"), find-none: nothing matches ("No matches", Previous and Next dimmed), find-translation:
+     match marked and the current one underlined ("2 of 9"), find-none: nothing matches ("No matches", Previous and Next dimmed), find-translation:
      the same over the translation (only the text shown is searched), immersive-find: the row in immersive reading. Closed is every other state.
-     The marks are Warning at 25% (the others) and 40% (the current one, with a 1.5 DIP Warning ring), the text in them always Text.
+     The marks are Warning at 25% (the others) and 40% (the current one, with a 1.5 DIP underline), the text in them always Text.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
@@ -342,7 +342,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .find .done { height:28px; padding:0 10px; border-radius:8px; font-size:13px; font-weight:500; color:var(--text2) }
 .find .done:hover { background:var(--hover); color:var(--text) }
 mark.hit { background:color-mix(in srgb,var(--warning) 25%,transparent); color:var(--text); border-radius:3px; box-shadow:0 0 0 1px color-mix(in srgb,var(--warning) 25%,transparent) }
-mark.hit.now { background:color-mix(in srgb,var(--warning) 40%,transparent); box-shadow:0 0 0 1.5px var(--warning) }
+mark.hit.now { background:color-mix(in srgb,var(--warning) 40%,transparent); box-shadow:none; text-decoration:underline; text-decoration-thickness:1.5px; text-decoration-color:var(--text); text-underline-offset:2px }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>

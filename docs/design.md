@@ -342,16 +342,16 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   never leaves the reader. The row is `ui.FindBar` (field, count, Previous, Next, Done), 44 high, laid between the toolbar band and the article: it sits under the
   52 high toolbar with `Background` and the hairline below it, and its content is aligned to the article column like the toolbar's. The article moves down by
   the row's height (no overlay, so no text is hidden under it) and returns when it closes; the scroll position of the text is kept. In immersive reading the row
-  shows in the same place in the empty band without bringing the toolbar. The field is 28 high, `Soft` ink fill, radius 8, search icon, placeholder "Find in article",
+  shows in the same place in the empty band without bringing the toolbar. The field is 28 high, `Soft` ink fill, radius 8, search icon, placeholder "Find" (the toolkit's own word),
   the Focus ring while focused; the count is 12 tabular muted ("2 of 4"), "No matches" in `Danger` (the field and the buttons stay, Previous and Next disabled);
   Previous and Next are 28 icon buttons (`chevron-up`, `chevron-down`) and Done is a text button. States: empty (field focused, no count, no highlight), typing
-  (every match highlighted, the first one at or below the top of the view is current, the view scrolls just enough to show it, count "n of m"), no matches, closed.
-  Highlight: all matches `Warning` at 25% over `Background`; the current one `Warning` at 40% plus a 1.5 `Warning` ring, so it is not told apart by color alone.
+  (every match highlighted, the first match of the text is current, the view scrolls just enough to show it, count "n of m"), no matches, closed.
+  Highlight: all matches `Warning` at 25% over `Background`; the current one `Warning` at 40% plus a 1.5 `Text` underline, so it is not told apart by color alone (the toolkit draws no outline round text).
   Text inside a match is always `Text` (links, muted and code color give way), which keeps at least 5.8:1 on the 40% fill in both schemes (prose, the accent and
   the muted color fall under 4.5:1 there). Keys: Enter or Cmd+G / F3 goes to the next match and Shift+Enter or Shift+Cmd+G / Shift+F3 to the previous, both
   wrapping; typing updates the matches as it goes; reopening selects the last query. Escape or Done closes the row, clears the highlight and returns the focus to
   the article body. It searches only the text shown (the original, the translation or the summary card, whichever is on), case and diacritics ignored,
-  locally and without a request, and when the view changes (original, translation) or another article opens it runs again on the new text (a new article closes it). Counting stops at 1000 and reads "1 of 1000+".
+  locally and without a request, and when the view changes (original, translation) or another article opens it runs again on the new text (a new article closes it). Counting stops at 1000 and reads "1 of 1000".
   Accessibility: the row is a toolbar named "Find in article", the field is labeled by it, the count is announced as it changes ("2 of 4", "No matches")
   with `Announce`, and no pointer is needed. Drawn in `design/screens/reader.html`, `find-empty`, `find`, `find-none`, `find-translation` and `immersive-find`.
 - **Summary and translation in the reader.** The summary is a card under the title, radius 14, padded 14/16/16, text
@@ -1078,7 +1078,7 @@ MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
 - [ ] The whole UI works with the keyboard: the focus order is the standard one and follows reading order, there is
       a visible focus ring (do not remove it), shortcuts exist for frequent actions, Escape closes overlays.
 - [ ] Immersive reading announces "Immersive reading on" and "Immersive reading off", keeps the focus on the article, leaves with Z or Escape, and needs no pointer for any reader action.
-- [ ] Find in the article announces the match count ("2 of 4", "No matches") as it changes, highlights the current match by ring as well as fill, keeps text inside matches at 4.5:1 or more in both schemes, and Escape closes it with the focus back on the article.
+- [ ] Find in the article announces the match count ("2 of 4", "No matches") as it changes, highlights the current match by underline as well as fill, keeps text inside matches at 4.5:1 or more in both schemes, and Escape closes it with the focus back on the article.
 - [ ] The lightbox is a dialog named for its entry; paging announces "Picture {n} of {total}", every button has a name, the focus order is bar, then Previous and Next, and Escape closes it with the focus back on its row.
 - [ ] A row's screen-reader label reads source, title, time, reading time, unread or read, starred; the reading-time
       button's name states the current budget, and its menu items are radio items with the current one checked.
