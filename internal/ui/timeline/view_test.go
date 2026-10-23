@@ -5136,3 +5136,37 @@ func TestGroupedChangeFailsRestoresEachCopy(t *testing.T) {
 		t.Fatalf("counts %d %d, were %d %d", count(3), count(4), n3, n4)
 	}
 }
+
+// TestSidebarTrailingButtonsShareALine checks the icon buttons at the pane's right end sit on one vertical line: the
+// button that hides the pane, the add button of the section header, Unread first and the settings gear all have their
+// center 25 from the pane's edge, in a wide window and a narrow one (where the pane is 184 wide) and at a larger text
+// size. The layout snaps to half a pixel, so a pixel is the tolerance.
+func TestSidebarTrailingButtonsShareALine(t *testing.T) {
+	for _, tc := range []struct {
+		width   int
+		font    float32
+		compact bool
+	}{{1100, 13, false}, {1400, 13, false}, {700, 13, true}, {1100, 17, false}} {
+		sources, entries := sample()
+		f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+		s := New("en", f.deps())
+		var edge float32
+		tt := ui.NewTester(func(c *ui.Context) {
+			c.Theme().FontSize = tc.font
+			edge = 8 + sideWidth(c.Theme(), tc.compact) - px(c.Theme(), paneLine)
+			s.View(c)
+		}, tc.width, 800)
+		s.Use(f, "")
+		tt.Frame()
+		f.settle(t, tt)
+		for _, name := range []string{"Hide sidebar", "Add subscription", "Unread first", "Settings"} {
+			r, ok := tt.Find(name)
+			if !ok {
+				t.Fatalf("width %d: no %q in %v", tc.width, name, tt.Texts())
+			}
+			if got := r.X + r.W/2; math.Abs(float64(got-edge)) > 1 {
+				t.Errorf("width %d font %v: %q is centered at %v, want %v", tc.width, tc.font, name, got, edge)
+			}
+		}
+	}
+}

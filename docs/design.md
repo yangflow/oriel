@@ -142,8 +142,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   aspect ratio. These are the defaults; the View as preference (the next bullet) changes them. Below a 760 wide window the segments show icons only. Sizes taken from the mockup are written
   `px(t, n)`, which is `t.Rem(n / 13)`, so they follow the text size. The pane's section header, 22 high, ends in a 22
   square + button that adds a subscription; it shows even when there are none. The label starts where the row icons
-  do (10 in) and the button's 14 icon ends where the row counts do (10 in), so the button sits 6 in from the row
-  highlight's edge (`pane-add` in the tokens), centered on the label; drawn in `design/screens/timeline.html`. A paused subscription has its name in
+  do (10 in) and the button's 14 icon ends where the row counts do (10 in), so the button is centered on the pane line (`pane-line` and `pane-add` in the tokens), 6 in from the row
+  highlight's edge and level with the label's middle; drawn in `design/screens/timeline.html`. A paused subscription has its name in
   `TextMuted`, a pause mark instead of the failure mark, and no count. With one subscription chosen, a pencil button
   after the count edits it. A row is chosen with a fill (ink 6.5%) and the selection marker; see
   [States](#color-and-dark-mode).
@@ -281,7 +281,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `health-empty`. Accessibility: the dialog is labeled by its title, each row is a list item named by the source and
   its reason, the buttons carry the source's name ("Pause {name}", "Unsubscribe {name}"), and the loaded count is
   announced with `Announce`.
-- **Hiding the sidebar.** The button sits in the pane's top 40, at its right end, 8 from the pane's edge and centered on the toolbar row's middle line,
+- **Hiding the sidebar.** The button sits in the pane's top 40, at its right end, centered on the pane line (25 from the pane's edge, like the add, Unread first and settings buttons) and on the toolbar row's middle line,
   level with the window buttons at the left; it is a bare 32 square icon button with
   the Lucide `panel-left` icon (16, `toolFill` colors, radius 8), named "Hide sidebar" while the pane shows and "Show
   sidebar" while it is hidden (that name is also its tooltip; no shortcut in the tooltip, as no other tooltip carries
@@ -842,8 +842,8 @@ Overlays share focus and Escape behavior; see
   one: "Marked 5 visible entries as read" with Undo and the close button (`marked-visible` in the mockup). The toast is
   announced, and the new chosen entry is then read by its own name; there is no extra announcement. The trackpad swipe is
   not possible in MyGo 0.5.5 (no gesture callback) and is left out.
-- **Sidebar filter and sort.** Under the Subscriptions heading, above the list, one row 28 high with a 4 gap and a 2
-  inset: the filter field, which grows, and the Unread first toggle (`side-filter`, `side-filter-none` and
+- **Sidebar filter and sort.** Under the Subscriptions heading, above the list, one row 28 high with a 4 gap, inset 3 at the
+  right so the toggle sits on the pane line: the filter field, which grows, and the Unread first toggle (`side-filter`, `side-filter-none` and
   `side-unread-first` in the mockup). The field is a flat fill of the pane's hover (pane ink 5.5%, 8.5% under the
   pointer and while it has the focus, which adds the 2 DIP focus ring of the pane),
   radius 8, 10 left padding, a 14 magnifier in `TextMuted`, the input at 13 in `Text` with the placeholder "Filter

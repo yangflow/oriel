@@ -2760,7 +2760,7 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 		// The top 40 are the window buttons' at the left and the button that hides the pane at the right, centered
 		// on the toolbar row's middle line (the pane floats 8 from the top); the rest of it drags the window.
 		ui.Row(c).FillWidth().Height(40).AlignItems(ui.Start).Justify(ui.End).
-			Padding(theme.Bar/2-8-px(t, 32)/2, px(t, 8), 0, 0).DragWindow().Children(func() { s.sidebarButton(c, false) })
+			Padding(theme.Bar/2-8-px(t, 32)/2, px(t, paneLine-32/2), 0, 0).DragWindow().Children(func() { s.sidebarButton(c, false) })
 		onSource := slices.ContainsFunc(s.sources, func(src client.Source) bool {
 			return src.ID == s.scope.source && (!s.failingOnly || failed(src)) && s.named(src)
 		})
@@ -2887,10 +2887,10 @@ func (s *Screen) section(c *ui.Context, failing int) {
 	if theme.Han(name) {
 		size, tracking = px(t, 12), px(t, 12)*0.02
 	}
-	// The label follows the icons of the rows (10 in); the 14 icon of the button follows their counts (10 in), so the
-	// 22 square button sits 6 in, the 4 around its icon making up the rest.
+	// The label follows the icons of the rows (10 in). The button is centered on the pane's trailing line, so its
+	// 22 square sits paneLineInset(22) in from the column's edge.
 	ui.Row(c).FillWidth().Height(px(t, 22)).AlignItems(ui.Center).Margin(px(t, 14), 0, px(t, 4), 0).
-		Padding(0, px(t, 6), 0, px(t, 10)).
+		Padding(0, paneLineInset(t, 22), 0, px(t, 10)).
 		Children(func() {
 			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(size).FontWeight(500).
 				LetterSpacing(tracking).TextColor(t.TextMuted)
@@ -2952,6 +2952,20 @@ func (s *Screen) arranged(list []client.Source) []client.Source {
 	return list
 }
 
+// paneLine is how far from the pane's right edge the centers of its icon buttons are: the button that hides the
+// pane, the add button, the Unread first toggle and the settings gear all sit on it. paneEdge is the pane's side
+// padding of the lists, which the rows of the section and the filter sit inside of.
+const (
+	paneLine = 25
+	paneEdge = 8
+)
+
+// paneLineInset is how far in from the column's edge (paneEdge in) a square button of the given size is, so that
+// its center is on paneLine.
+func paneLineInset(t *ui.Theme, size float32) float32 {
+	return px(t, paneLine-size/2-paneEdge)
+}
+
 // sourceTools is the row under the section header: the filter field of the subscriptions, which grows, and the toggle
 // that puts those with unread entries first. It is not there while there are no subscriptions.
 func (s *Screen) sourceTools(c *ui.Context) {
@@ -2960,7 +2974,8 @@ func (s *Screen) sourceTools(c *ui.Context) {
 	}
 	t := c.Theme()
 	unreadFirst := s.views().SourceSort == prefs.SortUnread
-	ui.Row(c).FillWidth().Height(px(t, 28)).Gap(px(t, 4)).Margin(0, 0, px(t, 6), 0).Children(func() {
+	ui.Row(c).FillWidth().Height(px(t, 28)).Gap(px(t, 4)).Margin(0, 0, px(t, 6), 0).
+		Padding(0, paneLineInset(t, 28), 0, 0).Children(func() {
 		box := ui.Row(c).Key("filter").Grow(1).MinWidth(0).Height(px(t, 28)).Gap(px(t, 6)).
 			Padding(0, px(t, 4), 0, px(t, 10)).Radius(px(t, 8)).AlignItems(ui.Center)
 		switch {
@@ -3185,38 +3200,39 @@ func (s *Screen) serverBar(c *ui.Context) {
 		name, icon = s.server, icons.Server
 	}
 	// Inset like the rows above it, so its hover fill is a rounded row inside the pane, clear of its corner.
-	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Padding(0, px(t, 6), 0, px(t, 8)).Children(func() {
-		dot := t.Success
-		if s.offline {
-			dot = t.Warning
-		}
-		bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(px(t, 30)).Gap(px(t, 8)).PaddingX(px(t, 10)).
-			Radius(px(t, 8)).Label(strings.ReplaceAll(s.text.Server, "{server}", name))
-		if bar.Hovered() {
-			bar.Background(t.SurfaceHover)
-		}
-		theme.Fade(bar)
-		bar.Children(func() {
-			ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(t.TextMuted)
-			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(px(t, 12)).LetterSpacing(px(t, 12) * 0.01).
-				TextColor(t.TextMuted)
-			ui.Box(c).Size(6, 6).Radius(3).Background(dot)
+	ui.Row(c).FillWidth().Height(px(t, 40)).AlignItems(ui.Center).Padding(0, px(t, paneEdge)+paneLineInset(t, 28), 0, px(t, 8)).
+		Children(func() {
+			dot := t.Success
+			if s.offline {
+				dot = t.Warning
+			}
+			bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(px(t, 30)).Gap(px(t, 8)).PaddingX(px(t, 10)).
+				Radius(px(t, 8)).Label(strings.ReplaceAll(s.text.Server, "{server}", name))
+			if bar.Hovered() {
+				bar.Background(t.SurfaceHover)
+			}
+			theme.Fade(bar)
+			bar.Children(func() {
+				ui.Icon(c, icon).FontSize(px(t, 16)).TextColor(t.TextMuted)
+				ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(px(t, 12)).LetterSpacing(px(t, 12) * 0.01).
+					TextColor(t.TextMuted)
+				ui.Box(c).Size(6, 6).Radius(3).Background(dot)
+			})
+			if bar.Clicked() {
+				s.deps.OpenConnect()
+			}
+			gear := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(px(t, 8)).Label(s.text.Settings).
+				Tooltip(s.text.Settings)
+			color := t.TextMuted
+			if gear.Hovered() {
+				gear.Background(t.SurfaceHover)
+				color = t.Text
+			}
+			gear.Children(func() { ui.Icon(c, icons.Settings).FontSize(px(t, 16)).TextColor(color) })
+			if gear.Clicked() {
+				s.deps.OpenSettings()
+			}
 		})
-		if bar.Clicked() {
-			s.deps.OpenConnect()
-		}
-		gear := ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(px(t, 8)).Label(s.text.Settings).
-			Tooltip(s.text.Settings)
-		color := t.TextMuted
-		if gear.Hovered() {
-			gear.Background(t.SurfaceHover)
-			color = t.Text
-		}
-		gear.Children(func() { ui.Icon(c, icons.Settings).FontSize(px(t, 16)).TextColor(color) })
-		if gear.Clicked() {
-			s.deps.OpenSettings()
-		}
-	})
 }
 
 // narrowColumn is the main column width under which the toolbar spends less: the segments are padded 7, the
