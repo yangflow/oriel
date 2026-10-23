@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,6 +41,10 @@ type fake struct {
 	queries     []client.Query
 	setReply    client.Entry // what the server answers to a change
 	patches     map[int64][]client.EntryPatch
+	patching    sync.Mutex // guards patches, running and widest: marking what was scrolled past sends changes in parallel
+	running     int        // the changes being sent now
+	widest      int        // the most changes sent at once
+	slow        bool       // SetEntry waits a moment, so that changes sent in parallel overlap
 	marked      []client.ReadScope
 	unmarked    [][]int64
 	unmarkedAt  []int64
@@ -106,7 +111,18 @@ func (f *fake) Sources(context.Context) (client.SourceList, error) {
 }
 
 func (f *fake) SetEntry(_ context.Context, id int64, patch client.EntryPatch) (client.Entry, error) {
+	f.patching.Lock()
 	f.patches[id] = append(f.patches[id], patch)
+	f.running++
+	f.widest = max(f.widest, f.running)
+	slow := f.slow
+	f.patching.Unlock()
+	if slow {
+		time.Sleep(5 * time.Millisecond)
+	}
+	f.patching.Lock()
+	f.running--
+	f.patching.Unlock()
 	return f.setReply, f.setErr
 }
 

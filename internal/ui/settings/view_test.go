@@ -1462,6 +1462,52 @@ func TestListDensity(t *testing.T) {
 	}
 }
 
+// TestMarkReadWhen shows the Timeline card offers when entries are marked read, on opening by default, that the stay
+// time shows only for "After staying", and that each choice changes only its own preference.
+func TestMarkReadWhen(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	tt.SetSize(900, 1600)
+	tt.Frame()
+	for _, want := range []string{s.text.MarkRead, s.text.MarkReadHelpOpen, s.text.MarkReadOpen} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q in %v", want, tt.Texts())
+		}
+	}
+	if tt.HasText(s.text.Dwell) {
+		t.Fatalf("the stay time shows before it is chosen: %v", tt.Texts())
+	}
+	if f.prefs.MarkReadWhen != prefs.MarkOnOpen {
+		t.Fatalf("default %q", f.prefs.MarkReadWhen)
+	}
+	before := f.prefs
+	press(t, tt, s.text.MarkReadOpen)
+	press(t, tt, s.text.MarkReadDwell)
+	if f.prefs.MarkReadWhen != prefs.MarkAfterStay {
+		t.Fatalf("when %q", f.prefs.MarkReadWhen)
+	}
+	before.MarkReadWhen = prefs.MarkAfterStay
+	if f.prefs != before {
+		t.Fatalf("other preferences changed: %+v", f.prefs)
+	}
+	for _, want := range []string{s.text.MarkReadHelpDwell, s.text.Dwell, s.text.DwellHelp, s.text.Seconds5} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q in %v", want, tt.Texts())
+		}
+	}
+	press(t, tt, s.text.Seconds10)
+	if f.prefs.MarkReadDwellSec != 10 || f.prefs.MarkReadWhen != prefs.MarkAfterStay {
+		t.Fatalf("stay %+v", f.prefs)
+	}
+	press(t, tt, s.text.MarkReadDwell)
+	press(t, tt, s.text.MarkReadNever)
+	if f.prefs.MarkReadWhen != prefs.MarkNever || f.prefs.MarkReadDwellSec != 10 {
+		t.Fatalf("never %+v", f.prefs)
+	}
+	if tt.HasText(s.text.Dwell) || !tt.HasText(s.text.MarkReadHelpNever) {
+		t.Fatalf("the rows do not follow the choice: %v", tt.Texts())
+	}
+}
+
 // TestGroupSameLinkSwitch shows the Timeline card offers the switch for showing an article once, on by default, that
 // flipping it saves only that setting and has the timeline load again, and that a refusal puts it back.
 func TestGroupSameLinkSwitch(t *testing.T) {

@@ -46,7 +46,8 @@ Working now:
   with a thumbnail, video covers with their duration, social posts with up to four pictures, and a masonry wall
   for images. A list of kinds and a list of subscriptions narrow it; Unread, Starred and search narrow it
   further. Keys move, open, star and mark entries, N jumps to the next unread one, and ? lists every key; marking
-  all read can be undone. New entries wait behind a "N new" button instead of moving the list. An article that several subscriptions carry shows once, with a chip that lists the other
+  all read can be undone. A setting chooses when entries count as read: when opened, after a short stay in the
+  reader, after scrolling past, or never automatically. New entries wait behind a "N new" button instead of moving the list. An article that several subscriptions carry shows once, with a chip that lists the other
   sources (a setting turns this off). Each subscription shows its
   site's icon. Videos, social posts and pictures open in the browser.
 - **Article reader.** An article opens in place of the list, drawn natively: headings, paragraphs, lists,

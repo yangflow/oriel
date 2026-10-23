@@ -326,6 +326,9 @@ func (s *Screen) remember(c cached) {
 	}
 }
 
+// Ready tells whether an article is on show with its text: one is open and it is neither loading nor failed.
+func (s *Screen) Ready() bool { return s.id != 0 && !s.loading && !s.failed }
+
 // Open shows e: it loads the article, from the top, and gives it the focus.
 func (s *Screen) Open(e client.Entry) {
 	s.Leave()

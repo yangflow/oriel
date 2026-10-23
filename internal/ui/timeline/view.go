@@ -43,7 +43,7 @@ type copy struct {
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                                                    string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
 	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                        string
-	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                                         string
+	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                         string
 	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                                        string
 	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteActions, PaletteUnreadOnly, PaletteShowAll                    string
 	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, PageActivity, HideSidebar, ShowSidebar, KeyToggleSidebar string
@@ -272,6 +272,8 @@ type Screen struct {
 	fresh    int       // entries newer than the top one, found by polling
 
 	lb        lightbox        // the pictures of a social or image entry, over the window
+	stay      stay            // how long the entry on show has stayed, for "After a short stay"
+	pass      passing         // the entries scrolled past, for "After scrolling past"
 	selected  int             // the entry chosen, -1 for none
 	focusRow  int             // the entry to give the focus in the next frame, -1 for none
 	sideFocus bool            // give the sidebar the focus in the next frame
@@ -404,6 +406,7 @@ func (s *Screen) SetLanguage(systemLocale string) {
 func (s *Screen) Use(api API, server string) {
 	s.api, s.server = api, server
 	s.gen++
+	s.pass = passing{}
 	s.pics.Stop()
 	s.sources, s.unreadTotal, s.sourcesLoaded = nil, 0, false
 	s.sourcesGen++
@@ -684,6 +687,8 @@ func (s *Screen) reload() {
 	if s.api == nil {
 		return
 	}
+	s.flushPass()
+	s.pass.rebase()
 	s.run++
 	s.also = 0
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
@@ -811,6 +816,7 @@ func (s *Screen) switchGrid() {
 	p := s.views()
 	p.Grids = p.Grids.Set(prefs.GridScope(s.scope.kind, s.scope.source), want, def)
 	s.pin = s.anchor
+	s.pass.rebase()
 	s.deps.Change(p)
 }
 
@@ -825,6 +831,7 @@ func (s *Screen) walls() bool { return s.layout() == wallLayout }
 // leave keeps the list on screen, which has the key old, to draw it again, where it was, when it is chosen again.
 // Lists not loaded, empty or failed and searches are not kept.
 func (s *Screen) leave(old listKey) {
+	s.flushPass()
 	if s.searched != "" || s.loading || s.loadErr || len(s.entries) == 0 {
 		return
 	}
@@ -867,6 +874,7 @@ func (s *Screen) restore(snap snapshot) {
 	if s.api == nil {
 		return
 	}
+	s.pass.rebase()
 	s.run++
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
 	s.entries, s.next, s.anchor = snap.entries, snap.next, snap.anchor
@@ -1651,6 +1659,9 @@ func (s *Screen) toggleRead(i int) {
 		return
 	}
 	on := !s.entries[i].IsRead
+	if s.stay.id == s.entries[i].ID {
+		s.stay.done = true // the reader's own choice stands: the stay does not mark it again
+	}
 	s.change(s.entries[i].ID, client.EntryPatch{IsRead: &on})
 	s.announce = s.text.MarkUnread
 	if on {
@@ -1685,7 +1696,7 @@ func (s *Screen) browse(c *ui.Context, i int) {
 			}
 		})
 	}
-	s.markRead(e)
+	s.markOpened(e, false)
 }
 
 func (s *Screen) markRead(e client.Entry) {
@@ -1701,7 +1712,7 @@ func (s *Screen) read(i int) {
 	s.selected, s.reading, s.copyID = i, e.ID, 0
 	s.reader.Open(e)
 	s.prefetch()
-	s.markRead(e)
+	s.markOpened(e, true)
 	if i >= len(s.entries)-nearEnd {
 		s.loadMore()
 	}
@@ -1751,6 +1762,7 @@ func (s *Screen) back() {
 	s.selected, s.focusRow = i, i
 	s.list.ScrollIntoView(i)
 	s.grid.ScrollIntoView(i)
+	s.pass.rebase()
 }
 
 // move chooses the entry by entries from the one chosen and gives it the focus.
@@ -2296,6 +2308,7 @@ func (s *Screen) View(c *ui.Context) {
 		// A viewer changed in Settings: the list is drawn again in place, at the entry that was first in view.
 		if s.viewed != (viewerSet{}) {
 			s.pin = s.anchor
+			s.pass.rebase()
 		}
 		s.viewed = v
 	}
@@ -2304,6 +2317,7 @@ func (s *Screen) View(c *ui.Context) {
 		s.show(func() { s.oldest = want })
 	}
 	s.wantMore = false
+	s.markTick(c, s.deps.Now())
 	s.look(c) // reads the rects of the last frame
 	clear(s.rects)
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
@@ -3715,6 +3729,9 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 			s.rows(c, now, compact)
 		}
 	})
+	if s.toTop || s.pin != 0 {
+		s.pass.rebase() // the list was put in place by the program
+	}
 	s.toTop, s.pin = false, 0
 	s.anchor = s.firstInView()
 }
@@ -4187,7 +4204,7 @@ func (s *Screen) openCopy(c *ui.Context, id int64, m client.GroupMember) {
 			})
 		}
 		s.selected = i
-		s.markRead(e)
+		s.markOpened(e, false)
 		return
 	}
 	s.read(i)
@@ -4781,7 +4798,7 @@ func (s *Screen) openPictures(i, at int) {
 	s.selected = i
 	s.lb = lightbox{open: true, entry: e.ID, at: min(max(at, 0), len(list)-1), pictures: list}
 	s.announce = s.pictureName(s.lb.at)
-	s.markRead(e)
+	s.markOpened(e, true)
 }
 
 // page shows picture to of the lightbox, which stays on the first or the last one at the ends.

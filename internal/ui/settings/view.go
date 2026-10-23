@@ -35,40 +35,40 @@ import (
 var catalog []byte
 
 type copy struct {
-	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Lead, Fetching, OPML, Devices, RSSHub                                                                                                             string
-	RSSHubHelp, RSSHubPlaceholder, Save, Saved, Unsaved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp                                                                                    string
-	InvalidBaseAny, TooManyBase                                                                                                                                                                               string
-	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp                                                                                            string
-	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed                                                                                                   string
-	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind                                                                                                         string
-	BackupLabel, BackupHelp, BackupButton, RestoreLabel, RestoreHelp, RestoreButton, BackupFiles, BackingUp, BackedUp                                                                                         string
-	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge                                                                                                     string
-	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                                                                                                                     string
-	AutoLabel, AutoHelp, AutoFolder, AutoChoose, AutoNoFolder, AutoFrequency, AutoDaily, AutoWeekly, AutoKeep                                                                                                 string
-	AutoCopies, AutoNever, AutoLast, AutoFailed, AutoRemote, AutoPlaceholder                                                                                                                                  string
-	AutoReasonMissing, AutoReasonNotDir, AutoReasonNoWrite, AutoReasonDisk, AutoReasonOther                                                                                                                   string
-	AutoNeedFolder, AutoBadFolder, AutoInvalidKeep, AutoSaveFailed                                                                                                                                            string
-	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                                                                                                        string
-	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry                                                                                                                string
-	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset                                                                                                string
-	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested                                                                                                 string
-	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase                                                                                                    string
-	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                                                                                                           string
-	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp                                                                                              string
-	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                                                                                                      string
-	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                                                                                                      string
-	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed                                                                                                      string
-	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                 string
-	Preset, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit string
-	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                string
-	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                         string
-	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                      string
-	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact                                                                      string
-	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, Compacting                                                                                  string
-	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                                                                                                          string
-	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                            string
-	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                              string
-	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                        string
+	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Lead, Fetching, OPML, Devices, RSSHub                                                                                                                                                                                                                                           string
+	RSSHubHelp, RSSHubPlaceholder, Save, Saved, Unsaved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp                                                                                                                                                                                                                  string
+	InvalidBaseAny, TooManyBase                                                                                                                                                                                                                                                                                                             string
+	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp                                                                                                                                                                                                                          string
+	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed                                                                                                                                                                                                                                 string
+	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind                                                                                                                                                                                                                                       string
+	BackupLabel, BackupHelp, BackupButton, RestoreLabel, RestoreHelp, RestoreButton, BackupFiles, BackingUp, BackedUp                                                                                                                                                                                                                       string
+	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge                                                                                                                                                                                                                                   string
+	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                                                                                                                                                                                                                                                   string
+	AutoLabel, AutoHelp, AutoFolder, AutoChoose, AutoNoFolder, AutoFrequency, AutoDaily, AutoWeekly, AutoKeep                                                                                                                                                                                                                               string
+	AutoCopies, AutoNever, AutoLast, AutoFailed, AutoRemote, AutoPlaceholder                                                                                                                                                                                                                                                                string
+	AutoReasonMissing, AutoReasonNotDir, AutoReasonNoWrite, AutoReasonDisk, AutoReasonOther                                                                                                                                                                                                                                                 string
+	AutoNeedFolder, AutoBadFolder, AutoInvalidKeep, AutoSaveFailed                                                                                                                                                                                                                                                                          string
+	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                                                                                                                                                                                                                                      string
+	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry                                                                                                                                                                                                                                              string
+	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset                                                                                                                                                                                                                              string
+	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested                                                                                                                                                                                                                               string
+	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase                                                                                                                                                                                                                                  string
+	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                                                                                                                                                                                                                                         string
+	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp                                                                                                                                                                                                                            string
+	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                                                                                                                                                                                                                                    string
+	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                                                                                                                                                                                                                                    string
+	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed                                                                                                                                                                                                                                    string
+	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                                                                                                                                               string
+	Preset, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                               string
+	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                                                                                                                                              string
+	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                                                                                                                                                       string
+	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                                                    string
+	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10 string
+	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, Compacting                                                                                                                                                                                                                string
+	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                                                                                                                                                                                                                                        string
+	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                                                                                                                                                          string
+	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                                            string
+	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                                                                                                                                                      string
 
 	Rules, RulesLead, RulesNone, RulesNoneHelp, AddRule, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs     string
 	RwKeywords, RwAuthor, RwOnly, ActStar, ActRead, MenuEdit, MenuDelete, RuleDeleted, RuleAddTitle, RuleEditTitle string
@@ -2284,7 +2284,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 	})
 	ui.Text(c, s.text.Timeline).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
 		Margin(theme.Px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
-	card(c, func() {
+	rows := []func(){func() {
 		labeled(c, s.text.Density, s.text.DensityHelp, func() {
 			names := []string{s.text.DensityComfortable, s.text.DensityCompact}
 			if i, changed := s.segments(c, s.text.Density, names, slices.Index(prefs.Densities, p.Density)); changed {
@@ -2293,6 +2293,35 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
+		when, _ := p.MarkRead()
+		names := map[string]string{prefs.MarkOnOpen: s.text.MarkReadOpen, prefs.MarkAfterStay: s.text.MarkReadDwell,
+			prefs.MarkOnScroll: s.text.MarkReadScroll, prefs.MarkNever: s.text.MarkReadNever}
+		helps := map[string]string{prefs.MarkOnOpen: s.text.MarkReadHelpOpen, prefs.MarkAfterStay: s.text.MarkReadHelpDwell,
+			prefs.MarkOnScroll: s.text.MarkReadHelpScroll, prefs.MarkNever: s.text.MarkReadHelpNever}
+		labeled(c, s.text.MarkRead, helps[when], func() {
+			options := make([]choice, 0, len(prefs.MarkReadChoices))
+			for _, w := range prefs.MarkReadChoices {
+				options = append(options, choice{value: w, name: names[w]})
+			}
+			if v, changed := s.pick(c, when, s.text.MarkRead, options); changed {
+				p.MarkReadWhen = v
+				s.deps.Change(p)
+			}
+		})
+	}}
+	if when, _ := p.MarkRead(); when == prefs.MarkAfterStay {
+		rows = append(rows, func() {
+			_, stay := p.MarkRead()
+			labeled(c, s.text.Dwell, s.text.DwellHelp, func() {
+				names := []string{s.text.Seconds3, s.text.Seconds5, s.text.Seconds10}
+				if i, changed := s.segments(c, s.text.Dwell, names, slices.Index(prefs.DwellSeconds, int(stay/time.Second))); changed {
+					p.MarkReadDwellSec = prefs.DwellSeconds[i]
+					s.deps.Change(p)
+				}
+			})
+		})
+	}
+	rows = append(rows, func() {
 		labeled(c, s.text.GroupSameLink, s.text.GroupSameLinkHelp, func() {
 			on := s.settings.GroupSameLink
 			ui.Switch(c, &on).Label(s.text.GroupSameLink).Description(s.text.GroupSameLinkHelp).
@@ -2302,6 +2331,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	})
+	card(c, rows...)
 	ui.Text(c, s.text.ViewAs).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
 		Margin(theme.Px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
 	card(c, func() {
