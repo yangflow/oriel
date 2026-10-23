@@ -78,7 +78,7 @@ func Open(ctx context.Context, file string) (*Store, error) {
 	s := &Store{db: db, lock: lockFile, path: file}
 	if err := s.backupBeforeMigrate(ctx); err != nil {
 		s.Close()
-		return nil, fmt.Errorf("copy the database before migrating: %w", err)
+		return nil, fmt.Errorf("the database was not updated because its copy before the update failed (check the free space and that the data folder is writable): %w", err)
 	}
 	if err := s.migrate(ctx); err != nil {
 		s.Close()
@@ -136,23 +136,39 @@ func (s *Store) backupBeforeMigrate(ctx context.Context) error {
 	}
 	scratch, err := os.MkdirTemp(filepath.Dir(s.path), scratchPrefix+"*")
 	if err != nil {
-		return err
+		return withoutDirectory(err)
 	}
 	defer os.RemoveAll(scratch)
 	tmp := filepath.Join(scratch, "copy")
+	// The file name is a bound value, so it needs no quoting.
 	if _, err := s.db.ExecContext(ctx, "VACUUM INTO ?", tmp); err != nil {
-		return err
+		return withoutDirectory(err)
 	}
 	// The copy holds sessions and the AI API key, like the database.
 	if err := os.Chmod(tmp, 0o600); err != nil {
-		return err
+		return withoutDirectory(err)
 	}
 	dest := s.path + PreMigrateSuffix
+	// os.Rename replaces an existing file on every platform, Windows included.
 	if err := os.Rename(tmp, dest); err != nil {
-		return err
+		return withoutDirectory(err)
 	}
-	slog.Info("Copied the database before migrating", "file", dest, "from", current, "to", len(names))
+	slog.Info("Copied the database before migrating", "file", filepath.Base(dest), "from", current, "to", len(names))
 	return nil
+}
+
+// withoutDirectory keeps only the file name in a path error, so that the message, which reaches the log, carries no
+// local path.
+func withoutDirectory(err error) error {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return fmt.Errorf("%s %s: %w", pathErr.Op, filepath.Base(pathErr.Path), pathErr.Err)
+	}
+	var linkErr *os.LinkError
+	if errors.As(err, &linkErr) {
+		return fmt.Errorf("%s %s: %w", linkErr.Op, filepath.Base(linkErr.New), linkErr.Err)
+	}
+	return err
 }
 
 // migrate runs every embedded migration newer than PRAGMA user_version, each in its own transaction.

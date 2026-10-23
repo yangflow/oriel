@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -158,9 +159,13 @@ func TestOpenDoesNotMigrateWhenTheCopyFails(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(file+PreMigrateSuffix, "keep"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if s, err := Open(ctx, file); err == nil {
+	s, err = Open(ctx, file)
+	if err == nil {
 		s.Close()
 		t.Fatal("Open migrated although the copy failed")
+	}
+	if strings.Contains(err.Error(), dir) {
+		t.Fatalf("the error carries the local path: %v", err)
 	}
 	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(file)+"?mode=ro")
 	if err != nil {
