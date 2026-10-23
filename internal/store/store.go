@@ -42,6 +42,10 @@ type Store struct {
 	path string // the database file; backups and restores keep their scratch files beside it
 
 	vacuuming atomic.Bool // set while Vacuum runs
+
+	// Tests shrink the prune batch and hook between batches; zero means the defaults.
+	pruneBatch     int
+	betweenBatches func()
 }
 
 // Open opens or creates the database file, locks it for this process and applies pending migrations.

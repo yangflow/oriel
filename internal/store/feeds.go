@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -487,21 +488,70 @@ func (s *Store) RetryExtraction(ctx context.Context, id int64) (Entry, error) {
 	return entry, nil
 }
 
+// pruneBatch is how many entries one PruneEntries transaction deletes.
+const pruneBatch = 500
+
+// pruneExpired is the retention rule of PruneEntries: an unstarred entry whose source keeps entries for a limited
+// time (?1 is the global days) and that is older than that time (?2 is now, ?3 the milliseconds in a day).
+const pruneExpired = `starred = 0 AND EXISTS (
+	SELECT 1 FROM sources s
+	WHERE s.id = entries.source_id
+		AND CASE WHEN s.keep_days > 0 THEN s.keep_days WHEN s.keep_days = 0 THEN ?1 ELSE 0 END > 0
+		AND coalesce(entries.published_at, entries.created_at) <
+			?2 - ?3 * CASE WHEN s.keep_days > 0 THEN s.keep_days ELSE ?1 END)`
+
 // PruneEntries deletes unstarred entries published, or else added, before the keep period of their source ended,
 // read or not. A source's own keep_days wins over globalDays; 0 follows globalDays and -1 keeps forever, and a
-// globalDays of 0 keeps forever.
+// globalDays of 0 keeps forever. It finds the expired ids once, then deletes them pruneBatch at a time, each batch
+// its own transaction, so the write lock is free between batches, and returns the total. Every batch checks the
+// rule again, so an entry starred meanwhile stays. When it fails or ctx ends, the batches already done stay.
 func (s *Store) PruneEntries(ctx context.Context, now time.Time, globalDays int) (int64, error) {
 	const dayMillis = 24 * 60 * 60 * 1000
-	result, err := s.db.ExecContext(ctx, `
-		DELETE FROM entries WHERE starred = 0 AND EXISTS (
-			SELECT 1 FROM sources s
-			WHERE s.id = entries.source_id
-				AND CASE WHEN s.keep_days > 0 THEN s.keep_days WHEN s.keep_days = 0 THEN ?1 ELSE 0 END > 0
-				AND coalesce(entries.published_at, entries.created_at) <
-					?2 - ?3 * CASE WHEN s.keep_days > 0 THEN s.keep_days ELSE ?1 END)`,
-		globalDays, now.UnixMilli(), int64(dayMillis))
+	args := []any{globalDays, now.UnixMilli(), int64(dayMillis)}
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM entries WHERE "+pruneExpired, args...)
 	if err != nil {
 		return 0, err
 	}
-	return result.RowsAffected()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return 0, err
+	}
+	batch := s.pruneBatch
+	if batch <= 0 {
+		batch = pruneBatch
+	}
+	var total int64
+	for len(ids) > 0 {
+		if err := ctx.Err(); err != nil {
+			return total, err
+		}
+		n := min(batch, len(ids))
+		marks := strings.TrimSuffix(strings.Repeat("?,", n), ",")
+		batchArgs := append([]any(nil), args...)
+		for _, id := range ids[:n] {
+			batchArgs = append(batchArgs, id)
+		}
+		result, err := s.db.ExecContext(ctx, "DELETE FROM entries WHERE "+pruneExpired+" AND id IN ("+marks+")", batchArgs...)
+		if err != nil {
+			return total, err
+		}
+		deleted, err := result.RowsAffected()
+		if err != nil {
+			return total, err
+		}
+		total += deleted
+		ids = ids[n:]
+		if s.betweenBatches != nil && len(ids) > 0 {
+			s.betweenBatches()
+		}
+	}
+	return total, nil
 }
