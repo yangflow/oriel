@@ -321,3 +321,21 @@ func TestImagesQueuedRequestHonorsItsContext(t *testing.T) {
 		}
 	}
 }
+
+// A public image address that redirects to a private one is refused at the redirect, and nothing is kept for it.
+func TestImagesRefuseRedirectInside(t *testing.T) {
+	inside := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(pngHeader) }))
+	defer inside.Close()
+	outside := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, inside.URL, http.StatusFound)
+	}))
+	defer outside.Close()
+	public := netip.MustParseAddrPort(strings.TrimPrefix(outside.URL, "http://"))
+	im := NewImages("test", "")
+	im.guarded = guardedClient(func(a netip.AddrPort) bool { return a != public })
+	for range 2 {
+		if _, _, err := im.Get(context.Background(), outside.URL+"/pic.png"); !errors.Is(err, ErrBlockedAddress) {
+			t.Fatalf("redirect inside: %v", err)
+		}
+	}
+}

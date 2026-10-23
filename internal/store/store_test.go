@@ -877,3 +877,250 @@ func TestConcurrentWritersWaitForEachOther(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+// Search text is one literal phrase: operators and punctuation of the full-text syntax match nothing special and
+// never fail the query.
+func TestSearchTextIsLiteral(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	start := time.UnixMilli(1_000_000)
+	blog, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "Blog", start)
+	if _, err := s.SaveFeed(ctx, FeedSource{ID: blog.ID, Kind: blog.Kind}, "", "", []FeedEntry{
+		{GUID: "1", Title: "Cats OR dogs", Summary: "a quiet note"},
+		{GUID: "2", Title: "Plain cats", Summary: "NEAR the end"},
+		{GUID: "3", Title: "C++ and f(x): a -b test", Summary: "wild*card"},
+	}, "", time.Time{}, start); err != nil {
+		t.Fatal(err)
+	}
+	search := func(query string) (titles []string) {
+		t.Helper()
+		got, err := s.Entries(ctx, EntryFilter{Query: query}, 10)
+		if err != nil {
+			t.Fatalf("%q: %v", query, err)
+		}
+		for _, e := range got {
+			titles = append(titles, e.Title)
+		}
+		return titles
+	}
+	for query, want := range map[string]string{
+		"cats OR dogs": "Cats OR dogs", // OR is a word, not "cats or dogs"
+		"dogs OR cats": "",             // the phrase order matters
+		"NEAR the":     "Plain cats",
+		"cats":         "Cats OR dogs|Plain cats",
+		"f(x):":        "C++ and f(x): a -b test",
+		"wild*":        "C++ and f(x): a -b test",
+		"nothing here": "",
+		`"`:            "",
+		`""`:           "",
+		`cats" OR "a`:  "",
+		"title:cats":   "",
+		"NOT cats":     "",
+		"c++ and":      "C++ and f(x): a -b test",
+		"CATS":         "Cats OR dogs|Plain cats",
+		"quiet note":   "Cats OR dogs",
+		"note quiet":   "",
+	} {
+		if got := strings.Join(search(query), "|"); got != want {
+			t.Errorf("search %q = %q, want %q", query, got, want)
+		}
+	}
+}
+
+// A search finds neither entries of a deleted source nor muted ones, unless they are starred.
+func TestSearchSkipsHiddenEntries(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	start := time.UnixMilli(1_000_000)
+	keep, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/a", Kind: "article", FetchInterval: time.Hour}, "A", start)
+	gone, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/b", Kind: "article", FetchInterval: time.Hour}, "B", start)
+	for _, src := range []Source{keep, gone} {
+		if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: src.Kind}, "", "", []FeedEntry{
+			{GUID: "x", Title: "Quasar news"}, {GUID: "y", Title: "Quasar gossip"},
+		}, "", time.Time{}, start); err != nil {
+			t.Fatal(err)
+		}
+	}
+	count := func() int {
+		got, err := s.Entries(ctx, EntryFilter{Query: "quasar"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(got)
+	}
+	if n := count(); n != 4 {
+		t.Fatalf("all = %d", n)
+	}
+	if err := s.DeleteSource(ctx, gone.ID, start); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(); n != 2 {
+		t.Fatalf("after delete = %d", n)
+	}
+	if err := s.SetSetting(ctx, MuteSetting, "gossip"); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(); n != 1 {
+		t.Fatalf("after mute = %d", n)
+	}
+}
+
+// The cursors combine with each other and with the direction; entries created at the same time are ordered by ID.
+func TestEntryCursorCombinations(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	start := time.UnixMilli(1_000_000)
+	blog, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "Blog", start)
+	// a, b and c arrive together; d and e later.
+	for i, batch := range [][]string{{"a", "b", "c"}, {"d"}, {"e"}} {
+		var items []FeedEntry
+		for _, guid := range batch {
+			items = append(items, FeedEntry{GUID: guid, Title: guid})
+		}
+		if _, err := s.SaveFeed(ctx, FeedSource{ID: blog.ID, Kind: blog.Kind}, "", "", items, "", time.Time{}, start.Add(time.Duration(i)*time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	titles := func(f EntryFilter) string {
+		t.Helper()
+		got, err := s.Entries(ctx, f, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, e := range got {
+			out = append(out, e.Title)
+		}
+		return strings.Join(out, "")
+	}
+	all, _ := s.Entries(ctx, EntryFilter{Oldest: true}, 10)
+	if len(all) != 5 {
+		t.Fatalf("setup: %d entries", len(all))
+	}
+	at := func(title string) *Position {
+		for _, e := range all {
+			if e.Title == title {
+				return &Position{e.CreatedAt.UnixMilli(), e.ID}
+			}
+		}
+		t.Fatalf("no entry %q", title)
+		return nil
+	}
+	if got := titles(EntryFilter{Oldest: true}); got != "cbade" {
+		t.Fatalf("oldest first = %s", got)
+	}
+	if got := titles(EntryFilter{}); got != "edabc" {
+		t.Fatalf("newest first = %s", got)
+	}
+	for name, c := range map[string]struct {
+		filter EntryFilter
+		want   string
+	}{
+		"after, newest first":        {EntryFilter{After: at("d")}, "abc"},
+		"after, oldest first":        {EntryFilter{After: at("b"), Oldest: true}, "ade"},
+		"after inside a tie":         {EntryFilter{After: at("a")}, "bc"},
+		"after the oldest":           {EntryFilter{After: at("c")}, ""},
+		"after the newest, oldest":   {EntryFilter{After: at("e"), Oldest: true}, ""},
+		"up to":                      {EntryFilter{UpTo: at("a")}, "abc"},
+		"up to and after":            {EntryFilter{UpTo: at("d"), After: at("b")}, "c"},
+		"newer":                      {EntryFilter{Newer: at("c")}, "edab"},
+		"newer, oldest first":        {EntryFilter{Newer: at("b"), Oldest: true}, "ade"},
+		"newer and up to":            {EntryFilter{Newer: at("a"), UpTo: at("d")}, "d"},
+		"newer than the newest":      {EntryFilter{Newer: at("e")}, ""},
+		"empty window":               {EntryFilter{Newer: at("d"), UpTo: at("c")}, ""},
+		"after and newer, one place": {EntryFilter{After: at("d"), Newer: at("b")}, "a"},
+	} {
+		if got := titles(c.filter); got != c.want {
+			t.Errorf("%s = %q, want %q", name, got, c.want)
+		}
+	}
+	// Paging through a tie visits every entry once, in both directions.
+	for _, oldest := range []bool{false, true} {
+		seen := pages(t, s, EntryFilter{Oldest: oldest}, 2)
+		if len(seen) != 5 {
+			t.Errorf("oldest=%v: pages saw %v", oldest, seen)
+		}
+	}
+}
+
+func TestMarkReadSkipsHiddenAndReadEntries(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	start := time.UnixMilli(1_700_000_000_000)
+	a, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/a", Kind: "article", FetchInterval: time.Hour}, "A", start)
+	b, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/b", Kind: "article", FetchInterval: time.Hour}, "B", start)
+	save := func(src Source, items ...FeedEntry) {
+		t.Helper()
+		if _, err := s.SaveFeed(ctx, FeedSource{ID: src.ID, Kind: src.Kind}, "", "", items, "", time.Time{}, start); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save(a, FeedEntry{GUID: "1", Title: "One"}, FeedEntry{GUID: "2", Title: "Two"}, FeedEntry{GUID: "3", Title: "Spam three"})
+	save(b, FeedEntry{GUID: "4", Title: "Four"})
+	all, _ := s.Entries(ctx, EntryFilter{SourceID: a.ID}, 10)
+	byTitle := map[string]int64{}
+	for _, e := range all {
+		byTitle[e.Title] = e.ID
+	}
+	read := true
+	if _, err := s.UpdateEntry(ctx, byTitle["One"], EntryPatch{IsRead: &read}, start); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetSetting(ctx, MuteSetting, "spam"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteSource(ctx, b.ID, start); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.MarkRead(ctx, EntryFilter{}, start.Add(time.Minute))
+	if err != nil || len(got) != 1 || got[0] != byTitle["Two"] {
+		t.Fatalf("MarkRead = %v, %v; only Two is unread and visible", got, err)
+	}
+	// Nothing is left: the result is an empty list, not nil, and the read time of One is untouched.
+	got, err = s.MarkRead(ctx, EntryFilter{}, start.Add(2*time.Minute))
+	if err != nil || got == nil || len(got) != 0 {
+		t.Fatalf("second MarkRead = %#v, %v", got, err)
+	}
+	one, _ := s.Entry(ctx, byTitle["One"])
+	if !one.ReadAt.Equal(start) {
+		t.Fatalf("One read at %v", one.ReadAt)
+	}
+	if spam, _ := s.Entry(ctx, byTitle["Spam three"]); spam.IsRead {
+		t.Fatal("a muted entry was marked read")
+	}
+}
+
+func TestMarkUnreadEdges(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	start := time.UnixMilli(1_700_000_000_000)
+	blog, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/a", Kind: "article", FetchInterval: time.Hour}, "A", start)
+	if _, err := s.SaveFeed(ctx, FeedSource{ID: blog.ID, Kind: blog.Kind}, "", "", []FeedEntry{{GUID: "1", Title: "One"}, {GUID: "2", Title: "Two"}}, "", time.Time{}, start); err != nil {
+		t.Fatal(err)
+	}
+	marked, err := s.MarkRead(ctx, EntryFilter{}, start.Add(time.Minute))
+	if err != nil || len(marked) != 2 {
+		t.Fatalf("MarkRead = %v, %v", marked, err)
+	}
+	for _, ids := range [][]int64{nil, {}, {0, -1, 9999}} {
+		if got, err := s.MarkUnread(ctx, ids, 0); err != nil || got == nil || len(got) != 0 {
+			t.Errorf("MarkUnread(%v) = %#v, %v", ids, got, err)
+		}
+	}
+	// The undo only touches entries read at the time it names.
+	if got, err := s.MarkUnread(ctx, marked, start.UnixMilli()); err != nil || len(got) != 0 {
+		t.Fatalf("stale undo = %v, %v", got, err)
+	}
+	// Unknown IDs and a repeated ID are skipped; the entry changes once.
+	got, err := s.MarkUnread(ctx, []int64{9999, marked[0], marked[0]}, start.Add(time.Minute).UnixMilli())
+	if err != nil || len(got) != 1 || got[0] != marked[0] {
+		t.Fatalf("undo = %v, %v", got, err)
+	}
+	entry, _ := s.Entry(ctx, marked[0])
+	if entry.IsRead || !entry.ReadAt.IsZero() {
+		t.Fatalf("still read: %+v", entry)
+	}
+	if other, _ := s.Entry(ctx, marked[1]); !other.IsRead {
+		t.Fatal("an entry outside the undo changed")
+	}
+}

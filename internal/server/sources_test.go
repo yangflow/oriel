@@ -253,3 +253,106 @@ func TestSourceLastErrorKind(t *testing.T) {
 		t.Fatalf("source = %v", first)
 	}
 }
+
+func TestSourceRoutesRejectBadIDs(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	for _, r := range []struct{ method, target, body string }{
+		{"PATCH", "/api/sources/x", `{"title":"t"}`},
+		{"DELETE", "/api/sources/x", ""},
+		{"POST", "/api/sources/x/restore", ""},
+		{"POST", "/api/sources/x/refresh", ""},
+		{"POST", "/api/sources/x/muted-count", `{"muteKeywords":"a"}`},
+		{"GET", "/api/sources/1.5", ""},
+		{"GET", "/api/sources/99999999999999999999", ""},
+	} {
+		if w := do(s, r.method, r.target, r.body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_id" {
+			t.Errorf("%s %s: %d %s", r.method, r.target, w.Code, w.Body)
+		}
+	}
+	for _, r := range []struct{ method, target, body string }{
+		{"PATCH", "/api/sources/999", `{"title":"t"}`},
+		{"PATCH", "/api/sources/999", `{}`},
+		{"POST", "/api/sources/999/restore", ""},
+		{"POST", "/api/sources/999/refresh", ""},
+	} {
+		if w := do(s, r.method, r.target, r.body, bearer(token)); w.Code != http.StatusNotFound || decode(t, w)["error"] != "not_found" {
+			t.Errorf("%s %s %s: %d %s", r.method, r.target, r.body, w.Code, w.Body)
+		}
+	}
+}
+
+// A source's AI options are saved as given, an empty PATCH changes nothing, not even updatedAt, and a field of the
+// wrong type is refused.
+func TestSourcePatchAIOptions(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	created := decode(t, do(s, "POST", "/api/sources", `{"url":"https://example.org/feed","kind":"article","title":"Blog"}`, bearer(token)))
+	id := strconv.Itoa(int(created["id"].(float64)))
+	if created["autoSummary"] != false || created["autoTranslate"] != false || created["promptSummary"] != "" || created["promptTranslate"] != "" {
+		t.Fatalf("defaults: %v", created)
+	}
+	c.t = c.t.Add(time.Minute)
+	w := do(s, "PATCH", "/api/sources/"+id, `{"autoSummary":true,"autoTranslate":true,"promptSummary":"Short","promptTranslate":"Plain"}`, bearer(token))
+	got := decode(t, w)
+	if w.Code != http.StatusOK || got["autoSummary"] != true || got["autoTranslate"] != true || got["promptSummary"] != "Short" ||
+		got["promptTranslate"] != "Plain" || got["updatedAt"] != float64(c.t.UnixMilli()) {
+		t.Fatalf("patch: %d %v", w.Code, got)
+	}
+	c.t = c.t.Add(time.Minute)
+	if again := decode(t, do(s, "PATCH", "/api/sources/"+id, `{}`, bearer(token))); again["updatedAt"] != got["updatedAt"] || again["autoSummary"] != true {
+		t.Fatalf("empty patch: %v", again)
+	}
+	if one := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"autoSummary":false}`, bearer(token))); one["autoSummary"] != false ||
+		one["autoTranslate"] != true || one["promptSummary"] != "Short" {
+		t.Fatalf("only the given field changes: %v", one)
+	}
+	if clear := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"promptSummary":"","promptTranslate":""}`, bearer(token))); clear["promptSummary"] != "" || clear["promptTranslate"] != "" {
+		t.Fatalf("clear prompts: %v", clear)
+	}
+	for _, body := range []string{`{"autoSummary":"yes"}`, `{"paused":1}`, `{"title":5}`, `{"keepDays":"90"}`, `{"muteKeywords":["a"]}`} {
+		if w := do(s, "PATCH", "/api/sources/"+id, body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_body" {
+			t.Errorf("%s: %d %s", body, w.Code, w.Body)
+		}
+	}
+	// The edges the validation allows: -1 keeps nothing back, 3650 days is the most.
+	for body, want := range map[string]float64{`{"keepDays":-1}`: -1, `{"keepDays":3650}`: 3650, `{"keepDays":0}`: 0, `{"paceSec":3600}`: 3600} {
+		w := do(s, "PATCH", "/api/sources/"+id, body, bearer(token))
+		field := "keepDays"
+		if strings.Contains(body, "pace") {
+			field = "paceSec"
+		}
+		if got := decode(t, w); w.Code != http.StatusOK || got[field] != want {
+			t.Errorf("%s: %d %v", body, w.Code, got)
+		}
+	}
+	// A title of spaces clears the title; a kind change does not touch the other fields.
+	if got := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"title":"   "}`, bearer(token))); got["title"] != "" || got["kind"] != "article" {
+		t.Fatalf("blank title: %v", got)
+	}
+}
+
+func TestCreateSourceEdges(t *testing.T) {
+	s, _ := newServer(t, "")
+	for body, want := range map[string]int{
+		`{"url":"https://a.org/f","kind":"article","fetchIntervalSec":60}`:     http.StatusCreated,
+		`{"url":"https://a.org/g","kind":"article","fetchIntervalSec":604800}`: http.StatusCreated,
+		`{"url":"https://a.org/h","kind":"article","fetchIntervalSec":0}`:      http.StatusBadRequest,
+		`{"url":"https://a.org/i","kind":"article","fetchIntervalSec":-60}`:    http.StatusBadRequest,
+		`{"url":"https://a.org/j","kind":""}`:                                  http.StatusBadRequest,
+		`{"url":"   ","kind":"article"}`:                                       http.StatusBadRequest,
+		`{"url":"https://a.org/k","rsshubPath":"","kind":"video"}`:             http.StatusCreated,
+		`{"rsshubPath":" /x/y ","kind":"image"}`:                               http.StatusCreated,
+		`{"rsshubPath":"   ","kind":"image"}`:                                  http.StatusBadRequest,
+		`{"url":"http://[::1]:1200/feed","kind":"article"}`:                    http.StatusCreated,
+		`{"url":"https://:443/feed","kind":"article"}`:                         http.StatusBadRequest,
+	} {
+		if w := do(s, "POST", "/api/sources", body, nil); w.Code != want {
+			t.Errorf("%s: %d %s, want %d", body, w.Code, w.Body, want)
+		}
+	}
+	// An rsshub path is saved trimmed; the same path again is a duplicate.
+	if w := do(s, "POST", "/api/sources", `{"rsshubPath":"/x/y","kind":"image"}`, nil); w.Code != http.StatusConflict {
+		t.Errorf("duplicate rsshub path: %d %s", w.Code, w.Body)
+	}
+}
