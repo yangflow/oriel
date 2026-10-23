@@ -27,12 +27,14 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
-      - name: Format, module, tests and cross-compilation
-        run: scripts/check.sh --cross
+      - name: Format, module, tests with the race detector and cross-compilation
+        run: scripts/check.sh --cross --race
       - name: Secret scan of the history
         run: python3 scripts/scan_secrets.py
-      - name: Race detector
-        run: go test -race ./...
+      # Pinned so a new release of the tool cannot fail CI by itself; fails the job on a vulnerability the code
+      # reaches, in the standard library or in a dependency.
+      - name: Known vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
   # The data directory lock and paths take a separate code path on Windows; check.sh only cross-compiles it.
   test-windows:
     runs-on: windows-latest
