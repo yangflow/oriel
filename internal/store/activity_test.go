@@ -206,7 +206,7 @@ func TestMaintainShrinksTheFileAfterALargePrune(t *testing.T) {
 	}
 }
 
-func TestMaintainConvertsAnExistingDatabase(t *testing.T) {
+func TestMaintainLeavesAnOldDatabaseAloneUntilTheManualCompaction(t *testing.T) {
 	ctx := context.Background()
 	file := filepath.Join(t.TempDir(), "oriel.sqlite")
 	old := open(t, file)
@@ -231,9 +231,63 @@ func TestMaintainConvertsAnExistingDatabase(t *testing.T) {
 	if err := old.Maintain(ctx, 300); err != nil {
 		t.Fatal(err)
 	}
+	kept, _ := old.Storage(ctx)
+	if autoVacuum(t, old) != 0 || kept.DatabaseBytes != full.DatabaseBytes {
+		t.Fatalf("Maintain changed an old database: mode %d, %+v (before %+v)", autoVacuum(t, old), kept, full)
+	}
+	if info, err := os.Stat(file + "-wal"); err == nil && info.Size() != 0 {
+		t.Fatalf("the write-ahead log keeps %d bytes", info.Size())
+	}
+	if err := old.Vacuum(ctx); err != nil {
+		t.Fatal(err)
+	}
 	after, _ := old.Storage(ctx)
 	if autoVacuum(t, old) != autoVacuumIncremental || after.DatabaseBytes >= full.DatabaseBytes {
 		t.Fatalf("mode %d, %+v (before %+v)", autoVacuum(t, old), after, full)
+	}
+	// Once converted, a later large prune shrinks the file through Maintain.
+	src = fillSource(t, old, 300)
+	grown, _ := old.Storage(ctx)
+	deleteForGood(t, old, src.ID)
+	if err := old.Maintain(ctx, 300); err != nil {
+		t.Fatal(err)
+	}
+	if shrunk, _ := old.Storage(ctx); shrunk.DatabaseBytes >= grown.DatabaseBytes {
+		t.Fatalf("a converted database did not shrink: %+v (before %+v)", shrunk, grown)
+	}
+}
+
+func TestOneIncrementalStepGivesBackAtMostItsPages(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	src := fillSource(t, s, 600)
+	deleteForGood(t, s, src.ID)
+	free := func() int64 {
+		var n int64
+		if err := s.db.QueryRow("PRAGMA freelist_count").Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := free()
+	if before <= incrementalPages {
+		t.Fatalf("only %d free pages, the test needs more", before)
+	}
+	if _, err := s.db.ExecContext(ctx, "PRAGMA incremental_vacuum("+strconv.Itoa(incrementalPages)+")"); err != nil {
+		t.Fatal(err)
+	}
+	if after := free(); after != before-incrementalPages {
+		t.Fatalf("a step took the free pages from %d to %d", before, after)
+	}
+}
+
+func TestCloseTwiceIsHarmless(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("the second Close failed: %v", err)
 	}
 }
 
