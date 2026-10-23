@@ -354,39 +354,38 @@ func (s *Screen) readerHeader(c *ui.Context, open *bool) {
 
 func (s *Screen) readerButtons(c *ui.Context, step int) {
 	r := &s.reader
-	pick := func(style int, disabled bool, text string) bool {
-		b := button(c, style, disabled)
-		textButton(c, b, style, nil, text, false)
+	pick := func(style theme.ButtonStyle, disabled bool, text string) bool {
+		b := theme.Button{Style: style, Disabled: disabled, Text: text}.Draw(c)
 		return b.Clicked()
 	}
 	switch step {
 	case stepForm:
-		if pick(secondary, false, s.text.ReaderCancel) {
+		if pick(theme.Secondary, false, s.text.ReaderCancel) {
 			s.closeReader()
 		}
-		if pick(primary, !r.ready(), s.text.ReaderConnect) {
+		if pick(theme.Primary, !r.ready(), s.text.ReaderConnect) {
 			s.connectReader()
 		}
 	case stepReading, stepWriting:
-		if pick(secondary, false, s.text.ReaderCancel) {
+		if pick(theme.Secondary, false, s.text.ReaderCancel) {
 			s.closeReader()
 		}
 	case stepPreview:
-		if pick(secondary, r.confirming, s.text.ReaderCancel) {
+		if pick(theme.Secondary, r.confirming, s.text.ReaderCancel) {
 			s.closeReader()
 		}
-		if pick(primary, r.confirming, s.text.ReaderImport) {
+		if pick(theme.Primary, r.confirming, s.text.ReaderImport) {
 			s.confirmReader()
 		}
 	case stepDone:
-		if pick(primary, false, s.text.ReaderDone) {
+		if pick(theme.Primary, false, s.text.ReaderDone) {
 			s.closeReader()
 		}
 	default:
-		if pick(secondary, false, s.text.ReaderClose) {
+		if pick(theme.Secondary, false, s.text.ReaderClose) {
 			s.closeReader()
 		}
-		if pick(primary, false, s.text.ReaderTryAgain) {
+		if pick(theme.Primary, false, s.text.ReaderTryAgain) {
 			s.retryReader()
 		}
 	}

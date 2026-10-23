@@ -1066,72 +1066,6 @@ func errorLine(c *ui.Context, text string, link string) bool {
 	return clicked
 }
 
-const (
-	secondary = iota
-	primary
-	quiet // a destructive action that is not the default, in the danger color without a fill
-	small // in the health line
-)
-
-func button(c *ui.Context, style int, disabled bool) ui.Element {
-	t := c.Theme()
-	b := theme.Fade(ui.ButtonBase(c).Height(theme.Px(t, 32)).Gap(t.Space(1.5)).PaddingX(theme.Px(t, 14)).Radius(t.Radius).
-		Disabled(disabled))
-	track := theme.Track(t)
-	fill, color := track, t.Text
-	switch style {
-	case primary:
-		fill, color = t.Accent, t.AccentText
-	case quiet:
-		fill, color = ui.Color{}, t.Danger
-		b.PaddingX(t.Space(2))
-	case small:
-		b.Height(theme.Px(t, 26)).PaddingX(theme.Px(t, 10))
-	}
-	switch {
-	case disabled && style == quiet:
-		color = t.TextMuted
-	case disabled:
-		fill, color = t.Surface, t.TextMuted
-	case b.Pressed() && style == primary:
-		fill = t.AccentPressed
-	case b.Hovered() && style == primary:
-		fill = t.AccentHover
-	case b.Pressed() && style == quiet:
-		fill = theme.Soft(t, t.Danger).Mix(theme.Ink(t, 1), 0.05)
-	case b.Hovered() && style == quiet:
-		fill = theme.Soft(t, t.Danger)
-	case b.Pressed():
-		fill = track.Mix(theme.Ink(t, 1), 0.1)
-	case b.Hovered():
-		fill = track.Mix(theme.Ink(t, 1), 0.06)
-	}
-	if c.Preferences().HighContrast && style != quiet {
-		b.Border(1, t.Border)
-	}
-	return b.Background(fill).TextColor(color)
-}
-
-// textButton fills a button with an optional icon and its text, a spinner for the icon while busy, in the color
-// button gave it.
-func textButton(c *ui.Context, b ui.Element, style int, icon *ui.SVG, text string, busy bool) {
-	t := c.Theme()
-	size := theme.Px(t, 14)
-	b.Children(func() {
-		if busy {
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(size)
-			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-		} else if icon != nil {
-			ui.Icon(c, icon).FontSize(size)
-		}
-		text := ui.Text(c, text).NoWrap()
-		if style == small {
-			text.FontSize(theme.Px(t, 12))
-		}
-		text.FontWeight(500)
-	})
-}
-
 func tile(c *ui.Context, icon *ui.SVG) {
 	t := c.Theme()
 	ui.Box(c).Size(theme.Px(t, 32), theme.Px(t, 32)).Radius(8).Center().Background(theme.Soft(t, t.Accent)).Children(func() {
@@ -1197,26 +1131,23 @@ func (s *Screen) addDialog(c *ui.Context) {
 		}
 	}, func() {
 		ui.Box(c).Grow(1)
-		cancel := button(c, secondary, false)
 		done := s.text.Cancel
 		if a.count > 0 {
 			done = s.text.Done
 		}
-		textButton(c, cancel, secondary, nil, done, false)
+		cancel := theme.Button{Text: done}.Draw(c)
 		if cancel.Clicked() {
 			a.open = false
 		}
-		more := button(c, secondary, !s.canAdd() && !a.busy)
-		textButton(c, more, secondary, nil, s.text.AddContinue, false)
+		more := theme.Button{Disabled: !s.canAdd() && !a.busy, Text: s.text.AddContinue}.Draw(c)
 		if more.Clicked() {
 			s.submit(true)
 		}
-		add := button(c, primary, !s.canAdd() && !a.busy)
 		text := s.text.AddShort
 		if a.busy {
 			text = s.text.Adding
 		}
-		textButton(c, add, primary, nil, text, a.busy)
+		add := theme.Button{Style: theme.Primary, Disabled: !s.canAdd() && !a.busy, Text: text, Busy: a.busy}.Draw(c)
 		if add.Clicked() {
 			s.submit(false)
 		}
@@ -1449,16 +1380,15 @@ func (s *Screen) publicCard(c *ui.Context) {
 			ui.Icon(c, icons.TriangleAlert).FontSize(theme.Px(t, 14)).TextColor(t.Warning).Margin(2, 0, 0, 0)
 			ui.Text(c, text).FontWeight(500).TextColor(t.Warning).Shrink(1).Wrap()
 		})
-		use := button(c, small, false)
 		if own {
-			textButton(c, use, small, nil, s.text.UseMine, false)
+			use := theme.Button{Small: true, Text: s.text.UseMine}.Draw(c)
 			if use.Clicked() {
 				a.address = publicRoute(a.address)
 				a.focus = addressField
 			}
 			return
 		}
-		textButton(c, use, small, nil, s.text.OpenSettings, false)
+		use := theme.Button{Small: true, Text: s.text.OpenSettings}.Draw(c)
 		if use.Clicked() {
 			a.open = false
 			if s.deps.OpenRSSHub != nil {
@@ -1554,8 +1484,7 @@ func (s *Screen) kindSuggestion(c *ui.Context) {
 		Background(t.Surface).Label(text).Children(func() {
 		ui.Icon(c, kindIcon(e.src.SuggestedKind)).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 		ui.Text(c, text).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Grow(1).MinWidth(0).Wrap()
-		use := button(c, small, e.busy)
-		textButton(c, use, small, nil, strings.ReplaceAll(s.text.UseKind, "{kind}", s.kindName(e.src.SuggestedKind)), false)
+		use := theme.Button{Small: true, Disabled: e.busy, Text: strings.ReplaceAll(s.text.UseKind, "{kind}", s.kindName(e.src.SuggestedKind))}.Draw(c)
 		if use.Clicked() {
 			e.kind = i
 		}
@@ -1828,23 +1757,20 @@ func (s *Screen) editDialog(c *ui.Context) {
 			errorLine(c, e.formErr, "")
 		}
 	}, func() {
-		remove := button(c, quiet, e.busy)
-		textButton(c, remove, quiet, icons.Trash2, s.text.Delete, false)
+		remove := theme.Button{Style: theme.Danger, Disabled: e.busy, Icon: icons.Trash2, Text: s.text.Delete}.Draw(c)
 		if remove.Clicked() {
 			s.AskDelete(e.src)
 		}
 		ui.Box(c).Grow(1)
-		cancel := button(c, secondary, false)
-		textButton(c, cancel, secondary, nil, s.text.Cancel, false)
+		cancel := theme.Button{Style: theme.Secondary, Text: s.text.Cancel}.Draw(c)
 		if cancel.Clicked() {
 			e.open = false
 		}
-		save := button(c, primary, e.busy)
 		text := s.text.Save
 		if e.busy {
 			text = s.text.Saving
 		}
-		textButton(c, save, primary, nil, text, e.busy)
+		save := theme.Button{Style: theme.Primary, Disabled: e.busy, Text: text, Busy: e.busy}.Draw(c)
 		if save.Clicked() {
 			s.save()
 		}
@@ -1910,8 +1836,7 @@ func (s *Screen) health(c *ui.Context) {
 		ui.Text(c, text).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap().
 			Role(ui.RoleStatus)
 		if !src.Paused {
-			refresh := button(c, small, false)
-			textButton(c, refresh, small, icons.RefreshCw, s.refreshText(src), false)
+			refresh := theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.refreshText(src)}.Draw(c)
 			if refresh.Clicked() {
 				s.Refresh(src)
 			}
@@ -1956,8 +1881,7 @@ func (s *Screen) aiGroup(c *ui.Context) {
 			ui.Icon(c, icons.CircleAlert).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 			ui.Text(c, s.text.AIOff).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().
 				Role(ui.RoleStatus)
-			open := button(c, small, false)
-			textButton(c, open, small, nil, s.text.OpenSettings, false)
+			open := theme.Button{Small: true, Text: s.text.OpenSettings}.Draw(c)
 			if open.Clicked() {
 				e.open = false
 				if s.deps.OpenSettings != nil {
@@ -2136,8 +2060,7 @@ func (s *Screen) healthDialog(c *ui.Context) {
 		}
 	}, func() {
 		ui.Box(c).Grow(1)
-		closeButton := button(c, secondary, false)
-		textButton(c, closeButton, secondary, nil, s.text.Close, false)
+		closeButton := theme.Button{Style: theme.Secondary, Text: s.text.Close}.Draw(c)
 		if closeButton.Clicked() {
 			r.open = false
 		}
@@ -2167,13 +2090,13 @@ func (s *Screen) healthRow(c *ui.Context, h client.SourceHealth) {
 			ui.Text(c, s.healthNumbers(h)).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine()
 		})
 		ui.Row(c).Gap(t.Space(1)).Children(func() {
-			pause := button(c, small, false).Label(s.fill(s.text.PauseSource, name))
-			textButton(c, pause, small, icons.Pause, s.text.Pause, false)
+			pause := theme.Button{Small: true, Icon: icons.Pause, Text: s.text.Pause,
+				Label: s.fill(s.text.PauseSource, name)}.Draw(c)
 			if pause.Clicked() {
 				s.SetPaused(src, true)
 			}
-			remove := button(c, quiet, false).Height(theme.Px(t, 26)).Label(s.fill(s.text.UnsubscribeSource, name))
-			textButton(c, remove, small, icons.Trash2, s.text.Unsubscribe, false)
+			remove := theme.Button{Style: theme.Danger, Small: true, Icon: icons.Trash2, Text: s.text.Unsubscribe,
+				Label: s.fill(s.text.UnsubscribeSource, name)}.Draw(c)
 			if remove.Clicked() {
 				s.AskDelete(src)
 			}

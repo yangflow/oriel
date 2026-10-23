@@ -121,8 +121,7 @@ func (s *Screen) activityPage(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).Margin(0, 0, theme.Px(t, 20), 0).Children(func() {
 		ui.Text(c, s.text.ActivityLead).TextColor(t.TextMuted).Wrap().Grow(1).Shrink(1).MinWidth(0)
-		refresh := button(c, small, false)
-		textButton(c, refresh, small, icons.RefreshCw, s.text.Refresh, false)
+		refresh := theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.text.Refresh}.Draw(c)
 		if refresh.Clicked() {
 			s.fetchActivity()
 		}
@@ -148,12 +147,11 @@ func (s *Screen) storageCard(c *ui.Context) {
 		busy := s.compacting()
 		t := c.Theme()
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
-			compact := button(c, secondary, busy)
 			label := s.text.Compact
 			if busy {
 				label = s.text.Compacting
 			}
-			textButton(c, compact, secondary, nil, label, busy)
+			compact := theme.Button{Disabled: busy, Text: label, Busy: busy}.Draw(c)
 			if compact.Clicked() {
 				s.startVacuum()
 			}
@@ -186,12 +184,11 @@ func (s *Screen) diagnosticsCard(c *ui.Context) {
 	sectionTitle(c, s.text.Diagnostics, t.Space(6))
 	card(c, func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
-			export := button(c, secondary, s.diagBusy)
 			label := s.text.ExportDiagnostics
 			if s.diagBusy {
 				label = s.text.ExportingDiagnostics
 			}
-			textButton(c, export, secondary, icons.Download, label, s.diagBusy)
+			export := theme.Button{Disabled: s.diagBusy, Icon: icons.Download, Text: label, Busy: s.diagBusy}.Draw(c)
 			if export.Clicked() {
 				s.exportDiagnostics()
 			}

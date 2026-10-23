@@ -177,9 +177,10 @@ aside { width:216px; flex:none; margin:8px 0 8px 8px; padding-top:40px; display:
 .button:active { background:color-mix(in srgb,var(--track),rgba(var(--ink),.1)) }
 .button.primary { background:var(--accent); color:var(--accent-text) }
 .button.primary:hover { background:var(--accent-hover) }
-.button.danger { background:var(--danger); color:var(--accent-text) }
-.button.quiet { background:none; color:var(--danger); padding:0 8px }
-.button.quiet:hover { background:var(--danger-soft) }
+.button.danger { background:none; color:var(--danger); padding:0 8px }
+.button.danger:hover { background:var(--danger-soft) }
+.button.danger:active { background:color-mix(in srgb,var(--danger-soft),rgba(var(--ink),.05)) }
+.button.danger.small { padding:0 10px }
 .button.small { height:26px; padding:0 10px; font-size:12px }
 .button:disabled { background:rgba(var(--ink),.04); color:var(--disabled); font-weight:400 }
 .button svg.icon { width:14px; height:14px }
@@ -544,7 +545,7 @@ function editDialog(){
       <div class="field"><label for="ps">${copy.promptSummary}</label><textarea id="ps" class="prompt" placeholder="${copy.promptPlaceholder}">${ai?(lang==='en'?'Summarize the post in {language} in one sentence, then list the Go versions it mentions.':'用{language}一句话概括这篇文章，再列出提到的 Go 版本。'):''}</textarea></div>
       <div class="field"><label for="pt">${copy.promptTranslate}</label><textarea id="pt" class="prompt" placeholder="${copy.promptPlaceholder}"></textarea></div>
     </div>
-    <footer><button class="button quiet">${icon('trash')}${copy.remove}</button><span class="spacer"></span><button class="button">${copy.cancel}</button><button class="button primary">${copy.save}</button></footer>
+    <footer><button class="button danger">${icon('trash')}${copy.remove}</button><span class="spacer"></span><button class="button">${copy.cancel}</button><button class="button primary">${copy.save}</button></footer>
   </div></div>`;
 }
 

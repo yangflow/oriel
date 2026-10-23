@@ -9,7 +9,6 @@ import (
 	"errors"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
@@ -361,66 +360,19 @@ func (s *Screen) errorLine(c *ui.Context, f field) {
 func (s *Screen) actions(c *ui.Context, busy bool) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().Gap(t.Space(2)).Children(func() {
-		color := t.Text
-		if busy {
-			color = t.TextMuted
-		}
-		local := s.button(c, false, busy)
-		local.Children(func() {
-			ui.Icon(c, icons.Laptop).FontSize(t.Rem(1.25)).TextColor(color)
-			ui.Text(c, s.text.UseLocal).NoWrap().FontWeight(500).TextColor(color)
-		})
+		local := theme.Button{Grow: true, Disabled: busy, Icon: icons.Laptop, Text: s.text.UseLocal}.Draw(c)
 		if local.Clicked() && !busy {
 			s.run++
 			s.deps.UseLocal()
 		}
-		primary := s.button(c, true, busy)
+		label, icon := s.text.Connect, icons.ArrowRight
 		if busy {
-			color = t.TextMuted
-		} else {
-			color = t.AccentText
+			label, icon = s.text.Connecting, nil
 		}
-		primary.Children(func() {
-			if busy {
-				spin := ui.Icon(c, icons.LoaderCircle).FontSize(t.Rem(1.25)).TextColor(color)
-				spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-				ui.Text(c, s.text.Connecting).NoWrap().FontWeight(500).TextColor(color)
-			} else {
-				ui.Text(c, s.text.Connect).NoWrap().FontWeight(500).TextColor(color)
-				ui.Icon(c, icons.ArrowRight).FontSize(t.Rem(1.25)).TextColor(color)
-			}
-		})
+		primary := theme.Button{Style: theme.Primary, Grow: true, Disabled: busy, Busy: busy, IconAfter: !busy, Icon: icon,
+			Text: label}.Draw(c)
 		if primary.Clicked() {
 			s.connect()
 		}
 	})
-}
-
-// button is a button of the form: on a Track, or Accent when primary; while busy both are Surface with a TextMuted
-// label, never a faded accent.
-func (s *Screen) button(c *ui.Context, primary, busy bool) ui.Element {
-	t := c.Theme()
-	b := theme.Fade(ui.ButtonBase(c).Grow(1).Basis(0).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3)).
-		Radius(t.Radius).Disabled(busy))
-	track := theme.Track(t)
-	fill := track
-	if primary {
-		fill = t.Accent
-	}
-	switch {
-	case busy:
-		fill = t.Surface
-	case b.Pressed() && primary:
-		fill = t.AccentPressed
-	case b.Hovered() && primary:
-		fill = t.AccentHover
-	case b.Pressed():
-		fill = track.Mix(theme.Ink(t, 1), 0.1)
-	case b.Hovered():
-		fill = track.Mix(theme.Ink(t, 1), 0.06)
-	}
-	if c.Preferences().HighContrast {
-		b.Border(1, t.Border)
-	}
-	return b.Background(fill)
 }

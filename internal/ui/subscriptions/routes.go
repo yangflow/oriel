@@ -350,8 +350,8 @@ func (s *Screen) routeParams(c *ui.Context, rt client.Route) {
 			})
 		}
 		busy := r.preview.state == previewLoading
-		b := button(c, secondary, !s.routeComplete() || busy || a.busy).Key("preview")
-		textButton(c, b, secondary, icons.Eye, s.text.Preview, busy)
+		b := theme.Button{Key: "preview", Disabled: !s.routeComplete() || busy || a.busy, Icon: icons.Eye, Text: s.text.Preview,
+			Busy: busy}.Draw(c)
 		if b.Clicked() {
 			s.previewRoute()
 		}

@@ -27,6 +27,7 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | symbol-button | `t.Space(11)` | 44 | width of square symbol buttons |
 | radius | `Theme.Radius` | 8 | corners of controls |
 | toolbar | `t.Space(13)` | 52 | the toolbar row, a solid `Background` bar; the window buttons are centered in it |
+| button | `theme.Button`, radius 8, 6 between icon and text | 32 high, 26 `Small`; icon 14; text 13 weight 500 (12 `Small`); padding 14 (`Primary`, `Secondary`), 8 (`Danger`, `Plain`), 10 `Small`; an icon with no text is a square of the height | `Secondary`: `Track`, ink 6% hovered, 10% pressed, `Text`; `Primary`: `Accent`, `AccentHover`, `AccentPressed`, `AccentText`; `Danger`: no fill, `Danger` text, `Soft(Danger)` hovered; `Plain`: no fill, `Text`, `SurfaceHover` hovered; on (`Secondary`) `Soft(Accent)` with `Accent`; disabled `Surface` with `TextMuted` (no fill for `Danger` and `Plain`); busy swaps the icon for a spinner; high contrast adds a `Border` rim to `Primary` and `Secondary`; 140 ms fade |
 | toolbar button | radius 8, 4 between neighbors | 32 square, icon 16 | no fill; hover `SurfaceHover`, pressed `SurfacePressed`; icon `TextMuted`, `Text` hovered; disabled icon `Disabled`, no fill; on `Soft(Accent)` with `Accent` |
 | sidebar button | top 40 of the pane, center on the pane line (below) | 32 | centered on the toolbar row's middle line |
 | search | width 200 (min 48) from a 736 wide column, else a 32 square icon | 32 | flat ink field at the far right of the toolbar |
