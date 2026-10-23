@@ -479,6 +479,15 @@ func TestExists(t *testing.T) {
 	if !tt.HasText(s.text.ExistsUnknown) || tt.HasText("Show it") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
+
+	// The server names the subscription when the address is the same feed in another form.
+	f.addErr = &client.APIError{Status: 409, Code: "source_exists", SourceID: 1}
+	tt.Type("http://www.go.dev/other.xml")
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if !tt.HasText("You already follow this as “Go Blog”.") || !tt.HasText("Show it") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
 }
 
 func TestNeedsBase(t *testing.T) {

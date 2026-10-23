@@ -238,6 +238,8 @@ func ForgetSession(path string) error {
 type APIError struct {
 	Status int
 	Code   string
+	// SourceID is the subscription a "source_exists" answer names, 0 when it names none.
+	SourceID int64
 }
 
 func (e *APIError) Error() string { return fmt.Sprintf("status %d %s", e.Status, e.Code) }
@@ -1359,8 +1361,9 @@ func (s Session) send(ctx context.Context, client *http.Client, method, path, co
 		return nil, ErrUnauthorized
 	}
 	var reply struct {
-		Error string `json:"error"`
+		Error    string `json:"error"`
+		SourceID int64  `json:"sourceId"`
 	}
 	json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&reply)
-	return nil, &APIError{Status: resp.StatusCode, Code: reply.Error}
+	return nil, &APIError{Status: resp.StatusCode, Code: reply.Error, SourceID: reply.SourceID}
 }

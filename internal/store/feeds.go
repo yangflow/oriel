@@ -53,6 +53,9 @@ type NewSource struct {
 	FetchIntervalAuto bool
 	// FirstFetchDelay postpones the first fetch; zero makes the source due at once.
 	FirstFetchDelay time.Duration
+	// AllowDuplicate adds the source even when another subscription is the same feed in another form (see
+	// FindDuplicate); the very same address is still refused.
+	AllowDuplicate bool
 }
 
 // DueSources lists unpaused sources whose next fetch time has come, the longest waiting first.

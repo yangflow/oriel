@@ -24,7 +24,7 @@ func TestDuplicateFeedAddresses(t *testing.T) {
 			t.Fatalf("%q: %v", dup, err)
 		}
 	}
-	for _, other := range []string{"https://example.org/feed?x=1", "http://example.org/feed", "https://example.org:8443/feed", "https://example.org/other"} {
+	for _, other := range []string{"https://example.org/feed?x=1", "https://example.org:8443/feed", "https://example.org/other"} {
 		if err := create(other); err != nil {
 			t.Fatalf("%q: %v", other, err)
 		}
