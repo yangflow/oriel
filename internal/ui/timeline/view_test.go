@@ -5383,3 +5383,37 @@ func TestAlsoChipIsABigTarget(t *testing.T) {
 	s, _, tt := setupGrouped(t, "en")
 	target(t, tt, s.format(s.text.AlsoName, 2))
 }
+
+func TestUnreadCountCap(t *testing.T) {
+	for _, tc := range []struct {
+		n    int
+		want string
+	}{{0, ""}, {7, "7"}, {999, "999"}, {1000, "999+"}, {5234, "999+"}} {
+		t.Run(strconv.Itoa(tc.n), func(t *testing.T) {
+			sources, entries := sample()
+			sources[0].UnreadCount = tc.n
+			f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+			s := New("en", f.deps())
+			var th *ui.Theme
+			tt := ui.NewTester(func(c *ui.Context) { th = c.Theme(); s.View(c); theme.Toasts(c) }, 1100, 800)
+			s.Use(f, "")
+			tt.Frame()
+			f.settle(t, tt)
+			if tc.want != "" && !tt.HasText(tc.want) {
+				t.Errorf("no %q in %v", tc.want, tt.Texts())
+			}
+			if tc.n > 999 && (tt.HasText(strconv.Itoa(tc.n))) {
+				t.Errorf("the full count %d is drawn: %v", tc.n, tt.Texts())
+			}
+			if tc.n > 999 {
+				row, ok := tt.Find("999+")
+				if !ok || row.W > theme.Px(th, 11)*5 {
+					t.Errorf("the capped count is %v wide", row.W)
+				}
+			}
+		})
+	}
+	if got := countText(1000); got != "999+" {
+		t.Errorf("countText(1000) = %q", got)
+	}
+}

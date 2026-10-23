@@ -2,7 +2,6 @@ package timeline
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -363,7 +362,7 @@ func (s *Screen) paletteRow(c *ui.Context, it paletteItem, highlighted, ranked b
 			ui.Text(c, s.groupName(it.group)).FontSize(theme.Px(t, 11)).TextColor(t.TextMuted).NoWrap().Shrink(0)
 		}
 		if it.count > 0 {
-			ui.Text(c, strconv.Itoa(it.count)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
+			ui.Text(c, countText(it.count)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
 				TextColor(t.TextMuted).NoWrap().Shrink(0)
 		}
 		if len(it.keys) > 0 {
