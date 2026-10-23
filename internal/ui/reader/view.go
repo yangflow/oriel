@@ -881,7 +881,7 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 		color = t.Text
 	}
 	theme.Fade(b).Children(func() {
-		ui.Icon(c, icons.ChevronLeft).FontSize(theme.Px(t, 16)).TextColor(color)
+		ui.Icon(c, icons.ChevronLeft).FontSize(theme.IconMedium(t)).TextColor(color)
 		ui.Text(c, nav.Scope).SingleLine().MinWidth(0).Shrink(1).FontWeight(500).TextColor(color)
 	})
 	if b.Clicked() {
@@ -1109,7 +1109,7 @@ func (s *Screen) tool(c *ui.Context, icon *ui.SVG, label, key string, st theme.T
 	}
 	b, color := theme.ToolButton(c, st)
 	b.Label(label).Tooltip(tip)
-	theme.Fade(b).Children(func() { ui.Icon(c, icon).FontSize(theme.Px(t, 16)).TextColor(color) })
+	theme.Fade(b).Children(func() { ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color) })
 	return b
 }
 
@@ -1143,7 +1143,7 @@ func (s *Screen) toggle(c *ui.Context, icon *ui.SVG, label, name string, on, dis
 		color = t.Text
 	}
 	theme.Fade(b).Children(func() {
-		ui.Icon(c, icon).FontSize(theme.Px(t, 16)).TextColor(color)
+		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color)
 		if !narrow {
 			ui.Text(c, label).FontSize(theme.Px(t, 12)).FontWeight(500).LetterSpacing(theme.Px(t, 12) * 0.01).NoWrap().TextColor(color)
 		}
@@ -1330,9 +1330,9 @@ func (s *Screen) note(c *ui.Context, warn bool, text string) {
 	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Margin(theme.Px(t, 18), 0, 0, 0).Padding(theme.Px(t, 11), theme.Px(t, 14)).
 		Radius(theme.Px(t, 12)).Background(background).Role(ui.RoleStatus).Children(func() {
 		if warn {
-			ui.Icon(c, icons.TriangleAlert).FontSize(theme.Px(t, 14)).TextColor(icon).Margin(2, 0, 0, 0)
+			ui.Icon(c, icons.TriangleAlert).FontSize(theme.IconSmall(t)).TextColor(icon).Margin(2, 0, 0, 0)
 		} else {
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 14)).TextColor(icon).Margin(2, 0, 0, 0)
+			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(icon).Margin(2, 0, 0, 0)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 		}
 		ui.RichText(c).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap().Children(func() {
@@ -1385,7 +1385,7 @@ func (s *Screen) card(c *ui.Context, background ui.Color, label string, children
 func (s *Screen) head(c *ui.Context, icon *ui.SVG, color ui.Color, title string, children func()) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).FillWidth().Height(theme.Px(t, 22)).AlignItems(ui.Center).Gap(theme.Px(t, 6)).Children(func() {
-		i := ui.Icon(c, icon).FontSize(theme.Px(t, 14)).TextColor(color)
+		i := ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
 		if icon == icons.LoaderCircle {
 			i.Rotate(i.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 		}
@@ -1410,7 +1410,7 @@ func (s *Screen) mini(c *ui.Context, label string) bool {
 		color = t.Text
 	}
 	x, y := theme.Hit{W: theme.Px(t, 22), H: theme.Px(t, 22), Radius: theme.Px(t, 6), Fill: fill, Fade: true}.Apply(c, b, func() {
-		ui.Icon(c, icons.X).FontSize(theme.Px(t, 13)).TextColor(color)
+		ui.Icon(c, icons.X).FontSize(theme.IconSmall(t)).TextColor(color)
 	})
 	b.Margin(y, x, y, ui.Auto)
 	return b.Clicked()
@@ -1459,7 +1459,7 @@ func (s *Screen) small(c *ui.Context, icon *ui.SVG, label string, primary bool) 
 	}
 	b.Children(func() {
 		if icon != nil {
-			ui.Icon(c, icon).FontSize(theme.Px(t, 14)).TextColor(color)
+			ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
 		}
 		ui.Text(c, label).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
 	})
@@ -1550,7 +1550,7 @@ func (s *Screen) translationNote(c *ui.Context) {
 	switch {
 	case j.working:
 		row.Background(t.Surface).Role(ui.RoleStatus).Children(func() {
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
+			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 			ui.Text(c, s.text.Translating).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(text2).Wrap()
 			if s.textButton(c, s.text.Cancel, text2) {
@@ -1560,7 +1560,7 @@ func (s *Screen) translationNote(c *ui.Context) {
 	case j.failed:
 		reason := strings.ReplaceAll(s.text.TranslationFailed, "{reason}", s.reason(j.code))
 		row.Background(theme.Soft(t, t.Danger)).Role(ui.RoleStatus).Children(func() {
-			ui.Icon(c, icons.TriangleAlert).FontSize(theme.Px(t, 14)).TextColor(t.Danger)
+			ui.Icon(c, icons.TriangleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Danger)
 			ui.Text(c, reason).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(text2).Wrap()
 			if s.textButton(c, s.text.Retry, text2) {
 				s.request(translation)
@@ -1568,7 +1568,7 @@ func (s *Screen) translationNote(c *ui.Context) {
 		})
 	default:
 		row.Background(theme.Soft(t, t.Accent)).Children(func() {
-			ui.Icon(c, icons.Languages).FontSize(theme.Px(t, 14)).TextColor(t.Accent)
+			ui.Icon(c, icons.Languages).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
 			by := strings.ReplaceAll(s.text.Translated, "{model}", j.model)
 			s.plain(c, &s.translatedSet, by, s.han, theme.Px(t, 12), 0).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).
 				TextColor(text2).Wrap()
@@ -1602,7 +1602,7 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, color ui.Color, title, hint 
 		}
 		ui.Box(c).Size(t.Space(12), t.Space(12)).Radius(t.Space(4)).Center().Background(tile).
 			Children(func() {
-				i := ui.Icon(c, icon).FontSize(t.Space(6)).TextColor(color)
+				i := ui.Icon(c, icon).FontSize(theme.IconLarge(t)).TextColor(color)
 				if icon == icons.LoaderCircle {
 					i.Rotate(i.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 				}
@@ -1636,7 +1636,7 @@ func (s *Screen) button(c *ui.Context, icon *ui.SVG, label string, primary bool)
 		color = t.AccentText
 	}
 	b.Children(func() {
-		ui.Icon(c, icon).FontSize(theme.Px(t, 16)).TextColor(color)
+		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color)
 		text := ui.Text(c, label).NoWrap().TextColor(color)
 		if primary {
 			text.FontWeight(500)

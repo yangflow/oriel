@@ -42,7 +42,7 @@ func Toasts(c *ui.Context) {
 			cut := false
 			box.Children(func() {
 				if look.Icon != nil {
-					ui.Icon(c, look.Icon).FontSize(Px(t, 16))
+					ui.Icon(c, look.Icon).FontSize(IconMedium(t))
 				}
 				title := ui.Text(c, ts.Title).Shrink(1).MinWidth(0).MaxLines(2).FontSize(Px(t, 12))
 				cut = Cut(c, title, ts.Title, Px(t, 12), 0, 2)
@@ -69,7 +69,7 @@ func Toasts(c *ui.Context) {
 					close.Background(text.Alpha(0.16))
 				}
 				close.Children(func() {
-					ui.Icon(c, icons.X).FontSize(Px(t, 14)).TextColor(text.Alpha(0.7))
+					ui.Icon(c, icons.X).FontSize(IconSmall(t)).TextColor(text.Alpha(0.7))
 				})
 			})
 			if cut {

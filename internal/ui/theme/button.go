@@ -42,9 +42,6 @@ type Button struct {
 	Checked *bool
 }
 
-// ButtonIcon is the side of the icon of a Button, in mockup pixels.
-const ButtonIcon = 14
-
 // ButtonHeight is the height of a Button in mockup pixels, 26 when small.
 func ButtonHeight(small bool) float32 {
 	if small {
@@ -94,10 +91,10 @@ func (bt Button) Draw(c *ui.Context) ui.Element {
 		icon := func() {
 			switch {
 			case bt.Busy:
-				spin := ui.Icon(c, icons.LoaderCircle).FontSize(Px(t, ButtonIcon))
+				spin := ui.Icon(c, icons.LoaderCircle).FontSize(IconSmall(t))
 				spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 			case bt.Icon != nil:
-				ui.Icon(c, bt.Icon).FontSize(Px(t, ButtonIcon))
+				ui.Icon(c, bt.Icon).FontSize(IconSmall(t))
 			}
 		}
 		if !bt.IconAfter {

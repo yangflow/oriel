@@ -257,7 +257,7 @@ func (s *Screen) fetchingNowCard(c *ui.Context) {
 		ui.Column(c).FillWidth().Children(func() {
 			for _, f := range s.activity.Fetching {
 				ui.Row(c).Key(f.ID).FillWidth().Height(theme.Px(t, 36)).AlignItems(ui.Center).Gap(theme.Px(t, 10)).Children(func() {
-					spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 14)).TextColor(t.Accent)
+					spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
 					spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 					ui.Text(c, sourceName(f.Title, f.RSSHubPath, f.URL)).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 				})
@@ -319,7 +319,7 @@ func (s *Screen) sourceRow(c *ui.Context, src client.ActivitySource, now time.Ti
 			if open {
 				chevron = icons.ChevronDown
 			}
-			ui.Icon(c, chevron).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
+			ui.Icon(c, chevron).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 		})
 		if row.Clicked() {
 			if open {
@@ -360,10 +360,10 @@ func (s *Screen) attemptLine(c *ui.Context, i int, a client.FetchAttempt, now ti
 func (s *Screen) resultIcon(c *ui.Context, ok bool) {
 	t := c.Theme()
 	if ok {
-		ui.Icon(c, icons.Check).FontSize(theme.Px(t, 14)).TextColor(t.Success)
+		ui.Icon(c, icons.Check).FontSize(theme.IconSmall(t)).TextColor(t.Success)
 		return
 	}
-	ui.Icon(c, icons.CircleAlert).FontSize(theme.Px(t, 14)).TextColor(t.Warning)
+	ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning)
 }
 
 // outcome is what a fetch came to: how many new entries, nothing new, or that it failed.

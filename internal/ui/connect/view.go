@@ -217,12 +217,12 @@ func (s *Screen) header(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
 		ui.Box(c).Size(t.Space(12), t.Space(12)).Radius(t.Space(3)).Center().Background(theme.Soft(t, t.Accent)).
-			Children(func() { ui.Icon(c, icons.Server).FontSize(t.Space(6)).TextColor(t.Accent) })
+			Children(func() { ui.Icon(c, icons.Server).FontSize(theme.IconLarge(t)).TextColor(t.Accent) })
 		ui.Text(c, s.text.Title).FontSize(theme.Px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(1)
 		if s.expired != "" {
 			before, after, _ := strings.Cut(s.text.Expired, "{server}")
 			ui.Row(c).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
-				ui.Icon(c, icons.Clock).FontSize(t.Rem(1.05)).TextColor(t.TextMuted)
+				ui.Icon(c, icons.Clock).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 				ui.RichText(c,
 					ui.Span{Text: before, Color: t.TextMuted},
 					ui.Span{Text: s.expired, Weight: 500},
@@ -259,7 +259,7 @@ func (s *Screen) box(c *ui.Context, key string, lead *ui.SVG, busy, ok bool, inp
 		color = t.Success
 	}
 	box.Children(func() {
-		ui.Icon(c, lead).FontSize(t.Rem(1.25)).TextColor(color)
+		ui.Icon(c, lead).FontSize(theme.IconMedium(t)).TextColor(color)
 		input()
 		trail()
 	})
@@ -300,7 +300,7 @@ func (s *Screen) addressField(c *ui.Context, busy bool) {
 	}, func() {
 		if s.phase == signingIn {
 			ui.Box(c).Size(t.Space(6), t.Space(6)).Center().Label(s.text.Reachable).Role(ui.RoleImage).Children(func() {
-				ui.Icon(c, icons.Check).FontSize(t.Rem(1.25)).TextColor(t.Success)
+				ui.Icon(c, icons.Check).FontSize(theme.IconMedium(t)).TextColor(t.Success)
 			})
 		}
 	})
@@ -335,7 +335,7 @@ func (s *Screen) passwordField(c *ui.Context, busy bool) {
 			eye.Background(t.SurfaceHover)
 			color = t.Text
 		}
-		eye.Children(func() { ui.Icon(c, icon).FontSize(t.Rem(1.25)).TextColor(color) })
+		eye.Children(func() { ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color) })
 		if eye.Clicked() {
 			s.shown = !s.shown
 		}
@@ -352,7 +352,7 @@ func (s *Screen) errorLine(c *ui.Context, f field) {
 	}
 	t := c.Theme()
 	ui.Row(c).AlignItems(ui.Center).Gap(t.Space(1.5)).PaddingX(t.Space(0.5)).Children(func() {
-		ui.Icon(c, s.problem.icon).FontSize(t.Rem(1.05)).TextColor(t.Danger)
+		ui.Icon(c, s.problem.icon).FontSize(theme.IconSmall(t)).TextColor(t.Danger)
 		ui.Text(c, s.problem.message).FontSize(theme.Px(t, 12)).TextColor(t.Danger)
 	})
 }

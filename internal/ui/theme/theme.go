@@ -450,3 +450,20 @@ func GlyphRadius(size float32) float32 {
 // Pill is the corner radius of a pill or a circle of the given height: half of it. It is the one radius that is
 // not a tier of design/tokens.md, because it follows the shape it rounds.
 func Pill(height float32) float32 { return height / 2 }
+
+// The three icon sizes of design/tokens.md, in mockup pixels. Every icon is drawn in one of them, through IconSmall,
+// IconMedium or IconLarge, so it follows the system text size like type does.
+const (
+	iconSmall  = 14 // inline: button and field icons, status lines, the meta line, chevrons, checks
+	iconMedium = 16 // bare icon buttons and the toolbar, leading icons of rows and fields, the menu and palette
+	iconLarge  = 24 // states: the empty-state tile, the loading and done marks of a dialog, a failed picture
+)
+
+// IconSmall is the inline icon size for t.
+func IconSmall(t *ui.Theme) float32 { return Px(t, iconSmall) }
+
+// IconMedium is the icon size of icon buttons and leading icons for t.
+func IconMedium(t *ui.Theme) float32 { return Px(t, iconMedium) }
+
+// IconLarge is the icon size of states, such as the tile of an empty state, for t.
+func IconLarge(t *ui.Theme) float32 { return Px(t, iconLarge) }

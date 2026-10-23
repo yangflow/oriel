@@ -217,7 +217,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .section .link.progress { cursor:default; font-variant-numeric:tabular-nums }
 .section .link.progress:hover { background:none }
 .section .link:hover, .section .link.hover { background:var(--hover) }
-.section .link svg.icon { width:12px; height:12px }
+.section .link svg.icon { width:14px; height:14px }
 .side-tools { display:flex; align-items:center; gap:4px; margin:0 3px 6px 0 }
 .side-filter { flex:1; min-width:0; height:28px; display:flex; align-items:center; gap:6px; padding:0 4px 0 10px; border-radius:8px; background:var(--hover); color:var(--muted); transition:background-color var(--t), box-shadow var(--t) }
 .side-filter:hover { background:var(--pressed) }
@@ -227,7 +227,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .side-filter input::placeholder { color:var(--muted) }
 .side-filter .clear { width:20px; height:20px; flex:none; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
 .side-filter .clear:hover { background:var(--hover); color:var(--text) }
-.side-filter .clear svg.icon { width:12px; height:12px }
+.side-filter .clear svg.icon { width:14px; height:14px }
 .sort { width:28px; height:28px; flex:none; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
 .sort:hover { background:var(--hover); color:var(--text2) }
 .sort[aria-pressed=true] { background:var(--sel); color:var(--accent) }
@@ -245,7 +245,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .item:hover .count, .item.chosen .count { color:var(--text2) }
 .item .warn { color:var(--warning) }
 .item .busy { display:inline-flex; color:var(--muted) }
-.item .busy svg.icon { width:13px; height:13px }
+.item .busy svg.icon { width:14px; height:14px }
 .kind-list .item svg.icon { color:var(--muted) }
 .kind-list .item:hover svg.icon { color:var(--text2) }
 .kind-list .item.chosen svg.icon { color:var(--accent) }
@@ -338,7 +338,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .stale .retry:disabled { color:var(--muted); cursor:default }
 .stale .retry:disabled:hover { background:none }
 .pending-mark { flex:none; display:grid; color:var(--muted) }
-.pending-mark svg.icon { width:13px; height:13px }
+.pending-mark svg.icon { width:14px; height:14px }
 /* Several sources carry the same article: one row, with a quiet chip after the time that names how many other sources
    have it. It is a text button in the meta band (muted, hover fill), never a badge; open, it unfolds the list of the other
    sources under the row, indented behind a hairline. */
@@ -346,7 +346,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 /* Hit area: a control drawn under 24 keeps its look; an invisible 24 by 24 minimum target surrounds it (docs/design.md, Accessibility). */
 .section .add, .section .link, .side-filter .clear, .search .clear, .stale .retry, .also { position:relative }
 .section .add::after, .section .link::after, .side-filter .clear::after, .search .clear::after, .stale .retry::after, .also::after { content:""; position:absolute; left:50%; top:50%; width:100%; height:100%; min-width:24px; min-height:24px; transform:translate(-50%,-50%) }
-.also svg.icon { width:13px; height:13px }
+.also svg.icon { width:14px; height:14px }
 .also:hover, .also.hover { background:var(--pressed); color:var(--text2) }
 .also[aria-expanded="true"] { color:var(--text2) }
 .also-list { display:flex; flex-direction:column; margin:6px 0 0 1px; padding-left:12px; border-left:2px solid var(--border) }
@@ -381,14 +381,14 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .meta .src { font-weight:500; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .meta .sep::before { content:"·"; opacity:.7 }
 .meta .when, .meta .read-time { white-space:nowrap; font-variant-numeric:tabular-nums }
-.meta svg.icon { width:13px; height:13px }
+.meta svg.icon { width:14px; height:14px }
 .title { margin:0; font-size:15px; font-weight:600; line-height:1.35; letter-spacing:-.005em; text-wrap:pretty; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
 :root:lang(zh-Hans) .title { line-height:1.5; letter-spacing:0 }
 .summary { margin:0; font-size:13px; line-height:1.5; color:var(--text2); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
 .text { margin:0; font-size:13px; line-height:1.55; white-space:pre-line; display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden }
 :root:lang(zh-Hans) .summary, :root:lang(zh-Hans) .text { line-height:1.7 }
 .summary.ai { display:flex; gap:6px; align-items:flex-start }
-.summary.ai svg.icon { flex:none; width:13px; height:13px; margin-top:.35em; color:var(--muted) }
+.summary.ai svg.icon { flex:none; width:14px; height:14px; margin-top:.35em; color:var(--muted) }
 .summary.ai .clamp { min-width:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
 .read .title { font-weight:500; color:var(--muted) }
 .read .summary, .read .text, .read .meta .src { color:var(--muted) }
@@ -397,12 +397,12 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .handle { color:var(--muted) }
 mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding:0 1px }
 .star-mark { color:var(--star) }
-.star-mark svg.icon { width:13px; height:13px }
+.star-mark svg.icon { width:14px; height:14px }
 
 .pic { position:relative; flex:none; overflow:hidden; border-radius:8px; background-color:var(--surface); outline:.5px solid rgba(var(--ink),.10); outline-offset:-.5px }
 .pic.failed { display:grid; place-items:center; background-color:var(--track); color:var(--muted) }
-.pic.failed > svg.icon { width:20px; height:20px; stroke-width:1.4 }
-.single.failed > svg.icon, .grid.n1 .failed > svg.icon { width:28px; height:28px }
+.pic.failed > svg.icon { width:24px; height:24px; stroke-width:1.4 }
+.single.failed > svg.icon, .grid.n1 .failed > svg.icon { width:24px; height:24px }
 .thumb { width:96px; height:64px; margin-top:24px; align-self:flex-start }
 .video-thumb { width:184px; aspect-ratio:16/9; border-radius:10px }
 .min .video-thumb { width:136px }
@@ -471,7 +471,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .strip .pic.failed > svg.icon { width:16px; height:16px }
 .strip .more b { position:absolute; inset:0; display:grid; place-items:center; background:rgba(28,24,18,.5); color:#fff; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums }
 .thumb-s { width:56px; height:56px; margin-top:24px; align-self:flex-start; border-radius:8px }
-.thumb-s.failed > svg.icon { width:20px; height:20px }
+.thumb-s.failed > svg.icon { width:24px; height:24px }
 .vlarge .content { gap:8px }
 .vlarge .video-thumb { width:100%; max-width:640px; border-radius:12px }
 .vlarge .play span { width:44px; height:44px }
@@ -499,7 +499,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .vcard.sq .title { display:block; white-space:nowrap; text-overflow:ellipsis }
 .vcard .pic.sqpic { position:relative; width:100%; aspect-ratio:1 }
 .pcount { position:absolute; top:6px; right:6px; display:flex; align-items:center; gap:3px; padding:1px 6px 1px 5px; border-radius:4px; font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; background:rgba(28,24,18,.62); color:#fff }
-.pcount svg.icon { width:11px; height:11px }
+.pcount svg.icon { width:14px; height:14px }
 .masonry { columns:3 170px; column-gap:14px; padding:16px 24px 32px }
 .mtile { position:relative; break-inside:avoid; margin:0 0 20px; display:flex; flex-direction:column; gap:4px }
 .mtile .pic { width:100% }
@@ -607,9 +607,9 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .lb-stage { position:absolute; top:56px; bottom:44px; left:72px; right:72px; display:grid; place-items:center }
 .lb-pic { border-radius:8px; overflow:hidden }
 .lb-pic.failed { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:#2a2621; color:var(--muted); font-size:13px }
-.lb-pic.failed svg.icon { width:32px; height:32px; stroke-width:1.4 }
+.lb-pic.failed svg.icon { width:24px; height:24px; stroke-width:1.4 }
 .lb-nav { position:absolute; top:50%; margin-top:-22px; width:44px; height:44px; display:grid; place-items:center; border-radius:50%; background:rgba(var(--ink),.10); color:var(--text) }
-.lb-nav svg.icon { width:22px; height:22px }
+.lb-nav svg.icon { width:24px; height:24px }
 .lb-nav:hover, .lb-nav.hover { background:rgba(var(--ink),.18) }
 .lb-nav.prev { left:20px }
 .lb-nav.next { right:20px }
