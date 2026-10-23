@@ -116,14 +116,14 @@ func (s *Screen) selectionCard(c *ui.Context) {
 	case sel.long:
 		color = theme.Text2(t)
 	}
-	ui.Row(c).Absolute().Left(0).Right(0).Bottom(px(t, 16)).Padding(0, px(t, 16)).Justify(ui.Center).PassThrough().
+	ui.Row(c).Absolute().Left(0).Right(0).Bottom(theme.Px(t, 16)).Padding(0, theme.Px(t, 16)).Justify(ui.Center).PassThrough().
 		Children(func() {
-			ui.Column(c).FillWidth().MaxWidth(s.column(t)).Padding(px(t, 12), px(t, 16), px(t, 14), px(t, 16)).
-				Radius(px(t, 14)).Background(background).Border(0.5, t.Border).
+			ui.Column(c).FillWidth().MaxWidth(s.column(t)).Padding(theme.Px(t, 12), theme.Px(t, 16), theme.Px(t, 14), theme.Px(t, 16)).
+				Radius(theme.Px(t, 14)).Background(background).Border(0.5, t.Border).
 				Shadow(0, 6, 24, 0, ui.RGBA(0, 0, 0, 0.16)).Role(ui.RoleGroup).Label(name).Children(func() {
 				s.head(c, icon, color, name, func() {
 					if !sel.aiOff {
-						ui.Text(c, "“"+quote(sel.text)+"”").FontSize(px(t, 12)).TextColor(t.TextMuted).SingleLine().
+						ui.Text(c, "“"+quote(sel.text)+"”").FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine().
 							MinWidth(0).Shrink(1)
 					}
 					if s.mini(c, s.text.Close) {
@@ -133,8 +133,8 @@ func (s *Screen) selectionCard(c *ui.Context) {
 				switch {
 				case sel.working:
 					for _, width := range []float32{96, 80, 52} {
-						ui.Row(c).FillWidth().Margin(px(t, 9), 0, 0, 0).Children(func() {
-							ui.Box(c).Grow(width).Basis(0).Height(px(t, 10)).Radius(px(t, 5)).Background(theme.Ink(t, 0.08))
+						ui.Row(c).FillWidth().Margin(theme.Px(t, 9), 0, 0, 0).Children(func() {
+							ui.Box(c).Grow(width).Basis(0).Height(theme.Px(t, 10)).Radius(theme.Px(t, 5)).Background(theme.Ink(t, 0.08))
 							ui.Box(c).Grow(100 - width).Basis(0)
 						})
 					}
@@ -169,7 +169,7 @@ func (s *Screen) selectionCard(c *ui.Context) {
 						}
 						if sel.model != "" {
 							by := strings.ReplaceAll(s.text.By, "{model}", sel.model)
-							ui.Text(c, by).Margin(px(t, 10), 0, 0, 0).FontSize(px(t, 12)).TextColor(t.TextMuted).SingleLine().
+							ui.Text(c, by).Margin(theme.Px(t, 10), 0, 0, 0).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine().
 								MinWidth(0).Shrink(1)
 						}
 					})
@@ -181,7 +181,7 @@ func (s *Screen) selectionCard(c *ui.Context) {
 // cardText is a line of text of a card, 13 high, under its head.
 func (s *Screen) cardText(c *ui.Context, text string, color ui.Color) ui.Element {
 	t := c.Theme()
-	return ui.Text(c, text).Margin(px(t, 6), 0, 0, 0).FontSize(px(t, 13)).LineHeight(cardLine(text)).TextColor(color).Wrap()
+	return ui.Text(c, text).Margin(theme.Px(t, 6), 0, 0, 0).FontSize(theme.Px(t, 13)).LineHeight(cardLine(text)).TextColor(color).Wrap()
 }
 
 // quote is the start of text for the head of the card: its first characters, on one line.

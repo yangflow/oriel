@@ -34,6 +34,8 @@ internal/diag/           the diagnostics file: recent redacted log records, per-
 internal/server/         HTTP API and authentication
 internal/ui/<screen>/    one package per screen: state, copy.json catalog, headless interaction tests
 internal/ui/locale/      system language to UI language (Simplified Chinese, English), shared by all catalogs
+internal/ui/pictures/    the picture queue the reader and the timeline share: download order, cancellation, retry, memory limit
+internal/ui/theme/       palette and the helpers every screen shares: Px, Monogram
 internal/ui/startup/     copy for the native error dialog when desktop startup fails
 resources/               shipped licenses and product assets
 scripts/                 checks, packaging, secret scan

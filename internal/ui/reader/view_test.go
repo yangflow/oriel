@@ -19,6 +19,8 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/prefs"
+	"github.com/yangflow/oriel/internal/ui/pictures"
+	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
 var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
@@ -961,7 +963,7 @@ func readingScale(t *testing.T, scale float32) {
 		s := New("en", deps)
 		s.Use(f)
 		// Tall enough to hold the whole article: a line cut by the window reports the height that shows.
-		tt := ui.NewTester(func(c *ui.Context) { unit = px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 2000)
+		tt := ui.NewTester(func(c *ui.Context) { unit = theme.Px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 2000)
 		tt.SetPreferences(ui.Preferences{TextScale: scale})
 		s.Open(art.Entry)
 		tt.Frame()
@@ -1010,7 +1012,7 @@ func toolbarNames(t *testing.T, scale float32) {
 	s := New("en", f.deps())
 	s.Use(f)
 	var unit float32
-	tt := ui.NewTester(func(c *ui.Context) { unit = px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 800)
+	tt := ui.NewTester(func(c *ui.Context) { unit = theme.Px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 800)
 	tt.SetPreferences(ui.Preferences{TextScale: scale})
 	s.Open(f.article.Entry)
 	tt.Frame()
@@ -1045,7 +1047,7 @@ func TestLineHeightFollowsLanguage(t *testing.T) {
 				f := &fake{now: now, article: art, nav: Nav{Entry: art.Entry, Scope: "All"}}
 				s := New("en", f.deps())
 				s.Use(f)
-				tt := ui.NewTester(func(c *ui.Context) { unit = px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 2000)
+				tt := ui.NewTester(func(c *ui.Context) { unit = theme.Px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 2000)
 				tt.SetPreferences(ui.Preferences{TextScale: scale})
 				s.Open(art.Entry)
 				tt.Frame()
@@ -1294,7 +1296,7 @@ func TestReadingColumn(t *testing.T) {
 				s := New("en", deps)
 				s.Use(f)
 				var unit float32
-				tt := ui.NewTester(func(c *ui.Context) { unit = px(c.Theme(), 1); s.View(c, f.nav) }, 1800, 1200)
+				tt := ui.NewTester(func(c *ui.Context) { unit = theme.Px(c.Theme(), 1); s.View(c, f.nav) }, 1800, 1200)
 				tt.SetPreferences(ui.Preferences{TextScale: scale})
 				s.Open(art.Entry)
 				tt.Frame()
@@ -1341,7 +1343,7 @@ func chineseTypesetting(t *testing.T, scale float32) {
 		deps.Reading = func() prefs.Preferences { return p }
 		s := New("en", deps)
 		s.Use(f)
-		tt := ui.NewTester(func(c *ui.Context) { unit = px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 2000)
+		tt := ui.NewTester(func(c *ui.Context) { unit = theme.Px(c.Theme(), 1); s.View(c, f.nav) }, 1100, 2000)
 		tt.SetPreferences(ui.Preferences{TextScale: scale})
 		s.Open(art.Entry)
 		tt.Frame()
@@ -1573,7 +1575,7 @@ func TestNoAlsoLineWithoutOpenCopy(t *testing.T) {
 // download runs the queued work until a picture is being fetched, and leaves that request in the queue.
 func (f *fake) download(t *testing.T, s *Screen, tt *ui.Tester) {
 	t.Helper()
-	for s.downloads == 0 {
+	for s.pics.Active() == 0 {
 		if len(f.queue) == 0 {
 			t.Fatal("no picture was asked for")
 		}
@@ -1598,8 +1600,8 @@ func TestPictureCancelledByOtherArticle(t *testing.T) {
 	if len(f.imageCtx) != 1 || f.imageCtx[0].Err() == nil {
 		t.Fatalf("the download of the article before was not cancelled: %v", f.imageCtx)
 	}
-	if len(s.pictures) != 0 || s.downloads != 0 {
-		t.Fatalf("a result for the article before was applied: %v, %d downloading", s.pictures, s.downloads)
+	if s.pics.Len() != 0 || s.pics.Active() != 0 {
+		t.Fatalf("a result for the article before was applied: %d pictures, %d downloading", s.pics.Len(), s.pics.Active())
 	}
 }
 
@@ -1614,22 +1616,23 @@ func TestPictureCancelledByServer(t *testing.T) {
 	if len(f.imageCtx) != 1 || f.imageCtx[0].Err() == nil {
 		t.Fatalf("the download for the server before was not cancelled: %v", f.imageCtx)
 	}
-	for address, p := range s.pictures {
-		if p.bitmap != nil || p.failed {
+	for _, address := range f.pictures {
+		p := s.pics.Peek(address)
+		if p != nil && (p.Bitmap != nil || p.Failed) {
 			t.Fatalf("a result for the server before was applied to %s", address)
 		}
 	}
 }
 
-// TestPictureRetried tries a picture that failed again when it is drawn after pictureRetry, and gives up after
-// pictureTries downloads.
+// TestPictureRetried tries a picture that failed again when it is drawn after pictures.Retry, and gives up after
+// pictures.Tries downloads.
 func TestPictureRetried(t *testing.T) {
 	const address = "https://go.dev/images/gopher.png"
 	t.Run("works the second time", func(t *testing.T) {
 		s, f, tt := setup(t, "en", full())
 		f.imageErr = 1
 		f.settle(tt)
-		if p := s.pictures[address]; p == nil || !p.failed {
+		if p := s.pics.Peek(address); p == nil || !p.Failed {
 			t.Fatalf("the picture did not fail: %+v", p)
 		}
 		tt.Frame()
@@ -1637,10 +1640,10 @@ func TestPictureRetried(t *testing.T) {
 		if len(f.pictures) != 1 {
 			t.Fatalf("asked again at once: %v", f.pictures)
 		}
-		f.now = f.now.Add(pictureRetry)
+		f.now = f.now.Add(pictures.Retry)
 		tt.Frame()
 		f.settle(tt)
-		if p := s.pictures[address]; len(f.pictures) != 2 || p == nil || p.failed || p.bitmap == nil {
+		if p := s.pics.Peek(address); len(f.pictures) != 2 || p == nil || p.Failed || p.Bitmap == nil {
 			t.Fatalf("the picture was not got the second time: %v %+v", f.pictures, p)
 		}
 	})
@@ -1648,13 +1651,13 @@ func TestPictureRetried(t *testing.T) {
 		s, f, tt := setup(t, "en", full())
 		f.imageErr = 100
 		f.settle(tt)
-		for range 2 * pictureTries {
-			f.now = f.now.Add(pictureRetry)
+		for range 2 * pictures.Tries {
+			f.now = f.now.Add(pictures.Retry)
 			tt.Frame()
 			f.settle(tt)
 		}
-		if len(f.pictures) != pictureTries || !s.pictures[address].failed {
-			t.Fatalf("asked %d times, want %d: %v", len(f.pictures), pictureTries, f.pictures)
+		if len(f.pictures) != pictures.Tries || !s.pics.Peek(address).Failed {
+			t.Fatalf("asked %d times, want %d: %v", len(f.pictures), pictures.Tries, f.pictures)
 		}
 	})
 }

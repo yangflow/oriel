@@ -294,32 +294,32 @@ func (s *Screen) routeList(c *ui.Context) {
 	th := c.Theme()
 	a := &s.add
 	head := s.routeNote(routeList)
-	ui.Column(c).FillWidth().Gap(px(th, 10)).Children(func() {
-		ui.Column(c).FillWidth().Gap(px(th, 6)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(th, 10)).Children(func() {
+		ui.Column(c).FillWidth().Gap(theme.Px(th, 6)).Children(func() {
 			help(c, head)
 			ui.RadioGroup(c, func() {
 				for i, rt := range a.routes.res.Routes {
 					what := s.routeName(rt)
 					on := a.routes.chosen == i
-					row := ui.RadioBase(c, &a.routes.chosen, i).FillWidth().AlignItems(ui.Center).Gap(px(th, 10)).
-						Padding(th.Space(2), px(th, 10)).Radius(th.Radius).Label(what + s.text.Separator + rt.Path).Disabled(a.busy)
+					row := ui.RadioBase(c, &a.routes.chosen, i).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).
+						Padding(th.Space(2), theme.Px(th, 10)).Radius(th.Radius).Label(what + s.text.Separator + rt.Path).Disabled(a.busy)
 					if on {
 						row.Background(theme.Soft(th, th.Accent))
 					} else {
 						row.Border(1, th.Border)
 					}
 					row.Children(func() {
-						ui.Icon(c, icons.Rss).FontSize(px(th, 16)).TextColor(th.Accent)
+						ui.Icon(c, icons.Rss).FontSize(theme.Px(th, 16)).TextColor(th.Accent)
 						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 							ui.Text(c, what).FontWeight(600).SingleLine()
-							ui.Text(c, rt.Path).Font("monospace").FontSize(px(th, 12)).TextColor(th.TextMuted).SingleLine()
+							ui.Text(c, rt.Path).Font("monospace").FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).SingleLine()
 						})
 						if on {
-							ui.Icon(c, icons.Check).FontSize(px(th, 16)).TextColor(th.Success)
+							ui.Icon(c, icons.Check).FontSize(theme.Px(th, 16)).TextColor(th.Success)
 						}
 					})
 				}
-			}).FillWidth().Gap(px(th, 6)).Label(head)
+			}).FillWidth().Gap(theme.Px(th, 6)).Label(head)
 		})
 		if rt, ok := s.chosenRoute(); ok {
 			s.routeParams(c, rt)
@@ -332,7 +332,7 @@ func (s *Screen) routeParams(c *ui.Context, rt client.Route) {
 	th := c.Theme()
 	a := &s.add
 	r := &a.routes
-	ui.Column(c).FillWidth().Gap(px(th, 10)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(th, 10)).Children(func() {
 		for i, p := range rt.Parameters {
 			if i >= len(r.values) {
 				break
@@ -368,7 +368,7 @@ func (s *Screen) previewCard(c *ui.Context) {
 	th := c.Theme()
 	p := s.add.routes.preview
 	head := strings.ReplaceAll(s.text.PreviewOf, "{name}", p.data.Title)
-	ui.Column(c).FillWidth().Gap(px(th, 6)).Padding(th.Space(2), px(th, 10)).Radius(th.Radius).Border(1, th.Border).
+	ui.Column(c).FillWidth().Gap(theme.Px(th, 6)).Padding(th.Space(2), theme.Px(th, 10)).Radius(th.Radius).Border(1, th.Border).
 		Role(ui.RoleStatus).Label(head).Children(func() {
 		if len(p.data.Entries) == 0 {
 			help(c, s.text.PreviewEmpty)
@@ -377,11 +377,11 @@ func (s *Screen) previewCard(c *ui.Context) {
 		help(c, head)
 		now := s.deps.Now()
 		for _, e := range p.data.Entries {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(px(th, 10)).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).Children(func() {
 				ui.Text(c, e.Title).Grow(1).MinWidth(0).FontWeight(500).SingleLine()
 				if e.PublishedAt != nil {
 					ago := max(0, now.Sub(time.UnixMilli(*e.PublishedAt)))
-					ui.Text(c, s.span(ago)).FontSize(px(th, 12)).TextColor(th.TextMuted).NoWrap()
+					ui.Text(c, s.span(ago)).FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).NoWrap()
 				}
 			})
 		}

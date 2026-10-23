@@ -75,8 +75,8 @@ func (s *Screen) fontPick(c *ui.Context, p *fontPicker, label, current string, p
 	}
 
 	trig := ui.ButtonBase(c)
-	trig.MinWidth(px(t, 160)).MaxWidth(px(t, 240)).Height(px(t, 32)).AlignItems(ui.Center).Gap(t.Space(2)).
-		Padding(0, t.Space(2), 0, px(t, 10)).Radius(t.Radius).Label(label).Value(shown.name).Expanded(p.open).
+	trig.MinWidth(theme.Px(t, 160)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).AlignItems(ui.Center).Gap(t.Space(2)).
+		Padding(0, t.Space(2), 0, theme.Px(t, 10)).Radius(t.Radius).Label(label).Value(shown.name).Expanded(p.open).
 		Role(ui.RolePopUpButton)
 	trigger(c, trig)
 	if p.open {
@@ -87,7 +87,7 @@ func (s *Screen) fontPick(c *ui.Context, p *fontPicker, label, current string, p
 		if shown.family != "" {
 			name.Font(shown.family)
 		}
-		ui.Icon(c, icons.ChevronDown).FontSize(px(t, 14)).TextColor(t.TextMuted)
+		ui.Icon(c, icons.ChevronDown).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 	})
 	if trig.Clicked() {
 		if p.open {
@@ -223,28 +223,28 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 	b := trig.Bounds()
 
 	// Below the control or above it, whichever has more room, as high as the content and at most 360.
-	below := window - px(t, pickerMargin) - (b.Y + b.H + px(t, pickerGap))
-	above := b.Y - px(t, pickerGap) - px(t, pickerMargin)
-	want := min(px(t, pickerHead+p.contentHeight(loaded)), px(t, pickerHeight))
+	below := window - theme.Px(t, pickerMargin) - (b.Y + b.H + theme.Px(t, pickerGap))
+	above := b.Y - theme.Px(t, pickerGap) - theme.Px(t, pickerMargin)
+	want := min(theme.Px(t, pickerHead+p.contentHeight(loaded)), theme.Px(t, pickerHeight))
 	up := below < want && above > below
 	room := below
 	at, self := ui.AnchorBottomEnd, ui.AnchorTopEnd
 	if up {
 		room, at, self = above, ui.AnchorTopEnd, ui.AnchorBottomEnd
 	}
-	height := min(want, max(room, px(t, pickerHead+pickerRow)))
-	panel.AttachTo(trig, at, self).Margin(px(t, pickerGap), 0, px(t, pickerGap), 0).
-		Width(max(px(t, pickerWidth), b.W)).Height(height).Radius(px(t, 12)).Background(theme.RaisedFill(t))
+	height := min(want, max(room, theme.Px(t, pickerHead+pickerRow)))
+	panel.AttachTo(trig, at, self).Margin(theme.Px(t, pickerGap), 0, theme.Px(t, pickerGap), 0).
+		Width(max(theme.Px(t, pickerWidth), b.W)).Height(height).Radius(theme.Px(t, 12)).Background(theme.RaisedFill(t))
 	sheet(c, panel, 20, 50)
 
 	var picked string
 	var chosen bool
 	ui.Column(c).Fill().Children(func() {
 		var in ui.Element
-		search := ui.Row(c).Margin(px(t, 8), px(t, 8), 0, px(t, 8)).Height(px(t, pickerRow)).AlignItems(ui.Center).
-			Gap(px(t, 8)).PaddingX(px(t, 10)).Radius(px(t, 8)).Background(t.Surface).Shrink(0)
+		search := ui.Row(c).Margin(theme.Px(t, 8), theme.Px(t, 8), 0, theme.Px(t, 8)).Height(theme.Px(t, pickerRow)).AlignItems(ui.Center).
+			Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 10)).Radius(theme.Px(t, 8)).Background(t.Surface).Shrink(0)
 		search.Children(func() {
-			ui.Icon(c, icons.Search).FontSize(px(t, 15)).TextColor(t.TextMuted)
+			ui.Icon(c, icons.Search).FontSize(theme.Px(t, 15)).TextColor(t.TextMuted)
 			in = ui.TextInputBase(c, &p.query).Grow(1).MinWidth(0).FocusRing(false).
 				Label(s.text.FontSearch).Placeholder(s.text.FontSearch)
 			if p.focus {
@@ -300,7 +300,7 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 			switch {
 			case i < p.pinned:
 			case rule && i == p.pinned:
-				ui.Row(c).FillWidth().Height(1).Margin(px(t, 6), px(t, 2), px(t, 6), px(t, 2)).Background(t.Border).
+				ui.Row(c).FillWidth().Height(1).Margin(theme.Px(t, 6), theme.Px(t, 2), theme.Px(t, 6), theme.Px(t, 2)).Background(t.Border).
 					Role(ui.RoleNone)
 				return
 			case status && i == p.pinned+btoi(rule):
@@ -320,7 +320,7 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 				picked, chosen = opt.value, true
 			}
 		})
-		list.Grow(1).MinHeight(0).Margin(px(t, 6), 0, 0, 0).Padding(px(t, 6), px(t, 8), px(t, 8), px(t, 8)).
+		list.Grow(1).MinHeight(0).Margin(theme.Px(t, 6), 0, 0, 0).Padding(theme.Px(t, 6), theme.Px(t, 8), theme.Px(t, 8), theme.Px(t, 8)).
 			Label(s.text.FontList)
 		if active.Valid() {
 			in.ActiveDescendant(active)
@@ -336,8 +336,8 @@ func (s *Screen) pickerOption(c *ui.Context, o choice, current, highlighted bool
 	if current {
 		name += ", " + s.text.FontCurrent
 	}
-	row := ui.Row(c).FillWidth().Height(px(t, pickerRow)).AlignItems(ui.Center).Gap(px(t, 8)).
-		Padding(0, px(t, 8), 0, px(t, 10)).Radius(px(t, 6)).Role(ui.RoleListItem).Label(name).KeepFocus()
+	row := ui.Row(c).FillWidth().Height(theme.Px(t, pickerRow)).AlignItems(ui.Center).Gap(theme.Px(t, 8)).
+		Padding(0, theme.Px(t, 8), 0, theme.Px(t, 10)).Radius(theme.Px(t, 6)).Role(ui.RoleListItem).Label(name).KeepFocus()
 	switch {
 	case highlighted:
 		row.Background(theme.Chosen(t))
@@ -345,12 +345,12 @@ func (s *Screen) pickerOption(c *ui.Context, o choice, current, highlighted bool
 		row.Background(t.SurfaceHover)
 	}
 	row.Children(func() {
-		face := ui.Text(c, o.name).Grow(1).MinWidth(0).SingleLine().Ellipsis("…").FontSize(px(t, 13))
+		face := ui.Text(c, o.name).Grow(1).MinWidth(0).SingleLine().Ellipsis("…").FontSize(theme.Px(t, 13))
 		if o.family != "" {
 			face.Font(o.family)
 		}
 		if current {
-			ui.Icon(c, icons.Check).FontSize(px(t, 14)).TextColor(t.Accent)
+			ui.Icon(c, icons.Check).FontSize(theme.Px(t, 14)).TextColor(t.Accent)
 		}
 	})
 	return row
@@ -359,11 +359,11 @@ func (s *Screen) pickerOption(c *ui.Context, o choice, current, highlighted bool
 // pickerStatus is the line the list shows while the families are read, or when nothing matches.
 func (s *Screen) pickerStatus(c *ui.Context, p *fontPicker, loaded bool) {
 	t := c.Theme()
-	row := ui.Row(c).FillWidth().MinHeight(px(t, pickerStatus)).AlignItems(ui.Center).Justify(ui.Center).
-		Gap(px(t, 8)).Padding(px(t, 12)).Role(ui.RoleStatus)
+	row := ui.Row(c).FillWidth().MinHeight(theme.Px(t, pickerStatus)).AlignItems(ui.Center).Justify(ui.Center).
+		Gap(theme.Px(t, 8)).Padding(theme.Px(t, 12)).Role(ui.RoleStatus)
 	row.Children(func() {
 		if !loaded {
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 14)).TextColor(t.TextMuted)
+			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 			ui.Text(c, s.text.FontLoading).TextColor(t.TextMuted).Wrap().TextAlign(ui.Center)
 			return

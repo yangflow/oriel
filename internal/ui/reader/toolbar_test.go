@@ -200,7 +200,7 @@ func TestToolbarAlignsWithColumn(t *testing.T) {
 		s.Use(f)
 		var column, unit float32
 		tt := ui.NewTester(func(c *ui.Context) {
-			column, unit = s.column(c.Theme()), px(c.Theme(), 1)
+			column, unit = s.column(c.Theme()), theme.Px(c.Theme(), 1)
 			s.View(c, f.nav)
 		}, tc.width, 900)
 		s.Open(a.Entry)

@@ -288,7 +288,7 @@ func (s *Screen) readerDialog(c *ui.Context) {
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(28, 24, 18, 0.32)).Padding(t.Space(4))
-		panel.Column().Width(px(t, 440)).MaxHeight(height - t.Space(8)).Radius(16).Background(theme.RaisedFill(t)).
+		panel.Column().Width(theme.Px(t, 440)).MaxHeight(height - t.Space(8)).Radius(16).Background(theme.RaisedFill(t)).
 			Label(s.text.ReaderTitle)
 		sheet(c, panel, 20, 50)
 		line := func(shown bool) {
@@ -333,8 +333,8 @@ func (s *Screen) readerHeader(c *ui.Context, open *bool) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Padding(t.Space(4.5), t.Space(5), t.Space(1),
 		t.Space(5)).Children(func() {
-		ui.Text(c, s.text.ReaderTitle).FontSize(px(t, 15)).FontWeight(600).Grow(1).MinWidth(0).Role(ui.RoleHeading).Level(2)
-		x := theme.Fade(ui.ButtonBase(c).Size(px(t, 28), px(t, 28)).Radius(8).AlignSelf(ui.Start).
+		ui.Text(c, s.text.ReaderTitle).FontSize(theme.Px(t, 15)).FontWeight(600).Grow(1).MinWidth(0).Role(ui.RoleHeading).Level(2)
+		x := theme.Fade(ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(8).AlignSelf(ui.Start).
 			Label(s.text.ReaderClose).Tooltip(s.text.ReaderClose))
 		color := t.TextMuted
 		switch {
@@ -345,7 +345,7 @@ func (s *Screen) readerHeader(c *ui.Context, open *bool) {
 			x.Background(t.SurfaceHover)
 			color = t.Text
 		}
-		x.Children(func() { ui.Icon(c, icons.X).FontSize(px(t, 16)).TextColor(color) })
+		x.Children(func() { ui.Icon(c, icons.X).FontSize(theme.Px(t, 16)).TextColor(color) })
 		if x.Clicked() {
 			*open = false
 		}
@@ -400,8 +400,8 @@ func (s *Screen) readerForm(c *ui.Context) {
 	for i, svc := range readerServices {
 		names[i] = svc.name
 	}
-	ui.Column(c).FillWidth().Gap(px(t, 6)).Children(func() {
-		ui.Text(c, s.text.ReaderService).FontSize(px(t, 12)).FontWeight(500)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
+		ui.Text(c, s.text.ReaderService).FontSize(theme.Px(t, 12)).FontWeight(500)
 		ui.Row(c).Children(func() {
 			if i, changed := s.segments(c, s.text.ReaderService, names, r.service); changed {
 				r.service = i
@@ -416,8 +416,8 @@ func (s *Screen) readerForm(c *ui.Context) {
 	}
 	trimmed := strings.TrimSpace(r.base)
 	bad := trimmed != "" && !validAddress(trimmed) && (strings.Contains(trimmed, "://") || strings.Contains(trimmed, "."))
-	ui.Column(c).FillWidth().Gap(px(t, 6)).Children(func() {
-		ui.Text(c, s.text.ReaderAddress).FontSize(px(t, 12)).FontWeight(500)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
+		ui.Text(c, s.text.ReaderAddress).FontSize(theme.Px(t, 12)).FontWeight(500)
 		field(c, "reader-base", &r.base, 0, bad, func(in ui.Element) {
 			in.Font("monospace").Label(s.text.ReaderAddress).Placeholder(s.text.ReaderAddressHint)
 			if bad {
@@ -430,13 +430,13 @@ func (s *Screen) readerForm(c *ui.Context) {
 			submit(in)
 		})
 		if bad {
-			ui.Text(c, s.text.ReaderErrAddress).FontSize(px(t, 12)).TextColor(t.Danger).Wrap()
+			ui.Text(c, s.text.ReaderErrAddress).FontSize(theme.Px(t, 12)).TextColor(t.Danger).Wrap()
 		}
 	})
 	freshrss := readerServices[r.service].code == client.ServiceFreshRSS
 	if freshrss {
-		ui.Column(c).FillWidth().Gap(px(t, 6)).Children(func() {
-			ui.Text(c, s.text.ReaderUser).FontSize(px(t, 12)).FontWeight(500)
+		ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
+			ui.Text(c, s.text.ReaderUser).FontSize(theme.Px(t, 12)).FontWeight(500)
 			field(c, "reader-user", &r.user, 0, false, func(in ui.Element) {
 				in.Label(s.text.ReaderUser)
 				submit(in)
@@ -447,13 +447,13 @@ func (s *Screen) readerForm(c *ui.Context) {
 	if freshrss {
 		credential = s.text.ReaderPassword
 	}
-	ui.Column(c).FillWidth().Gap(px(t, 6)).Children(func() {
-		ui.Text(c, credential).FontSize(px(t, 12)).FontWeight(500)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
+		ui.Text(c, credential).FontSize(theme.Px(t, 12)).FontWeight(500)
 		field(c, "reader-credential", &r.cred, 0, false, func(in ui.Element) {
 			in.Password().Label(credential).Description(s.text.ReaderMemory)
 			submit(in)
 		})
-		ui.Text(c, s.text.ReaderMemory).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap()
+		ui.Text(c, s.text.ReaderMemory).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
 	})
 }
 
@@ -483,13 +483,13 @@ func (s *Screen) readerProgress(c *ui.Context) {
 		how = s.fill(s.text.ReaderProgressOpen, "{done}", strconv.Itoa(p.Done))
 	}
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Role(ui.RoleStatus).Children(func() {
-		spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 14)).TextColor(t.TextMuted)
+		spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 		spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 		ui.Text(c, stage).Shrink(1).Wrap()
 	})
 	ui.Progress(c, value).FillWidth().Label(stage)
 	if how != "" {
-		ui.Text(c, how).FontSize(px(t, 12)).TextColor(t.TextMuted)
+		ui.Text(c, how).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
 	}
 }
 
@@ -514,11 +514,11 @@ func (s *Screen) readerPreview(c *ui.Context) {
 				ui.Text(c, count(n)).FontWeight(500).NoWrap()
 			})
 			if note != "" {
-				ui.Text(c, note).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap()
+				ui.Text(c, note).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
 			}
 		})
 	}
-	ui.Column(c).FillWidth().Gap(px(t, 8)).Role(ui.RoleList).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, 8)).Role(ui.RoleList).Children(func() {
 		row(s.text.ReaderSources, counts.Sources, "")
 		row(s.text.ReaderStarred, counts.Starred, "")
 		row(s.text.ReaderRead, counts.Read, "")
@@ -554,15 +554,15 @@ func (s *Screen) readerResult(c *ui.Context) {
 	if len(res.Skipped) == 0 {
 		return
 	}
-	ui.Column(c).FillWidth().Gap(px(t, 6)).Children(func() {
-		ui.Text(c, s.text.ReaderSkipped).FontSize(px(t, 12)).FontWeight(500).Role(ui.RoleHeading).Level(3)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
+		ui.Text(c, s.text.ReaderSkipped).FontSize(theme.Px(t, 12)).FontWeight(500).Role(ui.RoleHeading).Level(3)
 		ui.Column(c).FillWidth().Label(s.text.ReaderSkipped).Role(ui.RoleList).Children(func() {
 			for i, item := range res.Skipped {
 				s.skippedRow(c, i, item)
 			}
 		})
 		if more := res.SkippedTotal - len(res.Skipped); more > 0 {
-			ui.Text(c, s.fill(s.text.ReaderMore, "{n}", strconv.Itoa(more))).FontSize(px(t, 12)).TextColor(t.TextMuted)
+			ui.Text(c, s.fill(s.text.ReaderMore, "{n}", strconv.Itoa(more))).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
 		}
 	})
 }
@@ -577,14 +577,14 @@ func (s *Screen) skippedRow(c *ui.Context, i int, item client.ImportSkip) {
 	if why == "" {
 		why = item.Error
 	}
-	ui.Column(c).Key(i).FillWidth().Padding(px(t, 3), 0).Role(ui.RoleListItem).Children(func() {
+	ui.Column(c).Key(i).FillWidth().Padding(theme.Px(t, 3), 0).Role(ui.RoleListItem).Children(func() {
 		spans := []ui.Span{}
 		if title := strings.TrimSpace(item.Title); title != "" {
 			spans = append(spans, ui.Span{Text: title + " · "})
 		}
-		spans = append(spans, ui.Span{Text: item.Address, Font: "monospace", Size: px(t, 12)})
-		ui.RichText(c, spans...).FillWidth().FontSize(px(t, 12.5)).SingleLine()
-		ui.Text(c, why).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap()
+		spans = append(spans, ui.Span{Text: item.Address, Font: "monospace", Size: theme.Px(t, 12)})
+		ui.RichText(c, spans...).FillWidth().FontSize(theme.Px(t, 12.5)).SingleLine()
+		ui.Text(c, why).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
 	})
 }
 
@@ -603,12 +603,12 @@ func (s *Screen) noteBox(c *ui.Context, tone int, lines []string) {
 	case refused:
 		fill, icon, iconColor, color = theme.Soft(t, t.Danger), icons.CircleAlert, t.Danger, t.Danger
 	}
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Padding(px(t, 10), t.Space(3)).Radius(t.Radius).
+	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Padding(theme.Px(t, 10), t.Space(3)).Radius(t.Radius).
 		Background(fill).Role(ui.RoleStatus).Children(func() {
-		ui.Icon(c, icon).FontSize(px(t, 14)).TextColor(iconColor).Margin(2, 0, 0, 0)
-		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(px(t, 2)).Children(func() {
+		ui.Icon(c, icon).FontSize(theme.Px(t, 14)).TextColor(iconColor).Margin(2, 0, 0, 0)
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(theme.Px(t, 2)).Children(func() {
 			for i, line := range lines {
-				ui.Text(c, line).Key(i).FontSize(px(t, 12.5)).TextColor(color).Wrap()
+				ui.Text(c, line).Key(i).FontSize(theme.Px(t, 12.5)).TextColor(color).Wrap()
 			}
 		})
 	})
