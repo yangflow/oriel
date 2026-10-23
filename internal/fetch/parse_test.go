@@ -210,6 +210,7 @@ func TestParseTrustsTheHeaderOnlyWhenItFitsTheBytes(t *testing.T) {
 		"utf-8 declared, header says latin-1":   {utf8Declared, "application/xml; charset=iso-8859-1"},
 		"utf-8 with a byte order mark":          {utf8Bom, ""},
 		"utf-8 with a byte order mark, header":  {utf8Bom, "application/xml; charset=utf-8"},
+		"utf-8 mark, header says gbk":           {utf8Bom, "application/xml; charset=gbk"},
 		"utf-16 le with a mark":                 {utf16(unicode.LittleEndian, unicode.UseBOM, utf16Declared), ""},
 		"utf-16 be with a mark":                 {utf16(unicode.BigEndian, unicode.UseBOM, utf16Declared), ""},
 		"utf-16 with a mark and a header":       {utf16(unicode.LittleEndian, unicode.UseBOM, utf16Declared), "application/xml; charset=utf-16"},

@@ -46,8 +46,11 @@ func headerCharset(contentType string) string {
 	return name
 }
 
-// declaresUTF8 reports whether the XML declaration at the start of body names UTF-8.
+// declaresUTF8 reports whether body says it is UTF-8: by a byte order mark, or by an XML declaration that names it.
 func declaresUTF8(body []byte) bool {
+	if bytes.HasPrefix(body, []byte{0xEF, 0xBB, 0xBF}) {
+		return true
+	}
 	m := xmlDeclaration.FindSubmatch(body)
 	if m == nil {
 		return false
@@ -69,7 +72,7 @@ func isASCII(body []byte) bool {
 // rewrites the declaration to say UTF-8 so that the parser does not convert the text a second time. A UTF-16 byte
 // order mark wins over the header. The header is trusted only while it fits the bytes: UTF-8 in the header over a body
 // that is not valid UTF-8 is ignored, and so is another charset in the header over a body that is valid UTF-8 with
-// non-ASCII text and declares UTF-8. A body with no usable charset is returned as is: the parser reads the
+// non-ASCII text and says UTF-8 (a byte order mark or the declaration). A body with no usable charset is returned as is: the parser reads the
 // declaration.
 func decodeFeed(body []byte, contentType string) []byte {
 	name := headerCharset(contentType)

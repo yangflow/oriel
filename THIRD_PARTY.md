@@ -38,6 +38,6 @@ retain their Go license; a copy ships under resources/ThirdPartyLicenses/go/.
 
 ## Documentation
 
-`docs/design.md` and `design/` summarize, in our own words, the UI documentation of MyGo v0.4.1 (MIT License,
-Copyright (c) egoist): <https://github.com/egoist/mygo/tree/v0.4.1/docs/ui>. No upstream text or code is shipped in
+`docs/design.md` and `design/` summarize, in our own words, the UI documentation of MyGo v0.5.5 (MIT License,
+Copyright (c) egoist): <https://github.com/egoist/mygo/tree/v0.5.5/docs/ui>. No upstream text or code is shipped in
 the app.
