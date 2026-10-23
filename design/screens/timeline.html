@@ -122,8 +122,11 @@
      Edge cases (long-titles, many-feeds, broken-images; the rules are in docs/design.md, The timeline). A title stops
      at two lines in a row and in a video card, at one in a picture's caption, a subscription's name in the sidebar, the
      source name in the meta line and the screen title, each with an ellipsis; a Chinese title breaks between any two
-     characters and a word that does not fit breaks where it must. The sidebar's name shows in full in a tooltip once
-     the pointer rests on it, the reader shows the full title. With about 60 subscriptions only the heading and the
+     characters and a word that does not fit breaks where it must. A name or a toast title that is cut short can still
+     be read whole: a sidebar row (a subscription's name, and a kind's name in a narrow pane) that is cut shows the full
+     name in a tooltip once the pointer rests on it or the keyboard focus comes to it, and one that fits has no tooltip
+     (the tipped row, the others have none); a toast title takes two lines and is cut after them (fetched-long), its
+     whole text is the toast's accessible name, read in full when it shows. The reader shows the full title. With about 60 subscriptions only the heading and the
      subscriptions scroll: the kinds above them and the server bar below stay. A picture that fails to load keeps its
      box on the Track color with a muted image mark (a video cover keeps its play mark and duration); a site icon
      that fails keeps the monogram.
@@ -528,7 +531,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .toast { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:4; display:flex; align-items:center; gap:10px; max-width:calc(100% - 40px); min-height:40px; padding:6px 6px 6px 14px; border-radius:14px; background:#2a2620; color:#f4efe6; font-size:12px; box-shadow:0 10px 30px rgba(var(--shadow),.28), 0 0 0 .5px rgba(255,248,235,.08) }
 :root[data-scheme=dark] .toast { background:#333837 }
 .toast svg.icon { flex:none }
-.toast .msg { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.toast .msg { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere }
 .toast .act { height:28px; padding:0 10px; border-radius:8px; color:inherit; font-weight:600; white-space:nowrap; background:rgba(255,248,235,.12) }
 .toast .act kbd, .sheet kbd { font:inherit }
 .toast .act kbd { margin-left:6px; font-weight:400; opacity:.6 }
@@ -620,7 +623,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
+const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -825,7 +828,7 @@ if(state==='many-feeds'){
   bigFeeds.forEach(([kind,name],i)=>sources.push({id:11+i,kind,name,mono:[...name.replace(/^[@#· ]+/,'')][0].toUpperCase(),unread:i===1?1234:i%7===0?0:(i*5)%9+1}));
   sources.sort((a,b)=>a.name.toLowerCase()<b.name.toLowerCase()?-1:1);
 }
-if(state==='long-titles')sources.find(s=>s.id===2).name=zh?'少数派 sspai：高效工作，快乐生活，关注数字生活、效率工具与软件使用技巧的社区':'Ars Technica » Technology Lab: Tech Policy, Gadgets, Science and Culture, Plus Long Reads and Reviews';
+if(state==='long-titles'||state==='fetched-long')sources.find(s=>s.id===2).name=zh?'少数派 sspai：高效工作，快乐生活，关注数字生活、效率工具与软件使用技巧的社区':'Ars Technica » Technology Lab: Tech Policy, Gadgets, Science and Culture, Plus Long Reads and Reviews';
 if(state==='broken-images')[1,2,4,6,8].forEach(i=>delete favs[i]);
 const byId=Object.fromEntries(sources.map(s=>[s.id,s]));
 const kindUnread=k=>sources.filter(s=>s.kind===k).reduce((a,s)=>a+s.unread,0);
@@ -1051,6 +1054,7 @@ const toast=state==='marked-read'?`<div class="toast" role="status">${icon('chec
   :state==='refreshed-part'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('refreshedPart',{done:5,n:12})}</span></div>`
   :state==='refresh-none'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.refreshNone}</span></div>`
   :state==='fetched'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('fetchedNew',{n:12,name:byId[2].name})}</span></div>`
+  :state==='fetched-long'?`<div class="toast plain" role="status" aria-label="${t('fetchedNew',{n:12,name:byId[2].name})}">${icon('circleCheck')}<span class="msg">${t('fetchedNew',{n:12,name:byId[2].name})}</span></div>`
   :state==='fetched-failed'?`<div class="toast plain" role="status">${icon('alert','warn')}<span class="msg">${t('fetchedFailed',{name:byId[3].name,error:byId[3].error})}</span></div>`
   :state==='no-more-unread'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:'';
 const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
