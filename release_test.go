@@ -76,31 +76,29 @@ func TestBackupTypeIsExported(t *testing.T) {
 
 // The deployment files are the ones docs/product.md shows, and the image builds with the Go version of the repository.
 func TestDeploymentFiles(t *testing.T) {
-	doc, err := os.ReadFile("docs/product.md")
-	if err != nil {
-		t.Fatal(err)
-	}
+	doc := readText(t, "docs/product.md")
 	for _, file := range []string{"deploy/compose.yaml", "deploy/oriel.service"} {
-		b, err := os.ReadFile(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(string(doc), "\n"+strings.TrimRight(string(b), "\n")+"\n```") {
+		b := readText(t, file)
+		if !strings.Contains(doc, "\n"+strings.TrimRight(b, "\n")+"\n```") {
 			t.Errorf("docs/product.md does not show %s as it is", file)
 		}
-		if regexp.MustCompile(`(?i)password=[^<\s]`).Match(b) {
+		if regexp.MustCompile(`(?i)password=[^<\s]`).MatchString(b) {
 			t.Errorf("%s sets a password rather than a <placeholder>", file)
 		}
 	}
-	dockerfile, err := os.ReadFile("Dockerfile")
-	if err != nil {
-		t.Fatal(err)
-	}
-	goVersion, err := os.ReadFile(".go-version")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := "ARG GO_VERSION=" + strings.TrimSpace(string(goVersion)) + "\n"; !strings.Contains(string(dockerfile), want) {
+	dockerfile := readText(t, "Dockerfile")
+	goVersion := readText(t, ".go-version")
+	if want := "ARG GO_VERSION=" + strings.TrimSpace(goVersion) + "\n"; !strings.Contains(dockerfile, want) {
 		t.Errorf("Dockerfile does not have %q", want)
 	}
+}
+
+// readText reads a checked-in text file with its line endings as committed, since a Windows checkout turns them into CRLF.
+func readText(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.ReplaceAll(string(b), "\r\n", "\n")
 }
