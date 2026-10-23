@@ -440,10 +440,10 @@ func TestCatalogsMatch(t *testing.T) {
 func TestTimeline(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	for _, label := range []string{
-		"Go Blog, Go 1.27 is released, 5 min, Unread",
-		"Talks, Profiling in practice, 2 h, Unread",
+		"Go Blog, Go 1.27 is released, 5 min ago, Unread",
+		"Talks, Profiling in practice, 2 h ago, Unread",
 		"Gopher, Five pictures from the meetup, Yesterday, Unread",
-		"Photos, Harbor at dawn, 3 days, Unread",
+		"Photos, Harbor at dawn, 3 days ago, Unread",
 		"Go Blog, Range over func, Sep 8, Read, Starred",
 		"Go Blog, Go turns 16, Sep 13, 2025, Unread",
 	} {
@@ -620,13 +620,13 @@ func TestLayouts(t *testing.T) {
 				var row string
 				switch kind {
 				case "Videos":
-					row = "Talks, Profiling in practice, 2 h, Unread"
+					row = "Talks, Profiling in practice, 2 h ago, Unread"
 				case "Images":
-					row = "Photos, Harbor at dawn, 3 days, Unread"
+					row = "Photos, Harbor at dawn, 3 days ago, Unread"
 				case "Social":
 					row = "Gopher, Five pictures from the meetup, Yesterday, Unread"
 				default:
-					row = "Go Blog, Go 1.27 is released, 5 min, Unread"
+					row = "Go Blog, Go 1.27 is released, 5 min ago, Unread"
 				}
 				r, ok := tt.Find(row)
 				if !ok {
@@ -668,7 +668,7 @@ func TestCompact(t *testing.T) {
 
 func TestKeyboard(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	first := "Go Blog, Go 1.27 is released, 5 min, Unread"
+	first := "Go Blog, Go 1.27 is released, 5 min ago, Unread"
 	if err := tt.Click(first); err != nil {
 		t.Fatal(err)
 	}
@@ -680,12 +680,12 @@ func TestKeyboard(t *testing.T) {
 		t.Fatalf("not marked read: %v", f.patches)
 	}
 	tt.Key(0, ui.KeyEscape)
-	if s.reading != 0 || !tt.Focused("Go Blog, Go 1.27 is released, 5 min, Read") {
+	if s.reading != 0 || !tt.Focused("Go Blog, Go 1.27 is released, 5 min ago, Read") {
 		t.Fatalf("Escape does not return to the entry: reading %d", s.reading)
 	}
 	tt.Move(0, 0)
 	tt.Key(0, ui.KeyJ)
-	if s.selected != 1 || !tt.Focused("Talks, Profiling in practice, 2 h, Unread") {
+	if s.selected != 1 || !tt.Focused("Talks, Profiling in practice, 2 h ago, Unread") {
 		t.Fatalf("selected %d", s.selected)
 	}
 	tt.Key(0, ui.KeyS)
@@ -803,7 +803,7 @@ func TestSidebarKeys(t *testing.T) {
 		}
 		tt.Key(0, key)
 		tt.Frame()
-		if s.inSide || !tt.Focused("Talks, Profiling in practice, 2 h, Unread") {
+		if s.inSide || !tt.Focused("Talks, Profiling in practice, 2 h ago, Unread") {
 			t.Fatalf("key %v does not go back to the list: in %v, selected %d, row %d, entries %d, texts %v", key, s.inSide, s.selected, s.focusRow, len(s.entries), tt.Texts())
 		}
 	}
@@ -931,7 +931,7 @@ func TestKeysIgnored(t *testing.T) {
 	})
 	t.Run("reader", func(t *testing.T) {
 		s, f, tt := setup(t, "en")
-		if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+		if err := tt.Click("Go Blog, Go 1.27 is released, 5 min ago, Unread"); err != nil {
 			t.Fatal(err)
 		}
 		f.settle(t, tt)
@@ -969,7 +969,7 @@ func TestEntryMenuKey(t *testing.T) {
 // TestReaderAIOff follows the reader's way to the settings while AI is not set up.
 func TestReaderAIOff(t *testing.T) {
 	_, f, tt := setup(t, "en")
-	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min ago, Unread"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -998,7 +998,7 @@ func TestReaderPrefetch(t *testing.T) {
 		return n
 	}
 	s, f, tt := setup(t, "en")
-	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min ago, Unread"); err != nil {
 		t.Fatal(err)
 	}
 	// Nothing is kept yet: the first article loads, and the next one, 4, is got after it.
@@ -1052,7 +1052,7 @@ func TestReaderPrefetch(t *testing.T) {
 // TestReaderPrefetchDropped checks that changing the list stops what was got for the old one.
 func TestReaderPrefetchDropped(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min ago, Unread"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -1064,7 +1064,7 @@ func TestReaderPrefetchDropped(t *testing.T) {
 	}
 	f.settle(t, tt)
 	before := len(f.articles)
-	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min ago, Unread"); err != nil {
 		t.Fatalf("%v in %v", err, tt.Texts())
 	}
 	f.settle(t, tt)
@@ -1075,7 +1075,7 @@ func TestReaderPrefetchDropped(t *testing.T) {
 
 func TestReader(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min ago, Unread"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -1149,7 +1149,7 @@ func TestReader(t *testing.T) {
 		t.Fatalf("reading %d in %v", s.reading, s.scope)
 	}
 	f.settle(t, tt)
-	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min ago, Unread"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -1167,7 +1167,7 @@ func TestReader(t *testing.T) {
 func TestOpenFails(t *testing.T) {
 	_, f, tt := setup(t, "en")
 	tt.FailOpenURL(errors.New("no browser"))
-	if err := tt.Click("Talks, Profiling in practice, 2 h, Unread"); err != nil {
+	if err := tt.Click("Talks, Profiling in practice, 2 h ago, Unread"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -1396,7 +1396,7 @@ func TestCompactDensity(t *testing.T) {
 
 func TestOfflineLine(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	const line = "Can’t reach the server · last updated 12:00"
+	const line = "Can’t reach the server · last updated 12:00 PM"
 	f.entriesErr = errors.New("offline")
 	f.now = f.now.Add(pollEvery)
 	tt.Frame()
@@ -1848,7 +1848,7 @@ func TestMarkVisible(t *testing.T) {
 			t.Fatalf("entry %d read %v", e.ID, e.IsRead)
 		}
 	}
-	if s.selected != end || !tt.Focused(fmt.Sprintf("Go Blog, Entry %d, %d min, Unread", s.entries[end].ID, end+1)) {
+	if s.selected != end || !tt.Focused(fmt.Sprintf("Go Blog, Entry %d, %d min ago, Unread", s.entries[end].ID, end+1)) {
 		t.Fatalf("selected %d, want %d", s.selected, end)
 	}
 	// The entry after the visible ones is at the top, below the toolbar.
@@ -2025,7 +2025,7 @@ func TestMarkVisibleIgnored(t *testing.T) {
 	})
 	t.Run("reader", func(t *testing.T) {
 		s, f, tt := crowd(t, 60, 420)
-		if err := tt.Click("Go Blog, Entry 60, 1 min, Unread"); err != nil {
+		if err := tt.Click("Go Blog, Entry 60, 1 min ago, Unread"); err != nil {
 			t.Fatal(err)
 		}
 		f.settle(t, tt)
@@ -2606,7 +2606,7 @@ func TestRowFills(t *testing.T) {
 	inkCases(t, func(t *testing.T, dark bool, scale float32) {
 		s, _, tt, main := inkSetup(t, dark, scale)
 		fade := func() { tt.Frame(); tt.Advance(time.Second); tt.Frame() }
-		label := "Go Blog, Go 1.27 is released, 5 min, Unread"
+		label := "Go Blog, Go 1.27 is released, 5 min ago, Unread"
 		row, ok := tt.Find(label)
 		if !ok {
 			t.Fatalf("no row in %v", tt.Texts())
@@ -2682,7 +2682,7 @@ func TestLongTitles(t *testing.T) {
 			s.Use(f, "")
 			tt.Frame()
 			f.settle(t, tt)
-			a := rowRect(t, tt, "Go Blog, "+tc.long+", 5 min, Unread")
+			a := rowRect(t, tt, "Go Blog, "+tc.long+", 5 min ago, Unread")
 			b := rowRect(t, tt, "Go Blog, "+tc.longer+", Sep 13, 2025, Unread")
 			one := rowRect(t, tt, "Go Blog, Range over func, Sep 8, Read, Starred")
 			// The heights are compared to within a pixel, as the layout of other text sizes rounds differently.
@@ -2812,7 +2812,7 @@ func TestBrokenImages(t *testing.T) {
 	track, muted := theme.Track(main), main.TextMuted
 	// Within the row of the first entry the thumbnail box is on Track, and its middle holds the icon in the muted
 	// color.
-	row := rowRect(t, tt, "Go Blog, Go 1.27 is released, 5 min, Unread")
+	row := rowRect(t, tt, "Go Blog, Go 1.27 is released, 5 min ago, Unread")
 	img := tt.Image()
 	minX, maxX, minY, maxY := float32(9999), float32(0), float32(9999), float32(0)
 	for y := row.Y + 20; y < row.Y+row.H; y++ {
@@ -3382,7 +3382,7 @@ func TestViewersDefault(t *testing.T) {
 func TestViewerCompactArticle(t *testing.T) {
 	p := prefs.Default()
 	_, _, tt := viewing(t, &p)
-	label := "Go Blog, Go 1.27 is released, 5 min, Unread"
+	label := "Go Blog, Go 1.27 is released, 5 min ago, Unread"
 	before := rowRect(t, tt, label)
 	p.ArticleViewer = prefs.ViewCompact
 	tt.Frame()
@@ -3415,7 +3415,7 @@ func TestViewerCompactSocial(t *testing.T) {
 func TestViewerLargeCover(t *testing.T) {
 	p := prefs.Default()
 	_, _, tt := viewing(t, &p)
-	label := "Talks, Profiling in practice, 2 h, Unread"
+	label := "Talks, Profiling in practice, 2 h ago, Unread"
 	before := rowRect(t, tt, label)
 	p.VideoViewer = prefs.ViewCover
 	tt.Frame()
@@ -3436,7 +3436,7 @@ func TestViewerVideoListNoGrid(t *testing.T) {
 		if s.layout() != columnLayout || s.grids() {
 			t.Fatalf("%s: Videos is laid out as %v", v, s.layout())
 		}
-		rowRect(t, tt, "Talks, Profiling in practice, 2 h, Unread")
+		rowRect(t, tt, "Talks, Profiling in practice, 2 h ago, Unread")
 	}
 }
 
@@ -3469,7 +3469,7 @@ func TestViewerImageCard(t *testing.T) {
 	if s.layout() != columnLayout {
 		t.Fatalf("Images is laid out as %v", s.layout())
 	}
-	rowRect(t, tt, "Photos, Harbor at dawn, 3 days, Unread")
+	rowRect(t, tt, "Photos, Harbor at dawn, 3 days ago, Unread")
 }
 
 // The keys move through the square grid one picture at a time, and the picture chosen is the one with the focus.
@@ -3600,7 +3600,7 @@ func TestGridSwitchImages(t *testing.T) {
 	if s.layout() != columnLayout || p.Grids.Get("kind:image") != prefs.ViewList {
 		t.Fatalf("layout %v, grids %q", s.layout(), p.Grids)
 	}
-	rowRect(t, tt, "Photos, Harbor at dawn, 3 days, Unread")
+	rowRect(t, tt, "Photos, Harbor at dawn, 3 days ago, Unread")
 	clickSwitch(t, f, tt, "Show as grid")
 	if s.layout() != wallLayout || p.Grids != "" {
 		t.Fatalf("layout %v, grids %q: a switch back to the default is not kept", s.layout(), p.Grids)
@@ -4936,7 +4936,7 @@ func TestOfflineBackoff(t *testing.T) {
 
 func TestOfflineRetryButton(t *testing.T) {
 	for language, names := range map[string][3]string{
-		"en":      {"Can’t reach the server · last updated 12:00", "Try again", "Retrying…"},
+		"en":      {"Can’t reach the server · last updated 12:00 PM", "Try again", "Retrying…"},
 		"zh-Hans": {"连不上服务端 · 上次更新于 12:00", "重试", "正在重试…"},
 	} {
 		t.Run(language, func(t *testing.T) {
@@ -5222,7 +5222,7 @@ func TestGroupedReadCountsEveryCopy(t *testing.T) {
 	s, f, tt := setupGrouped(t, "en")
 	total := s.unreadTotal
 	before := f.sourceLoads
-	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min ago, Unread"); err != nil {
 		t.Fatalf("%v in %v", err, tt.Texts())
 	}
 	unread := func(id int64) int {
@@ -5283,7 +5283,7 @@ func TestGroupedChangeFailsRestoresEachCopy(t *testing.T) {
 	}
 	n3, n4 := count(3), count(4)
 	f.setErr = &client.APIError{Status: 500, Code: "internal"}
-	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min, Unread"); err != nil {
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min ago, Unread"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)

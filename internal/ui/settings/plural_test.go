@@ -19,9 +19,6 @@ func TestSingularCounts(t *testing.T) {
 	}{
 		{"Days", s.text.Days, [3]string{"0 days", "1 day", "2 days"}},
 		{"Exported", s.text.Exported, [3]string{"Exported 0 subscriptions to {file}.", "Exported 1 subscription to {file}.", "Exported 2 subscriptions to {file}."}},
-		{"Minutes", s.text.Minutes, [3]string{"0 minutes ago", "1 minute ago", "2 minutes ago"}},
-		{"Hours", s.text.Hours, [3]string{"0 hours ago", "1 hour ago", "2 hours ago"}},
-		{"DaysAgo", s.text.DaysAgo, [3]string{"0 days ago", "1 day ago", "2 days ago"}},
 		{"ImagesValue", s.text.ImagesValue, [3]string{"0 images, {size}", "1 image, {size}", "2 images, {size}"}},
 		{"CopiesValue", s.text.CopiesValue, [3]string{"0 images, {size}", "1 image, {size}", "2 images, {size}"}},
 		{"RecentKeep", s.text.RecentKeep, [3]string{"Each subscription keeps its last 0 attempts.", "Each subscription keeps its last 1 attempt.", "Each subscription keeps its last 2 attempts."}},

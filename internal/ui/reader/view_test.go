@@ -229,7 +229,7 @@ func TestFullText(t *testing.T) {
 		t.Fatal("the star shows before the article loads")
 	}
 	f.settle(tt)
-	expect(t, tt, "Go Blog", "Oct 18, 11:55", "Go 1.27 is released", "Today the Go team is happy to release ",
+	expect(t, tt, "Go Blog", "Oct 18, 11:55 AM", "Go 1.27 is released", "Today the Go team is happy to release ",
 		"Go 1.27", "The gopher", "Tools", "Faster builds", "Smaller binaries", "•")
 	absent(t, tt, "This isn’t the full text: the page could not be extracted, so this is what the feed carries. ",
 		"Loading")
@@ -530,6 +530,25 @@ func TestDates(t *testing.T) {
 	e.PublishedAt, e.CreatedAt = 0, time.Date(2025, 3, 4, 9, 30, 0, 0, time.UTC).UnixMilli()
 	if got := s.when(e); got != "2025年3月4日 09:30" {
 		t.Fatalf("another year %q", got)
+	}
+}
+
+// TestHourCycle checks that the time of day follows the hour cycle of the system, and the language's habit while the
+// system says nothing.
+func TestHourCycle(t *testing.T) {
+	for _, tc := range []struct {
+		lang  string
+		hours int
+		want  string
+	}{
+		{"en", 0, "Oct 18, 11:55 AM"}, {"en", 12, "Oct 18, 11:55 AM"}, {"en", 24, "Oct 18, 11:55"},
+		{"zh-Hans", 0, "10月18日 11:55"}, {"zh-Hans", 12, "10月18日 上午11:55"}, {"zh-Hans", 24, "10月18日 11:55"},
+	} {
+		s, _, _ := setup(t, tc.lang, full())
+		s.hours = tc.hours
+		if got := s.when(entry()); got != tc.want {
+			t.Errorf("%s with %d hours: %q, want %q", tc.lang, tc.hours, got, tc.want)
+		}
 	}
 }
 
@@ -1545,7 +1564,7 @@ func TestAlsoLine(t *testing.T) {
 	f.nav.Entry = article.Entry
 	f.settle(tt)
 	expect(t, tt, "Also in", "Gopher", "Photos")
-	if err := tt.Click("Photos Oct 18, 09:00"); err != nil {
+	if err := tt.Click("Photos Oct 18, 9:00 AM"); err != nil {
 		t.Fatalf("%v in %v", err, tt.Texts())
 	}
 	if !slices.Equal(f.calls, []string{"copy 28"}) {
