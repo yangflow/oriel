@@ -240,7 +240,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   a 14 triangle with one sentence in `Warning` medium and a small secondary button under it, "Use my RSSHub instance"
   (an instance is set; it rewrites the field to the route only when pressed) or "Open settings" (none is set). Mockup
   states `add-public` and `add-public-no-instance`. When the site's bot protection turned a fetch away, the failure
-  text (health line, sidebar tooltip, toast) is one localized sentence in place of the raw HTTP text (`edit-blocked`). The edit dialog starts with a health line
+  text (health line, sidebar tooltip, toast) is one localized sentence in place of the raw HTTP text (`edit-blocked`). Other known failures (timeout, name not found, certificate, no connection, 401/403, 404/410, 429, 5xx, not a feed) read as a short phrase in the same places in place of the English text the server stores (`edit-failing`); the raw text is in the tooltip of the health line, the sidebar mark and the health list ("Original: …") and in the description a screen reader reads. Text it does not know is shown as it is. No new element: the line is the same, only its words and its tooltip change. The edit dialog starts with a health line
   (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail.
   For a route that has been fetched, a muted 12 line under it names the RSSHub instance that served the last fetch
   (host only, "Served by fallback address {host}" with a second muted line saying the first address did not answer, when it is not the first of the list). The interval offers Auto

@@ -34,6 +34,7 @@
      says it usually blocks Oriel and offers "Open settings". Add stays available, the address is never changed
      on its own. edit-blocked is the edit dialog of a subscription whose fetch the site's bot protection turned away:
      the reason line is the localized sentence (here for rsshub.app), not the raw HTTP text.
+     edit-failing shows a known failure as a short phrase; hovering the line shows the phrase and the original text (title).
      On a subscription whose last fetch failed, Refresh reads Try again, in its menu (menu-failing) and beside the
      reason in the edit dialog (edit-failing).
      The check interval offers Auto first, which is also the default of a new subscription: the app works the
@@ -378,7 +379,7 @@ const copy={
     addHere:'Add your first subscription', noSubscriptions:'No subscriptions yet',
     noSubscriptionsHint:'Entries from your subscriptions show up here, newest first.',
     refresh:'Refresh', retry:'Try again', edit:'Edit…', pause:'Pause', resume:'Resume', remove:'Delete…', editTitle:'Edit subscription',
-    checked:'Checked 5 min ago · next in 10 min', failing:'Failed 3 times in a row: HTTP 404 Not Found', failingBlocked:'Failed 3 times in a row: The public rsshub.app blocks automated requests. Use your own or another RSSHub instance in Settings → RSSHub.',
+    checked:'Checked 5 min ago · next in 10 min', failing:'Failed 3 times in a row: There is no feed at this address.', failingRaw:'Original: status 404', failingBlocked:'Failed 3 times in a row: The public rsshub.app blocks automated requests. Use your own or another RSSHub instance in Settings → RSSHub.',
     paused:'Paused. Nothing is fetched until you resume.',
     servedBy:'Served by {host}', servedByBackup:'Served by fallback address {host}', servedByBackupHint:'The first address in Settings → RSSHub did not answer, so the next one was used.',
     pauseLabel:'Pause fetching', pauseHelp:'Entries already fetched stay.',
@@ -420,7 +421,7 @@ const copy={
     addHere:'添加第一个订阅', noSubscriptions:'还没有订阅',
     noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。',
     refresh:'更新', retry:'重试', edit:'编辑…', pause:'暂停', resume:'恢复', remove:'删除…', editTitle:'编辑订阅',
-    checked:'5 分钟前检查过 · 10 分钟后再查', failing:'连续失败 3 次：HTTP 404 Not Found', failingBlocked:'连续失败 3 次：公共的 rsshub.app 拦下了自动请求。到设置 → RSSHub 用你自己的或别的 RSSHub 实例。',
+    checked:'5 分钟前检查过 · 10 分钟后再查', failing:'连续失败 3 次：这个地址上没有订阅内容（找不到页面）。', failingRaw:'原文：status 404', failingBlocked:'连续失败 3 次：公共的 rsshub.app 拦下了自动请求。到设置 → RSSHub 用你自己的或别的 RSSHub 实例。',
     paused:'已暂停，恢复之前不抓取。',
     servedBy:'由 {host} 提供', servedByBackup:'由备用地址 {host} 提供', servedByBackupHint:'设置 → RSSHub 里的第一个地址没有响应，所以换用了后面的地址。',
     pauseLabel:'暂停抓取', pauseHelp:'已经抓到的条目保留。',
@@ -514,7 +515,7 @@ function addDialog(){
 function editDialog(){
   const failing=state==='edit-failing'||state==='edit-blocked', paused=state==='edit-paused', ai=state==='edit-ai';
   const health=failing
-    ?`<div class="health bad" role="status">${icon('alert')}<span>${state==='edit-blocked'?copy.failingBlocked:copy.failing}</span><button class="button small">${icon('refresh')}${copy.retry}</button></div>`
+    ?`<div class="health bad" role="status">${icon('alert')}<span title="${copy.failing}&#10;${copy.failingRaw}">${state==='edit-blocked'?copy.failingBlocked:copy.failing}</span><button class="button small">${icon('refresh')}${copy.retry}</button></div>`
     :paused?`<div class="health" role="status">${icon('pause')}<span>${copy.paused}</span></div>`
     :`<div class="health" role="status">${icon('check')}<span>${copy.checked}</span><button class="button small">${icon('refresh')}${copy.refresh}</button></div>`;
   const open=state==='edit-extract';

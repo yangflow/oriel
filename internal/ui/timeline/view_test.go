@@ -456,7 +456,7 @@ func TestTimeline(t *testing.T) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
 	}
-	for _, label := range []string{"Last fetch failed: status 500", "Duration 12:34", "5 pictures", "2 more pictures",
+	for _, label := range []string{"Last fetch failed: The site has an error on its side. Oriel will try again later.\nOriginal: status 500", "Duration 12:34", "5 pictures", "2 more pictures",
 		"Server: This computer", "Mark all in “All” as read"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Errorf("no %q", label)
@@ -486,7 +486,7 @@ func TestTimeline(t *testing.T) {
 
 func TestFailingSubscriptions(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	for _, label := range []string{"Gopher, 1 unread, last fetch failed", "Last fetch failed: status 500",
+	for _, label := range []string{"Gopher, 1 unread, last fetch failed", "Last fetch failed: The site has an error on its side. Oriel will try again later.\nOriginal: status 500",
 		"1 failing", "Show only the 1 failing subscription"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Errorf("no %q in %v", label, tt.Texts())
@@ -496,7 +496,7 @@ func TestFailingSubscriptions(t *testing.T) {
 	f.sources[3].LastError, f.sources[3].ConsecutiveFailures, f.sources[3].UnreadCount = "timeout", 4, 0
 	s.Refresh()
 	f.settle(t, tt)
-	for _, label := range []string{"Photos, last fetch failed", "Failed 4 times in a row: timeout",
+	for _, label := range []string{"Photos, last fetch failed", "Failed 4 times in a row: The site took too long to answer.\nOriginal: timeout",
 		"2 failing", "Show only the 2 failing subscriptions"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Errorf("no %q in %v", label, tt.Texts())
@@ -548,7 +548,7 @@ func TestFailingSubscriptions(t *testing.T) {
 
 func TestFailingInChinese(t *testing.T) {
 	_, _, tt := setup(t, "zh-Hans")
-	for _, label := range []string{"Gopher，1 条未读，上次抓取失败", "上次抓取失败：status 500", "1 个失败",
+	for _, label := range []string{"Gopher，1 条未读，上次抓取失败", "上次抓取失败：网站那边出了故障，稍后会自动重试。\n原文：status 500", "1 个失败",
 		"只显示 1 个抓取失败的订阅"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Errorf("no %q in %v", label, tt.Texts())

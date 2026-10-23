@@ -417,6 +417,8 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
 
 **被拦截。** 公共的 `rsshub.app` 和不少站点放在 Cloudflare 后面，会把程序的请求当成机器人，答一个挑战页。响应状态码是 403、429 或 503，并且带 `cf-mitigated: challenge`，或者由 `server: cloudflare` 发出、`Content-Type` 是 `text/html`（要订阅却回了网页），就是被拦截。这次抓取照常按失败记（计数、退避、抓取记录都不变），`last_error` 写原始文字（`status 403: blocked by Cloudflare`），同时 `last_error_kind` 记 `blocked`；下一次成功抓取清掉它。RSSHub 路由在每个实例都失败时，只要其中有一个是被拦截，整体也记 `blocked`。Oriel 不改 User-Agent，也不试图绕过挑战：被拦的订阅要换一个不拦的实例，或者用户自己的 RSSHub。
 
+**失败原因的短语。** `last_error` 存的是原始的英文文字，界面不直接把它当说明：客户端按文字认出常见的几类，换成用户语言的短语，`last_error` 的存储格式不变。分类：超时（`deadline exceeded`、`timeout`）、域名解析失败（`no such host`、`lookup`）、证书错误（`x509`、`tls:`）、连不上（`connection refused`、`connection reset`、`dial tcp`、`EOF`、代理连不上）、状态码 401/403（拒绝访问）、404/410（找不到）、429（被限流，稍后重试）、5xx（站点故障，稍后重试）、`not a feed`（返回的不是订阅内容）。多个实例的原因用 `; ` 隔开时，各段同类才用短语。认不出的原因原样显示；`blocked` 和 `gone` 仍按 `last_error_kind` 用各自的句子。短语出现在订阅管理的健康行、时间线侧栏的提示和抓取失败的提示里；原文放进悬浮提示（“原文：…”），屏幕阅读器读短语，并能读到原文。
+
 订阅地址是用户自己填的，可以指向本机或内网（例如自建的 RSSHub），不做 SSRF 检查。订阅内容带出来的地址由正文抽取检查（见下一节）。
 
 没有配置代理（见下面的「代理」）时，抓订阅认 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，不读系统代理设置。

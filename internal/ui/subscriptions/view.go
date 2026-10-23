@@ -279,22 +279,30 @@ func Name(src client.Source) string {
 	return src.URL
 }
 
-// FailureReason is why the last fetch of src failed, to put after "Last fetch failed:": the server's text, or for a
-// fetch the site's bot protection turned away (kind "blocked") a sentence in the user's language, with blockedPublic
-// for the public rsshub.app and blocked for any other site. A 410 Gone (kind "gone") gets the sentence gone, which
-// suggests pausing the source.
-func FailureReason(src client.Source, blocked, blockedPublic, gone string) string {
+// FailureReason is why the last fetch of src failed, to put after "Last fetch failed:", in the language lang: for a
+// fetch the site's bot protection turned away (kind "blocked") a sentence, with blockedPublic for the public
+// rsshub.app and blocked for any other site. A 410 Gone (kind "gone") gets the sentence gone, which suggests pausing
+// the source. Any other failure gets a short phrase when the server's text is one of the known kinds (see
+// locale.FetchError), else the server's text itself. Show the text itself in a tooltip with FailureDetail.
+func FailureReason(lang string, src client.Source, blocked, blockedPublic, gone string) string {
 	switch src.LastErrorKind {
 	case "gone":
 		return gone
 	case "blocked":
 	default:
-		return src.LastError
+		phrase, _ := locale.FetchError(lang, src.LastError)
+		return phrase
 	}
 	if u, err := url.Parse(src.URL); err == nil && strings.EqualFold(u.Hostname(), PublicHost) {
 		return blockedPublic
 	}
 	return blocked
+}
+
+// FailureDetail is text, which says why the last fetch of src failed, with the server's own words added, for a tooltip
+// and a screen reader.
+func FailureDetail(lang string, src client.Source, text string) string {
+	return locale.WithOriginal(lang, text, src.LastError)
 }
 
 func (s *Screen) fill(text, name string) string { return strings.ReplaceAll(text, "{name}", name) }
@@ -1783,7 +1791,7 @@ func (s *Screen) healthText(src client.Source, now time.Time) (string, bool) {
 	case src.Paused:
 		return s.text.Paused, false
 	case src.LastError != "":
-		why := FailureReason(src, s.text.Blocked, s.text.BlockedPublic, s.text.FeedRemoved)
+		why := FailureReason(s.lang, src, s.text.Blocked, s.text.BlockedPublic, s.text.FeedRemoved)
 		if src.ConsecutiveFailures > 1 {
 			return strings.ReplaceAll(s.count(s.text.FailedTimes, src.ConsecutiveFailures), "{error}", why), true
 		}
@@ -1833,8 +1841,11 @@ func (s *Screen) health(c *ui.Context) {
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(2), theme.Px(t, 10)).Radius(t.Radius).
 		Background(fill).Children(func() {
 		ui.Icon(c, icon).FontSize(theme.Px(t, 14)).TextColor(color)
-		ui.Text(c, text).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap().
+		line := ui.Text(c, text).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap().
 			Role(ui.RoleStatus)
+		if bad && src.LastError != "" {
+			line.Tooltip(FailureDetail(s.lang, src, text)).Description(src.LastError)
+		}
 		if !src.Paused {
 			refresh := theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.refreshText(src)}.Draw(c)
 			if refresh.Clicked() {
@@ -2012,7 +2023,8 @@ func (s *Screen) healthReason(h client.SourceHealth) string {
 	if h.LastError == "" {
 		return reason
 	}
-	return strings.ReplaceAll(strings.ReplaceAll(s.text.HealthWhy, "{reason}", reason), "{error}", h.LastError)
+	why, _ := locale.FetchError(s.lang, h.LastError)
+	return strings.ReplaceAll(strings.ReplaceAll(s.text.HealthWhy, "{reason}", reason), "{error}", why)
 }
 
 func (s *Screen) healthNumbers(h client.SourceHealth) string {
@@ -2085,7 +2097,11 @@ func (s *Screen) healthRow(c *ui.Context, h client.SourceHealth) {
 			ui.Text(c, name).FontWeight(500).SingleLine()
 			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(1.5)).Children(func() {
 				ui.Icon(c, icon).FontSize(theme.Px(t, 14)).TextColor(color).Margin(2, 0, 0, 0)
-				ui.Text(c, s.healthReason(h)).FontSize(theme.Px(t, 12)).TextColor(color).Shrink(1).MinWidth(0).Wrap()
+				reason := s.healthReason(h)
+				line := ui.Text(c, reason).FontSize(theme.Px(t, 12)).TextColor(color).Shrink(1).MinWidth(0).Wrap()
+				if h.LastError != "" {
+					line.Tooltip(locale.WithOriginal(s.lang, reason, h.LastError)).Description(h.LastError)
+				}
 			})
 			ui.Text(c, s.healthNumbers(h)).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine()
 		})

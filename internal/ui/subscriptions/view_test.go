@@ -755,14 +755,19 @@ func TestHealth(t *testing.T) {
 		bad  bool
 	}{
 		{f.sources[0], "Checked 3 min ago · next in 12 min", false},
-		{f.sources[1], "Failed 3 times in a row: status 503", true},
-		{client.Source{LastError: "timeout", ConsecutiveFailures: 1}, "Last fetch failed: timeout", true},
+		{f.sources[1], "Failed 3 times in a row: The site has an error on its side. Oriel will try again later.", true},
+		{client.Source{LastError: "timeout", ConsecutiveFailures: 1}, "Last fetch failed: The site took too long to answer.", true},
 		{client.Source{URL: "https://rsshub.app/x", LastError: "status 403: blocked by Cloudflare", LastErrorKind: "blocked",
 			ConsecutiveFailures: 2}, "Failed 2 times in a row: " + s.text.BlockedPublic, true},
 		{client.Source{URL: "https://example.org/feed", LastError: "status 403: blocked by Cloudflare",
 			LastErrorKind: "blocked", ConsecutiveFailures: 1}, "Last fetch failed: " + s.text.Blocked, true},
 		{client.Source{LastError: "status 410: the feed was removed (Gone)", LastErrorKind: "gone", ConsecutiveFailures: 1},
 			"Last fetch failed: " + s.text.FeedRemoved, true},
+		{client.Source{LastError: "Get \"https://x/feed\": dial tcp: lookup x: no such host", ConsecutiveFailures: 1},
+			"Last fetch failed: The site’s address couldn’t be found.", true},
+		{client.Source{LastError: "x: status 500; y: status 429", ConsecutiveFailures: 1},
+			"Last fetch failed: x: status 500; y: status 429", true},
+		{client.Source{LastError: "disk on fire", ConsecutiveFailures: 1}, "Last fetch failed: disk on fire", true},
 		{client.Source{Paused: true, LastError: "timeout"}, s.text.Paused, false},
 		{client.Source{}, "Not checked yet", false},
 		{client.Source{LastFetchedAt: now.UnixMilli(), NextFetchAt: now.UnixMilli()},
@@ -1136,7 +1141,7 @@ func TestHealthDialog(t *testing.T) {
 	f.settle(tt)
 	for _, want := range []string{
 		"No new entries for 143 days", "Last 30 days: 0 new, 0 read, 0 starred",
-		"Failed 5 times in a row: status 503", "Last 30 days: 48 new, 6 read, 0 starred",
+		"Failed 5 times in a row: The site has an error on its side. Oriel will try again later.", "Last 30 days: 48 new, 6 read, 0 starred",
 		"Read 3 of 120 new entries in the last 30 days", "Last 30 days: 120 new, 3 read, 1 starred",
 		"Failing for 41 days: HTTP 404",
 	} {
@@ -1244,7 +1249,7 @@ func TestHealthDialogChinese(t *testing.T) {
 	f.health = flagged()
 	s.Health()
 	f.settle(tt)
-	for _, want := range []string{"已有 143 天没有新条目", "已连续失败 5 次：status 503", "近 30 天新增 120 条，只读了 3 条",
+	for _, want := range []string{"已有 143 天没有新条目", "已连续失败 5 次：网站那边出了故障，稍后会自动重试。", "近 30 天新增 120 条，只读了 3 条",
 		"已连续失败 41 天：HTTP 404", "近 30 天：新增 48 条，已读 6 条，收藏 0 条"} {
 		if !slices.Contains(tt.Texts(), want) {
 			t.Errorf("no %q in %v", want, tt.Texts())
