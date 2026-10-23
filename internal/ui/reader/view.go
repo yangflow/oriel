@@ -1372,32 +1372,39 @@ func (s *Screen) head(c *ui.Context, icon *ui.SVG, color ui.Color, title string,
 // mini is the close button at the end of a card's head.
 func (s *Screen) mini(c *ui.Context, label string) bool {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Size(theme.Px(t, 22), theme.Px(t, 22)).Margin(0, 0, 0, ui.Auto).Radius(theme.Px(t, 6)).Label(label).
-		Tooltip(label)
+	b := ui.ButtonBase(c).Label(label).Tooltip(label)
 	color := t.TextMuted
+	var fill ui.Color
 	switch {
 	case b.Pressed():
-		b.Background(t.SurfacePressed)
+		fill = t.SurfacePressed
 		color = t.Text
 	case b.Hovered():
-		b.Background(t.SurfaceHover)
+		fill = t.SurfaceHover
 		color = t.Text
 	}
-	theme.Fade(b).Children(func() { ui.Icon(c, icons.X).FontSize(theme.Px(t, 13)).TextColor(color) })
+	x, y := theme.Hit{W: theme.Px(t, 22), H: theme.Px(t, 22), Radius: theme.Px(t, 6), Fill: fill, Fade: true}.Apply(c, b, func() {
+		ui.Icon(c, icons.X).FontSize(theme.Px(t, 13)).TextColor(color)
+	})
+	b.Margin(y, x, y, ui.Auto)
 	return b.Clicked()
 }
 
 // textButton is a button of a card's head or a note that is only its text, in color.
 func (s *Screen) textButton(c *ui.Context, label string, color ui.Color) bool {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Height(theme.Px(t, 22)).Margin(0, 0, 0, ui.Auto).PaddingX(theme.Px(t, 6)).Radius(theme.Px(t, 6)).Label(label)
+	b := ui.ButtonBase(c).Label(label)
+	var fill ui.Color
 	switch {
 	case b.Pressed():
-		b.Background(t.SurfacePressed)
+		fill = t.SurfacePressed
 	case b.Hovered():
-		b.Background(t.SurfaceHover)
+		fill = t.SurfaceHover
 	}
-	theme.Fade(b).Children(func() { ui.Text(c, label).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(color) })
+	_, y := theme.Hit{H: theme.Px(t, 22), Radius: theme.Px(t, 6), Fill: fill, PadX: theme.Px(t, 6), Fade: true}.Apply(c, b, func() {
+		ui.Text(c, label).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
+	})
+	b.Margin(y, 0, y, ui.Auto)
 	return b.Clicked()
 }
 

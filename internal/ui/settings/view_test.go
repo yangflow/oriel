@@ -579,6 +579,9 @@ func TestImport(t *testing.T) {
 	if f.refreshed != 1 {
 		t.Fatalf("refreshed %d", f.refreshed)
 	}
+	if r, ok := tt.Find(s.text.Dismiss); !ok || r.W < theme.MinTarget || r.H < theme.MinTarget {
+		t.Errorf("the dismiss button is %v, under %d by %d", r, theme.MinTarget, theme.MinTarget)
+	}
 	if err := tt.Click(s.text.Dismiss); err != nil {
 		t.Fatal(err)
 	}

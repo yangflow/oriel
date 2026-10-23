@@ -2764,13 +2764,17 @@ func (s *Screen) resultBox(c *ui.Context) {
 		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Children(func() {
 			ui.Icon(c, icon).FontSize(theme.Px(t, 14)).TextColor(iconColor).Margin(2, 0, 0, 0)
 			ui.Text(c, r.text).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12.5)).TextColor(color).Wrap()
-			x := ui.ButtonBase(c).Size(theme.Px(t, 20), theme.Px(t, 20)).Radius(5).Label(s.text.Dismiss).Tooltip(s.text.Dismiss)
+			x := ui.ButtonBase(c).Label(s.text.Dismiss).Tooltip(s.text.Dismiss)
 			xColor := t.TextMuted
+			var xFill ui.Color
 			if x.Hovered() {
-				x.Background(t.SurfaceHover)
+				xFill = t.SurfaceHover
 				xColor = t.Text
 			}
-			x.Children(func() { ui.Icon(c, icons.X).FontSize(theme.Px(t, 13)).TextColor(xColor) })
+			mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: 5, Fill: xFill}.Apply(c, x, func() {
+				ui.Icon(c, icons.X).FontSize(theme.Px(t, 13)).TextColor(xColor)
+			})
+			x.Margin(my, mx, my, mx)
 			if x.Clicked() {
 				s.result = result{}
 			}

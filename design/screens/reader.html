@@ -243,6 +243,9 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .ai .head .mini { margin-left:auto; width:22px; height:22px; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
 .ai .head .mini:hover { background:var(--hover); color:var(--text) }
 .ai .head .mini svg.icon { width:13px; height:13px }
+/* Hit area: a control drawn under 24 keeps its look; an invisible 24 by 24 minimum target surrounds it (docs/design.md, Accessibility). */
+.ai .head .mini, .selcard .head .mini { position:relative }
+.ai .head .mini::after, .selcard .head .mini::after { content:""; position:absolute; inset:-1px }
 .ai .head .textbutton { margin-left:auto; height:22px; padding:0 6px; border-radius:6px; font-weight:500; color:var(--muted) }
 .ai .head .textbutton:hover { background:var(--hover); color:var(--text) }
 .ai p { margin:6px 0 0; color:var(--text) }

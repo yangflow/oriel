@@ -1033,7 +1033,7 @@ MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
 - [ ] Text uses theme sizes (`Rem`) and scales; layouts reflow at larger text and in the longer translation.
 - [ ] Colors are theme roles; contrast holds in both appearances and with high contrast on.
 - [ ] Nothing depends on color, sound or motion alone.
-- [ ] Pointer targets are at least about 24×24 DIPs, and 32 or more for primary controls.
+- [ ] Pointer targets are at least about 24×24 DIPs, and 32 or more for primary controls. A control drawn smaller (the 20 square clear and dismiss buttons, the 22 square add and AI card close buttons, the 20 and 22 high text buttons) keeps its drawn size and layout slot: `theme.Hit` wraps it in an invisible 24 by 24 target with a negative margin, so neighbors do not move and targets do not overlap.
 - [ ] `ui.NewTester` tests click controls by their accessible names, so a missing name fails the test (see
       [Testing](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/testing.md)).
 

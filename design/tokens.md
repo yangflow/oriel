@@ -36,8 +36,8 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | pane-width | 216 (184 below a 760 wide window) | 216 / 184 | the ink pane |
 | pane-radius | 14 | 14 | corners of the ink pane |
 | pane-item | 30 high, radius 8, 10 padding, 10 gap | 30 | a kind, a subscription or a settings group in the pane |
-| pane-line | 25 from the pane's right edge | center line | the centers of the pane's trailing icon buttons: hide sidebar (32), add (22), Unread first (28) and the settings gear (28). With the lists' 8 side padding, the insets are 9, 6, 3 and 11 from the pane's edge or the row's edge, and the add button's 14 icon ends where the row counts do (10 in from the row highlight) |
-| pane-add | 22 square, radius 8, 14 icon, centered on the pane line | 22 | the add button at the end of the pane's section header |
+| pane-line | 25 from the pane's right edge | center line | the centers of the pane's trailing icon buttons: hide sidebar (32), add (22), Unread first (28) and the settings gear (28). With the lists' 8 side padding, the insets are 9, 6, 3 and 11 from the pane's edge or the row's edge, and the add button's 14 icon (24 hit area, so 5 in from its edge) ends where the row counts do (10 in from the row highlight) |
+| pane-add | 22 square, radius 8, 14 icon, centered on the pane line; 24 square hit area | 22 | the add button at the end of the pane's section header |
 | pane-filter | 28 high, radius 8, 10 left padding, 6 gap; toggle 28 square, 4 gap | 28 | the subscription filter field and the Unread first toggle |
 | column | `MaxWidth` 680 (720 for Social) | 680 / 720 | article, social and mixed rows in the timeline; the reader's text column is 680 at Medium and follows the Text size (Reading text) |
 | row | padding 16, gap 14, radius 12 | | an entry row; 28 on the left, where the unread dot (7, 11 from the edge) sits |
