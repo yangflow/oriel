@@ -255,6 +255,16 @@ func (s *Store) MutedCount(ctx context.Context, id int64, keywords string) (int,
 	return n, err
 }
 
+// MutedCountAll says how many entries of all subscriptions the given global keywords hide, without saving them:
+// every entry they match, starred ones aside, whether or not a source's own keywords hide it too.
+func (s *Store) MutedCountAll(ctx context.Context, keywords string) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT count(*) FROM entries e JOIN sources s ON s.id = e.source_id
+		WHERE s.deleted_at IS NULL AND e.starred = 0 AND muted(?, e.title, e.rss_summary)`, keywords).Scan(&n)
+	return n, err
+}
+
 // DeleteUndoWindow is how long a deleted subscription can be restored. The client's toast shows for less, so that a
 // click on Undo does not meet the end of the window.
 const DeleteUndoWindow = 30 * time.Second

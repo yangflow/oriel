@@ -40,8 +40,8 @@ Working now:
 - **Subscription API.** Add, list, edit, pause, delete and refresh subscriptions, one or all at
   once, over HTTP, with validation and duplicate detection.
 - **Timeline API.** Page through all entries newest first, filter by source, kind, unread or starred, search
-  the full text, and mark entries read or starred. Per-source mute keywords hide matching entries without
-  deleting them.
+  the full text, and mark entries read or starred. Mute keywords, per source or for every source, hide
+  matching entries without deleting them, and rules star or mark read new entries that match.
 - **Timeline screen.** All subscriptions in one list, newest first, each kind in its own layout: article rows
   with a thumbnail, video covers with their duration, social posts with up to four pictures, and a masonry wall
   for images. A list of kinds and a list of subscriptions narrow it; Unread, Starred and search narrow it

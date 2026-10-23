@@ -66,7 +66,17 @@
      most 600 wide (a form), 880 wide for the Devices table (from a 880 wide window; narrower, the stacked rows), 1040
      wide for AI in two columns (from a 1200 wide window; narrower, one column). The mockup measures the room next to
      the sidebar, so the rule holds at every window width, not only at size=wide.
-     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide. -->
+     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide. 
+     Rules (after Fetching): the Rules card lists what happens to a new entry (star it, mark it read), one rule per row
+     with an on/off switch and a menu (Edit..., Delete); Add rule... opens a dialog. The Muted keywords card under it is
+     the global list, for every subscription, together with each subscription's own. Rules act once on entries that
+     arrive later; muted keywords hide at any time.
+     Rules states: rules (two cards), rules-empty (no rules yet), rule-menu (the row menu open), rule-add (the dialog,
+     nothing filled in), rule-invalid (Save pressed with nothing filled in: both lines name the problem), rule-edit (the
+     dialog on an existing rule), rule-deleted (the row is gone, a toast with Undo), muted-edited (the global list
+     changed, not saved, the count follows the typing), muted-invalid (the server refused: too many lines), rules-error
+     (the page did not load).
+-->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42;
   --chrome:#37332e; --chrome-ink:255,248,235; --chrome-text:#ece7dd; --chrome-text2:#cdc7bb; --chrome-muted:#a49e91; --chrome-accent:#7cc9bb; --chrome-success:#8ab997;
@@ -341,6 +351,28 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .counts .what { flex:1 } .counts .n { font-variant-numeric:tabular-nums; font-weight:500 }
 .counts .note { padding-top:0; color:var(--muted); font-size:12px; border:0 }
 .bar { height:6px; border-radius:3px; background:var(--track); overflow:hidden; margin:8px 0 12px } .bar i { display:block; height:100%; background:var(--accent) }
+/* Rules: a row is the condition as a sentence, the scope and the action under it, then the switch and the menu. */
+.rule .when { font-weight:500; overflow-wrap:anywhere }
+.rule .then { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:2px; font-size:12px; color:var(--muted) }
+.rule .then svg.icon { width:13px; height:13px; color:var(--text2) }
+.rule.off .text { opacity:.55 }
+.rule .more { width:28px; height:28px; flex:none; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
+.rule .more:hover, .rule .more.open { background:var(--hover); color:var(--text) }
+.rule .more svg.icon { width:16px; height:16px }
+.count { margin-top:8px; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums }
+.menu { position:absolute; z-index:4; min-width:160px; padding:6px; border-radius:12px; background:var(--raised); box-shadow:var(--sheet-shadow) }
+.menu button { width:100%; height:32px; display:flex; align-items:center; gap:8px; padding:0 10px; border-radius:6px; text-align:left }
+.menu button:hover { background:var(--hover) }
+.menu button.danger { color:var(--danger) }
+.menu svg.icon { width:15px; height:15px }
+.alert.dialog .fieldset .select { width:100% }
+.alert.dialog .fieldset .textarea { margin-top:0; min-height:64px }
+.alert.dialog .group-label { display:block; margin:12px 0 4px; font-weight:500 }
+.check { display:flex; align-items:center; gap:10px; height:30px }
+.check .box { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:5px; background:var(--raised); box-shadow:inset 0 0 0 1px var(--edge-line); color:var(--accent-text) }
+.check .box svg.icon { width:12px; height:12px; stroke-width:2.4 }
+.check.on .box { background:var(--accent); box-shadow:none }
+.check.bad .box { box-shadow:inset 0 0 0 1.5px var(--danger) }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>
@@ -350,7 +382,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -408,6 +440,12 @@ const icons={
   check:'<path d="M20 6 9 17l-5-5"/>',
   folder:'<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
   database:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+  listFilter:'<path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/>',
+  ellipsis:'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  trash:'<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  arrowRight:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
   arrowUpDown:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
 };
 
@@ -417,6 +455,18 @@ const copy={
   en:{
     thisComputer:'This computer', settings:'Settings', backTimeline:'Back to the timeline', serverNote:'These settings belong to this server',
     lead:'Settings are kept on the server, for every device connected to it.',
+    rules:'Rules', rulesLead:'A rule stars or marks as read the entries that arrive after you set it. It runs once, when an entry first arrives, and never changes the entries you already have. Muted keywords work on every entry, at any time.',
+    rulesNone:'No rules yet.', rulesNoneHelp:'For example: star the new entries of one subscription whose title has \u201cweekly\u201d in it.',
+    addRule:'Add rule\u2026', ruleMore:'More for this rule', ruleSwitch:'Rule on', ruleOffBadge:'Off', allSubs:'All subscriptions',
+    rwKeywords:'Title or summary has {words}', rwAuthor:'By \u201c{name}\u201d', rwOnly:'Every new entry', actStar:'Star', actRead:'Mark as read',
+    menuEdit:'Edit\u2026', menuDelete:'Delete', ruleDeleted:'Rule deleted',
+    ruleAddTitle:'Add rule', ruleEditTitle:'Edit rule', ruleWhen:'When a new entry matches', ruleWhenHelp:'Everything you fill in has to match. Fill in at least one.',
+    ruleSub:'Subscription', ruleKind:'Kind', kindAny:'Any kind', ruleKeywords:'Keywords', ruleKeywordsHelp:'One per line. The title or the summary has any of them.',
+    ruleAuthor:'Author', ruleAuthorHint:'The author has this text in the name', ruleThen:'Then', ruleNote:'Only entries that arrive from now on are affected. The entries you already have stay as they are.',
+    errNoCondition:'Fill in at least one condition.', errNoAction:'Pick at least one action.', ruleClose:'Close',
+    mutedTitle:'Muted keywords', mutedHelp:'One per line. Entries whose title or summary has any of these are hidden from the timeline and the unread counts; starred entries stay. They work together with each subscription\u2019s own muted keywords.',
+    mutedNone:'Hides no entries right now', mutedMany:'Hides {n} entries right now',
+    mutedInvalid:'At most 200 lines, up to 100 characters each.', rulesError:'Rules did not load', rulesErrorHint:'The server did not answer. Check the connection and try again.',
     fetching:'Fetching', opml:'Import and export', devices:'Devices', ai:'AI', activity:'Activity and storage',
     activityLead:'What is being fetched, how the recent fetches went, and the space the database uses.', refresh:'Refresh',
     storage:'Storage', dbSize:'Database size', entries:'Entries', images:'Cached images', imagesValue:'{n} images, {size}',
@@ -506,6 +556,18 @@ const copy={
   'zh-Hans':{
     thisComputer:'本机', settings:'设置', backTimeline:'回到时间线', serverNote:'这些设置属于这个服务端',
     lead:'设置保存在服务端，连到它的每台设备都一样。',
+    rules:'规则', rulesLead:'规则让设置之后到来的条目自动加星标或标为已读。它只在条目第一次到来时执行一次，不会改已有的条目。屏蔽词则对所有条目随时生效。',
+    rulesNone:'还没有规则。', rulesNoneHelp:'例如：把某个订阅里标题含\u201c周报\u201d的新条目自动加星标。',
+    addRule:'添加规则\u2026', ruleMore:'这条规则的更多操作', ruleSwitch:'启用规则', ruleOffBadge:'已关闭', allSubs:'所有订阅',
+    rwKeywords:'标题或摘要含 {words}', rwAuthor:'作者含\u201c{name}\u201d', rwOnly:'每个新条目', actStar:'加星标', actRead:'标为已读',
+    menuEdit:'编辑\u2026', menuDelete:'删除', ruleDeleted:'规则已删除',
+    ruleAddTitle:'添加规则', ruleEditTitle:'编辑规则', ruleWhen:'当新条目满足', ruleWhenHelp:'填了的条件要同时满足，至少填一个。',
+    ruleSub:'订阅', ruleKind:'形态', kindAny:'不限形态', ruleKeywords:'关键词', ruleKeywordsHelp:'一行一个。标题或摘要里含其中任何一个。',
+    ruleAuthor:'作者', ruleAuthorHint:'作者名里含这段文字', ruleThen:'就', ruleNote:'只对之后到来的新条目生效，已有的条目不变。',
+    errNoCondition:'至少填一个条件。', errNoAction:'至少选一个动作。', ruleClose:'关闭',
+    mutedTitle:'屏蔽词', mutedHelp:'一行一个。标题或摘要里有这些词的条目会从时间线和未读数里隐藏；收藏的不隐藏。和各订阅自己的屏蔽词一起生效。',
+    mutedNone:'现在不隐藏任何条目', mutedMany:'现在隐藏 {n} 条',
+    mutedInvalid:'最多 200 行，每行最多 100 个字符。', rulesError:'规则加载不出来', rulesErrorHint:'服务端没有响应。检查一下连接再试。',
     fetching:'抓取', opml:'导入和导出', devices:'设备', ai:'AI', activity:'活动与存储',
     activityLead:'现在在抓什么、最近抓得怎么样，以及数据库占用的空间。', refresh:'刷新',
     storage:'存储', dbSize:'数据库大小', entries:'条目', images:'图片缓存', imagesValue:'{n} 张，{size}',
@@ -597,9 +659,9 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
+const group=state.startsWith('rule')||state.startsWith('muted-')?'rules':state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','importing','imported','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
 
-const groups=[['appearance','palette'],['fetching','rss'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop'],['activity','database']];
+const groups=[['appearance','palette'],['fetching','rss'],['rules','listFilter'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop'],['activity','database']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
 <nav class="nav" aria-label="${copy.settings}"><div class="section">${copy.settings}</div>${groups.map(([k,g])=>`<button class="item${k===group?' chosen':''}"${k===group?' aria-current="page"':''}>${icon(g)}<span class="name">${copy[k]}</span></button>`).join('')}</nav>
 <div class="server" title="${copy.serverNote}">${icon(remote?'server':'laptop')}<span class="name">${remote?host:copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></div></aside>`;
@@ -746,6 +808,30 @@ const sources=[
   {name:zh?'某某博客':'Example Blog',min:11,ok:false},
   {name:'Hacker News',min:14,ok:true,news:12},
 ];
+const ruleData=[
+  {kw:zh?['周报','招聘']:['sponsored','giveaway'],act:['read'],on:true},
+  {src:'Julia Evans',kw:[],act:['star'],on:true},
+  {kind:'vVideos',author:'Fireship',kw:[],act:['star'],on:false},
+  {src:zh?'阮一峰的网络日志':'Lobsters',kw:zh?['周刊']:['weekly'],act:['star'],on:true}];
+const actText=a=>a.map(k=>k==='star'?copy.actStar:copy.actRead).join(' + ');
+const ruleRow=(r,i)=>{
+  const bits=[], q=x=>'\u201c'+x+'\u201d', menuOpen=state==='rule-menu'&&i===0;
+  if(r.kw.length)bits.push(t('rwKeywords',{words:r.kw.map(q).join(zh?'、':', ')}));
+  if(r.author)bits.push(t('rwAuthor',{name:r.author}));
+  const scope=[r.src||copy.allSubs].concat(r.kind?[copy[r.kind]]:[]).join(' \u00b7 ');
+  return `<div class="row"><div class="device rule${r.on?'':' off'}"><div class="text"><div class="when">${bits.length?bits.join(' \u00b7 '):copy.rwOnly}</div><div class="then"><span>${scope}</span>${icon('arrowRight')}${icon(r.act[0]==='star'?'star':'checkCheck')}<span>${actText(r.act)}</span>${r.on?'':`<span class="badge off">${copy.ruleOffBadge}</span>`}</div></div>
+<span class="switch${r.on?' on':''}" role="switch" aria-checked="${r.on}" aria-label="${copy.ruleSwitch}"></span>
+<button class="more${menuOpen?' open':''}" aria-haspopup="menu" aria-label="${copy.ruleMore}"${menuOpen?' id="more" aria-expanded="true"':''}>${icon('ellipsis')}</button></div></div>`};
+const mEdited=state==='muted-edited'||state==='muted-invalid';
+const mLines=(zh?['直播预告','抽奖']:['crypto','giveaway']).concat(mEdited?(zh?['优惠']:['coupon']):[]);
+const mCount=mEdited?14:9;
+const mField=`<div class="textarea${state==='muted-edited'?' focused':''}${state==='muted-invalid'?' invalid':''}" role="textbox" aria-multiline="true" aria-label="${copy.mutedTitle}"${state==='muted-invalid'?' aria-invalid="true"':''}>${mLines.map(l=>`<span class="line">${l}</span>`).join('')}</div>`;
+const mStatus=state==='muted-invalid'?`<div class="status error" role="alert">${icon('alert')}${copy.mutedInvalid}</div>`:`<div class="count" role="status">${t('mutedMany',{n:mCount})}</div>`;
+const rulesPage=`<p class="lead">${copy.rulesLead}</p><div class="card">
+${state==='rules-empty'?`<div class="row note">${icon('listFilter')}<div><span class="label">${copy.rulesNone}</span><p class="help">${copy.rulesNoneHelp}</p></div></div>`:(state==='rule-deleted'?ruleData.slice(0,3):ruleData).map(ruleRow).join('')}
+<div class="row"><div class="device"><div class="text"></div><button class="button">${icon('plus')}${copy.addRule}</button></div></div></div>
+<div class="card" style="margin-top:20px" id="muted"><div class="row"><span class="label">${copy.mutedTitle}</span><p class="help">${copy.mutedHelp}</p>${mField}${mStatus}<div class="actions" style="margin-top:12px"><span class="status"></span><button class="button${mEdited?' primary':''}"${mEdited?'':' disabled'}>${copy.save}</button></div></div></div>`;
+
 const empty=state==='activity-empty';
 const attempts=[[11,false,503,1200,0,'status 503'],[41,true,200,340,3],[71,true,304,95,0],[101,true,200,410,1]];
 const sumText=x=>x.ok?(x.news?t('newCount',{n:x.news}):copy.nothingNew):copy.failedWord;
@@ -776,8 +862,9 @@ const activity=`<div class="lead-row"><p class="lead">${copy.activityLead}</p><b
 
 let page;
 if(state==='loading')page=`<div class="page skeleton" aria-busy="true"><div class="bar" style="width:60%"></div><div class="block"></div></div>`;
+else if(state==='rules-error')page=`<div class="empty" role="status"><div class="tile">${icon('wifiOff')}</div><h2>${copy.rulesError}</h2><p>${copy.rulesErrorHint}</p><button class="button">${icon('refresh')}${copy.retry}</button></div>`;
 else if(state==='error')page=`<div class="empty" role="status"><div class="tile">${icon('wifiOff')}</div><h2>${copy.error}</h2><p>${copy.errorHint}</p><button class="button">${icon('refresh')}${copy.retry}</button></div>`;
-else page=`<div class="page${group==='devices'&&remote?' list':group==='ai'?' split':''}">${{appearance,fetching,opml,ai,devices,activity}[group]}</div>`;
+else page=`<div class="page${group==='devices'&&remote?' list':group==='ai'?' split':''}">${{appearance,fetching,rules:rulesPage,opml,ai,devices,activity}[group]}</div>`;
 
 let overlay='';
 // Font picker. pinned: the rows the caller supplies, [name, face]; the current one has the check. families: the
@@ -805,6 +892,23 @@ if(readingOpen){
   const families=['Arial','Baskerville','Big Caslon','Charter','Didot','Futura','Georgia','Gill Sans','Helvetica Neue','Hiragino Mincho ProN','Hiragino Sans GB','Hoefler Text','Iowan Old Style','Menlo','Noto Serif','Noto Serif SC','Optima','Palatino','PingFang SC','Songti SC','Times New Roman','Verdana'];
   overlay=picker([[copy.followInterface,'inherit'],[copy.serif,serifFace]],copy.serif,families,'',false,'Charter');
 }
+if(state==='rule-add'||state==='rule-invalid'||state==='rule-edit'){
+  const edit=state==='rule-edit', bad=state==='rule-invalid';
+  const kws=edit?(zh?['周刊']:['weekly']):[];
+  const box=(label,on)=>`<div class="check${on?' on':''}${bad?' bad':''}" role="checkbox" aria-checked="${on}"><span class="box">${on?icon('check'):''}</span><span>${label}</span></div>`;
+  overlay=`<div class="backdrop"><div class="alert dialog" role="dialog" aria-labelledby="rt"><div class="head"><h2 id="rt">${edit?copy.ruleEditTitle:copy.ruleAddTitle}</h2><button class="dlg-x" aria-label="${copy.ruleClose}">${icon('x')}</button></div><div class="form">
+<span class="group-label" style="margin-top:0">${copy.ruleWhen}</span><p class="help" style="margin:0 0 12px">${copy.ruleWhenHelp}</p>
+<div class="fieldset"><span class="label">${copy.ruleSub}</span>${menu(copy.ruleSub,edit?(zh?'阮一峰的网络日志':'Lobsters'):copy.allSubs)}</div>
+<div class="fieldset"><span class="label">${copy.ruleKind}</span>${menu(copy.ruleKind,copy.kindAny)}</div>
+<div class="fieldset"><span class="label">${copy.ruleKeywords}</span><div class="textarea${bad?' invalid':''}" role="textbox" aria-multiline="true" aria-label="${copy.ruleKeywords}">${kws.length?kws.map(l=>`<span class="line">${l}</span>`).join(''):'<span class="line"></span>'}</div><p class="help">${copy.ruleKeywordsHelp}</p></div>
+<div class="fieldset"><span class="label">${copy.ruleAuthor}</span><div class="field${bad?' invalid':''}" role="textbox" aria-label="${copy.ruleAuthor}"><span class="placeholder">${copy.ruleAuthorHint}</span></div>
+${bad?`<div class="status error" role="alert">${icon('alert')}${copy.errNoCondition}</div>`:''}</div>
+<span class="group-label">${copy.ruleThen}</span>${box(copy.actStar,edit)}${box(copy.actRead,false)}
+${bad?`<div class="status error" role="alert">${icon('alert')}${copy.errNoAction}</div>`:''}
+<p class="help" style="margin:12px 0 4px">${copy.ruleNote}</p></div>
+<div class="buttons"><button class="button">${copy.cancel}</button><button class="button primary">${copy.save}</button></div></div></div>`;
+}
+if(state==='rule-menu')overlay=`<div class="menu" id="menu" role="menu"><button role="menuitem">${icon('pencil')}${copy.menuEdit}</button><button role="menuitem" class="danger">${icon('trash')}${copy.menuDelete}</button></div>`;
 if(state==='restore-confirm')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${copy.restoreTitle}</h2><p id="ab">${t('restoreBody',{file:bfile})}</p><div class="buttons"><button class="button default">${copy.cancel}</button><button class="button danger">${copy.restoreConfirm}</button></div></div></div>`;
 if(state==='revoke')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${t('revokeTitle',{name:'Safari · iPhone'})}</h2><p id="ab">${copy.revokeBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.revokeConfirm}</button></div></div></div>`;
 if(state.startsWith('reader')){
@@ -840,7 +944,7 @@ if(state.startsWith('reader')){
       `<button class="button">${copy.readerClose}</button><button class="button primary">${copy.readerTryAgain}</button>`);
   }
 }
-const toast=state==='prompt-restored'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${t('promptRestored',{name:copy.promptSummary})}</span><button class="act">${copy.undo}</button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`:'';
+const toast=state==='rule-deleted'?`<div class="toast" role="status">${icon('trash')}<span class="msg">${copy.ruleDeleted}</span><button class="act">${copy.undo}</button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`:state==='prompt-restored'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${t('promptRestored',{name:copy.promptSummary})}</span><button class="act">${copy.undo}</button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`:'';
 document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar"><h1>${copy[group]}</h1></div><div class="scroll">${page}</div>${toast}</section>${overlay}`;
 if(fontOpen||readingOpen){
   // Anchor under the control, right edges aligned; use the larger side when 360 does not fit.
@@ -853,6 +957,11 @@ if(fontOpen||readingOpen){
   box.style.top=(up?at.top-win.top-4-box.offsetHeight:at.bottom-win.top+4)+'px';
   document.getElementById('hl')?.scrollIntoView({block:'nearest'});
 }
+if(state==='rule-menu'){
+  const win=document.getElementById('window').getBoundingClientRect(), at=document.getElementById('more').getBoundingClientRect(), m=document.getElementById('menu');
+  m.style.left=(at.right-win.left-m.offsetWidth)+'px'; m.style.top=(at.bottom-win.top+4)+'px';
+}
+if(mEdited){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById('muted').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
 if(viewed||dense){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById(viewed?'view-as':'timeline').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
 {const sc=document.querySelector('.scroll'),mn=document.querySelector('.main');if(sc&&mn){const bar=()=>mn.classList.toggle('scrolled',sc.scrollTop>0);sc.addEventListener('scroll',bar);bar()}}
 </script>

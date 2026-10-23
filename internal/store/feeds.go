@@ -208,6 +208,10 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 	// Counts of the links and GUIDs in this fetch, and the source's stored links, read when first needed.
 	var itemLinks, itemGUIDs map[string]int
 	var stored map[string][]linkedEntry
+	rules, err := sourceRules(ctx, tx, src.ID, src.Kind)
+	if err != nil {
+		return 0, err
+	}
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
 		var exists int
@@ -275,6 +279,18 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		}
 		if !isNew {
 			continue
+		}
+		star, read := ruleActions(rules, e)
+		if star {
+			if _, err := tx.ExecContext(ctx, "UPDATE entries SET starred = 1 WHERE source_id = ? AND guid = ?", src.ID, e.GUID); err != nil {
+				return 0, err
+			}
+		}
+		if read {
+			if _, err := tx.ExecContext(ctx, "UPDATE entries SET is_read = 1, read_at = ? WHERE source_id = ? AND guid = ?",
+				now.UnixMilli(), src.ID, e.GUID); err != nil {
+				return 0, err
+			}
 		}
 		var tasks []string
 		for _, task := range src.AITasks {

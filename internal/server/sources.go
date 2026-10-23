@@ -109,13 +109,7 @@ func interval(w http.ResponseWriter, seconds int64) (time.Duration, bool) {
 
 // muteLines trims every line and drops the empty ones.
 func muteLines(text string) string {
-	var lines []string
-	for line := range strings.Lines(text) {
-		if line = strings.TrimSpace(line); line != "" {
-			lines = append(lines, line)
-		}
-	}
-	return strings.Join(lines, "\n")
+	return store.CleanLines(text)
 }
 
 func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
@@ -369,6 +363,27 @@ func (s *Server) mutedCount(w http.ResponseWriter, r *http.Request) {
 	default:
 		reply(w, http.StatusOK, map[string]int{"count": n})
 	}
+}
+
+// mutedCountAll says how many entries the given global keywords would hide, without saving them.
+func (s *Server) mutedCountAll(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		MuteKeywords string `json:"muteKeywords"`
+	}
+	if !readBody(w, r, &body) {
+		return
+	}
+	keywords := muteLines(body.MuteKeywords)
+	if !store.LinesWithin(keywords, store.MaxMuteKeywords) {
+		fail(w, http.StatusBadRequest, "invalid_mute_keywords")
+		return
+	}
+	n, err := s.store.MutedCountAll(r.Context(), keywords)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	reply(w, http.StatusOK, map[string]int{"count": n})
 }
 
 func replySource(w http.ResponseWriter, src store.Source, err error) {

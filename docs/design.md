@@ -889,11 +889,11 @@ Overlays share focus and Escape behavior; see
   links. Every icon-only toolbar button names its key in the tooltip; the back button carries its name as text and has no
   tooltip, its key is in the key sheet.
 - **Settings.** The settings take the whole window, in place of the timeline: their own sidebar has "Back to the
-  timeline" on top, one item per group (Appearance, Fetching, Import and export, AI, Devices, Activity and storage) and the server bar, which says whose
+  timeline" on top, one item per group (Appearance, Fetching, Rules, Import and export, AI, Devices, Activity and storage) and the server bar, which says whose
   settings these are and does not open the connect screen. They open from the gear beside the timeline's server bar
   or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. The page's toolbar title lines up with the left edge
   of its content column. **Page width.** A page is one column centered in the room beside the sidebar, its width
-  taken from the page and the room, not from the window: a form page (Appearance, Fetching, Import and export, Activity and storage) keeps
+  taken from the page and the room, not from the window: a form page (Appearance, Fetching, Rules, Import and export, Activity and storage) keeps
   a column at most 600 wide, padding included, for a readable line; Devices is a list and widens to 880 once the room
   is 656 wide (a window of 880); AI splits in two columns, 1040 wide at most with a 24 gap, once the room is 976 wide
   (a window of 1200). Below those widths a page is the single 600 column, padded 32 (20 below a 760 wide window).
@@ -971,6 +971,33 @@ Overlays share focus and Escape behavior; see
   endpoint cannot give is not drawn at all. A failure is one `Danger` line that says what to do: cannot connect (check the
   address; start the server if it is on this computer), the key was turned down, no such model (check the model name), or
   too slow. Errors never show the key. Each prompt has "Restore default", disabled while it is the default; it acts at once, puts the default in the box (still unsaved) and offers Undo in a toast, "Summary prompt restored to default", with a close button (`prompt-restored` in the mockup). Undo puts back exactly the text that was there, and does nothing if the box was edited again since. The Activity and storage group (icon: database) is four cards in the 600 column, each under its own title, and is the only page that refreshes by itself: every 5 seconds while it is shown (every 2 while a vacuum runs), and with a small "Refresh" button at the right of the page lead. The "Storage" card has a row each for Database size, Entries, Cached images ("N images, X") and Starred copies ("N images, X"; the pictures kept for starred entries, which live in the database), label left and figure right in tabular numerals; under them a hairline and the "Compact database" button (secondary, 32 high) with a 12 `TextMuted` note beside or under it, "Rewrites the database file to give back unused space. It can take a while and runs in the background; Oriel stays usable, and new fetches wait until it is done. About X can be freed." Pressed, the button becomes busy (spinner, "Compacting…") and cannot be pressed again; when it ends a status line shows a check and "Compacted. Freed X" in `Success`, or the alert icon in `Warning` with the reason, and the button is usable again. There is no confirmation, since nothing is lost. The "Diagnostics" card, second, has the "Export diagnostics…" button (secondary, 32 high, download icon) with a 12 `TextMuted` note beside or under it: "Saves the version, the system, the recent errors and the host name and failures of each subscription as a text file. It has no password, keys, full addresses or article text, and it stays on this computer." Pressed, it asks where to save with the system save dialog (default name `Oriel-diagnostics.txt`) and the button is busy ("Exporting…") while the file is fetched and written; then a status line shows a check and "Exported to {file}." in `Success`, or the alert icon in `Warning` with "Couldn't export. Check the connection and try again." (or "{file} could not be saved."); cancelling the dialog shows nothing. The Help menu has the same action, "Export Diagnostics…", which opens this page and starts the export. The "Fetching now" card lists the sources being fetched, one 36 high row each with the source's glyph and name; none shows one muted line ("Nothing is being fetched right now."). The "Recent fetches" card has one row per source, 44 high: the result of the newest attempt as an icon (check in `Success`, alert in `Danger`), the name at 13 medium, a 12 `TextMuted` summary ("3 min ago · 2 new" or "3 min ago · failed") and a chevron that turns when the row is open. A row opens in place to its attempts, at most 10, one 28 high line each (result icon, time ago, then status, duration and new count in 12 tabular figures), and a failed attempt carries its reason on a second 12 `Danger` line; only one row is open at a time and only the open row builds its attempts. A note under the list says how many attempts are kept per source. With no attempts yet the card shows one muted line. Loading uses the page skeleton and a failure the usual "Could not load" with Retry. Drawn in `design/screens/settings.html`, `activity`, `activity-open`, `activity-empty`, `vacuum-running`, `vacuum-done`, `vacuum-failed`, `diagnostics-exported`, `diagnostics-failed`.
+  The Rules group, after Fetching (icon `list-filter`), has a lead line (a rule runs once, when an entry first arrives, and
+  never changes the entries you already have; muted keywords work on every entry at any time) and two cards. The first
+  holds one row per rule: the condition as a sentence on top (13 type, medium, "Title or summary has “a”, “b”", "By
+  “name”", or "Every new entry" when nothing narrows it; wrapped, never cut), and under it a 12 `TextMuted` line, the
+  scope (the subscription or "All subscriptions", then the kind when one is set), an arrow, the action's icon and name
+  ("Star", "Mark as read", "Star + Mark as read"). At the right a Switch (applied at once; an off rule dims its text to
+  55% and shows an "Off" badge) and a 28 square ⋯ button that opens a menu (Edit…, Delete in `Danger`) anchored under
+  it, right edges aligned, on `Raised` with the sheet shadow and radius 12; rows 32 high with radius 6. The last row of the
+  card holds the "Add rule…" button at the right. No rules: one row with the list-filter icon, "No rules yet." and a
+  `TextMuted` example line. The second card is "Muted keywords": a help line, a multi-line monospace text input (one
+  keyword per line, as the RSSHub instances), a 12 tabular `TextMuted` line "Hides {n} entries right now" that
+  follows the typing (asked of the server after a short pause, never on the drawing path), and a Save button that is
+  primary while the text is edited and disabled otherwise. A refused list keeps the focus in its field, takes the
+  `Danger` outline and says "At most 200 lines, up to 100 characters each." under it. Add and Edit open a 440 wide dialog
+  (the sheet of the Reader import dialog: radius 16, 20 padding, title with a 28 close button, buttons in the footer, the
+  form scrolling when the window is low): a medium line "When a new entry matches" and under it a 12 `TextMuted` line "Everything you fill in has to match.
+  Fill in at least one.", then Subscription and Kind (full width menus, "All subscriptions" and "Any kind" first), Keywords
+  (a 64 high multi-line input, one per line, any of them matches) and Author (a single line, a part of the name), then
+  "Then" with two Checkboxes (Star, Mark as read; 16 box, radius 5, `Accent` fill with a check when on, 30 high rows) and
+  a 12 `TextMuted` note: only entries that arrive from now on are affected. Save is always enabled; pressing it with no
+  condition or no action names the problem under the Author field ("Fill in at least one condition.") and under the
+  checkboxes ("Pick at least one action."), with `Danger` outlines on the empty inputs and the boxes, and the focus
+  stays. A server refusal (more than 50 rules, a subscription that is gone) is one `Danger` line above the buttons.
+  Deleting acts at once and shows a toast "Rule deleted" with Undo, which puts the rule back; the rows below move up.
+  If the rules cannot be loaded the page shows the page error pattern, "Rules did not load" with Retry. Drawn in
+  `design/screens/settings.html`, `rules`, `rules-empty`, `rule-menu`, `rule-add`, `rule-invalid`, `rule-edit`,
+  `rule-deleted`, `muted-edited`, `muted-invalid`, `rules-error`.
   The Appearance group, first in the list, is
   different: it is kept on this device, not on the server, and a line at the top of its page says so ("These apply only
   to this device."), where the other pages say settings are kept on the server. One card holds a row each for Theme

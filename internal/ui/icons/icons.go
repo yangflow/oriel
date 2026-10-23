@@ -55,6 +55,7 @@ var (
 	Layers         = parse("layers")
 	Link           = parse("link")
 	List           = parse("list")
+	ListFilter     = parse("list-filter")
 	LoaderCircle   = parse("loader-circle")
 	LockKeyhole    = parse("lock-keyhole")
 	Mail           = parse("mail")
