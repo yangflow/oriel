@@ -13,11 +13,19 @@ import (
 // file can be gigabytes.
 const backupTimeout = 30 * time.Minute
 
-// extendDeadlines gives the request the long timeouts. A response writer that cannot set them (a test recorder) keeps
-// the ones it has.
-func extendDeadlines(w http.ResponseWriter) {
+// aiTimeout is how long an AI route that waits for the endpoint may read or write: the longest answer is the
+// self-check's two minutes, with some room. The server's one-minute read timeout would otherwise cancel the request
+// while it waits.
+const aiTimeout = 150 * time.Second
+
+// extendDeadlines gives the request the long timeouts of a backup or restore.
+func extendDeadlines(w http.ResponseWriter) { extendDeadlinesTo(w, backupTimeout) }
+
+// extendDeadlinesTo gives the request d to read and write. A response writer that cannot set them (a test
+// recorder) keeps the ones it has.
+func extendDeadlinesTo(w http.ResponseWriter, d time.Duration) {
 	rc := http.NewResponseController(w)
-	deadline := time.Now().Add(backupTimeout)
+	deadline := time.Now().Add(d)
 	rc.SetReadDeadline(deadline)
 	rc.SetWriteDeadline(deadline)
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -20,7 +21,22 @@ const (
 	callTimeout = 120 * time.Second
 	maxAttempts = 3
 	retryDelay  = 5 * time.Minute
+	// testTimeout is the budget of the whole self-check, shared by the model list and the short request.
+	testTimeout = 120 * time.Second
+	// The wait of the whole worker while the endpoint fails: it starts at minBackoff, doubles and stops at maxBackoff.
+	minBackoff = time.Minute
+	maxBackoff = 30 * time.Minute
 )
+
+// endpointFailure reports whether code says something about the endpoint (down, slow, refusing the key, limiting,
+// or without the model) rather than about the entry.
+func endpointFailure(code Code) bool {
+	switch code {
+	case ErrUnreachable, ErrUnauthorized, ErrTimeout, ErrRateLimited, ErrModelNotFound:
+		return true
+	}
+	return false
+}
 
 // Worker works through the queue of AI results in the background.
 type Worker struct {
@@ -28,11 +44,81 @@ type Worker struct {
 	client    *http.Client // the endpoint the user entered, which may be on this machine or the LAN
 	userAgent string
 	timeout   time.Duration
+	budget    time.Duration // the whole self-check
 	now       func() time.Time
 	wake      chan struct{}
 
 	mu       sync.Mutex
 	inFlight map[store.AIJob]bool
+	health   health
+}
+
+// health is what the worker knows about the endpoint from its last calls.
+type health struct {
+	endpoint string        // the settings the failures below were seen with
+	backoff  time.Duration // the current wait, 0 while calls succeed
+	until    time.Time     // automatic work waits until then
+	failedAt time.Time     // when the wait last moved
+	refused  bool          // the endpoint turned the key or the model down; automatic work waits for other settings
+}
+
+// endpointID names the settings a failure belongs to, so that a change of them ends the wait.
+func (c Config) endpointID() string { return c.BaseURL + "\x00" + c.Model + "\x00" + c.APIKey }
+
+// paused reports whether automatic work has to wait now. A change of the endpoint settings ends the wait.
+func (w *Worker) paused(cfg Config) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.health.endpoint != cfg.endpointID() {
+		w.health = health{}
+		return false
+	}
+	return w.health.refused || w.now().Before(w.health.until)
+}
+
+// succeeded ends the wait after a call with cfg worked. A success with other settings says nothing about the
+// endpoint the wait belongs to.
+func (w *Worker) succeeded(cfg Config) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.health.endpoint == cfg.endpointID() {
+		w.health = health{}
+	}
+}
+
+// failed moves the wait after a call that began at start failed with an endpoint-level err. Calls that began before
+// the wait last moved are already counted by it. A call the user asked for keeps the wait it finds instead of
+// doubling it, so that retrying by hand does not push automatic work further away.
+func (w *Worker) failed(cfg Config, start time.Time, err error, code Code, requested bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.health.endpoint != cfg.endpointID() {
+		w.health = health{endpoint: cfg.endpointID()}
+	}
+	h := &w.health
+	if start.Before(h.failedAt) {
+		return
+	}
+	h.failedAt = w.now()
+	h.refused = h.refused || code == ErrUnauthorized || code == ErrModelNotFound
+	if h.backoff == 0 || !requested {
+		h.backoff = min(max(h.backoff*2, minBackoff), maxBackoff)
+	}
+	wait := h.backoff
+	var limited rateLimit
+	if errors.As(err, &limited) {
+		wait = min(max(wait, limited.after), maxBackoff)
+	}
+	// A call the user asked for never shortens a wait the endpoint itself set, a long Retry-After say.
+	h.until = later(h.until, w.now().Add(wait))
+	slog.Warn("The AI endpoint fails; automatic work waits", "code", string(code), "wait", wait, "refused", h.refused)
+}
+
+func later(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }
 
 // New returns a worker that identifies itself as Oriel/version.
@@ -42,6 +128,7 @@ func New(st *store.Store, version string) *Worker {
 		client:    &http.Client{},
 		userAgent: "Oriel/" + version,
 		timeout:   callTimeout,
+		budget:    testTimeout,
 		now:       time.Now,
 		wake:      make(chan struct{}, 1),
 		inFlight:  map[store.AIJob]bool{},
@@ -105,6 +192,10 @@ func (w *Worker) dispatch(ctx context.Context, wg *sync.WaitGroup) {
 		}
 		return
 	}
+	// While the endpoint fails, only what the user asked for goes on, so that they see the reason; it comes first.
+	if w.paused(cfg) {
+		jobs = slices.DeleteFunc(jobs, func(job store.AIJob) bool { return !job.Requested })
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	for _, job := range jobs {
@@ -158,7 +249,22 @@ func (w *Worker) process(ctx context.Context, cfg Config, job store.AIJob) {
 		slog.Error("AI task failed", "entry", job.EntryID, "task", job.Task, "error", err)
 		code = ErrUpstream
 	}
-	if err := w.store.SaveAI(ctx, job.EntryID, job.Task, text, model, prepared.fingerprint, string(code), w.now()); err != nil {
+	// A timeout on an endpoint that is otherwise working may be this entry's doing (too long for the model, say), so
+	// it counts as an attempt; once the endpoint is already waiting, it is the endpoint's.
+	counted := code == ErrTimeout && !w.paused(cfg)
+	switch {
+	case code == "":
+		w.succeeded(cfg)
+	case endpointFailure(code):
+		w.failed(cfg, start, err, code, job.Requested)
+	}
+	save := func() error {
+		if endpointFailure(code) && !counted {
+			return w.store.FailAI(ctx, job.EntryID, job.Task, string(code), w.now())
+		}
+		return w.store.SaveAI(ctx, job.EntryID, job.Task, text, model, prepared.fingerprint, string(code), w.now())
+	}
+	if err := save(); err != nil {
 		if ctx.Err() == nil {
 			slog.Error("Cannot save an AI result", "entry", job.EntryID, "task", job.Task, "error", err)
 		}
@@ -236,6 +342,14 @@ func (w *Worker) Request(ctx context.Context, entryID int64, task string) (store
 	current, exists := results[task]
 	switch {
 	case exists && current.Status == "pending":
+		// Asked for by the user now, it goes ahead of the automatic work, which may be waiting for the endpoint.
+		if !current.Requested {
+			if err := w.store.PromoteAI(ctx, entryID, task); err != nil {
+				return store.AIResult{}, err
+			}
+			current.Requested = true
+			w.Wake()
+		}
 		return current, nil
 	case exists && current.Status == "ok":
 		if prepared, ready := prepare(cfg, in, task); ready && prepared.fingerprint == current.Fingerprint {
@@ -269,6 +383,8 @@ func (w *Worker) Test(ctx context.Context) (TestResult, error) {
 	if !cfg.Configured() {
 		return TestResult{}, ErrNotConfigured
 	}
+	ctx, cancel := context.WithTimeoutCause(ctx, w.budget, errCallTimeout)
+	defer cancel()
 	var res TestResult
 	listed, err := w.listModels(ctx, cfg)
 	if err != nil {
@@ -292,6 +408,7 @@ func (w *Worker) Test(ctx context.Context) (TestResult, error) {
 	if err != nil {
 		return TestResult{}, err
 	}
+	w.succeeded(cfg)
 	if entry != nil && entry.contextTokens() > 0 {
 		tokens := entry.contextTokens()
 		fits := tokens >= cfg.SummaryLimit/2+1000 && tokens >= cfg.ChunkLimit+1000
@@ -384,5 +501,9 @@ func (w *Worker) Selection(ctx context.Context, task, text, title string) (strin
 			user = "Article: " + truncate(title, maxSelectionTitle) + "\n\nSelected text: " + text
 		}
 	}
-	return w.call(ctx, cfg, strings.ReplaceAll(prompt, "{language}", Languages[cfg.Language]), user)
+	reply, model, err := w.call(ctx, cfg, strings.ReplaceAll(prompt, "{language}", Languages[cfg.Language]), user)
+	if err == nil {
+		w.succeeded(cfg)
+	}
+	return reply, model, err
 }

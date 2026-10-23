@@ -86,6 +86,7 @@ func (s *Server) requestAI(w http.ResponseWriter, r *http.Request, task string) 
 }
 
 func (s *Server) testAI(w http.ResponseWriter, r *http.Request) {
+	extendDeadlinesTo(w, aiTimeout)
 	result, err := s.ai.Test(r.Context())
 	var code ai.Code
 	switch {
@@ -125,6 +126,7 @@ func (s *Server) selectAI(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "text_too_long")
 		return
 	}
+	extendDeadlinesTo(w, aiTimeout)
 	result, model, err := s.ai.Selection(r.Context(), body.Task, text, strings.TrimSpace(body.Title))
 	var code ai.Code
 	switch {

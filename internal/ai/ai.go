@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"golang.org/x/net/html"
@@ -362,7 +363,7 @@ func complete(ctx context.Context, client *http.Client, c Config, userAgent, sys
 	case resp.StatusCode == http.StatusNotFound:
 		return "", "", ErrModelNotFound
 	case resp.StatusCode == http.StatusTooManyRequests:
-		return "", "", ErrRateLimited
+		return "", "", rateLimit{after: retryAfter(resp.Header.Get("Retry-After"), time.Now())}
 	case resp.StatusCode < 200 || resp.StatusCode > 299:
 		return "", "", ErrUpstream
 	}
@@ -379,12 +380,17 @@ func complete(ctx context.Context, client *http.Client, c Config, userAgent, sys
 			Message struct {
 				Content string `json:"content"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
 	}
 	if json.Unmarshal(raw, &reply) != nil || len(reply.Choices) == 0 {
 		return "", "", ErrUpstream
 	}
-	text := strings.TrimSpace(reply.Choices[0].Message.Content)
+	// A reply cut at the output limit is not an answer: it would end mid-sentence and be kept as done.
+	if reply.Choices[0].FinishReason == "length" {
+		return "", "", ErrUpstream
+	}
+	text := stripThinking(reply.Choices[0].Message.Content)
 	if text == "" {
 		return "", "", ErrUpstream
 	}
@@ -412,3 +418,43 @@ func transportError(ctx context.Context, err error) error {
 
 // errCallTimeout is the cause of a call's own deadline, so it can be told from the caller's.
 var errCallTimeout = errors.New("AI call timed out")
+
+// stripThinking trims text and drops a leading <think>…</think> block, which reasoning models put in the content.
+func stripThinking(text string) string {
+	text = strings.TrimSpace(text)
+	if rest, ok := strings.CutPrefix(text, "<think>"); ok {
+		if _, after, found := strings.Cut(rest, "</think>"); found {
+			return strings.TrimSpace(after)
+		}
+	}
+	return text
+}
+
+// rateLimit is ErrRateLimited together with how long the endpoint asked to wait, zero when it did not say.
+type rateLimit struct{ after time.Duration }
+
+func (rateLimit) Error() string { return string(ErrRateLimited) }
+
+func (rateLimit) Unwrap() error { return ErrRateLimited }
+
+// retryAfter reads a Retry-After header, a number of seconds or an HTTP date; 0 when absent or unusable.
+func retryAfter(value string, now time.Time) time.Duration {
+	value = strings.TrimSpace(value)
+	secs, err := strconv.ParseInt(value, 10, 64)
+	if errors.Is(err, strconv.ErrRange) {
+		// Too big for a number: as long as anything waits, or nothing for a huge negative one.
+		secs = 1 << 40
+		if strings.HasPrefix(value, "-") {
+			secs = 0
+		}
+		err = nil
+	}
+	if err == nil {
+		// Clamped before the multiplication, which would overflow for a huge number; nothing waits longer anyway.
+		return time.Duration(min(max(secs, 0), int64(maxBackoff/time.Second))) * time.Second
+	}
+	if at, err := http.ParseTime(value); err == nil {
+		return max(at.Sub(now), 0)
+	}
+	return 0
+}

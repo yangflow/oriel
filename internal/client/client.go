@@ -600,7 +600,8 @@ type ReadScope struct {
 // maxImage is the largest picture the server relays.
 const maxImage = 8 << 20
 
-// aiClient waits for the server's own AI call, which may take 120 seconds.
+// aiClient waits for the server's own AI call: at most 120 seconds, the budget of the self-check and the limit of a
+// single call, with a margin.
 var aiClient = &http.Client{Timeout: 130 * time.Second, Transport: agent{}}
 
 // discoverClient waits longer than httpClient: the server may spend 20 seconds looking through pages.

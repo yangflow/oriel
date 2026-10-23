@@ -109,6 +109,13 @@ func (s *Store) RequestAI(ctx context.Context, entryID int64, task string, now t
 	return results[task], nil
 }
 
+// PromoteAI makes a queued automatic result one the user asked for, so that it is no longer held back by the cap
+// or by a wait for the endpoint.
+func (s *Store) PromoteAI(ctx context.Context, entryID int64, task string) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE entry_ai SET requested = 1 WHERE entry_id = ? AND task = ? AND status = 'pending'", entryID, task)
+	return err
+}
+
 // AIJobs lists results to work on: pending ones, those the user asked for first, then automatic ones that
 // failed, have attempts left and last failed at or before retryBefore, but not those a cap stopped; newer entries
 // first. Articles still
@@ -163,10 +170,21 @@ func (s *Store) SaveAI(ctx context.Context, entryID int64, task, text, model, fi
 	return tx.Commit()
 }
 
-// StopAI records that a cap stopped an automatic task. Unlike a failed attempt it does not use up a retry.
-func (s *Store) StopAI(ctx context.Context, entryID int64, task string, now time.Time) error {
+// FailAI records that the endpoint, not the entry, made an attempt fail: the result is failed with code and keeps
+// the last success's text, but the attempt does not count toward the retries an automatic task has.
+func (s *Store) FailAI(ctx context.Context, entryID int64, task, code string, now time.Time) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE entry_ai SET status = 'failed', error = ?, updated_at = ? WHERE entry_id = ? AND task = ?`,
+		code, now.UnixMilli(), entryID, task)
+	return err
+}
+
+// StopAI records that a cap stopped an automatic task. Unlike a failed attempt it does not use up a retry. A task
+// the user asked for meanwhile is left as it is.
+func (s *Store) StopAI(ctx context.Context, entryID int64, task string, now time.Time) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE entry_ai SET status = 'failed', error = ?, updated_at = ?
+		WHERE entry_id = ? AND task = ? AND requested = 0`,
 		AICapReached, now.UnixMilli(), entryID, task)
 	return err
 }
