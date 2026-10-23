@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/yangflow/oriel/internal/ai"
@@ -38,6 +39,20 @@ type backend struct {
 	http       *http.Server
 	addr       string
 	background *background
+	// running counts the requests being handled; close waits for them to return before it closes the store.
+	running atomic.Int64
+}
+
+// requestGrace is how long close waits for handlers to return once their connections are cut off.
+const requestGrace = 5 * time.Second
+
+// track counts the requests in flight in handler.
+func (b *backend) track(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b.running.Add(1)
+		defer b.running.Add(-1)
+		handler.ServeHTTP(w, r)
+	})
 }
 
 // background is the work that runs beside the server: the fetch loop, the AI worker, the automatic backups and the
@@ -128,12 +143,13 @@ func start(ctx context.Context, dataDir, password, mode string, port int) (*back
 	}
 	b := &backend{
 		store: st, http: &http.Server{
-			Handler: api, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: time.Minute,
+			ReadHeaderTimeout: 10 * time.Second, ReadTimeout: time.Minute,
 			// Longer than the slowest answer, an AI test call of up to two minutes.
 			WriteTimeout: 150 * time.Second, IdleTimeout: 2 * time.Minute,
 		}, addr: listener.Addr().String(),
 		background: work,
 	}
+	b.http.Handler = b.track(api)
 	go func() {
 		if err := b.http.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("Server stopped", "error", err)
@@ -144,13 +160,26 @@ func start(ctx context.Context, dataDir, password, mode string, port int) (*back
 }
 
 // close waits for requests in flight, up to the context deadline, stops the poller and the AI worker, then
-// closes the database. A request that outlives the deadline is cut off first, so that no handler is still running
-// against the closing database and nothing can enqueue more work.
+// closes the database. A request that outlives the deadline is cut off, its context cancelled, and close waits a
+// few seconds for its handler to return, so that no handler runs against the closing database or enqueues more work.
 func (b *backend) close(ctx context.Context) error {
 	err := b.http.Shutdown(ctx)
 	if err != nil {
 		err = errors.Join(err, b.http.Close())
+		b.waitForHandlers(requestGrace)
 	}
 	b.background.shutdown()
 	return errors.Join(err, b.store.Close())
+}
+
+// waitForHandlers waits until no handler is running, at most grace.
+func (b *backend) waitForHandlers(grace time.Duration) {
+	deadline := time.Now().Add(grace)
+	for b.running.Load() > 0 {
+		if time.Now().After(deadline) {
+			slog.Warn("Requests still running after the server was closed", "count", b.running.Load())
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }

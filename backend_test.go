@@ -76,18 +76,16 @@ func TestCloseCutsOffSlowRequestsBeforeClosingTheStore(t *testing.T) {
 		st.Close()
 		t.Fatal(err)
 	}
-	started, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
-	defer close(release)
-	b := &backend{store: st, background: &background{store: st}, addr: listener.Addr().String(), http: &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			close(started)
-			select {
-			case <-r.Context().Done():
-				close(cancelled)
-			case <-release:
-			}
-		}),
-	}}
+	started, cancelled := make(chan struct{}), make(chan error, 1)
+	b := &backend{store: st, background: &background{store: st}, addr: listener.Addr().String(), http: &http.Server{}}
+	b.http.Handler = b.track(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-r.Context().Done()
+		// Still running after the deadline: the store must be open until this handler returns.
+		time.Sleep(200 * time.Millisecond)
+		_, err := st.Setting(ctx, "any")
+		cancelled <- err
+	}))
 	go b.http.Serve(listener)
 	go func() {
 		if resp, err := http.Get("http://" + b.addr + "/"); err == nil {
@@ -102,8 +100,11 @@ func TestCloseCutsOffSlowRequestsBeforeClosingTheStore(t *testing.T) {
 		t.Fatalf("close with a request past the deadline: %v", err)
 	}
 	select {
-	case <-cancelled:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the request was still running after close: its context was not cancelled")
+	case err := <-cancelled:
+		if err != nil {
+			t.Fatalf("the store was closed under a running handler: %v", err)
+		}
+	default:
+		t.Fatal("close returned while the handler was still running")
 	}
 }
