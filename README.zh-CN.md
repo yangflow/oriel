@@ -67,6 +67,7 @@ ORIEL_PASSWORD=<口令> go run . serve -data ./data -port 7470
 ```
 
 不设 `ORIEL_PASSWORD` 时，服务端只监听 `127.0.0.1`。口令只从环境变量读取，不会出现在进程列表里。`-data` 默认是用户数据目录。
+放在反向代理后面时，加 `-trusted-proxy <IP或CIDR,...>`，来自这些地址的请求才按 `X-Forwarded-For` 给登录限速；默认关闭。只写你自己的代理，不要写客户端所在网段或 `0.0.0.0/0`（`/0` 会被拒绝）。
 
 ## 开发
 

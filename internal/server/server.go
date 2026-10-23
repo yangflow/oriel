@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
@@ -64,6 +65,9 @@ type Config struct {
 	// AutoBackup is the scheduler of automatic backups. The server tells it to check after the settings changed and
 	// keeps it from starting during a restore or a vacuum; whoever owns it runs it. Nil means there is none.
 	AutoBackup *autobackup.Runner
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For the login throttle believes. Empty means
+	// RemoteAddr is always the client.
+	TrustedProxies []netip.Prefix
 }
 
 // Images downloads a picture found inside a feed and returns its content type and bytes.
@@ -96,6 +100,9 @@ type Server struct {
 	derived  []byte // nil when no password is set
 	now      func() time.Time
 	throttle *throttle
+	proxies  []netip.Prefix
+	probe    writeProbe
+	writable func(context.Context) error // the write probe of /health; tests replace it
 	handler  http.Handler
 	fetching func() []int64
 	log      *diag.Handler
@@ -115,7 +122,7 @@ type Server struct {
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, log: cfg.Log, mode: cfg.Mode, pause: cfg.Pause, auto: cfg.AutoBackup, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), vacuum: vacuumState{State: "idle"}}
+	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, log: cfg.Log, mode: cfg.Mode, pause: cfg.Pause, auto: cfg.AutoBackup, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), proxies: cfg.TrustedProxies, vacuum: vacuumState{State: "idle"}}
 	if s.routes == nil {
 		s.routes = fetch.NewRoutes(cfg.Version)
 	}
@@ -125,6 +132,7 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	if s.auto != nil {
 		s.auto.Busy = s.maintenance
 	}
+	s.writable = st.Writable
 	if cfg.Password != "" {
 		s.salt = make([]byte, 16)
 		rand.Read(s.salt)
@@ -209,7 +217,10 @@ func derive(password string, salt []byte) ([]byte, error) {
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	status, database := http.StatusOK, "ok"
-	if err := s.store.Writable(r.Context()); err != nil {
+	if err := s.store.Ping(r.Context()); err != nil {
+		slog.Error("Database cannot be read", "error", err)
+		status, database = http.StatusServiceUnavailable, "unwritable"
+	} else if err := s.probe.check(r.Context(), s.now, s.writable); err != nil {
 		slog.Error("Database is not writable", "error", err)
 		status, database = http.StatusServiceUnavailable, "unwritable"
 	}
@@ -218,12 +229,81 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// probeEvery is how long a writability probe result is reused, so polling /health does not compete for the write lock.
+const probeEvery = 10 * time.Second
+
+// writeProbe shares one writability probe between all requests within probeEvery.
+type writeProbe struct {
+	mu      sync.Mutex
+	at      time.Time
+	err     error
+	done    bool          // a probe has finished at least once
+	running bool          // a probe is in flight
+	wait    chan struct{} // closed when the probe in flight ends
+}
+
+// busy reports whether a probe failed only because another writer held the lock: that database is writable.
+func busy(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	text := err.Error()
+	return strings.Contains(text, "SQLITE_BUSY") || strings.Contains(text, "database is locked")
+}
+
+// check returns the result of the last probe while it is fresh. The first request after that runs a new probe,
+// outside the lock. Requests that come meanwhile get the last result at once; with no result yet they wait for the
+// probe, which ends within its own timeout, instead of answering for a database nobody has tested.
+func (p *writeProbe) check(ctx context.Context, now func() time.Time, probe func(context.Context) error) error {
+	p.mu.Lock()
+	if p.done && now().Sub(p.at) < probeEvery {
+		defer p.mu.Unlock()
+		return p.err
+	}
+	if p.running {
+		if p.done {
+			defer p.mu.Unlock()
+			return p.err
+		}
+		wait := p.wait
+		p.mu.Unlock()
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		return p.err
+	}
+	p.running, p.wait = true, make(chan struct{})
+	wait := p.wait
+	p.mu.Unlock()
+	defer func() {
+		p.mu.Lock()
+		p.running = false
+		close(wait)
+		p.mu.Unlock()
+	}()
+	// The probe waits at most a few seconds for the write lock: a busy writer is not an unwritable database.
+	pctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	err := probe(pctx)
+	if err != nil && busy(err) {
+		err = nil
+	}
+	p.mu.Lock()
+	p.err, p.at, p.done = err, now(), true
+	p.mu.Unlock()
+	return err
+}
+
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if s.derived == nil {
 		fail(w, http.StatusBadRequest, "auth_disabled")
 		return
 	}
-	key, now := clientKey(r), s.now()
+	key, now := clientKey(r, s.proxies), s.now()
 	if wait := s.throttle.wait(key, now); wait > 0 {
 		tooMany(w, wait)
 		return

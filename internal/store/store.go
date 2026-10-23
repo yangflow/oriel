@@ -139,6 +139,12 @@ func (s *Store) migrate(ctx context.Context) error {
 	return nil
 }
 
+// Ping reports whether the database can be read. It takes no write lock.
+func (s *Store) Ping(ctx context.Context) error {
+	var one int
+	return s.db.QueryRowContext(ctx, "SELECT 1").Scan(&one)
+}
+
 // Writable reports whether a write transaction can run, without leaving a change behind.
 func (s *Store) Writable(ctx context.Context) error {
 	tx, err := s.db.BeginTx(ctx, nil)
