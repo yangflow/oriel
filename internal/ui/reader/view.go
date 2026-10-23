@@ -2342,7 +2342,7 @@ func (s *Screen) pictureFailed(c *ui.Context, b block, strip bool) {
 			button.Background(theme.Track(t))
 		}
 		button.Children(func() {
-			ui.Icon(c, icons.RotateCcw).FontSize(theme.Px(t, 14)).TextColor(t.Text)
+			ui.Icon(c, icons.RotateCcw).FontSize(theme.IconSmall(t)).TextColor(t.Text)
 			ui.Text(c, s.text.Retry).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(t.Text)
 		})
 		if button.Clicked() {
@@ -2353,7 +2353,7 @@ func (s *Screen) pictureFailed(c *ui.Context, b block, strip bool) {
 	}
 	if strip {
 		ui.Row(c).Fill().AlignItems(ui.Center).Gap(theme.Px(t, 10)).Padding(theme.Px(t, 8), theme.Px(t, 12)).Children(func() {
-			ui.Icon(c, icons.ImageOff).FontSize(theme.Px(t, 16)).TextColor(t.TextMuted)
+			ui.Icon(c, icons.ImageOff).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
 			line := s.text.PicFailed
 			if b.alt != "" {
 				line = b.alt
@@ -2364,7 +2364,7 @@ func (s *Screen) pictureFailed(c *ui.Context, b block, strip bool) {
 		return
 	}
 	ui.Column(c).Fill().Center().Gap(theme.Px(t, 8)).Padding(theme.Px(t, 16)).Children(func() {
-		ui.Icon(c, icons.ImageOff).FontSize(theme.Px(t, 24)).TextColor(t.TextMuted)
+		ui.Icon(c, icons.ImageOff).FontSize(theme.IconLarge(t)).TextColor(t.TextMuted)
 		if b.alt != "" {
 			ui.Text(c, b.alt).FontSize(theme.Px(t, 13)).MaxWidth(theme.Px(t, 360)).MaxLines(3).TextAlign(ui.Center).
 				TextColor(theme.Text2(t))
