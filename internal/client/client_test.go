@@ -161,9 +161,9 @@ func TestTimelineAPI(t *testing.T) {
 		seen = append(seen, r.Method+" "+r.URL.RequestURI()+" "+string(body))
 		switch r.URL.Path {
 		case "/api/entries":
-			if r.URL.Query().Get("q") == "ab" {
+			if r.URL.Query().Get("cursor") == "bad" {
 				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(`{"error":"query_too_short"}`))
+				w.Write([]byte(`{"error":"invalid_cursor"}`))
 				return
 			}
 			w.Write([]byte(`{"entries":[{"id":7,"kind":"video","title":"T","publishedAt":null,"durationSec":95,"readingSec":600,
@@ -237,8 +237,8 @@ func TestTimelineAPI(t *testing.T) {
 		t.Errorf("group = %+v", g)
 	}
 	var apiErr *APIError
-	if _, err := session.Entries(ctx, Query{Search: "ab"}); !errors.As(err, &apiErr) || apiErr.Code != "query_too_short" {
-		t.Errorf("short query: %v", err)
+	if _, err := session.Entries(ctx, Query{Cursor: "bad"}); !errors.As(err, &apiErr) || apiErr.Code != "invalid_cursor" {
+		t.Errorf("bad cursor: %v", err)
 	}
 	if article, err := session.RetryExtraction(ctx, 7); err != nil || article.ID != 7 || article.ExtractStatus != "pending" {
 		t.Errorf("RetryExtraction = %+v, %v", article, err)
@@ -338,7 +338,7 @@ func TestTimelineAPI(t *testing.T) {
 	}
 	want := []string{
 		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&order=asc&q=go+fmt&unread=1 ",
-		"GET /api/entries?q=ab ",
+		"GET /api/entries?cursor=bad ",
 		"POST /api/entries/7/extract ",
 		"GET /api/sources ",
 		"GET /api/sources/health ",

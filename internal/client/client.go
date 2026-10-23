@@ -234,7 +234,7 @@ func ForgetSession(path string) error {
 	return nil
 }
 
-// APIError is an error the server answered with, by its stable code such as "query_too_short".
+// APIError is an error the server answered with, by its stable code such as "invalid_cursor".
 type APIError struct {
 	Status int
 	Code   string
