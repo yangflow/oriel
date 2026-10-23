@@ -977,7 +977,7 @@ func TestReaderAIOff(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
-	if err := tt.Click("Open Settings…"); err != nil {
+	if err := tt.Click("Open settings"); err != nil {
 		t.Fatalf("%v in %v", err, tt.Texts())
 	}
 	if f.aiSettings != 1 || f.settings != 0 {

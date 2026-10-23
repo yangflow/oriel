@@ -238,12 +238,12 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `add-routes`, `add-route-params`, `add-route-preview` and `add-no-catalog`. A full address of the public rsshub.app
   gets a warning card (`Warning` soft fill, 8 radius, as the RSSHub-address card) under the field in place of the lookup:
   a 14 triangle with one sentence in `Warning` medium and a small secondary button under it, "Use my RSSHub instance"
-  (an instance is set; it rewrites the field to the route only when pressed) or "Open Settings…" (none is set). Mockup
+  (an instance is set; it rewrites the field to the route only when pressed) or "Open settings" (none is set). Mockup
   states `add-public` and `add-public-no-instance`. When the site's bot protection turned a fetch away, the failure
   text (health line, sidebar tooltip, toast) is one localized sentence in place of the raw HTTP text (`edit-blocked`). The edit dialog starts with a health line
   (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail.
   For a route that has been fetched, a muted 12 line under it names the RSSHub instance that served the last fetch
-  (host only, "(backup)" after it when it is not the first of the list). The interval offers Auto
+  (host only, "Served by fallback address {host}" with a second muted line saying the first address did not answer, when it is not the first of the list). The interval offers Auto
   first, and an automatic subscription reads "Auto · 6 h" with the interval in use. When the first fetch found the feed to look like
   another kind, a line in the style of the health line sits under the kind picker with the kind's icon, one sentence and a small
   button "Show as Videos"; it only chooses the kind in the dialog. "Keep entries" follows, a full-width select in the
@@ -260,7 +260,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   field's error style. The dialog ends with "Summaries and
   translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
-  Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open Settings…".
+  Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open settings".
   Under the mute keywords, after their help, a second 12 `TextMuted` line (tabular figures, a status text) says how many
   entries the keywords hide now: "{n} hidden now." (「现在隐藏了 {n} 条。」) or "Nothing hidden now." (「现在没有隐藏的条目。」).
   It follows the box as keywords are typed, after a short pause; until the new number arrives the old one stays, with
@@ -326,7 +326,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   head in `Accent`, the model in `TextMuted`, and a close button; failed, the `Danger` soft fill with what went wrong
   and a small "Try again" (when the daily cap on automatic work stopped it, the reason says so and points to Settings;
   state `summary-cap` in the mockup); while AI is not set up, `Surface` with "AI isn't set up", one line on where to set it and a
-  small primary "Open Settings…". The translation replaces the title and text in place; the note under the title says
+  small primary "Open settings". The translation replaces the title and text in place; the note under the title says
   what is shown. While it is made, the original stays with a note (`Surface`, a spinner, Cancel); done, the note is
   `Soft(Accent)`, "Translated by {model}" and a segmented Translation | Original switch, and the translated text is
   plain paragraphs, pictures and links staying in the original; failed, the original stays with the note in the
@@ -809,7 +809,7 @@ Overlays share focus and Escape behavior; see
   read and scrolls the first one below them to the top (see "Mark visible" below), `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
   window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
   Cmd/Ctrl+K opens the command palette (see Components), which goes to any subscription, kind or Settings page and runs the common actions. Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+R refreshes all subscriptions (see "Refresh all" below), Cmd/Ctrl+Z undoes the last "mark as read" action while its toast shows, and `?` or Cmd/Ctrl+/
-  opens the key sheet, which the Help menu also lists as "Keyboard Shortcuts".
+  opens the key sheet, which the Help menu also lists as "Keyboard shortcuts".
   Four more keys act on the list, under the same rules (not while the search field has the focus, a dialog is open
   or the reader shows): U shows unread only, A shows all entries, `*` (Shift+8) shows starred only, Shift+A marks
   everything in the scope as read, with the same toast and Cmd/Ctrl+Z undo as the toolbar button (inert where the
@@ -1080,9 +1080,14 @@ color, and the row actions fade. See
   names are copy too: translate `Label` and `Description`.
 - Feed content (titles, text, author names) is shown as it comes, in whatever language it is in; it is not copy.
   Translation of content is the on-demand AI feature, not localization.
-- English labels: short imperatives ("Reset", "Add subscription"), sentence case, no trailing period on labels and a
-  full stop on sentences. Chinese sentences use full-width punctuation. Do not concatenate sentence fragments, since
+- English labels: short imperatives ("Reset", "Add subscription"), sentence case everywhere, menu items, dialog
+  titles and buttons included ("Keyboard shortcuts", "Back up…", "Replace data"); only names keep their capitals
+  (Markdown, OPML, RSSHub). No trailing period on labels and a full stop on sentences. Chinese sentences use full-width punctuation. Do not concatenate sentence fragments, since
   word order differs; use full-sentence strings with placeholders.
+- The ellipsis is the single character "…", never three dots. A label ends in it when choosing it asks for more
+  before anything happens: a dialog, a file picker or a typed query ("Import OPML…", "Save as…", "Go to…",
+  "Delete…"). A label that only goes somewhere or acts at once does not ("Open settings", "Try again"); "Settings…" in
+  the app menu keeps the platform's own form. A running state ends in it too ("Checking…").
 - Chinese terms are used the same way everywhere. A term below does not get a second word for the same thing.
 
   | English | Chinese | Note |
@@ -1100,6 +1105,7 @@ color, and the row actions fade. See
   | device | 设备 | |
   | fetch | 抓取 | The schedule is spoken of as 检查 ("检查间隔", "检查过"); both stand until they are unified. |
   | summary, translation | 摘要, 译文 | The verbs are 摘要 and 翻译. |
+  | fallback address | 备用地址 | The address that takes over when the first RSSHub address does not answer; the Chinese is never 备用实例 in the UI, and English never calls it "backup", which is the copy of the data. |
   | AI endpoint | AI 接口 | |
   | prompt, API key | prompt, API key | Kept in Latin; "key" alone is fine after the first mention. |
   | Bilibili | 哔哩哔哩 | Not "B 站". |
@@ -1110,7 +1116,8 @@ color, and the row actions fade. See
   `AI 接口`), and the same around a placeholder that holds a number, a file name or user content
   (`{n} 条未读`, `{file} 超过 1 MB`). Exceptions: none beside full-width punctuation or 「」; none beside a placeholder
   that holds already localized Chinese (`{t}前检查过`, `{date}登录`, `回到{scope}`); none inside date layouts
-  (`1月2日`).
+  (`1月2日`). A duration phrase is a number, a space and a unit (`1 天`, `3 个月`), so what follows it
+  sits right after the unit (`{age}前`, `{n} 分钟前`).
 - Layouts must tolerate the longer of the two translations, and English text 30–50% longer than the first draft.
   Do not fix widths of text controls.
 - Relative times are one set of strings for every screen, written by `locale.Ago` (`internal/ui/locale/`): "just now",

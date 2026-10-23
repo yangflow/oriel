@@ -77,7 +77,7 @@ Working now:
 - **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
   with password sign-in and per-device sessions.
 - **Connect to a remote server.** The desktop app can switch to an `oriel serve` on another machine from
-  "Connect to Server…" in the app menu. Only the session token is kept, readable by you alone; the password is
+  "Connect to server…" in the app menu. Only the session token is kept, readable by you alone; the password is
   never saved.
 - **One storage file.** SQLite with full-text search through a pure Go driver; no cgo in production code. The
   window reads and writes only through the HTTP API, so desktop and headless behave the same.

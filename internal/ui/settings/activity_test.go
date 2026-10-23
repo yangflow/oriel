@@ -430,7 +430,7 @@ func TestExportDiagnosticsFromTheMenu(t *testing.T) {
 	if _, err := os.Stat(f.save); err != nil || !tt.HasText("Exported to d.txt.") {
 		t.Fatalf("saved %v, texts %v", err, tt.Texts())
 	}
-	if DiagnosticsMenuLabel("zh-Hans-CN") != "导出诊断文件…" || DiagnosticsMenuLabel("fr") != "Export Diagnostics…" {
+	if DiagnosticsMenuLabel("zh-Hans-CN") != "导出诊断文件…" || DiagnosticsMenuLabel("fr") != "Export diagnostics…" {
 		t.Fatal("menu labels")
 	}
 }

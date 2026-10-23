@@ -810,10 +810,10 @@ func TestAIOff(t *testing.T) {
 	f.replyErr = &client.APIError{Status: 409, Code: "ai_not_configured"}
 	click(t, tt, "Translate")
 	f.settle(tt)
-	expect(t, tt, "AI isn’t set up", "Open Settings…",
+	expect(t, tt, "AI isn’t set up", "Open settings",
 		"Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.")
 	absent(t, tt, "Translating. The original stays here until it’s done.")
-	click(t, tt, "Open Settings…")
+	click(t, tt, "Open settings")
 	if !slices.Equal(f.calls, []string{"settings"}) {
 		t.Fatalf("calls %v", f.calls)
 	}
