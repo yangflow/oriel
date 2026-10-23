@@ -748,6 +748,8 @@ func TestHealth(t *testing.T) {
 			ConsecutiveFailures: 2}, "Failed 2 times in a row: " + s.text.BlockedPublic, true},
 		{client.Source{URL: "https://example.org/feed", LastError: "status 403: blocked by Cloudflare",
 			LastErrorKind: "blocked", ConsecutiveFailures: 1}, "Last fetch failed: " + s.text.Blocked, true},
+		{client.Source{LastError: "status 410: the feed was removed (Gone)", LastErrorKind: "gone", ConsecutiveFailures: 1},
+			"Last fetch failed: " + s.text.FeedRemoved, true},
 		{client.Source{Paused: true, LastError: "timeout"}, s.text.Paused, false},
 		{client.Source{}, "Not checked yet", false},
 		{client.Source{LastFetchedAt: now.UnixMilli(), NextFetchAt: now.UnixMilli()},

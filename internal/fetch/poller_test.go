@@ -418,3 +418,72 @@ func (p panicTo) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	return http.DefaultTransport.RoundTrip(r)
 }
+
+func TestPollLongFailureBacksOffFurther(t *testing.T) {
+	f := newFixture(t)
+	status := http.StatusInternalServerError
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if status != http.StatusOK {
+			w.WriteHeader(status)
+			return
+		}
+		w.Write([]byte(rssFeed))
+	}))
+	defer srv.Close()
+	id := f.add(store.NewSource{URL: srv.URL})
+	wait := func() time.Duration {
+		f.t.Helper()
+		f.db.Exec("UPDATE sources SET next_fetch_at = 0 WHERE id = ?", id)
+		f.poller.fetchDue(context.Background())
+		return time.UnixMilli(f.int("SELECT next_fetch_at FROM sources WHERE id = ?", id)).Sub(f.now)
+	}
+
+	f.db.Exec("UPDATE sources SET consecutive_failures = 40 WHERE id = ?", id)
+	f.now = f.now.Add(longFailure - time.Minute)
+	if got := wait(); got != backoffLimit {
+		t.Fatalf("just under %s of failures waits %s, want %s", longFailure, got, backoffLimit)
+	}
+	f.now = f.now.Add(time.Minute)
+	if got := wait(); got != longBackoff {
+		t.Fatalf("after %s of failures waits %s, want %s", longFailure, got, longBackoff)
+	}
+	if f.int("SELECT consecutive_failures FROM sources WHERE id = ?", id) != 42 {
+		t.Fatal("the longer wait changed the failure count")
+	}
+
+	// A source that was only idle for days (few failures) is not on the long schedule.
+	f.db.Exec("UPDATE sources SET consecutive_failures = 1 WHERE id = ?", id)
+	if got := wait(); got != probeDelay {
+		t.Fatalf("second failure after a long idle waits %s, want %s", got, probeDelay)
+	}
+
+	// One success resets the count and the streak: the next failure is back on the short schedule.
+	status = http.StatusOK
+	wait()
+	status = http.StatusInternalServerError
+	if got := wait(); got != probeDelay {
+		t.Fatalf("failure after a success waits %s, want %s", got, probeDelay)
+	}
+}
+
+func TestPollGone(t *testing.T) {
+	f := newFixture(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusGone)
+	}))
+	defer srv.Close()
+	id := f.add(store.NewSource{URL: srv.URL})
+	f.poller.fetchDue(context.Background())
+	if got := f.text("SELECT last_error_kind FROM sources WHERE id = ?", id); got != ErrorGone {
+		t.Errorf("last_error_kind = %q, want %q", got, ErrorGone)
+	}
+	if got := f.text("SELECT last_error FROM sources WHERE id = ?", id); got != "status 410: the feed was removed (Gone)" {
+		t.Errorf("last_error = %q", got)
+	}
+	if got := time.UnixMilli(f.int("SELECT next_fetch_at FROM sources WHERE id = ?", id)).Sub(f.now); got != longBackoff {
+		t.Errorf("first 410 waits %s, want %s", got, longBackoff)
+	}
+	if f.int("SELECT paused FROM sources WHERE id = ?", id) != 0 {
+		t.Error("a 410 paused the source")
+	}
+}
