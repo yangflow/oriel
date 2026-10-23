@@ -56,6 +56,11 @@
      in browser, copy link, more; buttons are 32 square, radius 8, 4 apart. translate-disabled: an article already in the
      target language keeps a dimmed Translate with its reason as tooltip; more-narrow: the minimum window, copy link moved
      into More. The bar is solid Background; scrolled shows its hairline (the reader scrolled 96).
+     Immersive reading (docs/design.md, Immersive reading; the Z key, Esc or Z leave it): immersive hides the sidebar and the toolbar, the
+     article keeps its column, centered in the whole window, and the 52 high band at the top stays Background, empty (so the window
+     buttons never sit over text and nothing moves when it is entered). immersive-bar: the pointer is in that band (or the focus is
+     in the toolbar), so the toolbar shows over it with the one extra button, "Exit immersive reading" (minimize-2, tooltip with Z),
+     before More; it hides again when the pointer leaves and the focus is not in it. J and K still change the article.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
@@ -150,6 +155,9 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .main::after { content:""; position:absolute; top:52px; left:0; right:0; height:.5px; background:var(--border); opacity:0; transition:opacity 120ms ease-out; z-index:1; pointer-events:none }
 .main.scrolled::after { opacity:1 }
 .toolbar { position:absolute; top:0; left:0; right:0; z-index:2; height:52px; display:flex; align-items:center; gap:4px; padding:0 max(16px,calc((100% - var(--col))/2 + 32px)) 0 max(12px,calc((100% - var(--col))/2 + 28px)) }
+.immersive .toolbar { padding-left:max(78px,min(calc((100% - var(--col))/2 + 28px),calc((100% - 640px)/2))); padding-right:max(16px,min(calc((100% - var(--col))/2 + 32px),calc((100% - 640px)/2))) }
+.immersive.quiet .toolbar { display:none }
+.immersive.bar::after { opacity:1 }
 .spacer { flex:1 }
 .back { height:32px; display:flex; align-items:center; gap:2px; min-width:0; padding:0 10px 0 4px; border-radius:8px; color:var(--text2); font-weight:500 }
 .back span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
@@ -320,7 +328,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also'];
+const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
@@ -357,6 +365,7 @@ const icons={
   dot:'<circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/>',
   circle:'<circle cx="12" cy="12" r="10"/>',
   checkCheck:'<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
+  minimize2:'<path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/>',
   rotateCcw:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   circleCheck:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
   search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
@@ -395,7 +404,7 @@ const copy={
   en:{
     all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
     back:'Back to {scope}', previous:'Previous entry', next:'Next entry',
-    translateDone:'Already in {language}', language:'Simplified Chinese', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', more:'More', copyMd:'Copy as Markdown', saveMd:'Save as Markdown…', copied:'Copied', copyLink:'Copy link', linkCopied:'Link copied',
+    exitImmersive:'Exit immersive reading', translateDone:'Already in {language}', language:'Simplified Chinese', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', more:'More', copyMd:'Copy as Markdown', saveMd:'Save as Markdown…', copied:'Copied', copyLink:'Copy link', linkCopied:'Link copied',
     feedNote:'This isn’t the full text: the page could not be extracted, so this is what the feed carries.',
     extractingNote:'Getting the full text. Until then, this is what the feed carries.',
     openOriginal:'Open the original', tryAgain:'Try again', textSwitch:'Text to read', fullText:'Full text', feedText:'Feed',
@@ -417,7 +426,7 @@ const copy={
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
     back:'回到{scope}', previous:'上一篇', next:'下一篇',
-    translateDone:'已经是{language}', language:'简体中文', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', more:'更多', copyMd:'复制为 Markdown', saveMd:'存为 Markdown…', copied:'已复制', copyLink:'复制链接', linkCopied:'已复制链接',
+    exitImmersive:'退出沉浸阅读', translateDone:'已经是{language}', language:'简体中文', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', more:'更多', copyMd:'复制为 Markdown', saveMd:'存为 Markdown…', copied:'已复制', copyLink:'复制链接', linkCopied:'已复制链接',
     feedNote:'这不是全文：网页抽不出正文，下面是订阅里带的内容。',
     extractingNote:'正在取全文，先显示订阅里带的内容。',
     openOriginal:'打开原文', tryAgain:'重试', textSwitch:'要读的正文', fullText:'全文', feedText:'原文',
@@ -445,7 +454,8 @@ const sources=[
   {kind:'article',name:zh?'少数派':'Sspai',mono:zh?'少':'S',unread:12,fav:favs.sspai},
   {kind:'article',name:'The Go Blog',mono:'G',unread:0,failing:true},
 ];
-const sidebar=`<aside><nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g])=>`<button class="item${k==='article'?' chosen':''}" aria-current="${k==='article'}">${icon(g)}<span class="name">${copy[k]}</span><span class="count">${[30,15,2,9,1][['all','article','video','social','image'].indexOf(k)]}</span></button>`).join('')}</nav>
+const imm=state.startsWith('immersive');
+const sidebar=imm?'':`<aside><nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g])=>`<button class="item${k==='article'?' chosen':''}" aria-current="${k==='article'}">${icon(g)}<span class="name">${copy[k]}</span><span class="count">${[30,15,2,9,1][['all','article','video','social','image'].indexOf(k)]}</span></button>`).join('')}</nav>
 <nav class="nav" aria-label="${copy.sources}"><div class="section">${copy.article}</div>${sources.map(s=>`<button class="item${s.chosen?' chosen':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failing}">${icon('alert')}</span>`:''}${s.unread?`<span class="count">${s.unread}</span>`:''}</button>`).join('')}</nav>
 <button class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></button></aside>`;
 
@@ -467,7 +477,7 @@ const tools=`<button class="back" aria-label="${t('back',{scope:'Simon Willison'
 <button class="tool"${off} aria-label="${read?copy.markUnread:copy.markRead}" title="${read?copy.markUnread:copy.markRead} (M)">${icon(read?'mail':'mailOpen')}</button>
 <button class="tool"${off} aria-label="${copy.open}" title="${copy.open} (O)">${icon('external')}</button>
 ${narrow?'':`<button class="tool"${off} aria-label="${copy.copyLink}" title="${copy.copyLink}">${icon('link')}</button>
-`}<button class="tool"${off} aria-haspopup="menu" aria-expanded="${state==='more-menu'||state==='more-narrow'}" aria-label="${copy.more}" title="${copy.more}">${icon('ellipsis')}</button></div>`;
+`}${state==='immersive-bar'?`<button class="tool" aria-label="${copy.exitImmersive}" title="${copy.exitImmersive} (Z)">${icon('minimize2')}</button>`:''}<button class="tool"${off} aria-haspopup="menu" aria-expanded="${state==='more-menu'||state==='more-narrow'}" aria-label="${copy.more}" title="${copy.more}">${icon('ellipsis')}</button></div>`;
 
 // Chinese typesetting (docs/design.md). Han and Latin letters or digits: 0.25em after the character before the
 // boundary. Full-width punctuation: -0.5em after the first of a pair with a blank half between the two. Code is
@@ -575,6 +585,7 @@ let page;
 switch(state){
   case 'selection-menu':case 'selection-explain':page=article('',markExplain(full));break;
   case 'selection-loading':case 'selection-translate':case 'selection-failed':case 'selection-too-long':case 'selection-ai-off':page=original('').replace(zh?'it indexes every run of three characters':'把文本切成所有连续的三个字符',m=>`<mark class="sel">${m}</mark>`);break;
+  case 'immersive':case 'immersive-bar':page=article('',full);break;
   case 'summarizing':case 'summary':case 'summary-failed':case 'summary-cap':case 'ai-off':page=article(card[state],full);break;
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
@@ -590,7 +601,7 @@ switch(state){
   case 'loading':page=`<div class="page skeleton" aria-busy="true"><div class="bar m"></div><div class="bar h"></div>${'<div class="bar s"></div>'.repeat(3)}<div class="bar e"></div><br>${'<div class="bar s"></div>'.repeat(2)}<div class="bar e"></div></div>`;break;
   case 'error':page=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');break;
 }
-document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${selMenu}${isSel?selCard():''}${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}${state==='link-copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.linkCopied}</span></div>`:''}${state==='copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.copied}</span></div>`:''}${state==='resumed'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${copy.resumed}</span></div>`:''}</section>`;
+document.getElementById('app').innerHTML=`${sidebar}<section class="main${imm?' immersive '+(state==='immersive-bar'?'bar':'quiet'):''}"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${selMenu}${isSel?selCard():''}${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}${state==='link-copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.linkCopied}</span></div>`:''}${state==='copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.copied}</span></div>`:''}${state==='resumed'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${copy.resumed}</span></div>`:''}</section>`;
 if(state==='more-menu'||state==='more-narrow'){
   const w=document.getElementById('window'),a=document.querySelector('.toolbar .tool[aria-haspopup]').getBoundingClientRect(),b=w.getBoundingClientRect();
   w.insertAdjacentHTML('beforeend',`<div class="more-menu" role="menu" aria-label="${copy.more}">${narrow?`<button role="menuitem" class="hover">${copy.copyLink}</button><hr>`:''}<button role="menuitem"${narrow?'':' class="hover"'}>${copy.copyMd}</button><button role="menuitem">${copy.saveMd}</button></div>`);
