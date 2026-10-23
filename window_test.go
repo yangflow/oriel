@@ -43,3 +43,45 @@ func TestMyGoControlsSpeakTheInterfaceLanguage(t *testing.T) {
 		t.Errorf("no match in Chinese says %q", tt.Texts())
 	}
 }
+
+// MyGo keeps the language it is given for the next launches, which would pin it against the system's: so System gives it
+// none, and only a language the user chose, or a Chinese MyGo would not match, is given.
+func TestMyGoLanguageIsGivenOnlyWhenItMustBe(t *testing.T) {
+	cases := []struct {
+		name      string
+		chosen    string
+		preferred []string
+		want      string
+	}{
+		{"system, English", "", []string{"en-US"}, ""},
+		{"system, Simplified Chinese", "", []string{"zh-Hans-CN", "en"}, ""},
+		{"system, another language", "", []string{"fr-CA"}, ""},
+		{"system, nothing", "", nil, ""},
+		{"system, Traditional Chinese", "", []string{"zh-Hant-TW"}, "zh-Hans"},
+		{"English chosen on a Chinese system", "en", []string{"zh-Hans-CN"}, "en"},
+		{"Chinese chosen on an English system", "zh-Hans", []string{"en-US"}, "zh-Hans"},
+	}
+	for _, c := range cases {
+		var given []string
+		showMyGoLanguage(func(tag string) { given = append(given, tag) }, c.chosen, c.preferred)
+		if len(given) != 1 || given[0] != c.want {
+			t.Errorf("%s: SetLocale got %q, want %q", c.name, given, c.want)
+		}
+	}
+}
+
+// A language chosen in English shows MyGo's own controls in English, whatever the system reads.
+func TestMyGoControlsInEnglishWhenEnglishIsChosen(t *testing.T) {
+	query, open, current := "", true, 0
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.FindBar(c, &open, &query, 0, &current)
+	}, 600, 200)
+	showMyGoLanguage(tt.SetLocale, "en", []string{"zh-Hans-CN"})
+	if !tt.HasText("Done") || tt.HasText("完成") {
+		t.Errorf("English chosen: %q", tt.Texts())
+	}
+	showMyGoLanguage(tt.SetLocale, "zh-Hans", []string{"en-US"})
+	if !tt.HasText("完成") {
+		t.Errorf("Chinese chosen: %q", tt.Texts())
+	}
+}

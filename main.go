@@ -9,10 +9,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"syscall"
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/i18n"
 	_ "github.com/egoist/mygo/locales/zh-Hans" // MyGo's own words (find bar, dialogs, menus) in Simplified Chinese
 	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/plugins/updater/native"
@@ -46,6 +48,36 @@ func systemLocale() string {
 		return preferred[0]
 	}
 	return mygo.App.Locale()
+}
+
+// showMyGoLanguage makes MyGo's own words (find bar, dialogs, menus) follow the interface language, which Oriel keeps in
+// its preferences: chosen is the Interface language preference, "" for System, and preferred the languages the system
+// reads. MyGo keeps what SetLocale is given for the next launches (on macOS as the app's AppleLanguages, which beat the
+// system's), so a language is only given when it must be:
+//   - A language the user chose is given, so MyGo shows it whatever the system reads.
+//   - System gives "": MyGo follows the system by itself and picks the language of the app's languages (en, zh-Hans)
+//     that suits it. That is the language Oriel picks too, except for a Chinese in another script (zh-Hant, zh-TW):
+//     Oriel reads every Chinese as Simplified, MyGo finds zh-Hans no match for it and falls back to English. Only then
+//     is zh-Hans given, so that a window never mixes the two. PreferredLanguages is not changed by what SetLocale gives, so
+//     systemLocale still reads the system, and a later launch where the two agree gives "" again.
+func showMyGoLanguage(set func(string), chosen string, preferred []string) {
+	if slices.Contains(locale.Languages, chosen) {
+		set(chosen)
+		return
+	}
+	system := ""
+	if len(preferred) > 0 {
+		system = preferred[0]
+	}
+	own := i18n.Match(preferred, locale.Languages)
+	if own == "" {
+		own = locale.Languages[0]
+	}
+	if own == locale.Language(system) {
+		set("")
+		return
+	}
+	set(locale.Language(system))
 }
 
 // openLog starts the log file in dataDir. A file that cannot be opened is a warning on stderr, not the end of the app.
@@ -304,7 +336,7 @@ func desktop() {
 		// The menu, and MyGo's own controls and menus, speak the interface language, whichever the system reads.
 		showLanguage := func(language string) {
 			setMenu(language)
-			mygo.App.SetLocale(language)
+			showMyGoLanguage(mygo.App.SetLocale, root.prefs.Language, mygo.App.PreferredLanguages())
 		}
 		root.language = showLanguage
 		showLanguage(locale.Resolve(root.prefs.Language, system))

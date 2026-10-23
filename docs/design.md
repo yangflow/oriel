@@ -1128,6 +1128,10 @@ color, and the row actions fade. See
   reads Simplified Chinese; everything else reads English. Screens use it rather than their own mapping. The Interface
   language preference (System, 简体中文, English; Settings, Appearance) overrides it: System means the mapping above.
   Its choices are named in their own language and are not translated. A change rebuilds the screens at once.
+  MyGo's own words (find bar, dialogs, menus) follow the same language. MyGo keeps the language it is given for the
+  next launches, and an app-level language beats the system's, so System gives it none and MyGo follows the system by
+  itself; only a language chosen in Settings is given. The one exception is a Chinese in another script (zh-Hant,
+  zh-TW): MyGo finds Simplified no match for it and would say English, so Simplified is given then.
 - Every key has both translations, and each screen's test fails on a missing or untranslated entry. Accessible
   names are copy too: translate `Label` and `Description`.
 - Feed content (titles, text, author names) is shown as it comes, in whatever language it is in; it is not copy.
