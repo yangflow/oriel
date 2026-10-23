@@ -519,8 +519,10 @@ func (s *Screen) submit(more bool) {
 				s.announce = s.addedLine()
 			case code(err) == "source_exists":
 				a.addressErr, a.exists = s.text.ExistsUnknown, 0
+				var apiErr *client.APIError
+				errors.As(err, &apiErr)
 				for _, known := range s.deps.Sources() {
-					if known.URL == src.URL && known.RSSHubPath == src.RSSHubPath {
+					if (apiErr != nil && apiErr.SourceID != 0 && known.ID == apiErr.SourceID) || (known.URL == src.URL && known.RSSHubPath == src.RSSHubPath) {
 						a.addressErr, a.exists = s.fill(s.text.Exists, Name(known)), known.ID
 					}
 				}

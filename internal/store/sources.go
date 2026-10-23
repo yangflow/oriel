@@ -103,18 +103,24 @@ const unreadByID = `(SELECT e.source_id AS source_id, count(*) AS n FROM entries
 
 // CreateSource adds a subscription with a title, which may be empty, and returns it. The source is due at once
 // unless src.FirstFetchDelay says otherwise.
-// It returns ErrExists when the same feed is already subscribed.
-// Feed addresses are compared by feedURLKey, so a trailing slash, a capitalised host or a default port does not make
-// a second subscription; the address is stored as given.
+// It returns an *ExistsError, which matches ErrExists, when the same feed is already subscribed.
+// Feed addresses are compared by sourceKeys, so a trailing slash, a capitalised host, a default port, http against
+// https, a "www." prefix or a RSSHub route against the same address on an instance does not make a second
+// subscription; the address is stored as given. src.AllowDuplicate skips the comparison, but two sources still
+// cannot share the very same address.
 func (s *Store) CreateSource(ctx context.Context, src NewSource, title string, now time.Time) (Source, error) {
-	if err := s.purgeDeletedLike(ctx, src); err != nil {
+	roots, err := s.rsshubRoots(ctx)
+	if err != nil {
 		return Source{}, err
 	}
-	if src.URL != "" {
-		if exists, err := s.feedURLExists(ctx, src.URL); err != nil {
+	if err := s.purgeDeletedLike(ctx, src, roots); err != nil {
+		return Source{}, err
+	}
+	if !src.AllowDuplicate {
+		if id, found, err := s.FindDuplicate(ctx, src); err != nil {
 			return Source{}, err
-		} else if exists {
-			return Source{}, ErrExists
+		} else if found {
+			return Source{}, &ExistsError{ID: id}
 		}
 	}
 	result, err := s.db.ExecContext(ctx, `
@@ -138,7 +144,7 @@ func (s *Store) CreateSource(ctx context.Context, src NewSource, title string, n
 
 // purgeDeletedLike removes the deleted subscriptions that src would clash with, now rather than at the end of their
 // undo window: adding the feed again is a new subscription, not a restore.
-func (s *Store) purgeDeletedLike(ctx context.Context, src NewSource) error {
+func (s *Store) purgeDeletedLike(ctx context.Context, src NewSource, roots []rootAddress) error {
 	rows, err := s.db.QueryContext(ctx, "SELECT id, url, rsshub_path FROM sources WHERE deleted_at IS NOT NULL")
 	if err != nil {
 		return err
@@ -151,7 +157,7 @@ func (s *Store) purgeDeletedLike(ctx context.Context, src NewSource) error {
 			rows.Close()
 			return err
 		}
-		if (url == src.URL && path == src.RSSHubPath) || (src.URL != "" && url != "" && feedURLKey(url) == feedURLKey(src.URL)) {
+		if (url == src.URL && path == src.RSSHubPath) || sharesKey(sourceKeys(url, path, roots), sourceKeys(src.URL, src.RSSHubPath, roots)) {
 			ids = append(ids, id)
 		}
 	}

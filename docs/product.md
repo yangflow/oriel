@@ -89,7 +89,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `websub_key`、`websub_secret` | 这个源的回调路径令牌和签名密钥，各自随机生成，只存库里，接口不下发。 |
 | `websub_state`、`websub_expires_at`、`websub_requested_at`、`websub_base`、`websub_next_at`、`websub_failures`、`websub_error` | 订阅状态：`''`（没订）、`pending`（等 hub 验证）、`active`（租约有效到 `websub_expires_at`）；最近一次请求的时间和当时用的公开地址；下一次动作（订阅或续订）的时间；连续失败次数和最近的原因。 |
 
-`url` 和 `rsshub_path` 合起来唯一，同一订阅不能加两次。比较订阅地址时先规范化：协议和主机名小写、去掉默认端口（http 的 80、https 的 443）和 `#` 片段、路径末尾的 `/` 忽略（空路径等于 `/`），所以 `https://a/feed` 和 `https://A:443/feed/` 算同一个订阅；查询串不同则不同。库里仍存用户给的原样地址，不改写。数据库的唯一索引只拦完全相同的写法，规范化比较在添加时做（订阅数不大，逐个比较，不加索引）。
+`url` 和 `rsshub_path` 合起来唯一，同一订阅不能加两次。比较订阅地址时先规范化，规则只在服务端（`internal/store/duplicate.go`）有一份，添加、订阅发现、OPML 导入和导入其他阅读器都用它：协议不分（`http` 和 `https` 一样）、主机名小写并去掉 `www.`、去掉默认端口（http 的 80、https 的 443）和 `#` 片段、路径末尾的 `/` 忽略（空路径等于 `/`）、跟踪参数（`utm_*`、`fbclid`、`gclid` 等，同「同一篇文章只显示一次」）去掉、其余查询参数按名字排序，所以 `https://a/feed` 和 `http://www.A:80/feed/?utm_source=x` 算同一个订阅；路径大小写、别的查询参数、非默认端口、别的子域名不同则不同。同一个上游也算同一个订阅：RSSHub 路由（`rsshub_path`）和落在某个 RSSHub 实例上的普通地址（`https://<实例>/github/issue/a/b` 对路由 `/github/issue/a/b`，实例是设置里的，或某个源上次成功抓取用过的，实例地址带路径时只认这个路径下的）互为重复，不分哪个先加；YouTube 的路由 `/youtube/channel/<id>`、`/youtube/playlist/<id>` 和对应的 `https://www.youtube.com/feeds/videos.xml?channel_id=<id>`、`?playlist_id=<id>` 也是同一个。其余路由没有这样的对应，不比较。库里仍存用户给的原样地址，不改写。数据库的唯一索引只拦完全相同的写法，规范化比较在添加时做（订阅数不大，逐个比较，不加索引）。
 
 ### 订阅健康
 
@@ -551,21 +551,21 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 | `POST /api/sources/{id}/restore` | 撤销删除：撤销窗口内把源连同条目和设置原样带回，返回 200 和这个源。源不在了（过了窗口、已被清掉）或没有被删除是 404 `not_found`。 |
 | `POST /api/sources/{id}/refresh` | 「更新」：把 `next_fetch_at` 改成现在，返回 204。 |
 | `POST /api/sources/refresh` | 「全部更新」：把所有未暂停的源的 `next_fetch_at` 一次改成现在，返回 200 和 `{ "queued": N, "at": T }`，`N` 是改了的源数（没有未暂停的源时为 0），`T` 是服务端此刻的毫秒时间戳。不在请求里抓，也不另开线程：这些源和别的到期的源一样由抓取循环去抓，最久没抓的先取，仍是 5 个工作线程和每主机的限制（见「抓取」），所以几百个源要几分钟抓完，不会同时发出几百个请求。 |
-| `GET /api/discover?url=<地址>` | 订阅发现（见「订阅发现」）：返回 `{ "candidates": [...] }`，没找到为空数组。每项：`url`（订阅地址，路由候选为空串）、`rsshubPath`（RSSHub 路由，普通订阅为空串）、`title`（页面或订阅给的标题，可为空）、`kind`（建议的形态，可为空）、`origin`（`rule`、`feed`、`alternate`、`common`）；`origin` 为 `rule` 时还有 `site`（`youtube`、`bilibili`、`weibo`、`zhihu`、`x`）、`label`（`videos`、`dynamic`、`posts`、`activities`、`answers`、`column`、`topic`、`collection`、`question`、`channel`、`playlist`）和 `subject`（用户名、编号或话题名），界面据此按语言拼出名字。不写库。 |
+| `GET /api/discover?url=<地址>` | 订阅发现（见「订阅发现」）：返回 `{ "candidates": [...] }`，没找到为空数组。每项：`url`（订阅地址，路由候选为空串）、`rsshubPath`（RSSHub 路由，普通订阅为空串）、`title`（页面或订阅给的标题，可为空）、`kind`（建议的形态，可为空）、`origin`（`rule`、`feed`、`alternate`、`common`）、`subscribedId`（已经订阅了同一个订阅的那个订阅的编号，按「源」一节的规则比较，没有为 `0`）；`origin` 为 `rule` 时还有 `site`（`youtube`、`bilibili`、`weibo`、`zhihu`、`x`）、`label`（`videos`、`dynamic`、`posts`、`activities`、`answers`、`column`、`topic`、`collection`、`question`、`channel`、`playlist`）和 `subject`（用户名、编号或话题名），界面据此按语言拼出名字。不写库。 |
 | `GET /api/routes?q=<链接或名字>&refresh=1` | RSSHub 路由查找（见「RSSHub 路由查找」）：返回 `{ "available": 目录是否读得出, "instance": 读目录的实例根地址（没有为空串）, "total": 匹配总数, "routes": [...] }`，`available` 为 `false` 或没有匹配时 `routes` 为空数组。每项：`path`（路由模板，例如 `/github/issue/:user/:repo`）、`name`、`namespace`（命名空间的键）、`namespaceName`、`example`（可为空）、`parameters`（按出现顺序的 `{ name, description, optional }`）和 `values`（从链接取到的参数值，可为空对象）。`refresh=1` 重读目录。`q` 为空时 400 `invalid_query`。不写库。 |
 | `GET /api/routes/preview?path=<路由>` | 预览一条填好参数的路由：返回 `{ "instance": 答了的实例根地址, "title": 订阅标题, "entries": [{ "title", "url", "publishedAt" }] }`，最多 5 条，`publishedAt` 是毫秒时间戳或 `null`。`path` 不以 `/` 开头或以 `//` 开头时 400 `invalid_rsshub_path`；没设实例 422 `no_rsshub_instance`；实例答 404 时 502 `route_not_found`；连不上或别的状态码 502 `route_unavailable`；答的内容不是订阅 502 `not_a_feed`。不写库。 |
 | `GET /api/sources/health` | 订阅健康（见「订阅健康」）：只返回有问题的源，不带别的源。按需请求，不轮询，也不参与 `GET /api/sources` 的刷新。 |
 
 `GET /api/sources/health` 返回 `{ "windowDays": 30, "sources": [...] }`。每项：`id`、`url`、`rsshubPath`、`title`、`iconUrl`、`kind`、`state`（`dead`、`failing`、`rarelyRead`）、`cause`（`state` 为 `dead` 时是 `failing` 或 `silent`，其余为空串）、`days`（见「订阅健康」）、`consecutiveFailures`、`lastError`，以及窗口内的 `recent`（写入条数）、`recentRead`、`recentStarred`。顺序：已失效、总在失败、很少读；同一档里按标题（空标题用地址）不分大小写排序。没有问题时 `sources` 是空数组。
 
-添加时的字段：`url` 和 `rsshubPath` 恰好给一个，`kind` 必填，`title`、`fetchIntervalSec` 和 `fetchIntervalAuto` 可选。标题去掉首尾空白。
+添加时的字段：`url` 和 `rsshubPath` 恰好给一个，`kind` 必填，`title`、`fetchIntervalSec`、`fetchIntervalAuto` 和 `allowDuplicate` 可选。标题去掉首尾空白。
 
 - `url` 去掉首尾空白后必须是带主机名的 http 或 https 绝对地址，否则 `invalid_url`。可以指向本机或内网（见「抓取」）。
 - `rsshubPath` 去掉首尾空白后必须以 `/` 开头、不以 `//` 开头，否则 `invalid_rsshub_path`。
 - `url` 和 `rsshubPath` 都给或都不给时 `invalid_source`。
 - `kind` 不是四种形态之一时 `invalid_kind`。
 - `fetchIntervalSec` 是 60 到 604800（7 天）的整数，否则 `invalid_interval`。给了它就是固定间隔；`fetchIntervalAuto` 是布尔值，缺省为 `true`，即两个都不给时间隔「自动」，起点 900。`fetchIntervalAuto` 为 `true` 又给了 `fetchIntervalSec`，返回 `invalid_interval`。
-- 同一订阅已经有了（订阅地址按「源」一节规范化后比较，末尾多一个 `/`、主机名大小写或默认端口不同都算已有），返回 409 `source_exists`。
+- 同一订阅已经有了（订阅地址按「源」一节规范化后比较：末尾多一个 `/`、主机名大小写、默认端口、`http` 对 `https`、`www.`、跟踪参数、查询参数的顺序不同，或同一个上游走了 RSSHub 路由和普通地址两条路，都算已有），返回 409，`{ "error": "source_exists", "sourceId": 已有的那个订阅的编号 }`；有几个重复时取最早的。`allowDuplicate` 为 `true` 时不做这个比较，照样添加（用户看了提示仍要加第二个）；写法完全相同的地址仍然加不了，也是 409 `source_exists`。
 
 能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`、`extractSelector`、`extractReferer`、`extractRewrites`。订阅地址不能改，要换就删了重加。
 
@@ -758,7 +758,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 - 有 `xmlUrl` 或 `orielRsshubPath` 的 `outline` 是订阅，其余是分组。分组可以嵌套，逐层往下找；分组本身不导入。
 - 有 `orielRsshubPath` 时按 RSSHub 源加，不看 `xmlUrl`；否则按 `xmlUrl` 加。没有 `orielKind` 时形态是 `article`。
 - 标题取 `title`，没有就取 `text`，去掉首尾空白；和订阅地址一样时当没给，留给抓取补上。
-- 每条按「订阅接口」添加的规则校验，抓取间隔用默认值（自动）。已经订阅了的（包括同一文件里重复出现的）计入 `existing`，不算失败。
+- 每条按「订阅接口」添加的规则校验，抓取间隔用默认值（自动）。已经订阅了的（按「源」一节的规则比较，包括同一文件里重复出现的、写法不同但是同一个订阅的）计入 `existing`，不算失败，也不会为它们另加订阅。
 - 新增的源不是马上都到期：第一次抓取按「抓取」里的规则摊开，每个源随机延后 `[0, min(10 分钟, 2 秒 × 本次导入的订阅条数))`。
 - 不合规则的条目不影响别的条目，放进 `failed`，每项是 `{ "title", "address", "error" }`，`error` 是添加时的错误码，比如 `invalid_url`、`invalid_kind`。
 - 文件最大 1 MiB，超了返回 413 `opml_too_large`；不是 XML、根元素不是 `opml` 时返回 400 `invalid_opml`，什么都不加。
@@ -1305,7 +1305,7 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 - 地址是公共实例 `https://rsshub.app/…` 的完整地址（并且 `rsshub.app` 不是设置里的实例）时，框下面多一张提示卡，不去做网页地址查找，也不改地址，「添加」照常可用。设了 RSSHub 实例时，卡上写「公共的 rsshub.app 常常拦下自动请求。」，带「改用我的 RSSHub 实例」按钮：点了才把框里的地址改成只带路由的形式（`/…`，保留查询串），之后照路由添加；从不自动改。没设实例时，卡上写「公共的 rsshub.app 通常会拦下 Oriel 的请求。到设置 → RSSHub 填你自己的实例。」，带「打开设置」。
 - 别的必须是带主机名的 `http://` 或 `https://` 地址；不是时点「添加」才在框下面报错，把焦点放回地址框，改了地址错误就消失。
 - 要存成路由、而设置里还没有 RSSHub 根地址时，框下面提示先填根地址，多一个根地址的输入框（只填一个，当作主实例；备用实例到设置里加）。点「添加」先存设置，再加订阅；根地址不对时报在根地址框下面。
-- 已经订阅过（409 `source_exists`）时提示「已经订阅过了，叫“…”」，带「去看看」，点了关掉对话框、选中那个订阅。连不上服务端时在对话框里提示，不关对话框。
+- 已经订阅过（409 `source_exists`）时提示「已经订阅过了，叫“…”」，带「去看看」，点了关掉对话框、选中那个订阅；订阅是哪个由响应里的 `sourceId` 定，所以写法不同（`http`、`www.`、RSSHub 路由对普通地址）也认得。界面还没有「仍然添加」和在发现卡片上显示 `subscribedId`，两者只有接口（见 #374 的后续）。连不上服务端时在对话框里提示，不关对话框。
 - 一次加好几个：「添加并继续」（Cmd/Ctrl+Enter，地址框里也行）和「添加」做同样的事，只是之后对话框不关：地址和标题清空，形态回到自动识别的，焦点回到地址框，间隔不变；表单上方一行说「已添加“…”」，再加就是「已添加“…”· 共 N 个」。「取消」在加过之后叫「完成」。每个订阅都照常发 `POST /api/sources`，侧栏和首次抓取的提示也照常；某一个失败（已经订阅过、地址不对、连不上）时原因报在地址框下面，不影响已经加好的，也不挡着下一个，重复的不会加两次。不新增服务端接口。
 - 加好后关掉对话框，订阅出现在侧栏，提示「已添加“…”」。条目由抓取循环去抓；抓完时再提示结果（见「抓取结果提示」）。
 

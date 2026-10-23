@@ -179,13 +179,14 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 		Title             string `json:"title"`
 		FetchIntervalSec  *int64 `json:"fetchIntervalSec"`
 		FetchIntervalAuto *bool  `json:"fetchIntervalAuto"`
+		AllowDuplicate    bool   `json:"allowDuplicate"`
 	}
 	if !readBody(w, r, &body) {
 		return
 	}
 	src := store.NewSource{
 		URL: strings.TrimSpace(body.URL), RSSHubPath: strings.TrimSpace(body.RSSHubPath), Kind: body.Kind,
-		FetchInterval: defaultInterval, FetchIntervalAuto: true,
+		FetchInterval: defaultInterval, FetchIntervalAuto: true, AllowDuplicate: body.AllowDuplicate,
 	}
 	if code := checkSource(src); code != "" {
 		fail(w, http.StatusBadRequest, code)
@@ -205,7 +206,10 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 		src.FetchIntervalAuto = *body.FetchIntervalAuto
 	}
 	created, err := s.store.CreateSource(r.Context(), src, strings.TrimSpace(body.Title), s.now())
+	var exists *store.ExistsError
 	switch {
+	case errors.As(err, &exists):
+		reply(w, http.StatusConflict, map[string]any{"error": "source_exists", "sourceId": exists.ID})
 	case errors.Is(err, store.ErrExists):
 		fail(w, http.StatusConflict, "source_exists")
 	case err != nil:

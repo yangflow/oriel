@@ -277,7 +277,10 @@ func (s *Server) writeSnapshot(ctx context.Context, job *importJob, snap *import
 		switch {
 		case errors.Is(err, store.ErrExists):
 			res.ExistingSources++
-			if ids[f.URL], err = s.store.SourceIDByFeedURL(ctx, src.URL); err != nil {
+			var exists *store.ExistsError
+			if errors.As(err, &exists) {
+				ids[f.URL] = exists.ID
+			} else if ids[f.URL], err = s.store.SourceIDByFeedURL(ctx, src.URL); err != nil {
 				return nil, err
 			}
 		case err != nil:
