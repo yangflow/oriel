@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/store"
@@ -358,7 +357,7 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		if field.value == nil {
 			continue
 		}
-		if utf8.RuneCountInString(*field.value) > fetch.MaxProxyField {
+		if len(*field.value) > fetch.MaxProxyCredential {
 			fail(w, http.StatusBadRequest, "invalid_proxy")
 			return
 		}

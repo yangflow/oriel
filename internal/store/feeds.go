@@ -419,6 +419,22 @@ func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 	return err
 }
 
+// SetSettings stores several settings in one transaction: a reader sees all of them or none.
+func (s *Store) SetSettings(ctx context.Context, changes [][2]string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, change := range changes {
+		if _, err := tx.ExecContext(ctx,
+			"INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", change[0], change[1]); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func nullTime(t time.Time) any {
 	if t.IsZero() {
 		return nil

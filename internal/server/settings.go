@@ -157,6 +157,10 @@ func (s *Server) globalProxy(ctx context.Context) (address, user, password strin
 }
 
 func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
+	// The proxy credentials are cleared when the address changes, which compares with the stored address: two updates
+	// at once must not both see the old one.
+	s.settingsMu.Lock()
+	defer s.settingsMu.Unlock()
 	var body struct {
 		RSSHubBaseURLs  *[]string `json:"rsshubBaseUrls"`
 		RSSHubBaseURL   *string   `json:"rsshubBaseUrl"`
@@ -236,7 +240,7 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		if field.value == nil {
 			continue
 		}
-		if utf8.RuneCountInString(*field.value) > fetch.MaxProxyField {
+		if len(*field.value) > fetch.MaxProxyCredential {
 			fail(w, http.StatusBadRequest, "invalid_proxy_credentials")
 			return
 		}
@@ -336,11 +340,9 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	changes = append(changes, backupChanges...)
-	for _, change := range changes {
-		if err := s.store.SetSetting(r.Context(), change[0], change[1]); err != nil {
-			internal(w, err)
-			return
-		}
+	if err := s.store.SetSettings(r.Context(), changes); err != nil {
+		internal(w, err)
+		return
 	}
 	if len(backupChanges) > 0 && s.auto != nil {
 		s.auto.Poke()

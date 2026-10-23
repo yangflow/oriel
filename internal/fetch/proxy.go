@@ -29,8 +29,11 @@ const (
 	ProxyPasswordSetting = "fetch_proxy_password"
 )
 
-// MaxProxyField caps the proxy address, user name and password.
+// MaxProxyField caps the proxy address.
 const MaxProxyField = 500
+
+// MaxProxyCredential caps the user name and the password, each in bytes: the limit of SOCKS5 (RFC 1929).
+const MaxProxyCredential = 255
 
 // globalTTL is how long a read of the global proxy settings is reused, so a change applies within seconds
 // without a database read for every image.
@@ -171,6 +174,17 @@ func (n *Network) Feed(ctx context.Context, per store.SourceProxy, direct *http.
 		return &http.Client{
 			Timeout:   direct.Timeout,
 			Transport: &scrubbing{next: transport, secrets: secretsOf(u, eff)},
+			// Only the address the user typed bypasses the proxy for a local host. A redirect from a public address to a
+			// local one is the feed's doing, so it is refused rather than followed onto this machine or its network.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return errors.New("stopped after 10 redirects")
+				}
+				if localHost(req.URL.Hostname()) && !localHost(via[0].URL.Hostname()) {
+					return fmt.Errorf("%w: %s", ErrBlockedAddress, req.URL.Hostname())
+				}
+				return nil
+			},
 		}
 	})
 }
@@ -274,7 +288,8 @@ func socksDial(ctx context.Context, u *url.URL, cred store.SourceProxy, address 
 	}
 	conn, err := dialer.(proxy.ContextDialer).DialContext(ctx, "tcp", address)
 	if err != nil {
-		return nil, fmt.Errorf("the proxy failed: %w", err)
+		// The error text names the proxy's resolved address; only the cause is kept.
+		return nil, fmt.Errorf("the proxy failed: %w", rootCause(err))
 	}
 	return conn, nil
 }
@@ -283,11 +298,7 @@ func socksDial(ctx context.Context, u *url.URL, cred store.SourceProxy, address 
 func connectDial(ctx context.Context, u *url.URL, cred store.SourceProxy, address string) (net.Conn, error) {
 	conn, err := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", u.Host)
 	if err != nil {
-		var op *net.OpError
-		if errors.As(err, &op) {
-			err = op.Err // "connection refused", without the proxy's address
-		}
-		return nil, fmt.Errorf("cannot reach the proxy: %w", err)
+		return nil, fmt.Errorf("cannot reach the proxy: %w", rootCause(err)) // "connection refused", without the proxy's address
 	}
 	fail := func(format string, args ...any) (net.Conn, error) {
 		conn.Close()
@@ -348,7 +359,18 @@ func (e *scrubbed) Unwrap() error { return e.err }
 
 // secretsOf lists what must never appear in an error: the proxy's address and its credentials.
 func secretsOf(u *url.URL, cred store.SourceProxy) []string {
-	return []string{u.Host, cred.User, cred.Password}
+	return []string{u.Host, u.Hostname(), cred.User, cred.Password}
+}
+
+// rootCause is the innermost error: the reason of a network failure without the addresses the outer errors name.
+func rootCause(err error) error {
+	for {
+		inner := errors.Unwrap(err)
+		if inner == nil {
+			return err
+		}
+		err = inner
+	}
 }
 
 func scrub(err error, secrets []string) error {
@@ -373,6 +395,11 @@ type scrubbing struct {
 func (s *scrubbing) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := s.next.RoundTrip(req)
 	if err != nil {
+		var op *net.OpError
+		if errors.As(err, &op) && op.Op == "proxyconnect" {
+			// The error names the proxy's resolved address.
+			err = &scrubbed{msg: "cannot reach the proxy: " + rootCause(err).Error(), err: err}
+		}
 		return nil, scrub(err, s.secrets)
 	}
 	return resp, nil

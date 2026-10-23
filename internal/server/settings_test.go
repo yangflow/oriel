@@ -234,7 +234,7 @@ func TestSettingsProxy(t *testing.T) {
 			t.Errorf("patch %s: %d %s", body, w.Code, w.Body)
 		}
 	}
-	if w := do(s, "PATCH", "/api/settings", `{"proxyUser":"`+strings.Repeat("a", fetch.MaxProxyField+1)+`"}`, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_proxy_credentials" {
+	if w := do(s, "PATCH", "/api/settings", `{"proxyUser":"`+strings.Repeat("a", fetch.MaxProxyCredential+1)+`"}`, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_proxy_credentials" {
 		t.Errorf("long user: %d %s", w.Code, w.Body)
 	}
 

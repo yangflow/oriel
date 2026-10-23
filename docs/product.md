@@ -329,10 +329,10 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
 - **按源**：源的 `proxy` 为空串时跟随全局；是 `direct` 时这个源直连，即使设了全局代理，也不认环境变量；是代理地址时这个源用它（和它自己的用户名和密码），不用全局的。
 - **哪些请求走代理**：订阅抓取（含 RSSHub 实例的请求，包括备用实例）、正文抽取、WebSub 订阅请求、订阅发现、RSSHub 路由查找和预览、图片代理取图、收藏的本地副本取图。按源的设置作用于这个源的抓取、正文抽取和 WebSub 请求；订阅发现、路由查找、取图和复制图片不属于某个源，只用全局代理（所以一个设为 `direct` 的源，它的图片仍走全局代理）。RSSHub 没有单独的健康探测请求：实例的健康只看抓取结果（冷却、换实例），所以实例的抓取走哪条路，健康检查就走哪条路。
 - **不走代理的请求**：AI 摘要和翻译不走这个代理（它们发往用户自己填的接口，常常是本机的模型，也有自己对 `HTTP_PROXY` 的处理）。「导入其他阅读器」（见「导入其他阅读器接口」）发往用户填的阅读器地址，也不走。
-- **用户填的地址**（订阅、RSSHub 实例）：不做 SSRF 检查，照常交给代理。为了自建的 RSSHub 还连得上，主机是本机名 `localhost`、环回地址、内网地址或链路本地地址（直接写成 IP 的）时，不经代理直连；主机名解析到内网的（例如 `rsshub.lan`）不在此列，要把那个源设成 `direct`。
+- **用户填的地址**（订阅、RSSHub 实例）：不做 SSRF 检查，照常交给代理。为了自建的 RSSHub 还连得上，主机是本机名 `localhost`、环回地址、内网地址或链路本地地址（直接写成 IP 的）时，不经代理直连；主机名解析到内网的（例如 `rsshub.lan`）不在此列，要把那个源设成 `direct`。这个例外只给用户填的这个地址本身：订阅请求被重定向时，从公网地址跳到上述本机或内网地址会被拒绝（错误同 `ErrBlockedAddress`），不会跟过去。
 - **订阅内容带出来的地址**（正文页、WebSub hub、图片、订阅发现）：SSRF 检查仍然有效，代理不能让它们进到内网。连接前 Oriel 自己先解析主机名，任何一个答案是环回、内网、链路本地或保留地址就拒绝（错误同 `ErrBlockedAddress`），解析不出也拒绝；通过后才把主机名交给代理去连（`CONNECT host:port` 或 SOCKS5），每次重定向都再查一遍。已知的限制：代理自己再解析一次，两次答案可以不同（DNS 重绑定），这个窗口 Oriel 看不到，也关不上；信不过代理的用户不要给它内网的访问权。HTTP 和 HTTPS 代理对这些地址一律用 `CONNECT`（包括 `http://` 的页面，端口 80），不允许 `CONNECT` 到 80 端口的代理会让这类请求失败。
 - **代理本身**：代理地址可以是本机或内网地址（例如本机的 Clash `127.0.0.1:7890`）；只有它作为配置好的代理时才放行，不会因此放宽对订阅内容里地址的检查。
-- **凭据**：代理的用户名和密码是密钥。和 API key 一样只存库里，接口只回是否已配置，不进日志、错误、`last_error`、诊断文件和备份。错误文字里不带代理的地址，只写原因（例如 `cannot reach the proxy: connection refused`、`the proxy refused the connection: status 407`）。
+- **凭据**：代理的用户名和密码是密钥。和 API key 一样只存库里，接口只回是否已配置，不进日志、错误、`last_error`、诊断文件和备份。错误文字里不带代理的地址（也不带它解析出来的 IP 和端口），只写原因（例如 `cannot reach the proxy: connection refused`、`the proxy refused the connection: status 407`）。
 - 备份不含全局代理的用户名和密码，也不含各源的代理用户名和密码（和 API key 一样）；恢复时保留这台服务端自己的全局代理用户名和密码。代理地址本身和 `proxy` 字段照常备份和恢复。
 
 ## 订阅发现
@@ -591,7 +591,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 - `extractSelector` 去掉首尾空白后最长 500 个字符，且是能解析的 CSS 选择器，否则 `invalid_extract_selector`；空串是不用。
 - `extractReferer` 去掉首尾空白后是空串，或带主机名的 http 或 https 绝对地址、最长 2000 个字符，否则 `invalid_extract_referer`。
 - `extractRewrites` 按行保存，每行去掉首尾空白，丢掉空行。最多 10 条，每条最长 500 个字符，写法是「正文抽取」里的两种，否则 `invalid_extract_rewrites`。
-- `proxy` 去掉首尾空白后是空串（跟随全局）、`direct`，或带主机名和端口的代理地址（`http`、`https`、`socks5`、`socks5h`，不带路径、查询串、片段和用户信息，最长 500 个字符），否则 `invalid_proxy`。`proxyUser`、`proxyPassword`（各最长 500 个字符，超出 `invalid_proxy`）只能写：不带就不动，空串删掉；`proxy` 改了，这个源存的用户名和密码一并删掉，除非同一个请求带了新的；用户名和密码不管 `proxy` 是什么值都能设。从下一次抓取起生效。
+- `proxy` 去掉首尾空白后是空串（跟随全局）、`direct`，或带主机名和端口的代理地址（`http`、`https`、`socks5`、`socks5h`，不带路径、查询串、片段和用户信息，最长 500 个字符），否则 `invalid_proxy`。`proxyUser`、`proxyPassword`（各最长 255 个字节，SOCKS5 的上限，超出 `invalid_proxy`）只能写：不带就不动，空串删掉；`proxy` 改了，这个源存的用户名和密码一并删掉，除非同一个请求带了新的；用户名和密码不管 `proxy` 是什么值都能设。从下一次抓取起生效。
 - 标题改成空串时，下次抓取用订阅里的标题补上。
 - 改 `kind` 后条目的形态跟着变（见「数据模型」）；改成别的形态的源不再抽取正文。
 - 改 `fetchIntervalSec` 从下一次抓取之后生效，同时把间隔改成固定（`fetchIntervalAuto` 变 `false`）；想马上抓就「更新」。`fetchIntervalAuto` 改成 `true` 后，现在用的间隔留着，下一次成功抓取时重新算；同时给 `fetchIntervalSec` 和 `true` 返回 `invalid_interval`。
@@ -745,7 +745,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 
 - `rsshubBaseUrls` 是字符串数组，每个去掉首尾空白，必须是带主机名的 http 或 https 绝对地址，可以指向本机或内网，不然 `invalid_rsshub_base_url`；空数组表示不设；末尾的 `/` 去掉，重复的（不分大小写）只留第一个，空串忽略；规整后超过 5 个时 `too_many_rsshub_base_urls`。库里按行存（设置 `rsshub_base_url`，一行一个）。
 - `rsshubBaseUrl` 是旧字段，仍可写：去掉首尾空白，空串表示不设，否则等同于只有这一个地址的 `rsshubBaseUrls`，同样的规则和错误码。同一个请求里两个字段都带时，`rsshubBaseUrls` 为准。
-- `proxyUrl` 去掉首尾空白后是空串（不用代理）或带主机名和端口的代理地址（`http`、`https`、`socks5`、`socks5h`，不带路径、查询串、片段和用户信息，最长 500 个字符），不然 `invalid_proxy_url`。`proxyUser`、`proxyPassword` 各最长 500 个字符，否则 `invalid_proxy_credentials`；不带就不动，空串删掉；代理地址改了，存的用户名和密码一并删掉，除非同一个请求带了新的。库里存在 `fetch_proxy`、`fetch_proxy_user`、`fetch_proxy_password`。
+- `proxyUrl` 去掉首尾空白后是空串（不用代理）或带主机名和端口的代理地址（`http`、`https`、`socks5`、`socks5h`，不带路径、查询串、片段和用户信息，最长 500 个字符），不然 `invalid_proxy_url`。`proxyUser`、`proxyPassword` 各最长 255 个字节（SOCKS5 的上限），否则 `invalid_proxy_credentials`；不带就不动，空串删掉；代理地址改了，存的用户名和密码一并删掉，除非同一个请求带了新的。库里存在 `fetch_proxy`、`fetch_proxy_user`、`fetch_proxy_password`；一次 `PATCH` 的所有设置在同一个事务里写入，不会出现新地址配旧凭据的中间状态。
 - `muteKeywords` 每行去掉首尾空白、丢掉空行后存下，最多 200 行、每行最多 100 个字符，否则 `invalid_mute_keywords`。库里存在 `mute_keywords`。改了马上对时间线和未读数生效。
 - `retentionDays` 是 0 到 3650 的整数，否则 `invalid_retention_days`；不是整数时 `invalid_body`。库里存的值读不成天数时按永久处理，返回 `0`（见「保留期限」）。
 - `groupSameLink` 是布尔值，不是布尔值时 `invalid_body`。库里存在 `group_same_link`，`0` 是关，没存或别的值都按开处理。

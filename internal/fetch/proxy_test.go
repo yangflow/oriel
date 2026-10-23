@@ -478,3 +478,48 @@ func TestPollerFetchesThroughTheProxy(t *testing.T) {
 		t.Fatal("expected a parse error from the proxy's answer")
 	}
 }
+
+// A proxy given by name fails with the reason only: not the address the name resolved to, which the network errors
+// would otherwise carry.
+func TestProxyByNameLeaksNoResolvedAddress(t *testing.T) {
+	dead, _ := net.Listen("tcp", "127.0.0.1:0")
+	port := strconv.Itoa(dead.Addr().(*net.TCPAddr).Port)
+	dead.Close()
+	for _, scheme := range []string{"http", "socks5"} {
+		st := openStore(t)
+		setProxy(t, st, scheme+"://localhost:"+port, "alice", "s3cret")
+		n := NewNetwork(st)
+		n.refuse = func(netip.AddrPort) bool { return false }
+		guarded, _ := n.Guarded(context.Background(), store.SourceProxy{}, guardedClient(func(netip.AddrPort) bool { return false }))
+		feed, _ := n.Feed(context.Background(), store.SourceProxy{}, &http.Client{Timeout: time.Second})
+		for name, c := range map[string]*http.Client{"guarded": guarded, "feed": feed} {
+			address := target(t).URL
+			if name == "feed" {
+				address = "http://feeds.example.test/rss"
+			}
+			_, err := body(t, c, address)
+			if err == nil || !strings.Contains(err.Error(), "the proxy") {
+				t.Fatalf("%s %s: %v", scheme, name, err)
+			}
+			for _, secret := range []string{port, "localhost", "127.0.0.1:" + port, "[::1]", "alice", "s3cret"} {
+				if strings.Contains(strings.ReplaceAll(err.Error(), address, ""), secret) {
+					t.Errorf("%s %s: the error has %q: %v", scheme, name, secret, err)
+				}
+			}
+		}
+	}
+}
+
+// The exemption for a local host holds for the address the user typed, not for where a feed redirects to.
+func TestFeedClientRefusesRedirectToLocalHost(t *testing.T) {
+	st := openStore(t)
+	local := target(t)
+	// The proxy answers the public feed's address with a redirect to the local server.
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, local.URL, http.StatusFound) }))
+	t.Cleanup(redirect.Close)
+	setProxy(t, st, redirect.URL, "", "")
+	client, _ := NewNetwork(st).Feed(context.Background(), store.SourceProxy{}, &http.Client{Timeout: time.Second})
+	if _, err := body(t, client, "http://feeds.example.test/rss"); !errors.Is(err, ErrBlockedAddress) {
+		t.Fatalf("a redirect to a local host: %v", err)
+	}
+}
