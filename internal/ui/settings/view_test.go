@@ -684,7 +684,7 @@ func TestDevices(t *testing.T) {
 	for _, text := range []string{
 		s.text.ColDevice, s.text.ColPlatform, s.text.ColSigned, s.text.ColLastUsed,
 		"Oriel", s.text.ThisDevice, "macOS", "Oct 16", "just now",
-		"Safari", "iPhone", "Sep 18", "3 hours ago",
+		"Safari", "iPhone", "Sep 18", "3 h ago",
 		"Unknown device", "Oct 18, 2025", "Sep 8",
 	} {
 		if !tt.HasText(text) {
@@ -721,7 +721,7 @@ func TestDevicesTable(t *testing.T) {
 		}
 	}
 	// Last used ends at the column's right edge, and Revoke is the last column.
-	if r := rect(t, tt, "3 hours ago"); r.X+r.W != last.X+last.W {
+	if r := rect(t, tt, "3 h ago"); r.X+r.W != last.X+last.W {
 		t.Errorf("last used ends at %v, want %v", r.X+r.W, last.X+last.W)
 	}
 	if b := rect(t, tt, "Sign out “Safari · iPhone”?"); b.X < last.X+last.W || b.W == 0 {
@@ -745,7 +745,7 @@ func TestDevicesStacked(t *testing.T) {
 	}
 	for _, text := range []string{
 		"Signed in Oct 16 · last used just now",
-		"Safari · iPhone", "Signed in Sep 18 · last used 3 hours ago",
+		"Safari · iPhone", "Signed in Sep 18 · last used 3 h ago",
 		"Unknown device", "Signed in Oct 18, 2025 · last used Sep 8",
 	} {
 		if !tt.HasText(text) {

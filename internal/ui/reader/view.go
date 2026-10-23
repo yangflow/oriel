@@ -33,7 +33,7 @@ var catalog []byte
 type copy struct {
 	Back, Previous, Next, Star, Unstar, MarkRead, MarkUnread, Open, FeedNote, ExtractingNote, OpenOriginal        string
 	Extracting, ExtractingHint, Failed, FailedHint, Error, ErrorHint, Retry, Loading, FullText, OpenFailed        string
-	DateLayout, YearLayout, Shortcut                                                                              string
+	Shortcut                                                                                                      string
 	Summarize, HideSummary, Translate, ShowOriginal, Summary, By, Summarizing, Cancel, SummaryFailed              string
 	Translating, Translated, Translation, Original, TranslationFailed, SummaryReady, TranslationReady             string
 	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AICapReached, AIUpstream, AIEmpty, AIOff, AIOffTitle string
@@ -146,11 +146,13 @@ type cached struct {
 
 // Screen keeps the article read: its text as blocks, and the work under way.
 type Screen struct {
-	deps Deps
-	text copy
-	api  API
-	gen  int        // counts articles opened, so the results for the one before are dropped
-	icon *ui.Bitmap // the site icon of the entry, as the timeline last had it
+	lang  string // the language of the screen
+	hours int    // the hour cycle of the system, 12 or 24, 0 while unknown
+	deps  Deps
+	text  copy
+	api   API
+	gen   int        // counts articles opened, so the results for the one before are dropped
+	icon  *ui.Bitmap // the site icon of the entry, as the timeline last had it
 
 	id       int64
 	loading  bool
@@ -235,13 +237,14 @@ func New(systemLocale string, deps Deps) *Screen {
 	if deps.Decode == nil {
 		deps.Decode = ui.DecodeBitmap
 	}
-	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)], pics: pictures.New(false, 0),
+	return &Screen{deps: deps, lang: locale.Language(systemLocale), text: translations[locale.Language(systemLocale)], pics: pictures.New(false, 0),
 		fetching: map[int64]bool{}, known: map[int64]float64{}, resume: -1}
 }
 
 // SetLanguage shows the screen in the language of systemLocale, keeping what it shows.
 func (s *Screen) SetLanguage(systemLocale string) {
-	s.text = translations[locale.Language(systemLocale)]
+	s.lang = locale.Language(systemLocale)
+	s.text = translations[s.lang]
 }
 
 // Use reads from api from now on, dropping the work under way for the server before.
@@ -710,12 +713,7 @@ func (s *Screen) when(e client.Entry) string {
 	if ms == 0 {
 		ms = e.CreatedAt
 	}
-	now := s.deps.Now()
-	at := time.UnixMilli(ms).In(now.Location())
-	if at.Year() == now.Year() {
-		return at.Format(s.text.DateLayout)
-	}
-	return at.Format(s.text.YearLayout)
+	return locale.DateTime(s.lang, s.hours, s.deps.Now(), time.UnixMilli(ms))
 }
 
 // bitmap returns the decoded picture at address, asking for it if it has not been, and whether it failed.
@@ -735,6 +733,7 @@ func (s *Screen) download() {
 
 // View draws the reader in the place of the list; it does no disk or network work, which runs through Deps.
 func (s *Screen) View(c *ui.Context, nav Nav) {
+	s.hours = c.Region().HourCycle
 	t := c.Theme()
 	// The list holds the read and star state as they change; the extraction is as the article last loaded.
 	status := s.article.ExtractStatus

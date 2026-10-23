@@ -38,7 +38,7 @@ type copy struct {
 	Limited, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                                             string
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                                             string
 	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                            string
-	MorePictures, Pictures, AISummary, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                                                          string
+	MorePictures, Pictures, AISummary, Separator                                                                                                                        string
 	AddSource, EditSource, AddFirst, ImportOPML, RestoreBackup, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                  string
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                                                    string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
@@ -214,6 +214,8 @@ type fetchNote struct {
 
 // Screen keeps the timeline: the scope, the entries loaded, and the work under way.
 type Screen struct {
+	lang   string // the language of the screen
+	hours  int    // the hour cycle of the system, 12 or 24, 0 while unknown
 	deps   Deps
 	text   copy
 	api    API
@@ -340,7 +342,7 @@ func New(systemLocale string, deps Deps) *Screen {
 	if deps.Decode == nil {
 		deps.Decode = ui.DecodeBitmap
 	}
-	s := &Screen{deps: deps, text: translations[locale.Language(systemLocale)], selected: -1, focusRow: -1,
+	s := &Screen{deps: deps, lang: locale.Language(systemLocale), text: translations[locale.Language(systemLocale)], selected: -1, focusRow: -1,
 		hovered: -1, divider: -1, pics: pictures.New(true, keepPictures), rects: map[int]ui.Rect{}, dismissed: map[listKey]bool{}}
 	s.subs = subscriptions.New(systemLocale, subscriptions.Deps{
 		Go:           deps.Go,
@@ -391,7 +393,8 @@ func New(systemLocale string, deps Deps) *Screen {
 // SetLanguage shows the screen, its dialogs and the reader in the language of systemLocale, keeping the scope, the
 // selection, the place in the list and the article open.
 func (s *Screen) SetLanguage(systemLocale string) {
-	s.text = translations[locale.Language(systemLocale)]
+	s.lang = locale.Language(systemLocale)
+	s.text = translations[s.lang]
 	s.subs.SetLanguage(systemLocale)
 	s.reader.SetLanguage(systemLocale)
 }
@@ -2082,7 +2085,7 @@ func (s *Screen) nextUnread() {
 
 // staleText says that the server is out of reach and when the list was last brought up to date.
 func (s *Screen) staleText() string {
-	return strings.ReplaceAll(s.text.Offline, "{time}", s.updated.Format("15:04"))
+	return strings.ReplaceAll(s.text.Offline, "{time}", locale.Clock(s.lang, s.hours, s.updated))
 }
 
 func (s *Screen) format(text string, n int) string { return locale.Count(text, "n", n) }
@@ -2117,25 +2120,7 @@ func (s *Screen) when(e client.Entry, now time.Time) string {
 	if ms == 0 {
 		ms = e.CreatedAt
 	}
-	at := time.UnixMilli(ms).In(now.Location())
-	ago := now.Sub(at)
-	day := func(t time.Time) time.Time { y, m, d := t.Date(); return time.Date(y, m, d, 12, 0, 0, 0, time.UTC) }
-	days := int(day(now).Sub(day(at)).Hours() / 24)
-	switch {
-	case ago < time.Minute:
-		return s.text.Now
-	case ago < time.Hour:
-		return s.format(s.text.Minutes, int(ago/time.Minute))
-	case days == 0:
-		return s.format(s.text.Hours, int(ago/time.Hour))
-	case days == 1:
-		return s.text.Yesterday
-	case days < 7:
-		return s.format(s.text.Days, days)
-	case at.Year() == now.Year():
-		return at.Format(s.text.DateLayout)
-	}
-	return at.Format(s.text.YearLayout)
+	return locale.Capital(locale.Ago(s.lang, now, time.UnixMilli(ms)))
 }
 
 // title is what names an entry: its title, or the start of its text for a post without one.
@@ -2247,6 +2232,7 @@ func kindIcon(kind string) *ui.SVG {
 
 // View draws the timeline; it does no disk or network work, which runs through Deps.
 func (s *Screen) View(c *ui.Context) {
+	s.hours = c.Region().HourCycle
 	t := c.Theme()
 	now := s.deps.Now()
 	if s.editing {

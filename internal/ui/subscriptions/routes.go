@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
@@ -380,8 +381,7 @@ func (s *Screen) previewCard(c *ui.Context) {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).Children(func() {
 				ui.Text(c, e.Title).Grow(1).MinWidth(0).FontWeight(500).SingleLine()
 				if e.PublishedAt != nil {
-					ago := max(0, now.Sub(time.UnixMilli(*e.PublishedAt)))
-					ui.Text(c, s.span(ago)).FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).NoWrap()
+					ui.Text(c, locale.Capital(locale.Ago(s.lang, now, time.UnixMilli(*e.PublishedAt)))).FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).NoWrap()
 				}
 			})
 		}

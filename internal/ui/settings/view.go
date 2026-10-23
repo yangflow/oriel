@@ -49,8 +49,7 @@ type copy struct {
 	AutoReasonMissing, AutoReasonNotDir, AutoReasonNoWrite, AutoReasonDisk, AutoReasonOther                                                                                                                   string
 	AutoNeedFolder, AutoBadFolder, AutoInvalidKeep, AutoSaveFailed                                                                                                                                            string
 	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                                                                                                        string
-	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry, Now, Minutes                                                                                                  string
-	Hours, Yesterday, DaysAgo, DateLayout, YearLayout                                                                                                                                                         string
+	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry                                                                                                                string
 	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset                                                                                                string
 	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested                                                                                                 string
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase                                                                                                    string
@@ -1286,33 +1285,12 @@ func glyph(platform string) *ui.SVG {
 
 // date is the day of a time, with the year when it is not this one.
 func (s *Screen) date(ms int64, now time.Time) string {
-	at := time.UnixMilli(ms).In(now.Location())
-	if at.Year() == now.Year() {
-		return at.Format(s.text.DateLayout)
-	}
-	return at.Format(s.text.YearLayout)
+	return locale.Date(s.lang, now, time.UnixMilli(ms))
 }
 
 // ago is how long ago a time was, within a week, else its day.
 func (s *Screen) ago(ms int64, now time.Time) string {
-	at := time.UnixMilli(ms).In(now.Location())
-	d := now.Sub(at)
-	day := func(t time.Time) time.Time { y, m, d := t.Date(); return time.Date(y, m, d, 12, 0, 0, 0, time.UTC) }
-	days := int(day(now).Sub(day(at)).Hours() / 24)
-	n := func(text string, v int) string { return locale.Count(text, "n", v) }
-	switch {
-	case d < time.Minute:
-		return s.text.Now
-	case d < time.Hour:
-		return n(s.text.Minutes, int(d/time.Minute))
-	case days == 0:
-		return n(s.text.Hours, int(d/time.Hour))
-	case days == 1:
-		return s.text.Yesterday
-	case days < 7:
-		return n(s.text.DaysAgo, days)
-	}
-	return s.date(ms, now)
+	return locale.Ago(s.lang, now, time.UnixMilli(ms))
 }
 
 func (s *Screen) groupName(g int) string {

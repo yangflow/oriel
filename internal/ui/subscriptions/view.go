@@ -36,7 +36,7 @@ type copy struct {
 	SearchingRoutes, FoundRoutes, Preview, PreviewOf, PreviewEmpty, PreviewNotFound, NoCatalog, NoRoutes                                                                           string
 	LabelVideos, LabelDynamic, LabelPosts, LabelActivities, LabelAnswers, LabelColumn, LabelTopic, LabelCollection, LabelQuestion                                                  string
 	LabelChannel, LabelPlaylist                                                                                                                                                    string
-	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, CheckedNow, NotChecked, NextIn                                                                 string
+	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, NotChecked, NextIn                                                                             string
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                                                                      string
 	ServedBy, ServedByBackup, MuteHidden, MuteNone                                                                                                                                 string
 	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                                                                string
@@ -223,6 +223,7 @@ type reporting struct {
 
 // Screen keeps the dialogs and the work they started.
 type Screen struct {
+	lang     string // the language of the screen
 	deps     Deps
 	text     copy
 	api      API
@@ -244,12 +245,13 @@ func New(systemLocale string, deps Deps) *Screen {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
-	return &Screen{deps: deps, text: translations[locale.Language(systemLocale)], muteWait: 300 * time.Millisecond}
+	return &Screen{deps: deps, lang: locale.Language(systemLocale), text: translations[locale.Language(systemLocale)], muteWait: 300 * time.Millisecond}
 }
 
 // SetLanguage shows the screen in the language of systemLocale, keeping what it shows.
 func (s *Screen) SetLanguage(systemLocale string) {
-	s.text = translations[locale.Language(systemLocale)]
+	s.lang = locale.Language(systemLocale)
+	s.text = translations[s.lang]
 }
 
 // Use makes the dialogs work on api, and closes the ones of the server before.
@@ -1863,10 +1865,7 @@ func (s *Screen) healthText(src client.Source, now time.Time) (string, bool) {
 	case src.LastFetchedAt == 0:
 		return s.text.NotChecked, false
 	}
-	checked := s.text.CheckedNow
-	if ago := now.Sub(time.UnixMilli(src.LastFetchedAt)); ago >= time.Minute {
-		checked = strings.ReplaceAll(s.text.Checked, "{t}", s.span(ago))
-	}
+	checked := strings.ReplaceAll(s.text.Checked, "{t}", locale.Ago(s.lang, now, time.UnixMilli(src.LastFetchedAt)))
 	next := s.text.NextSoon
 	if in := time.UnixMilli(src.NextFetchAt).Sub(now); in >= time.Minute {
 		next = strings.ReplaceAll(s.text.NextIn, "{t}", s.span(in))

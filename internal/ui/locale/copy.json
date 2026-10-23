@@ -1,0 +1,30 @@
+{
+  "en": {
+    "Now": "just now",
+    "Minutes": "{n} min ago",
+    "Hours": "{n} h ago",
+    "Yesterday": "yesterday",
+    "Days": "{n} {n:day|days} ago",
+    "DateLayout": "Jan 2",
+    "YearLayout": "Jan 2, 2006",
+    "DateTime": "{date}, {time}",
+    "Clock24": "15:04",
+    "Clock12": "{time} {period}",
+    "AM": "AM",
+    "PM": "PM"
+  },
+  "zh-Hans": {
+    "Now": "刚刚",
+    "Minutes": "{n} 分钟前",
+    "Hours": "{n} 小时前",
+    "Yesterday": "昨天",
+    "Days": "{n} 天前",
+    "DateLayout": "1月2日",
+    "YearLayout": "2006年1月2日",
+    "DateTime": "{date} {time}",
+    "Clock24": "15:04",
+    "Clock12": "{period}{time}",
+    "AM": "上午",
+    "PM": "下午"
+  }
+}

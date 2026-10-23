@@ -763,8 +763,12 @@ func TestHealth(t *testing.T) {
 		{client.Source{}, "Not checked yet", false},
 		{client.Source{LastFetchedAt: now.UnixMilli(), NextFetchAt: now.UnixMilli()},
 			"Checked just now · next any moment", false},
+		{client.Source{LastFetchedAt: now.Add(-5 * time.Minute).UnixMilli(), NextFetchAt: now.Add(3 * time.Hour).UnixMilli()},
+			"Checked 5 min ago · next in 3 h", false},
+		{client.Source{LastFetchedAt: now.Add(-30 * time.Hour).UnixMilli(), NextFetchAt: now.Add(3 * time.Hour).UnixMilli()},
+			"Checked yesterday · next in 3 h", false},
 		{client.Source{LastFetchedAt: now.Add(-50 * time.Hour).UnixMilli(), NextFetchAt: now.Add(3 * time.Hour).UnixMilli()},
-			"Checked 2 d ago · next in 3 h", false},
+			"Checked 2 days ago · next in 3 h", false},
 	} {
 		if got, bad := s.healthText(c.src, now); got != c.want || bad != c.bad {
 			t.Errorf("healthText(%+v) = %q, %v; want %q, %v", c.src, got, bad, c.want, c.bad)

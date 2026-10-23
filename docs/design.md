@@ -120,7 +120,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   Appearance, Timeline) tightens only the spacing of rows, grid cells and wall tiles, by the values in
   `design/tokens.md`; no content is dropped. Drawn in `design/screens/timeline.html`, `dense`. When a background check fails after the list loaded, a quiet 28 high status line sits under the toolbar,
   lined up with the list: a 14 `Warning` wifi-off icon and 12 `TextMuted` text, "Can't reach the server · last updated
-  10:42", with no fill; it is a polite status, announced once, and goes away on the next successful check. At its end sits a quiet text button, "Try again" (12 `Accent`, 22 high, 8 padding, radius 6, hover fill like other quiet buttons); while a check runs it reads "Retrying…" in `TextMuted` and is disabled. A star or read change made while the server is out of reach stays on the row and is not rolled back; until it is sent, the row's meta line carries a 13 `TextMuted` upload icon after the star, named "Waiting to save". The queue lives in memory only and is lost on quit. Drawn in `design/screens/timeline.html`, `offline`, `offline-retrying`, `offline-pending`. Loading the first page of a list (a switch of scope, filter or kind, a reload) draws the skeleton only after 300 ms; an answer that comes sooner shows no loading state, so switching never flashes bars. With no subscriptions the list is an empty state: a 48 tile, a
+  10:42 AM", with no fill; it is a polite status, announced once, and goes away on the next successful check. At its end sits a quiet text button, "Try again" (12 `Accent`, 22 high, 8 padding, radius 6, hover fill like other quiet buttons); while a check runs it reads "Retrying…" in `TextMuted` and is disabled. A star or read change made while the server is out of reach stays on the row and is not rolled back; until it is sent, the row's meta line carries a 13 `TextMuted` upload icon after the star, named "Waiting to save". The queue lives in memory only and is lost on quit. Drawn in `design/screens/timeline.html`, `offline`, `offline-retrying`, `offline-pending`. Loading the first page of a list (a switch of scope, filter or kind, a reload) draws the skeleton only after 300 ms; an answer that comes sooner shows no loading state, so switching never flashes bars. With no subscriptions the list is an empty state: a 48 tile, a
   15 semibold heading, a hint at most 320 wide that names the links Oriel recognises, then a row of two buttons 8 apart,
   wrapping when narrow: the primary "Add your first subscription" and the secondary "Import OPML…" and a second secondary "Restore from backup…", both of which open
   Settings on Import and export. Drawn in `design/screens/timeline.html`, `no-subscriptions`. When a reading-time budget leaves nothing, the list shows the same pattern: a 48
@@ -1113,6 +1113,16 @@ color, and the row actions fade. See
   (`1月2日`).
 - Layouts must tolerate the longer of the two translations, and English text 30–50% longer than the first draft.
   Do not fix widths of text controls.
+- Relative times are one set of strings for every screen, written by `locale.Ago` (`internal/ui/locale/`): "just now",
+  "{n} min ago", "{n} h ago", "yesterday", "{n} days ago" (`{n} 分钟前`, `{n} 小时前`, `昨天`, `{n} 天前` in Chinese),
+  and from a week on the date ("Oct 15", with the year when it is not this one: "Dec 31, 2024"). The strings are lower
+  case; the caller capitalizes (`locale.Capital`) a time that stands alone, as in a timeline row, and leaves it as
+  it is inside a line ("Checked 5 min ago", "last used yesterday"). A new screen uses `locale.Ago`, not strings of its
+  own. Lengths of time that are not "ago" ("Auto · 6 h", "next in 3 h") are a separate matter and keep the short unit.
+- Times of day follow the hour cycle the system reports (MyGo `Region().HourCycle`); when the system says nothing, the
+  language decides: 12 hours in English ("3:04 PM", "Jan 2, 3:04 PM"), 24 hours in Chinese ("15:04"). In Chinese the
+  12-hour form puts the half of the day first ("下午3:04"). The reader's date line and the timeline's "last updated"
+  line use `locale.DateTime` and `locale.Clock`; no screen has its own time layout.
 - Format dates, times, numbers and plurals for the language. Chinese has no plural forms; English needs separate
   strings for one and many where it matters. A count in a string is filled by `locale.Count`: `{n}` becomes the
   number and `{n:entry|entries}` becomes the first form when the number is 1 and the second otherwise
