@@ -75,12 +75,31 @@ type SourcePatch struct {
 	ExtractRewrites   *string
 }
 
-const sourceColumns = `
+// sourceColumnsHead and sourceColumnsTail surround the unread count, which Source and Sources compute differently.
+const sourceColumnsHead = `
 	s.id, s.url, s.rsshub_path, s.title, s.site_url, s.icon_url, s.kind, s.fetch_interval_sec, s.fetch_interval_auto, s.suggested_kind, s.next_fetch_at,
 	s.last_fetched_at, s.last_success_at, s.last_error, s.last_error_kind, s.consecutive_failures, s.prompt_summary, s.prompt_translate,
 	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused, s.keep_days, s.pace_sec, s.extract_selector, s.extract_referer, s.extract_rewrites, s.rsshub_instance,
 	s.websub_hub, CASE WHEN s.websub_state = 'active' THEN s.websub_expires_at END,
-	(SELECT count(*) FROM entries e WHERE e.source_id = s.id AND e.is_read = 0 AND ` + shown + ` AND ` + live + `), s.created_at, s.updated_at`
+	`
+
+const sourceColumnsTail = `, s.created_at, s.updated_at`
+
+// unreadOf counts the unread entries of one source, as it appears in the list; it runs for a single source.
+const unreadOf = `(SELECT count(*) FROM entries e WHERE e.source_id = s.id AND e.is_read = 0 AND ` + shown + ` AND ` + live + `)`
+
+// unreadShown is shown for the grouped count, with two changes that keep exactly the entries shown keeps: the global
+// keywords come from the one-row table g, read once rather than for every entry, and an entry of a source without
+// keywords, while no global keywords are set, is shown before its row is read, so the count mostly runs on the index.
+const unreadShown = "(s.deleted_at IS NULL AND ((s.mute_keywords = '' AND g.v = '') OR e.starred = 1 OR " +
+	"((s.mute_keywords = '' OR NOT muted(s.mute_keywords, e.title, e.rss_summary)) AND " +
+	"(g.v = '' OR NOT muted(g.v, e.title, e.rss_summary)))))"
+
+// unreadByID counts the unread entries of every source in one pass, by the same rules as unreadOf. The partial index
+// entries_source_unread is named so that the rows come grouped by source without a sort; sources without a row count as zero.
+const unreadByID = `(SELECT e.source_id AS source_id, count(*) AS n FROM entries e INDEXED BY entries_source_unread JOIN sources s ON s.id = e.source_id,
+	(SELECT ` + globalMute + ` AS v) g
+	WHERE e.is_read = 0 AND ` + unreadShown + ` AND ` + live + ` GROUP BY e.source_id)`
 
 // CreateSource adds a subscription with a title, which may be empty, and returns it. The source is due at once
 // unless src.FirstFetchDelay says otherwise.
@@ -151,8 +170,8 @@ func (s *Store) purgeDeletedLike(ctx context.Context, src NewSource) error {
 
 // Sources lists every subscription by title, or by address when the title is empty.
 func (s *Store) Sources(ctx context.Context) ([]Source, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT"+sourceColumns+`
-		FROM sources s WHERE s.deleted_at IS NULL ORDER BY lower(CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN s.url ELSE s.rsshub_path END), s.id`)
+	rows, err := s.db.QueryContext(ctx, "SELECT"+sourceColumnsHead+"coalesce(u.n, 0)"+sourceColumnsTail+`
+		FROM sources s LEFT JOIN `+unreadByID+` u ON u.source_id = s.id WHERE s.deleted_at IS NULL ORDER BY lower(CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN s.url ELSE s.rsshub_path END), s.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +189,7 @@ func (s *Store) Sources(ctx context.Context) ([]Source, error) {
 
 // Source returns one subscription.
 func (s *Store) Source(ctx context.Context, id int64) (Source, error) {
-	return scanSource(s.db.QueryRowContext(ctx, "SELECT"+sourceColumns+" FROM sources s WHERE s.id = ? AND s.deleted_at IS NULL", id))
+	return scanSource(s.db.QueryRowContext(ctx, "SELECT"+sourceColumnsHead+unreadOf+sourceColumnsTail+" FROM sources s WHERE s.id = ? AND s.deleted_at IS NULL", id))
 }
 
 // UpdateSource applies a patch and returns the changed subscription. An empty patch changes nothing.
