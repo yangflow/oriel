@@ -208,6 +208,7 @@ func TestLoginLockout(t *testing.T) {
 	// Another address is not affected.
 	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader(`{"password":"secret"}`))
 	r.RemoteAddr = "192.0.2.77:4000"
+	r.Header.Set("Content-Type", "application/json")
 	other := httptest.NewRecorder()
 	s.ServeHTTP(other, r)
 	if other.Code != http.StatusOK {
@@ -298,6 +299,9 @@ func TestRequestOrigin(t *testing.T) {
 		"same origin":       {"127.0.0.1:7470", map[string]string{"Origin": "http://127.0.0.1:7470"}, http.StatusOK, ""},
 		"localhost":         {"localhost:7470", map[string]string{"Origin": "http://localhost:7470"}, http.StatusOK, ""},
 		"ipv6 loopback":     {"[::1]:7470", nil, http.StatusOK, ""},
+		"ipv6 no port":      {"[::1]", map[string]string{"Origin": "http://[::1]"}, http.StatusOK, ""},
+		"localhost dot":     {"localhost.:7470", nil, http.StatusOK, ""},
+		"mixed case origin": {"localhost:7470", map[string]string{"Origin": "http://LocalHost:7470"}, http.StatusOK, ""},
 		"other origin":      {"127.0.0.1:7470", map[string]string{"Origin": "https://example.org"}, http.StatusForbidden, "forbidden_origin"},
 		"other port":        {"127.0.0.1:7470", map[string]string{"Origin": "http://127.0.0.1:3000"}, http.StatusForbidden, "forbidden_origin"},
 		"null origin":       {"127.0.0.1:7470", map[string]string{"Origin": "null"}, http.StatusForbidden, "forbidden_origin"},
@@ -349,6 +353,18 @@ func TestWebSubIgnoresHostRule(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, r)
 	if w.Code != http.StatusNotFound || decode(t, w)["error"] != "not_found" {
+		t.Errorf("%d %s", w.Code, w.Body)
+	}
+}
+
+func TestLoginNeedsJSONContentType(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	r := httptest.NewRequest("POST", "/auth/login", strings.NewReader(`{"password":"secret"}`))
+	r.Host = "127.0.0.1:7470"
+	r.Header.Set("Content-Type", "text/plain")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	if w.Code != http.StatusUnauthorized || decode(t, w)["error"] != "wrong_password" {
 		t.Errorf("%d %s", w.Code, w.Body)
 	}
 }

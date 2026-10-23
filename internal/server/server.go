@@ -233,7 +233,7 @@ func loopbackHost(host string) bool {
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
-	host = strings.Trim(host, "[]")
+	host = strings.TrimSuffix(strings.Trim(host, "[]"), ".")
 	if strings.EqualFold(host, "localhost") {
 		return true
 	}
@@ -359,8 +359,8 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password string `json:"password"`
 	}
-	// A malformed body is treated as a wrong password, never as a field validation error.
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil {
+	// A malformed body, or one not declared as JSON, is treated as a wrong password, never as a field validation error.
+	if !jsonContent(r) || json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body) != nil {
 		s.throttle.fail(key, now)
 		fail(w, http.StatusUnauthorized, "wrong_password")
 		return
