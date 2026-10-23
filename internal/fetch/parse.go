@@ -2,15 +2,21 @@ package fetch
 
 import (
 	"bytes"
+	"mime"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/mmcdole/gofeed"
 	ext "github.com/mmcdole/gofeed/extensions"
 	"github.com/yangflow/oriel/internal/store"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
+	"golang.org/x/net/html/charset"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/unicode"
 )
 
 const maxImages = 20
@@ -23,9 +29,90 @@ type parsed struct {
 	entries []store.FeedEntry
 }
 
-// parse reads RSS, Atom or JSON Feed. base resolves relative links.
-func parse(body []byte, base *url.URL) (parsed, error) {
-	feed, err := gofeed.NewParser().Parse(bytes.NewReader(body))
+// xmlDeclaration matches the encoding named in an XML declaration at the start of a document.
+var xmlDeclaration = regexp.MustCompile(`^(\x{FEFF}?\s*<\?xml[^>]*?\bencoding\s*=\s*)("[^"]*"|'[^']*')`)
+
+// headerCharset is the canonical name of the charset in a Content-Type, empty when there is none or it is unknown.
+func headerCharset(contentType string) string {
+	_, params, err := mime.ParseMediaType(contentType)
+	label := strings.ToLower(strings.TrimSpace(params["charset"]))
+	if err != nil || label == "" {
+		return ""
+	}
+	if label == "us-ascii" || label == "ascii" {
+		return "utf-8" // the web maps it to windows-1252, but a feed in ASCII is also valid UTF-8
+	}
+	_, name := charset.Lookup(label)
+	return name
+}
+
+// declaresUTF8 reports whether the XML declaration at the start of body names UTF-8.
+func declaresUTF8(body []byte) bool {
+	m := xmlDeclaration.FindSubmatch(body)
+	if m == nil {
+		return false
+	}
+	_, name := charset.Lookup(strings.Trim(string(m[2]), `"'`))
+	return name == "utf-8"
+}
+
+func isASCII(body []byte) bool {
+	for _, b := range body {
+		if b >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
+}
+
+// decodeFeed converts a body to UTF-8 by the charset in the Content-Type, which wins over the XML declaration, and
+// rewrites the declaration to say UTF-8 so that the parser does not convert the text a second time. A UTF-16 byte
+// order mark wins over the header. The header is trusted only while it fits the bytes: UTF-8 in the header over a body
+// that is not valid UTF-8 is ignored, and so is another charset in the header over a body that is valid UTF-8 with
+// non-ASCII text and declares UTF-8. A body with no usable charset is returned as is: the parser reads the
+// declaration.
+func decodeFeed(body []byte, contentType string) []byte {
+	name := headerCharset(contentType)
+	switch {
+	case bytes.HasPrefix(body, []byte{0xFF, 0xFE}):
+		name = "utf-16le"
+	case bytes.HasPrefix(body, []byte{0xFE, 0xFF}):
+		name = "utf-16be"
+	}
+	var decoder *encoding.Decoder
+	switch name {
+	case "":
+		return body
+	case "utf-8":
+		if !utf8.Valid(body) {
+			return body
+		}
+		return xmlDeclaration.ReplaceAll(body, []byte(`${1}"utf-8"`))
+	case "utf-16le":
+		decoder = unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder()
+	case "utf-16be":
+		decoder = unicode.UTF16(unicode.BigEndian, unicode.UseBOM).NewDecoder()
+	default:
+		if declaresUTF8(body) && utf8.Valid(body) && !isASCII(body) {
+			return body
+		}
+		enc, _ := charset.Lookup(name)
+		if enc == nil {
+			return body
+		}
+		decoder = enc.NewDecoder()
+	}
+	decoded, err := decoder.Bytes(body)
+	if err != nil {
+		return body
+	}
+	return xmlDeclaration.ReplaceAll(decoded, []byte(`${1}"utf-8"`))
+}
+
+// parse reads RSS, Atom or JSON Feed. contentType is the response's Content-Type, empty when there is none. base
+// resolves relative links.
+func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
+	feed, err := gofeed.NewParser().Parse(bytes.NewReader(decodeFeed(body, contentType)))
 	if err != nil {
 		return parsed{}, err
 	}

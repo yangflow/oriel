@@ -547,7 +547,7 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 	if len(body) > maxBytes {
 		return 0, errTooLarge
 	}
-	feed, err := parse(body, base)
+	feed, err := parse(body, resp.Header.Get("Content-Type"), base)
 	if err != nil {
 		return 0, fmt.Errorf("not a feed: %w", err)
 	}

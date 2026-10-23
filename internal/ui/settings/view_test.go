@@ -19,6 +19,9 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
@@ -1947,5 +1950,29 @@ func TestBarEdge(t *testing.T) {
 	tt.Frame()
 	if s.scroll.Y != 0 {
 		t.Fatalf("the page is at %v after scrolling back", s.scroll.Y)
+	}
+}
+
+func TestSubscriptionsInCountsOtherEncodings(t *testing.T) {
+	const rest = `<outline text="Group"><outline text="b" xmlUrl="https://example.org/b"/></outline></body></opml>`
+	for name, c := range map[string]struct {
+		label, title string
+		enc          encoding.Encoding // nil keeps the text as UTF-8
+	}{
+		"UTF-8":      {"UTF-8", "中文 é", nil},
+		"GBK":        {"GBK", "中文 é", simplifiedchinese.GBK},
+		"ISO-8859-1": {"ISO-8859-1", "é", charmap.ISO8859_1},
+	} {
+		data := []byte(`<?xml version="1.0" encoding="` + c.label + `"?><opml version="2.0"><body>` +
+			`<outline text="` + c.title + `" xmlUrl="https://example.org/a"/>` + rest)
+		if c.enc != nil {
+			var err error
+			if data, err = c.enc.NewEncoder().Bytes(data); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := subscriptionsIn(data); got != 2 {
+			t.Errorf("%s: %d subscriptions, want 2", name, got)
+		}
 	}
 }

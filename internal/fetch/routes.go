@@ -240,7 +240,7 @@ func (r *Routes) previewFrom(ctx context.Context, inst, path string) (RoutePrevi
 	if len(body) > maxBytes {
 		return RoutePreview{}, false, ErrRouteUnavailable
 	}
-	feed, err := parse(body, base)
+	feed, err := parse(body, resp.Header.Get("Content-Type"), base)
 	if err != nil {
 		return RoutePreview{}, false, ErrNotAFeed
 	}

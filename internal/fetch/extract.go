@@ -123,29 +123,58 @@ func (g *hostGate) holdLocked(host string, at time.Time) {
 	}
 }
 
-// extractAll extracts up to extractBatch waiting articles at once, at most one per site in a round, and waits for them.
+// extractAll keeps up to extractBatch articles being extracted, and holds each site to the hostGate rule: requests at
+// least hostSpacing apart and at most hostLimit at once, counted together with the feed fetches. A finished page frees
+// its place at once for the next waiting article, so one slow page never holds back the others. It returns when
+// nothing is running and nothing more can start right now. An article gets one attempt per call.
 func (p *Poller) extractAll(ctx context.Context) {
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	done := make(chan struct{}, extractBatch)
+	tried := map[int64]bool{}
+	running := 0
+	for {
+		if running < extractBatch {
+			running += p.startExtractions(ctx, extractBatch-running, tried, &wg, done)
+		}
+		if running == 0 {
+			return
+		}
+		select {
+		case <-done:
+			running--
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// startExtractions starts up to limit extractions of waiting articles that are not in tried and returns how many it
+// started. Each one sends on done when it ends.
+func (p *Poller) startExtractions(ctx context.Context, limit int, tried map[int64]bool, wg *sync.WaitGroup, done chan<- struct{}) int {
+	if ctx.Err() != nil {
+		return 0
+	}
 	now := p.now()
 	waiting, err := p.store.PendingExtractions(ctx, now, candidates)
 	if err != nil {
 		if ctx.Err() == nil {
 			slog.Error("Cannot list pending extractions", "error", err)
 		}
-		return
+		return 0
 	}
-	type job struct {
-		target  store.ExtractTarget
-		address string // the page to request: the entry link after the source's rewrites
-		host    string
-	}
-	var jobs []job
+	started := 0
 	for _, target := range waiting {
-		if len(jobs) == extractBatch {
+		if started == limit {
 			break
+		}
+		if tried[target.ID] {
+			continue
 		}
 		address, err := targetAddress(target)
 		if err != nil {
 			// The source's own rules gave no address to ask for, and another try would give the same.
+			tried[target.ID] = true
 			slog.Info("Extraction failed", "entry", target.ID, "error", err)
 			if err := p.store.FailExtraction(ctx, target.ID, time.Time{}); err != nil {
 				slog.Error("Cannot save an extraction", "entry", target.ID, "error", err)
@@ -159,35 +188,40 @@ func (p *Poller) extractAll(ctx context.Context) {
 		if !p.hosts.acquire(host, now, hostSpacing) {
 			continue
 		}
-		jobs = append(jobs, job{target, address, host})
-	}
-	var wg sync.WaitGroup
-	for _, j := range jobs {
-		target := j.target
+		tried[target.ID] = true
+		started++
 		wg.Go(func() {
-			defer p.hosts.release(j.host)
-			content, err := p.extract(ctx, j.address, target.Selector, target.Referer)
-			if ctx.Err() != nil {
-				return // shutting down: the attempt does not count
-			}
-			if err != nil {
-				slog.Info("Extraction failed", "entry", target.ID, "error", err)
-				var failure *extractError
-				if errors.As(err, &failure) && failure.wait > 0 {
-					p.hosts.holdUntil(j.host, now.Add(failure.wait))
-				}
-				if err := p.store.FailExtraction(ctx, target.ID, retryAt(err, target.Attempts+1, now)); err != nil {
-					slog.Error("Cannot save an extraction", "entry", target.ID, "error", err)
-				}
-				return
-			}
-			plain := text(content)
-			if err := p.store.SaveExtraction(ctx, target.ID, content, plain, entryLanguage(target.Title, plain)); err != nil {
-				slog.Error("Cannot save an extraction", "entry", target.ID, "error", err)
-			}
+			defer func() { done <- struct{}{} }()
+			defer p.hosts.release(host)
+			p.extractOne(ctx, target, address, host)
 		})
 	}
-	wg.Wait()
+	return started
+}
+
+// extractOne extracts one article and saves the result. Hold and retry times count from the moment of the failure,
+// not from when the attempt started.
+func (p *Poller) extractOne(ctx context.Context, target store.ExtractTarget, address, host string) {
+	content, err := p.extract(ctx, address, target.Selector, target.Referer)
+	if ctx.Err() != nil {
+		return // shutting down: the attempt does not count
+	}
+	if err != nil {
+		slog.Info("Extraction failed", "entry", target.ID, "error", err)
+		failed := p.now()
+		var failure *extractError
+		if errors.As(err, &failure) && failure.wait > 0 {
+			p.hosts.holdUntil(host, failed.Add(failure.wait))
+		}
+		if err := p.store.FailExtraction(ctx, target.ID, retryAt(err, target.Attempts+1, failed)); err != nil {
+			slog.Error("Cannot save an extraction", "entry", target.ID, "error", err)
+		}
+		return
+	}
+	plain := text(content)
+	if err := p.store.SaveExtraction(ctx, target.ID, content, plain, entryLanguage(target.Title, plain)); err != nil {
+		slog.Error("Cannot save an extraction", "entry", target.ID, "error", err)
+	}
 }
 
 // targetAddress is the page to request for an entry: its link after the rewrite rules of its source.

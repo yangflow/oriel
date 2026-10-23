@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -234,5 +236,100 @@ func TestExtractHoldsHostWhileRetryAfter(t *testing.T) {
 	f.poller.extractAll(context.Background())
 	if hits.Load() != 2 {
 		t.Errorf("%d requests after the wait", hits.Load())
+	}
+}
+
+// moving is a clock that tests can move while requests are in flight.
+type moving struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (m *moving) get() time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.now
+}
+
+func (m *moving) add(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.now = m.now.Add(d)
+}
+
+func TestExtractCountsWaitsFromTheFailure(t *testing.T) {
+	var clock *moving
+	f, srv := extractFixture(t, func(w http.ResponseWriter, r *http.Request) {
+		clock.add(20 * time.Second) // the page took 20 seconds to fail
+		w.Header().Set("Retry-After", "300")
+		http.Error(w, "slow down", http.StatusTooManyRequests)
+	}, "/a")
+	start := f.now
+	clock = &moving{now: start}
+	f.poller.now = clock.get
+	f.poller.extractAll(context.Background())
+
+	failed := start.Add(20 * time.Second)
+	if got := time.UnixMilli(f.int("SELECT next_extract_at FROM entries")); !got.Equal(failed.Add(5 * time.Minute)) {
+		t.Errorf("next attempt at +%v, want 20s + 5m", got.Sub(start))
+	}
+	u, _ := url.Parse(srv.URL)
+	f.poller.hosts.mu.Lock()
+	held := f.poller.hosts.next[u.Host]
+	f.poller.hosts.mu.Unlock()
+	if !held.Equal(failed.Add(5 * time.Minute)) {
+		t.Errorf("host held until +%v, want 20s + 5m", held.Sub(start))
+	}
+}
+
+func TestExtractSlowPageDoesNotHoldFreePlaces(t *testing.T) {
+	f := newFixture(t)
+	f.poller.guarded = guardedClient(func(netip.AddrPort) bool { return false })
+	var fast atomic.Int32
+	enough := make(chan struct{})
+	var once sync.Once
+	var slowSawFast atomic.Int32
+	var slowReleased atomic.Bool
+	serve := func(slow bool) *httptest.Server {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if slow {
+				slowSawFast.Store(fast.Load())
+				select {
+				case <-enough:
+					slowReleased.Store(true)
+				case <-time.After(10 * time.Second):
+				}
+			} else if fast.Add(1) == extractBatch {
+				once.Do(func() { close(enough) })
+			}
+			w.Write([]byte(articlePage))
+		}))
+		t.Cleanup(srv.Close)
+		return srv
+	}
+	// One site per article, so only the number of places limits the round. The slow one comes last and is taken
+	// first (new articles first); the last fast one has to wait for a place that the others free.
+	var servers []*httptest.Server
+	for range extractBatch {
+		servers = append(servers, serve(false))
+	}
+	servers = append(servers, serve(true))
+	for _, srv := range servers {
+		id := f.add(store.NewSource{URL: srv.URL + "/feed"})
+		entry := store.FeedEntry{GUID: "/a", URL: srv.URL + "/a"}
+		if _, err := f.store.SaveFeed(context.Background(), store.FeedSource{ID: id, Kind: "article"}, "", "", []store.FeedEntry{entry}, "", time.Time{}, f.now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.poller.extractAll(context.Background())
+
+	if slowSawFast.Load() >= extractBatch {
+		t.Fatal("the slow page was not among the first places, so the test proves nothing")
+	}
+	if !slowReleased.Load() {
+		t.Error("the other articles waited for the slow page")
+	}
+	if n := f.int("SELECT count(*) FROM entries WHERE extract_status = 'ok'"); n != extractBatch+1 {
+		t.Errorf("%d articles extracted in one call", n)
 	}
 }
