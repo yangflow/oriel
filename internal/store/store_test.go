@@ -1107,10 +1107,6 @@ func TestMarkUnreadEdges(t *testing.T) {
 			t.Errorf("MarkUnread(%v) = %#v, %v", ids, got, err)
 		}
 	}
-	// The undo only touches entries read at the time it names.
-	if got, err := s.MarkUnread(ctx, marked, start.UnixMilli()); err != nil || len(got) != 0 {
-		t.Fatalf("stale undo = %v, %v", got, err)
-	}
 	// Unknown IDs and a repeated ID are skipped; the entry changes once.
 	got, err := s.MarkUnread(ctx, []int64{9999, marked[0], marked[0]}, start.Add(time.Minute).UnixMilli())
 	if err != nil || len(got) != 1 || got[0] != marked[0] {

@@ -164,15 +164,12 @@ func TestSettingsAutomaticCaps(t *testing.T) {
 	}
 }
 
-// The WebSub callback address must be a plain https root; it is saved without spaces and trailing slashes, and an
-// empty value turns WebSub off.
+// A rejected WebSub callback address is not stored, trailing slashes are cut, another field leaves the address alone,
+// and an empty value turns WebSub off. The plain bad forms are in TestWebSubSettingsAndSource.
 func TestSettingsWebSubBaseURL(t *testing.T) {
 	s, _ := newServer(t, "secret")
 	token := login(t, s, "laptop")
-	for _, root := range []string{
-		"http://oriel.example.com", "oriel.example.com", "ftp://oriel.example.com", "https://", "https://user:pw@oriel.example.com",
-		"https://oriel.example.com?x=1", "https://oriel.example.com/#top", "https://oriel .example.com",
-	} {
+	for _, root := range []string{"https://oriel .example.com", "https://oriel.example.com?x=1"} {
 		w := do(s, "PATCH", "/api/settings", `{"websubBaseUrl":"`+root+`"}`, bearer(token))
 		if w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_websub_base_url" {
 			t.Errorf("%q: %d %s", root, w.Code, w.Body)
@@ -220,7 +217,7 @@ func TestSettingsPatchIsAllOrNothing(t *testing.T) {
 	if after := do(s, "GET", "/api/settings", "", bearer(token)).Body.String(); after != before {
 		t.Fatalf("settings changed:\n%s\n%s", before, after)
 	}
-	// The limits take 0 for the default and their edges.
+	// The edges of a limit are accepted.
 	for body, want := range map[string]float64{`{"aiSummaryLimit":500}`: 500, `{"aiSummaryLimit":100000}`: 100000} {
 		if got := decode(t, do(s, "PATCH", "/api/settings", body, bearer(token)))["aiSummaryLimit"]; got != want {
 			t.Errorf("%s: %v", body, got)

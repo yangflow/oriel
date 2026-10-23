@@ -315,7 +315,7 @@ func TestSourcePatchAIOptions(t *testing.T) {
 			t.Errorf("%s: %d %s", body, w.Code, w.Body)
 		}
 	}
-	// The edges the validation allows: -1 keeps nothing back, 3650 days is the most.
+	// The edges the validation allows: -1 keeps entries for ever, 3650 days is the most, 0 follows the global setting.
 	for body, want := range map[string]float64{`{"keepDays":-1}`: -1, `{"keepDays":3650}`: 3650, `{"keepDays":0}`: 0, `{"paceSec":3600}`: 3600} {
 		w := do(s, "PATCH", "/api/sources/"+id, body, bearer(token))
 		field := "keepDays"
@@ -326,7 +326,7 @@ func TestSourcePatchAIOptions(t *testing.T) {
 			t.Errorf("%s: %d %v", body, w.Code, got)
 		}
 	}
-	// A title of spaces clears the title; a kind change does not touch the other fields.
+	// A title of spaces clears the title and leaves the kind alone.
 	if got := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"title":"   "}`, bearer(token))); got["title"] != "" || got["kind"] != "article" {
 		t.Fatalf("blank title: %v", got)
 	}
