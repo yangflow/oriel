@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/yangflow/oriel/internal/store"
 )
@@ -14,8 +13,8 @@ import (
 const (
 	defaultPage = 50
 	maxPage     = 100
-	// minQuery is the shortest text the trigram index can match.
-	minQuery = 3
+	// shortQueryLimit is the most entries a search of one or two characters returns, in one reply.
+	shortQueryLimit = 200
 	// maxListAISummary is the most characters of an AI summary a list carries; the full one is at /api/entries/{id}/ai.
 	maxListAISummary = 300
 	// maxBudgetMinutes is the longest reading-time budget a client may ask for: one day.
@@ -171,10 +170,6 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_kind")
 		return
 	}
-	if filter.Query != "" && utf8.RuneCountInString(filter.Query) < minQuery {
-		fail(w, http.StatusBadRequest, "query_too_short")
-		return
-	}
 	if raw := query.Get("maxMinutes"); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 1 || n > maxBudgetMinutes {
@@ -213,6 +208,10 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filter.Group = group
+	limited := store.ShortQuery(filter.Query)
+	if limited {
+		limit = shortQueryLimit
+	}
 	// One extra row tells whether another page follows.
 	list, err := s.store.Entries(r.Context(), filter, limit+1)
 	if err != nil {
@@ -220,7 +219,9 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var next *string
-	if len(list) > limit {
+	if limited {
+		list = list[:min(len(list), limit)] // a short search is one reply, never a next page
+	} else if len(list) > limit {
 		list = list[:limit]
 		last := list[limit-1]
 		token := cursor(store.Position{CreatedAt: last.CreatedAt.UnixMilli(), ID: last.ID})
@@ -231,7 +232,11 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 		items[i] = entryToJSON(entry)
 		items[i].AISummary = clipSummary(entry.AISummary)
 	}
-	reply(w, http.StatusOK, map[string]any{"entries": items, "nextCursor": next})
+	body := map[string]any{"entries": items, "nextCursor": next}
+	if limited {
+		body["limited"] = true
+	}
+	reply(w, http.StatusOK, body)
 }
 
 func (s *Server) getEntry(w http.ResponseWriter, r *http.Request) {

@@ -34,7 +34,7 @@ type copy struct {
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
 	MarkUnread, Open, Blocked, BlockedPublic, FeedRemoved, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                string
-	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                                            string
+	Limited, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                                             string
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                                             string
 	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                            string
 	MorePictures, Pictures, AISummary, Now, Minutes, Hours, Yesterday, Days, DateLayout, YearLayout, Separator                                                          string
@@ -78,7 +78,7 @@ const (
 	debounce     = 300 * time.Millisecond
 	refreshEvery = 2 * time.Second // how often the progress of "refresh all" is read
 	refreshLimit = 3 * time.Minute // how long it counts before it stops waiting for the rest
-	minQuery     = 3               // characters a search needs, as the server's trigram index does
+	minIndexed   = 3               // characters the server's trigram index needs; a shorter search only reads titles and summaries
 	maxDownloads = 4
 	keepPictures = 300 // decoded pictures kept in memory
 	wallAhead    = 800 // how far beyond the view the image wall loads pictures and the next page
@@ -1377,17 +1377,18 @@ func indexOf(list []string, v string) int {
 	return -1
 }
 
-// trimmed is the query as searched, and whether it is too short to send.
-func (s *Screen) trimmed() (string, bool) {
-	q := strings.TrimSpace(s.query)
-	return q, q != "" && utf8.RuneCountInString(q) < minQuery
+// limited reports whether the search applied is one or two characters, which the server answers from titles and
+// summaries only, at most 200 entries.
+func (s *Screen) limited() bool {
+	n := utf8.RuneCountInString(s.searched)
+	return n > 0 && n < minIndexed
 }
 
-// search applies the query typed, unless it is too short.
+// search applies the query typed.
 func (s *Screen) search() {
 	s.editing = false
-	q, short := s.trimmed()
-	if short || q == s.searched {
+	q := strings.TrimSpace(s.query)
+	if q == s.searched {
 		return
 	}
 	s.show(func() { s.searched = q })
@@ -3470,7 +3471,6 @@ func (s *Screen) setBudget(n int) {
 // text in it.
 func (s *Screen) searchField(c *ui.Context, opened bool) {
 	t := c.Theme()
-	_, short := s.trimmed()
 	box := ui.Row(c).Key("search").Width(px(t, 200)).MinWidth(px(t, 48)).Shrink(100).Height(px(t, 32)).Gap(px(t, 6)).Padding(0, px(t, 6), 0, px(t, 12)).
 		Radius(px(t, 16))
 	focused := s.typing
@@ -3492,9 +3492,6 @@ func (s *Screen) searchField(c *ui.Context, opened bool) {
 		ui.Icon(c, icons.Search).FontSize(px(t, 14)).TextColor(t.TextMuted)
 		input = ui.TextInputBase(c, &s.query).Grow(1).MinWidth(0).Label(s.text.SearchLabel).
 			Placeholder(s.text.Search)
-		if short {
-			input.Error(s.text.TooShort)
-		}
 		if s.query != "" {
 			input.OnShortcut(0, ui.KeyEscape, func() { s.clearing = true })
 			clear := ui.ButtonBase(c).Size(px(t, 20), px(t, 20)).Radius(px(t, 6)).Label(s.text.Clear)
@@ -3517,9 +3514,6 @@ func (s *Screen) searchField(c *ui.Context, opened bool) {
 		s.searchOpen = false
 	}
 	s.focusSeen = s.typing
-	if short {
-		box.InsetShadow(0, 0, 0, 1.5, t.Warning)
-	}
 	if cleared {
 		s.query = ""
 		input.Focus()
@@ -3612,7 +3606,7 @@ func (s *Screen) markAllButton(c *ui.Context) {
 }
 
 func (s *Screen) hint(c *ui.Context) {
-	if _, short := s.trimmed(); !short {
+	if !s.limited() {
 		return
 	}
 	t := c.Theme()
@@ -3621,7 +3615,7 @@ func (s *Screen) hint(c *ui.Context) {
 		Padding(px(t, 7), px(t, 14)).Radius(px(t, 12)).Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).
 		Children(func() {
 			ui.Icon(c, icons.CircleAlert).FontSize(px(t, 14)).TextColor(t.Warning)
-			ui.Text(c, s.text.TooShort).FontSize(px(t, 12)).TextColor(theme.Text2(t))
+			ui.Text(c, s.text.Limited).FontSize(px(t, 12)).TextColor(theme.Text2(t))
 		})
 }
 
@@ -3640,7 +3634,7 @@ func (s *Screen) stale(c *ui.Context) {
 	}
 	t := c.Theme()
 	top := float32(theme.Bar)
-	if _, short := s.trimmed(); short {
+	if s.limited() {
 		top = 4
 	}
 	row := ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(px(t, 6)).Height(staleHeight).Role(ui.RoleStatus)
@@ -3769,7 +3763,7 @@ func (s *Screen) firstInView() int64 {
 // already sits below the row. The line that says the server is out of reach adds its own height.
 func (s *Screen) top() float32 {
 	top := float32(theme.Bar)
-	if _, short := s.trimmed(); short {
+	if s.limited() {
 		top = 0
 	}
 	if s.staleShown() {

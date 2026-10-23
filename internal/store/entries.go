@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"modernc.org/sqlite"
 )
@@ -147,6 +148,18 @@ func muted(keywords, title, summary string) bool {
 	return false
 }
 
+// MinIndexedQuery is the fewest characters the trigram index can match; a shorter query is a ShortQuery.
+const MinIndexedQuery = 3
+
+// ShortQuery reports whether q is a search of one or two characters, which the index cannot answer. It is matched
+// against the title and the summary only, by LIKE.
+func ShortQuery(q string) bool {
+	return q != "" && utf8.RuneCountInString(q) < MinIndexedQuery
+}
+
+// likeEscaper escapes the characters LIKE treats as patterns, with backslash as the escape character.
+var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+
 // where turns a filter into conditions on entries e joined with sources s. Muted entries never match.
 func (f EntryFilter) where() (string, []any) {
 	conditions := []string{shown}
@@ -193,7 +206,11 @@ func (f EntryFilter) where() (string, []any) {
 	if f.MaxReadingSec > 0 {
 		add("e.reading_sec <= ?", f.MaxReadingSec) // NULL never compares true
 	}
-	if f.Query != "" {
+	if ShortQuery(f.Query) {
+		// The trigram index cannot match fewer than three characters: scan the title and the summary instead.
+		pattern := "%" + likeEscaper.Replace(f.Query) + "%"
+		add(`(e.title LIKE ? ESCAPE '\' OR e.rss_summary LIKE ? ESCAPE '\')`, pattern, pattern)
+	} else if f.Query != "" {
 		add("e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH ?)", `"`+strings.ReplaceAll(f.Query, `"`, `""`)+`"`)
 	}
 	if f.After != nil {

@@ -1199,13 +1199,17 @@ func TestSearch(t *testing.T) {
 		t.Fatal("Cmd+F does not focus the search")
 	}
 	tt.Type("go")
-	if !tt.HasText("Type at least 3 characters to search") {
-		t.Fatalf("no hint: %v", tt.Texts())
+	if tt.HasText("Only titles and summaries are searched, up to 200 entries shown") {
+		t.Fatal("the hint shows before the short search is applied")
 	}
-	f.now = f.now.Add(time.Second)
+	f.now = f.now.Add(debounce)
 	tt.Frame()
-	if len(f.queue) != 0 {
-		t.Fatal("a query too short was sent")
+	f.settle(t, tt)
+	if q := f.queries[len(f.queries)-1]; q.Search != "go" || s.searched != "go" {
+		t.Fatalf("a two-character query is not sent: %v, searched %q", q, s.searched)
+	}
+	if !tt.HasText("Only titles and summaries are searched, up to 200 entries shown") {
+		t.Fatalf("no hint: %v", tt.Texts())
 	}
 	tt.Type(" t")
 	if len(f.queue) != 0 {
@@ -1214,6 +1218,9 @@ func TestSearch(t *testing.T) {
 	f.now = f.now.Add(debounce)
 	tt.Frame()
 	f.settle(t, tt)
+	if tt.HasText("Only titles and summaries are searched, up to 200 entries shown") {
+		t.Fatal("the hint stays for a longer search")
+	}
 	if q := f.queries[len(f.queries)-1]; q.Search != "go t" {
 		t.Fatalf("query %v", q)
 	}

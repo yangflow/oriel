@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -44,21 +45,19 @@ func titles(t *testing.T, body map[string]any) []string {
 func TestEntryQueryValidation(t *testing.T) {
 	s, _ := newServer(t, "")
 	for query, code := range map[string]string{
-		"source=x":             "invalid_source",
-		"source=0":             "invalid_source",
-		"kind=podcast":         "invalid_kind",
-		"q=ab":                 "query_too_short",
-		"q=%E4%B8%AD%E6%96%87": "query_too_short",
-		"limit=0":              "invalid_limit",
-		"limit=101":            "invalid_limit",
-		"cursor=abc":           "invalid_cursor",
-		"cursor=1.0":           "invalid_cursor",
-		"order=up":             "invalid_order",
-		"order=ASC":            "invalid_order",
-		"maxMinutes=0":         "invalid_max_minutes",
-		"maxMinutes=1441":      "invalid_max_minutes",
-		"maxMinutes=x":         "invalid_max_minutes",
-		"maxMinutes=2.5":       "invalid_max_minutes",
+		"source=x":        "invalid_source",
+		"source=0":        "invalid_source",
+		"kind=podcast":    "invalid_kind",
+		"limit=0":         "invalid_limit",
+		"limit=101":       "invalid_limit",
+		"cursor=abc":      "invalid_cursor",
+		"cursor=1.0":      "invalid_cursor",
+		"order=up":        "invalid_order",
+		"order=ASC":       "invalid_order",
+		"maxMinutes=0":    "invalid_max_minutes",
+		"maxMinutes=1441": "invalid_max_minutes",
+		"maxMinutes=x":    "invalid_max_minutes",
+		"maxMinutes=2.5":  "invalid_max_minutes",
 	} {
 		w := do(s, "GET", "/api/entries?"+query, "", nil)
 		if w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
@@ -624,5 +623,108 @@ func TestMarkReadOlderThan(t *testing.T) {
 	}
 	if w := do(s, "POST", "/api/entries/read", `{"olderThan":0}`, bearer(token)); decode(t, w)["error"] != "invalid_older_than" {
 		t.Errorf("error code: %s", w.Body)
+	}
+}
+
+// TestShortSearch answers a query of one or two characters by LIKE over the title and the summary: any case, the
+// characters %, _ and \ taken as themselves, the same filters and mute rules as the index, and at most 200 entries
+// in one reply marked limited.
+func TestShortSearch(t *testing.T) {
+	s, c := newServer(t, "")
+	ctx := context.Background()
+	src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "", c.t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []store.FeedEntry{
+		{GUID: "1", Title: "苹果发布新款芯片"},
+		{GUID: "2", Title: "Weekly", Summary: "芯片短缺"},
+		{GUID: "3", Title: "100% done"},
+		{GUID: "4", Title: "snake_case"},
+		{GUID: "5", Title: `back\slash`},
+		{GUID: "6", Title: "Go release"},
+		{GUID: "7", Title: "Nothing here"},
+		{GUID: "8", Title: "梨子"},
+		{GUID: "9", Title: "Muted GO post", Summary: "spam"},
+	}
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "article"}, "", "", items, "", time.Time{}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	if w := do(s, "PATCH", "/api/sources/"+strconv.FormatInt(src.ID, 10), `{"muteKeywords":"spam"}`, nil); w.Code != http.StatusOK {
+		t.Fatalf("mute: %d %s", w.Code, w.Body)
+	}
+	search := func(q string) (map[string]any, []string) {
+		t.Helper()
+		w := do(s, "GET", "/api/entries?q="+url.QueryEscape(q), "", nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%q: %d %s", q, w.Code, w.Body)
+		}
+		body := decode(t, w)
+		got := titles(t, body)
+		slices.Sort(got)
+		return body, got
+	}
+	for q, want := range map[string]string{
+		"芯片":  "[Weekly 苹果发布新款芯片]", // title and summary
+		"苹":   "[苹果发布新款芯片]",
+		"go":  "[Go release]", // any case; the muted entry stays out
+		"GO":  "[Go release]",
+		"%":   "[100% done]",
+		"_":   "[snake_case]",
+		`\`:   `[back\slash]`,
+		"x_":  "[]", // _ is not "any character"
+		"%e":  "[]", // nor is %
+		"zz":  "[]",
+		"梨子":  "[梨子]",
+		" 梨 ": "[梨子]", // trimmed like any query
+	} {
+		body, got := search(q)
+		if fmt.Sprint(got) != want || body["limited"] != true || body["nextCursor"] != nil {
+			t.Errorf("%q: %v, limited %v, next %v; want %s", q, got, body["limited"], body["nextCursor"], want)
+		}
+	}
+	// Three characters still go through the index and are not marked.
+	if body, got := search("Weekly"); fmt.Sprint(got) != "[Weekly]" || body["limited"] != nil {
+		t.Errorf("indexed: %v, limited %v", got, body["limited"])
+	}
+
+	// The other filters hold: unread, kind.
+	id := decode(t, do(s, "GET", "/api/entries?q=%E8%8B%B9", "", nil))["entries"].([]any)[0].(map[string]any)["id"].(float64)
+	if w := do(s, "PATCH", "/api/entries/"+strconv.Itoa(int(id)), `{"isRead":true}`, nil); w.Code != http.StatusOK {
+		t.Fatalf("read: %d", w.Code)
+	}
+	if got := titles(t, decode(t, do(s, "GET", "/api/entries?unread=1&q=%E8%8B%B9", "", nil))); len(got) != 0 {
+		t.Errorf("unread: %v", got)
+	}
+	if got := titles(t, decode(t, do(s, "GET", "/api/entries?kind=video&q=%E8%8B%B9", "", nil))); len(got) != 0 {
+		t.Errorf("kind: %v", got)
+	}
+}
+
+// TestShortSearchLimit stops a short search at 200 entries, newest first or oldest first, in one reply.
+func TestShortSearchLimit(t *testing.T) {
+	s, c := newServer(t, "")
+	ctx := context.Background()
+	src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "", c.t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var items []store.FeedEntry
+	for i := range 230 {
+		items = append(items, store.FeedEntry{GUID: strconv.Itoa(i), Title: fmt.Sprintf("苹果 %03d", i)})
+	}
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "article"}, "", "", items, "", time.Time{}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	for _, order := range []string{"desc", "asc"} {
+		// limit does not matter: a short search is one reply.
+		body := decode(t, do(s, "GET", "/api/entries?limit=5&order="+order+"&q=%E8%8B%B9", "", nil))
+		got := titles(t, body)
+		if len(got) != 200 || body["limited"] != true || body["nextCursor"] != nil {
+			t.Fatalf("%s: %d entries, limited %v, next %v", order, len(got), body["limited"], body["nextCursor"])
+		}
+		if want := map[string]string{"desc": "苹果 000", "asc": "苹果 229"}[order]; got[0] != want {
+			t.Errorf("%s: starts with %q, want %q", order, got[0], want)
+		}
 	}
 }
