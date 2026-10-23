@@ -301,13 +301,25 @@ func (s *Store) RestoreSource(ctx context.Context, id int64, now time.Time) (Sou
 }
 
 // PurgeDeletedSources removes the subscriptions whose undo window is over, and through the foreign key all their
-// entries, starred or not. It returns how many subscriptions it removed.
-func (s *Store) PurgeDeletedSources(ctx context.Context, now time.Time) (int64, error) {
-	result, err := s.db.ExecContext(ctx, "DELETE FROM sources WHERE deleted_at <= ?", now.Add(-DeleteUndoWindow).UnixMilli())
+// entries, starred or not. It returns how many subscriptions and how many entries it removed.
+func (s *Store) PurgeDeletedSources(ctx context.Context, now time.Time) (sources, entries int64, err error) {
+	cutoff := now.Add(-DeleteUndoWindow).UnixMilli()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return result.RowsAffected()
+	defer tx.Rollback()
+	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM entries WHERE source_id IN (SELECT id FROM sources WHERE deleted_at <= ?)", cutoff).Scan(&entries); err != nil {
+		return 0, 0, err
+	}
+	result, err := tx.ExecContext(ctx, "DELETE FROM sources WHERE deleted_at <= ?", cutoff)
+	if err != nil {
+		return 0, 0, err
+	}
+	if sources, err = result.RowsAffected(); err != nil {
+		return 0, 0, err
+	}
+	return sources, entries, tx.Commit()
 }
 
 // MarkSourceDue makes an unpaused subscription due now, without changing its updated_at.

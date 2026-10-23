@@ -42,6 +42,7 @@ type Store struct {
 	path string // the database file; backups and restores keep their scratch files beside it
 
 	vacuuming atomic.Bool // set while Vacuum runs
+	closed    atomic.Bool
 
 	// Tests shrink the prune batch and hook between batches; zero means the defaults.
 	pruneBatch     int
@@ -78,6 +79,7 @@ func Open(ctx context.Context, file string) (*Store, error) {
 		s.Close()
 		return nil, err
 	}
+	s.optimize(ctx)
 	return s, nil
 }
 
@@ -88,14 +90,24 @@ func dsn(file string) string {
 	// Every transaction takes the write lock when it begins. A deferred one that reads first and writes later
 	// would fail at once with SQLITE_BUSY when it upgrades, and busy_timeout does not apply to that.
 	query.Set("_txlock", "immediate")
-	for _, pragma := range []string{"journal_mode(WAL)", "foreign_keys(1)", "busy_timeout(5000)", "synchronous(NORMAL)"} {
+	// auto_vacuum must come before journal_mode: it only takes hold while the file has no pages, and switching to the
+	// write-ahead log writes the first one. On an existing database it changes nothing until the next VACUUM.
+	for _, pragma := range []string{"auto_vacuum(INCREMENTAL)", "journal_mode(WAL)", "foreign_keys(1)", "busy_timeout(5000)", "synchronous(NORMAL)"} {
 		query.Add("_pragma", pragma)
 	}
 	return file + "?" + query.Encode()
 }
 
-// Close closes the database, then releases the lock.
+// Close refreshes the query statistics and empties the write-ahead log into the database file, both best effort, then
+// closes the database and releases the lock.
 func (s *Store) Close() error {
+	if !s.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), closeMaintenance)
+	defer cancel()
+	s.optimize(ctx)
+	s.db.ExecContext(ctx, checkpoint)
 	return errors.Join(s.db.Close(), s.lock.Close())
 }
 

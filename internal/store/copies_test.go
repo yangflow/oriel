@@ -176,7 +176,7 @@ func TestCopiesGoWithTheSource(t *testing.T) {
 	if list, _ := s.PendingCopies(ctx, at, 10); len(list) != 0 {
 		t.Errorf("a deleted source's entry is still copied: %+v", list)
 	}
-	if _, err := s.PurgeDeletedSources(ctx, at.Add(time.Hour)); err != nil {
+	if _, _, err := s.PurgeDeletedSources(ctx, at.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if n, size, _ := s.CopyStats(ctx); n != 0 || size != 0 {

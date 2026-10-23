@@ -2,6 +2,7 @@ package fetch
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strconv"
 	"time"
@@ -63,7 +64,8 @@ func (p *Poller) prune(ctx context.Context) {
 	if deleted > 0 {
 		slog.Info("Pruned expired entries", "count", deleted)
 	}
-	purged, err := p.store.PurgeDeletedSources(ctx, now)
+	p.maintain(ctx, deleted)
+	purged, entries, err := p.store.PurgeDeletedSources(ctx, now)
 	if err != nil {
 		if ctx.Err() == nil {
 			slog.Error("Cannot remove deleted subscriptions", "error", err)
@@ -71,6 +73,15 @@ func (p *Poller) prune(ctx context.Context) {
 		return
 	}
 	if purged > 0 {
-		slog.Info("Removed deleted subscriptions", "count", purged)
+		slog.Info("Removed deleted subscriptions", "count", purged, "entries", entries)
+	}
+	p.maintain(ctx, entries)
+}
+
+// maintain gives the disk space of removed entries back (see store.Maintain). A prune that was cut off by ctx, which
+// is a shutdown, never gets here, so it skips this.
+func (p *Poller) maintain(ctx context.Context, removed int64) {
+	if err := p.store.Maintain(ctx, removed); err != nil && ctx.Err() == nil && !errors.Is(err, store.ErrVacuumRunning) {
+		slog.Error("Cannot shrink the database after removing entries", "error", err)
 	}
 }

@@ -174,9 +174,19 @@ func (s *Store) Vacuum(ctx context.Context) error {
 		return ErrVacuumRunning
 	}
 	defer s.vacuuming.Store(false)
-	if _, err := s.db.ExecContext(ctx, "VACUUM"); err != nil {
+	// auto_vacuum only changes through a VACUUM on the same connection, so this one also converts a database made
+	// before incremental vacuum was used.
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
 		return err
 	}
-	_, err := s.db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, "PRAGMA auto_vacuum = INCREMENTAL"); err != nil {
+		return err
+	}
+	if _, err := conn.ExecContext(ctx, "VACUUM"); err != nil {
+		return err
+	}
+	_, err = conn.ExecContext(ctx, checkpoint)
 	return err
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -149,5 +150,155 @@ func TestOnlyOneVacuumRuns(t *testing.T) {
 	}
 	if !s.Vacuuming() {
 		t.Fatal("the running flag was cleared by the refused call")
+	}
+}
+
+func fillSource(t *testing.T, s *Store, n int) Source {
+	t.Helper()
+	src := newLogSource(t, s, "https://a.example/feed")
+	var entries []FeedEntry
+	for i := 0; i < n; i++ {
+		entries = append(entries, FeedEntry{GUID: "g" + strconv.Itoa(i), Title: "t", URL: "https://a.example/" + strconv.Itoa(i), ContentHTML: strings.Repeat("<p>text</p>", 400), PublishedAt: time.Now()})
+	}
+	if _, err := s.SaveFeed(context.Background(), FeedSource{ID: src.ID, URL: src.URL, Kind: "article"}, "Blog", "", entries, "", time.Time{}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	return src
+}
+
+func autoVacuum(t *testing.T, s *Store) int {
+	t.Helper()
+	var mode int
+	if err := s.db.QueryRow("PRAGMA auto_vacuum").Scan(&mode); err != nil {
+		t.Fatal(err)
+	}
+	return mode
+}
+
+func TestMaintainShrinksTheFileAfterALargePrune(t *testing.T) {
+	ctx := context.Background()
+	file := filepath.Join(t.TempDir(), "oriel.sqlite")
+	s := open(t, file)
+	if autoVacuum(t, s) != autoVacuumIncremental {
+		t.Fatalf("a new database has auto_vacuum %d", autoVacuum(t, s))
+	}
+	src := fillSource(t, s, 300)
+	full, _ := s.Storage(ctx)
+	deleteForGood(t, s, src.ID)
+	if err := s.Maintain(ctx, MaintainAfter-1); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := s.Storage(ctx); st.DatabaseBytes != full.DatabaseBytes {
+		t.Fatalf("a small prune changed the file: %d to %d", full.DatabaseBytes, st.DatabaseBytes)
+	}
+	if err := s.Maintain(ctx, 300); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := s.Storage(ctx)
+	if after.ReclaimableBytes != 0 || after.DatabaseBytes >= full.DatabaseBytes {
+		t.Fatalf("after maintenance: %+v (before %+v)", after, full)
+	}
+	if info, err := os.Stat(file); err != nil || info.Size() != after.DatabaseBytes {
+		t.Fatalf("file size %v, %v", info, err)
+	}
+	if info, err := os.Stat(file + "-wal"); err == nil && info.Size() != 0 {
+		t.Fatalf("the write-ahead log keeps %d bytes", info.Size())
+	}
+}
+
+func TestMaintainLeavesAnOldDatabaseAloneUntilTheManualCompaction(t *testing.T) {
+	ctx := context.Background()
+	file := filepath.Join(t.TempDir(), "oriel.sqlite")
+	old := open(t, file)
+	// Switch the database back to how older versions made it.
+	conn, err := old.db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(ctx, "PRAGMA auto_vacuum = NONE"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(ctx, "VACUUM"); err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+	if autoVacuum(t, old) != 0 {
+		t.Fatal("could not make an old style database")
+	}
+	src := fillSource(t, old, 300)
+	full, _ := old.Storage(ctx)
+	deleteForGood(t, old, src.ID)
+	if err := old.Maintain(ctx, 300); err != nil {
+		t.Fatal(err)
+	}
+	kept, _ := old.Storage(ctx)
+	if autoVacuum(t, old) != 0 || kept.DatabaseBytes != full.DatabaseBytes {
+		t.Fatalf("Maintain changed an old database: mode %d, %+v (before %+v)", autoVacuum(t, old), kept, full)
+	}
+	if info, err := os.Stat(file + "-wal"); err == nil && info.Size() != 0 {
+		t.Fatalf("the write-ahead log keeps %d bytes", info.Size())
+	}
+	if err := old.Vacuum(ctx); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := old.Storage(ctx)
+	if autoVacuum(t, old) != autoVacuumIncremental || after.DatabaseBytes >= full.DatabaseBytes {
+		t.Fatalf("mode %d, %+v (before %+v)", autoVacuum(t, old), after, full)
+	}
+	// Once converted, a later large prune shrinks the file through Maintain.
+	src = fillSource(t, old, 300)
+	grown, _ := old.Storage(ctx)
+	deleteForGood(t, old, src.ID)
+	if err := old.Maintain(ctx, 300); err != nil {
+		t.Fatal(err)
+	}
+	if shrunk, _ := old.Storage(ctx); shrunk.DatabaseBytes >= grown.DatabaseBytes {
+		t.Fatalf("a converted database did not shrink: %+v (before %+v)", shrunk, grown)
+	}
+}
+
+func TestOneIncrementalStepGivesBackAtMostItsPages(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	src := fillSource(t, s, 600)
+	deleteForGood(t, s, src.ID)
+	free := func() int64 {
+		var n int64
+		if err := s.db.QueryRow("PRAGMA freelist_count").Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := free()
+	if before <= incrementalPages {
+		t.Fatalf("only %d free pages, the test needs more", before)
+	}
+	if _, err := s.db.ExecContext(ctx, "PRAGMA incremental_vacuum("+strconv.Itoa(incrementalPages)+")"); err != nil {
+		t.Fatal(err)
+	}
+	if after := free(); after != before-incrementalPages {
+		t.Fatalf("a step took the free pages from %d to %d", before, after)
+	}
+}
+
+func TestCloseTwiceIsHarmless(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("the second Close failed: %v", err)
+	}
+}
+
+func TestCloseEmptiesTheWriteAheadLog(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "oriel.sqlite")
+	s := open(t, file)
+	fillSource(t, s, 20)
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(file + "-wal"); err == nil && info.Size() != 0 {
+		t.Fatalf("the write-ahead log keeps %d bytes", info.Size())
 	}
 }
