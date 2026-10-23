@@ -241,7 +241,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `status` | `pending`（排队或进行中）→ `ok` / `failed`。 |
 | `text` | 结果，纯文本，段落之间空一行。失败时保留上一次成功的结果。 |
 | `error` | 失败的错误码，见「AI 接口」。 |
-| `attempts` | 自动处理试过几次，满 3 次不再自动重试。 |
+| `attempts` | 自动处理试过几次，满 3 次不再自动重试。只数跟这个条目有关的失败；接口本身的失败（`ai_unreachable`、`ai_unauthorized`、`ai_rate_limited`，以及接口已在退避时的 `ai_timeout`、`ai_model_not_found`）不加一，见「自动处理」。 |
 | `requested` | 是用户要的（`1`）还是自动排的（`0`）；用户要的先处理。 |
 | `fingerprint` | 输入的指纹：模型、生效的 prompt、目标语言和送去的原文的 SHA-256。 |
 | `model` | 生成结果的模型。 |
@@ -507,7 +507,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 - 登录请求的坏 JSON 返回 401，不是字段校验错误。
 - 登录限速，防止猜口令和拖垮服务：同一个客户端地址（`RemoteAddr`，不看 `X-Forwarded-For`）连续输错 5 次不受限，第 6 次错起锁 1 秒，之后每多错一次翻倍，最长 15 分钟；锁定期间的登录不再派生密钥，直接返回 429、`error` 为 `too_many_attempts`，`Retry-After` 给出剩余秒数。登录成功清掉该地址的记录，安静满 1 小时的记录也会清掉，内存里最多留 1 万条。
 - 同时派生密钥的登录最多 2 个，其余不排队，直接返回 429 和 `Retry-After: 1`。连接界面把 429 显示为「尝试次数太多，请稍后再试」，焦点在口令框。
-- HTTP 服务设读头 10 秒、整个请求 1 分钟、写 150 秒（比最慢的 AI 测试调用 2 分钟略长）、空闲 2 分钟的超时。
+- HTTP 服务设读头 10 秒、整个请求 1 分钟、写 150 秒（比最慢的 AI 测试调用 2 分钟略长）、空闲 2 分钟的超时。等 AI 接口回答的路由（`POST /api/ai/test`、`POST /api/ai/selection`）自己把读写期限放宽到 150 秒，不受整个请求 1 分钟的限制；备份和恢复放宽到 30 分钟。
 - 会话放在 cookie `oriel_session`（HttpOnly，SameSite=Lax，30 天；HTTPS 或带 `X-Forwarded-Proto: https` 时加 Secure），或 `Authorization: Bearer <token>`。空闲满 30 天失效。最近使用时间最多一分钟写一次。
 - 每次登录是一条设备会话，可以单独退出登录，也可以登出当前会话。
 
@@ -912,8 +912,8 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 - `POST {aiBaseUrl}/chat/completions`，`stream: false`。system 消息是生效的 prompt，user 消息是原文；设了 key 时带 `Authorization: Bearer <key>`。
 - 生效的 prompt：源的 `promptSummary` / `promptTranslate` 不为空就用源的，否则用全局的。prompt 里的 `{language}` 换成目标语言的名字（`简体中文`、`English`）。
 - 内置的摘要 prompt：`Summarize the article in {language} in three to five sentences. Reply with the summary only.`；翻译 prompt：`Translate the text into {language}. Keep the paragraphs and their order, and the title on the first line. Reply with the translation only.`
-- 每个请求超时 120 秒，响应最大 1 MiB。认 `HTTP_PROXY` / `HTTPS_PROXY`。接口地址是用户自己填的，可以指向本机或内网，不走正文抽取的公网检查。
-- 结果取第一个 `choices[].message.content`，去掉首尾空白；为空算失败。
+- 每个请求超时 120 秒，响应最大 1 MiB。自检是例外：列模型和短请求共用一个 120 秒的总预算，最坏情况也是 120 秒，客户端等 130 秒。认 `HTTP_PROXY` / `HTTPS_PROXY`。接口地址是用户自己填的，可以指向本机或内网，不走正文抽取的公网检查。
+- 结果取第一个 `choices[].message.content`，去掉首尾空白，再去掉开头的一段 `<think>…</think>`（推理模型会把思考写进正文）；为空算失败。`finish_reason` 为 `length`（被接口的输出上限截断）的答复算失败，`ai_upstream`，不保存、不当作翻完的一块，照常走重试。
 
 自检（`POST /api/ai/test`）在服务端做，界面只显示结果，从不在绘制时联网：
 
@@ -934,7 +934,7 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 | `ai_unauthorized` | 上游 401 或 403，多半是 key 不对。 |
 | `ai_rate_limited` | 上游 429。 |
 | `ai_model_not_found` | 接口的模型列表里没有这个模型，或聊天请求得到 404。 |
-| `ai_upstream` | 上游其他非 2xx，或返回的不是预期的 JSON，或结果为空。 |
+| `ai_upstream` | 上游其他非 2xx，或返回的不是预期的 JSON，或结果为空，或答复被输出上限截断（`finish_reason` 为 `length`）。 |
 | `ai_empty` | 条目没有可送的文字。 |
 | `ai_cap_reached` | 自动处理碰到了每天或每次抓取的上限，这一条没有处理。不会自动重试，用户点「摘要」「翻译」或「重试」会照做（见「发送与费用」）。 |
 
@@ -951,7 +951,8 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 
 - 源开了 `autoSummary` / `autoTranslate` 时，抓取写入的新条目自动排队（`requested` 为 `0`）。只管打开开关之后新到的条目，不补旧条目。没配置好时不排。条目的语言已知且等于目标语言时不排自动翻译（见「语言检测」）；文章的语言要等抽取到全文才可能得知，之前排下的翻译照做。
 - 后台一个处理器，同时最多 2 个请求。先做用户要的（新的在前），再做自动的（新的在前）。`POST` 排队后马上唤醒它，此外每 15 秒看一次队列。
-- 自动的失败了按「满 3 次不再自动重试」处理，每次之间至少隔 5 分钟；不影响抓取和抽取。
+- 自动的失败了按「满 3 次不再自动重试」处理，每次之间至少隔 5 分钟；不影响抓取和抽取。跟条目有关的失败（`ai_upstream`、`ai_empty`，包括被截断的答复）计入这 3 次。接口本身的失败（`ai_unreachable`、`ai_unauthorized`、`ai_rate_limited`）不计：结果照样记为失败并带上错误码，但 `attempts` 不加一。`ai_timeout` 和 `ai_model_not_found` 要看接口当时的状况：接口此前一直正常（没有在退避）时，可能是这一条太长、这个模型回答不了，计入 3 次；接口已在退避时算接口的，不计。
+- 接口失败时处理器整体退避：等 1 分钟，再失败翻倍，最长 30 分钟，下一次成功就清零。429 带 `Retry-After`（秒数或日期）时至少等那么久，同样最长 30 分钟。退避期间不再发自动的请求，用户要的不受影响，照常发出并给出原因；用户自己点出来的请求失败了，不再把退避翻倍，只沿用当前的等待。用户点一个正排队的自动结果，它就转为用户要的，哪怕它正在处理中也不会被每天的上限叫停。自检或选中文字的翻译、解释成功，说明接口恢复了，退避马上清掉；用别的模型或 key 成功的不算。`ai_unauthorized` 时一直停到接口地址、模型或 key 改了为止。换了其中任何一个，退避马上清掉。
 - 自动处理受上限约束，见下面的「发送与费用」。
 - 设置改了之后，已有的结果不重做；下次用户要时指纹变了才重做。
 

@@ -27,6 +27,8 @@ type upstream struct {
 	answer   func(req chatRequest) (int, string) // status and message content
 	models   func() (int, string)                // status and body of GET /v1/models; nil means no such route
 	listAuth []string
+	finish   string            // finish_reason of the reply, empty to leave it out
+	header   map[string]string // extra headers of the chat reply
 }
 
 type chatRequest struct {
@@ -65,14 +67,18 @@ func newUpstream(t *testing.T) *upstream {
 		u.mu.Lock()
 		u.requests = append(u.requests, req)
 		u.auth = append(u.auth, r.Header.Get("Authorization"))
-		answer := u.answer
+		answer, finish, header := u.answer, u.finish, u.header
 		u.mu.Unlock()
 		status, content := answer(req)
+		for k, v := range header {
+			w.Header().Set(k, v)
+		}
 		w.WriteHeader(status)
-		json.NewEncoder(w).Encode(map[string]any{
-			"model":   req.Model + "-0613",
-			"choices": []any{map[string]any{"message": map[string]string{"role": "assistant", "content": content}}},
-		})
+		choice := map[string]any{"message": map[string]string{"role": "assistant", "content": content}}
+		if finish != "" {
+			choice["finish_reason"] = finish
+		}
+		json.NewEncoder(w).Encode(map[string]any{"model": req.Model + "-0613", "choices": []any{choice}})
 	}))
 	t.Cleanup(u.Close)
 	return u
@@ -292,7 +298,7 @@ func TestErrors(t *testing.T) {
 		http.StatusInternalServerError: ErrUpstream,
 	} {
 		u.answer = func(chatRequest) (int, string) { return status, "x" }
-		if _, err := f.worker.Test(ctx); err != want {
+		if _, err := f.worker.Test(ctx); !errors.Is(err, want) {
 			t.Errorf("status %d: %v", status, err)
 		}
 	}
@@ -715,5 +721,368 @@ func TestRetryKeepsFinishedChunks(t *testing.T) {
 	}
 	if got := f.result(id, store.TaskTranslation); got.Text != "ok:T\n\nok:a\n\nok:b\n\nok:b" {
 		t.Fatalf("text %q", got.Text)
+	}
+}
+
+func TestTruncatedReplyFails(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	f.set(ChunkLimitSetting, "500")
+	ctx := context.Background()
+	u.finish = "length"
+	if _, err := f.worker.Test(ctx); !errors.Is(err, ErrUpstream) {
+		t.Fatalf("self-check of a truncated reply: %v", err)
+	}
+	long := strings.Repeat("First paragraph of the article.\n\n", 40)
+	id := f.entry("social", store.FeedEntry{GUID: "len", Title: "T", ContentHTML: "<p>" + long + "</p>"}, store.TaskTranslation)
+	f.drain()
+	got := f.result(id, store.TaskTranslation)
+	if got.Status != "failed" || got.Error != "ai_upstream" || got.Text != "" || got.Attempts != 1 {
+		t.Fatalf("truncated translation: %+v", got)
+	}
+	if n := len(u.calls()); n != 2 { // the self-check and the first chunk
+		t.Fatalf("%d calls for a truncated first chunk", n)
+	}
+	// The normal retry runs it again once the endpoint answers in full.
+	u.finish = "stop"
+	f.now = f.now.Add(retryDelay)
+	f.drain()
+	if got := f.result(id, store.TaskTranslation); got.Status != "ok" {
+		t.Fatalf("after retry: %+v", got)
+	}
+}
+
+func TestThinkingBlockIsStripped(t *testing.T) {
+	for in, want := range map[string]string{
+		"<think>hmm\nmore</think>\n\nThe summary.": "The summary.",
+		"  <think></think>Done ":                   "Done",
+		"Answer <think>kept</think>":               "Answer <think>kept</think>",
+		"<think>never closed":                      "<think>never closed",
+		"<think>only thoughts</think>":             "",
+	} {
+		if got := stripThinking(in); got != want {
+			t.Errorf("%q: %q, want %q", in, got, want)
+		}
+	}
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	u.answer = func(chatRequest) (int, string) { return http.StatusOK, "<think>x</think>" }
+	if _, err := f.worker.Test(context.Background()); !errors.Is(err, ErrUpstream) {
+		t.Fatalf("only a thinking block: %v", err)
+	}
+	u.answer = func(chatRequest) (int, string) { return http.StatusOK, "<think>x</think> Fine" }
+	id := f.entry("social", store.FeedEntry{GUID: "think", Title: "T"})
+	f.worker.Request(context.Background(), id, store.TaskSummary)
+	f.drain()
+	if got := f.result(id, store.TaskSummary); got.Status != "ok" || got.Text != "Fine" {
+		t.Fatalf("summary: %+v", got)
+	}
+}
+
+func TestOutageDoesNotUseUpAttempts(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	// An overloaded endpoint answers 429 without a Retry-After; a refused connection is covered below.
+	u.answer = func(chatRequest) (int, string) { return http.StatusTooManyRequests, "" }
+	var ids []int64
+	for i := range 4 {
+		ids = append(ids, f.entry("social", store.FeedEntry{GUID: "o" + strconv.Itoa(i), Title: "T"}, store.TaskSummary))
+	}
+	start := f.now
+	for f.now.Sub(start) < 15*time.Minute {
+		f.drain()
+		f.now = f.now.Add(15 * time.Second)
+	}
+	// Two jobs start together, then the worker waits 1 minute, 2, 4 and 8: six calls in 15 minutes at most.
+	if n := len(u.calls()); n > 6 {
+		t.Fatalf("%d calls during the outage", n)
+	}
+	for _, id := range ids {
+		if got := f.result(id, store.TaskSummary); got.Attempts != 0 || got.Error == "" && got.Status != "pending" {
+			t.Fatalf("attempts used up: %+v", got)
+		}
+	}
+	u.answer = func(chatRequest) (int, string) { return http.StatusOK, "done" }
+	f.now = f.now.Add(maxBackoff)
+	for range 10 {
+		f.drain()
+		f.now = f.now.Add(retryDelay)
+	}
+	for _, id := range ids {
+		if got := f.result(id, store.TaskSummary); got.Status != "ok" {
+			t.Fatalf("not done after the outage: %+v", got)
+		}
+	}
+	if f.worker.paused(Config{BaseURL: u.URL + "/v1", Model: "test-model", APIKey: "test-key"}) {
+		t.Fatal("still waiting after a success")
+	}
+}
+
+func TestUnreachableEndpointDoesNotUseUpAttempts(t *testing.T) {
+	f := newFixture(t, "http://127.0.0.1:1")
+	id := f.entry("social", store.FeedEntry{GUID: "u1", Title: "T"}, store.TaskSummary)
+	start := f.now
+	for f.now.Sub(start) < 15*time.Minute {
+		f.drain()
+		f.now = f.now.Add(15 * time.Second)
+	}
+	if got := f.result(id, store.TaskSummary); got.Status != "failed" || got.Error != "ai_unreachable" || got.Attempts != 0 {
+		t.Fatalf("after a 15-minute outage: %+v", got)
+	}
+}
+
+func TestBackoffDoublesAndHonorsRetryAfter(t *testing.T) {
+	f := newFixture(t, "http://127.0.0.1:1")
+	cfg, _ := Load(context.Background(), f.store)
+	for i, want := range []time.Duration{time.Minute, 2 * time.Minute, 4 * time.Minute, 8 * time.Minute, 16 * time.Minute, 30 * time.Minute, 30 * time.Minute} {
+		f.now = f.now.Add(time.Hour)
+		f.worker.failed(cfg, f.now, ErrUnreachable, ErrUnreachable, false)
+		if got := f.worker.health.until.Sub(f.now); got != want {
+			t.Fatalf("failure %d waits %v, want %v", i+1, got, want)
+		}
+	}
+	f.worker.succeeded(cfg)
+	f.worker.failed(cfg, f.now, rateLimit{after: 10 * time.Minute}, ErrRateLimited, false)
+	if got := f.worker.health.until.Sub(f.now); got != 10*time.Minute {
+		t.Fatalf("Retry-After: %v", got)
+	}
+	f.worker.succeeded(cfg)
+	f.worker.failed(cfg, f.now, rateLimit{after: 3 * time.Hour}, ErrRateLimited, false)
+	if got := f.worker.health.until.Sub(f.now); got != maxBackoff {
+		t.Fatalf("long Retry-After: %v", got)
+	}
+	if got := retryAfter("120", f.now); got != 2*time.Minute {
+		t.Fatalf("seconds: %v", got)
+	}
+	if got := retryAfter(f.now.Add(90*time.Second).UTC().Format(http.TimeFormat), f.now); got < 89*time.Second || got > 91*time.Second {
+		t.Fatalf("date: %v", got)
+	}
+	if got := retryAfter("99999999999999", f.now); got != maxBackoff {
+		t.Fatalf("huge: %v", got)
+	}
+	if got := retryAfter("-5", f.now); got != 0 {
+		t.Fatalf("negative: %v", got)
+	}
+	if got := retryAfter("soon", f.now); got != 0 {
+		t.Fatalf("junk: %v", got)
+	}
+}
+
+func TestRateLimitRetryAfterPausesWorker(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	u.header = map[string]string{"Retry-After": "600"}
+	u.answer = func(chatRequest) (int, string) { return http.StatusTooManyRequests, "" }
+	first := f.entry("social", store.FeedEntry{GUID: "r1", Title: "T"}, store.TaskSummary)
+	f.drain()
+	second := f.entry("social", store.FeedEntry{GUID: "r2", Title: "T"}, store.TaskSummary)
+	f.now = f.now.Add(9 * time.Minute)
+	f.drain()
+	if n := len(u.calls()); n != 1 {
+		t.Fatalf("%d calls before Retry-After passed", n)
+	}
+	if got := f.result(second, store.TaskSummary); got.Status != "pending" {
+		t.Fatalf("second: %+v", got)
+	}
+	// A request by the user is not held back, and shows the reason.
+	if _, err := f.worker.Request(context.Background(), second, store.TaskSummary); err != nil {
+		t.Fatal(err)
+	}
+	f.drain()
+	if got := f.result(second, store.TaskSummary); got.Status != "failed" || got.Error != "ai_rate_limited" || got.Attempts != 0 {
+		t.Fatalf("requested while limited: %+v", got)
+	}
+	if got := f.result(first, store.TaskSummary); got.Attempts != 0 {
+		t.Fatalf("first: %+v", got)
+	}
+}
+
+func TestWrongKeyPausesUntilSettingsChange(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	good := false
+	u.answer = func(chatRequest) (int, string) {
+		if !good {
+			return http.StatusUnauthorized, ""
+		}
+		return http.StatusOK, "done"
+	}
+	var ids []int64
+	for i := range 4 {
+		ids = append(ids, f.entry("social", store.FeedEntry{GUID: "k" + strconv.Itoa(i), Title: "T"}, store.TaskSummary))
+	}
+	for range 100 {
+		f.drain()
+		f.now = f.now.Add(time.Hour)
+	}
+	if n := len(u.calls()); n > 2 {
+		t.Fatalf("%d calls with a refused key", n)
+	}
+	for _, id := range ids {
+		if got := f.result(id, store.TaskSummary); got.Attempts != 0 || got.Status == "ok" {
+			t.Fatalf("after a wrong key: %+v", got)
+		}
+	}
+	// A new key ends the wait, and the entries still have all their tries.
+	good = true
+	f.set(APIKeySetting, "other-key")
+	for range 6 {
+		f.drain()
+		f.now = f.now.Add(retryDelay)
+	}
+	for _, id := range ids {
+		if got := f.result(id, store.TaskSummary); got.Status != "ok" {
+			t.Fatalf("after the key changed: %+v", got)
+		}
+	}
+}
+
+func TestSelfCheckSharesOneBudget(t *testing.T) {
+	u := newUpstream(t)
+	u.models = func() (int, string) {
+		time.Sleep(120 * time.Millisecond)
+		return http.StatusOK, `{"data":[{"id":"test-model"}]}`
+	}
+	u.answer = func(chatRequest) (int, string) {
+		time.Sleep(120 * time.Millisecond)
+		return http.StatusOK, "OK"
+	}
+	f := newFixture(t, u.URL)
+	f.worker.timeout = 200 * time.Millisecond // each step fits alone
+	f.worker.budget = 200 * time.Millisecond  // but not both
+	if _, err := f.worker.Test(context.Background()); !errors.Is(err, ErrTimeout) {
+		t.Fatalf("two slow steps: %v", err)
+	}
+	f.worker.budget = time.Second
+	if _, err := f.worker.Test(context.Background()); err != nil {
+		t.Fatalf("within the budget: %v", err)
+	}
+}
+
+// A timeout on an endpoint that is otherwise working may be the entry's doing, so it uses up an attempt and an
+// entry that always times out is given up on.
+func TestTimeoutOfHealthyEndpointCountsAttempts(t *testing.T) {
+	release := make(chan struct{})
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer slow.Close()
+	defer close(release)
+	f := newFixture(t, slow.URL)
+	f.worker.timeout = 30 * time.Millisecond
+	id := f.entry("social", store.FeedEntry{GUID: "slow", Title: "T"}, store.TaskSummary)
+	for range 12 {
+		f.drain()
+		f.now = f.now.Add(maxBackoff)
+	}
+	if got := f.result(id, store.TaskSummary); got.Status != "failed" || got.Error != "ai_timeout" || got.Attempts != maxAttempts {
+		t.Fatalf("always timing out: %+v", got)
+	}
+}
+
+// A missing model counts the same way; an endpoint already waiting does not charge the entry.
+func TestModelNotFoundCountsOnlyWhenHealthy(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	u.answer = func(chatRequest) (int, string) { return http.StatusNotFound, "" }
+	id := f.entry("social", store.FeedEntry{GUID: "m", Title: "T"}, store.TaskSummary)
+	f.drain()
+	if got := f.result(id, store.TaskSummary); got.Attempts != 1 || got.Error != "ai_model_not_found" {
+		t.Fatalf("healthy endpoint: %+v", got)
+	}
+	cfg, _ := Load(context.Background(), f.store)
+	if !f.worker.paused(cfg) {
+		t.Fatal("not waiting after the failure")
+	}
+	// While it waits, the user's retry does not use up an attempt.
+	if _, err := f.worker.Request(context.Background(), id, store.TaskSummary); err != nil {
+		t.Fatal(err)
+	}
+	f.drain()
+	if got := f.result(id, store.TaskSummary); got.Attempts != 1 {
+		t.Fatalf("while waiting: %+v", got)
+	}
+}
+
+// A working self-check or selection shows the endpoint is back, so automatic work goes on at once.
+func TestTestAndSelectionClearThePause(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	cfg, _ := Load(context.Background(), f.store)
+	for name, check := range map[string]func() error{
+		"test": func() error { _, err := f.worker.Test(context.Background()); return err },
+		"selection": func() error {
+			_, _, err := f.worker.Selection(context.Background(), SelectionTranslate, "hello", "")
+			return err
+		},
+	} {
+		f.worker.failed(cfg, f.now, ErrUnreachable, ErrUnreachable, false)
+		if !f.worker.paused(cfg) {
+			t.Fatalf("%s: not waiting", name)
+		}
+		if err := check(); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if f.worker.paused(cfg) {
+			t.Fatalf("%s: still waiting after a success", name)
+		}
+	}
+}
+
+// A success with other settings says nothing about the endpoint that is waiting.
+func TestSuccessOfOtherSettingsKeepsThePause(t *testing.T) {
+	f := newFixture(t, "http://127.0.0.1:1")
+	cfg, _ := Load(context.Background(), f.store)
+	f.worker.failed(cfg, f.now, ErrUnreachable, ErrUnreachable, false)
+	other := cfg
+	other.Model = "other-model"
+	f.worker.succeeded(other)
+	if !f.worker.paused(cfg) {
+		t.Fatal("the wait ended by a success of another model")
+	}
+	f.worker.succeeded(cfg)
+	if f.worker.paused(cfg) {
+		t.Fatal("the wait went on after its own success")
+	}
+}
+
+// Calls the user starts by hand while the endpoint fails do not double the wait.
+func TestRequestedFailuresDoNotDoubleTheWait(t *testing.T) {
+	f := newFixture(t, "http://127.0.0.1:1")
+	cfg, _ := Load(context.Background(), f.store)
+	f.worker.failed(cfg, f.now, ErrUnreachable, ErrUnreachable, false)
+	for range 5 {
+		f.now = f.now.Add(time.Second)
+		f.worker.failed(cfg, f.now, ErrUnreachable, ErrUnreachable, true)
+	}
+	if got := f.worker.health.backoff; got != minBackoff {
+		t.Fatalf("backoff after hand-made failures: %v", got)
+	}
+	// With no wait yet, a hand-made failure starts it.
+	g := newFixture(t, "http://127.0.0.1:1")
+	g.worker.failed(cfg, g.now, ErrUnreachable, ErrUnreachable, true)
+	if got := g.worker.health.backoff; got != minBackoff {
+		t.Fatalf("first failure: %v", got)
+	}
+}
+
+// A task the user asked for while it runs is not stopped by the cap that the automatic run hits.
+func TestCapDoesNotStopPromotedTask(t *testing.T) {
+	u := newUpstream(t)
+	f := newFixture(t, u.URL)
+	ctx := context.Background()
+	id := f.entry("social", store.FeedEntry{GUID: "p", Title: "T"}, store.TaskSummary)
+	got, err := f.worker.Request(ctx, id, store.TaskSummary)
+	if err != nil || !got.Requested {
+		t.Fatalf("request of a queued automatic task: %+v, %v", got, err)
+	}
+	if err := f.store.StopAI(ctx, id, store.TaskSummary, f.now); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.result(id, store.TaskSummary); got.Status != "pending" {
+		t.Fatalf("stopped although the user asked: %+v", got)
 	}
 }

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -230,5 +231,83 @@ func TestAISelfCheck(t *testing.T) {
 	w = do(s, "POST", "/api/ai/test", "", bearer(token))
 	if w.Code != http.StatusBadGateway || decode(t, w)["error"] != "ai_model_not_found" {
 		t.Fatalf("missing model: %d %s", w.Code, w.Body)
+	}
+}
+
+// A server read timeout does not cancel the context of a handler that is still running, but the write timeout cuts
+// its answer off; so an AI route that waits for the endpoint extends the deadlines.
+func TestAIRoutesOutlastServerTimeouts(t *testing.T) {
+	answered := func(extend bool) (ctxCanceled bool, delivered bool) {
+		srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if extend {
+				extendDeadlinesTo(w, time.Minute)
+			}
+			select {
+			case <-r.Context().Done():
+				ctxCanceled = true
+			case <-time.After(400 * time.Millisecond):
+			}
+			w.Write([]byte("late"))
+		}))
+		srv.Config.ReadTimeout = 100 * time.Millisecond
+		srv.Config.WriteTimeout = 100 * time.Millisecond
+		srv.Start()
+		defer srv.Close()
+		resp, err := http.Post(srv.URL, "application/json", strings.NewReader("{}"))
+		if err != nil {
+			return ctxCanceled, false
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		return ctxCanceled, err == nil && string(body) == "late"
+	}
+	if canceled, delivered := answered(false); canceled || delivered {
+		t.Errorf("without extension: context canceled %v, delivered %v", canceled, delivered)
+	}
+	if canceled, delivered := answered(true); canceled || !delivered {
+		t.Errorf("with extension: context canceled %v, delivered %v", canceled, delivered)
+	}
+}
+
+// The real routes of the self-check and of the selection answer an endpoint slower than the server's read and write
+// timeouts, because they extend the deadlines.
+func TestAIRoutesAnswerSlowEndpoint(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(300 * time.Millisecond)
+		if r.URL.Path == "/v1/models" {
+			w.Write([]byte(`{"data":[{"id":"m"}]}`))
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"model": "m", "choices": []any{map[string]any{"message": map[string]string{"content": "OK"}}}})
+	}))
+	defer upstream.Close()
+	s.store.SetSetting(ctx, ai.BaseURLSetting, upstream.URL+"/v1")
+	s.store.SetSetting(ctx, ai.ModelSetting, "m")
+	front := httptest.NewUnstartedServer(s)
+	front.Config.ReadTimeout = 100 * time.Millisecond
+	front.Config.WriteTimeout = 100 * time.Millisecond
+	front.Start()
+	defer front.Close()
+	for path, body := range map[string]string{
+		"/api/ai/test":      "",
+		"/api/ai/selection": `{"task":"translate","text":"hello"}`,
+	} {
+		req, err := http.NewRequest("POST", front.URL+path, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		raw, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: %d %s %v", path, resp.StatusCode, raw, err)
+		}
 	}
 }
