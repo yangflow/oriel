@@ -1301,14 +1301,14 @@ func TestOrderToggle(t *testing.T) {
 	if s.entries[0].ID != 3 || s.entries[len(s.entries)-1].ID != 8 {
 		t.Fatalf("entries %v", s.entries)
 	}
-	if _, ok := tt.Find("Reading time: any length. Oldest first"); !ok {
+	if _, ok := tt.Find("Reading time: any length. Oldest first: new entries appear at the end of the list"); !ok {
 		t.Fatalf("the clock is not named by the order: %v", tt.Texts())
 	}
 	if !slices.Contains(tt.Announcements(), "Oldest first") {
 		t.Fatalf("announcements %v", tt.Announcements())
 	}
 	// Back to newest first: the list kept for that order is drawn again.
-	if err := tt.Click("Reading time: any length. Oldest first"); err != nil {
+	if err := tt.Click("Reading time: any length. Oldest first: new entries appear at the end of the list"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.ChooseMenuItem("Newest first"); err != nil {
@@ -3227,7 +3227,7 @@ func TestReadingTimeBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	menu := tt.Menu()
-	want := []string{"Any length", "Up to 5 minutes", "Up to 10 minutes", "Up to 15 minutes", "Up to 30 minutes", "-", "Newest first", "Oldest first"}
+	want := []string{"Any length", "Up to 5 minutes", "Up to 10 minutes", "Up to 15 minutes", "Up to 30 minutes", "-", "Newest first", "Oldest first", "Oldest first: new entries appear at the end of the list"}
 	if !slices.Equal(menu, want) {
 		t.Fatalf("menu %q", menu)
 	}

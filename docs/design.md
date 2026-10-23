@@ -115,7 +115,10 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   are the last two rows of the reading-time menu, under a hairline, with a check on the current one; choosing one
   announces its name. While it is oldest first the clock gets the same `Soft(Accent)` fill and `Accent` icon as with a
   budget (a bare 32 circle, no text beside it unless a budget is chosen too, and the dot below 760), and its name
-  adds ". Oldest first". The list goes back to its top, the oldest entry, and the "N new" pill is not shown while it
+  adds ". Oldest first: new entries appear at the end of the list". The menu is native and its rows have one line, so
+  under the two orders sits a disabled row with that same sentence (muted by the system, wrapping to two lines in a narrow menu), and the
+  sentence is also the clock's tooltip and screen-reader name; the "N new" pill never shows in this order and the note
+  is why. The list goes back to its top, the oldest entry, and the "N new" pill is not shown while it
   is on (new entries appear when paging reaches the end). The order is kept per device. Drawn in `design/screens/timeline.html`, `order-oldest`. Compact list density (Settings,
   Appearance, Timeline) tightens only the spacing of rows, grid cells and wall tiles, by the values in
   `design/tokens.md`; no content is dropped. Drawn in `design/screens/timeline.html`, `dense`. When a background check fails after the list loaded, a quiet 28 high status line sits under the toolbar,
