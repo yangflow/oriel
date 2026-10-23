@@ -4362,8 +4362,12 @@ func TestSidebarAddAlignsWithRows(t *testing.T) {
 	if !ok {
 		t.Fatalf("no count: %v", tt.Texts())
 	}
+	var th *ui.Theme
+	ui.NewTester(func(c *ui.Context) { th = c.Theme() }, 10, 10).Frame()
+	// The 22-point box sits centred in the wider hit area, and the 14-point icon centred in the box.
+	inset := (add.W-theme.Px(th, 22))/2 + (theme.Px(th, 22)-theme.Px(th, 14))/2
 	// The width of the count's text depends on the fonts of the platform, so allow less than half a pixel.
-	if got, want := add.X+add.W-5, count.X+count.W; math.Abs(float64(got-want)) >= 0.5 {
+	if got, want := add.X+add.W-inset, count.X+count.W; math.Abs(float64(got-want)) >= 0.5 {
 		t.Errorf("icon ends at %v, the counts at %v", got, want)
 	}
 }
