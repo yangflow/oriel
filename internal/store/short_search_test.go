@@ -7,7 +7,7 @@ import (
 )
 
 func TestShortQuery(t *testing.T) {
-	for q, want := range map[string]bool{"": false, "a": true, "苹果": true, "ab": true, "abc": false, "苹果派": false, "%_": true} {
+	for q, want := range map[string]bool{"": false, "a": true, "苹果": true, "ab": true, "abc": false, "苹果派": false, "%_": true, "🎉": true, "🎉🎉": true, "🎉🎉🎉": false, "a中": true, "a中文": false} {
 		if got := ShortQuery(q); got != want {
 			t.Errorf("ShortQuery(%q) = %v, want %v", q, got, want)
 		}

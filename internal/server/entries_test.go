@@ -646,6 +646,8 @@ func TestShortSearch(t *testing.T) {
 		{GUID: "7", Title: "Nothing here"},
 		{GUID: "8", Title: "梨子"},
 		{GUID: "9", Title: "Muted GO post", Summary: "spam"},
+		{GUID: "10", Title: "party 🎉"},
+		{GUID: "11", Title: "Tab中文"},
 	}
 	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "article"}, "", "", items, "", time.Time{}, c.t); err != nil {
 		t.Fatal(err)
@@ -676,7 +678,10 @@ func TestShortSearch(t *testing.T) {
 		"%e":  "[]", // nor is %
 		"zz":  "[]",
 		"梨子":  "[梨子]",
-		" 梨 ": "[梨子]", // trimmed like any query
+		"🎉":   "[party 🎉]", // one character of four bytes
+		"b中":  "[Tab中文]",   // mixed, two characters
+		"中文":  "[Tab中文]",   // six bytes, two characters
+		" 梨 ": "[梨子]",      // trimmed like any query
 	} {
 		body, got := search(q)
 		if fmt.Sprint(got) != want || body["limited"] != true || body["nextCursor"] != nil {
@@ -684,6 +689,9 @@ func TestShortSearch(t *testing.T) {
 		}
 	}
 	// Three characters still go through the index and are not marked.
+	if body, got := search("b中文"); fmt.Sprint(got) != "[Tab中文]" || body["limited"] != nil {
+		t.Errorf("three characters: %v, limited %v", got, body["limited"])
+	}
 	if body, got := search("Weekly"); fmt.Sprint(got) != "[Weekly]" || body["limited"] != nil {
 		t.Errorf("indexed: %v, limited %v", got, body["limited"])
 	}
