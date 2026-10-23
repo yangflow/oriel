@@ -175,7 +175,7 @@ and outlines are ink at an alpha, so they sit on any surface and step in lightne
 | `Warning` | `#9a7222` | `#d6aa55` | caution; a graphic, never text |
 | `Success` | `#4c7c59` | `#8ab997` | the server dot |
 | `Selection` | `Accent` 22% | `Accent` 30% | selected text |
-| `Focus` | `Accent` 45% | `Accent` 50% | keyboard focus ring, 2 DIPs |
+| `Focus` | `Accent` 70% | `Accent` 70% | keyboard focus ring, 2 DIPs |
 | `Inverse` / `InverseText` | `#2a2620` / `#f4efe6` | `#333837` / `#f4efe6` | tooltips and toasts |
 | `Scrollbar` | ink 28% | ink 30% | scroll bar thumbs, 6 DIPs wide |
 
@@ -243,7 +243,7 @@ roles differ by scheme; the accent and status colors do not.
 | `AccentText` | `#10241f` | `#10241f` | |
 | `Danger` | `#e0897a` | `#e0897a` | |
 | `Warning` / `Success` | `#d6aa55` / `#8ab997` | same | |
-| `Selection` / `Focus` | `Accent` 30% / 50% | same | |
+| `Selection` / `Focus` | `Accent` 30% / 70% | same | |
 | `Inverse` / `InverseText` / `Scrollbar` | as the main dark theme | | pane ink 30% for the scroll bar |
 | `theme.Text2` | `#cdc7bb` | `#cbd5d2` | ChromeText2 |
 | `theme.Track` (monogram fill) | pane ink 11% | same | |
@@ -274,7 +274,8 @@ and `Success` may be text.
 Contrast on `Background` (light / dark): `Text` 15.4 / 13.4, `Prose` 11.7 / 10.5, `Text2` 7.4 / 8.0, `TextMuted`
 5.0 / 5.5 (4.6 / 5.2 on `Surface`), `Accent` 5.9 / 8.2, `Danger` 4.8 / 6.8, `Success` 4.7 / 8.0, `Warning` 4.3 / 8.2,
 `Star` 3.0 / 9.0. `Disabled` is about 2.2 / 2.6: it is for inactive graphics, which WCAG exempts, and never for the
-only copy of a label.
+only copy of a label. The keyboard ring `Focus` (`Accent` 70%, drawn over the ground) is a control boundary and holds
+3:1: 3.15 / 4.65 on `Background`, 3.03 / 4.48 on `Surface`, and 4.0 / 4.8 on the pane.
 
 ### High contrast
 

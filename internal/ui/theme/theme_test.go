@@ -269,6 +269,27 @@ func TestContrast(t *testing.T) {
 	}
 }
 
+// TestFocusRing holds the keyboard ring to 3:1, the bar for control boundaries, over every ground it is drawn on.
+func TestFocusRing(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		th := applied(t, dark, ui.Preferences{})
+		pane := PaneTheme(&th)
+		for name, tc := range map[string]struct {
+			theme   *ui.Theme
+			grounds []ui.Color
+		}{
+			"main": {&th, []ui.Color{th.Background, th.Surface}},
+			"pane": {pane, []ui.Color{pane.Background}},
+		} {
+			for _, ground := range tc.grounds {
+				if r := contrast(tc.theme.Focus.Over(ground), ground); r < 3 {
+					t.Errorf("dark %v: %s focus ring on %v is %.2f:1", dark, name, ground, r)
+				}
+			}
+		}
+	}
+}
+
 func TestHan(t *testing.T) {
 	for text, want := range map[string]bool{"Oriel 发布": true, "Hello, world": false, "": false, "かな": false} {
 		if Han(text) != want {

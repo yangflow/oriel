@@ -142,7 +142,7 @@
   --background:#fdfcfa; --surface:#f6f3ee; --raised:#ffffff; --track:#ece8e0; --disabled:#b3ada1;
   --text:#25221e; --text2:#58534a; --muted:#736d62; --prose:#3a362f;
   --ink:37,34,30; --hover:rgba(var(--ink),.03); --pressed:rgba(var(--ink),.05); --sel:rgba(var(--ink),.065); --border:rgba(var(--ink),.075);
-  --accent:#2a6d65; --accent-hover:#225a54; --accent-text:#ffffff; --accent-soft:rgba(42,109,101,.09); --focus:rgba(42,109,101,.45);
+  --accent:#2a6d65; --accent-hover:#225a54; --accent-text:#ffffff; --accent-soft:rgba(42,109,101,.09); --focus:rgba(42,109,101,.7);
   --danger:#b4533c; --danger-soft:rgba(180,83,60,.09); --warning:#9a7222; --warning-soft:rgba(154,114,34,.10); --success:#4c7c59; --star:#b98a22;
   --chrome:#37332e; --chrome-ink:255,248,235; --chrome-text:#ece7dd; --chrome-text2:#cdc7bb; --chrome-muted:#a49e91;
   --glass:rgba(255,254,251,.66); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.95), 0 0 0 .5px rgba(var(--ink),.12), 0 2px 12px rgba(var(--ink),.07) }
@@ -150,7 +150,7 @@
   --background:#171918; --surface:#1d1f1e; --raised:#252827; --track:#2c2f2e; --disabled:#565b59;
   --text:#dde1df; --text2:#aab0ae; --muted:#8a918f; --prose:#c3c9c7;
   --ink:234,240,238; --hover:rgba(var(--ink),.04); --pressed:rgba(var(--ink),.06); --sel:rgba(var(--ink),.08); --border:rgba(var(--ink),.075);
-  --accent:#78beb1; --accent-hover:#8ccbbf; --accent-text:#10241f; --accent-soft:rgba(120,190,177,.12); --focus:rgba(120,190,177,.5);
+  --accent:#78beb1; --accent-hover:#8ccbbf; --accent-text:#10241f; --accent-soft:rgba(120,190,177,.12); --focus:rgba(120,190,177,.7);
   --danger:#e0897a; --danger-soft:rgba(224,137,122,.13); --warning:#d6aa55; --warning-soft:rgba(214,170,85,.13); --success:#8ab997; --star:#e2b24f;
   --chrome:#1a2422; --chrome-ink:235,248,244; --chrome-text:#e8eeec; --chrome-text2:#cbd5d2; --chrome-muted:#93a39f;
   --glass:rgba(58,63,62,.52); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 .5px rgba(0,0,0,.55) }
@@ -208,7 +208,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .side-tools { display:flex; align-items:center; gap:4px; margin:0 2px 6px }
 .side-filter { flex:1; min-width:0; height:28px; display:flex; align-items:center; gap:6px; padding:0 4px 0 10px; border-radius:8px; background:var(--hover); color:var(--muted); transition:background-color var(--t), box-shadow var(--t) }
 .side-filter:hover { background:var(--pressed) }
-.side-filter.focused { background:var(--pressed); box-shadow:0 0 0 2px rgba(124,201,187,.55) }
+.side-filter.focused { background:var(--pressed); box-shadow:0 0 0 2px rgba(124,201,187,.7) }
 .side-filter svg.icon { width:14px; height:14px; flex:none }
 .side-filter input { flex:1; min-width:0; border:0; outline:0; background:none; font:inherit; color:var(--text) }
 .side-filter input::placeholder { color:var(--muted) }
@@ -541,7 +541,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .menu hr { border:0; border-top:1px solid var(--border); margin:4px 2px }
 .row.menued, .row.menued:hover { background:var(--sel) }
 .item.menued { box-shadow:inset 0 0 0 1.5px var(--focus) }
-.item.kfocus { box-shadow:0 0 0 2px rgba(124,201,187,.55) }
+.item.kfocus { box-shadow:0 0 0 2px rgba(124,201,187,.7) }
 .sheet { width:560px; max-width:calc(100% - 48px); max-height:calc(100% - 48px); overflow:auto; border-radius:16px; background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 20px 50px rgba(var(--shadow),.25) }
 .sheet header { display:flex; align-items:center; gap:12px; padding:16px 16px 8px 20px }
 .sheet h2 { margin:0; flex:1; font-size:15px; font-weight:600 }
