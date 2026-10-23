@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestSourcesUnreadCountsMatchSingleSource checks that the grouped counts of Sources equal the counts of Source for a
@@ -31,7 +32,9 @@ func TestSourcesUnreadCountsMatchSingleSource(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Source 7 gets no entries at all; the others get a mix.
+	// Sources 7 and 8 get no entries at all; the others get a mix. Even entries are fresh and odd ones old, so that
+	// the paced source 5 both keeps and drops unread entries.
+	now := time.Now().UnixMilli()
 	for i := 1; i <= sources-2; i++ {
 		for j := 0; j < 30; j++ {
 			title := fmt.Sprintf("Entry %d", j)
@@ -41,8 +44,12 @@ func TestSourcesUnreadCountsMatchSingleSource(t *testing.T) {
 			if j%5 == 0 {
 				title += " global"
 			}
+			created := int64(j)
+			if j%2 == 0 {
+				created = now
+			}
 			if _, err := s.db.ExecContext(ctx, `INSERT INTO entries (source_id, guid, title, rss_summary, is_read, starred, created_at, updated_at)
-				VALUES (?, ?, ?, 'summary', ?, ?, ?, ?)`, i, fmt.Sprint(j), title, j%3 == 0, j%7 == 0, int64(j), int64(j)); err != nil {
+				VALUES (?, ?, ?, 'summary', ?, ?, ?, ?)`, i, fmt.Sprint(j), title, j%3 == 0, j%7 == 0, created, created); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -66,12 +73,18 @@ func TestSourcesUnreadCountsMatchSingleSource(t *testing.T) {
 			}
 			total += src.UnreadCount
 		}
-		if list[0].UnreadCount == 0 || total == 0 {
+		if total == 0 {
 			t.Errorf("counts are all zero: %+v", list)
 		}
 		for _, src := range list {
-			if src.ID == 7 && src.UnreadCount != 0 {
+			switch {
+			case src.ID == 7 && src.UnreadCount != 0:
 				t.Errorf("source without entries counts %d, want 0", src.UnreadCount)
+			case src.ID == 1 && global == "" && src.UnreadCount != 20:
+				// Of 30 entries, the 10 with j%3 == 0 are read.
+				t.Errorf("unmuted source counts %d, want 20", src.UnreadCount)
+			case src.ID == 5 && (src.UnreadCount == 0 || src.UnreadCount >= 20):
+				t.Errorf("paced source counts %d, want some but not all of its 20 unread entries", src.UnreadCount)
 			}
 		}
 	}
