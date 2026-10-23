@@ -29,7 +29,8 @@
      segmented control; search is a flat fill and the tools are bare icons (docs/design.md, Title bar).
      The list order has no button: "Newest first" and "Oldest first" are the last two rows of the clock menu, under a
      hairline (order-oldest: the menu open, the oldest entries at the top, the clock tinted like a budget with no text
-     beside it, and ". Oldest first" added to its name); it is a device preference, and in the oldest-first order no
+     beside it, and ". Oldest first: new entries appear at the end of the list" added to its name; under the two orders
+     sits a disabled note row, orderNote, saying the same, because the "N new" pill does not show in this order); it is a device preference, and in the oldest-first order no
      "N new" pill ever shows. dense is Settings > Appearance > Timeline > List density
      Compact: the same rows with less padding and smaller gaps, nothing left out.
      The bar is solid: it has no edge at the top, and scrolled (the list moved up under it) shows a hairline.
@@ -541,6 +542,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .menu button[aria-disabled=true] { color:var(--disabled) }
 .menu button[aria-disabled=true]:hover { background:none }
 .menu button[aria-disabled=true] svg.icon { color:inherit }
+.menu button.note { height:auto; padding:4px 8px; font-size:12px; line-height:16px; white-space:normal; max-width:208px; color:var(--muted) }
 .menu kbd { margin-left:auto; padding-left:16px; font:inherit; font-size:12px; color:var(--muted) }
 .menu button.danger { color:var(--danger) }
 .menu button.danger svg.icon { color:inherit }
@@ -718,7 +720,7 @@ const copy={
     noStarred:'No starred entries', noStarredHint:'Star an entry to keep it here.',
     empty:'Nothing here yet', emptyHint:'New entries show up after the next fetch.',
     readMin:'{n} min read', timeTitle:'Reading time', timeAny:'Any length', timeUpTo:'Up to {n} minutes', timeChip:'≤ {n} min',
-    orderNewest:'Newest first', orderOldest:'Oldest first',
+    orderNewest:'Newest first', orderOldest:'Oldest first', orderNote:'Oldest first: new entries appear at the end of the list',
     showGrid:'Show as grid', showList:'Show as list', timeName:'Reading time: any length', timeNameUpTo:'Reading time: up to {n} minutes',
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
     noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…', restoreBackup:'Restore from backup…',
@@ -752,7 +754,7 @@ const copy={
     noStarred:'还没有收藏', noStarredHint:'收藏的条目会留在这里。',
     empty:'这里还没有条目', emptyHint:'下次抓取之后，新条目会出现在这里。',
     readMin:'{n} 分钟阅读', timeTitle:'阅读时长', timeAny:'不限时长', timeUpTo:'{n} 分钟内', timeChip:'≤ {n} 分钟',
-    orderNewest:'最新的在前', orderOldest:'最旧的在前',
+    orderNewest:'最新的在前', orderOldest:'最旧的在前', orderNote:'最旧的在前时，新条目出现在列表末尾',
     showGrid:'以网格显示', showList:'以列表显示', timeName:'阅读时长：不限', timeNameUpTo:'阅读时长：{n} 分钟内',
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
     noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…', restoreBackup:'从备份恢复…',
@@ -1019,7 +1021,7 @@ const segments=[['inbox','everything'],['dot','unread'],['star','starred']].map(
 const searchField=`<div class="search${searching||state==='search-open'?' open':''}${searching?' focused':''}">${icon('search')}<input aria-label="${copy.searchLabel}" placeholder="${copy.search}" value="${q}" ${state==='search-short'?'aria-describedby="hint"':''}>${searching?`<button class="clear" aria-label="${copy.clear}">${icon('x')}</button>`:''}</div>`;
 const markAllName=t('markAllIn',{scope:scopeName});
 const markAll=`<button class="tool"${budget?' aria-disabled="true"':''} aria-label="${markAllName}" title="${markAllName}">${icon('checkCheck')}</button>`;
-const timeName=(budget?t('timeNameUpTo',{n:budget}):copy.timeName)+(oldest?(zh?'。':'. ')+copy.orderOldest:'');
+const timeName=(budget?t('timeNameUpTo',{n:budget}):copy.timeName)+(oldest?(zh?'。':'. ')+copy.orderNote:'');
 const timeBtn=`<button class="timebtn${budget?' on':oldest?' tint':''}" aria-label="${timeName}" title="${timeName}" aria-haspopup="menu" aria-expanded="${state==='time-menu'||oldest}">${icon('clock')}${oldest&&!budget?'<span class="badge" aria-hidden="true"></span>':''}${budget?`<span class="lbl">${t('timeChip',{n:budget})}</span><span class="badge" aria-hidden="true"></span>`:''}</button>`;
 const switchName=gridOn?copy.showList:copy.showGrid;
 const switchBtn=switchable?`<button class="timebtn" aria-label="${switchName}" title="${switchName}">${icon(gridOn?'list':'layoutGrid')}</button>`:'';
@@ -1111,7 +1113,7 @@ if(state==='menu-markall'){
 if(state==='time-menu'||oldest){
   const item=(label,n)=>`<button role="menuitemradio" aria-checked="${n===0&&!oldest}"${n===10&&!oldest?' class="hover"':''}>${icon('check',n===0&&!oldest?'tick':'tick none')}<span>${label}</span></button>`;
   const order=(label,on)=>`<button role="menuitemradio" aria-checked="${on}">${icon('check',on?'tick':'tick none')}<span>${label}</span></button>`;
-  place(`<div class="menu" role="menu" aria-label="${copy.timeTitle}">${item(copy.timeAny,0)}${[5,10,15,30].map(n=>item(t('timeUpTo',{n}),n)).join('')}<hr>${order(copy.orderNewest,!oldest)}${order(copy.orderOldest,oldest)}</div>`,document.querySelector('.timebtn'),0,36);
+  place(`<div class="menu" role="menu" aria-label="${copy.timeTitle}">${item(copy.timeAny,0)}${[5,10,15,30].map(n=>item(t('timeUpTo',{n}),n)).join('')}<hr>${order(copy.orderNewest,!oldest)}${order(copy.orderOldest,oldest)}<button role="menuitem" class="note" aria-disabled="true">${copy.orderNote}</button></div>`,document.querySelector('.timebtn'),0,36);
 }
 if(feedMenu){
   const s=menuSource,none=s.unread===0;

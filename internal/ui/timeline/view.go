@@ -52,7 +52,7 @@ type copy struct {
 	CopyLink, CopyMarkdown, SaveMarkdown                                                                                                                                string
 	LastLooked                                                                                                                                                          string
 	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                                            string
-	OrderNewest, OrderOldest                                                                                                                                            string
+	OrderNewest, OrderOldest, OrderOldestNote, NameJoin                                                                                                                 string
 	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                                 string
 	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu                            string
 	Retrying, Pending                                                                                                                                                   string
@@ -3313,7 +3313,7 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 	t := c.Theme()
 	name := s.budgetName()
 	if s.oldest {
-		name += ". " + s.text.OrderOldest
+		name += s.text.NameJoin + s.text.OrderOldestNote
 	}
 	timed := s.budget != 0
 	on := timed || s.oldest
@@ -3360,6 +3360,8 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 		if m.Item(s.text.OrderOldest).Checked(s.oldest).Chosen() && !s.oldest {
 			s.switchOrder()
 		}
+		// The menu is native and its rows have no second line, so the note is a disabled row of its own.
+		m.Item(s.text.OrderOldestNote).Disabled(true)
 	})
 }
 
