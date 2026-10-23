@@ -2,6 +2,7 @@ package fetch
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strconv"
 	"time"
@@ -62,6 +63,9 @@ func (p *Poller) prune(ctx context.Context) {
 	p.lastPrune = now
 	if deleted > 0 {
 		slog.Info("Pruned expired entries", "count", deleted)
+	}
+	if err := p.store.Maintain(ctx, deleted); err != nil && ctx.Err() == nil && !errors.Is(err, store.ErrVacuumRunning) {
+		slog.Error("Cannot shrink the database after pruning", "error", err)
 	}
 	purged, err := p.store.PurgeDeletedSources(ctx, now)
 	if err != nil {
