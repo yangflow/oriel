@@ -278,6 +278,20 @@ Contrast on `Background` (light / dark): `Text` 15.4 / 13.4, `Prose` 11.7 / 10.5
 only copy of a label. The keyboard ring `Focus` (`Accent` 70%, drawn over the ground) is a control boundary and holds
 3:1: 3.15 / 4.65 on `Background`, 3.03 / 4.48 on `Surface`, and 4.0 / 4.8 on the pane.
 
+Contrast of text on the two other fills it is drawn on (light / dark): `Track`, and `Soft(Danger)` over `Background`
+(over `Surface` the fill is a little darker, and `Text` and `Text2` still hold 12.8 / 10.3 and 6.2 / 6.2):
+
+| Text color | on `Track` | on `Track`, high contrast | on `Soft(Danger)` | on `Soft(Danger)`, high contrast |
+|---|---|---|---|---|
+| `Text` | 13.0 / 10.2 | 13.0 / 10.2 | 13.7 / 11.2 | 13.7 / 11.2 |
+| `Text2` | 6.3 / 6.1 | 6.3 / 6.1 | 6.6 / 6.7 | 6.6 / 6.7 |
+| `TextMuted` | 4.2 / 4.2, below 4.5: never on a `Track` | 6.6 / 6.2 | 4.5 / 4.6, too close: not used | 7.0 / 6.8 |
+| `Danger` | | | 4.3 / 5.6, below 4.5 in light: an icon, never text | |
+
+So the unselected labels of a segmented control and the "no key" and "off" badges are `Text2` on their `Track`, and
+the text of a refused result box, with the reason beside each failed row, is `Text` and `Text2`, with the icon in
+`Danger`. `Text2` also holds 6.5 or more on `Soft(Warning)`.
+
 ### High contrast
 
 With high contrast on (`c.Preferences().HighContrast`), `theme.Apply` changes: `Border` becomes `Text` at 55%

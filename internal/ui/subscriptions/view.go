@@ -1525,7 +1525,7 @@ func (s *Screen) kindPicker(c *ui.Context, value *int) {
 					name := s.kindName(kind)
 					b := theme.Fade(seg.Segment(i).Grow(1).Basis(0).Height(px(t, 28)).Gap(t.Space(1.5)).Radius(7).
 						Label(name))
-					color, iconColor := t.TextMuted, t.TextMuted
+					color, iconColor := theme.Text2(t), t.TextMuted
 					switch {
 					case i == *value:
 						if t.Dark {

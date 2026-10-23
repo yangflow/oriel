@@ -1972,7 +1972,7 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 	}, func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 			ui.Text(c, s.text.APIKey).FontWeight(500).Shrink(1).MinWidth(0)
-			badge, fill, color := s.text.KeyUnset, theme.Track(t), t.TextMuted
+			badge, fill, color := s.text.KeyUnset, theme.Track(t), theme.Text2(t)
 			if s.settings.AIAPIKeySet {
 				badge, fill, color = s.text.KeySet, theme.Soft(t, t.Accent), t.Accent
 			}
@@ -2425,7 +2425,7 @@ func (s *Screen) segments(c *ui.Context, label string, names []string, current i
 	seg.Track.Padding(3).Gap(2).Radius(9).Background(theme.Track(t)).Label(label).Children(func() {
 		for i, name := range names {
 			b := seg.Segment(i).Height(px(t, 26)).PaddingX(px(t, 12)).Radius(7).Label(name)
-			color := t.TextMuted
+			color := theme.Text2(t)
 			switch {
 			case i == chosen:
 				theme.Raised(t, b)
@@ -2760,7 +2760,7 @@ func (s *Screen) resultBox(c *ui.Context) {
 	case partly:
 		fill, icon, iconColor = theme.Soft(t, t.Warning), icons.TriangleAlert, t.Warning
 	case refused:
-		fill, icon, iconColor, color = theme.Soft(t, t.Danger), icons.CircleAlert, t.Danger, t.Danger
+		fill, icon, iconColor = theme.Soft(t, t.Danger), icons.CircleAlert, t.Danger
 	}
 	ui.Column(c).FillWidth().Margin(t.Space(3), 0, 0, 0).Padding(px(t, 10), t.Space(3)).Radius(t.Radius).
 		Background(fill).Role(ui.RoleStatus).Children(func() {
@@ -2807,7 +2807,7 @@ func (s *Screen) failRow(c *ui.Context, i int, f client.ImportFail) {
 			}
 			spans = append(spans, ui.Span{Text: f.Address, Font: "monospace", Size: px(t, 12)})
 			ui.RichText(c, spans...).Grow(1).MinWidth(0).FontSize(px(t, 12.5)).SingleLine()
-			ui.Text(c, why).FontSize(px(t, 12.5)).TextColor(t.TextMuted).NoWrap()
+			ui.Text(c, why).FontSize(px(t, 12.5)).TextColor(theme.Text2(t)).NoWrap()
 		})
 }
 

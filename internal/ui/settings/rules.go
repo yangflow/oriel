@@ -260,7 +260,7 @@ func (s *Screen) ruleRow(c *ui.Context, r client.Rule, id string) {
 					ui.Icon(c, icon).FontSize(px(t, 13)).TextColor(theme.Text2(t))
 					ui.Text(c, act).FontSize(px(t, 12)).TextColor(t.TextMuted)
 					if !r.Enabled {
-						ui.Text(c, s.text.RuleOffBadge).FontSize(px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
+						ui.Text(c, s.text.RuleOffBadge).FontSize(px(t, 11)).FontWeight(500).TextColor(theme.Text2(t)).
 							Padding(px(t, 1), px(t, 6)).Radius(px(t, 4)).Background(theme.Track(t))
 					}
 				})
