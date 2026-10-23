@@ -73,7 +73,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `icon_checked_site` | 上次为找图标而查看过主页的站点地址，见「抓取」。 |
 | `kind` | 四种形态之一。 |
 | `etag`、`last_modified` | 条件请求用。 |
-| `last_fetched_at`、`last_success_at`、`last_error`、`last_error_kind`、`consecutive_failures` | 抓取健康状况。`last_error_kind` 是上次失败原因的稳定代码，界面据此用用户的语言解释；空串是没有失败或没有归类，目前只有 `blocked`（站点的机器人防护拦下了抓取，见「抓取」）。`last_error` 仍是原始的英文文字。迁移 0019 加这一列。 |
+| `last_fetched_at`、`last_success_at`、`last_error`、`last_error_kind`、`consecutive_failures` | 抓取健康状况。`last_error_kind` 是上次失败原因的稳定代码，界面据此用用户的语言解释；空串是没有失败或没有归类，目前有 `blocked`（站点的机器人防护拦下了抓取）和 `gone`（站点答 410，订阅已被移除），见「抓取」。`last_error` 仍是原始的英文文字。迁移 0019 加这一列。 |
 | `fetch_interval_sec` | 现在用的抓取间隔（秒）。`fetch_interval_auto` 为 0 时是用户定的固定值；为 1 时是上一次成功抓取后算出的自动间隔，没算过时是 900。 |
 | `fetch_interval_auto` | 0 或 1，新订阅默认 1：间隔「自动」，见「抓取」。迁移 0010 加这一列：`fetch_interval_sec` 恰好是 900（旧的默认值）的源改成 1，别的保持 0。 |
 | `suggested_kind` | 第一次成功抓取后，服务端觉得订阅更像哪种形态（`video` 或 `image`），空串表示没有建议。只是建议，不会自己改 `kind`。迁移 0010 加这一列。 |
@@ -310,7 +310,9 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
 
 第一次成功抓取（`last_success_at` 此前为空）之后，服务端看这次抓到的条目，给 `suggested_kind` 一个建议：条目不少于 3 条，其中超过一半带时长（`duration_sec`）建议 `video`；否则超过一半带 2 张以上的图建议 `image`；其余没有建议。建议等于当前形态时也不建议。以后的抓取不再改它；用户把形态改成建议的那个后，接口不再下发这个建议。服务端从不自己应用建议。
 
-失败时 `consecutive_failures` 加一，原因写进 `last_error`：连续失败 `n ≤ 5` 次时 60 秒后再试，之后 `min(60 × 2^(n−5), 600)` 秒。状态码是 429 或 503 且带 `Retry-After`（秒数或 HTTP 日期）时，下一次不早于它指的时刻，即等待取 `Retry-After` 与上面的时间中较长的，最长 24 小时；值无效、为负或已过去时忽略，按上面的时间排。失败照常计数。Cloudflare 拦截和 RSSHub 路由 404 有专门的说明。
+失败时 `consecutive_failures` 加一，原因写进 `last_error`：连续失败 `n ≤ 5` 次时 60 秒后再试，之后 `min(60 × 2^(n−5), 600)` 秒。一直失败的源不会永远每 10 分钟打扰一次：距离上次成功抓取（从没成功过则距离订阅时间，和「订阅健康」的失效算法同一个起点）已满 3 天，并且已经连续失败至少 5 次（只是暂停或关机了几天、恢复后失败一次不算）时，下一次至少等 6 小时；任何一次成功（含 304）清零失败计数，也回到上面的间隔。这个下限只抬高等待，不改计数；「更新」和 `Retry-After` 照常生效（等待取较长的）。状态码是 429 或 503 且带 `Retry-After`（秒数或 HTTP 日期）时，下一次不早于它指的时刻，即等待取 `Retry-After` 与上面的时间中较长的，最长 24 小时；值无效、为负或已过去时忽略，按上面的时间排。失败照常计数。Cloudflare 拦截和 RSSHub 路由 404 有专门的说明。
+
+**已移除（410）。** 响应状态码是 410 Gone，站点在说这个订阅被永久移除。这次抓取照常按失败记（计数、抓取记录不变），`last_error` 写 `status 410: the feed was removed (Gone)`，同时 `last_error_kind` 记 `gone`；下一次成功抓取清掉它。服务端不自己暂停源，也不放弃它：410 偶尔是站点的误答，所以按上面「一直失败」的长间隔继续试，下一次至少等 6 小时，不必等满 3 天。界面看到 `lastErrorKind` 为 `gone` 时建议用户暂停或退订这个订阅，由用户决定（见「订阅管理」里的「已移除的说法」）。RSSHub 路由上，一个实例答 410 就是路由本身的结论，和 404 一样不再换实例，原因前加实例名。
 
 **被拦截。** 公共的 `rsshub.app` 和不少站点放在 Cloudflare 后面，会把程序的请求当成机器人，答一个挑战页。响应状态码是 403、429 或 503，并且带 `cf-mitigated: challenge`，或者由 `server: cloudflare` 发出、`Content-Type` 是 `text/html`（要订阅却回了网页），就是被拦截。这次抓取照常按失败记（计数、退避、抓取记录都不变），`last_error` 写原始文字（`status 403: blocked by Cloudflare`），同时 `last_error_kind` 记 `blocked`；下一次成功抓取清掉它。RSSHub 路由在每个实例都失败时，只要其中有一个是被拦截，整体也记 `blocked`。Oriel 不改 User-Agent，也不试图绕过挑战：被拦的订阅要换一个不拦的实例，或者用户自己的 RSSHub。
 
@@ -539,7 +541,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 
 ## 订阅接口
 
-都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`lastErrorKind`（上次失败的稳定代码，`blocked` 或空串，见「抓取」）、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见「正文抽取」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
+都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`lastErrorKind`（上次失败的稳定代码，`blocked`、`gone` 或空串，见「抓取」）、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见「正文抽取」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
 
 | 路由 | 作用 |
 |---|---|
@@ -1332,6 +1334,8 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 更新：右键菜单或编辑对话框的「更新」（失败的订阅叫「重试」，做的事一样），发 `POST /api/sources/{id}/refresh`，提示「已排进抓取」；抓完时再提示结果（见「抓取结果提示」）。
 
 被拦截的说法：`lastErrorKind` 是 `blocked` 时，界面不把原始的英文文字给用户，而用本地化的一句话代替「原因」，用在抓取结果提示、侧栏订阅的失败提示和编辑对话框的抓取状况里：订阅地址的主机是 `rsshub.app` 时写「公共的 rsshub.app 拦下了自动请求。到设置 → RSSHub 用你自己的或别的 RSSHub 实例。」，其他主机写「这个网站拦下了自动阅读器。」。`lastError` 不变，抓取记录和诊断里仍是原始文字。
+
+已移除的说法：`lastErrorKind` 是 `gone` 时，用同样的三个位置，把「原因」换成本地化的一句话「这个网站说订阅已被永久移除，建议暂停或退订。」。不加新的按钮或界面：暂停走右键菜单或编辑对话框里已有的开关，退订走删除。
 
 抓取结果提示：添加或更新一个订阅之后，客户端每 3 秒取一次 `GET /api/sources`，直到这个订阅的 `lastFetchedAt` 不同于添加或更新那一刻的值（新订阅从 0 起），最多等 60 秒，到时不再取，也不提示。等待期间侧栏里这个订阅的行显示一个转动的指示，行的读屏名字加「，正在抓取」。抓完后提示一次：`lastError` 不为空时是「“…”抓取失败：原因」；新订阅成功时是「“…”抓到 N 条」（N 取 `unreadCount`，是 0 时「“…”抓取成功，但还没有条目」）；更新成功时 N 是 `unreadCount` 比更新那一刻多出的条数，大于 0 时「“…”有 N 条新内容」，否则「“…”没有新内容」。这个提示不带撤销，同一个订阅的新提示替换旧的；同时也用读屏播报。等待时订阅被删掉、换了服务器或会话失效，就丢掉这次等待。取列表失败不提示，下一个 3 秒再试，直到 60 秒到。不新增接口，客户端也不替服务端抓。
 

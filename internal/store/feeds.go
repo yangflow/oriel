@@ -23,6 +23,9 @@ type FeedSource struct {
 	ConsecutiveFailures int
 	// FirstSuccess is set while no fetch of the source has reached the feed yet.
 	FirstSuccess bool
+	// FailingSince is when the source last reached its feed, or when it was added if it never has: the start of the
+	// failure streak, whatever the failure count says.
+	FailingSince time.Time
 	SiteURL      string
 	IconURL      string
 	// IconCheckedSite is the site address whose homepage was last searched for an icon.
@@ -57,7 +60,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, fetch_interval_auto, last_success_at IS NULL, consecutive_failures,
 			auto_summary, auto_translate, site_url, icon_url, icon_checked_site, websub_hub, websub_topic,
-			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days
+			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days, COALESCE(last_success_at, created_at)
 		FROM sources WHERE paused = 0 AND deleted_at IS NULL AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
@@ -70,14 +73,16 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		var interval int64
 		var summary, translate bool
 		var until sql.NullInt64
+		var since int64
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
 			&interval, &src.FetchIntervalAuto, &src.FirstSuccess, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
-			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays); err != nil {
+			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays, &since); err != nil {
 			return nil, err
 		}
 		if until.Valid {
 			src.WebSubUntil = time.UnixMilli(until.Int64)
 		}
+		src.FailingSince = time.UnixMilli(since)
 		src.FetchInterval = time.Duration(interval) * time.Second
 		if summary {
 			src.AITasks = append(src.AITasks, TaskSummary)

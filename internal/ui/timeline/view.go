@@ -33,7 +33,7 @@ type copy struct {
 	AlsoChip, AlsoName, AlsoHead                                                                                                                                        string
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
-	MarkUnread, Open, Blocked, BlockedPublic, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                             string
+	MarkUnread, Open, Blocked, BlockedPublic, FeedRemoved, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                string
 	TooShort, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                                            string
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                                             string
 	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                            string
@@ -2101,7 +2101,7 @@ func (s *Screen) reason(src client.Source) string {
 
 // failure is the reason src failed, in the user's language when the site's bot protection turned the fetch away.
 func (s *Screen) failure(src client.Source) string {
-	return subscriptions.FailureReason(src, s.text.Blocked, s.text.BlockedPublic)
+	return subscriptions.FailureReason(src, s.text.Blocked, s.text.BlockedPublic, s.text.FeedRemoved)
 }
 
 // failingName is the name of a failing subscription for a screen reader: its name, its unread count when it has

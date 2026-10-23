@@ -4672,6 +4672,17 @@ func TestFetchResultBlocked(t *testing.T) {
 	}
 }
 
+func TestFetchResultGone(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	addFresh(t, s, f, tt, "Fresh Feed")
+	f.fetchedWith(10, 0, "status 410: the feed was removed (Gone)")
+	f.sources[len(f.sources)-1].LastErrorKind = "gone"
+	f.later(t, tt, 3*time.Second)
+	if want := "Couldn’t fetch “Fresh Feed”: " + s.text.FeedRemoved; !tt.HasText(want) {
+		t.Errorf("texts %v", tt.Texts())
+	}
+}
+
 func TestFetchWaitEnds(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	s.subs.Refresh(f.sources[0])

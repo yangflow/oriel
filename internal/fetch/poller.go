@@ -50,6 +50,11 @@ const (
 	flatProbes   = 5
 	backoffLimit = 10 * time.Minute
 
+	// A source that has failed for longFailure (counted from its last success) waits at least longBackoff between
+	// tries, and so does one that answers 410 Gone.
+	longFailure = 3 * 24 * time.Hour
+	longBackoff = 6 * time.Hour
+
 	// A Retry-After on 429 or 503 raises the wait, but never past a day.
 	retryAfterLimit = 24 * time.Hour
 
@@ -168,11 +173,23 @@ type blockedError struct{ error }
 
 func (e *blockedError) Unwrap() error { return e.error }
 
+// ErrorGone is the stable reason code of a feed that answered 410 Gone: the site says it was removed for good.
+const ErrorGone = "gone"
+
+// goneError is the failure of a 410 answer. The source is not paused for it, only suggested to be.
+type goneError struct{ error }
+
+func (e *goneError) Unwrap() error { return e.error }
+
 // errorKind is the stable code of the reason behind err, empty when it has none.
 func errorKind(err error) string {
 	var blocked *blockedError
 	if errors.As(err, &blocked) {
 		return ErrorBlocked
+	}
+	var gone *goneError
+	if errors.As(err, &gone) {
+		return ErrorGone
 	}
 	return ""
 }
@@ -489,7 +506,7 @@ func (p *Poller) fetchSource(ctx context.Context, job queued) int {
 		slog.Error("Cannot log a fetch", "source", src.ID, "error", logErr)
 	}
 	if err != nil {
-		wait := retryDelay(src.ConsecutiveFailures + 1)
+		wait := failureDelay(src, err, now)
 		var asked *retryAfterError
 		if errors.As(err, &asked) {
 			wait = max(wait, asked.wait)
@@ -738,6 +755,9 @@ func statusError(resp *http.Response, src store.FeedSource) error {
 	if resp.StatusCode == http.StatusNotFound && src.RSSHubPath != "" {
 		return errors.New("status 404: this RSSHub route no longer exists")
 	}
+	if resp.StatusCode == http.StatusGone {
+		return &goneError{errors.New("status 410: the feed was removed (Gone)")}
+	}
 	return fmt.Errorf("status %d", resp.StatusCode)
 }
 
@@ -763,6 +783,17 @@ func retryAfter(resp *http.Response, now time.Time) time.Duration {
 		wait = min(at.Sub(now), retryAfterLimit)
 	}
 	return max(wait, 0)
+}
+
+// failureDelay is the wait after src failed with err once more: the back-off for its failure count, raised to
+// longBackoff for a source that answered 410, or that is past its flat probes and has had no success for longFailure.
+// The failure count guards against a source that was only paused or offline for days and fails once on return.
+func failureDelay(src store.FeedSource, err error, now time.Time) time.Duration {
+	wait := retryDelay(src.ConsecutiveFailures + 1)
+	if errorKind(err) == ErrorGone || (src.ConsecutiveFailures >= flatProbes && !src.FailingSince.IsZero() && now.Sub(src.FailingSince) >= longFailure) {
+		wait = max(wait, longBackoff)
+	}
+	return wait
 }
 
 // retryDelay is the wait after the given number of consecutive failures.
