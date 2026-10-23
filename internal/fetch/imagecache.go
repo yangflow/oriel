@@ -25,7 +25,11 @@ const (
 
 // imageCache keeps proxied pictures on disk, one file per address named by the SHA-256 of the address. A file
 // holds the content type, the time it was stored and the bytes. Evicting the least recently used file keeps the
-// total under the cap; a file older than the TTL counts as a miss. Deleting the directory is always safe.
+// total under the cap, by recency kept in memory (after a restart, by the time each file was stored); a file
+// older than the TTL counts as a miss. Deleting the directory is always safe.
+//
+// mu guards only the index. File reads, the sort of an eviction pass and the pass as a whole stay outside it;
+// each unlink is the one piece of disk work done under it, so it cannot race a store of the same key.
 type imageCache struct {
 	dir      string
 	maxBytes int64
@@ -36,11 +40,19 @@ type imageCache struct {
 	scanned bool
 	entries map[string]cacheEntry
 	total   int64
+	seq     uint64
+
+	evicting bool           // an eviction pass is running or queued
+	bg       sync.WaitGroup // eviction passes, so tests can wait for them
+
+	// beforeDisk, set only by tests, runs before a file read and before each eviction unlink, outside mu.
+	beforeDisk func(op string)
 }
 
 type cacheEntry struct {
 	size   int64
 	access time.Time
+	seq    uint64 // which stored copy this is, so a late discard never removes a newer one
 }
 
 func newImageCache(dir string) *imageCache {
@@ -90,35 +102,61 @@ func (c *imageCache) stats() (count int, bytes int64) {
 	return len(c.entries), c.total
 }
 
-// drop forgets a file and removes it. The caller holds mu.
+// drop forgets an index entry. The caller holds mu.
 func (c *imageCache) drop(key string) {
 	if e, ok := c.entries[key]; ok {
 		c.total -= e.size
 		delete(c.entries, key)
 	}
-	os.Remove(filepath.Join(c.dir, key))
+}
+
+// disk runs the test hook, if any, just before a piece of disk work that must happen outside mu.
+func (c *imageCache) disk(op string) {
+	if c.beforeDisk != nil {
+		c.beforeDisk(op)
+	}
 }
 
 // get returns the stored picture for address, or false on a miss, an expired file or a file it cannot read.
+// mu covers only the index: the file is read outside it, and recency is kept in memory.
 func (c *imageCache) get(address string) (string, []byte, bool) {
 	key := cacheKey(address)
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.scan()
-	if _, ok := c.entries[key]; !ok {
+	entry, ok := c.entries[key]
+	c.mu.Unlock()
+	if !ok {
 		return "", nil, false
 	}
 	path := filepath.Join(c.dir, key)
+	c.disk("read")
 	raw, err := os.ReadFile(path)
-	kind, stored, body, ok := decodeCacheFile(raw)
-	if err != nil || !ok || c.now().Sub(stored) > c.ttl {
-		c.drop(key)
+	kind, stored, body, valid := decodeCacheFile(raw)
+	now := c.now()
+	if err != nil || !valid || now.Sub(stored) > c.ttl {
+		c.discard(key, entry.seq)
 		return "", nil, false
 	}
-	now := c.now()
-	os.Chtimes(path, now, now)
-	c.entries[key] = cacheEntry{size: int64(len(raw)), access: now}
+	c.mu.Lock()
+	if cur, ok := c.entries[key]; ok && cur.seq == entry.seq {
+		cur.access = now
+		c.entries[key] = cur
+	}
+	c.mu.Unlock()
 	return kind, body, true
+}
+
+// discard removes a file that could not be used, unless a newer copy has replaced the one that was read.
+func (c *imageCache) discard(key string, seq uint64) {
+	c.mu.Lock()
+	cur, ok := c.entries[key]
+	if ok && cur.seq != seq {
+		c.mu.Unlock()
+		return
+	}
+	c.drop(key)
+	os.Remove(filepath.Join(c.dir, key))
+	c.mu.Unlock()
 }
 
 // put stores a picture through a temp file in the same directory and a rename, so a reader never sees a half
@@ -130,6 +168,9 @@ func (c *imageCache) put(address, kind string, body []byte) {
 	if int64(len(data)) > c.maxBytes {
 		return
 	}
+	c.mu.Lock()
+	c.scan() // before the temp file exists: the first scan removes leftover temp files
+	c.mu.Unlock()
 	if err := os.MkdirAll(c.dir, 0o700); err != nil {
 		slog.Warn("Image cache unavailable", "error", err)
 		return
@@ -147,12 +188,11 @@ func (c *imageCache) put(address, kind string, body []byte) {
 		err = os.Chtimes(tmp.Name(), now, now)
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if err == nil {
-		c.scan()
 		err = os.Rename(tmp.Name(), filepath.Join(c.dir, key))
 	}
 	if err != nil {
+		c.mu.Unlock()
 		os.Remove(tmp.Name())
 		slog.Warn("Image cache write failed", "error", err)
 		return
@@ -160,30 +200,58 @@ func (c *imageCache) put(address, kind string, body []byte) {
 	if old, ok := c.entries[key]; ok {
 		c.total -= old.size
 	}
-	c.entries[key] = cacheEntry{size: int64(len(data)), access: now}
+	c.seq++
+	c.entries[key] = cacheEntry{size: int64(len(data)), access: now, seq: c.seq}
 	c.total += int64(len(data))
-	c.evict(key)
+	if c.total > c.maxBytes && !c.evicting {
+		c.evicting = true
+		c.bg.Add(1)
+		go c.evictPass(key)
+	}
+	c.mu.Unlock()
 }
 
-// evict deletes the least recently used files until the total is under the trimmed cap, once the cap is
-// passed. The file just written is kept. The caller holds mu.
-func (c *imageCache) evict(keep string) {
-	if c.total <= c.maxBytes {
-		return
-	}
-	keys := make([]string, 0, len(c.entries))
-	for key := range c.entries {
-		if key != keep {
-			keys = append(keys, key)
-		}
-	}
-	sort.Slice(keys, func(i, j int) bool { return c.entries[keys[i]].access.Before(c.entries[keys[j]].access) })
+// evictPass runs in the background once the cap is passed: it deletes the least recently used files until the
+// total is under the trimmed cap. The file written by the put that started it is kept. The sort works on a
+// snapshot, outside mu; each file is then removed under mu only if it is still the same stored copy, so gets
+// and puts wait for one unlink at most.
+func (c *imageCache) evictPass(keep string) {
+	defer c.bg.Done()
 	target := int64(float64(c.maxBytes) * imageCacheTrim)
-	for _, key := range keys {
-		if c.total <= target {
+	for {
+		c.mu.Lock()
+		type candidate struct {
+			key string
+			cacheEntry
+		}
+		list := make([]candidate, 0, len(c.entries))
+		for key, e := range c.entries {
+			if key != keep {
+				list = append(list, candidate{key, e})
+			}
+		}
+		c.mu.Unlock()
+		sort.Slice(list, func(i, j int) bool { return list[i].access.Before(list[j].access) })
+		for _, item := range list {
+			c.disk("remove")
+			c.mu.Lock()
+			if c.total <= target {
+				c.mu.Unlock()
+				break
+			}
+			if cur, ok := c.entries[item.key]; ok && cur.seq == item.seq {
+				c.drop(item.key)
+				os.Remove(filepath.Join(c.dir, item.key))
+			}
+			c.mu.Unlock()
+		}
+		c.mu.Lock()
+		if c.total <= c.maxBytes || len(list) == 0 {
+			c.evicting = false
+			c.mu.Unlock()
 			return
 		}
-		c.drop(key)
+		c.mu.Unlock()
 	}
 }
 

@@ -145,6 +145,7 @@ func TestImageCacheEvictsLeastRecentlyUsed(t *testing.T) {
 		t.Fatalf("origin hits %d", origin.hits.Load())
 	}
 	im.Get(ctx, origin.URL+"/d") // over the cap: b and c go first, down to 90%
+	im.cache.bg.Wait()
 	if im.cache.total > im.cache.maxBytes {
 		t.Fatalf("total %d over the cap", im.cache.total)
 	}
@@ -234,5 +235,124 @@ func TestImageCacheDropsDamagedFile(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, cacheKey(origin.URL+"/a")), []byte("garbage"), 0o600)
 	if _, _, err := im.Get(context.Background(), origin.URL+"/a"); err != nil || origin.hits.Load() != 2 {
 		t.Errorf("damaged file: %v, origin hits %d", err, origin.hits.Load())
+	}
+}
+
+// Reads happen outside the lock: a read stuck on one key does not hold up a lookup of another.
+func TestImageCacheSlowReadDoesNotBlockOtherKeys(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	c.put("a", "image/png", pngHeader)
+	c.put("b", "image/png", pngHeader)
+
+	reading := make(chan struct{})
+	release := make(chan struct{})
+	var first atomic.Bool
+	c.beforeDisk = func(op string) {
+		if op == "read" && first.CompareAndSwap(false, true) {
+			close(reading)
+			<-release
+		}
+	}
+	slow := make(chan bool)
+	go func() {
+		_, _, ok := c.get("a")
+		slow <- ok
+	}()
+	<-reading
+	other := make(chan bool)
+	go func() {
+		_, _, ok := c.get("b")
+		other <- ok
+	}()
+	select {
+	case ok := <-other:
+		if !ok {
+			t.Error("lookup of the other key missed")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a lookup waited for a read of another key")
+	}
+	c.put("c", "image/png", pngHeader) // a put does not wait either
+	close(release)
+	if !<-slow {
+		t.Error("slow read missed")
+	}
+}
+
+// A hit changes the recency in memory only: the file is not touched.
+func TestImageCacheHitKeepsFileTime(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	c.put("a", "image/png", pngHeader)
+	path := filepath.Join(dir, cacheKey("a"))
+	old := time.Now().Add(-time.Hour)
+	os.Chtimes(path, old, old)
+	c.now = func() time.Time { return time.Now() }
+	if _, _, ok := c.get("a"); !ok {
+		t.Fatal("miss")
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.ModTime().Sub(old).Abs() > time.Second {
+		t.Errorf("file time changed: %v, %v", info.ModTime(), err)
+	}
+}
+
+// Eviction runs in the background: while it is stuck on its first removal, gets and puts go through.
+func TestImageCacheEvictionDoesNotBlock(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	now := time.Now()
+	var tick atomic.Int64
+	c.now = func() time.Time { return now.Add(time.Duration(tick.Add(1)) * time.Second) }
+	body := make([]byte, 1000)
+	c.maxBytes = 3500
+	for _, name := range []string{"a", "b", "c"} {
+		c.put(name, "image/png", body)
+	}
+
+	removing := make(chan struct{})
+	release := make(chan struct{})
+	var first atomic.Bool
+	c.beforeDisk = func(op string) {
+		if op == "remove" && first.CompareAndSwap(false, true) {
+			close(removing)
+			<-release
+		}
+	}
+	finished := make(chan struct{})
+	go func() {
+		c.put("d", "image/png", body) // over the cap: starts a pass
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("put waited for eviction")
+	}
+	<-removing
+	done := make(chan struct{})
+	go func() {
+		c.get("d")
+		c.put("e", "image/png", body[:10])
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("get or put waited for a running eviction")
+	}
+	close(release)
+	c.bg.Wait()
+	if c.total > int64(float64(c.maxBytes)*imageCacheTrim) {
+		t.Errorf("total %d after the pass", c.total)
+	}
+	for _, name := range []string{"d", "e"} {
+		if _, _, ok := c.get(name); !ok {
+			t.Errorf("%s was evicted", name)
+		}
+	}
+	if len(cacheFiles(t, dir)) != len(c.entries) {
+		t.Errorf("files %d, entries %d", len(cacheFiles(t, dir)), len(c.entries))
 	}
 }
