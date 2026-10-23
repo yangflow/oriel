@@ -7,7 +7,9 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -145,6 +147,7 @@ func TestImageCacheEvictsLeastRecentlyUsed(t *testing.T) {
 		t.Fatalf("origin hits %d", origin.hits.Load())
 	}
 	im.Get(ctx, origin.URL+"/d") // over the cap: b and c go first, down to 90%
+	im.cache.bg.Wait()
 	if im.cache.total > im.cache.maxBytes {
 		t.Fatalf("total %d over the cap", im.cache.total)
 	}
@@ -234,5 +237,199 @@ func TestImageCacheDropsDamagedFile(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, cacheKey(origin.URL+"/a")), []byte("garbage"), 0o600)
 	if _, _, err := im.Get(context.Background(), origin.URL+"/a"); err != nil || origin.hits.Load() != 2 {
 		t.Errorf("damaged file: %v, origin hits %d", err, origin.hits.Load())
+	}
+}
+
+// Reads happen outside the lock: a read stuck on one key does not hold up a lookup of another.
+func TestImageCacheSlowReadDoesNotBlockOtherKeys(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	c.put("a", "image/png", pngHeader)
+	c.put("b", "image/png", pngHeader)
+
+	reading := make(chan struct{})
+	release := make(chan struct{})
+	var first atomic.Bool
+	c.beforeDisk = func(op string) {
+		if op == "read" && first.CompareAndSwap(false, true) {
+			close(reading)
+			<-release
+		}
+	}
+	slow := make(chan bool)
+	go func() {
+		_, _, ok := c.get("a")
+		slow <- ok
+	}()
+	<-reading
+	other := make(chan bool)
+	go func() {
+		_, _, ok := c.get("b")
+		other <- ok
+	}()
+	select {
+	case ok := <-other:
+		if !ok {
+			t.Error("lookup of the other key missed")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a lookup waited for a read of another key")
+	}
+	c.put("c", "image/png", pngHeader) // a put does not wait either
+	close(release)
+	if !<-slow {
+		t.Error("slow read missed")
+	}
+}
+
+// A hit changes the recency in memory only: the file is not touched.
+func TestImageCacheHitKeepsFileTime(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	c.put("a", "image/png", pngHeader)
+	path := filepath.Join(dir, cacheKey("a"))
+	old := time.Now().Add(-time.Hour)
+	os.Chtimes(path, old, old)
+	c.now = func() time.Time { return time.Now() }
+	if _, _, ok := c.get("a"); !ok {
+		t.Fatal("miss")
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.ModTime().Sub(old).Abs() > time.Second {
+		t.Errorf("file time changed: %v, %v", info.ModTime(), err)
+	}
+}
+
+// Eviction runs in the background: while it is stuck on its first removal, gets and puts go through.
+func TestImageCacheEvictionDoesNotBlock(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	now := time.Now()
+	var tick atomic.Int64
+	c.now = func() time.Time { return now.Add(time.Duration(tick.Add(1)) * time.Second) }
+	body := make([]byte, 1000)
+	c.maxBytes = 3500
+	for _, name := range []string{"a", "b", "c"} {
+		c.put(name, "image/png", body)
+	}
+
+	removing := make(chan struct{})
+	release := make(chan struct{})
+	var first atomic.Bool
+	c.beforeDisk = func(op string) {
+		if op == "remove" && first.CompareAndSwap(false, true) {
+			close(removing)
+			<-release
+		}
+	}
+	finished := make(chan struct{})
+	go func() {
+		c.put("d", "image/png", body) // over the cap: starts a pass
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("put waited for eviction")
+	}
+	<-removing
+	done := make(chan struct{})
+	go func() {
+		c.get("d")
+		c.put("e", "image/png", body[:10])
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("get or put waited for a running eviction")
+	}
+	close(release)
+	c.bg.Wait()
+	if c.total > int64(float64(c.maxBytes)*imageCacheTrim) {
+		t.Errorf("total %d after the pass", c.total)
+	}
+	for _, name := range []string{"d", "e"} {
+		if _, _, ok := c.get(name); !ok {
+			t.Errorf("%s was evicted", name)
+		}
+	}
+	if len(cacheFiles(t, dir)) != len(c.entries) {
+		t.Errorf("files %d, entries %d", len(cacheFiles(t, dir)), len(c.entries))
+	}
+}
+
+// Gets, puts and eviction running together never surface an error: every get is a clean miss or a whole hit,
+// and the index matches the directory once the passes are done.
+func TestImageCacheConcurrentUse(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	c.maxBytes = 5000
+	body := make([]byte, 500)
+	var wg sync.WaitGroup
+	for w := 0; w < 8; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			for i := 0; i < 200; i++ {
+				addr := strconv.Itoa((w*7 + i) % 20)
+				if i%3 == 0 {
+					c.put(addr, "image/png", body)
+				} else if kind, got, ok := c.get(addr); ok && (kind != "image/png" || len(got) != len(body)) {
+					t.Errorf("partial hit: %q, %d bytes", kind, len(got))
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
+	c.bg.Wait()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var sum int64
+	for _, e := range c.entries {
+		sum += e.size
+	}
+	if sum != c.total || len(cacheFiles(t, dir)) != len(c.entries) {
+		t.Errorf("index %d bytes, total %d, files %d, entries %d", sum, c.total, len(cacheFiles(t, dir)), len(c.entries))
+	}
+	if c.total > c.maxBytes {
+		t.Errorf("total %d over the cap", c.total)
+	}
+}
+
+// A file that vanished behind the cache's back is a miss and leaves the accounting at zero.
+func TestImageCacheVanishedFileIsMiss(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	c.put("a", "image/png", pngHeader)
+	os.RemoveAll(dir)
+	if _, _, ok := c.get("a"); ok {
+		t.Error("hit on a deleted file")
+	}
+	if n, b := c.stats(); n != 0 || b != 0 {
+		t.Errorf("stats %d, %d", n, b)
+	}
+	c.put("a", "image/png", pngHeader) // the directory is made again
+	if _, _, ok := c.get("a"); !ok {
+		t.Error("miss after the directory was recreated")
+	}
+}
+
+// A late discard of an old copy leaves the copy a put stored in between, and a get that opens the file after
+// the replace reads the whole new copy.
+func TestImageCachePutDuringReadKeepsNewCopy(t *testing.T) {
+	dir := t.TempDir()
+	c := newImageCache(dir)
+	c.put("a", "image/png", pngHeader)
+	c.mu.Lock()
+	oldSeq := c.entries[cacheKey("a")].seq
+	c.mu.Unlock()
+	c.put("a", "image/png", pngHeader) // replaces the copy a reader may still hold
+	c.discard(cacheKey("a"), oldSeq)
+	if _, _, ok := c.get("a"); !ok {
+		t.Error("the new copy was discarded by a late discard")
+	}
+	if n, b := c.stats(); n != 1 || b == 0 {
+		t.Errorf("stats %d, %d", n, b)
 	}
 }
