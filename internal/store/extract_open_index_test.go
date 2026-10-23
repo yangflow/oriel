@@ -34,3 +34,19 @@ func TestPendingExtractionsUsesOpenIndex(t *testing.T) {
 		t.Errorf("want a search of entries_extract_open and no scan of entries, got\n%s", plan)
 	}
 }
+
+func TestAIJobsUsesOpenIndex(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	plan := queryPlan(t, s, aiJobsQuery, 3, 1000, 10)
+	if !strings.Contains(plan, "a USING INDEX entry_ai_open") || strings.Contains(plan, "entry_ai_status") {
+		t.Errorf("want entry_ai_open, which holds the open results only, got\n%s", plan)
+	}
+}
+
+func TestStopPendingAIUsesOpenIndex(t *testing.T) {
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	plan := queryPlan(t, s, stopPendingAIQuery, "cap", 1)
+	if !strings.Contains(plan, "SEARCH entry_ai USING INDEX entry_ai_open") {
+		t.Errorf("want entry_ai_open, got\n%s", plan)
+	}
+}

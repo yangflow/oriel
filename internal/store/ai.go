@@ -116,19 +116,23 @@ func (s *Store) PromoteAI(ctx context.Context, entryID int64, task string) error
 	return err
 }
 
+// aiJobsQuery is the query of AIJobs. The condition on status repeats the one of the partial index entry_ai_open,
+// which the planner needs to see to use it. The sort that remains runs over the open results only.
+const aiJobsQuery = `
+		SELECT a.entry_id, a.task, a.requested FROM entry_ai a
+			JOIN entries e ON e.id = a.entry_id JOIN sources s ON s.id = e.source_id
+		WHERE a.status <> 'ok' AND s.deleted_at IS NULL AND NOT (s.kind = 'article' AND e.extract_status = 'pending')
+			AND (a.status = 'pending'
+				OR (a.status = 'failed' AND a.requested = 0 AND a.error <> '` + AICapReached + `' AND a.attempts < ? AND a.updated_at <= ?))
+		ORDER BY a.status = 'failed', a.requested DESC, e.created_at DESC, e.id DESC
+		LIMIT ?`
+
 // AIJobs lists results to work on: pending ones, those the user asked for first, then automatic ones that
 // failed, have attempts left and last failed at or before retryBefore, but not those a cap stopped; newer entries
 // first. Articles still
 // waiting for their full text wait too.
 func (s *Store) AIJobs(ctx context.Context, limit, maxAttempts int, retryBefore time.Time) ([]AIJob, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT a.entry_id, a.task, a.requested FROM entry_ai a
-			JOIN entries e ON e.id = a.entry_id JOIN sources s ON s.id = e.source_id
-		WHERE s.deleted_at IS NULL AND NOT (s.kind = 'article' AND e.extract_status = 'pending')
-			AND (a.status = 'pending'
-				OR (a.status = 'failed' AND a.requested = 0 AND a.error <> '`+AICapReached+`' AND a.attempts < ? AND a.updated_at <= ?))
-		ORDER BY a.status = 'failed', a.requested DESC, e.created_at DESC, e.id DESC
-		LIMIT ?`, maxAttempts, retryBefore.UnixMilli(), limit)
+	rows, err := s.db.QueryContext(ctx, aiJobsQuery, maxAttempts, retryBefore.UnixMilli(), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -189,11 +193,15 @@ func (s *Store) StopAI(ctx context.Context, entryID int64, task string, now time
 	return err
 }
 
+// stopPendingAIQuery is the update of StopPendingAI. Like aiJobsQuery it repeats the condition of the partial index
+// entry_ai_open, so that the update searches the open results and not every row.
+const stopPendingAIQuery = `
+		UPDATE entry_ai SET status = 'failed', error = ?, updated_at = ?
+		WHERE status <> 'ok' AND status = 'pending' AND requested = 0`
+
 // StopPendingAI stops every automatic task still waiting, since the daily cap is reached. It returns how many.
 func (s *Store) StopPendingAI(ctx context.Context, now time.Time) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `
-		UPDATE entry_ai SET status = 'failed', error = ?, updated_at = ? WHERE status = 'pending' AND requested = 0`,
-		AICapReached, now.UnixMilli())
+	res, err := s.db.ExecContext(ctx, stopPendingAIQuery, AICapReached, now.UnixMilli())
 	if err != nil {
 		return 0, err
 	}
