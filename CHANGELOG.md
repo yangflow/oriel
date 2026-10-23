@@ -23,6 +23,63 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.9.0](https://github.com/yangflow/oriel/compare/v0.8.0...v0.9.0) (2026-10-23)
+
+
+### Added
+
+* **ai:** cap automatic AI work per day and keep finished chunks on a retry ([#353](https://github.com/yangflow/oriel/issues/353)) ([740d746](https://github.com/yangflow/oriel/commit/740d746b10220516aafa1c5903ea16691cf91fbc))
+* **diagnostics:** write a rotated log file and record panics with their stack ([#409](https://github.com/yangflow/oriel/issues/409)) ([a8070ad](https://github.com/yangflow/oriel/commit/a8070ad52f57819d641d707a9933d863b9b0c9cf))
+* **fetch:** fetch feeds through a global HTTP or SOCKS5 proxy, with a per-source override ([#417](https://github.com/yangflow/oriel/issues/417)) ([65e896b](https://github.com/yangflow/oriel/commit/65e896b5b64b9ccd5ec845a520e7a01f2892f8fd))
+* **reader:** immersive reading that fills the window while J and K keep stepping ([#437](https://github.com/yangflow/oriel/issues/437)) ([32cd0db](https://github.com/yangflow/oriel/commit/32cd0db03f32c45398810e73c2954a9afa069f67))
+* **rules:** star or mark read new entries by rule, and mute keywords for every source ([#394](https://github.com/yangflow/oriel/issues/394)) ([62a3fdd](https://github.com/yangflow/oriel/commit/62a3fdd5c8c0230d8ccedad89d56de286ba0f333))
+* **serve:** run Oriel in Docker or systemd, with compose and unit examples and oriel healthcheck ([#419](https://github.com/yangflow/oriel/issues/419)) ([0b02040](https://github.com/yangflow/oriel/commit/0b02040a360906894749a3cbdbfffb126f4dab05))
+* **store:** copy the database before running schema migrations ([#408](https://github.com/yangflow/oriel/issues/408)) ([77a6948](https://github.com/yangflow/oriel/commit/77a69488fadc6f1403ede786a0df8b00ef5eea06))
+* **subscriptions:** detect a duplicate subscription across http and https, www and RSSHub routes ([#414](https://github.com/yangflow/oriel/issues/414)) ([d37c8ff](https://github.com/yangflow/oriel/commit/d37c8ffaee6840eaba68b4d67ec5d7d4c4a65577))
+* **timeline:** choose when entries are marked as read ([#438](https://github.com/yangflow/oriel/issues/438)) ([e5c7b93](https://github.com/yangflow/oriel/commit/e5c7b93b65df2236668a0d35b5eea2bbf021e377))
+* **timeline:** read the full name of a cut-short subscription or toast title in a tooltip ([#442](https://github.com/yangflow/oriel/issues/442)) ([1e03592](https://github.com/yangflow/oriel/commit/1e03592248b846a5de09459e66ba08343763d13c))
+* **timeline:** show an article once when several sources carry it ([#381](https://github.com/yangflow/oriel/issues/381)) ([3a36fc2](https://github.com/yangflow/oriel/commit/3a36fc2821f3ae9f69152c68d1bca5287238a39c))
+* **ui:** show why a fetch failed as a short phrase, with the original text in the tooltip ([#436](https://github.com/yangflow/oriel/issues/436)) ([04f7805](https://github.com/yangflow/oriel/commit/04f78056d13794a32a7e741ebf4290775dd93c08))
+
+
+### Fixed
+
+* **ai:** keep summaries and translations from failing or finishing wrongly when the AI endpoint is slow, cut off or down ([#397](https://github.com/yangflow/oriel/issues/397)) ([53c37ba](https://github.com/yangflow/oriel/commit/53c37baca087d1d1a9b1e395369ab9e38784ec2f))
+* **ai:** treat an entry of a deleted source as missing in the AI result route, and fill test gaps ([#416](https://github.com/yangflow/oriel/issues/416)) ([6f70de0](https://github.com/yangflow/oriel/commit/6f70de0ec462e294e8546be017c8681cc5d935f6))
+* **fetch:** read feeds and OPML files in other encodings, and count extraction waits from the failure ([#398](https://github.com/yangflow/oriel/issues/398)) ([ea2e939](https://github.com/yangflow/oriel/commit/ea2e9393985982a33750a2fb460bf86b49cda7d3))
+* **fetch:** retry dead feeds every 6 hours and treat 410 Gone as removed ([#411](https://github.com/yangflow/oriel/issues/411)) ([48ea187](https://github.com/yangflow/oriel/commit/48ea187afbbd60a3fef205b03c54af4dfd9ea28e))
+* **reader:** the toolbar lines up with the article column when the sidebar is hidden ([#422](https://github.com/yangflow/oriel/issues/422)) ([9ae6b0a](https://github.com/yangflow/oriel/commit/9ae6b0aca16f9aaa8a5cc959020c5a40489b6a30))
+* **search:** find words of one or two characters, such as Chinese two-character words ([#413](https://github.com/yangflow/oriel/issues/413)) ([cf2c7b5](https://github.com/yangflow/oriel/commit/cf2c7b58dce082d0f938169d67fbb5468adecf91))
+* **server:** finish cut-off requests before closing the database on quit, and keep the backup name from doubling its extension ([#395](https://github.com/yangflow/oriel/issues/395)) ([cb9ab78](https://github.com/yangflow/oriel/commit/cb9ab78ba8a229414d8ea56ef375e59d2d16dd51))
+* **server:** lighter health check and a login limit that holds behind a reverse proxy ([#396](https://github.com/yangflow/oriel/issues/396)) ([8c6f740](https://github.com/yangflow/oriel/commit/8c6f74070a5433b0436e23129b732c529a34bcbd))
+* **server:** reject requests from other origins ([#355](https://github.com/yangflow/oriel/issues/355)) ([814c7a8](https://github.com/yangflow/oriel/commit/814c7a8c8693ff7c8f54bd5807a7066addf98c03))
+* **settings:** Escape no longer drops typed or unsaved settings ([#421](https://github.com/yangflow/oriel/issues/421)) ([807092d](https://github.com/yangflow/oriel/commit/807092d6f58d26b44c4935eba67e2f2aa736f5fe))
+* **sidebar:** the icon buttons at the right of the sidebar sit on one line ([#425](https://github.com/yangflow/oriel/issues/425)) ([be026cf](https://github.com/yangflow/oriel/commit/be026cf0260d77dc76a2f02b835b5fc16038ba2f))
+* **sidebar:** unread counts above 999 read 999+ so the count column stays narrow ([#433](https://github.com/yangflow/oriel/issues/433)) ([cea66be](https://github.com/yangflow/oriel/commit/cea66beab9b213921a390067eb57e888e3b733ea))
+* **timeline:** mark the entries scrolled past once the list rests, with any font size ([#440](https://github.com/yangflow/oriel/issues/440)) ([6838b23](https://github.com/yangflow/oriel/commit/6838b23a6e6cc360bf64d33b00d61a33689b75d7))
+* **timeline:** say in the order menu that new entries come at the end when listing oldest first ([#435](https://github.com/yangflow/oriel/issues/435)) ([c436088](https://github.com/yangflow/oriel/commit/c436088bde5474de60db80ed0c941953cf08fbfa))
+* **ui:** make clear, close and other small buttons at least 24×24 to click ([#428](https://github.com/yangflow/oriel/issues/428)) ([42ab615](https://github.com/yangflow/oriel/commit/42ab615b96ed1b08a8adf777dbe191a5f9ee0f8c))
+* **ui:** make the interface copy consistent across screens ([#431](https://github.com/yangflow/oriel/issues/431)) ([836cb69](https://github.com/yangflow/oriel/commit/836cb69f21f19643feb40c5c3253f0cf0b76533f))
+* **ui:** make the keyboard focus ring visible in the light theme ([#423](https://github.com/yangflow/oriel/issues/423)) ([77813d4](https://github.com/yangflow/oriel/commit/77813d464fcf1c46aea4cc5b0271a47c94f8d637))
+* **ui:** make unselected segment labels, the no-key badge and refused result boxes readable ([#424](https://github.com/yangflow/oriel/issues/424)) ([7a7f9a5](https://github.com/yangflow/oriel/commit/7a7f9a569d5da7e359e42ba928519db2c0178e75))
+* **ui:** say "1 entry" and "1 subscription" in English instead of the plural ([#420](https://github.com/yangflow/oriel/issues/420)) ([5626097](https://github.com/yangflow/oriel/commit/5626097db44b2496f8bc13e9c21b2be9193b0818))
+* **ui:** stop picture downloads when you open another article or switch server, and retry failed pictures ([#426](https://github.com/yangflow/oriel/issues/426)) ([bf1c3fc](https://github.com/yangflow/oriel/commit/bf1c3fc2433f13a25f6bedfdbd1065613cc17c98))
+* **ui:** write relative times the same way on every screen and follow the system 12/24-hour clock ([#430](https://github.com/yangflow/oriel/issues/430)) ([45d1c94](https://github.com/yangflow/oriel/commit/45d1c94dfaba02bfa29366962fd52a5f969eb7de))
+
+
+### Performance
+
+* **ai:** stop the 15-second AI queue from scanning every finished result ([#404](https://github.com/yangflow/oriel/issues/404)) ([c6ef1ec](https://github.com/yangflow/oriel/commit/c6ef1ecc34881da8f3d5114638f58d697a88a781))
+* **extract:** stop the 5-second extraction round from scanning every entry ([#401](https://github.com/yangflow/oriel/issues/401)) ([84af943](https://github.com/yangflow/oriel/commit/84af943909c82ea480448cdb0ccc080d8bd4ef73))
+* **fetch:** fetching no longer stalls while the due list is read from the database ([#406](https://github.com/yangflow/oriel/issues/406)) ([ad7dd28](https://github.com/yangflow/oriel/commit/ad7dd282f09ad98ee3311e07ff48f7188b44096c))
+* **images:** fetch a picture once when several requests ask for it, and cap simultaneous downloads ([#403](https://github.com/yangflow/oriel/issues/403)) ([61fcabe](https://github.com/yangflow/oriel/commit/61fcabe61f8e60106181e9700f4d036f88e02f82))
+* **images:** load pictures faster when many are requested at once ([#402](https://github.com/yangflow/oriel/issues/402)) ([fca7ae1](https://github.com/yangflow/oriel/commit/fca7ae1a9b41c1f4dd44849dcebb693a48e1fc20))
+* **retention:** prune expired entries in bounded batches so other writes are not blocked ([#399](https://github.com/yangflow/oriel/issues/399)) ([efc6d02](https://github.com/yangflow/oriel/commit/efc6d02b5fde73ec5461fe107779409d837b40f1))
+* **sidebar:** the subscription list stays smooth with many subscriptions ([#429](https://github.com/yangflow/oriel/issues/429)) ([f66d0cd](https://github.com/yangflow/oriel/commit/f66d0cd8923fe872d628d02381383abfdbfe9f64))
+* **sources:** load the sidebar's unread counts faster ([#407](https://github.com/yangflow/oriel/issues/407)) ([1f59f9b](https://github.com/yangflow/oriel/commit/1f59f9b5cb0ae8bcd8e966fca02b6cf08d403845))
+* **store:** save a fetched feed faster so other writes wait less ([#400](https://github.com/yangflow/oriel/issues/400)) ([7306229](https://github.com/yangflow/oriel/commit/730622917b5e4855ce15789cd05573198d2a54c5))
+* **store:** shrink the database file after a large prune and optimize it on start and exit ([#405](https://github.com/yangflow/oriel/issues/405)) ([ef02cc5](https://github.com/yangflow/oriel/commit/ef02cc59a305de061a1b3a332ae7c3cb6ec472b6))
+
 ## [0.8.0](https://github.com/yangflow/oriel/compare/v0.7.0...v0.8.0) (2026-10-22)
 
 
