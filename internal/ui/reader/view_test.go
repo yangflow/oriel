@@ -1465,8 +1465,8 @@ func TestToolbarInset(t *testing.T) {
 	if !ok {
 		t.Fatal("no Back button")
 	}
-	if hidden.X < shown.X+78 {
-		t.Fatalf("Back moved from %v to %v, want at least 78 further right", shown.X, hidden.X)
+	if hidden.X < 78 {
+		t.Fatalf("Back moved from %v to %v, want it clear of the 78 wide window controls", shown.X, hidden.X)
 	}
 }
 

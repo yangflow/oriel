@@ -289,8 +289,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   handler, and it is in the key sheet under "Anywhere". Hidden means the pane is gone, with no icon rail, and the main
   column takes the whole window width, so the reading area keeps its width at the 640 minimum; the failing-sources hint and
   the add button go with the pane (1 to 5 still switch kinds; H or Left expand the pane first, then focus it). The
-  window buttons sat over the pane, so with it hidden the toolbar row's left padding grows by `TitleBar().Left`, in the
-  timeline and in the reader, to leave them room, and the sidebar button moves to the toolbar's leading edge, right after them,
+  window buttons sat over the pane, so with it hidden the timeline's toolbar row's left padding grows by `TitleBar().Left`, and the
+  reader's row gives way only as far as the column's edge leaves them too little room (below), and the sidebar button moves to the toolbar's leading edge, right after them,
   before the title, on the same line as before; it stays at that fixed position whatever the title is. The pane does not animate in or out. The choice is a device
   preference and is remembered.
 - **The reader.** It takes the main column's place; the pane stays. A 52 high toolbar row over the article, as in the
@@ -301,8 +301,10 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   medium, icon only below a 760 wide window). The read toggle is an envelope: closed (mail) to mark unread, open
   (mail-open) to mark read, the same icons as the timeline's row action. Summarize and Translate are toggles: pressed,
   they sit on `Soft(Accent)` in `Accent` and their names become "Hide the summary" and "Show the original". In a wide
-  window the toolbar lines up with the article column: the back button's text starts at the column's left edge and
-  the last button ends at its right edge. Under the toolbar the article scrolls, a column at most 680 wide at Medium (680 times the Reading text size scale: 635, 680, 771, 861, tokens.md; the window can limit it further), centered,
+  window the toolbar lines up with the article column, centered in the whole main column as the article is: the back
+  button's icon starts at the text's left edge and the last button ends at its right edge. The window buttons over a
+  hidden pane (above) move the row only where the column's edge leaves them too little room: the row then pads that
+  side more and keeps its width, so in a wide window it does not move at all. Under the toolbar the article scrolls, a column at most 680 wide at Medium (680 times the Reading text size scale: 635, 680, 771, 861, tokens.md; the window can limit it further), centered,
   padded 28/32/48 (20 below a 760 wide window): the source's monogram, name, full date and, after a dot, the reading time ("6 min read") at 12; the title at 24 (20
   when narrow) weight 600 in `Text`; the note on where the text comes from (`Warning` soft fill when it is the feed's,
   `Surface` with a spinner while the full text is being got), 12, its "Open the original" link underlined and, when the
