@@ -135,6 +135,9 @@ func TestPruneEntriesDoesNotStarveAWriter(t *testing.T) {
 		_, err := s.PruneEntries(ctx, now, 30)
 		pruned <- err
 	}()
+	// A wall-clock limit on one write fails on a loaded machine, where the prune and every write slow down
+	// together, so the check is on how many writes got through while the prune ran.
+	began := time.Now()
 	var slowest time.Duration
 	writes := 0
 	for done := false; !done; writes++ {
@@ -153,8 +156,11 @@ func TestPruneEntriesDoesNotStarveAWriter(t *testing.T) {
 		}
 		slowest = max(slowest, time.Since(start))
 	}
-	t.Logf("%d writes while pruning, the slowest %v", writes, slowest)
-	if slowest > 2*time.Second {
-		t.Errorf("a write waited %v for the prune", slowest)
+	total := time.Since(began)
+	t.Logf("%d writes while pruning for %v, the slowest %v", writes, total, slowest)
+	// The prune runs 200 batches; a writer that gets in between them completes hundreds of writes, a starved one
+	// a handful, the last of them after the prune is over.
+	if writes < 50 {
+		t.Errorf("only %d writes got through in the %v the prune took", writes, total)
 	}
 }
