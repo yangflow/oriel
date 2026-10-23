@@ -392,7 +392,7 @@ values are in [design/tokens.md](../design/tokens.md). See
   | `Text`, `TextMuted` | titles and primary text; meta, counts, read titles, hints and placeholders (`theme.Text2` between them for source names and summaries) |
   | `Accent`, `AccentHover`, `AccentPressed`, `AccentText` | the unread dot, links, a chosen icon, the primary action; text on the accent |
   | `Danger`, `Warning`, `Success` | destructive, cautionary and positive status (always with text or a symbol) |
-  | `Selection`, `Focus` | selected text; the keyboard focus ring (`Accent` at 45%, 2 DIPs) |
+  | `Selection`, `Focus` | selected text; the keyboard focus ring (`Accent` at 70%, 2 DIPs) |
   | `Inverse`, `InverseText` | tooltips and toasts: a charcoal tile (warm in light, graphite in dark) with ivory text, set explicitly |
   | `Scrollbar` | scroll bar thumbs |
 
@@ -881,7 +881,7 @@ Overlays share focus and Escape behavior; see
   or entry, which MyGo does natively for an element with `ContextMenu`; a Mac keyboard has no Menu key, so the key
   sheet lists Shift+F10 alone there. All of these are off while the search field has the focus, a dialog is open or the reader shows. A
   scope switched from the keyboard is announced with `c.Announce` ("Videos, 12 unread"), the focus staying where it was.
-  The focus ring on a sidebar item is 2 DIPs of the pane's own accent at 55% (`sidebar-focus` in the mockup).
+  The focus ring on a sidebar item is 2 DIPs of the pane's own accent at 70% (`sidebar-focus` in the mockup).
 - **Reader keys.** While the reader shows, J and K go to the next and previous article, N to the next unread one (a
   toast when there is none, staying on this article), S stars, M toggles read, O
   opens the original in the browser and Escape goes back to the list, the entry it opened from focused. The article
