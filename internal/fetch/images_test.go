@@ -263,3 +263,61 @@ func TestImagesCapConcurrentDownloads(t *testing.T) {
 		t.Errorf("peak = %d, want %d", got, maxImageDownloads)
 	}
 }
+
+// A request that arrives after the last waiter left gets a fresh download, never the cancelled one.
+func TestImagesRequestAfterAbandonedDownloadStartsAfresh(t *testing.T) {
+	var hits atomic.Int32
+	started := make(chan struct{}, 2)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if hits.Add(1) == 1 {
+			started <- struct{}{}
+			<-r.Context().Done()
+			return
+		}
+		w.Write(pngHeader)
+	}))
+	defer srv.Close()
+	im := newTestImages(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := im.Get(ctx, srv.URL+"/pic")
+		done <- err
+	}()
+	<-started
+	cancel()
+	<-done
+	if _, body, err := im.Get(context.Background(), srv.URL+"/pic"); err != nil || len(body) == 0 {
+		t.Fatalf("Get after abandon: %d bytes, %v", len(body), err)
+	}
+	im.mu.Lock()
+	left := len(im.flights)
+	im.mu.Unlock()
+	if left != 0 {
+		t.Errorf("%d flights left in the map", left)
+	}
+}
+
+// A request queued behind full slots stops waiting when its own context ends.
+func TestImagesQueuedRequestHonorsItsContext(t *testing.T) {
+	im := newTestImages(t)
+	for range maxImageDownloads {
+		im.slots <- struct{}{}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, _, err := im.Get(ctx, "http://example.com/pic"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Get: %v", err)
+	}
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(time.Millisecond) {
+		im.mu.Lock()
+		left := len(im.flights)
+		im.mu.Unlock()
+		if left == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the queued flight stayed in the map")
+		}
+	}
+}

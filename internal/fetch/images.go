@@ -119,9 +119,18 @@ func (im *Images) fetchShared(ctx context.Context, address string) (string, []by
 	}
 }
 
-// runFlight downloads address once a slot is free, stores a success in the cache and wakes the waiters.
+// runFlight downloads address once a slot is free, stores a success in the cache and wakes the waiters. The
+// flight leaves the map and wakes its waiters on every path, a panic included.
 func (im *Images) runFlight(ctx context.Context, address string, f *imageFlight) {
 	defer f.cancel()
+	defer func() {
+		im.mu.Lock()
+		if im.flights[address] == f {
+			delete(im.flights, address)
+		}
+		im.mu.Unlock()
+		close(f.done)
+	}()
 	select {
 	case im.slots <- struct{}{}:
 		func() {
@@ -136,12 +145,6 @@ func (im *Images) runFlight(ctx context.Context, address string, f *imageFlight)
 	if f.err == nil && im.cache != nil {
 		im.cache.put(address, f.kind, f.body)
 	}
-	im.mu.Lock()
-	if im.flights[address] == f {
-		delete(im.flights, address)
-	}
-	im.mu.Unlock()
-	close(f.done)
 }
 
 // CacheStats returns how many pictures the disk cache holds and the bytes they take; both are zero without a cache.
