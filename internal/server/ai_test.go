@@ -337,8 +337,32 @@ func TestAIRoutesRejectBadRequests(t *testing.T) {
 	}
 }
 
+// The entries of a deleted source are gone for the AI routes too, until the source is restored.
+func TestAIRoutesSkipDeletedSource(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	src := seed(t, s, "social", 1, c.t)
+	entries, err := s.store.Entries(context.Background(), store.EntryFilter{SourceID: src}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/entries/" + strconv.FormatInt(entries[0].ID, 10) + "/ai"
+	if err := s.store.DeleteSource(context.Background(), src, c.t); err != nil {
+		t.Fatal(err)
+	}
+	if w := do(s, "GET", path, "", bearer(token)); w.Code != http.StatusNotFound || decode(t, w)["error"] != "not_found" {
+		t.Fatalf("deleted source: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "POST", "/api/sources/"+strconv.FormatInt(src, 10)+"/restore", "", bearer(token)); w.Code != http.StatusOK {
+		t.Fatalf("restore: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "GET", path, "", bearer(token)); w.Code != http.StatusOK {
+		t.Fatalf("restored source: %d %s", w.Code, w.Body)
+	}
+}
+
 // The self-check and the selection tools say what went wrong with the endpoint: nothing listening, and an answer with
-// no text, which is reported as an upstream failure.
+// no text, which is an upstream failure (ai_empty is for an entry with nothing to send).
 func TestAIEndpointFailures(t *testing.T) {
 	s, _ := newServer(t, "secret")
 	token := login(t, s, "laptop")

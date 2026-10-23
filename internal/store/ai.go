@@ -63,10 +63,12 @@ func (s *Store) AIInput(ctx context.Context, entryID int64) (AIInput, error) {
 	return in, err
 }
 
-// AIResults returns the results of an entry by task. It returns ErrNotFound for a missing entry.
+// AIResults returns the results of an entry by task. It returns ErrNotFound for a missing entry, and for one of a
+// deleted source, as Entry does.
 func (s *Store) AIResults(ctx context.Context, entryID int64) (map[string]AIResult, error) {
 	var exists int
-	if err := s.db.QueryRowContext(ctx, "SELECT 1 FROM entries WHERE id = ?", entryID).Scan(&exists); err != nil {
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT 1 FROM entries e JOIN sources s ON s.id = e.source_id WHERE e.id = ? AND s.deleted_at IS NULL`, entryID).Scan(&exists); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
