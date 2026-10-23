@@ -141,7 +141,7 @@ func (f *fake) MarkRead(_ context.Context, scope client.ReadScope) (client.Marke
 	}
 	var ids []int64
 	for i, e := range f.entries {
-		if !e.IsRead && (scope.UpTo == 0 || e.ID <= scope.UpTo) && e.ID > scope.Newer &&
+		if !e.IsRead && (scope.UpTo == 0 || e.ID <= scope.UpTo) && e.ID > scope.Newer && e.ID >= scope.From &&
 			(scope.SourceID == 0 || e.SourceID == scope.SourceID) && (scope.Kind == "" || e.Kind == scope.Kind) &&
 			(scope.OlderThan == 0 || shownAt(e) < scope.OlderThan) {
 			f.entries[i].IsRead = true
@@ -1376,6 +1376,22 @@ func TestOrderMarks(t *testing.T) {
 	if s.entries[0].ID != 3 || !s.entries[0].IsRead {
 		t.Fatalf("entry %d read %v", s.entries[0].ID, s.entries[0].IsRead)
 	}
+	// The entries below are the newer ones, up to the last loaded.
+	if err := tt.RightClick("Harbor at dawn"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark below as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if got := f.marked[len(f.marked)-1]; !reflect.DeepEqual(got, client.ReadScope{Newer: 5, UpTo: 8}) {
+		t.Fatalf("marked %v", f.marked)
+	}
+	for _, e := range s.entries {
+		if e.ID > 5 && !e.IsRead {
+			t.Fatalf("entry %d below is unread", e.ID)
+		}
+	}
 	s.markAll()
 	f.settle(t, tt)
 	if got := f.marked[len(f.marked)-1]; got.UpTo != 8 || got.Newer != 0 {
@@ -1679,7 +1695,7 @@ func TestMarkAbove(t *testing.T) {
 	if err := tt.RightClick("Harbor at dawn"); err != nil {
 		t.Fatal(err)
 	}
-	if menu := tt.Menu(); !slices.Equal(menu, []string{"Star", "Mark as read", "Open in browser", "Copy link", "-", "Copy as Markdown", "Save as Markdown…", "-", "Mark above as read"}) {
+	if menu := tt.Menu(); !slices.Equal(menu, []string{"Star", "Mark as read", "Open in browser", "Copy link", "-", "Copy as Markdown", "Save as Markdown…", "-", "Mark above as read", "Mark below as read"}) {
 		t.Fatalf("menu %q", menu)
 	}
 	if err := tt.ChooseMenuItem("Mark above as read"); err != nil {
@@ -1712,6 +1728,45 @@ func TestMarkAbove(t *testing.T) {
 	}
 	f.settle(t, tt)
 	if !reflect.DeepEqual(f.unmarked, [][]int64{{8, 7, 6}}) || s.unreadIn(s.scope) != 5 || s.undoable != nil {
+		t.Fatalf("unmarked %v, unread %d", f.unmarked, s.unreadIn(s.scope))
+	}
+}
+
+func TestMarkBelow(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.RightClick("Go 1.27 is released"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark below as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{UpTo: 7, From: 3}}) {
+		t.Fatalf("marked %v", f.marked)
+	}
+	for i, read := range []bool{false, true, true, true, true, true} {
+		if s.entries[i].IsRead != read {
+			t.Fatalf("entry %d read %v", s.entries[i].ID, s.entries[i].IsRead)
+		}
+	}
+	if !slices.Contains(tt.Announcements(), "Marked 4 entries below as read") || s.sources[0].UnreadCount != 1 {
+		t.Fatalf("announcements %v, sources %v", tt.Announcements(), s.sources)
+	}
+
+	// Everything below is read now: the item is dimmed.
+	if err := tt.RightClick("Go 1.27 is released"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark below as read"); err == nil {
+		t.Fatal("marked below with nothing unread below")
+	}
+	tt.CloseMenu()
+
+	if err := tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.unmarked, [][]int64{{7, 6, 5, 3}}) || s.unreadIn(s.scope) != 5 || s.undoable != nil {
 		t.Fatalf("unmarked %v, unread %d", f.unmarked, s.unreadIn(s.scope))
 	}
 }
@@ -1776,6 +1831,47 @@ func TestMarkAboveScope(t *testing.T) {
 	}
 	f.settle(t, tt)
 	if !reflect.DeepEqual(f.marked, []client.ReadScope{{Kind: "article", Newer: 3, UpTo: 8}}) {
+		t.Fatalf("marked %v", f.marked)
+	}
+}
+
+func TestMarkBelowScope(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	// The last entry has nothing below it.
+	if err := tt.RightClick("Go turns 16"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark below as read"); err == nil {
+		t.Fatal("marked below the last entry")
+	}
+	tt.CloseMenu()
+	// Starred and a search list entries the server's scopes do not know.
+	s.filter = starred
+	if s.canMarkBelow(8) {
+		t.Fatal("mark below is offered under Starred")
+	}
+	s.filter, s.searched = everything, "go"
+	if s.canMarkBelow(8) {
+		t.Fatal("mark below is offered for a search")
+	}
+	s.searched = ""
+	if s.canMarkBelow(99) {
+		t.Fatal("mark below is offered for an entry that is not listed")
+	}
+
+	// In a kind, the request carries the kind.
+	if err := tt.Click("Articles"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if err := tt.RightClick("Go 1.27 is released"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Mark below as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !reflect.DeepEqual(f.marked, []client.ReadScope{{Kind: "article", UpTo: 4, From: 3}}) {
 		t.Fatalf("marked %v", f.marked)
 	}
 }
@@ -3285,7 +3381,7 @@ func TestReadingTimeBudget(t *testing.T) {
 	if tt.HasText("5 unread") {
 		t.Fatalf("the unread count shows with a budget: %v", tt.Texts())
 	}
-	if s.canMarkAll() || s.canMarkAbove(3) {
+	if s.canMarkAll() || s.canMarkAbove(3) || s.canMarkBelow(8) {
 		t.Fatal("marking is offered with a budget")
 	}
 	s.markVisible()

@@ -412,6 +412,12 @@ func TestEntries(t *testing.T) {
 	if got, err := s.MarkRead(ctx, EntryFilter{Newer: &upTo}, first); err != nil || len(got) != 1 || got[0] != all[0].ID {
 		t.Fatalf("MarkRead newer = %v, %v", got, err)
 	}
+	if _, err := s.MarkUnread(ctx, []int64{all[0].ID, all[1].ID, all[2].ID}, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.MarkRead(ctx, EntryFilter{UpTo: &upTo, From: &oldest}, first); err != nil || len(got) != 2 {
+		t.Fatalf("MarkRead from the oldest up to an entry = %v, %v", got, err)
+	}
 	if _, err := s.EntryPosition(ctx, 99); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("position of missing entry: %v", err)
 	}
@@ -1025,6 +1031,9 @@ func TestEntryCursorCombinations(t *testing.T) {
 		"up to and after":            {EntryFilter{UpTo: at("d"), After: at("b")}, "c"},
 		"newer":                      {EntryFilter{Newer: at("c")}, "edab"},
 		"newer, oldest first":        {EntryFilter{Newer: at("b"), Oldest: true}, "ade"},
+		"from":                       {EntryFilter{From: at("a")}, "eda"},
+		"from, oldest first":         {EntryFilter{From: at("d"), Oldest: true}, "de"},
+		"up to and from":             {EntryFilter{UpTo: at("d"), From: at("a")}, "da"},
 		"newer and up to":            {EntryFilter{Newer: at("a"), UpTo: at("d")}, "d"},
 		"newer than the newest":      {EntryFilter{Newer: at("e")}, ""},
 		"empty window":               {EntryFilter{Newer: at("d"), UpTo: at("c")}, ""},
