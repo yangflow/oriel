@@ -131,7 +131,8 @@ echo 'ORIEL_PASSWORD=<password>' > deploy/.env && chmod 600 deploy/.env
 docker compose -f deploy/compose.yaml up -d --build
 ```
 
-The password is required in a container: without `ORIEL_PASSWORD` the server listens on `127.0.0.1` inside the container
+The example publishes the port on `127.0.0.1` of the host only (edit `ports` to open it to other devices, preferably
+behind an HTTPS reverse proxy). The password is required in a container: without `ORIEL_PASSWORD` the server listens on `127.0.0.1` inside the container
 only, and nothing outside reaches it. The image runs as a non-root user, keeps its data in the volume `/data` and
 answers Docker's health check with `oriel healthcheck`, which asks the local `/health` and exits 0 or 1. For systemd,
 install `deploy/oriel.service` with the password in a `0600` environment file; it runs the server as a dynamic user

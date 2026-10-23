@@ -64,8 +64,8 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 
 - **口令是必须的。** 没设 `ORIEL_PASSWORD` 时服务端只听 `127.0.0.1`（见「鉴权」）。在容器里这是容器自己的回环地址，宿主机和其他设备都连不上，所以容器和系统服务都要设口令，口令只从环境变量读。
 - **数据目录。** 一律用 `-data` 指到专门的目录：容器里是卷 `/data`，系统服务是 `/var/lib/oriel`。数据库、会话、API key、日志和图片缓存都在里面，只有运行服务的用户能读写。
-- **端口。** 默认 7470。容器里固定监听 7470，用端口映射改对外的端口；系统服务改 `ExecStart` 里的 `-port`。
-- **反向代理和 HTTPS。** 服务端自己只说 HTTP，口令和会话 token 在明文网络上会被看到，要在公网或不可信的网络上用就放在反向代理后面，由它终结 HTTPS。代理和服务端在同一台机器上时，把端口只发布在回环地址上（compose 里的注释写了写法），并加 `-trusted-proxy`（见「鉴权」）。
+- **端口。** 默认 7470。容器里固定监听 7470，用端口映射改对外的端口（示例只发布在 `127.0.0.1` 上）；系统服务改 `ExecStart` 里的 `-port`。
+- **反向代理和 HTTPS。** 服务端自己只说 HTTP，口令和会话 token 在明文网络上会被看到，要在公网或不可信的网络上用就放在反向代理后面，由它终结 HTTPS。示例 compose 已经只把端口发布在宿主机的回环地址 `127.0.0.1` 上，给同机的代理用；要让局域网里的其他设备直接连，把映射改成 `"7470:7470"`（compose 里的注释写了），但口令会在网络上明文传输。代理在场时加 `-trusted-proxy`（见「鉴权」）。
 - **健康检查。** `oriel healthcheck [-port 端口] [-timeout 时长]` 请求本机 `127.0.0.1` 上服务端的 `GET /health`：回答 200 且是 Oriel（`app` 为 `oriel`，数据库可写）就在标准输出写 `ok`、退出码 0；连不上、超时、状态码不是 200、回答的不是 Oriel 时在标准错误写原因、退出码 1；参数不对是 2。有没有口令都一样，因为 `/health` 不要会话，回环地址也总是听的。不加载界面库，镜像里不需要 curl。
 - **备份和升级。** 备份用 `oriel backup`（见「备份与恢复」）：容器里 `docker compose -f deploy/compose.yaml exec oriel /oriel backup -data /data -o /data/oriel.oriel-backup`，再用 `docker compose cp` 取出；系统服务以 root 运行 `oriel backup -data /var/lib/private/oriel -o 文件`（`DynamicUser` 的数据真正放在这里，`/var/lib/oriel` 是指向它的链接）。也可以在应用里导出，或开自动备份。自动备份写到的文件夹要放在卷里，或另外挂载进容器、加进 `ReadWritePaths`，因为容器的根文件系统是只读的，系统服务除 `StateDirectory` 外整个文件系统也是只读的。升级前先备份；之后换上新版本重启：容器 `git pull` 后 `docker compose -f deploy/compose.yaml up -d --build`，系统服务替换 `/usr/local/bin/oriel` 再 `systemctl restart oriel`。迁移前的副本和退回旧版本的办法见「存储」。恢复要先停服务端（`docker compose stop`，或 `systemctl stop oriel`）。
 
@@ -90,8 +90,9 @@ services:
     image: oriel:local
     restart: unless-stopped
     ports:
-      # Behind a reverse proxy on this host, publish on the loopback interface only: "127.0.0.1:7470:7470"
-      - "7470:7470"
+      # Reachable from this host only, for a reverse proxy on it. To reach it from other devices without a proxy,
+      # publish on every interface, "7470:7470", and know that the password then crosses the network as plain text.
+      - "127.0.0.1:7470:7470"
     environment:
       # Without a password the server listens on 127.0.0.1 inside the container and cannot be reached.
       ORIEL_PASSWORD: ${ORIEL_PASSWORD:?set ORIEL_PASSWORD in deploy/.env}
@@ -137,6 +138,15 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
+StateDirectoryMode=0700
+UMask=0077
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target

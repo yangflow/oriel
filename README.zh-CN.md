@@ -80,7 +80,7 @@ echo 'ORIEL_PASSWORD=<口令>' > deploy/.env && chmod 600 deploy/.env
 docker compose -f deploy/compose.yaml up -d --build
 ```
 
-容器里必须设口令：不设 `ORIEL_PASSWORD` 时，服务端只监听容器内部的 `127.0.0.1`，外面连不上。镜像以非 root 用户运行，数据放在
+示例只把端口发布在宿主机的 `127.0.0.1` 上（要让其他设备连，改 `ports`，最好放在 HTTPS 反向代理后面）。容器里必须设口令：不设 `ORIEL_PASSWORD` 时，服务端只监听容器内部的 `127.0.0.1`，外面连不上。镜像以非 root 用户运行，数据放在
 卷 `/data` 里，用 `oriel healthcheck` 回答 Docker 的健康检查（请求本机的 `/health`，退出码 0 或 1）。systemd 的话，安装
 `deploy/oriel.service`，口令放在权限 `0600` 的环境文件里；服务以动态用户运行，数据在 `/var/lib/oriel`。
 

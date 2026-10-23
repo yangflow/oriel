@@ -35,6 +35,9 @@ Transitive modules are listed because their code ships. Directories with several
 notices keep every `LICENSE*` file the module carries; the memory logo license is omitted
 because the logo is not shipped. Go standard-library components
 retain their Go license; a copy ships under resources/ThirdPartyLicenses/go/.
+The container image (`Dockerfile`, built from source, not published) adds the runtime base
+`gcr.io/distroless/base-debian12`, a Debian 12 subset (glibc, CA certificates, tzdata and others) under its own
+packages' licenses, which the base keeps in `/usr/share/doc/<package>/copyright`; the program in it is the one above.
 
 ## Documentation
 
