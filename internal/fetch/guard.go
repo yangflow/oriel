@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -40,8 +41,14 @@ func blocked(addr netip.Addr) bool {
 
 // guardedClient fetches addresses taken from feed content. refuse runs on the address actually
 // dialed, after DNS resolution and for every redirect, so neither a DNS answer nor a redirect can
-// lead it inside the network. It connects directly: through a proxy the real destination is unknown.
+// lead it inside the network. It connects directly; guardedClientVia is the proxied variant.
 func guardedClient(refuse func(netip.AddrPort) bool) *http.Client {
+	return guardedClientVia(refuse, nil)
+}
+
+// guardedClientVia is guardedClient with an optional tunnel that replaces the direct dial. Through a proxy the
+// dialed address is the proxy's, so the tunnel must check the real target itself before it connects (proxy.go).
+func guardedClientVia(refuse func(netip.AddrPort) bool, tunnel func(ctx context.Context, network, address string) (net.Conn, error)) *http.Client {
 	dialer := &net.Dialer{
 		Timeout: 10 * time.Second,
 		Control: func(_, address string, _ syscall.RawConn) error {
@@ -55,9 +62,13 @@ func guardedClient(refuse func(netip.AddrPort) bool) *http.Client {
 			return nil
 		},
 	}
+	dial := dialer.DialContext
+	if tunnel != nil {
+		dial = tunnel
+	}
 	transport := &http.Transport{
 		Proxy:                 nil,
-		DialContext:           dialer.DialContext,
+		DialContext:           dial,
 		ForceAttemptHTTP2:     true,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: timeout,

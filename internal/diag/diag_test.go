@@ -19,7 +19,8 @@ func TestRedact(t *testing.T) {
 		"see http://host/path and https://other.example/q?a=b":              "see http://host and https://other.example",
 		"retry with api_key=abc123 now":                                     "retry with api_key=[redacted] now",
 		"header Authorization: Bearer abc.def-ghi":                          "header Authorization: Bearer [redacted]",
-		"plain text": "plain text",
+		"fetch with proxy=10.0.0.5:7890 failed":                             "fetch with proxy=[redacted] failed",
+		"plain text":                                                        "plain text",
 	} {
 		if got := Redact(in); got != want {
 			t.Errorf("Redact(%q) = %q, want %q", in, got, want)

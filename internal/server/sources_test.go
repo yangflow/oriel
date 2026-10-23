@@ -97,6 +97,28 @@ func TestSourceLifecycle(t *testing.T) {
 			t.Errorf("patch %s: %d %s", body, w.Code, w.Body)
 		}
 	}
+	for body, code := range map[string]string{
+		`{"proxy":"ftp://127.0.0.1:21"}`: "invalid_proxy",
+		`{"proxy":"not a url"}`:          "invalid_proxy",
+	} {
+		if w := do(s, "PATCH", "/api/sources/"+id, body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
+			t.Errorf("patch %s: %d %s", body, w.Code, w.Body)
+		}
+	}
+	w = do(s, "PATCH", "/api/sources/"+id, `{"proxy":" http://127.0.0.1:7890 ","proxyUser":"bob","proxyPassword":"pw-source-1"}`, bearer(token))
+	if got := decode(t, w); w.Code != http.StatusOK || got["proxy"] != "http://127.0.0.1:7890" || got["proxyAuthSet"] != true ||
+		strings.Contains(w.Body.String(), "bob") || strings.Contains(w.Body.String(), "pw-source-1") {
+		t.Fatalf("proxy: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "GET", "/api/sources", "", bearer(token)); strings.Contains(w.Body.String(), "pw-source-1") || !strings.Contains(w.Body.String(), `"proxyAuthSet":true`) {
+		t.Fatalf("list: %s", w.Body)
+	}
+	if got := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"proxy":"direct"}`, bearer(token))); got["proxy"] != "direct" || got["proxyAuthSet"] != false {
+		t.Fatalf("direct: %v", got)
+	}
+	if got := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"proxy":""}`, bearer(token))); got["proxy"] != "" || got["keepDays"] != 90.0 {
+		t.Fatalf("follow global: %v", got)
+	}
 	if got := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"paceSec":0}`, bearer(token))); got["paceSec"] != 0.0 || got["keepDays"] != 90.0 {
 		t.Fatalf("pace off: %v", got)
 	}

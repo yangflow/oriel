@@ -60,6 +60,14 @@ func seeded(t *testing.T) (*Store, string) {
 	if err := s.SetSetting(ctx, apiKeySetting, "sk-secret"); err != nil {
 		t.Fatal(err)
 	}
+	for key, value := range map[string]string{"fetch_proxy": "socks5://127.0.0.1:1080", "fetch_proxy_user": "alice", "fetch_proxy_password": "pw-global"} {
+		if err := s.SetSetting(ctx, key, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.db.ExecContext(ctx, "UPDATE sources SET proxy = 'http://127.0.0.1:7890', proxy_user = 'bob', proxy_password = 'pw-source' WHERE id = ?", a.ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.CreateSession(ctx, []byte("hash"), "test", now); err != nil {
 		t.Fatal(err)
 	}
@@ -121,6 +129,18 @@ func TestBackupLeavesOutTheKeyAndSessions(t *testing.T) {
 	if sessions != 0 || keys != 0 || sources != 2 || settings != 1 {
 		t.Fatalf("sessions %d, keys %d, sources %d, theme %d", sessions, keys, sources, settings)
 	}
+	// The proxy addresses are kept, their user names and passwords are not.
+	var users, address, sourceProxy, sourceSecrets int
+	db.QueryRow("SELECT count(*) FROM settings WHERE key IN ('fetch_proxy_user', 'fetch_proxy_password')").Scan(&users)
+	db.QueryRow("SELECT count(*) FROM settings WHERE key = 'fetch_proxy'").Scan(&address)
+	db.QueryRow("SELECT count(*) FROM sources WHERE proxy = 'http://127.0.0.1:7890'").Scan(&sourceProxy)
+	db.QueryRow("SELECT count(*) FROM sources WHERE proxy_user <> '' OR proxy_password <> ''").Scan(&sourceSecrets)
+	if users != 0 || address != 1 || sourceProxy != 1 || sourceSecrets != 0 {
+		t.Fatalf("proxy secrets %d, address %d, source proxy %d, source secrets %d", users, address, sourceProxy, sourceSecrets)
+	}
+	if count(t, s, "SELECT count(*) FROM sources WHERE proxy_user = 'bob' AND proxy_password = 'pw-source'") != 1 {
+		t.Fatal("the backup changed the source's proxy credentials")
+	}
 	// The live database keeps both.
 	if count(t, s, "SELECT count(*) FROM sessions") != 1 || count(t, s, "SELECT count(*) FROM settings WHERE key = ?", apiKeySetting) != 1 {
 		t.Fatal("the backup changed the live data")
@@ -166,6 +186,9 @@ func TestRestoreRoundTrip(t *testing.T) {
 	if err := other.SetSetting(ctx, apiKeySetting, "sk-mine"); err != nil {
 		t.Fatal(err)
 	}
+	if err := other.SetSetting(ctx, "fetch_proxy_user", "mine"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := other.CreateSession(ctx, []byte("mine"), "ua", time.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -197,6 +220,18 @@ func TestRestoreRoundTrip(t *testing.T) {
 	// This server keeps its own key and sessions.
 	if v, _ := other.Setting(ctx, apiKeySetting); v != "sk-mine" {
 		t.Fatalf("key %q", v)
+	}
+	if v, _ := other.Setting(ctx, "fetch_proxy_user"); v != "mine" {
+		t.Fatalf("proxy user %q", v)
+	}
+	if v, _ := other.Setting(ctx, "fetch_proxy_password"); v != "" {
+		t.Fatalf("the backup's proxy password was restored: %q", v)
+	}
+	if v, _ := other.Setting(ctx, "fetch_proxy"); v != "socks5://127.0.0.1:1080" {
+		t.Fatalf("proxy address %q", v)
+	}
+	if count(t, other, "SELECT count(*) FROM sources WHERE proxy = 'http://127.0.0.1:7890' AND proxy_user = '' AND proxy_password = ''") != 1 {
+		t.Fatal("the source's proxy was not restored without its credentials")
 	}
 	if count(t, other, "SELECT count(*) FROM sessions") != 1 {
 		t.Fatal("sessions lost")
@@ -329,7 +364,7 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	}
 	// Make it look like version 20, before the link key that groups an article carried by several sources, the rules and the extraction and AI queue indexes.
 	for _, stmt := range []string{
-		"DROP TABLE rules", "DROP INDEX entry_ai_open", "CREATE INDEX entry_ai_status ON entry_ai (status)", "DROP INDEX entries_extract_open", "DROP INDEX entries_link_key", "ALTER TABLE entries DROP COLUMN link_key", "PRAGMA user_version = 20",
+		"DROP TABLE rules", "DROP INDEX entry_ai_open", "CREATE INDEX entry_ai_status ON entry_ai (status)", "DROP INDEX entries_extract_open", "DROP INDEX entries_link_key", "ALTER TABLE entries DROP COLUMN link_key", "ALTER TABLE sources DROP COLUMN proxy", "ALTER TABLE sources DROP COLUMN proxy_user", "ALTER TABLE sources DROP COLUMN proxy_password", "PRAGMA user_version = 20",
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)

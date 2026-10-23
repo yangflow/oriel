@@ -202,6 +202,7 @@ type Poller struct {
 	store     *store.Store
 	client    *http.Client // feeds: addresses the user entered
 	guarded   *http.Client // pages: addresses found inside feeds
+	network   *Network     // the proxy to use; nil connects directly
 	userAgent string
 	now       func() time.Time
 	spacing   time.Duration // between two feed fetches to one host
@@ -243,6 +244,9 @@ func New(st *store.Store, version string) *Poller {
 		vacuuming: st.Vacuuming,
 	}
 }
+
+// UseNetwork makes the poller connect through the proxy settings n reads. Without it every request is direct.
+func (p *Poller) UseNetwork(n *Network) { p.network = n }
 
 // Run fetches, extracts and prunes until ctx is canceled, starting right away. Fetching is a pool of workers that
 // keep taking due sources; extraction and pruning have their own loops, so none of the three waits for another.
@@ -634,7 +638,11 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 	if src.LastModified != "" {
 		req.Header.Set("If-Modified-Since", src.LastModified)
 	}
-	resp, err := p.client.Do(req)
+	client, err := p.network.Feed(ctx, src.Proxy, p.client)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, unavailable(ctx, instance, err)
 	}

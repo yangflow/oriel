@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/store"
@@ -51,6 +52,8 @@ type sourceJSON struct {
 	ExtractReferer      string `json:"extractReferer"`
 	ExtractRewrites     string `json:"extractRewrites"`
 	RSSHubInstance      string `json:"rsshubInstance"`
+	Proxy               string `json:"proxy"`
+	ProxyAuthSet        bool   `json:"proxyAuthSet"`
 	WebSubHub           string `json:"websubHub"`
 	WebSubActive        bool   `json:"websubActive"`
 	UnreadCount         int    `json:"unreadCount"`
@@ -71,7 +74,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError, LastErrorKind: src.LastErrorKind,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, RSSHubInstance: src.RSSHubInstance, WebSubHub: src.WebSubHub,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
 		WebSubActive: src.WebSubUntil.After(time.Now()), UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
@@ -270,6 +273,9 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		ExtractSelector   *string `json:"extractSelector"`
 		ExtractReferer    *string `json:"extractReferer"`
 		ExtractRewrites   *string `json:"extractRewrites"`
+		Proxy             *string `json:"proxy"`
+		ProxyUser         *string `json:"proxyUser"`
+		ProxyPassword     *string `json:"proxyPassword"`
 	}
 	if !readBody(w, r, &body) {
 		return
@@ -336,6 +342,27 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		patch.ExtractRewrites = &rewrites
+	}
+	if body.Proxy != nil {
+		address := strings.TrimSpace(*body.Proxy)
+		if address != "" && address != store.ProxyDirect && fetch.ValidProxyURL(address) != nil {
+			fail(w, http.StatusBadRequest, "invalid_proxy")
+			return
+		}
+		patch.Proxy = &address
+	}
+	for _, field := range []struct {
+		value *string
+		dst   **string
+	}{{body.ProxyUser, &patch.ProxyUser}, {body.ProxyPassword, &patch.ProxyPassword}} {
+		if field.value == nil {
+			continue
+		}
+		if utf8.RuneCountInString(*field.value) > fetch.MaxProxyField {
+			fail(w, http.StatusBadRequest, "invalid_proxy")
+			return
+		}
+		*field.dst = field.value
 	}
 	if body.MuteKeywords != nil {
 		keywords := muteLines(*body.MuteKeywords)

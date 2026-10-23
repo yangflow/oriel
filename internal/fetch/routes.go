@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/yangflow/oriel/internal/store"
 )
 
 const (
@@ -84,6 +86,7 @@ type RoutePreview struct {
 // like the poller.
 type Routes struct {
 	client    *http.Client
+	network   *Network // nil connects directly
 	userAgent string
 	now       func() time.Time
 
@@ -98,6 +101,9 @@ type catalogSlot struct {
 	at  time.Time
 	set bool
 }
+
+// UseNetwork makes requests go through the global proxy n reads.
+func (r *Routes) UseNetwork(n *Network) { r.network = n }
 
 // NewRoutes returns a finder that identifies itself as Oriel/version.
 func NewRoutes(version string) *Routes {
@@ -169,7 +175,11 @@ func (r *Routes) readCatalog(ctx context.Context, inst string) (*catalog, error)
 	}
 	req.Header.Set("User-Agent", r.userAgent)
 	req.Header.Set("Accept", "application/json")
-	resp, err := r.client.Do(req)
+	client, err := r.network.Feed(ctx, store.SourceProxy{}, r.client)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +230,11 @@ func (r *Routes) previewFrom(ctx context.Context, inst, path string) (RoutePrevi
 		return RoutePreview{}, false, ErrRouteUnavailable
 	}
 	req.Header.Set("User-Agent", r.userAgent)
-	resp, err := r.client.Do(req)
+	client, err := r.network.Feed(ctx, store.SourceProxy{}, r.client)
+	if err != nil {
+		return RoutePreview{}, true, ErrRouteUnavailable
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return RoutePreview{}, true, ErrRouteUnavailable
 	}

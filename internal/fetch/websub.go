@@ -266,7 +266,11 @@ func (p *Poller) sendSubscribe(ctx context.Context, w store.WebSub, base string)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", p.userAgent)
-	resp, err := p.guarded.Do(req)
+	client, err := p.network.Guarded(ctx, w.Proxy, p.guarded)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

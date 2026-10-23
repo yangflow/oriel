@@ -65,6 +65,9 @@ type settingsJSON struct {
 	AutoBackupError     string `json:"autoBackupError"`
 	// The muted keywords of every source, one per line.
 	MuteKeywords string `json:"muteKeywords"`
+	// The global fetch proxy and whether it has a user name and password; those are never listed.
+	ProxyURL     string `json:"proxyUrl"`
+	ProxyAuthSet bool   `json:"proxyAuthSet"`
 }
 
 func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +111,11 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	proxyURL, proxyUser, proxyPassword, err := s.globalProxy(r.Context())
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	instances := fetch.Instances(root)
 	if instances == nil {
 		instances = []string{}
@@ -134,8 +142,18 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		AutoBackupEnabled:      backup.Enabled, AutoBackupFolder: backup.Folder, AutoBackupFrequency: backup.Frequency,
 		AutoBackupKeep: backup.Keep, AutoBackupLastAt: status.LastAt, AutoBackupLastFile: status.LastFile,
 		AutoBackupFailedAt: status.FailedAt, AutoBackupError: status.Error,
-		MuteKeywords: mute,
+		MuteKeywords: mute, ProxyURL: proxyURL, ProxyAuthSet: proxyUser != "" || proxyPassword != "",
 	})
+}
+
+// globalProxy reads the global fetch proxy: its address, user name and password.
+func (s *Server) globalProxy(ctx context.Context) (address, user, password string, err error) {
+	for key, dst := range map[string]*string{fetch.ProxySetting: &address, fetch.ProxyUserSetting: &user, fetch.ProxyPasswordSetting: &password} {
+		if *dst, err = s.store.Setting(ctx, key); err != nil {
+			return "", "", "", err
+		}
+	}
+	return address, user, password, nil
 }
 
 func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
@@ -156,6 +174,9 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		PromptSummary   *string   `json:"promptSummary"`
 		PromptTranslate *string   `json:"promptTranslate"`
 		MuteKeywords    *string   `json:"muteKeywords"`
+		ProxyURL        *string   `json:"proxyUrl"`
+		ProxyUser       *string   `json:"proxyUser"`
+		ProxyPassword   *string   `json:"proxyPassword"`
 
 		AutoBackupEnabled   *bool   `json:"autoBackupEnabled"`
 		AutoBackupFolder    *string `json:"autoBackupFolder"`
@@ -189,6 +210,37 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		changes = append(changes, [2]string{store.MuteSetting, keywords})
+	}
+	if body.ProxyURL != nil {
+		address := strings.TrimSpace(*body.ProxyURL)
+		if address != "" && fetch.ValidProxyURL(address) != nil {
+			fail(w, http.StatusBadRequest, "invalid_proxy_url")
+			return
+		}
+		current, err := s.store.Setting(r.Context(), fetch.ProxySetting)
+		if err != nil {
+			internal(w, err)
+			return
+		}
+		changes = append(changes, [2]string{fetch.ProxySetting, address})
+		if address != current {
+			// The credentials belong to the proxy they were set for; they must not follow the traffic to another one.
+			// A user name or password sent with the new address replaces these below.
+			changes = append(changes, [2]string{fetch.ProxyUserSetting, ""}, [2]string{fetch.ProxyPasswordSetting, ""})
+		}
+	}
+	for _, field := range []struct {
+		value *string
+		key   string
+	}{{body.ProxyUser, fetch.ProxyUserSetting}, {body.ProxyPassword, fetch.ProxyPasswordSetting}} {
+		if field.value == nil {
+			continue
+		}
+		if utf8.RuneCountInString(*field.value) > fetch.MaxProxyField {
+			fail(w, http.StatusBadRequest, "invalid_proxy_credentials")
+			return
+		}
+		changes = append(changes, [2]string{field.key, *field.value})
 	}
 	if body.RetentionDays != nil {
 		days := *body.RetentionDays

@@ -15,6 +15,8 @@ import (
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 	"golang.org/x/net/html/charset"
+
+	"github.com/yangflow/oriel/internal/store"
 )
 
 // discoverTimeout bounds one discovery, which may fetch a page and probe the common paths.
@@ -39,8 +41,12 @@ var alternateTypes = map[string]bool{
 // with the same timeout and size limits.
 type Discoverer struct {
 	client    *http.Client
+	network   *Network // nil connects directly
 	userAgent string
 }
+
+// UseNetwork makes requests go through the global proxy n reads.
+func (d *Discoverer) UseNetwork(n *Network) { d.network = n }
 
 // NewDiscoverer returns a discoverer that identifies itself as Oriel/version.
 func NewDiscoverer(version string) *Discoverer {
@@ -121,7 +127,11 @@ func (d *Discoverer) get(ctx context.Context, address string) ([]byte, string, *
 	}
 	req.Header.Set("User-Agent", d.userAgent)
 	req.Header.Set("Accept", "text/html, application/xhtml+xml, application/rss+xml, application/atom+xml, application/feed+json, application/xml;q=0.9, */*;q=0.8")
-	resp, err := d.client.Do(req)
+	client, err := d.network.Guarded(ctx, store.SourceProxy{}, d.client)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", nil, err
 	}

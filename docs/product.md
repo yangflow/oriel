@@ -85,6 +85,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 | `keep_days` | 这个源自己的保留期限，单位天：`0` 跟随全局的 `retention_days`（默认），`-1` 永久保留，`1` 到 3650 是天数。其它值（小于 -1，大于 3650）不接受，见「保留期限」。迁移 0014 加这一列。 |
 | `pace_sec` | 这个源的节奏：条目在「全部」和「未读」里停留多久，单位秒。`0` 是关（默认，条目一直在），否则是 3600 到 2592000（30 天）的整数，见「节奏」。迁移 0015 加这一列。 |
 | `extract_selector`、`extract_referer`、`extract_rewrites` | 这个源自己的正文抽取规则，默认都是空串（不用规则，行为不变）：一个 CSS 选择器，抽取时要发的 `Referer`，以及抽取前改写条目链接的规则（按行分隔）。语法、上限和失败时的行为见「正文抽取」的「按源规则」。迁移 0016 加这三列。 |
+| `proxy`、`proxy_user`、`proxy_password` | 这个源自己的抓取代理，默认空串（跟随全局，见「抓取」的「代理」）。`proxy` 是 `direct`（这个源直连，不走全局代理，也不认环境变量）或代理地址（`http`、`https`、`socks5`、`socks5h`，写法同设置 `fetch_proxy`）；`proxy_user`、`proxy_password` 是它的用户名和密码，和 AI 的 API key 一样只存库里，接口不下发。迁移 0025 加这三列。 |
 | `websub_hub`、`websub_topic` | 订阅里声明的 WebSub hub 和主题（`rel="self"`），没有为空串，见「WebSub 推送」。迁移 0012 加这组 `websub_*` 列。 |
 | `websub_key`、`websub_secret` | 这个源的回调路径令牌和签名密钥，各自随机生成，只存库里，接口不下发。 |
 | `websub_state`、`websub_expires_at`、`websub_requested_at`、`websub_base`、`websub_next_at`、`websub_failures`、`websub_error` | 订阅状态：`''`（没订）、`pending`（等 hub 验证）、`active`（租约有效到 `websub_expires_at`）；最近一次请求的时间和当时用的公开地址；下一次动作（订阅或续订）的时间；连续失败次数和最近的原因。 |
@@ -258,7 +259,7 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
 
 ### 设置和会话
 
-设置是键值表。API key 存在这里，接口不下发，只回「已配置 / 未配置」。
+设置是键值表。API key 存在这里，接口不下发，只回「已配置 / 未配置」。抓取代理（`fetch_proxy`，代理地址；`fetch_proxy_user`、`fetch_proxy_password`，它的用户名和密码）同样存在这里，用户名和密码和 API key 一样只写不下发。
 
 会话一行一台设备：token 的 SHA-256、User-Agent、创建时间、最近使用时间。不存 token 原文。
 
@@ -318,7 +319,21 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
 
 订阅地址是用户自己填的，可以指向本机或内网（例如自建的 RSSHub），不做 SSRF 检查。订阅内容带出来的地址由正文抽取检查（见下一节）。
 
-抓订阅时认 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，不读系统代理设置。
+没有配置代理（见下面的「代理」）时，抓订阅认 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，不读系统代理设置。
+
+### 代理
+
+用户可以让抓取经一个 HTTP、HTTPS 或 SOCKS5 代理出去：全局设一个，每个源可以另设或改成直连。
+
+- **全局代理**：设置 `fetch_proxy`，写法 `scheme://host:port`，`scheme` 是 `http`、`https`、`socks5` 或 `socks5h`（两种 SOCKS5 都由代理解析主机名），不带路径、查询串和片段，也不能在地址里写用户名和密码；用户名和密码另存（`fetch_proxy_user`、`fetch_proxy_password`），代理要认证时才设。空串是不用代理。改动最迟 2 秒后生效。
+- **按源**：源的 `proxy` 为空串时跟随全局；是 `direct` 时这个源直连，即使设了全局代理，也不认环境变量；是代理地址时这个源用它（和它自己的用户名和密码），不用全局的。
+- **哪些请求走代理**：订阅抓取（含 RSSHub 实例的请求，包括备用实例）、正文抽取、WebSub 订阅请求、订阅发现、RSSHub 路由查找和预览、图片代理取图、收藏的本地副本取图。按源的设置作用于这个源的抓取、正文抽取和 WebSub 请求；订阅发现、路由查找、取图和复制图片不属于某个源，只用全局代理（所以一个设为 `direct` 的源，它的图片仍走全局代理）。RSSHub 没有单独的健康探测请求：实例的健康只看抓取结果（冷却、换实例），所以实例的抓取走哪条路，健康检查就走哪条路。
+- **不走代理的请求**：AI 摘要和翻译不走这个代理（它们发往用户自己填的接口，常常是本机的模型，也有自己对 `HTTP_PROXY` 的处理）。「导入其他阅读器」（见「导入其他阅读器接口」）发往用户填的阅读器地址，也不走。
+- **用户填的地址**（订阅、RSSHub 实例）：不做 SSRF 检查，照常交给代理。为了自建的 RSSHub 还连得上，主机是本机名 `localhost`、环回地址、内网地址或链路本地地址（直接写成 IP 的）时，不经代理直连；主机名解析到内网的（例如 `rsshub.lan`）不在此列，要把那个源设成 `direct`。
+- **订阅内容带出来的地址**（正文页、WebSub hub、图片、订阅发现）：SSRF 检查仍然有效，代理不能让它们进到内网。连接前 Oriel 自己先解析主机名，任何一个答案是环回、内网、链路本地或保留地址就拒绝（错误同 `ErrBlockedAddress`），解析不出也拒绝；通过后才把主机名交给代理去连（`CONNECT host:port` 或 SOCKS5），每次重定向都再查一遍。已知的限制：代理自己再解析一次，两次答案可以不同（DNS 重绑定），这个窗口 Oriel 看不到，也关不上；信不过代理的用户不要给它内网的访问权。HTTP 和 HTTPS 代理对这些地址一律用 `CONNECT`（包括 `http://` 的页面，端口 80），不允许 `CONNECT` 到 80 端口的代理会让这类请求失败。
+- **代理本身**：代理地址可以是本机或内网地址（例如本机的 Clash `127.0.0.1:7890`）；只有它作为配置好的代理时才放行，不会因此放宽对订阅内容里地址的检查。
+- **凭据**：代理的用户名和密码是密钥。和 API key 一样只存库里，接口只回是否已配置，不进日志、错误、`last_error`、诊断文件和备份。错误文字里不带代理的地址，只写原因（例如 `cannot reach the proxy: connection refused`、`the proxy refused the connection: status 407`）。
+- 备份不含全局代理的用户名和密码，也不含各源的代理用户名和密码（和 API key 一样）；恢复时保留这台服务端自己的全局代理用户名和密码。代理地址本身和 `proxy` 字段照常备份和恢复。
 
 ## 订阅发现
 
@@ -381,7 +396,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 **订阅。** 后台有自己的循环（不占抓取线程），每 30 秒一轮，每轮最多处理 50 个到了 `websub_next_at` 的源：未暂停、有 hub，且 `websub_next_at` 已到或 `websub_base` 和现在的公开地址不同。流程：
 
 1. 没有时先生成 `websub_key`（16 字节随机，十六进制）和 `websub_secret`（32 字节随机，十六进制），记下 `websub_requested_at`、`websub_base`，再发请求。先写库再发，因为 hub 可能在请求返回之前就来验证。
-2. 向 hub 发 `POST`，表单 `hub.mode=subscribe`、`hub.topic`、`hub.callback=<公开地址>/websub/<websub_key>`、`hub.secret`、`hub.lease_seconds=864000`（10 天）。请求经同一个受限客户端发出（hub 地址来自订阅内容，规则同「正文抽取」：只连公网地址，不走代理，重定向最多 5 次）。
+2. 向 hub 发 `POST`，表单 `hub.mode=subscribe`、`hub.topic`、`hub.callback=<公开地址>/websub/<websub_key>`、`hub.secret`、`hub.lease_seconds=864000`（10 天）。请求经同一个受限客户端发出（hub 地址来自订阅内容，规则同「正文抽取」：只连公网地址，重定向最多 5 次；有代理时经代理，见「抓取」的「代理」）。
 3. hub 回 202 或 204 算受理，之后等验证；`websub_next_at` 设为 10 分钟后，验证没到就重新订阅。其他状态码、连不上、超时都算失败：`websub_failures` 加一，原因写进 `websub_error`，下一次不早于 `min(10 分钟 × 2^(n−1), 24 小时)` 之后。
 
 **验证和推送。** 回调路由 `/websub/{key}` 不要会话（设了口令时也一样），它是唯一不要会话的路由（`GET /health` 和登录除外）；保护靠不可猜的 `key`、逐项核对和签名。`key` 对不上任何源、开关没打开、源已暂停，一律 404。
@@ -430,7 +445,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 - 检查发生在建立连接的那一刻，对象是实际要连的 IP，所以 DNS 解析和每一次重定向都绕不过去。重定向最多 5 次，只能到 http 或 https。
 - 拒绝回环、私有网段（`10/8`、`172.16/12`、`192.168/16`、`fc00::/7`）、链路本地（含云元数据地址 `169.254.169.254`）、组播、`0.0.0.0/8`、`100.64/10`、`240/4`，IPv4 映射的 IPv6 地址按 IPv4 判断。
 - `198.18.0.0/15` 不拦：Clash 等代理的 TUN 模式会把所有域名解析到这个网段。
-- 直接连接，不走代理：经过代理时看不到真正的目标地址。
+- 没有配置代理时直接连接。配置了代理（见「抓取」的「代理」）时经代理连，但公网检查不放松：连接前先在本机解析主机名并检查所有答案，再交给代理。
 
 ## 删除订阅与撤销
 
@@ -541,7 +556,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 
 ## 订阅接口
 
-都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`lastErrorKind`（上次失败的稳定代码，`blocked`、`gone` 或空串，见「抓取」）、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见「正文抽取」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
+都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`lastErrorKind`（上次失败的稳定代码，`blocked`、`gone` 或空串，见「抓取」）、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见「正文抽取」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`proxy`（`direct`、代理地址，或空串即跟随全局，见「抓取」的「代理」）、`proxyAuthSet`（这个源是否存了代理的用户名和密码；用户名和密码不下发）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
 
 | 路由 | 作用 |
 |---|---|
@@ -569,13 +584,14 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 - `fetchIntervalSec` 是 60 到 604800（7 天）的整数，否则 `invalid_interval`。给了它就是固定间隔；`fetchIntervalAuto` 是布尔值，缺省为 `true`，即两个都不给时间隔「自动」，起点 900。`fetchIntervalAuto` 为 `true` 又给了 `fetchIntervalSec`，返回 `invalid_interval`。
 - 同一订阅已经有了（订阅地址按「源」一节规范化后比较：末尾多一个 `/`、主机名大小写、默认端口、`http` 对 `https`、`www.`、跟踪参数、查询参数的顺序不同，或同一个上游走了 RSSHub 路由和普通地址两条路，都算已有），返回 409，`{ "error": "source_exists", "sourceId": 已有的那个订阅的编号 }`；有几个重复时取最早的。`allowDuplicate` 为 `true` 时不做这个比较，照样添加（用户看了提示仍要加第二个）；写法完全相同的地址仍然加不了，也是 409 `source_exists`。
 
-能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`、`extractSelector`、`extractReferer`、`extractRewrites`。订阅地址不能改，要换就删了重加。
+能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`、`extractSelector`、`extractReferer`、`extractRewrites`、`proxy`、`proxyUser`、`proxyPassword`。订阅地址不能改，要换就删了重加。
 
 - `keepDays` 是 -1 到 3650 的整数，否则 `invalid_keep_days`。
 - `paceSec` 是 `0` 或 3600 到 2592000 的整数，否则 `invalid_pace`。
 - `extractSelector` 去掉首尾空白后最长 500 个字符，且是能解析的 CSS 选择器，否则 `invalid_extract_selector`；空串是不用。
 - `extractReferer` 去掉首尾空白后是空串，或带主机名的 http 或 https 绝对地址、最长 2000 个字符，否则 `invalid_extract_referer`。
 - `extractRewrites` 按行保存，每行去掉首尾空白，丢掉空行。最多 10 条，每条最长 500 个字符，写法是「正文抽取」里的两种，否则 `invalid_extract_rewrites`。
+- `proxy` 去掉首尾空白后是空串（跟随全局）、`direct`，或带主机名和端口的代理地址（`http`、`https`、`socks5`、`socks5h`，不带路径、查询串、片段和用户信息，最长 500 个字符），否则 `invalid_proxy`。`proxyUser`、`proxyPassword`（各最长 500 个字符，超出 `invalid_proxy`）只能写：不带就不动，空串删掉；`proxy` 改了，这个源存的用户名和密码一并删掉，除非同一个请求带了新的；用户名和密码不管 `proxy` 是什么值都能设。从下一次抓取起生效。
 - 标题改成空串时，下次抓取用订阅里的标题补上。
 - 改 `kind` 后条目的形态跟着变（见「数据模型」）；改成别的形态的源不再抽取正文。
 - 改 `fetchIntervalSec` 从下一次抓取之后生效，同时把间隔改成固定（`fetchIntervalAuto` 变 `false`）；想马上抓就「更新」。`fetchIntervalAuto` 改成 `true` 后，现在用的间隔留着，下一次成功抓取时重新算；同时给 `fetchIntervalSec` 和 `true` 返回 `invalid_interval`。
@@ -699,6 +715,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 
 - `rsshubBaseUrls`：RSSHub 根地址的列表，按优先级排，第一个是主实例，没设为 `[]`。
 - `rsshubBaseUrl`：旧字段，等于 `rsshubBaseUrls` 的第一个，没设为空串。老客户端还读它；新客户端读列表。
+- `proxyUrl`：全局抓取代理的地址，没设为空串，见「抓取」的「代理」。`proxyAuthSet`：是否存了代理的用户名和密码；用户名和密码本身只能写（`PATCH` 的 `proxyUser`、`proxyPassword`），不下发。
 - `retentionDays`：保留期限的天数，`0` 是永久。
 - `groupSameLink`：链接相同的条目在时间线上是否只显示一次，默认 `true`，见「同一篇文章只显示一次」。
 - `muteKeywords`：全局屏蔽词，按行分隔，没设为空串，见「屏蔽词」。
@@ -728,6 +745,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 
 - `rsshubBaseUrls` 是字符串数组，每个去掉首尾空白，必须是带主机名的 http 或 https 绝对地址，可以指向本机或内网，不然 `invalid_rsshub_base_url`；空数组表示不设；末尾的 `/` 去掉，重复的（不分大小写）只留第一个，空串忽略；规整后超过 5 个时 `too_many_rsshub_base_urls`。库里按行存（设置 `rsshub_base_url`，一行一个）。
 - `rsshubBaseUrl` 是旧字段，仍可写：去掉首尾空白，空串表示不设，否则等同于只有这一个地址的 `rsshubBaseUrls`，同样的规则和错误码。同一个请求里两个字段都带时，`rsshubBaseUrls` 为准。
+- `proxyUrl` 去掉首尾空白后是空串（不用代理）或带主机名和端口的代理地址（`http`、`https`、`socks5`、`socks5h`，不带路径、查询串、片段和用户信息，最长 500 个字符），不然 `invalid_proxy_url`。`proxyUser`、`proxyPassword` 各最长 500 个字符，否则 `invalid_proxy_credentials`；不带就不动，空串删掉；代理地址改了，存的用户名和密码一并删掉，除非同一个请求带了新的。库里存在 `fetch_proxy`、`fetch_proxy_user`、`fetch_proxy_password`。
 - `muteKeywords` 每行去掉首尾空白、丢掉空行后存下，最多 200 行、每行最多 100 个字符，否则 `invalid_mute_keywords`。库里存在 `mute_keywords`。改了马上对时间线和未读数生效。
 - `retentionDays` 是 0 到 3650 的整数，否则 `invalid_retention_days`；不是整数时 `invalid_body`。库里存的值读不成天数时按永久处理，返回 `0`（见「保留期限」）。
 - `groupSameLink` 是布尔值，不是布尔值时 `invalid_body`。库里存在 `group_same_link`，`0` 是关，没存或别的值都按开处理。
@@ -785,7 +803,7 @@ OPML 没有形态和 RSSHub 路径，Oriel 用 `outline` 上的两个自定义�
 | `oriel.sqlite` | 数据库的快照，用 `VACUUM INTO` 取得，所以是一致的，应用同时在抓取、写入也没关系。 |
 
 - 快照里包括：订阅（含每个源的全部设置）、条目、已读和加星标状态、阅读进度、AI 结果、抓取记录、WebSub 状态、设置。
-- 快照里不包括：会话（备份文件不能当登录凭据用）、API key（`ai_api_key`，密钥不进任何导出）、全文索引（恢复时重建，也让文件更小）、还在撤销期内的已删除订阅（连同它的条目，见「删除订阅与撤销」）。会话、API key 和这些订阅是从快照这份副本里删掉的，正在用的数据库不动。恢复后 AI 要重新填 API key，除非这台服务端本来就配着。
+- 快照里不包括：会话（备份文件不能当登录凭据用）、API key（`ai_api_key`，密钥不进任何导出）、代理的用户名和密码（设置 `fetch_proxy_user`、`fetch_proxy_password` 和各源的 `proxy_user`、`proxy_password`，同样是密钥）、全文索引（恢复时重建，也让文件更小）、还在撤销期内的已删除订阅（连同它的条目，见「删除订阅与撤销」）。会话、API key、代理的用户名和密码和这些订阅是从快照这份副本里删掉的，正在用的数据库不动。恢复后 AI 要重新填 API key，代理要认证的要重新填用户名和密码，除非这台服务端本来就配着（恢复时保留这台服务端自己的 API key 和全局代理的用户名和密码；各源的代理用户名和密码随源恢复，所以恢复后是空的）。
 - 代理图片的缓存是可再生的，不进备份。每台设备上的 `preferences.json`（窗口位置、界面语言等）和 `remote.json` 在客户端，服务端没有，也不进备份。
 - 文件名默认 `Oriel-YYYY-MM-DD.oriel-backup`。macOS 的保存对话框靠应用声明的导出类型（`mygo.json` 的 `macos.infoPlist` 里的 `UTExportedTypeDeclarations`，扩展名 `oriel-backup`）认得这个扩展名，不会再补一个；没有声明时，系统把它当未知类型，文件名会变成 `….oriel-backup.oriel-backup`。
 
@@ -932,7 +950,7 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 - `POST {aiBaseUrl}/chat/completions`，`stream: false`。system 消息是生效的 prompt，user 消息是原文；设了 key 时带 `Authorization: Bearer <key>`。
 - 生效的 prompt：源的 `promptSummary` / `promptTranslate` 不为空就用源的，否则用全局的。prompt 里的 `{language}` 换成目标语言的名字（`简体中文`、`English`）。
 - 内置的摘要 prompt：`Summarize the article in {language} in three to five sentences. Reply with the summary only.`；翻译 prompt：`Translate the text into {language}. Keep the paragraphs and their order, and the title on the first line. Reply with the translation only.`
-- 每个请求超时 120 秒，响应最大 1 MiB。自检是例外：列模型和短请求共用一个 120 秒的总预算，最坏情况也是 120 秒，客户端等 130 秒。认 `HTTP_PROXY` / `HTTPS_PROXY`。接口地址是用户自己填的，可以指向本机或内网，不走正文抽取的公网检查。
+- 每个请求超时 120 秒，响应最大 1 MiB。自检是例外：列模型和短请求共用一个 120 秒的总预算，最坏情况也是 120 秒，客户端等 130 秒。认 `HTTP_PROXY` / `HTTPS_PROXY`，不用「抓取」里的抓取代理。接口地址是用户自己填的，可以指向本机或内网，不走正文抽取的公网检查。
 - 结果取第一个 `choices[].message.content`，去掉首尾空白，再去掉开头的一段 `<think>…</think>`（推理模型会把思考写进正文）；为空算失败。`finish_reason` 为 `length`（被接口的输出上限截断）的答复算失败，`ai_upstream`，不保存、不当作翻完的一块，照常走重试。
 
 自检（`POST /api/ai/test`）在服务端做，界面只显示结果，从不在绘制时联网：
@@ -1017,7 +1035,7 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 `GET /api/image?url=<地址>` 替界面取缩略图、视频封面和条目里的图片。要会话（设了口令时）。界面不直接连这些地址：它们来自订阅内容，远程模式下客户端和服务端也不在同一个网络，地址检查只在服务端做一处。
 
 - `url` 必须是带主机名的 http 或 https 绝对地址，否则 400 `invalid_url`。
-- 按「正文抽取」的规则只连公网地址，超时 25 秒，重定向最多 5 次，直接连接不走代理。不带 `Referer`。
+- 按「正文抽取」的规则只连公网地址，超时 25 秒，重定向最多 5 次，设了全局代理时经代理（见「抓取」的「代理」）。不带 `Referer`。
 - 同一地址同时有多个请求时只向上游取一次，等着的请求共用结果；某个请求自己取消只是不再等，不会中断给别人的下载，等的人都走了才停。同时进行的上游下载最多 8 个，其余排队；25 秒从开始下载算起，排队的时间不计。
 - 最大 8 MiB。按内容判断类型，只放行界面能解码的 PNG、JPEG、GIF、WebP 和 BMP。
 - 已知的跟踪图片地址（见「正文显示」的图片规则）不去连，直接返回 502 `image_unavailable`，和被拦的地址一样；客户端本来就不会请求它们，这是给别的调用方挡一道。
@@ -1091,7 +1109,7 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 - 用户主目录（里面有本机用户名）写成 `~`，比如文件错误里的 `/Users/<名字>/Library/…` 写成 `~/Library/…`。
 - 日志属性的名字（不分大小写）含 `key`、`token`、`password`、`passwd`、`secret`、`credential`、`authorization`、`cookie`、`signature` 之一的，整个属性不写；属性组里按带点的完整名字判断。
 - 单条属性值、消息和 `last_error` 各最多保留 300 个字符，超出的以 `…` 结尾。
-- 任何情况下都不写入：口令、会话令牌、AI 的 key、提示词、条目的标题和正文、订阅的完整地址、标题、站点地址和 RSSHub 实例地址、WebSub 的回调 key 和签名密钥。这些数据根本不进入文件的组装代码；脱敏只是第二道防线。
+- 任何情况下都不写入：口令、会话令牌、AI 的 key、提示词、条目的标题和正文、订阅的完整地址、标题、站点地址和 RSSHub 实例地址、代理的地址、用户名和密码、WebSub 的回调 key 和签名密钥。这些数据根本不进入文件的组装代码；脱敏只是第二道防线。
 - 日志本来就不记它们（见「AI 摘要和翻译」「口令」），脱敏防的是错误文字里夹带的网址，比如 `Get "https://host/feed?token=…": EOF`。
 - 测试里有一条检查：口令、会话令牌、AI key、带 `?token=` 的订阅地址、带令牌网址的日志和名为 `authorization` 的属性都不出现在文件里。
 
