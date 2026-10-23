@@ -61,6 +61,11 @@
      With no subscription yet (no-subscriptions) the empty state offers three ways in: the primary "Add your first
      subscription" opens the add dialog, and the quiet "Import OPML…" and "Restore from backup…" beside it open Settings
      on Import and export, where the backup file is chosen and the restore confirmed.
+     An OPML file dragged over the window from Finder or Explorer turns this empty state into a drop zone
+     (no-subscriptions-drop): a dashed 1.5 Accent outline inset 16 with radius 14 and a soft Accent fill, the tile and
+     heading swapped for an upload mark and "Drop to import" with the hint "Release an OPML file to add its
+     subscriptions." The words carry the state, not the color. Dropping opens Settings on Import and export, which
+     reads and imports it there; with subscriptions, or while a dialog is open, the timeline takes no drop.
      Search: search is a result list with the matches highlighted (a fill and an underline, in the title and the
      summary only, at most 8 in each); search-operators is a query that uses from:, kind:, after: and -exclude,
      whose words stay as typed in the field, with no chips; search-syntax is the empty focused field with the one
@@ -535,6 +540,9 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .button:hover { background:color-mix(in srgb,var(--track) 90%,var(--text)) }
 .button.primary { background:var(--accent); color:var(--accent-text) }
 .button.primary:hover { background:var(--accent-hover) }
+.empty.drop { margin:16px; height:calc(100% - 32px); padding:24px; border:1.5px dashed var(--accent); border-radius:14px; background:var(--accent-soft) }
+.empty.drop .tile { background:var(--accent-soft); color:var(--accent) }
+.empty.drop p { color:var(--text2) }
 .empty-actions { margin-top:8px; display:flex; flex-wrap:wrap; justify-content:center; gap:8px }
 
 .scrim { position:absolute; inset:0; z-index:3; display:grid; place-items:center; background:var(--scrim) }
@@ -635,13 +643,13 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-entry-last','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
+const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','menu-entry','menu-entry-first','menu-entry-last','menu-feed','menu-feed-none','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
 const options={state:states,scope:['all',...kinds,'source'],scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
 const state=pick('state',states,'list');
-const noSubs=state==='no-subscriptions';
+const noSubs=state==='no-subscriptions'||state==='no-subscriptions-drop';
 // Each viewer state is drawn in the scope that shows it best; the scope menu still switches it.
 const stateScope={'article-compact':'article','social-compact':'social','video-cover':'video','video-list':'video','image-grid':'image','image-card':'image','image-switch':'image','source-grid':'source','lightbox':'social','lightbox-failed':'social'};
 const scope=pick('scope',options.scope,stateScope[state]||'all');
@@ -745,7 +753,7 @@ const copy={
     orderNewest:'Newest first', orderOldest:'Oldest first', orderNote:'Oldest first: new entries appear at the end of the list',
     showGrid:'Show as grid', showList:'Show as list', timeName:'Reading time: any length', timeNameUpTo:'Reading time: up to {n} minutes',
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
-    noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…', restoreBackup:'Restore from backup…',
+    dropTitle:'Drop to import', dropHint:'Release an OPML file to add its subscriptions.', noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…', restoreBackup:'Restore from backup…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
     marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedBelow:'Marked {n} entries below as read', markedVisible:'Marked {n} visible entries as read', markedScrolled:'Marked {n} scrolled-past entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below', fetching:'{name}, fetching', fetchedNew:'Fetched {n} entries from “{name}”', fetchedNone:'“{name}” fetched, but has no entries yet', fetchedFailed:'Couldn’t fetch “{name}”: {error}', refreshingName:'Refreshing, {done} of {n} checked', refreshed:'Checked {n} subscriptions', refreshedFailed:'Checked {n} subscriptions, {failed} failed', refreshedPart:'Checked {done} of {n} subscriptions, the rest will follow', refreshNone:'No subscriptions to refresh', kRefreshAll:'Refresh all subscriptions',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
@@ -780,7 +788,7 @@ const copy={
     orderNewest:'最新的在前', orderOldest:'最旧的在前', orderNote:'最旧的在前时，新条目出现在列表末尾',
     showGrid:'以网格显示', showList:'以列表显示', timeName:'阅读时长：不限', timeNameUpTo:'阅读时长：{n} 分钟内',
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
-    noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…', restoreBackup:'从备份恢复…',
+    dropTitle:'松手即可导入', dropHint:'松开鼠标，添加 OPML 文件里的订阅。', noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…', restoreBackup:'从备份恢复…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
     marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedBelow:'已把下面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', markedScrolled:'已把滚过的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了', fetching:'{name}，正在抓取', fetchedNew:'「{name}」抓到 {n} 条', fetchedNone:'「{name}」抓取成功，但还没有条目', fetchedFailed:'「{name}」抓取失败：{error}', refreshingName:'正在更新，已查 {done}/{n}', refreshed:'已查完 {n} 个订阅', refreshedFailed:'已查完 {n} 个订阅，其中 {failed} 个失败', refreshedPart:'已查 {done}/{n} 个订阅，其余会陆续抓', refreshNone:'没有可更新的订阅', kRefreshAll:'全部更新',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
@@ -1034,6 +1042,7 @@ const more=state==='more'?`<div class="footer" role="status">${icon('loader','sp
 
 let list;
 if(state==='loading')list=`<div class="column" aria-busy="true">${skeleton()}</div>`;
+else if(state==='no-subscriptions-drop')list=`<div class="empty drop" role="status"><div class="tile">${icon('upload')}</div><h2>${copy.dropTitle}</h2><p>${copy.dropHint}</p></div>`;
 else if(noSubs){list=empty('rss',copy.noSubscriptions,copy.noSubscriptionsHint,`<div class="empty-actions"><button class="button primary">${icon('plus')}${copy.addFirst}</button><button class="button">${icon('upload')}${copy.importOpml}</button><button class="button">${icon('database')}${copy.restoreBackup}</button></div>`)}
 else if(state==='error')list=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');
 else if(state==='unread-done')list=empty('circleCheck',copy.unreadDone,copy.unreadDoneHint);
