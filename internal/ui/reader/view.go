@@ -1370,7 +1370,7 @@ func (s *Screen) textSwitch(c *ui.Context) {
 			Children(func() {
 				for i, name := range []string{s.text.ShowFull, s.text.ShowFeed} {
 					b := seg.Segment(i).Height(px(t, 24)).PaddingX(px(t, 9)).Radius(px(t, 6)).Label(name)
-					color := t.TextMuted
+					color := theme.Text2(t)
 					switch {
 					case i == s.feedText:
 						theme.Raised(t, b)
@@ -1583,7 +1583,7 @@ func (s *Screen) translationNote(c *ui.Context) {
 				Label(s.text.Translate).Children(func() {
 				for i, name := range []string{s.text.Translation, s.text.Original} {
 					b := seg.Segment(i).Height(px(t, 24)).PaddingX(px(t, 9)).Radius(px(t, 6)).Label(name)
-					color := t.TextMuted
+					color := theme.Text2(t)
 					switch {
 					case i == s.shown:
 						theme.Raised(t, b)

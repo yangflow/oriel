@@ -418,7 +418,9 @@ values are in [design/tokens.md](../design/tokens.md). See
   control boundaries. With the desktop's high contrast setting on (`c.Preferences().HighContrast`), `theme.Apply`
   makes `Border` a `Text` line (55%), moves `TextMuted` toward `Text`, makes `Focus` opaque, raises the state fills to
   8%, 12% and 16%, and turns glass (the capsules, the scroll edge) opaque; test with it on. Text on the ink pane holds AA
-  (tokens.md has the numbers); `Warning` and `Star` are graphics, never text.
+  (tokens.md has the numbers); `Warning` and `Star` are graphics, never text. `TextMuted` does not hold 4.5:1 on a
+  `Track` or a soft fill: the unselected labels of a segmented control and the badges on a `Track` are `Text2`, and the
+  text in a `Danger` result box is `Text`, with the icon in `Danger`.
 - **States.** One look per state, the same on every screen, as steps of lightness: ink fills of 3%, 5% and 6.5% in
   light (4%, 6% and 8% in dark; 5.5%, 8.5% and 12% on the pane) for hovered, pressed and chosen, so
   hover < pressed < chosen. Hovered: `SurfaceHover`. Pressed: `SurfacePressed`. Chosen in navigation (a kind, a

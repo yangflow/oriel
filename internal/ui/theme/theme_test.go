@@ -290,6 +290,38 @@ func TestFocusRing(t *testing.T) {
 	}
 }
 
+// TestFillContrast holds the text drawn on a Track and on the soft fills of a result box to 4.5:1, in light, dark and
+// with high contrast. TextMuted is left out on purpose: it does not hold 4.5:1 on a Track.
+func TestFillContrast(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, high := range []bool{false, true} {
+			th := applied(t, dark, ui.Preferences{HighContrast: high})
+			for _, ground := range []ui.Color{th.Background, th.Surface} {
+				softs := map[string]ui.Color{
+					"Soft(Danger)":  Soft(&th, th.Danger).Over(ground),
+					"Soft(Warning)": Soft(&th, th.Warning).Over(ground),
+					"plain box":     Ink(&th, 0.045).Over(ground),
+				}
+				for name, fill := range softs {
+					for _, text := range []ui.Color{th.Text, Text2(&th)} {
+						if r := contrast(text, fill); r < 4.5 {
+							t.Errorf("dark %v high %v: %v on %s over %v is %.2f:1", dark, high, text, name, ground, r)
+						}
+					}
+				}
+				if r := contrast(th.Danger, softs["Soft(Danger)"]); r < 3 {
+					t.Errorf("dark %v high %v: Danger icon on Soft(Danger) over %v is %.2f:1", dark, high, ground, r)
+				}
+			}
+			for _, text := range []ui.Color{th.Text, Text2(&th)} {
+				if r := contrast(text, Track(&th)); r < 4.5 {
+					t.Errorf("dark %v high %v: %v on Track is %.2f:1", dark, high, text, r)
+				}
+			}
+		}
+	}
+}
+
 func TestHan(t *testing.T) {
 	for text, want := range map[string]bool{"Oriel 发布": true, "Hello, world": false, "": false, "かな": false} {
 		if Han(text) != want {
