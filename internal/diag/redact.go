@@ -37,14 +37,17 @@ func Sensitive(name string) bool {
 
 // Redact cuts every address in text down to scheme and host, writes the home directory as "~", blanks values that are assigned to a name that looks like
 // a secret ("token=abc") and credentials after Bearer or Basic, and keeps at most maxText characters.
-func Redact(text string) string {
+func Redact(text string) string { return redact(text, maxText) }
+
+// redact is Redact keeping at most limit characters.
+func redact(text string, limit int) string {
 	text = address.ReplaceAllStringFunc(text, hostOnly)
 	if len(home) > 1 {
 		text = strings.ReplaceAll(text, home, "~")
 	}
 	text = assignment.ReplaceAllString(text, "$1=[redacted]")
 	text = bearer.ReplaceAllString(text, "$1 [redacted]")
-	return truncate(text)
+	return truncate(text, limit)
 }
 
 // hostOnly is an address without user name, password, path, query and fragment.
@@ -60,9 +63,9 @@ func hostOnly(address string) string {
 	return scheme + "://" + authority
 }
 
-func truncate(text string) string {
-	if utf8.RuneCountInString(text) <= maxText {
+func truncate(text string, limit int) string {
+	if utf8.RuneCountInString(text) <= limit {
 		return text
 	}
-	return string([]rune(text)[:maxText]) + "…"
+	return string([]rune(text)[:limit]) + "…"
 }

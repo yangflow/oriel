@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -207,11 +208,14 @@ func (w *Worker) dispatch(ctx context.Context, wg *sync.WaitGroup) {
 		}
 		w.inFlight[job] = true
 		wg.Go(func() {
-			w.process(ctx, cfg, job)
+			panicked := diag.Guard("ai job", func() { w.process(ctx, cfg, job) })
 			w.mu.Lock()
 			delete(w.inFlight, job)
 			w.mu.Unlock()
-			w.Wake()
+			// A job that panicked stays queued; waking at once would only run it into the same panic again.
+			if !panicked {
+				w.Wake()
+			}
 		})
 	}
 }

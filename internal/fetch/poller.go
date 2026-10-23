@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/ai"
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -237,7 +238,7 @@ func every(ctx context.Context, interval time.Duration, f func(context.Context))
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		f(ctx)
+		diag.Guard("fetch loop", func() { f(ctx) })
 		select {
 		case <-ctx.Done():
 			return
@@ -278,10 +279,17 @@ func (p *Poller) work(ctx context.Context, idle bool) int {
 			}
 			continue
 		}
-		total += p.fetchSource(ctx, job)
-		p.finish(job)
+		total += p.fetchGuarded(ctx, job)
 	}
 	return total
+}
+
+// fetchGuarded fetches one source and releases it. A panic is logged with its stack and costs only this fetch: the
+// source is not recorded as fetched, so it comes due again when it did.
+func (p *Poller) fetchGuarded(ctx context.Context, job queued) (added int) {
+	defer p.finish(job)
+	defer diag.Recover("fetch source")
+	return p.fetchSource(ctx, job)
 }
 
 // take claims the oldest due source whose host has room, or reports that there is none. Sources whose host is busy

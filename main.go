@@ -31,19 +31,34 @@ import (
 // defaultPort is where `oriel serve` listens unless -port says otherwise.
 const defaultPort = 7470
 
-// logs keeps the recent warnings and errors of this process for the diagnostics file.
-var logs *diag.Handler
+var (
+	// logs keeps the recent warnings and errors of this process for the diagnostics file.
+	logs *diag.Handler
+	// logFile is the rotated log file in the data directory; it takes records once openLog has found the directory.
+	logFile = diag.NewRotator()
+)
+
+// openLog starts the log file in dataDir. A file that cannot be opened is a warning on stderr, not the end of the app.
+func openLog(dataDir string) {
+	if err := logFile.Open(dataDir); err != nil {
+		slog.Warn("Cannot open the log file", "error", err)
+	}
+}
 
 func main() {
-	logs = diag.NewHandler(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-		ReplaceAttr: func(_ []string, attr slog.Attr) slog.Attr {
-			if attr.Key == slog.TimeKey {
-				return slog.Time(attr.Key, attr.Value.Time().UTC())
-			}
-			return attr
-		},
-	}), diag.Keep)
+	// stderr gets the records as they are, the log file the redacted ones.
+	logs = diag.NewHandler(slog.NewMultiHandler(
+		slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{ReplaceAttr: diag.UTC}),
+		diag.NewFileHandler(logFile),
+	), diag.Keep)
 	slog.SetDefault(slog.New(logs))
+	// A panic that reaches the top of the main goroutine is written to the log, with its stack, before the app ends.
+	defer func() {
+		if value := recover(); value != nil {
+			diag.LogPanic("main", value)
+			os.Exit(2)
+		}
+	}()
 	// The name decides the user data directory: ~/Library/Application Support/Oriel, %AppData%\Oriel, ~/.config/Oriel.
 	mygo.App.SetName("Oriel")
 	if len(os.Args) > 1 {
@@ -105,6 +120,8 @@ func serve(args []string) int {
 	password := os.Getenv("ORIEL_PASSWORD")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	openLog(*dataDir)
+	defer logFile.Close()
 	b, err := start(ctx, *dataDir, password, diag.ModeHeadless, *port, proxies)
 	if err != nil {
 		slog.Error("Cannot start", "error", err, "data", *dataDir)
@@ -148,6 +165,7 @@ func desktop() {
 	var b *backend
 	dataDir, err := mygo.App.Path(mygo.PathUserData)
 	if err == nil {
+		openLog(dataDir)
 		b, err = start(context.Background(), dataDir, "", diag.ModeDesktop, 0, nil)
 	}
 	if err != nil {
@@ -165,6 +183,8 @@ func desktop() {
 		systemLocale := mygo.App.Locale()
 		goAsync := func(work func() func()) {
 			go func() {
+				// A task that panics is logged with its stack and shows nothing; the app stays usable.
+				defer diag.Recover("window task")
 				apply := work()
 				window.Update(apply)
 			}()

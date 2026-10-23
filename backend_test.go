@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"path/filepath"
 	"strings"
@@ -148,5 +151,35 @@ func TestLoginThrottleBehindTrustedProxy(t *testing.T) {
 			t.Errorf("trusted %v: another client got %d, want %d", trusted, other, want)
 		}
 		b.close(context.Background())
+	}
+}
+
+func TestTrackLogsAPanicAndCutsTheConnection(t *testing.T) {
+	var out bytes.Buffer
+	saved := slog.Default()
+	defer slog.SetDefault(saved)
+	slog.SetDefault(slog.New(diag.NewFileHandler(&out)))
+	b := &backend{}
+	server := httptest.NewServer(b.track(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/ok" {
+			return
+		}
+		panic("handler broke")
+	})))
+	defer server.Close()
+	if _, err := http.Get(server.URL + "/boom"); err == nil {
+		t.Error("the connection was not cut off")
+	}
+	if resp, err := http.Get(server.URL + "/ok"); err != nil {
+		t.Errorf("the server did not go on: %v", err)
+	} else {
+		resp.Body.Close()
+	}
+	text := out.String()
+	if !strings.Contains(text, "handler broke") || !strings.Contains(text, `"where":"request"`) || !strings.Contains(text, "stack") {
+		t.Errorf("the panic was not logged with its stack: %s", text)
+	}
+	if b.running.Load() != 0 {
+		t.Errorf("%d requests still counted", b.running.Load())
 	}
 }

@@ -10,11 +10,15 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/tracker"
 )
 
 // ErrNotImage reports a response that is not a picture the interface can decode.
 var ErrNotImage = errors.New("not a decodable image")
+
+// errImagePanic is what the waiters of a download get when it panicked; the panic itself is in the log.
+var errImagePanic = errors.New("picture download failed")
 
 // StatusError reports an origin that answered a picture request with a status other than 2xx.
 type StatusError struct{ Code int }
@@ -133,12 +137,14 @@ func (im *Images) runFlight(ctx context.Context, address string, f *imageFlight)
 	}()
 	select {
 	case im.slots <- struct{}{}:
-		func() {
+		if diag.Guard("fetch image", func() {
 			defer func() { <-im.slots }()
 			dlCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			f.kind, f.body, f.err = im.download(dlCtx, address)
-		}()
+		}) {
+			f.kind, f.body, f.err = "", nil, errImagePanic
+		}
 	case <-ctx.Done():
 		f.err = ctx.Err()
 	}

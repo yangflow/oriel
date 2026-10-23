@@ -22,6 +22,7 @@ import (
 	"golang.org/x/net/html/atom"
 	"golang.org/x/net/html/charset"
 
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -193,6 +194,7 @@ func (p *Poller) startExtractions(ctx context.Context, limit int, tried map[int6
 		wg.Go(func() {
 			defer func() { done <- struct{}{} }()
 			defer p.hosts.release(host)
+			defer diag.Recover("extract article")
 			p.extractOne(ctx, target, address, host)
 		})
 	}

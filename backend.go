@@ -17,6 +17,7 @@ import (
 
 	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/autobackup"
+	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/server"
 	"github.com/yangflow/oriel/internal/store"
@@ -47,11 +48,20 @@ type backend struct {
 // requestGrace is how long close waits for handlers to return once their connections are cut off.
 const requestGrace = 5 * time.Second
 
-// track counts the requests in flight in handler.
+// track counts the requests in flight in handler. A handler that panics is logged with its stack, and its connection
+// is cut off the way net/http does, so the server goes on.
 func (b *backend) track(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b.running.Add(1)
 		defer b.running.Add(-1)
+		defer func() {
+			if value := recover(); value != nil {
+				if value != http.ErrAbortHandler {
+					diag.LogPanic("request", value)
+				}
+				panic(http.ErrAbortHandler)
+			}
+		}()
 		handler.ServeHTTP(w, r)
 	})
 }
@@ -81,14 +91,16 @@ func (g *background) run() {
 	}
 	ctx, stop := context.WithCancel(context.Background())
 	g.stop = stop
-	g.group.Go(func() { g.poller.Run(ctx) })
-	g.group.Go(func() { g.worker.Run(ctx) })
-	g.group.Go(func() { g.copier.Run(ctx) })
-	g.group.Go(func() { g.auto.Run(ctx) })
+	g.group.Go(func() { diag.Supervise(ctx, "fetch loop", func() { g.poller.Run(ctx) }) })
+	g.group.Go(func() { diag.Supervise(ctx, "AI worker", func() { g.worker.Run(ctx) }) })
+	g.group.Go(func() { diag.Supervise(ctx, "starred copies", func() { g.copier.Run(ctx) }) })
+	g.group.Go(func() { diag.Supervise(ctx, "automatic backup", func() { g.auto.Run(ctx) }) })
 	g.group.Go(func() {
-		if err := g.store.BackfillReadingTime(ctx); err != nil && ctx.Err() == nil {
-			slog.Error("Cannot fill in reading times", "error", err)
-		}
+		diag.Guard("reading times", func() {
+			if err := g.store.BackfillReadingTime(ctx); err != nil && ctx.Err() == nil {
+				slog.Error("Cannot fill in reading times", "error", err)
+			}
+		})
 	})
 }
 
@@ -132,7 +144,7 @@ func start(ctx context.Context, dataDir, password, mode string, port int, proxie
 	auto := autobackup.New(st, version)
 	work := &background{store: st, poller: poller, worker: worker, copier: fetch.NewCopier(st, images), auto: auto}
 	api, err := server.New(st, server.Config{Password: password, Version: version, Images: images,
-		Discover: fetch.NewDiscoverer(version), AI: worker, Fetching: poller.Fetching, Log: logs, Mode: mode, Pause: work.pause, AutoBackup: auto, TrustedProxies: proxies})
+		Discover: fetch.NewDiscoverer(version), AI: worker, Fetching: poller.Fetching, Log: logs, DataDir: dataDir, Mode: mode, Pause: work.pause, AutoBackup: auto, TrustedProxies: proxies})
 	if err != nil {
 		st.Close()
 		return nil, err
@@ -152,6 +164,7 @@ func start(ctx context.Context, dataDir, password, mode string, port int, proxie
 	}
 	b.http.Handler = b.track(api)
 	go func() {
+		defer diag.Recover("server")
 		if err := b.http.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("Server stopped", "error", err)
 		}
