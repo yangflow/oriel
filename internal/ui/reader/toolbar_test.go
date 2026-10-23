@@ -198,8 +198,11 @@ func TestToolbarAlignsWithColumn(t *testing.T) {
 		f := &fake{now: now, article: a, nav: Nav{Entry: a.Entry, Scope: "All", Keys: true, Controls: tc.controls}}
 		s := New("en", f.deps())
 		s.Use(f)
-		var column float32
-		tt := ui.NewTester(func(c *ui.Context) { column = s.column(c.Theme()); s.View(c, f.nav) }, tc.width, 900)
+		var column, unit float32
+		tt := ui.NewTester(func(c *ui.Context) {
+			column, unit = s.column(c.Theme()), px(c.Theme(), 1)
+			s.View(c, f.nav)
+		}, tc.width, 900)
 		s.Open(a.Entry)
 		tt.SetTitleBar(ui.TitleBar{Height: 52, Left: 78, Right: 0})
 		f.settle(tt)
@@ -212,10 +215,10 @@ func TestToolbarAlignsWithColumn(t *testing.T) {
 		}
 		w := float32(tc.width)
 		col := min(w, column)
-		left, right := (w-col)/2+28, (w-col)/2+col-32
+		left, right := (w-col)/2+28*unit, (w-col)/2+col-32*unit
 		narrow := tc.width < 760
 		if narrow {
-			left, right = (w-col)/2+12, (w-col)/2+col-16
+			left, right = (w-col)/2+12*unit, (w-col)/2+col-16*unit
 		}
 		if tc.controls {
 			left = max(left, 78)
@@ -226,7 +229,7 @@ func TestToolbarAlignsWithColumn(t *testing.T) {
 		if got := more.X + more.W; got < right-0.5 || got > right+0.5 {
 			t.Errorf("width %d controls %v: More ends at %v, want %v", tc.width, tc.controls, got, right)
 		}
-		if !tc.controls && !narrow && back.X+4 > source.X {
+		if !tc.controls && !narrow && back.X+4*unit > source.X {
 			t.Errorf("width %d: Back icon at %v is right of the source line at %v", tc.width, back.X+4, source.X)
 		}
 	}
