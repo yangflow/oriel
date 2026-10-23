@@ -87,7 +87,7 @@ func (s *Screen) fontPick(c *ui.Context, p *fontPicker, label, current string, p
 		if shown.family != "" {
 			name.Font(shown.family)
 		}
-		ui.Icon(c, icons.ChevronDown).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
+		ui.Icon(c, icons.ChevronDown).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 	})
 	if trig.Clicked() {
 		if p.open {
@@ -244,7 +244,7 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 		search := ui.Row(c).Margin(theme.Px(t, 8), theme.Px(t, 8), 0, theme.Px(t, 8)).Height(theme.Px(t, pickerRow)).AlignItems(ui.Center).
 			Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 10)).Radius(theme.Px(t, 8)).Background(t.Surface).Shrink(0)
 		search.Children(func() {
-			ui.Icon(c, icons.Search).FontSize(theme.Px(t, 15)).TextColor(t.TextMuted)
+			ui.Icon(c, icons.Search).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
 			in = ui.TextInputBase(c, &p.query).Grow(1).MinWidth(0).FocusRing(false).
 				Label(s.text.FontSearch).Placeholder(s.text.FontSearch)
 			if p.focus {
@@ -350,7 +350,7 @@ func (s *Screen) pickerOption(c *ui.Context, o choice, current, highlighted bool
 			face.Font(o.family)
 		}
 		if current {
-			ui.Icon(c, icons.Check).FontSize(theme.Px(t, 14)).TextColor(t.Accent)
+			ui.Icon(c, icons.Check).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
 		}
 	})
 	return row
@@ -363,7 +363,7 @@ func (s *Screen) pickerStatus(c *ui.Context, p *fontPicker, loaded bool) {
 		Gap(theme.Px(t, 8)).Padding(theme.Px(t, 12)).Role(ui.RoleStatus)
 	row.Children(func() {
 		if !loaded {
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
+			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 			ui.Text(c, s.text.FontLoading).TextColor(t.TextMuted).Wrap().TextAlign(ui.Center)
 			return

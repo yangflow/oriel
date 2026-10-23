@@ -267,7 +267,7 @@ func (s *Screen) palette(c *ui.Context) {
 		field := ui.Row(c).Margin(theme.Px(t, 8), theme.Px(t, 8), theme.Px(t, 4), theme.Px(t, 8)).Height(theme.Px(t, paletteRow)).AlignItems(ui.Center).
 			Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 10)).Radius(theme.Px(t, 8)).Background(theme.RaisedFill(t)).Shrink(0)
 		field.Children(func() {
-			ui.Icon(c, icons.Search).FontSize(theme.Px(t, 15)).TextColor(t.TextMuted)
+			ui.Icon(c, icons.Search).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
 			in = ui.TextInputBase(c, &p.query).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.PaletteGoTo).
 				Placeholder(s.text.PaletteGoTo)
 			if p.focus {
@@ -360,7 +360,7 @@ func (s *Screen) paletteRow(c *ui.Context, it paletteItem, highlighted, ranked b
 	}
 	row.Children(func() {
 		if it.icon != nil {
-			ui.Icon(c, it.icon).FontSize(theme.Px(t, 16)).TextColor(t.TextMuted)
+			ui.Icon(c, it.icon).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
 		} else {
 			s.glyph(c, it.name, it.site, 16)
 		}

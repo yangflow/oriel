@@ -206,7 +206,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 /* Font picker: a popup on Raised over the page, anchored under its control. Search on top, a hairline, the list. */
 .picker { position:absolute; z-index:4; width:300px; max-height:360px; display:flex; flex-direction:column; border-radius:12px; background:var(--raised); box-shadow:var(--popup-shadow) }
 .picker .search { flex:none; display:flex; align-items:center; gap:8px; margin:8px 8px 0; height:32px; padding:0 10px; border-radius:8px; background:var(--surface); box-shadow:0 0 0 2px var(--focus); color:var(--muted) }
-.picker .search svg.icon { width:15px; height:15px }
+.picker .search svg.icon { width:16px; height:16px }
 .picker .search .typed { flex:1; min-width:0; color:var(--text); white-space:nowrap; overflow:hidden }
 .picker .search .typed.placeholder { color:var(--muted) }
 .picker .search .caret { display:inline-block; width:1px; height:15px; margin-left:1px; vertical-align:-3px; background:var(--text) }
@@ -260,7 +260,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .result li .why { color:var(--text2); white-space:nowrap }
 .result .close { width:20px; height:20px; display:grid; place-items:center; border-radius:6px; color:var(--muted) }
 .result .close:hover { background:var(--hover); color:var(--text) }
-.result .close svg.icon { width:13px; height:13px; margin:0 }
+.result .close svg.icon { width:14px; height:14px; margin:0 }
 /* Hit area: a control drawn under 24 keeps its look; an invisible 24 by 24 minimum target surrounds it (docs/design.md, Accessibility). */
 .result .close { position:relative }
 .result .close::after { content:""; position:absolute; inset:-2px }
@@ -367,7 +367,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 /* Rules: a row is the condition as a sentence, the scope and the action under it, then the switch and the menu. */
 .rule .when { font-weight:500; overflow-wrap:anywhere }
 .rule .then { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:2px; font-size:12px; color:var(--muted) }
-.rule .then svg.icon { width:13px; height:13px; color:var(--text2) }
+.rule .then svg.icon { width:14px; height:14px; color:var(--text2) }
 .rule.off .text { opacity:.55 }
 .rule .more { width:28px; height:28px; flex:none; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
 .rule .more:hover, .rule .more.open { background:var(--hover); color:var(--text) }
@@ -377,7 +377,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .menu button { width:100%; height:32px; display:flex; align-items:center; gap:8px; padding:0 10px; border-radius:6px; text-align:left }
 .menu button:hover { background:var(--hover) }
 .menu button.danger { color:var(--danger) }
-.menu svg.icon { width:15px; height:15px }
+.menu svg.icon { width:14px; height:14px }
 .alert.dialog .fieldset .select { width:100% }
 .alert.dialog .fieldset .textarea { margin-top:0; min-height:64px }
 .alert.dialog .group-label { display:block; margin:12px 0 4px; font-weight:500 }

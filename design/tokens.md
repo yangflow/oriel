@@ -52,8 +52,16 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | picture-wall | up to three columns at least 170 wide, column gap 14, tile gap 20 below, padding 16 24 32 | 170 | Images scope (Wall); each picture at its own aspect ratio, 4:3 when unknown; caption 13 semibold, one line |
 | picture-grid | cells at least 170 wide, same gaps and padding as video-grid | 170 | Images scope (Grid); square picture, radius 10, title 13 semibold one line, 4 below |
 | badge | radius 4, 11 medium white on ink 62%, 6 from the corner | | duration (bottom right) and picture count (top right) on a cover |
-| icon | `t.Rem(1.25)` | about 16 / 18 | icons in fields and buttons; 1.05 rem in error lines; 14 in segments, 13 in the meta line |
+| icon small | `theme.IconSmall`, 14 | about 14 | inline icons: in a `Button`, a chevron or check in a field or menu, a status or error line, the meta line and its star, upload and play marks, the clear x of a field, a spinner, a row's kind icon, a menu item |
+| icon medium | `theme.IconMedium`, 16 | about 16 | bare icon buttons (toolbar, reader tools, the x and gear of a pane), the leading icon of a row, a field or a candidate, the palette, the toast's icon, a failed thumbnail, the play triangle on a cover |
+| icon large | `theme.IconLarge`, 24 | about 24 | states: the tile of an empty state, the loading and done marks of a dialog, a failed picture, the lightbox's previous and next |
 | icon stroke | 1.6 | 1.6 | every Lucide icon, at every size |
+
+Every icon is one of the three sizes, drawn through `theme.IconSmall`, `theme.IconMedium` or `theme.IconLarge`, which
+scale with the text size like `theme.Px`; no screen writes an icon size of its own. `TestIconSizesAreTiers` in
+`internal/ui/theme` fails on any other `ui.Icon` size. The tick inside a checkbox is drawn by the checkbox itself and is
+not an icon of this table. The image-off icon of a picture that cannot be shown is large in a cover and medium in a
+thumbnail; an icon beside text is small when the text is 12 or 13 and medium beside 15 and above.
 
 Sizes of text are in [Typography](#typography); the window sizes follow.
 
@@ -99,7 +107,7 @@ Exceptions: sizes outside the five, each tied to something that is not running t
 | 9 | the monogram letter on the 15 and 16 tiles (meta line, reader, the also-in list, the subscription candidate row) | the same ratio; the smallest tiles cannot take the 11 of the Small label |
 
 The monogram letter on the 32 tile (subscriptions list) is 15, a tier. The reading body, h2, h3 and code of the reader (Reading text) are the sixth scale above and are not listed here.
-Icons are not type: their sizes are in Components, icon.
+Icons are not type: their three sizes are in Components, icon small, medium and large.
 
 ## Reading text
 

@@ -123,7 +123,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   Appearance, Timeline) tightens only the spacing of rows, grid cells and wall tiles, by the values in
   `design/tokens.md`; no content is dropped. Drawn in `design/screens/timeline.html`, `dense`. When a background check fails after the list loaded, a quiet 28 high status line sits under the toolbar,
   lined up with the list: a 14 `Warning` wifi-off icon and 12 `TextMuted` text, "Can't reach the server · last updated
-  10:42 AM", with no fill; it is a polite status, announced once, and goes away on the next successful check. At its end sits a quiet text button, "Try again" (12 `Accent`, 22 high, 8 padding, radius 6, hover fill like other quiet buttons); while a check runs it reads "Retrying…" in `TextMuted` and is disabled. A star or read change made while the server is out of reach stays on the row and is not rolled back; until it is sent, the row's meta line carries a 13 `TextMuted` upload icon after the star, named "Waiting to save". The queue lives in memory only and is lost on quit. Drawn in `design/screens/timeline.html`, `offline`, `offline-retrying`, `offline-pending`. Loading the first page of a list (a switch of scope, filter or kind, a reload) draws the skeleton only after 300 ms; an answer that comes sooner shows no loading state, so switching never flashes bars. With no subscriptions the list is an empty state: a 48 tile, a
+  10:42 AM", with no fill; it is a polite status, announced once, and goes away on the next successful check. At its end sits a quiet text button, "Try again" (12 `Accent`, 22 high, 8 padding, radius 6, hover fill like other quiet buttons); while a check runs it reads "Retrying…" in `TextMuted` and is disabled. A star or read change made while the server is out of reach stays on the row and is not rolled back; until it is sent, the row's meta line carries a 14 `TextMuted` upload icon after the star, named "Waiting to save". The queue lives in memory only and is lost on quit. Drawn in `design/screens/timeline.html`, `offline`, `offline-retrying`, `offline-pending`. Loading the first page of a list (a switch of scope, filter or kind, a reload) draws the skeleton only after 300 ms; an answer that comes sooner shows no loading state, so switching never flashes bars. With no subscriptions the list is an empty state: a 48 tile, a
   15 semibold heading, a hint at most 320 wide that names the links Oriel recognises, then a row of two buttons 8 apart,
   wrapping when narrow: the primary "Add your first subscription" and the secondary "Import OPML…" and a second secondary "Restore from backup…", both of which open
   Settings on Import and export. Drawn in `design/screens/timeline.html`, `no-subscriptions`. When a reading-time budget leaves nothing, the list shows the same pattern: a 48
@@ -372,11 +372,11 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `ChromeText` with tabular figures (nothing with one picture); at the right "Open in browser" (a 32 high text button:
   the external-link icon and the label, 13 medium; the icon alone below a 760 wide window), "Open picture in browser"
   (a 32 square bare icon, the image icon) and Close (32 square, the x icon), 8 apart. Previous and next are 44 round
-  buttons (chevron-left, chevron-right, 22 icons) in ink 10% on the dim layer, 20 from the window's sides and centered
+  buttons (chevron-left, chevron-right, 24 icons) in ink 10% on the dim layer, 20 from the window's sides and centered
   vertically; the one with nowhere to go is dimmed to `Disabled` and stays in place, and neither shows with one picture.
   A one-line caption sits under the picture, centered, 12 in `ChromeMuted`: the author and handle of a post, the title of
   an image. While a picture loads its box keeps a 4:3 shape of ink 6% with a spinner; a picture that fails shows the same
-  box, now opaque (`RGB(42,38,33)`, 60% of the stage, at most 480 wide), with the muted image-off icon, 32, and "This picture can't be shown" in 13
+  box, now opaque (`RGB(42,38,33)`, 60% of the stage, at most 480 wide), with the muted image-off icon, 24, and "This picture can't be shown" in 13
   `ChromeMuted` under it; paging and both browser buttons stay enabled (the original address may open where the proxy could not fetch it). Below 760 the bar and the side buttons keep their
   sizes and the picture gets the rest, never less than the window's width less 144. The layer opens, closes and changes
   pictures at once, with no motion.
@@ -494,7 +494,7 @@ values are in [design/tokens.md](../design/tokens.md). See
   "leaving the timeline soon". Nothing else changes, so the row stays readable and clickable. Drawn in
   `design/screens/timeline.html`, `expiring`.
 - **One article from several sources.** When the same link comes from more than one source, the list shows one row,
-  and a quiet text button follows the time in its meta line: a 13 `layers` icon and "2 more sources" in 12 `TextMuted`,
+  and a quiet text button follows the time in its meta line: a 14 `layers` icon and "2 more sources" in 12 `TextMuted`,
   20 high, radius 6, padded 4 and 6, with the `Pressed` fill under the pointer. It is a button, never a badge and never
   an accent. Clicked, it expands under the row (`aria-expanded` follows) a list of the other sources, indented 12
   behind a 2 `Border` hairline: each item is a 30 high row (radius 8, `Hover` fill under the pointer or the keyboard) with the
@@ -611,8 +611,8 @@ character from the line before. Rules 1 and 2 above hold with or without them.
 - **An icon needs a name when it is alone.** Icons are decoration for assistive technology unless given a `Label`.
   A button that shows only an icon or a symbol must get a readable name with `.Label()`; an icon next to a visible
   text label needs none.
-- **Icon before label** in buttons, except a forward arrow, which follows its label ("Connect →"). Icons in fields
-  and buttons are 1.25 rem, in error lines 1.05 rem, sized with `FontSize`.
+- **Icon before label** in buttons, except a forward arrow, which follows its label ("Connect →"). Icons come in
+  three sizes, small 14, medium 16 and large 24 (the values are in `design/tokens.md`), all scaled with the text size; every icon is one of them.
 - **Feed images** (thumbnails, image entries, site icons) use
   [Image](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/image.md). Download and decode them in the background and
   make each bitmap once, never in the view; until it is ready, keep the image's box at its final size so the timeline
@@ -855,7 +855,7 @@ Overlays share focus and Escape behavior; see
   "Refresh All", Cmd/Ctrl+R (also in the reader, but not while a dialog, the palette or the lightbox is open; a key
   sheet row "Refresh all subscriptions" under Anywhere) and the palette action of the same name with the
   keys as chips. There is no button of its own: the heading already holds the failing count and the add button. While it
-  runs, the heading's failing count (`Warning`) gives way to a muted progress link with the loader icon turning at 12
+  runs, the heading's failing count (`Warning`) gives way to a muted progress link with the loader icon turning at 14
   and "3/12" in 11 medium, named "Refreshing, 3 of 12 checked" (no tooltip: the "3/12" is the visible text), and a screen reader hears "Refreshing
   12 subscriptions" once; pressing the command again does nothing. It is not a spinner on the list: the list stays
   where it is. When every subscription has been checked a plain toast, the `circle-check` icon on the `Inverse` tile,

@@ -310,13 +310,13 @@ func (s *Screen) routeList(c *ui.Context) {
 						row.Border(1, th.Border)
 					}
 					row.Children(func() {
-						ui.Icon(c, icons.Rss).FontSize(theme.Px(th, 16)).TextColor(th.Accent)
+						ui.Icon(c, icons.Rss).FontSize(theme.IconMedium(th)).TextColor(th.Accent)
 						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 							ui.Text(c, what).FontWeight(600).SingleLine()
 							ui.Text(c, rt.Path).Font("monospace").FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).SingleLine()
 						})
 						if on {
-							ui.Icon(c, icons.Check).FontSize(theme.Px(th, 16)).TextColor(th.Success)
+							ui.Icon(c, icons.Check).FontSize(theme.IconMedium(th)).TextColor(th.Success)
 						}
 					})
 				}

@@ -345,7 +345,7 @@ func (s *Screen) readerHeader(c *ui.Context, open *bool) {
 			x.Background(t.SurfaceHover)
 			color = t.Text
 		}
-		x.Children(func() { ui.Icon(c, icons.X).FontSize(theme.Px(t, 16)).TextColor(color) })
+		x.Children(func() { ui.Icon(c, icons.X).FontSize(theme.IconMedium(t)).TextColor(color) })
 		if x.Clicked() {
 			*open = false
 		}
@@ -482,7 +482,7 @@ func (s *Screen) readerProgress(c *ui.Context) {
 		how = s.fill(s.text.ReaderProgressOpen, "{done}", strconv.Itoa(p.Done))
 	}
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Role(ui.RoleStatus).Children(func() {
-		spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
+		spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 		spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 		ui.Text(c, stage).Shrink(1).Wrap()
 	})
@@ -604,7 +604,7 @@ func (s *Screen) noteBox(c *ui.Context, tone int, lines []string) {
 	}
 	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Padding(theme.Px(t, 10), t.Space(3)).Radius(t.Radius).
 		Background(fill).Role(ui.RoleStatus).Children(func() {
-		ui.Icon(c, icon).FontSize(theme.Px(t, 14)).TextColor(iconColor).Margin(2, 0, 0, 0)
+		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(iconColor).Margin(2, 0, 0, 0)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(theme.Px(t, 2)).Children(func() {
 			for i, line := range lines {
 				ui.Text(c, line).Key(i).FontSize(theme.Px(t, 12)).TextColor(color).Wrap()

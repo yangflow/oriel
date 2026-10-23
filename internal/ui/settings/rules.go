@@ -205,7 +205,7 @@ func (s *Screen) rulesPage(c *ui.Context) {
 		if len(p.list) == 0 {
 			ui.Row(c).Key("none").FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, 12)).Padding(theme.Px(t, 16), theme.Px(t, 20)).
 				Children(func() {
-					ui.Icon(c, icons.ListFilter).FontSize(theme.Px(t, 18)).TextColor(t.TextMuted).Margin(theme.Px(t, 1), 0, 0, 0)
+					ui.Icon(c, icons.ListFilter).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted).Margin(theme.Px(t, 1), 0, 0, 0)
 					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 						ui.Text(c, s.text.RulesNone).FontWeight(500)
 						ui.Text(c, s.text.RulesNoneHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().
@@ -255,8 +255,8 @@ func (s *Screen) ruleRow(c *ui.Context, r client.Rule, id string) {
 					if scope := s.scope(r); scope != "" {
 						ui.Text(c, scope).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
 					}
-					ui.Icon(c, icons.ArrowRight).FontSize(theme.Px(t, 13)).TextColor(theme.Text2(t))
-					ui.Icon(c, icon).FontSize(theme.Px(t, 13)).TextColor(theme.Text2(t))
+					ui.Icon(c, icons.ArrowRight).FontSize(theme.IconSmall(t)).TextColor(theme.Text2(t))
+					ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(theme.Text2(t))
 					ui.Text(c, act).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
 					if !r.Enabled {
 						ui.Text(c, s.text.RuleOffBadge).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(theme.Text2(t)).
@@ -283,7 +283,7 @@ func (s *Screen) ruleRow(c *ui.Context, r client.Rule, id string) {
 				more.Background(t.SurfaceHover)
 				color = t.Text
 			}
-			more.Children(func() { ui.Icon(c, icons.Ellipsis).FontSize(theme.Px(t, 16)).TextColor(color) })
+			more.Children(func() { ui.Icon(c, icons.Ellipsis).FontSize(theme.IconMedium(t)).TextColor(color) })
 			more.Menu(func(m *ui.Menu) {
 				if m.Item(s.text.MenuEdit).Chosen() {
 					s.openRule(&r)
@@ -466,7 +466,7 @@ func (s *Screen) ruleDialog(c *ui.Context) {
 				x.Background(t.SurfaceHover)
 				color = t.Text
 			}
-			x.Children(func() { ui.Icon(c, icons.X).FontSize(theme.Px(t, 16)).TextColor(color) })
+			x.Children(func() { ui.Icon(c, icons.X).FontSize(theme.IconMedium(t)).TextColor(color) })
 			if x.Clicked() {
 				open = false
 			}
