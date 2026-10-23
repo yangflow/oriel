@@ -860,6 +860,15 @@ func TestBackoffDoublesAndHonorsRetryAfter(t *testing.T) {
 	if got := retryAfter("99999999999999", f.now); got != maxBackoff {
 		t.Fatalf("huge: %v", got)
 	}
+	if got := retryAfter("99999999999999999999999", f.now); got != maxBackoff {
+		t.Fatalf("overflowing: %v", got)
+	}
+	if got := retryAfter("-99999999999999999999999", f.now); got != 0 {
+		t.Fatalf("overflowing negative: %v", got)
+	}
+	if got := retryAfter(f.now.Add(-time.Hour).UTC().Format(http.TimeFormat), f.now); got != 0 {
+		t.Fatalf("date in the past: %v", got)
+	}
 	if got := retryAfter("-5", f.now); got != 0 {
 		t.Fatalf("negative: %v", got)
 	}
@@ -983,27 +992,53 @@ func TestTimeoutOfHealthyEndpointCountsAttempts(t *testing.T) {
 	}
 }
 
-// A missing model counts the same way; an endpoint already waiting does not charge the entry.
-func TestModelNotFoundCountsOnlyWhenHealthy(t *testing.T) {
+// A missing model is the endpoint's, like a refused key: no attempt is used up, and automatic work waits until the
+// settings change.
+func TestModelNotFoundPausesUntilSettingsChange(t *testing.T) {
 	u := newUpstream(t)
 	f := newFixture(t, u.URL)
-	u.answer = func(chatRequest) (int, string) { return http.StatusNotFound, "" }
-	id := f.entry("social", store.FeedEntry{GUID: "m", Title: "T"}, store.TaskSummary)
-	f.drain()
-	if got := f.result(id, store.TaskSummary); got.Attempts != 1 || got.Error != "ai_model_not_found" {
-		t.Fatalf("healthy endpoint: %+v", got)
+	found := false
+	u.answer = func(chatRequest) (int, string) {
+		if !found {
+			return http.StatusNotFound, ""
+		}
+		return http.StatusOK, "done"
 	}
-	cfg, _ := Load(context.Background(), f.store)
-	if !f.worker.paused(cfg) {
-		t.Fatal("not waiting after the failure")
+	var ids []int64
+	for i := range 4 {
+		ids = append(ids, f.entry("social", store.FeedEntry{GUID: "m" + strconv.Itoa(i), Title: "T"}, store.TaskSummary))
 	}
-	// While it waits, the user's retry does not use up an attempt.
-	if _, err := f.worker.Request(context.Background(), id, store.TaskSummary); err != nil {
+	for range 100 {
+		f.drain()
+		f.now = f.now.Add(time.Hour)
+	}
+	if n := len(u.calls()); n > 2 {
+		t.Fatalf("%d calls with a missing model", n)
+	}
+	for _, id := range ids {
+		if got := f.result(id, store.TaskSummary); got.Attempts != 0 || got.Status == "ok" {
+			t.Fatalf("after a missing model: %+v", got)
+		}
+	}
+	// The user's own request is not held back and shows the reason, again without using an attempt.
+	if _, err := f.worker.Request(context.Background(), ids[0], store.TaskSummary); err != nil {
 		t.Fatal(err)
 	}
 	f.drain()
-	if got := f.result(id, store.TaskSummary); got.Attempts != 1 {
-		t.Fatalf("while waiting: %+v", got)
+	if got := f.result(ids[0], store.TaskSummary); got.Status != "failed" || got.Error != "ai_model_not_found" || got.Attempts != 0 {
+		t.Fatalf("requested with a missing model: %+v", got)
+	}
+	found = true
+	f.set(ModelSetting, "other-model")
+	for range 6 {
+		f.drain()
+		f.now = f.now.Add(retryDelay)
+	}
+	// The user's own request stays failed until they retry it; the automatic ones go on.
+	for _, id := range ids[1:] {
+		if got := f.result(id, store.TaskSummary); got.Status != "ok" {
+			t.Fatalf("after the model changed: %+v", got)
+		}
 	}
 }
 
@@ -1084,5 +1119,18 @@ func TestCapDoesNotStopPromotedTask(t *testing.T) {
 	}
 	if got := f.result(id, store.TaskSummary); got.Status != "pending" {
 		t.Fatalf("stopped although the user asked: %+v", got)
+	}
+}
+
+// A failure of a call the user asked for does not shorten a longer wait that Retry-After set.
+func TestRequestedFailureKeepsLongerWait(t *testing.T) {
+	f := newFixture(t, "http://127.0.0.1:1")
+	cfg, _ := Load(context.Background(), f.store)
+	f.worker.failed(cfg, f.now, rateLimit{after: 20 * time.Minute}, ErrRateLimited, false)
+	until := f.worker.health.until
+	f.now = f.now.Add(time.Second)
+	f.worker.failed(cfg, f.now, ErrUnreachable, ErrUnreachable, true)
+	if !f.worker.health.until.Equal(until) {
+		t.Fatalf("the wait moved from %v to %v", until, f.worker.health.until)
 	}
 }

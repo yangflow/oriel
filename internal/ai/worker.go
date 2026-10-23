@@ -59,7 +59,7 @@ type health struct {
 	backoff  time.Duration // the current wait, 0 while calls succeed
 	until    time.Time     // automatic work waits until then
 	failedAt time.Time     // when the wait last moved
-	refused  bool          // the endpoint turned the key down; automatic work waits for other settings
+	refused  bool          // the endpoint turned the key or the model down; automatic work waits for other settings
 }
 
 // endpointID names the settings a failure belongs to, so that a change of them ends the wait.
@@ -100,7 +100,7 @@ func (w *Worker) failed(cfg Config, start time.Time, err error, code Code, reque
 		return
 	}
 	h.failedAt = w.now()
-	h.refused = h.refused || code == ErrUnauthorized
+	h.refused = h.refused || code == ErrUnauthorized || code == ErrModelNotFound
 	if h.backoff == 0 || !requested {
 		h.backoff = min(max(h.backoff*2, minBackoff), maxBackoff)
 	}
@@ -109,8 +109,16 @@ func (w *Worker) failed(cfg Config, start time.Time, err error, code Code, reque
 	if errors.As(err, &limited) {
 		wait = min(max(wait, limited.after), maxBackoff)
 	}
-	h.until = w.now().Add(wait)
+	// A call the user asked for never shortens a wait the endpoint itself set, a long Retry-After say.
+	h.until = later(h.until, w.now().Add(wait))
 	slog.Warn("The AI endpoint fails; automatic work waits", "code", string(code), "wait", wait, "refused", h.refused)
+}
+
+func later(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }
 
 // New returns a worker that identifies itself as Oriel/version.
@@ -241,9 +249,9 @@ func (w *Worker) process(ctx context.Context, cfg Config, job store.AIJob) {
 		slog.Error("AI task failed", "entry", job.EntryID, "task", job.Task, "error", err)
 		code = ErrUpstream
 	}
-	// A timeout or a missing model on an endpoint that is otherwise working may be this entry's doing (too long for
-	// the model, say), so it counts as an attempt; once the endpoint is already waiting, it is the endpoint's.
-	counted := (code == ErrTimeout || code == ErrModelNotFound) && !w.paused(cfg)
+	// A timeout on an endpoint that is otherwise working may be this entry's doing (too long for the model, say), so
+	// it counts as an attempt; once the endpoint is already waiting, it is the endpoint's.
+	counted := code == ErrTimeout && !w.paused(cfg)
 	switch {
 	case code == "":
 		w.succeeded(cfg)

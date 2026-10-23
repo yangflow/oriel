@@ -440,9 +440,18 @@ func (rateLimit) Unwrap() error { return ErrRateLimited }
 // retryAfter reads a Retry-After header, a number of seconds or an HTTP date; 0 when absent or unusable.
 func retryAfter(value string, now time.Time) time.Duration {
 	value = strings.TrimSpace(value)
-	if secs, err := strconv.Atoi(value); err == nil {
+	secs, err := strconv.ParseInt(value, 10, 64)
+	if errors.Is(err, strconv.ErrRange) {
+		// Too big for a number: as long as anything waits, or nothing for a huge negative one.
+		secs = 1 << 40
+		if strings.HasPrefix(value, "-") {
+			secs = 0
+		}
+		err = nil
+	}
+	if err == nil {
 		// Clamped before the multiplication, which would overflow for a huge number; nothing waits longer anyway.
-		return time.Duration(min(max(secs, 0), int(maxBackoff/time.Second))) * time.Second
+		return time.Duration(min(max(secs, 0), int64(maxBackoff/time.Second))) * time.Second
 	}
 	if at, err := http.ParseTime(value); err == nil {
 		return max(at.Sub(now), 0)
