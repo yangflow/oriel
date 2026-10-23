@@ -188,7 +188,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
   --hover:rgba(var(--ink),.055); --pressed:rgba(var(--ink),.085); --sel:rgba(var(--ink),.12); --border:rgba(var(--ink),.08); --track:rgba(var(--ink),.11) }
 :root[data-scheme=dark] aside { box-shadow:inset 0 0 0 .5px rgba(var(--chrome-ink),.08), 0 0 0 .5px rgba(0,0,0,.7) }
 .min aside { width:184px }
-.sbtn.pane { position:absolute; top:2px; right:8px }
+.sbtn.pane { position:absolute; top:2px; right:9px }
 .kind-list { flex:none; padding:0 8px 8px; display:flex; flex-direction:column; gap:1px }
 .nav { flex:1; overflow-y:auto; padding:4px 8px 6px }
 .nav::-webkit-scrollbar { width:10px }
@@ -205,7 +205,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .section .link.progress:hover { background:none }
 .section .link:hover, .section .link.hover { background:var(--hover) }
 .section .link svg.icon { width:12px; height:12px }
-.side-tools { display:flex; align-items:center; gap:4px; margin:0 2px 6px }
+.side-tools { display:flex; align-items:center; gap:4px; margin:0 3px 6px 0 }
 .side-filter { flex:1; min-width:0; height:28px; display:flex; align-items:center; gap:6px; padding:0 4px 0 10px; border-radius:8px; background:var(--hover); color:var(--muted); transition:background-color var(--t), box-shadow var(--t) }
 .side-filter:hover { background:var(--pressed) }
 .side-filter.focused { background:var(--pressed); box-shadow:0 0 0 2px rgba(124,201,187,.7) }
@@ -245,7 +245,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .mono { display:grid; place-items:center; font-size:10.5px; font-weight:600; background:var(--track); color:var(--text2) }
 .meta .fav, .meta .mono { width:15px; height:15px; border-radius:4px }
 .meta .mono { font-size:9px }
-.server-bar { flex:none; display:flex; align-items:center; padding:0 8px 6px 0 }
+.server-bar { flex:none; display:flex; align-items:center; padding:0 11px 6px 0 }
 .server { flex:1; min-width:0; display:flex; align-items:center; gap:8px; height:40px; padding:0 10px 0 18px; text-align:left; font-size:12px; letter-spacing:.01em; color:var(--muted) }
 .server .name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .server .dot { width:6px; height:6px; border-radius:50%; background:var(--success) }
