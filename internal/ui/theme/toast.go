@@ -43,7 +43,7 @@ func Toasts(c *ui.Context) {
 				if look.Icon != nil {
 					ui.Icon(c, look.Icon).FontSize(Px(t, 16))
 				}
-				ui.Text(c, ts.Title).Shrink(1).MinWidth(0).SingleLine().FontSize(Px(t, 12.5))
+				ui.Text(c, ts.Title).Shrink(1).MinWidth(0).SingleLine().FontSize(Px(t, 12))
 				if ts.Action == "" {
 					return
 				}
@@ -53,9 +53,9 @@ func Toasts(c *ui.Context) {
 					action.Background(text.Alpha(0.24))
 				}
 				action.Children(func() {
-					ui.Text(c, ts.Action).FontSize(Px(t, 12.5)).FontWeight(600).SingleLine()
+					ui.Text(c, ts.Action).FontSize(Px(t, 12)).FontWeight(600).SingleLine()
 					if look.Keys != "" {
-						ui.Text(c, look.Keys).FontSize(Px(t, 12.5)).TextColor(text.Alpha(0.6)).SingleLine()
+						ui.Text(c, look.Keys).FontSize(Px(t, 12)).TextColor(text.Alpha(0.6)).SingleLine()
 					}
 				})
 				if look.Close == "" {

@@ -1675,7 +1675,7 @@ func (s *Screen) extractGroup(c *ui.Context) {
 		s.extractInput(c, "referer", &e.referer, s.text.ExtractReferer, s.text.ExtractRefererPlaceholder, s.text.ExtractRefererHelp)
 		ui.Column(c.Key("rewrites")).FillWidth().Gap(t.Space(1)).Children(func() {
 			label(c, s.text.ExtractRewrites)
-			area := ui.TextArea(c, &e.rewrites).FillWidth().Lines(3, 8).Font("monospace").FontSize(theme.Px(t, 12.5)).
+			area := ui.TextArea(c, &e.rewrites).FillWidth().Lines(3, 8).Font("monospace").FontSize(theme.Px(t, 12)).
 				Label(s.text.ExtractRewrites).Description(s.text.ExtractRewritesHelp).
 				Placeholder(s.text.ExtractRewritesPlaceholder).Disabled(e.busy)
 			if area.Focused() {
@@ -1906,7 +1906,7 @@ func (s *Screen) aiGroup(c *ui.Context) {
 	for i, text := range [2]string{s.text.PromptSummary, s.text.PromptTranslate} {
 		ui.Column(c.Key(text)).FillWidth().Gap(t.Space(1)).Children(func() {
 			label(c, text)
-			area := ui.TextArea(c, &e.prompts[i]).FillWidth().Lines(3, 8).Font("monospace").FontSize(theme.Px(t, 12.5)).
+			area := ui.TextArea(c, &e.prompts[i]).FillWidth().Lines(3, 8).Font("monospace").FontSize(theme.Px(t, 12)).
 				Label(text).Placeholder(s.text.PromptPlaceholder).Disabled(e.busy)
 			if area.Focused() {
 				area.Background(theme.RaisedFill(t))
@@ -2138,6 +2138,6 @@ func (s *Screen) smallGlyph(c *ui.Context, src client.Source) {
 		letter = strings.ToUpper(string(r))
 	}
 	ui.Box(c).Size(theme.Px(t, 16), theme.Px(t, 16)).Radius(4).Center().Background(t.SurfacePressed).Children(func() {
-		ui.Text(c, letter).FontSize(theme.Px(t, 10)).FontWeight(600)
+		ui.Text(c, letter).FontSize(theme.Px(t, 9)).FontWeight(600)
 	})
 }

@@ -2699,7 +2699,7 @@ func (s *Screen) keyGroup(c *ui.Context, name string, rows []key) {
 		Margin(theme.Px(t, 12), 0, theme.Px(t, 4), 0).Role(ui.RoleHeading).Level(3)
 	for _, row := range rows {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).PaddingY(theme.Px(t, 5)).Children(func() {
-			ui.Text(c, row.name).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12.5))
+			ui.Text(c, row.name).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12))
 			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 4)).Children(func() {
 				for i, keys := range row.keys {
 					if i > 0 {
@@ -2708,7 +2708,7 @@ func (s *Screen) keyGroup(c *ui.Context, name string, rows []key) {
 					for _, k := range keys {
 						ui.Box(c).MinWidth(theme.Px(t, 22)).Height(theme.Px(t, 22)).PaddingX(theme.Px(t, 6)).Center().Radius(6).
 							Background(theme.Track(t)).Border(0.5, theme.LineStrong(t)).Children(func() {
-							ui.Text(c, k).FontSize(theme.Px(t, 11.5)).NoWrap()
+							ui.Text(c, k).FontSize(theme.Px(t, 11)).NoWrap()
 						})
 					}
 				}
@@ -4714,7 +4714,7 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 				more := s.format(s.text.MorePictures, n-shown)
 				over = func() {
 					ui.Box(c).Fill().Absolute().Center().Background(ui.RGBA(28, 24, 18, 0.5)).Label(more).Children(func() {
-						ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(theme.Px(t, 17)).FontWeight(600).
+						ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(theme.Px(t, 15)).FontWeight(600).
 							FontFeatures("tnum").TextColor(ui.Hex("#ffffff"))
 					})
 				}
@@ -5133,7 +5133,7 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 	}
 	n, width := columns(c, compact, theme.Px(t, 170), gap, 3)
 	_, viewHeight := c.Size()
-	caption := theme.Px(t, 12.5)*1.45 + theme.Px(t, 18) + 2*t.Space(1) + tile
+	caption := theme.Px(t, 12)*1.45 + theme.Px(t, 18) + 2*t.Space(1) + tile
 	cols := make([][]int, n)
 	tops := make([][]float32, n)
 	heights := make([]float32, n)
@@ -5191,7 +5191,7 @@ func (s *Screen) tile(c *ui.Context, i int, now time.Time, near bool) {
 		if e.IsRead {
 			color = t.TextMuted
 		}
-		ui.Text(c, title(e)).FontSize(theme.Px(t, 12.5)).FontWeight(500).SingleLine().TextColor(color)
+		ui.Text(c, title(e)).FontSize(theme.Px(t, 12)).FontWeight(500).SingleLine().TextColor(color)
 		s.meta(c, e, now, true, 0, t.TextMuted, false)
 		if hovered || chosen || tile.Focused() {
 			s.actions(c, i, onCard)

@@ -86,8 +86,8 @@ Notes:
   line height 1.35 / 1.4 (zh 1.5), h2 tracking -0.01em (zh 0).
 - Monospace (code, addresses): 0.86em of the surrounding text in a block of 13, line height 1.6. Monospace
   fields (rewrite rules, prompts, the keywords of a rule) are 12.
-- Notes, status lines, toasts, the shortcut sheet's action names and its key caps are 12 (a size between 12 and 13
-  is not drawn).
+- Notes, status lines, toasts and the shortcut sheet's action names are 12 (a size between 12 and 13 is not drawn).
+  Every key cap (the shortcut sheet, the command palette) is 11.
 - A text that ends in the picture grid's "+N" tile is 15 semibold.
 
 Exceptions: sizes outside the five, each tied to something that is not running text. Nothing else may differ.
