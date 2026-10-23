@@ -3351,6 +3351,31 @@ func viewing(t *testing.T, p *prefs.Preferences) (*Screen, *fake, *ui.Tester) {
 	return s, f, tt
 }
 
+// TestOrderNameJoin shows the clock's name joins the order note with each language's own stop.
+func TestOrderNameJoin(t *testing.T) {
+	for language, name := range map[string]string{
+		"en":      "Reading time: any length. Oldest first: new entries appear at the end of the list",
+		"zh-Hans": "阅读时长：不限。最旧的在前时，新条目出现在列表末尾"} {
+		t.Run(language, func(t *testing.T) {
+			p := prefs.Default()
+			p.OldestFirst = true
+			sources, entries := sample()
+			f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+			d := f.deps()
+			d.Reading = func() prefs.Preferences { return p }
+			s := New(language, d)
+			tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+			s.Use(f, "")
+			tt.Frame()
+			f.settle(t, tt)
+			tt.Frame()
+			if _, ok := tt.Find(name); !ok {
+				t.Fatalf("no button named %q: %v", name, tt.Texts())
+			}
+		})
+	}
+}
+
 func pick(t *testing.T, f *fake, tt *ui.Tester, kind string) {
 	t.Helper()
 	if err := tt.Click(kind); err != nil {
