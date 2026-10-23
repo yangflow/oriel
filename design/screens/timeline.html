@@ -125,8 +125,9 @@
      characters and a word that does not fit breaks where it must. A name or a toast title that is cut short can still
      be read whole: a sidebar row (a subscription's name, and a kind's name in a narrow pane) that is cut shows the full
      name in a tooltip once the pointer rests on it or the keyboard focus comes to it, and one that fits has no tooltip
-     (the tipped row, the others have none); a toast title takes two lines and is cut after them (fetched-long), its
-     whole text is the toast's accessible name, read in full when it shows. The reader shows the full title. With about 60 subscriptions only the heading and the
+     (the tipped row, the others have none); a toast title takes two lines and is cut after them (fetched-long); when it is cut
+     its text shows whole in a tooltip above it on hover and focus (it may cover the toast stacked above), and the whole
+     text is the toast's accessible name, read in full when it shows. The reader shows the full title. With about 60 subscriptions only the heading and the
      subscriptions scroll: the kinds above them and the server bar below stay. A picture that fails to load keeps its
      box on the Track color with a muted image mark (a video cover keeps its play mark and duration); a site icon
      that fails keeps the monogram.
@@ -1054,7 +1055,7 @@ const toast=state==='marked-read'?`<div class="toast" role="status">${icon('chec
   :state==='refreshed-part'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('refreshedPart',{done:5,n:12})}</span></div>`
   :state==='refresh-none'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.refreshNone}</span></div>`
   :state==='fetched'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${t('fetchedNew',{n:12,name:byId[2].name})}</span></div>`
-  :state==='fetched-long'?`<div class="toast plain" role="status" aria-label="${t('fetchedNew',{n:12,name:byId[2].name})}">${icon('circleCheck')}<span class="msg">${t('fetchedNew',{n:12,name:byId[2].name})}</span></div>`
+  :state==='fetched-long'?`<div class="toast plain" role="status" aria-label="${t('fetchedNew',{n:12,name:byId[2].name})}">${icon('circleCheck')}<span class="msg" id="tipped" title="${t('fetchedNew',{n:12,name:byId[2].name})}">${t('fetchedNew',{n:12,name:byId[2].name})}</span></div>`
   :state==='fetched-failed'?`<div class="toast plain" role="status">${icon('alert','warn')}<span class="msg">${t('fetchedFailed',{name:byId[3].name,error:byId[3].error})}</span></div>`
   :state==='no-more-unread'?`<div class="toast plain" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:'';
 const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
@@ -1138,7 +1139,7 @@ if(state==='many-feeds')document.querySelector('.nav').scrollTop=620;
 if(state==='long-titles'){const item=[...document.querySelectorAll('.nav .item')].find(i=>i.querySelector('.name').textContent===byId[2].name);item.id='tipped';item.title=byId[2].name}
 const tipped=document.getElementById('tipped');
 if(tipped){const w=document.getElementById('window').getBoundingClientRect(),r=tipped.getBoundingClientRect();
-  document.getElementById('window').insertAdjacentHTML('beforeend',`<div class="tip" role="tooltip" style="left:${r.left-w.left-8}px;top:${r.bottom-w.top+6}px">${tipped.title}</div>`)}
+  document.getElementById('window').insertAdjacentHTML('beforeend',`<div class="tip" role="tooltip" style="left:${r.left-w.left-8}px;${tipped.closest('.toast')?`bottom:${w.bottom-r.top+6}px`:`top:${r.bottom-w.top+6}px`}">${tipped.title}</div>`)}
 if(state==='scrolled')document.querySelector('.scroll').scrollTop=120;
 {const sc=document.querySelector('.scroll'),mn=document.querySelector('.main');if(sc&&mn){const bar=()=>mn.classList.toggle('scrolled',sc.scrollTop>0);sc.addEventListener('scroll',bar);bar()}}
 </script>
