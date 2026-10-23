@@ -476,7 +476,7 @@ func TestTimeline(t *testing.T) {
 func TestFailingSubscriptions(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	for _, label := range []string{"Gopher, 1 unread, last fetch failed", "Last fetch failed: status 500",
-		"1 failing", "Show only the 1 failing subscriptions"} {
+		"1 failing", "Show only the 1 failing subscription"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Errorf("no %q in %v", label, tt.Texts())
 		}
@@ -1635,7 +1635,7 @@ func TestMarkSourceOlder(t *testing.T) {
 	if !reflect.DeepEqual(f.marked, []client.ReadScope{{SourceID: 1, OlderThan: week}}) {
 		t.Fatalf("marked %v", f.marked)
 	}
-	if !slices.Contains(tt.Announcements(), "Marked 1 entries in “Go Blog” older than 1 week as read") || s.sources[0].UnreadCount != 1 {
+	if !slices.Contains(tt.Announcements(), "Marked 1 entry in “Go Blog” older than 1 week as read") || s.sources[0].UnreadCount != 1 {
 		t.Fatalf("announcements %v, sources %v", tt.Announcements(), s.sources)
 	}
 	if err := tt.Click("Undo"); err != nil {

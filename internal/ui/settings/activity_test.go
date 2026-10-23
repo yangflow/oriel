@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/ui/locale"
 )
 
 func (f *fake) Activity(context.Context) (client.Activity, error) {
@@ -74,9 +75,9 @@ func TestActivityShows(t *testing.T) {
 		}
 		for _, text := range []string{
 			s.text.ActivityLead, s.text.Refresh, s.text.Storage, s.text.DBSize, "5.0 MB", s.text.Entries, "1234", s.text.Images,
-			s.fill(s.text.ImagesValue, "{n}", "3", "{size}", "2 KB"), s.text.Copies, s.fill(s.text.CopiesValue, "{n}", "7", "{size}", "3.0 MB"), s.text.Compact,
+			s.fill(locale.Count(s.text.ImagesValue, "n", 3), "{size}", "2 KB"), s.text.Copies, s.fill(locale.Count(s.text.CopiesValue, "n", 7), "{size}", "3.0 MB"), s.text.Compact,
 			s.fill(s.text.CompactHelp, "{size}", "1.0 MB"), s.text.FetchingNow, "Dispatch", s.text.Recent,
-			"Blog", "/dispatch/news", s.fill(s.text.RecentKeep, "{n}", "10"),
+			"Blog", "/dispatch/news", locale.Count(s.text.RecentKeep, "n", 10),
 			s.ago(now.Add(-2*time.Minute).UnixMilli(), now) + " · " + s.fill(s.text.NewCount, "{n}", "2"),
 			s.ago(now.Add(-10*time.Minute).UnixMilli(), now) + " · " + s.text.FailedWord,
 		} {
@@ -131,7 +132,7 @@ func TestActivityNothingYet(t *testing.T) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
 	}
-	if tt.HasText(s.fill(s.text.RecentKeep, "{n}", "10")) {
+	if tt.HasText(locale.Count(s.text.RecentKeep, "n", 10)) {
 		t.Errorf("the keep note shows without a list")
 	}
 }

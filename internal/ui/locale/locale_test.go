@@ -23,3 +23,28 @@ func TestResolve(t *testing.T) {
 		}
 	}
 }
+
+func TestCount(t *testing.T) {
+	for _, tc := range []struct {
+		text, name string
+		n          int
+		want       string
+	}{
+		{"{n} {n:entry|entries}", "n", 0, "0 entries"},
+		{"{n} {n:entry|entries}", "n", 1, "1 entry"},
+		{"{n} {n:entry|entries}", "n", 2, "2 entries"},
+		{"{n:entry is|entries are} here", "n", 1, "entry is here"},
+		{"{n} {n:day|days}", "n", -1, "-1 days"},
+		{"Restored {s} {s:subscription|subscriptions}, {e} {e:entry|entries}", "s", 1, "Restored 1 subscription, {e} {e:entry|entries}"},
+		{"{n:one|other", "n", 1, "{n:one|other"},
+		{"{n:one", "n", 1, "{n:one"},
+		{"{n:only}", "n", 1, "only"},
+		{"{n:only}", "n", 2, ""},
+		{"{n} 条条目", "n", 1, "1 条条目"},
+		{"no count", "n", 1, "no count"},
+	} {
+		if got := Count(tc.text, tc.name, tc.n); got != tc.want {
+			t.Errorf("Count(%q, %q, %d) = %q, want %q", tc.text, tc.name, tc.n, got, tc.want)
+		}
+	}
+}

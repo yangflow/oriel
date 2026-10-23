@@ -1005,7 +1005,7 @@ func (s *Screen) export() {
 			case !written:
 				s.result = result{tone: refused, text: s.fill(s.text.WriteFailed, "{file}", name)}
 			default:
-				s.result = result{tone: done, text: s.fill(s.text.Exported, "{n}", strconv.Itoa(subscriptionsIn(data)),
+				s.result = result{tone: done, text: s.fill(locale.Count(s.text.Exported, "n", subscriptionsIn(data)),
 					"{file}", name)}
 			}
 			s.result.export = true
@@ -1137,8 +1137,7 @@ func (s *Screen) restoreDone(gen int, name string, restored client.Restored, err
 	case err == nil:
 		// The settings and the devices are the restored ones now; Open clears the result, so it comes first.
 		s.Open()
-		s.result = result{tone: done, text: s.fill(s.text.RestoreDone, "{sources}", strconv.Itoa(restored.Sources),
-			"{entries}", strconv.Itoa(restored.Entries))}
+		s.result = result{tone: done, text: locale.Count(locale.Count(s.text.RestoreDone, "sources", restored.Sources), "entries", restored.Entries)}
 		s.deps.Imported()
 	case errors.Is(err, errRead):
 		s.result = result{tone: refused, text: s.fill(s.text.ReadFailed, file, name)}
@@ -1274,7 +1273,7 @@ func (s *Screen) ago(ms int64, now time.Time) string {
 	d := now.Sub(at)
 	day := func(t time.Time) time.Time { y, m, d := t.Date(); return time.Date(y, m, d, 12, 0, 0, 0, time.UTC) }
 	days := int(day(now).Sub(day(at)).Hours() / 24)
-	n := func(text string, v int) string { return s.fill(text, "{n}", strconv.Itoa(v)) }
+	n := func(text string, v int) string { return locale.Count(text, "n", v) }
 	switch {
 	case d < time.Minute:
 		return s.text.Now
@@ -1324,7 +1323,7 @@ func (s *Screen) keep(days int) string {
 	case 365:
 		return s.text.Year
 	}
-	return s.fill(s.text.Days, "{n}", strconv.Itoa(days))
+	return locale.Count(s.text.Days, "n", days)
 }
 
 // px converts a size of the mockup, drawn at a 13 px font, to the theme's text size.

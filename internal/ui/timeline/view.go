@@ -1234,7 +1234,7 @@ func (s *Screen) progress(c *ui.Context) {
 				s.finishRefresh(s.refreshText(s.text.Refreshed, s.text.RefreshedFailed, r), r.failed > 0)
 			case !s.deps.Now().Before(r.deadline):
 				text := strings.ReplaceAll(s.text.RefreshedPart, "{done}", strconv.Itoa(r.done))
-				s.finishRefresh(strings.ReplaceAll(text, "{n}", strconv.Itoa(r.queued)), false)
+				s.finishRefresh(s.format(text, r.queued), false)
 			}
 		}
 	})
@@ -2087,9 +2087,7 @@ func (s *Screen) staleText() string {
 	return strings.ReplaceAll(s.text.Offline, "{time}", s.updated.Format("15:04"))
 }
 
-func (s *Screen) format(text string, n int) string {
-	return strings.ReplaceAll(text, "{n}", strconv.Itoa(n))
-}
+func (s *Screen) format(text string, n int) string { return locale.Count(text, "n", n) }
 
 // reason is why src is failing, as the edit dialog of the subscription says it.
 func (s *Screen) reason(src client.Source) string {
@@ -2203,7 +2201,7 @@ func (s *Screen) readLabel(e client.Entry) string {
 	if e.ReadingSec < 60 || e.DurationSec > 0 || e.Kind == "video" {
 		return ""
 	}
-	return strings.ReplaceAll(s.text.ReadingTime, "{n}", strconv.Itoa(e.ReadingSec/60))
+	return s.format(s.text.ReadingTime, e.ReadingSec/60)
 }
 
 // budgetName is the name of the reading-time button, which states the budget.
@@ -2211,7 +2209,7 @@ func (s *Screen) budgetName() string {
 	if s.budget == 0 {
 		return s.text.TimeNameAny
 	}
-	return strings.ReplaceAll(s.text.TimeNameUpTo, "{n}", strconv.Itoa(s.budget))
+	return s.format(s.text.TimeNameUpTo, s.budget)
 }
 
 func duration(sec int) string {
@@ -3055,7 +3053,7 @@ func (s *Screen) link(c *ui.Context, icon *ui.SVG, text, label string, color ui.
 func (s *Screen) progressLink(c *ui.Context) {
 	t := c.Theme()
 	r := s.refresh
-	label := strings.ReplaceAll(strings.ReplaceAll(s.text.RefreshingName, "{done}", strconv.Itoa(r.done)), "{n}", strconv.Itoa(r.queued))
+	label := s.format(strings.ReplaceAll(s.text.RefreshingName, "{done}", strconv.Itoa(r.done)), r.queued)
 	ui.Row(c).Height(px(t, 20)).AlignItems(ui.Center).Gap(px(t, 4)).PaddingX(px(t, 6)).Label(label).
 		Children(func() {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(px(t, 12)).TextColor(t.TextMuted)
@@ -3369,7 +3367,7 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 	b.Children(func() {
 		ui.Icon(c, icons.Clock).FontSize(px(t, 16)).TextColor(color)
 		if timed && !compact {
-			ui.Text(c, strings.ReplaceAll(s.text.TimeChip, "{n}", strconv.Itoa(s.budget))).FontSize(px(t, 12)).
+			ui.Text(c, s.format(s.text.TimeChip, s.budget)).FontSize(px(t, 12)).
 				FontWeight(500).FontFeatures("tnum").NoWrap().TextColor(t.Accent)
 		}
 		if on && compact {
@@ -3382,7 +3380,7 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 			s.setBudget(0)
 		}
 		for _, n := range budgets {
-			label := strings.ReplaceAll(s.text.TimeUpTo, "{n}", strconv.Itoa(n))
+			label := s.format(s.text.TimeUpTo, n)
 			if m.Item(label).Checked(s.budget == n).Chosen() {
 				s.setBudget(n)
 			}
@@ -3722,7 +3720,7 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 				s.empty(c, icons.Search, strings.ReplaceAll(s.text.NoResults, "{q}", s.searched), s.text.NoResultsHint,
 					false)
 			case s.budget != 0:
-				s.empty(c, icons.Clock, strings.ReplaceAll(s.text.NothingFits, "{n}", strconv.Itoa(s.budget)),
+				s.empty(c, icons.Clock, s.format(s.text.NothingFits, s.budget),
 					s.text.NothingFitsHint, false)
 			case s.filter == unread:
 				s.empty(c, icons.CircleCheckBig, s.text.UnreadDone, s.text.UnreadDoneHint, false)

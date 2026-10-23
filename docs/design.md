@@ -1110,7 +1110,11 @@ color, and the row actions fade. See
 - Layouts must tolerate the longer of the two translations, and English text 30–50% longer than the first draft.
   Do not fix widths of text controls.
 - Format dates, times, numbers and plurals for the language. Chinese has no plural forms; English needs separate
-  strings for one and many where it matters.
+  strings for one and many where it matters. A count in a string is filled by `locale.Count`: `{n}` becomes the
+  number and `{n:entry|entries}` becomes the first form when the number is 1 and the second otherwise
+  (`Marked {n} {n:entry|entries} as read`). Write the plural form in the English string only, with the count it
+  follows in the same string; a Chinese string just carries `{n}`. Reword a sentence whose verb changes with the
+  count (`{n:entry is|entries are} not in Oriel`) or find another way to say it.
 
 ## Design acceptance checklist
 

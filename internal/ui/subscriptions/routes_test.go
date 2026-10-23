@@ -128,7 +128,7 @@ func TestRoutesForALinkStillAddAsTyped(t *testing.T) {
 	open(t, s, f, tt)
 	f.routes = client.Routes{Available: true, Total: 1, Routes: []client.Route{issueRoute}}
 	pageAddress(t, f, tt, "https://blog.example/rsshub/rsshub")
-	if !tt.HasText("Found 1 routes. Choose one.") || !s.canAdd() {
+	if !tt.HasText("Found 1 route. Choose one.") || !s.canAdd() {
 		t.Fatalf("can add %v, texts %v", s.canAdd(), tt.Texts())
 	}
 	if err := tt.Click("Add"); err != nil {

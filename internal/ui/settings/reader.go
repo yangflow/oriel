@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
@@ -243,8 +244,7 @@ func (s *Screen) readerStatus(status client.ImportStatus) {
 			if !r.told && res.AddedSources+res.StarredAdded+res.ReadMarked > 0 {
 				s.deps.Imported()
 			}
-			s.announce = s.fill(s.text.ReaderResultSources, "{added}", strconv.Itoa(res.AddedSources), "{existing}",
-				strconv.Itoa(res.ExistingSources))
+			s.announce = s.sourcesResult(res)
 		}
 		r.told = true
 	}
@@ -536,15 +536,15 @@ func (s *Screen) readerResult(c *ui.Context) {
 		return
 	}
 	lines := []string{
-		s.fill(s.text.ReaderResultSources, "{added}", strconv.Itoa(res.AddedSources), "{existing}", strconv.Itoa(res.ExistingSources)),
-		s.fill(s.text.ReaderResultStarred, "{added}", strconv.Itoa(res.StarredAdded), "{existing}", strconv.Itoa(res.StarredExisting)),
-		s.fill(s.text.ReaderResultRead, "{n}", strconv.Itoa(res.ReadMarked)),
+		s.sourcesResult(res),
+		locale.Count(locale.Count(s.text.ReaderResultStarred, "added", res.StarredAdded), "existing", res.StarredExisting),
+		locale.Count(s.text.ReaderResultRead, "n", res.ReadMarked),
 	}
 	if res.UnmatchedRead > 0 {
-		lines = append(lines, s.fill(s.text.ReaderResultUnmatched, "{n}", strconv.Itoa(res.UnmatchedRead)))
+		lines = append(lines, locale.Count(s.text.ReaderResultUnmatched, "n", res.UnmatchedRead))
 	}
 	if res.FoldersSkipped > 0 {
-		lines = append(lines, s.fill(s.text.ReaderResultFolders, "{n}", strconv.Itoa(res.FoldersSkipped)))
+		lines = append(lines, locale.Count(s.text.ReaderResultFolders, "n", res.FoldersSkipped))
 	}
 	tone := done
 	if res.SkippedTotal > 0 || res.UnmatchedRead > 0 || res.FoldersSkipped > 0 {
@@ -612,4 +612,9 @@ func (s *Screen) noteBox(c *ui.Context, tone int, lines []string) {
 			}
 		})
 	})
+}
+
+// sourcesResult says how many subscriptions of the reader service were added and how many were here already.
+func (s *Screen) sourcesResult(res *client.ImportResult) string {
+	return locale.Count(locale.Count(s.text.ReaderResultSources, "added", res.AddedSources), "existing", res.ExistingSources)
 }
