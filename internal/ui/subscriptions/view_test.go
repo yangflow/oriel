@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -657,7 +658,7 @@ func TestEditServedBy(t *testing.T) {
 	for instance, want := range map[string]string{
 		"":                           "",
 		"https://rsshub.example.com": "Served by rsshub.example.com",
-		"https://backup.example.com": "Served by backup.example.com (backup)",
+		"https://backup.example.com": "Served by fallback address backup.example.com",
 	} {
 		route.RSSHubInstance = instance
 		s.Edit(route)
@@ -666,6 +667,9 @@ func TestEditServedBy(t *testing.T) {
 		tt.Frame()
 		if want != "" && !tt.HasText(want) {
 			t.Errorf("no %q in %v", want, tt.Texts())
+		}
+		if hint := s.text.ServedByBackupHint; (strings.Contains(want, "fallback")) != tt.HasText(hint) {
+			t.Errorf("fallback hint %q for %q: %v", hint, want, tt.Texts())
 		}
 		if want == "" && tt.HasText("Served by") {
 			t.Errorf("served by shown for a route not fetched: %v", tt.Texts())

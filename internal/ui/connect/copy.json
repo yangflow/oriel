@@ -17,7 +17,7 @@
     "ServerError": "The server can’t open its data",
     "Failed": "Couldn’t sign in",
     "Expired": "Signed out of {server}",
-    "Menu": "Connect to Server…"
+    "Menu": "Connect to server…"
   },
   "zh-Hans": {
     "Title": "连接服务端",

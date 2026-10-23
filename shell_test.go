@@ -236,7 +236,7 @@ func TestShellImportSettings(t *testing.T) {
 	s.connected(client.Session{Server: server.URL, Token: "t1"})
 	s.openImportSettings()
 	tt.Frame()
-	if !s.setting || !tt.HasText("Choose File…") {
+	if !s.setting || !tt.HasText("Choose file…") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 }

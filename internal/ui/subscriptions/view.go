@@ -38,7 +38,7 @@ type copy struct {
 	LabelChannel, LabelPlaylist                                                                                                                                                    string
 	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, NotChecked, NextIn                                                                             string
 	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                                                                      string
-	ServedBy, ServedByBackup, MuteHidden, MuteNone                                                                                                                                 string
+	ServedBy, ServedByBackup, ServedByBackupHint, MuteHidden, MuteNone                                                                                                             string
 	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                                                                string
 	Extract, ExtractHelp, ExtractSelector, ExtractSelectorHelp, ExtractSelectorPlaceholder, ExtractSelectorInvalid                                                                 string
 	ExtractReferer, ExtractRefererHelp, ExtractRefererPlaceholder, ExtractRefererInvalid                                                                                           string
@@ -1874,20 +1874,23 @@ func (s *Screen) healthText(src client.Source, now time.Time) (string, bool) {
 }
 
 // servedBy names the RSSHub instance that served the last fetch of a route, host only, and says so when it is not
-// the first of the settings. It shows nothing for a feed or a route that has not been fetched.
+// the first of the settings, with a line that explains why. It shows nothing for a feed or a route that has not been fetched.
 func (s *Screen) servedBy(c *ui.Context) {
 	src := s.edit.src
 	if src.RSSHubPath == "" || src.RSSHubInstance == "" {
 		return
 	}
-	host, text := src.RSSHubInstance, s.text.ServedBy
+	host, text, hint := src.RSSHubInstance, s.text.ServedBy, ""
 	if u, err := url.Parse(src.RSSHubInstance); err == nil && u.Host != "" {
 		host = u.Host
 	}
 	if primary := strings.TrimRight(s.edit.primary, "/"); primary != "" && !strings.EqualFold(primary, src.RSSHubInstance) {
-		text = s.text.ServedByBackup
+		text, hint = s.text.ServedByBackup, s.text.ServedByBackupHint
 	}
 	help(c, strings.ReplaceAll(text, "{host}", host))
+	if hint != "" {
+		help(c, hint)
+	}
 }
 
 func (s *Screen) health(c *ui.Context) {
