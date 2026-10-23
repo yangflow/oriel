@@ -188,11 +188,19 @@ type Poller struct {
 	rsshub    instanceGate  // the RSSHub instances that are cooling down
 	lastPrune time.Time     // only touched by prune, which runs in one loop
 	vacuuming func() bool   // whether a vacuum is running; no new fetch starts while it is
+	readHook  func()        // tests only: called before a refill reads the database
 
-	mu       sync.Mutex // guards the three fields below
-	queue    []queued   // due sources not yet taken, oldest first
-	loaded   time.Time  // when the queue was last read from the database
-	inflight map[int64]bool
+	mu         sync.Mutex    // guards the fields below; never held across a database call
+	queue      []queued      // due sources not yet taken, oldest first
+	loaded     time.Time     // when the queue was last read from the database
+	refilling  chan struct{} // open while a refill is reading the database, closed when it is done
+	generation int           // counts resets of the queue, so a refill that began before one is dropped
+	inflight   map[int64]bool
+	settled    map[int64]bool // sources whose fetch ended while a refill was reading, which that read may still list as due
+
+	setMu  sync.Mutex // guards the cached RSSHub setting; never held across a database call
+	setRaw string     // the RSSHub setting as last read
+	setAt  time.Time  // when it was read, zero when nothing is cached
 }
 
 // queued is a due source with the host its fetch goes to, empty when that is not known.
@@ -219,9 +227,7 @@ func New(st *store.Store, version string) *Poller {
 // keep taking due sources; extraction and pruning have their own loops, so none of the three waits for another.
 func (p *Poller) Run(ctx context.Context) {
 	// A queue left from an earlier run may name sources that no longer exist, for example after a restore.
-	p.mu.Lock()
-	p.queue, p.loaded = nil, time.Time{}
-	p.mu.Unlock()
+	p.resetQueue()
 	var wg sync.WaitGroup
 	for range workers {
 		wg.Go(func() { p.work(ctx, true) })
@@ -230,6 +236,27 @@ func (p *Poller) Run(ctx context.Context) {
 	wg.Go(func() { every(ctx, pruneCheck, p.prune) })
 	wg.Go(func() { every(ctx, websubEvery, p.websubRound) })
 	wg.Wait()
+}
+
+// resetQueue drops the queue and the cached RSSHub setting, so the next take reads both again. A refill that is
+// under way is dropped when it finishes.
+func (p *Poller) resetQueue() {
+	p.mu.Lock()
+	p.queue, p.loaded = nil, time.Time{}
+	p.generation++
+	p.endRefill()
+	p.mu.Unlock()
+	p.setMu.Lock()
+	p.setAt = time.Time{}
+	p.setMu.Unlock()
+}
+
+// endRefill releases the workers waiting for a refill. The caller holds p.mu.
+func (p *Poller) endRefill() {
+	if p.refilling != nil {
+		close(p.refilling)
+		p.refilling = nil
+	}
 }
 
 // every calls f now and then on every interval until ctx is canceled.
@@ -250,9 +277,7 @@ func every(ctx context.Context, interval time.Duration, f func(context.Context))
 // when none is left to take. It returns how many new entries the sources brought. Run does the same without
 // stopping.
 func (p *Poller) fetchDue(ctx context.Context) int {
-	p.mu.Lock()
-	p.queue, p.loaded = nil, time.Time{}
-	p.mu.Unlock()
+	p.resetQueue()
 	var total atomic.Int64
 	var wg sync.WaitGroup
 	for range workers {
@@ -285,17 +310,41 @@ func (p *Poller) work(ctx context.Context, idle bool) int {
 }
 
 // take claims the oldest due source whose host has room, or reports that there is none. Sources whose host is busy
-// or held back stay in the queue, so one crowded host does not stop the others.
+// or held back stay in the queue, so one crowded host does not stop the others. The database is read without p.mu:
+// while one worker refills the queue, the others go on with the queue they have.
 func (p *Poller) take(ctx context.Context) (queued, bool) {
 	if p.vacuuming() {
 		return queued{}, false // a vacuum holds the write lock; a fetch started now would only wait and fail
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	now := p.now()
-	if p.loaded.IsZero() || now.Sub(p.loaded) >= refillEvery {
-		p.refill(ctx, now)
+	p.mu.Lock()
+	if p.refilling != nil && len(p.queue) == 0 {
+		// Another worker is reading the due list and there is nothing else to take: wait for it, without p.mu.
+		done := p.refilling
+		p.mu.Unlock()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return queued{}, false
+		}
+		p.mu.Lock()
 	}
+	if p.refilling == nil && (p.loaded.IsZero() || now.Sub(p.loaded) >= refillEvery) {
+		p.refilling = make(chan struct{})
+		p.loaded = now
+		p.settled = nil
+		gen, busy := p.generation, len(p.inflight)
+		p.mu.Unlock()
+		sources, root, ok := p.readDue(ctx, now, busy)
+		p.mu.Lock()
+		if p.generation == gen {
+			if ok {
+				p.fill(sources, root)
+			}
+			p.endRefill()
+		}
+	}
+	defer p.mu.Unlock()
 	for i, job := range p.queue {
 		if !p.hosts.acquire(job.host, now, p.spacing) {
 			continue
@@ -307,25 +356,31 @@ func (p *Poller) take(ctx context.Context) (queued, bool) {
 	return queued{}, false
 }
 
-// refill reads the due sources again, leaving out those being fetched. The caller holds p.mu.
-func (p *Poller) refill(ctx context.Context, now time.Time) {
-	p.loaded = now
-	sources, err := p.store.DueSources(ctx, now, dueLimit+len(p.inflight))
+// readDue reads the due sources and the first RSSHub root from the database. The caller does not hold p.mu. busy is
+// how many sources were being fetched, which the query leaves room for.
+func (p *Poller) readDue(ctx context.Context, now time.Time, busy int) ([]store.FeedSource, string, bool) {
+	if p.readHook != nil {
+		p.readHook()
+	}
+	sources, err := p.store.DueSources(ctx, now, dueLimit+busy)
 	if err != nil {
 		if ctx.Err() == nil {
 			slog.Error("Cannot list due sources", "error", err)
 		}
-		return
+		return nil, "", false
 	}
-	raw, err := p.store.Setting(ctx, RSSHubSetting)
+	raw, err := p.rsshubSetting(ctx, now)
 	if err != nil && ctx.Err() == nil {
 		slog.Error("Cannot read the RSSHub address", "error", err)
 	}
-	instances := Instances(raw)
-	root := p.rsshub.first(instances, now)
+	return sources, p.rsshub.first(Instances(raw), now), true
+}
+
+// fill replaces the queue with the sources not being fetched now. The caller holds p.mu.
+func (p *Poller) fill(sources []store.FeedSource, root string) {
 	p.queue = p.queue[:0]
 	for _, src := range sources {
-		if p.inflight[src.ID] {
+		if p.inflight[src.ID] || p.settled[src.ID] {
 			continue
 		}
 		var host string
@@ -334,6 +389,25 @@ func (p *Poller) refill(ctx context.Context, now time.Time) {
 		}
 		p.queue = append(p.queue, queued{src: src, host: host})
 	}
+}
+
+// rsshubSetting returns the RSSHub setting, read from the database at most once every refillEvery and shared by the
+// refill and the fetches, so a changed setting is picked up within that time. A failed read is not kept.
+func (p *Poller) rsshubSetting(ctx context.Context, now time.Time) (string, error) {
+	p.setMu.Lock()
+	raw, at := p.setRaw, p.setAt
+	p.setMu.Unlock()
+	if !at.IsZero() && now.Sub(at) < refillEvery {
+		return raw, nil
+	}
+	raw, err := p.store.Setting(ctx, RSSHubSetting)
+	if err != nil {
+		return "", err
+	}
+	p.setMu.Lock()
+	p.setRaw, p.setAt = raw, now
+	p.setMu.Unlock()
+	return raw, nil
 }
 
 // Fetching returns the ids of the sources being fetched now, in order.
@@ -356,6 +430,12 @@ func (p *Poller) finish(job queued) {
 	p.hosts.release(job.host)
 	p.mu.Lock()
 	delete(p.inflight, job.src.ID)
+	if p.refilling != nil {
+		if p.settled == nil {
+			p.settled = map[int64]bool{}
+		}
+		p.settled[job.src.ID] = true
+	}
 	p.mu.Unlock()
 }
 
@@ -409,7 +489,7 @@ func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource, host st
 	if src.RSSHubPath == "" {
 		return p.fetchFrom(ctx, src, src.URL, "")
 	}
-	raw, err := p.store.Setting(ctx, RSSHubSetting)
+	raw, err := p.rsshubSetting(ctx, p.now())
 	if err != nil {
 		return 0, err
 	}

@@ -303,3 +303,67 @@ func TestManySubscriptionsStayOnSchedule(t *testing.T) {
 		f.now = f.now.Add(15 * time.Minute)
 	}
 }
+
+func TestSlowDueReadDoesNotBlockScheduling(t *testing.T) {
+	f := newFixture(t)
+	f.add(store.NewSource{URL: "https://example.org/feed"})
+	reading, release := make(chan struct{}), make(chan struct{})
+	f.poller.readHook = func() {
+		close(reading)
+		<-release
+	}
+	taken := make(chan bool)
+	go func() {
+		_, ok := f.poller.take(context.Background())
+		taken <- ok
+	}()
+	<-reading // a refill is now inside its database read
+
+	calls := make(chan struct{})
+	go func() {
+		f.poller.Fetching()
+		f.poller.finish(queued{src: store.FeedSource{ID: 99}})
+		close(calls)
+	}()
+	select {
+	case <-calls:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Fetching and finish wait for the database read")
+	}
+	close(release)
+	if ok := <-taken; !ok {
+		t.Error("the due source was not taken after the read")
+	}
+}
+
+func TestRSSHubSettingIsReadOncePerRefillInterval(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.useInstances("http://one.example")
+	if got, _ := f.poller.rsshubSetting(ctx, f.now); got != "http://one.example" {
+		t.Fatalf("setting = %q", got)
+	}
+	f.useInstances("http://two.example")
+	if got, _ := f.poller.rsshubSetting(ctx, f.now.Add(refillEvery/2)); got != "http://one.example" {
+		t.Errorf("setting = %q, want the cached value within the interval", got)
+	}
+	if got, _ := f.poller.rsshubSetting(ctx, f.now.Add(refillEvery)); got != "http://two.example" {
+		t.Errorf("setting = %q, want the changed value after the interval", got)
+	}
+}
+
+func TestSourceFinishedDuringRefillIsNotQueuedAgain(t *testing.T) {
+	f := newFixture(t)
+	f.add(store.NewSource{URL: "https://example.org/feed"})
+	ctx := context.Background()
+	job, ok := f.poller.take(ctx)
+	if !ok {
+		t.Fatal("the due source was not taken")
+	}
+	f.now = f.now.Add(refillEvery)
+	// The read still lists the source as due, because its outcome is not recorded; it ends while the read runs.
+	f.poller.readHook = func() { f.poller.finish(job) }
+	if _, ok := f.poller.take(ctx); ok {
+		t.Error("a source that finished during the refill was taken again")
+	}
+}
