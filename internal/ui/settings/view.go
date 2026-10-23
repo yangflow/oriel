@@ -36,7 +36,7 @@ var catalog []byte
 
 type copy struct {
 	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Lead, Fetching, OPML, Devices, RSSHub                                                                                                             string
-	RSSHubHelp, RSSHubPlaceholder, Save, Saved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp                                                                                             string
+	RSSHubHelp, RSSHubPlaceholder, Save, Saved, Unsaved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp                                                                                    string
 	InvalidBaseAny, TooManyBase                                                                                                                                                                               string
 	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp                                                                                            string
 	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed                                                                                                   string
@@ -248,6 +248,8 @@ type Screen struct {
 	invalid     bool
 	baseStatus  status
 	focusBase   bool
+	typing      bool // a text field has the focus, as of the last frame
+	blur        bool // the next frame moves the focus to the back button
 	retention   int
 	keeping     bool // the retention is being saved
 	keepStatus  status
@@ -618,6 +620,30 @@ func (s *Screen) saveGrouping(on bool) {
 			s.deps.Imported()
 		}
 	})
+}
+
+// watch notes that a text field has the focus, for escape.
+func (s *Screen) watch(focused bool) {
+	s.typing = s.typing || focused
+}
+
+// unsaved reports whether any text on the page is not saved: the AI endpoint, the prompts, the RSSHub instances and
+// the muted keywords.
+func (s *Screen) unsaved() bool {
+	return s.aiDirty() || s.promptsDirty() || s.dirty() || cleanLines(s.rules.muted) != cleanLines(s.settings.MuteKeywords)
+}
+
+// escape is Escape on the page. A text field with the focus gives it up, to the back button, and nothing leaves; with
+// text not saved the page stays and says so, since going back would lose it; otherwise it goes back to the timeline.
+func (s *Screen) escape() {
+	switch {
+	case s.typing:
+		s.typing, s.blur = false, true
+	case s.state == loaded && s.unsaved():
+		s.announce = s.text.Unsaved
+	default:
+		s.deps.Back()
+	}
 }
 
 // aiDirty reports whether the AI endpoint as typed is not the one saved; a key typed is always a change.
@@ -1333,8 +1359,9 @@ func px(t *ui.Theme, v float32) float32 { return t.Rem(v / 13) }
 // View draws the settings; it does no disk or network work, which runs through Deps.
 func (s *Screen) View(c *ui.Context) {
 	t := c.Theme()
+	s.typing = false
 	if !s.revoking && !s.reader.open && !s.rules.dialog.open && !s.uiFont.open && !s.rdFont.open {
-		c.OnShortcut(0, ui.KeyEscape, s.deps.Back)
+		c.OnShortcut(0, ui.KeyEscape, s.escape)
 	}
 	width, _ := c.Size()
 	compact := width < 760
@@ -1444,6 +1471,10 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 				ui.Icon(c, icons.ChevronLeft).FontSize(px(t, 16)).TextColor(color)
 				ui.Text(c, label).SingleLine().MinWidth(0).Shrink(1).TextColor(color)
 			})
+			if s.blur {
+				b.Focus()
+				s.blur = false
+			}
 			if b.Clicked() {
 				s.deps.Back()
 			}
@@ -1752,7 +1783,7 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 
 // field draws a text input editing value, width wide or growing for 0, a raised fill with a hairline edge, the
 // focus ring while focused and a danger edge while invalid; input names and handles the input.
-func field(c *ui.Context, key string, value *string, width float32, invalid bool, input func(in ui.Element)) {
+func field(c *ui.Context, key string, value *string, width float32, invalid bool, input func(in ui.Element)) (focused bool) {
 	t := c.Theme()
 	b := ui.Row(c).Key(key).MinWidth(0).Height(px(t, 32)).AlignItems(ui.Center).PaddingX(px(t, 10)).
 		Radius(t.Radius).Background(theme.RaisedFill(t))
@@ -1761,7 +1792,7 @@ func field(c *ui.Context, key string, value *string, width float32, invalid bool
 	} else {
 		b.Grow(1)
 	}
-	focused := b.FocusWithin()
+	focused = b.FocusWithin()
 	edge(c, b)
 	switch {
 	case invalid:
@@ -1773,6 +1804,7 @@ func field(c *ui.Context, key string, value *string, width float32, invalid bool
 		b.Shadow(0, 0, 0, 2, t.Focus)
 	}
 	b.Children(func() { input(ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false)) })
+	return focused
 }
 
 // edge gives a field or a text area its hairline, a Border line with high contrast.
@@ -1825,6 +1857,7 @@ func (s *Screen) baseField(c *ui.Context) {
 	case area.Focused():
 		area.Shadow(0, 0, 0, 2, t.Focus)
 	}
+	s.watch(area.Focused())
 	if s.focusBase {
 		area.Focus()
 		s.focusBase = false
@@ -1909,7 +1942,7 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 			ui.Text(c, line).FontSize(px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(px(t, 4), 0, 0, 0)
 		}
 		ui.Row(c).FillWidth().Margin(px(t, 12), 0, 0, 0).Children(func() {
-			field(c, "endpoint", &s.aiBase, 0, s.aiInvalid, func(in ui.Element) {
+			s.watch(field(c, "endpoint", &s.aiBase, 0, s.aiInvalid, func(in ui.Element) {
 				in.Font("monospace").Label(s.text.Endpoint).Placeholder(s.text.EndpointPlaceholder).Disabled(s.aiSaving)
 				if s.aiInvalid {
 					in.Error(s.text.InvalidAIBase)
@@ -1919,7 +1952,7 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 					s.focusAIBase = false
 				}
 				submit(in)
-			})
+			}))
 		})
 		if s.aiInvalid {
 			statusLine(c, status{text: s.text.InvalidAIBase})
@@ -1932,10 +1965,10 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 			hint = presets[i].hint
 		}
 		ui.Row(c).FillWidth().Margin(px(t, 12), 0, 0, 0).Children(func() {
-			field(c, "model", &s.aiModel, 0, false, func(in ui.Element) {
+			s.watch(field(c, "model", &s.aiModel, 0, false, func(in ui.Element) {
 				in.Font("monospace").Label(s.text.Model).Placeholder(hint).Disabled(s.aiSaving)
 				submit(in)
-			})
+			}))
 		})
 	}, func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
@@ -1954,11 +1987,11 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 			if s.settings.AIAPIKeySet {
 				placeholder = s.text.KeyReplace
 			}
-			field(c, "key", &s.aiKey, 0, false, func(in ui.Element) {
+			s.watch(field(c, "key", &s.aiKey, 0, false, func(in ui.Element) {
 				in.Password().Label(s.text.APIKey).Placeholder(placeholder).Description(s.text.KeyHelp).
 					Disabled(s.aiSaving)
 				submit(in)
-			})
+			}))
 			if s.settings.AIAPIKeySet {
 				remove := button(c, secondary, s.aiSaving)
 				textButton(c, remove, secondary, nil, s.text.RemoveKey, false)
@@ -2049,12 +2082,12 @@ func (s *Screen) limitFields(c *ui.Context) {
 				ui.Column(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
 					ui.Text(c, names[i]).FontWeight(500)
 					ui.Row(c).FillWidth().Margin(px(t, 8), 0, 0, 0).Children(func() {
-						field(c, "limit"+strconv.Itoa(i), &s.aiLimits[i], 0, false, func(in ui.Element) {
+						s.watch(field(c, "limit"+strconv.Itoa(i), &s.aiLimits[i], 0, false, func(in ui.Element) {
 							in.Font("monospace").Label(names[i]).Placeholder(strconv.Itoa(defaults[i])).Disabled(s.aiSaving)
 							if in.Submitted() {
 								s.saveAI(false)
 							}
-						})
+						}))
 					})
 				})
 			}
@@ -2152,6 +2185,7 @@ func (s *Screen) promptField(c *ui.Context, i int, label string, two bool) {
 	if area.Focused() {
 		area.Shadow(0, 0, 0, 2, t.Focus)
 	}
+	s.watch(area.Focused())
 }
 
 func (s *Screen) languageSelect(c *ui.Context) {
@@ -2666,12 +2700,12 @@ func (s *Screen) autoRows(c *ui.Context) {
 	line(s.text.AutoFolder, func() {
 		switch {
 		case s.autoRemote():
-			field(c, "autofolder", &s.autoFolder, 0, false, func(in ui.Element) {
+			s.watch(field(c, "autofolder", &s.autoFolder, 0, false, func(in ui.Element) {
 				in.Font("monospace").Label(s.text.AutoFolder).Placeholder(s.text.AutoPlaceholder).Disabled(s.autoSaving)
 				if in.Submitted() {
 					s.commitAuto()
 				}
-			})
+			}))
 		case st.AutoBackupFolder == "":
 			ui.Text(c, s.text.AutoNoFolder).Grow(1).MinWidth(0).TextColor(t.TextMuted)
 		default:
@@ -2697,12 +2731,12 @@ func (s *Screen) autoRows(c *ui.Context) {
 		}
 	})
 	line(s.text.AutoKeep, func() {
-		field(c, "autokeep", &s.autoKeep, px(t, 64), false, func(in ui.Element) {
+		s.watch(field(c, "autokeep", &s.autoKeep, px(t, 64), false, func(in ui.Element) {
 			in.Font("monospace").Label(s.text.AutoKeep).Disabled(s.autoSaving)
 			if in.Submitted() {
 				s.commitAuto()
 			}
-		})
+		}))
 		ui.Text(c, s.text.AutoCopies).FontSize(px(t, 12)).TextColor(t.TextMuted)
 	})
 	now := s.deps.Now()
