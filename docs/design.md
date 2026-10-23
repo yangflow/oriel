@@ -677,8 +677,9 @@ What Oriel uses today:
 - An icon-only button keeps a `Tooltip` with the same text as its accessibility `Label`.
 - The one exception to the first rule is a row whose text is a name of the user's data that the layout cuts short (a
   subscription in the pane): it has a `Tooltip` with the full name, only while the name is actually cut, found by
-  measuring the text against its box. A row that fits has none. The row's `Label` is the full name either way, and its
-  `Description` stays what it was (the unread count), so a screen reader does not read the name twice.
+  measuring the text against its box. A row that fits has none. The row's `Label` is the full name either way and its
+  `Description` stays what it was (the unread count): the tip is drawn with `theme.Tip` (`TooltipBase` in the look of
+  `Tooltip`), which does not describe the row, so a screen reader does not read the name twice.
 - The accessibility `Label` stays on every button, whether or not it has a tooltip.
 
 MyGo's `Tooltip` has no placement option: it sits above the element and flips below only where there is no room
