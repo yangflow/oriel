@@ -11,7 +11,17 @@
     "Clock24": "15:04",
     "Clock12": "{time} {period}",
     "AM": "AM",
-    "PM": "PM"
+    "PM": "PM",
+    "ErrTimeout": "The site took too long to answer.",
+    "ErrNetwork": "Couldn’t connect to the site.",
+    "ErrDNS": "The site’s address couldn’t be found.",
+    "ErrTLS": "The site’s security certificate isn’t valid.",
+    "ErrForbidden": "The site refused access.",
+    "ErrRateLimited": "The site is limiting requests. Oriel will try again later.",
+    "ErrNotFound": "There is no feed at this address.",
+    "ErrServer": "The site has an error on its side. Oriel will try again later.",
+    "ErrNotFeed": "This address doesn’t return a feed Oriel can read.",
+    "ErrOriginal": "Original: {raw}"
   },
   "zh-Hans": {
     "Now": "刚刚",
@@ -25,6 +35,16 @@
     "Clock24": "15:04",
     "Clock12": "{period}{time}",
     "AM": "上午",
-    "PM": "下午"
+    "PM": "下午",
+    "ErrTimeout": "网站响应太久，超时了。",
+    "ErrNetwork": "连不上这个网站。",
+    "ErrDNS": "找不到这个网站的地址（域名解析失败）。",
+    "ErrTLS": "网站的安全证书有问题。",
+    "ErrForbidden": "网站拒绝了访问。",
+    "ErrRateLimited": "网站在限制请求次数，稍后会自动重试。",
+    "ErrNotFound": "这个地址上没有订阅内容（找不到页面）。",
+    "ErrServer": "网站那边出了故障，稍后会自动重试。",
+    "ErrNotFeed": "这个地址返回的不是能读的订阅内容。",
+    "ErrOriginal": "原文：{raw}"
   }
 }

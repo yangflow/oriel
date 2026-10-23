@@ -12,11 +12,14 @@ import (
 //go:embed copy.json
 var catalog []byte
 
-// words are the shared time texts of one language: the relative times and the layouts of dates and times of day.
+// words are the shared texts of one language: the relative times, the layouts of dates and times of day, and the
+// phrases for fetch failures (see FetchError).
 type words struct {
 	Now, Minutes, Hours, Yesterday, Days string
 	DateLayout, YearLayout, DateTime     string
 	Clock24, Clock12, AM, PM             string
+
+	ErrTimeout, ErrNetwork, ErrDNS, ErrTLS, ErrForbidden, ErrRateLimited, ErrNotFound, ErrServer, ErrNotFeed, ErrOriginal string
 }
 
 var texts = func() map[string]words {

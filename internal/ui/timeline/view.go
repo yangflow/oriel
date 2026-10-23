@@ -2111,7 +2111,7 @@ func (s *Screen) reason(src client.Source) string {
 
 // failure is the reason src failed, in the user's language when the site's bot protection turned the fetch away.
 func (s *Screen) failure(src client.Source) string {
-	return subscriptions.FailureReason(src, s.text.Blocked, s.text.BlockedPublic, s.text.FeedRemoved)
+	return subscriptions.FailureReason(s.lang, src, s.text.Blocked, s.text.BlockedPublic, s.text.FeedRemoved)
 }
 
 // failingName is the name of a failing subscription for a screen reader: its name, its unread count when it has
@@ -3103,7 +3103,7 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 				ui.Icon(c, icons.Pause).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 			})
 		} else if src.LastError != "" {
-			reason := s.reason(src)
+			reason := subscriptions.FailureDetail(s.lang, src, s.reason(src))
 			ui.Box(c).Label(reason).Tooltip(reason).Role(ui.RoleImage).Children(func() {
 				ui.Icon(c, icons.CircleAlert).FontSize(theme.Px(t, 14)).TextColor(t.Warning)
 			})
