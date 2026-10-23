@@ -1628,8 +1628,7 @@ func (s *Screen) failure(c *ui.Context) {
 				Children(func() { ui.Icon(c, icons.WifiOff).FontSize(t.Space(6)).TextColor(t.Danger) })
 			ui.Text(c, title).FontSize(theme.Px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(2)
 			ui.Text(c, hint).MaxWidth(theme.Px(t, 320)).TextColor(t.TextMuted).Wrap()
-			retry := button(c, secondary, false)
-			textButton(c, retry, secondary, icons.RefreshCw, s.text.Retry, false)
+			retry := theme.Button{Style: theme.Secondary, Icon: icons.RefreshCw, Text: s.text.Retry}.Draw(c)
 			if retry.Clicked() {
 				switch s.group {
 				case rules:
@@ -1739,12 +1738,11 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 				}
 			})
 			dirty := s.dirty()
-			style := secondary
+			style := theme.Secondary
 			if dirty {
-				style = primary
+				style = theme.Primary
 			}
-			save := button(c, style, !dirty || s.saving)
-			textButton(c, save, style, nil, s.text.Save, s.saving)
+			save := theme.Button{Style: style, Disabled: !dirty || s.saving, Text: s.text.Save, Busy: s.saving}.Draw(c)
 			if save.Clicked() {
 				s.saveBase()
 			}
@@ -1967,8 +1965,7 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 				submit(in)
 			}))
 			if s.settings.AIAPIKeySet {
-				remove := button(c, secondary, s.aiSaving)
-				textButton(c, remove, secondary, nil, s.text.RemoveKey, false)
+				remove := theme.Button{Style: theme.Secondary, Disabled: s.aiSaving, Text: s.text.RemoveKey}.Draw(c)
 				if remove.Clicked() {
 					s.saveAI(true)
 				}
@@ -1993,17 +1990,16 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 					statusText(c, st)
 				}
 			})
-			test := button(c, secondary, !s.settings.AIConfigured() || dirty || s.testing || s.aiSaving)
-			textButton(c, test, secondary, icons.Plug, s.text.Test, false)
+			test := theme.Button{Disabled: !s.settings.AIConfigured() || dirty || s.testing || s.aiSaving, Icon: icons.Plug,
+				Text: s.text.Test}.Draw(c)
 			if test.Clicked() {
 				s.test()
 			}
-			style := secondary
+			style := theme.Secondary
 			if dirty {
-				style = primary
+				style = theme.Primary
 			}
-			save := button(c, style, !dirty || s.aiSaving)
-			textButton(c, save, style, nil, s.text.Save, s.aiSaving)
+			save := theme.Button{Style: style, Disabled: !dirty || s.aiSaving, Text: s.text.Save, Busy: s.aiSaving}.Draw(c)
 			if save.Clicked() {
 				s.saveAI(false)
 			}
@@ -2026,12 +2022,8 @@ func (s *Screen) presetRow(c *ui.Context) {
 		Label(s.text.Preset).Children(func() {
 		ui.Text(c, s.text.Preset).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Margin(0, theme.Px(t, 4), 0, 0)
 		for i, p := range presets {
-			style := small
-			if i == picked {
-				style = chosen
-			}
-			b := button(c, style, s.aiSaving).Role(ui.RoleToggleButton).Checked(i == picked).Label(p.name)
-			textButton(c, b, style, nil, p.name, false)
+			chosen := i == picked
+			b := theme.Button{Small: true, On: chosen, Disabled: s.aiSaving, Text: p.name, Checked: &chosen}.Draw(c)
 			if b.Clicked() {
 				s.aiBase, s.aiInvalid = p.base, false
 			}
@@ -2119,12 +2111,12 @@ func (s *Screen) aiPrompts(c *ui.Context, top float32, two bool) {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 				coded(c, s.text.PromptHelp, "{language}", "{language}").Grow(1).MinWidth(0)
 				dirty := s.promptsDirty()
-				style := secondary
+				style := theme.Secondary
 				if dirty {
-					style = primary
+					style = theme.Primary
 				}
-				save := button(c, style, !dirty || s.promptSaving).Label(s.text.Prompts + " · " + s.text.Save)
-				textButton(c, save, style, nil, s.text.Save, s.promptSaving)
+				save := theme.Button{Style: style, Disabled: !dirty || s.promptSaving, Text: s.text.Save, Busy: s.promptSaving,
+					Label: s.text.Prompts + " · " + s.text.Save}.Draw(c)
 				if save.Clicked() {
 					s.savePrompts()
 				}
@@ -2141,9 +2133,8 @@ func (s *Screen) promptField(c *ui.Context, i int, label string, two bool) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 		ui.Text(c, label).FontWeight(500).Grow(1).MinWidth(0)
-		reset := button(c, small, s.promptSaving || strings.TrimSpace(s.prompts[i]) == s.defaults()[i]).
-			Label(label + " · " + s.text.Reset)
-		textButton(c, reset, small, icons.RotateCcw, s.text.Reset, false)
+		reset := theme.Button{Small: true, Disabled: s.promptSaving || strings.TrimSpace(s.prompts[i]) == s.defaults()[i],
+			Icon: icons.RotateCcw, Text: s.text.Reset, Label: label + " · " + s.text.Reset}.Draw(c)
 		if reset.Clicked() {
 			s.restored = &restoration{i: i, name: label, before: s.prompts[i]}
 			s.prompts[i] = s.defaults()[i]
@@ -2474,8 +2465,7 @@ func (s *Screen) opmlPage(c *ui.Context) {
 	lead(c, s.text.OPMLHelp)
 	card(c, func() {
 		labeled(c, s.text.ImportLabel, s.text.ImportHelp, func() {
-			b := button(c, secondary, s.busy)
-			textButton(c, b, secondary, icons.Upload, s.text.Import, false)
+			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Upload, Text: s.text.Import}.Draw(c)
 			if b.Clicked() {
 				s.chooseImport()
 			}
@@ -2494,16 +2484,14 @@ func (s *Screen) opmlPage(c *ui.Context) {
 		}
 	}, func() {
 		labeled(c, s.text.ReaderLabel, s.text.ReaderHelp, func() {
-			b := button(c, secondary, s.busy)
-			textButton(c, b, secondary, icons.ArrowUpDown, s.text.ReaderButton, false)
+			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.ArrowUpDown, Text: s.text.ReaderButton}.Draw(c)
 			if b.Clicked() {
 				s.openReader()
 			}
 		})
 	}, func() {
 		labeled(c, s.text.ExportLabel, s.text.ExportHelp, func() {
-			b := button(c, secondary, s.busy)
-			textButton(c, b, secondary, icons.Download, s.text.Export, false)
+			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Download, Text: s.text.Export}.Draw(c)
 			if b.Clicked() {
 				s.export()
 			}
@@ -2513,16 +2501,14 @@ func (s *Screen) opmlPage(c *ui.Context) {
 		}
 	}, func() {
 		labeled(c, s.text.BackupLabel, s.text.BackupHelp, func() {
-			b := button(c, secondary, s.busy)
-			textButton(c, b, secondary, icons.Database, s.text.BackupButton, false)
+			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Database, Text: s.text.BackupButton}.Draw(c)
 			if b.Clicked() {
 				s.backUp()
 			}
 		})
 	}, func() {
 		labeled(c, s.text.RestoreLabel, s.text.RestoreHelp, func() {
-			b := button(c, secondary, s.busy)
-			textButton(c, b, secondary, icons.RotateCcw, s.text.RestoreButton, false)
+			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.RotateCcw, Text: s.text.RestoreButton}.Draw(c)
 			if b.Clicked() {
 				s.chooseRestore()
 			}
@@ -2686,8 +2672,7 @@ func (s *Screen) autoRows(c *ui.Context) {
 			ui.Text(c, st.AutoBackupFolder).Font("monospace").NoWrap().Grow(1).MinWidth(0)
 		}
 		if !s.autoRemote() {
-			b := button(c, small, s.autoSaving)
-			textButton(c, b, small, icons.Folder, s.text.AutoChoose, false)
+			b := theme.Button{Small: true, Disabled: s.autoSaving, Icon: icons.Folder, Text: s.text.AutoChoose}.Draw(c)
 			if b.Clicked() {
 				s.chooseFolder()
 			}
@@ -2871,8 +2856,8 @@ func (s *Screen) deviceCells(c *ui.Context, d client.Device, now time.Time) {
 			return
 		}
 		full, _ := s.device(d)
-		b := button(c, danger, false).Label(s.fill(s.text.RevokeTitle, "{name}", full))
-		textButton(c, b, danger, nil, s.text.Revoke, false)
+		b := theme.Button{Style: theme.Danger, Small: true, Text: s.text.Revoke,
+			Label: s.fill(s.text.RevokeTitle, "{name}", full)}.Draw(c)
 		if b.Clicked() {
 			s.doomed, s.revoking = d, true
 		}
@@ -2900,76 +2885,11 @@ func (s *Screen) deviceRow(c *ui.Context, d client.Device, now time.Time) {
 			ui.Text(c, when).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine()
 		})
 		if !d.Current {
-			b := button(c, danger, false).Label(s.fill(s.text.RevokeTitle, "{name}", name))
-			textButton(c, b, danger, nil, s.text.Revoke, false)
+			b := theme.Button{Style: theme.Danger, Small: true, Text: s.text.Revoke,
+				Label: s.fill(s.text.RevokeTitle, "{name}", name)}.Draw(c)
 			if b.Clicked() {
 				s.doomed, s.revoking = d, true
 			}
-		}
-	})
-}
-
-const (
-	secondary = iota
-	primary
-	danger // small, in the danger color
-	small
-	chosen // small, the one picked of a few: in the accent
-)
-
-func button(c *ui.Context, style int, disabled bool) ui.Element {
-	t := c.Theme()
-	b := ui.ButtonBase(c).Height(theme.Px(t, 32)).Gap(t.Space(1.5)).PaddingX(theme.Px(t, 14)).Radius(t.Radius).Disabled(disabled)
-	track := theme.Track(t)
-	fill, color := track, t.Text
-	switch style {
-	case primary:
-		fill, color = t.Accent, t.AccentText
-	case danger:
-		color = t.Danger
-		fallthrough
-	case small:
-		b.Height(theme.Px(t, 26)).PaddingX(theme.Px(t, 10))
-	case chosen:
-		fill, color = theme.Soft(t, t.Accent), t.Accent
-		b.Height(theme.Px(t, 26)).PaddingX(theme.Px(t, 10))
-	}
-	switch {
-	case disabled:
-		fill, color = t.Surface, t.TextMuted
-	case style == chosen:
-	case b.Pressed() && style == primary:
-		fill = t.AccentPressed
-	case b.Hovered() && style == primary:
-		fill = t.AccentHover
-	case b.Pressed():
-		fill = track.Mix(theme.Ink(t, 1), 0.1)
-	case b.Hovered():
-		fill = track.Mix(theme.Ink(t, 1), 0.06)
-	}
-	if c.Preferences().HighContrast {
-		b.Border(1, t.Border)
-	}
-	return b.Background(fill).TextColor(color)
-}
-
-// textButton fills a button with an optional icon and its text, a spinner for the icon while busy, in the color
-// button gave it.
-func textButton(c *ui.Context, b ui.Element, style int, icon *ui.SVG, text string, busy bool) {
-	t := c.Theme()
-	b.Children(func() {
-		if busy {
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.Px(t, 15))
-			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-		} else if icon != nil {
-			ui.Icon(c, icon).FontSize(theme.Px(t, 15))
-		}
-		label := ui.Text(c, text).NoWrap()
-		switch style {
-		case primary:
-			label.FontWeight(500)
-		case danger, small, chosen:
-			label.FontSize(theme.Px(t, 12))
 		}
 	})
 }

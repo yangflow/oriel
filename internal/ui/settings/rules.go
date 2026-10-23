@@ -229,8 +229,7 @@ func (s *Screen) rulesPage(c *ui.Context) {
 				} else {
 					ui.Box(c).Grow(1)
 				}
-				add := button(c, secondary, full)
-				textButton(c, add, secondary, icons.Plus, s.text.AddRule, false)
+				add := theme.Button{Style: theme.Secondary, Disabled: full, Icon: icons.Plus, Text: s.text.AddRule}.Draw(c)
 				if add.Clicked() {
 					s.openRule(nil)
 				}
@@ -481,13 +480,11 @@ func (s *Screen) ruleDialog(c *ui.Context) {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(4), t.Space(5), t.Space(4.5),
 			t.Space(5)).Children(func() {
 			ui.Box(c).Grow(1)
-			cancel := button(c, secondary, false)
-			textButton(c, cancel, secondary, nil, s.text.Cancel, false)
+			cancel := theme.Button{Style: theme.Secondary, Text: s.text.Cancel}.Draw(c)
 			if cancel.Clicked() {
 				open = false
 			}
-			save := button(c, primary, d.saving)
-			textButton(c, save, primary, nil, s.text.Save, d.saving)
+			save := theme.Button{Style: theme.Primary, Disabled: d.saving, Text: s.text.Save, Busy: d.saving}.Draw(c)
 			if save.Clicked() {
 				s.saveRule()
 			}
@@ -704,14 +701,13 @@ func (s *Screen) mutedCard(c *ui.Context) {
 					FontFeatures("tnum").Role(ui.RoleStatus)
 			}
 			dirty := cleanLines(p.muted) != cleanLines(s.settings.MuteKeywords)
-			style := secondary
+			style := theme.Secondary
 			if dirty {
-				style = primary
+				style = theme.Primary
 			}
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Margin(theme.Px(t, 12), 0, 0, 0).Children(func() {
 				ui.Box(c).Grow(1)
-				save := button(c, style, !dirty || p.saving)
-				textButton(c, save, style, nil, s.text.Save, p.saving)
+				save := theme.Button{Style: style, Disabled: !dirty || p.saving, Text: s.text.Save, Busy: p.saving}.Draw(c)
 				if save.Clicked() {
 					s.saveMuted()
 				}

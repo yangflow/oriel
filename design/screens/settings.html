@@ -233,9 +233,12 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .button:active { background:color-mix(in srgb,var(--track),rgba(var(--ink),.1)) }
 .button.primary, .alert .button.default { background:var(--accent); color:var(--accent-text) }
 .button.primary:hover, .alert .button.default:hover { background:var(--accent-hover) }
-.button.danger { color:var(--danger) }
+.button.danger { background:none; color:var(--danger); padding:0 8px }
+.button.danger:hover { background:var(--danger-soft) }
+.button.danger:active { background:color-mix(in srgb,var(--danger-soft),rgba(var(--ink),.05)) }
+.button.danger.small { padding:0 10px }
 .button.small { height:26px; padding:0 10px; font-size:12px }
-.button svg.icon { width:15px; height:15px }
+.button svg.icon { width:14px; height:14px }
 .button:disabled { background:rgba(var(--ink),.04); color:var(--disabled); font-weight:400 }
 .result { margin-top:12px; padding:10px 12px; border-radius:8px; background:rgba(var(--ink),.045); font-size:12.5px }
 .result.warn { background:var(--warning-soft) }
