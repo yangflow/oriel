@@ -45,8 +45,9 @@ docs/, design/           product spec, design language, ADRs, mockups, tokens
 ## Commands
 
 ```sh
-scripts/check.sh --cross     # gofmt, go mod tidy without diff, vet, tests, script tests, six cross-compiled targets
-go test -race ./...
+scripts/check.sh --cross --race  # gofmt, go mod tidy without diff, vet, tests (--race: with the race detector, as CI runs
+                                 # them), script tests, six cross-compiled targets
+go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...  # known vulnerabilities; CI runs it with this pinned version
 go tool mygo dev
 go tool mygo build
 ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470

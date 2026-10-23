@@ -1449,4 +1449,4 @@ AI：
 
 ## 技术基线
 
-Go 1.27.1，MyGo v0.5.5，SQLite 用纯 Go 的 `modernc.org/sqlite`，生产代码不用 cgo，没有前端工具链。macOS 12+、Windows 10/11、带 GTK 3 的 Linux，amd64 和 arm64。Linux 程序需要 glibc（MyGo 动态加载系统库），无窗口模式也一样：可以跑在不带 GTK 的 Debian 等系统上，但不能跑在 Alpine 等 musl 系统上。界面只有简体中文和英文：默认跟随系统，中文系统（含繁体）显示简体中文，其他系统显示英文，也可以在「外观」里固定其中一种。没在真机上测过的性能不写进文档。
+Go 1.27.3，MyGo v0.5.5，SQLite 用纯 Go 的 `modernc.org/sqlite`，生产代码不用 cgo，没有前端工具链。macOS 12+、Windows 10/11、带 GTK 3 的 Linux，amd64 和 arm64。Linux 程序需要 glibc（MyGo 动态加载系统库），无窗口模式也一样：可以跑在不带 GTK 的 Debian 等系统上，但不能跑在 Alpine 等 musl 系统上。界面只有简体中文和英文：默认跟随系统，中文系统（含繁体）显示简体中文，其他系统显示英文，也可以在「外观」里固定其中一种。没在真机上测过的性能不写进文档。
