@@ -327,9 +327,9 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Make it look like version 20, before the link key that groups an article carried by several sources and the rules.
+	// Make it look like version 20, before the link key that groups an article carried by several sources, the rules and the extraction index.
 	for _, stmt := range []string{
-		"DROP TABLE rules", "DROP INDEX entries_link_key", "ALTER TABLE entries DROP COLUMN link_key", "PRAGMA user_version = 20",
+		"DROP TABLE rules", "DROP INDEX entries_extract_open", "DROP INDEX entries_link_key", "ALTER TABLE entries DROP COLUMN link_key", "PRAGMA user_version = 20",
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)

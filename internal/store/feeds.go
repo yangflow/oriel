@@ -392,16 +392,21 @@ type ExtractTarget struct {
 	Rewrites string
 }
 
+// pendingExtractionsQuery is the query of PendingExtractions. The condition on extract_status repeats the one of the
+// partial index entries_extract_open, which the planner needs to see to use it. The sort that remains runs over the
+// open entries only: a plan that read the index in the wanted order would walk the whole timeline instead.
+const pendingExtractionsQuery = `
+		SELECT e.id, e.url, e.title, e.extract_attempts, s.extract_selector, s.extract_referer, s.extract_rewrites FROM entries e JOIN sources s ON s.id = e.source_id
+		WHERE s.kind = 'article' AND s.deleted_at IS NULL AND e.extract_status IN ('pending', 'failed')
+			AND (e.extract_status = 'pending' OR (e.extract_status = 'failed' AND e.next_extract_at <= ?))
+		ORDER BY e.extract_status = 'failed', e.created_at DESC, e.id DESC
+		LIMIT ?`
+
 // PendingExtractions lists article entries never tried first, newest first, then failed ones whose next attempt is
 // due at now. A failed entry without a next attempt gave up for good. Entries of sources that are no longer articles
 // are left alone.
 func (s *Store) PendingExtractions(ctx context.Context, now time.Time, limit int) ([]ExtractTarget, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.id, e.url, e.title, e.extract_attempts, s.extract_selector, s.extract_referer, s.extract_rewrites FROM entries e JOIN sources s ON s.id = e.source_id
-		WHERE s.kind = 'article' AND s.deleted_at IS NULL
-			AND (e.extract_status = 'pending' OR (e.extract_status = 'failed' AND e.next_extract_at <= ?))
-		ORDER BY e.extract_status = 'failed', e.created_at DESC, e.id DESC
-		LIMIT ?`, now.UnixMilli(), limit)
+	rows, err := s.db.QueryContext(ctx, pendingExtractionsQuery, now.UnixMilli(), limit)
 	if err != nil {
 		return nil, err
 	}
