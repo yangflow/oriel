@@ -33,6 +33,8 @@ type fake struct {
 	err      error
 	asked    int
 	pictures []string
+	imageCtx []context.Context // the context of each request for a picture
+	imageErr int               // pictures that fail before they work again
 	nav      Nav
 	calls    []string // what the reader asked the timeline to do
 
@@ -71,8 +73,16 @@ func (f *fake) Entry(_ context.Context, id int64) (client.Article, error) {
 	return f.article, nil
 }
 
-func (f *fake) Image(_ context.Context, address string) ([]byte, error) {
+func (f *fake) Image(ctx context.Context, address string) ([]byte, error) {
 	f.pictures = append(f.pictures, address)
+	f.imageCtx = append(f.imageCtx, ctx)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if f.imageErr > 0 {
+		f.imageErr--
+		return nil, errors.New("broken")
+	}
 	var b bytes.Buffer
 	png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 4, 3)))
 	return b.Bytes(), nil
@@ -1558,4 +1568,93 @@ func TestNoAlsoLineWithoutOpenCopy(t *testing.T) {
 	tt.Frame()
 	f.settle(tt)
 	absent(t, tt, "Also in", "Gopher")
+}
+
+// download runs the queued work until a picture is being fetched, and leaves that request in the queue.
+func (f *fake) download(t *testing.T, s *Screen, tt *ui.Tester) {
+	t.Helper()
+	for s.downloads == 0 {
+		if len(f.queue) == 0 {
+			t.Fatal("no picture was asked for")
+		}
+		work := f.queue[0]
+		f.queue = f.queue[1:]
+		work()()
+		tt.Frame()
+	}
+}
+
+// TestPictureCancelledByOtherArticle opens another article while a picture is downloading: the request is cancelled and
+// its result is not applied to the new article.
+func TestPictureCancelledByOtherArticle(t *testing.T) {
+	s, f, tt := setup(t, "en", full())
+	f.download(t, s, tt)
+	other := entry()
+	other.ID = 9
+	s.Open(other)
+	for _, work := range f.queue {
+		work()()
+	}
+	if len(f.imageCtx) != 1 || f.imageCtx[0].Err() == nil {
+		t.Fatalf("the download of the article before was not cancelled: %v", f.imageCtx)
+	}
+	if len(s.pictures) != 0 || s.downloads != 0 {
+		t.Fatalf("a result for the article before was applied: %v, %d downloading", s.pictures, s.downloads)
+	}
+}
+
+// TestPictureCancelledByServer switches to another server while a picture is downloading.
+func TestPictureCancelledByServer(t *testing.T) {
+	s, f, tt := setup(t, "en", full())
+	f.download(t, s, tt)
+	s.Use(&fake{now: now})
+	for _, work := range f.queue {
+		work()()
+	}
+	if len(f.imageCtx) != 1 || f.imageCtx[0].Err() == nil {
+		t.Fatalf("the download for the server before was not cancelled: %v", f.imageCtx)
+	}
+	for address, p := range s.pictures {
+		if p.bitmap != nil || p.failed {
+			t.Fatalf("a result for the server before was applied to %s", address)
+		}
+	}
+}
+
+// TestPictureRetried tries a picture that failed again when it is drawn after pictureRetry, and gives up after
+// pictureTries downloads.
+func TestPictureRetried(t *testing.T) {
+	const address = "https://go.dev/images/gopher.png"
+	t.Run("works the second time", func(t *testing.T) {
+		s, f, tt := setup(t, "en", full())
+		f.imageErr = 1
+		f.settle(tt)
+		if p := s.pictures[address]; p == nil || !p.failed {
+			t.Fatalf("the picture did not fail: %+v", p)
+		}
+		tt.Frame()
+		f.settle(tt)
+		if len(f.pictures) != 1 {
+			t.Fatalf("asked again at once: %v", f.pictures)
+		}
+		f.now = f.now.Add(pictureRetry)
+		tt.Frame()
+		f.settle(tt)
+		if p := s.pictures[address]; len(f.pictures) != 2 || p == nil || p.failed || p.bitmap == nil {
+			t.Fatalf("the picture was not got the second time: %v %+v", f.pictures, p)
+		}
+	})
+	t.Run("gives up", func(t *testing.T) {
+		s, f, tt := setup(t, "en", full())
+		f.imageErr = 100
+		f.settle(tt)
+		for range 2 * pictureTries {
+			f.now = f.now.Add(pictureRetry)
+			tt.Frame()
+			f.settle(tt)
+		}
+		if len(f.pictures) != pictureTries || !s.pictures[address].failed {
+			t.Fatalf("asked %d times, want %d: %v", len(f.pictures), pictureTries, f.pictures)
+		}
+	})
 }

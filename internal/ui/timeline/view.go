@@ -80,8 +80,10 @@ const (
 	refreshLimit = 3 * time.Minute // how long it counts before it stops waiting for the rest
 	minIndexed   = 3               // characters the server's trigram index needs; a shorter search only reads titles and summaries
 	maxDownloads = 4
-	keepPictures = 300 // decoded pictures kept in memory
-	wallAhead    = 800 // how far beyond the view the image wall loads pictures and the next page
+	keepPictures = 300              // decoded pictures kept in memory
+	pictureTries = 3                // downloads of one picture, the first included
+	pictureRetry = 10 * time.Second // how long a failed picture waits before the next draw asks for it again
+	wallAhead    = 800              // how far beyond the view the image wall loads pictures and the next page
 )
 
 // retryAfter is how long to wait to check again after the first, second, third and later failures in a row while the
@@ -149,11 +151,14 @@ const (
 	starred
 )
 
-// picture is a picture of an entry, once it loads: bitmap, or failed, which shows the placeholder until a reload.
+// picture is a picture of an entry, once it loads: bitmap, or failed, which shows the placeholder until it is tried
+// again (see pictureRetry) or the list reloads.
 type picture struct {
-	bitmap *ui.Bitmap
-	failed bool
-	used   int // when it was last drawn, to drop the least recently drawn
+	bitmap   *ui.Bitmap
+	failed   bool
+	used     int       // when it was last drawn, to drop the least recently drawn
+	tries    int       // downloads that have finished, whether they worked or not
+	failedAt time.Time // when the last one failed
 }
 
 // marking is a "mark as read" (all, above or a subscription) that can be undone: the entries it marked, and the text of its toast, once shown.
@@ -297,6 +302,8 @@ type Screen struct {
 	pictures  map[string]*picture
 	wanted    []string // pictures to download, the latest asked first
 	downloads int
+	picCtx    context.Context    // the downloads share it; cancelled when the server changes
+	picStop   context.CancelFunc // cancels picCtx
 	drawn     int
 
 	base      prefs.Marker     // where the divider stands: the marker as it was when the list was loaded
@@ -371,6 +378,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		},
 		Expired: func() {
 			s.gen++
+			s.stopPictures()
 			s.api = nil
 			s.lists = nil
 			s.deps.Expired()
@@ -407,6 +415,7 @@ func (s *Screen) SetLanguage(systemLocale string) {
 func (s *Screen) Use(api API, server string) {
 	s.api, s.server = api, server
 	s.gen++
+	s.stopPictures()
 	s.sources, s.unreadTotal, s.sourcesLoaded = nil, 0, false
 	s.scope, s.tab, s.filter, s.budget = scope{}, 0, everything, 0
 	s.restorePlace()
@@ -472,6 +481,7 @@ func (s *Screen) expired(err error) bool {
 		return false
 	}
 	s.gen++
+	s.stopPictures()
 	s.api = nil
 	s.lists = nil
 	s.refresh, s.result = nil, nil
@@ -2229,10 +2239,21 @@ func (s *Screen) bitmap(address string) *ui.Bitmap {
 		p = &picture{}
 		s.pictures[address] = p
 		s.wanted = append(s.wanted, address)
+	} else if p.failed && p.tries < pictureTries && s.deps.Now().Sub(p.failedAt) >= pictureRetry {
+		p.failed = false
+		s.wanted = append(s.wanted, address)
 	}
 	s.drawn++
 	p.used = s.drawn
 	return p.bitmap
+}
+
+// stopPictures cancels the downloads under way, as when the server changes.
+func (s *Screen) stopPictures() {
+	if s.picStop != nil {
+		s.picStop()
+	}
+	s.picCtx, s.picStop = nil, nil
 }
 
 // download starts the pictures asked for, up to maxDownloads at a time, the latest asked first.
@@ -2244,9 +2265,12 @@ func (s *Screen) download() {
 			continue
 		}
 		s.downloads++
-		gen, api, decode := s.gen, s.api, s.deps.Decode
+		if s.picCtx == nil {
+			s.picCtx, s.picStop = context.WithCancel(context.Background())
+		}
+		gen, api, decode, ctx := s.gen, s.api, s.deps.Decode, s.picCtx
 		s.deps.Go(func() func() {
-			data, err := api.Image(context.Background(), address)
+			data, err := api.Image(ctx, address)
 			var bitmap *ui.Bitmap
 			if err == nil {
 				bitmap, err = decode(data)
@@ -2258,6 +2282,10 @@ func (s *Screen) download() {
 				s.downloads--
 				if p := s.pictures[address]; p != nil {
 					p.bitmap, p.failed = bitmap, err != nil
+					p.tries++
+					if err != nil {
+						p.failedAt = s.deps.Now()
+					}
 				}
 				s.forget()
 			}

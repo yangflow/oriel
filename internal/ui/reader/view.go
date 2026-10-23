@@ -56,7 +56,9 @@ const (
 	pollEvery    = 5 * time.Second // how often an article whose text is being got is asked for again
 	aiPollEvery  = 2 * time.Second // how often a summary or translation being made is asked for again
 	maxDownloads = 4
-	keepCached   = 3 // articles kept for a step: the one read and the two beside it
+	pictureTries = 3                // downloads of one picture, the first included
+	pictureRetry = 10 * time.Second // how long a failed picture waits before the next draw asks for it again
+	keepCached   = 3                // articles kept for a step: the one read and the two beside it
 )
 
 // API is what the reader reads on the server; client.Session is one.
@@ -135,10 +137,13 @@ type selection struct {
 	ticket                           int
 }
 
-// loaded is a picture of the article, once it loads: bitmap, or failed, which leaves it out.
+// loaded is a picture of the article, once it loads: bitmap, or failed, which leaves it out until it is tried again
+// (see pictureRetry).
 type loaded struct {
-	bitmap *ui.Bitmap
-	failed bool
+	bitmap   *ui.Bitmap
+	failed   bool
+	tries    int       // downloads that have finished, whether they worked or not
+	failedAt time.Time // when the last one failed
 }
 
 // cached is an article got before it is opened: its text as blocks, and the summary and translation as the server had
@@ -178,6 +183,8 @@ type Screen struct {
 	pictures  map[string]*loaded
 	wanted    []string
 	downloads int
+	picCtx    context.Context    // the downloads of the article open share it; cancelled when another opens or the server changes
+	picStop   context.CancelFunc // cancels picCtx
 
 	jobs       [2]job
 	sel        selection
@@ -257,6 +264,7 @@ func (s *Screen) SetLanguage(systemLocale string) {
 func (s *Screen) Use(api API) {
 	s.api = api
 	s.gen++
+	s.stopPictures()
 	s.id, s.moved, s.queued, s.resume = 0, false, nil, -1
 	s.closeSelection()
 	s.known = map[int64]float64{}
@@ -335,6 +343,7 @@ func (s *Screen) remember(c cached) {
 func (s *Screen) Open(e client.Entry) {
 	s.Leave()
 	s.gen++
+	s.stopPictures()
 	s.id, s.loading, s.failed, s.polling, s.retrying, s.feedText = e.ID, true, false, false, false, 0
 	s.article, s.full, s.feed = client.Article{Entry: e}, nil, nil
 	s.scroll.X, s.scroll.Y = 0, 0
@@ -725,15 +734,27 @@ func (s *Screen) when(e client.Entry) string {
 	return at.Format(s.text.YearLayout)
 }
 
-// bitmap returns the decoded picture at address, asking for it if it has not been, and whether it failed.
+// bitmap returns the decoded picture at address, asking for it if it has not been, and whether it failed. A picture
+// that failed is asked for again when it is drawn once pictureRetry has passed, up to pictureTries downloads in all.
 func (s *Screen) bitmap(address string) (*ui.Bitmap, bool) {
 	p := s.pictures[address]
 	if p == nil {
 		p = &loaded{}
 		s.pictures[address] = p
 		s.wanted = append(s.wanted, address)
+	} else if p.failed && p.tries < pictureTries && s.deps.Now().Sub(p.failedAt) >= pictureRetry {
+		p.failed = false
+		s.wanted = append(s.wanted, address)
 	}
 	return p.bitmap, p.failed
+}
+
+// stopPictures cancels the downloads under way, as when another article opens or the server changes.
+func (s *Screen) stopPictures() {
+	if s.picStop != nil {
+		s.picStop()
+	}
+	s.picCtx, s.picStop = nil, nil
 }
 
 // download starts the pictures asked for, up to maxDownloads at a time, in the order of the text.
@@ -742,9 +763,12 @@ func (s *Screen) download() {
 		address := s.wanted[0]
 		s.wanted = s.wanted[1:]
 		s.downloads++
-		gen, api, decode := s.gen, s.api, s.deps.Decode
+		if s.picCtx == nil {
+			s.picCtx, s.picStop = context.WithCancel(context.Background())
+		}
+		gen, api, decode, ctx := s.gen, s.api, s.deps.Decode, s.picCtx
 		s.deps.Go(func() func() {
-			data, err := api.Image(context.Background(), address)
+			data, err := api.Image(ctx, address)
 			var bitmap *ui.Bitmap
 			if err == nil {
 				bitmap, err = decode(data)
@@ -756,6 +780,10 @@ func (s *Screen) download() {
 				s.downloads--
 				if p := s.pictures[address]; p != nil {
 					p.bitmap, p.failed = bitmap, err != nil
+					p.tries++
+					if err != nil {
+						p.failedAt = s.deps.Now()
+					}
 				}
 			}
 		})
