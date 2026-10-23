@@ -144,9 +144,13 @@ func start(ctx context.Context, dataDir, password, mode string, port int) (*back
 }
 
 // close waits for requests in flight, up to the context deadline, stops the poller and the AI worker, then
-// closes the database.
+// closes the database. A request that outlives the deadline is cut off first, so that no handler is still running
+// against the closing database and nothing can enqueue more work.
 func (b *backend) close(ctx context.Context) error {
 	err := b.http.Shutdown(ctx)
+	if err != nil {
+		err = errors.Join(err, b.http.Close())
+	}
 	b.background.shutdown()
 	return errors.Join(err, b.store.Close())
 }

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -59,5 +61,49 @@ func TestServerTimeouts(t *testing.T) {
 	// The write timeout must outlast the slowest answer, an AI test call of up to two minutes.
 	if b.http.ReadTimeout <= 0 || b.http.IdleTimeout <= 0 || b.http.WriteTimeout <= 2*time.Minute {
 		t.Fatalf("read %v, write %v, idle %v", b.http.ReadTimeout, b.http.WriteTimeout, b.http.IdleTimeout)
+	}
+}
+
+// A request that outlives the shutdown deadline is cut off, its context cancelled, before the store is closed.
+func TestCloseCutsOffSlowRequestsBeforeClosingTheStore(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		st.Close()
+		t.Fatal(err)
+	}
+	started, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	defer close(release)
+	b := &backend{store: st, background: &background{store: st}, addr: listener.Addr().String(), http: &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			close(started)
+			select {
+			case <-r.Context().Done():
+				close(cancelled)
+			case <-release:
+			}
+		}),
+	}}
+	go b.http.Serve(listener)
+	go func() {
+		if resp, err := http.Get("http://" + b.addr + "/"); err == nil {
+			resp.Body.Close()
+		}
+	}()
+	<-started
+
+	deadline, stop := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer stop()
+	if err := b.close(deadline); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("close with a request past the deadline: %v", err)
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the request was still running after close: its context was not cancelled")
 	}
 }
