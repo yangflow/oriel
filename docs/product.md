@@ -962,7 +962,7 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 
 - 同步做完再回答，不排队、不占上面处理器的名额，什么都不写进数据库。
 - `task` 是 `translate` 或 `explain`，别的值 400 `invalid_task`。`text` 去掉首尾空白后为空 400 `invalid_text`，超过 2000 个字符 400 `text_too_long`。`title` 可不给，是所读文章的标题，只作为解释的背景，去掉首尾空白后最多取 200 个字符，多出的截掉，不会因它报错。
-- 没配置好时 409 `ai_not_configured`；上游失败时 502，带上面的错误码（结果为空是 `ai_empty`）。
+- 没配置好时 409 `ai_not_configured`；上游失败时 502，带上面的错误码（结果为空和条目的一样是 `ai_upstream`；`ai_empty` 只用于条目没有可送的文字，所选文字不会有这种情况）。
 - 翻译用生效的翻译 prompt 里的全局那一份（所选文字不属于某个源），目标语言和条目翻译相同；送去的 user 消息就是所选文字。
 - 解释的内置 prompt：`Explain the selected text in {language} in one to three plain sentences, so a reader who does not know the term or phrase can follow. Reply with the explanation only.`；有 `title` 时 user 消息是 `Article: <title>` 一行、空一行、`Selected text: <text>`，没有时只送所选文字。
 - 调用、超时、响应上限、错误码和日志的规矩与上面相同；日志不记所选文字。

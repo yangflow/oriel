@@ -312,3 +312,76 @@ func TestAIRoutesAnswerSlowEndpoint(t *testing.T) {
 		}
 	}
 }
+
+func TestAIRoutesRejectBadRequests(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	entries, err := s.store.Entries(context.Background(), store.EntryFilter{SourceID: seed(t, s, "social", 1, c.t)}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strconv.FormatInt(entries[0].ID, 10)
+	for _, r := range []struct{ method, target string }{
+		{"GET", "/api/entries/x/ai"}, {"POST", "/api/entries/x/translation"}, {"GET", "/api/entries/1.5/ai"},
+	} {
+		if w := do(s, r.method, r.target, "", bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_id" {
+			t.Errorf("%s %s: %d %s", r.method, r.target, w.Code, w.Body)
+		}
+	}
+	// Translation is refused like the summary while no endpoint is set, and nothing is queued.
+	if w := do(s, "POST", "/api/entries/"+id+"/translation", "", bearer(token)); w.Code != http.StatusConflict || decode(t, w)["error"] != "ai_not_configured" {
+		t.Fatalf("translation not configured: %d %s", w.Code, w.Body)
+	}
+	if got := decode(t, do(s, "GET", "/api/entries/"+id+"/ai", "", bearer(token))); got["summary"] != nil || got["translation"] != nil {
+		t.Fatalf("a refused request left a result: %v", got)
+	}
+}
+
+// The entries of a deleted source are gone for the AI routes too, until the source is restored.
+func TestAIRoutesSkipDeletedSource(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	src := seed(t, s, "social", 1, c.t)
+	entries, err := s.store.Entries(context.Background(), store.EntryFilter{SourceID: src}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/entries/" + strconv.FormatInt(entries[0].ID, 10) + "/ai"
+	if err := s.store.DeleteSource(context.Background(), src, c.t); err != nil {
+		t.Fatal(err)
+	}
+	if w := do(s, "GET", path, "", bearer(token)); w.Code != http.StatusNotFound || decode(t, w)["error"] != "not_found" {
+		t.Fatalf("deleted source: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "POST", "/api/sources/"+strconv.FormatInt(src, 10)+"/restore", "", bearer(token)); w.Code != http.StatusOK {
+		t.Fatalf("restore: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "GET", path, "", bearer(token)); w.Code != http.StatusOK {
+		t.Fatalf("restored source: %d %s", w.Code, w.Body)
+	}
+}
+
+// The self-check and the selection tools say what went wrong with the endpoint: nothing listening, and an answer with
+// no text, which is an upstream failure (ai_empty is for an entry with nothing to send).
+func TestAIEndpointFailures(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	dead := httptest.NewServer(http.NotFoundHandler())
+	dead.Close()
+	s.store.SetSetting(ctx, ai.BaseURLSetting, dead.URL)
+	s.store.SetSetting(ctx, ai.ModelSetting, "m")
+	for path, body := range map[string]string{"/api/ai/test": "", "/api/ai/selection": `{"task":"translate","text":"hello"}`} {
+		if w := do(s, "POST", path, body, bearer(token)); w.Code != http.StatusBadGateway || decode(t, w)["error"] != "ai_unreachable" {
+			t.Errorf("%s unreachable: %d %s", path, w.Code, w.Body)
+		}
+	}
+	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"model": "m", "choices": []any{map[string]any{"message": map[string]string{"content": "  "}}}})
+	}))
+	defer empty.Close()
+	s.store.SetSetting(ctx, ai.BaseURLSetting, empty.URL)
+	if w := do(s, "POST", "/api/ai/selection", `{"task":"explain","text":"hello"}`, bearer(token)); w.Code != http.StatusBadGateway || decode(t, w)["error"] != "ai_upstream" {
+		t.Fatalf("empty answer: %d %s", w.Code, w.Body)
+	}
+}

@@ -176,3 +176,51 @@ func mustHTML(t *testing.T, page string) *html.Node {
 	}
 	return doc
 }
+
+// A redirect chain ends after a few hops, and a redirect to a scheme other than http and https is refused, so a server
+// cannot point the guarded client at a file or another protocol.
+func TestGuardedClientRedirectLimits(t *testing.T) {
+	var hops atomic.Int32
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/loop":
+			hops.Add(1)
+			http.Redirect(w, r, srv.URL+"/loop", http.StatusFound)
+		case "/chain":
+			n := hops.Add(1)
+			if n > maxRedirects {
+				w.Write([]byte("done"))
+				return
+			}
+			http.Redirect(w, r, srv.URL+"/chain", http.StatusFound)
+		case "/file":
+			w.Header().Set("Location", "file:///etc/passwd")
+			w.WriteHeader(http.StatusFound)
+		case "/ftp":
+			w.Header().Set("Location", "ftp://example.org/x")
+			w.WriteHeader(http.StatusFound)
+		}
+	}))
+	defer srv.Close()
+	client := guardedClient(func(netip.AddrPort) bool { return false })
+
+	if _, err := client.Get(srv.URL + "/loop"); err == nil || !strings.Contains(err.Error(), "redirects") {
+		t.Fatalf("endless redirects: %v", err)
+	}
+	if n := int(hops.Load()); n != maxRedirects+1 {
+		t.Errorf("followed %d requests, want %d", n, maxRedirects+1)
+	}
+	hops.Store(0)
+	// maxRedirects redirects are followed; the page after them is read.
+	resp, err := client.Get(srv.URL + "/chain")
+	if err != nil {
+		t.Fatalf("a chain of %d redirects: %v", maxRedirects, err)
+	}
+	resp.Body.Close()
+	for _, path := range []string{"/file", "/ftp"} {
+		if _, err := client.Get(srv.URL + path); err == nil || !strings.Contains(err.Error(), "not allowed") {
+			t.Errorf("%s: %v", path, err)
+		}
+	}
+}

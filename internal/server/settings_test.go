@@ -163,3 +163,64 @@ func TestSettingsAutomaticCaps(t *testing.T) {
 		t.Fatalf("reset: %d %v", w.Code, body)
 	}
 }
+
+// A rejected WebSub callback address is not stored, trailing slashes are cut, another field leaves the address alone,
+// and an empty value turns WebSub off. The plain bad forms are in TestWebSubSettingsAndSource.
+func TestSettingsWebSubBaseURL(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	for _, root := range []string{"https://oriel .example.com", "https://oriel.example.com?x=1"} {
+		w := do(s, "PATCH", "/api/settings", `{"websubBaseUrl":"`+root+`"}`, bearer(token))
+		if w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_websub_base_url" {
+			t.Errorf("%q: %d %s", root, w.Code, w.Body)
+		}
+	}
+	if root, _ := s.store.Setting(context.Background(), fetch.WebSubSetting); root != "" {
+		t.Fatalf("a rejected address was stored: %q", root)
+	}
+	w := do(s, "PATCH", "/api/settings", `{"websubBaseUrl":"  https://oriel.example.com/hooks// "}`, bearer(token))
+	if body := decode(t, w); w.Code != http.StatusOK || body["websubBaseUrl"] != "https://oriel.example.com/hooks" {
+		t.Fatalf("save: %d %s", w.Code, w.Body)
+	}
+	if body := decode(t, do(s, "PATCH", "/api/settings", `{"retentionDays":7}`, bearer(token))); body["websubBaseUrl"] != "https://oriel.example.com/hooks" {
+		t.Fatalf("another field changed it: %v", body)
+	}
+	if body := decode(t, do(s, "PATCH", "/api/settings", `{"websubBaseUrl":"  "}`, bearer(token))); body["websubBaseUrl"] != "" {
+		t.Fatalf("clear: %v", body)
+	}
+}
+
+// An empty patch and a patch of unknown or mistyped fields change nothing, and a bad field rejects the whole request
+// even when the AI fields before it are valid.
+func TestSettingsPatchIsAllOrNothing(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	before := do(s, "GET", "/api/settings", "", bearer(token)).Body.String()
+	if w := do(s, "PATCH", "/api/settings", `{}`, bearer(token)); w.Code != http.StatusOK || w.Body.String() != before {
+		t.Fatalf("empty patch: %d %s", w.Code, w.Body)
+	}
+	for _, body := range []string{`{"unknown":1}`, `[]`, `{"aiModel":"m"} {"aiModel":"n"}`, `{"aiModel":5}`} {
+		if w := do(s, "PATCH", "/api/settings", body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_body" {
+			t.Errorf("%s: %d %s", body, w.Code, w.Body)
+		}
+	}
+	w := do(s, "PATCH", "/api/settings", `{"aiModel":"qwen","aiBaseUrl":"https://api.example.com/v1","aiSummaryLimit":100}`, bearer(token))
+	if w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_ai_limit" {
+		t.Fatalf("mixed patch: %d %s", w.Code, w.Body)
+	}
+	for _, key := range []string{ai.ModelSetting, ai.BaseURLSetting} {
+		if value, _ := s.store.Setting(ctx, key); value != "" {
+			t.Errorf("%s = %q after a rejected patch", key, value)
+		}
+	}
+	if after := do(s, "GET", "/api/settings", "", bearer(token)).Body.String(); after != before {
+		t.Fatalf("settings changed:\n%s\n%s", before, after)
+	}
+	// The edges of a limit are accepted.
+	for body, want := range map[string]float64{`{"aiSummaryLimit":500}`: 500, `{"aiSummaryLimit":100000}`: 100000} {
+		if got := decode(t, do(s, "PATCH", "/api/settings", body, bearer(token)))["aiSummaryLimit"]; got != want {
+			t.Errorf("%s: %v", body, got)
+		}
+	}
+}
