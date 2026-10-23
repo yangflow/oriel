@@ -58,6 +58,12 @@
      reading-cjk-off (the Reading card with Chinese typesetting off; on, the default, is the appearance state: the
      switch sits after Line spacing and the sample under it is set with the rules, in Simplified Chinese; the sample
      in English is plain either way);
+     reading-appearance (the Reading card with Reading appearance set to Sepia: after Line width, a segmented control, Follow theme,
+     Sepia, Mist; the sample under the card takes the preset's paper and ink, in the light or dark variant of the scheme, and shows
+     no Surface; Follow theme, the default, is the appearance state), reading-width-wide (Line width set to Wide: the sample's text
+     is capped at 320 x 0.85 / 1 / 1.2 = 272 / 320 / 384 wide and centered, so the step shows; Standard, the default, is the appearance
+     state). Both are kept on this device (docs/product.md, Appearance) and apply to an open reader at once; the reader is drawn in
+     design/screens/reader.html, preset-sepia, preset-mist, width-narrow, width-wide;
      density (the Timeline card, between Reading and View as, with List density set to Compact; Comfortable, the
      default, is the appearance state; under it, Show an article once, a switch that is on by default, in every state);
      mark-read (the same card with Mark as read set to After staying: the Stay time row appears under it, 5 s chosen;
@@ -421,7 +427,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','mark-read','mark-read-scroll','desktop','desktop-on','desktop-error','desktop-login-error','desktop-tray-menu','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','reading-appearance','reading-width-wide','density','mark-read','mark-read-scroll','desktop','desktop-on','desktop-error','desktop-login-error','desktop-tray-menu','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],os:['mac','win','linux']};
@@ -528,6 +534,8 @@ const copy={
     sizeSmall:'Small', sizeMedium:'Medium', sizeLarge:'Large', sizeXLarge:'Extra large',
     lineSpacing:'Line spacing', lineSpacingHelp:'The space between the lines of an article.',
     desktop:'Desktop', loginRow:'Open at login', loginHelp:'Opens Oriel after you sign in to the computer. While the menu bar icon is on, only the icon appears and no window opens.', loginHelpWin:'Opens Oriel after you sign in to the computer. While the tray icon is on, only the icon appears and no window opens.', loginHelpBundle:'Only the installed Oriel app can open at login.', loginHelpMac:'Only the installed Oriel app can open at login.', trayRowMac:'Menu bar icon', trayRowWin:'Tray icon', trayHelpMac:'Shows the unread count in the menu bar. Oriel keeps updating in the background after the window is closed.', trayHelpWin:'Shows an icon in the tray. Oriel keeps updating in the background after the window is closed.', badgeRow:'Unread badge on the Dock icon', badgeHelp:'Shows the unread count on the Dock icon.', loginFailed:'Couldn’t change opening at login.', trayFailed:'This system can’t show a tray icon. Install libayatana-appindicator3 and try again.', trayUnread:'{n} unread', trayOpen:'Open Oriel', trayRefresh:'Refresh all', trayQuit:'Quit',
+    lineWidth:'Line width', lineWidthHelp:'How wide a line of text runs. Wide shows more per line, Narrow fewer.', widthNarrow:'Narrow', widthStandard:'Standard', widthWide:'Wide',
+    readingAppearance:'Reading appearance', readingAppearanceHelp:'The paper and ink of the reader. Sepia and Mist follow Light and Dark.', presetTheme:'Follow theme', presetSepia:'Sepia', presetMist:'Mist',
     timeline:'Timeline', density:'List density', densityHelp:'How tight the rows sit. Compact keeps everything and only tightens the spacing.', dComfortable:'Comfortable', dCompact:'Compact', markRead:'Mark as read', markReadHelpOpen:'Opening an entry marks it as read.', markReadHelpDwell:'An entry opened in the reader or the picture viewer is marked once you stay on it for the time below. Anything opened in the browser is marked at once.', markReadHelpScroll:'Entries are marked as they scroll off the top of the list. Opening one does not mark it.', markReadHelpNever:'Nothing is marked unless you do it: the read button, M, V or Mark all as read.', mrOpen:'When opened', mrDwell:'After staying', mrScroll:'After scrolling past', mrNever:'Never automatically', dwell:'Stay time', dwellHelp:'How long an article stays open before it is marked.', sec3:'3 s', sec5:'5 s', sec10:'10 s', group:'Show an article once', groupHelp:'When several subscriptions carry the same article, the timeline shows one row.',
     viewAs:'View as',
     vArticles:'Articles', vVideos:'Videos', vSocial:'Social', vImages:'Images',
@@ -635,6 +643,8 @@ const copy={
     sizeSmall:'小', sizeMedium:'中', sizeLarge:'大', sizeXLarge:'特大',
     lineSpacing:'行距', lineSpacingHelp:'文章正文的行与行之间的距离。',
     desktop:'桌面', loginRow:'登录时打开', loginHelp:'登录电脑后自动打开 Oriel；菜单栏图标开着时只留图标，不弹窗口。', loginHelpWin:'登录电脑后自动打开 Oriel；托盘图标开着时只留图标，不弹窗口。', loginHelpBundle:'只有安装后的 Oriel 应用能登录时打开。', trayRowMac:'菜单栏图标', trayRowWin:'托盘图标', trayHelpMac:'在菜单栏显示未读数，关掉窗口后 Oriel 继续在后台更新。', trayHelpWin:'在托盘显示图标，关掉窗口后 Oriel 继续在后台更新。', badgeRow:'Dock 未读角标', badgeHelp:'在 Dock 图标上显示未读数。', loginFailed:'没能更改登录时打开。', trayFailed:'这个系统不支持托盘图标。安装 libayatana-appindicator3 后再试。', trayUnread:'{n} 条未读', trayOpen:'打开 Oriel', trayRefresh:'全部更新', trayQuit:'退出',
+    lineWidth:'行宽', lineWidthHelp:'一行文字有多宽。宽的一行字多，窄的一行字少。', widthNarrow:'窄', widthStandard:'标准', widthWide:'宽',
+    readingAppearance:'阅读外观', readingAppearanceHelp:'阅读窗格的纸色和字色。米黄和雾灰随浅色和深色主题变化。', presetTheme:'跟随主题', presetSepia:'米黄', presetMist:'雾灰',
     timeline:'时间线', density:'列表密度', densityHelp:'行与行之间的松紧。紧凑不删任何内容，只收紧间距。', dComfortable:'舒适', dCompact:'紧凑', markRead:'何时标为已读', markReadHelpOpen:'打开条目就标为已读。', markReadHelpDwell:'在阅读器或看图层里打开的条目，停留满下面的时间才标为已读；在浏览器里打开的立即标为已读。', markReadHelpScroll:'条目滚出列表顶部时标为已读，打开它不标。', markReadHelpNever:'不自动标，只有你自己标才算：已读按钮、M、V 或「全部标为已读」。', mrOpen:'打开时', mrDwell:'停留一会儿后', mrScroll:'滚过之后', mrNever:'从不自动', dwell:'停留时间', dwellHelp:'文章打开多久后标为已读。', sec3:'3 秒', sec5:'5 秒', sec10:'10 秒', group:'同一篇文章只显示一次', groupHelp:'几个订阅带同一篇文章时，时间线只显示一行。',
     viewAs:'查看方式',
     vArticles:'文章', vVideos:'视频', vSocial:'社交', vImages:'图片',
@@ -739,6 +749,9 @@ const mrWhen=state==='mark-read'?'dwell':state==='mark-read-scroll'?'scroll':'op
 const mrName={open:copy.mrOpen,dwell:copy.mrDwell,scroll:copy.mrScroll,never:copy.mrNever}[mrWhen];
 const mrHelp={open:copy.markReadHelpOpen,dwell:copy.markReadHelpDwell,scroll:copy.markReadHelpScroll,never:copy.markReadHelpNever}[mrWhen];
 const cjkOn=state!=='reading-cjk-off';
+const sepia=state==='reading-appearance', wide=state==='reading-width-wide';
+// Sepia paper and ink (design/tokens.md, Reading appearance presets): the Background and Prose of the preset in this scheme.
+const paper=scheme==='dark'?{bg:'#2a241b',prose:'#d8cbb0',ink:'234,223,200'}:{bg:'#f4ecd8',prose:'#44382a',ink:'51,41,29'};
 const han=c=>/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(c), latin=c=>/[A-Za-z0-9\u00c0-\u024f]/.test(c);
 const closing=c=>'，。、；：！？）」』》〉】'.includes(c), opening=c=>'（「『《〈【'.includes(c);
 // The rules of docs/design.md, Chinese typesetting, drawn here as spans; in the app they are layout.
@@ -752,6 +765,8 @@ const typeset=text=>{
 const switchRow=(label,help,on)=>`<div class="row"><div class="switch-row"><div class="text"><span class="label">${label}</span><p class="help">${help}</p></div><span class="switch${on?' on':''}" role="switch" aria-checked="${on}" aria-label="${label}"></span></div></div>`;
 const fontOpen=state.startsWith('font-'), readingOpen=state==='reading-font-open', serifOn=state.startsWith('reading-font');
 const serifFace=`'New York','Songti SC',Georgia,serif`;
+const boxStyle=sepia?` style="background:${paper.bg};box-shadow:inset 0 0 0 .5px rgba(${paper.ink},.18)"`:'';
+const previewStyle=` style="${serifOn?`font-family:${serifFace};`:''}${sepia?`color:${paper.prose};`:''}${wide?'max-width:384px;':'max-width:320px;'}margin:0 auto"`;
 const menu=(label,value,style='',open=false)=>`<button class="select${open?' open':''}" aria-haspopup="listbox"${open?' aria-expanded="true"':''} aria-label="${label}"><span${style?` style="${style}"`:''}>${value}</span>${icon('chevronDown')}</button>`;
 const setting=(label,help,control)=>`<div class="row"><div class="device"><div class="text"><span class="label">${label}</span>${help?`<p class="help">${help}</p>`:''}</div>${control}</div></div>`;
 const dOn=state==='desktop-on'||state==='desktop-tray-menu';
@@ -775,8 +790,10 @@ ${setting(copy.uiFont,copy.uiFontHelp,menu(copy.uiFont,fontOpen?'Avenir Next':co
 ${setting(copy.readingFont,copy.readingFontHelp,menu(copy.readingFont,serifOn?copy.serif:copy.followInterface,serifOn?`font-family:${serifFace}`:'',readingOpen))}
 ${setting(copy.textSize,copy.textSizeHelp,seg(copy.textSize,[['s',copy.sizeSmall],['m',copy.sizeMedium],['l',copy.sizeLarge],['xl',copy.sizeXLarge]],'m'))}
 ${setting(copy.lineSpacing,copy.lineSpacingHelp,seg(copy.lineSpacing,[['c',copy.spacingCompact],['s',copy.spacingStandard],['r',copy.spacingRelaxed]],'s'))}
+${setting(copy.lineWidth,copy.lineWidthHelp,seg(copy.lineWidth,[['n',copy.widthNarrow],['s',copy.widthStandard],['w',copy.widthWide]],wide?'w':'s'))}
+${setting(copy.readingAppearance,copy.readingAppearanceHelp,seg(copy.readingAppearance,[['theme',copy.presetTheme],['sepia',copy.presetSepia],['mist',copy.presetMist]],sepia?'sepia':'theme'))}
 ${switchRow(copy.cjk,copy.cjkHelp,cjkOn)}
-<div class="row"><div class="preview-box" aria-hidden="true"><p class="preview"${serifOn?` style="font-family:${serifFace}"`:''}>${lang==='zh-Hans'&&cjkOn?typeset(copy.previewText):copy.previewText}</p></div></div>
+<div class="row"><div class="preview-box"${boxStyle} aria-hidden="true"><p class="preview"${previewStyle}>${lang==='zh-Hans'&&cjkOn?typeset(copy.previewText):copy.previewText}</p></div></div>
 </div><h2 class="section-title" id="timeline">${copy.timeline}</h2><div class="card">
 ${setting(copy.density,copy.densityHelp,seg(copy.density,[['comfortable',copy.dComfortable],['compact',copy.dCompact]],dense?'compact':'comfortable'))}
 ${setting(copy.markRead,mrHelp,menu(copy.markRead,mrName))}
@@ -1058,6 +1075,7 @@ if(state==='rule-menu'){
 if(mEdited){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById('muted').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
 if(viewed||dense||state.startsWith('mark-read')){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById(viewed?'view-as':'timeline').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
 if(state.startsWith('desktop')){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById('desktop').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
+if(sepia||wide){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById('timeline').getBoundingClientRect().top-sc.getBoundingClientRect().top-560}
 {const sc=document.querySelector('.scroll'),mn=document.querySelector('.main');if(sc&&mn){const bar=()=>mn.classList.toggle('scrolled',sc.scrollTop>0);sc.addEventListener('scroll',bar);bar()}}
 </script>
 </html>
