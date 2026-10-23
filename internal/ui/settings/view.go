@@ -1806,12 +1806,6 @@ func trigger(c *ui.Context, e ui.Element) {
 	}
 }
 
-// popover styles the panel of a drop-down: the raised fill with a hairline and a shadow.
-func popover(c *ui.Context, e ui.Element) {
-	t := c.Theme()
-	e.Background(theme.RaisedFill(t)).Border(1, t.Border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.18))
-}
-
 // baseField is the list of RSSHub instances, one address per line. Enter starts a new line, so only Save saves.
 func (s *Screen) baseField(c *ui.Context) {
 	t := c.Theme()
@@ -1855,8 +1849,8 @@ func (s *Screen) retentionSelect(c *ui.Context) {
 		ui.Icon(c, icons.ChevronDown).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160)).Radius(t.Radius)
-		popover(c, panel)
+		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160))
+		theme.Sheet(c, panel, theme.Popup)
 		for _, v := range options {
 			item := sel.Item(v).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(5)
 			if item.Highlighted() {
@@ -2172,8 +2166,8 @@ func (s *Screen) languageSelect(c *ui.Context) {
 		ui.Icon(c, icons.ChevronDown).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160)).Radius(t.Radius)
-		popover(c, panel)
+		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160))
+		theme.Sheet(c, panel, theme.Popup)
 		for _, l := range languages {
 			item := sel.Item(l.code).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(5)
 			if item.Highlighted() {
@@ -2467,8 +2461,8 @@ func (s *Screen) pick(c *ui.Context, current, label string, options []choice) (s
 		ui.Icon(c, icons.ChevronDown).FontSize(theme.Px(t, 14)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160)).Radius(t.Radius)
-		popover(c, panel)
+		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160))
+		theme.Sheet(c, panel, theme.Popup)
 		ui.Scroll(c).MaxHeight(theme.Px(t, 320)).Children(func() {
 			for _, o := range options {
 				item := sel.Item(o.value).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(5)

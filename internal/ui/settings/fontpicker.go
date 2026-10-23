@@ -234,8 +234,8 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 	}
 	height := min(want, max(room, theme.Px(t, pickerHead+pickerRow)))
 	panel.AttachTo(trig, at, self).Margin(theme.Px(t, pickerGap), 0, theme.Px(t, pickerGap), 0).
-		Width(max(theme.Px(t, pickerWidth), b.W)).Height(height).Radius(theme.Px(t, 12)).Background(theme.RaisedFill(t))
-	sheet(c, panel, 20, 50)
+		Width(max(theme.Px(t, pickerWidth), b.W)).Height(height)
+	theme.Sheet(c, panel, theme.Popup)
 
 	var picked string
 	var chosen bool
@@ -403,23 +403,4 @@ func btoi(b bool) int {
 		return 1
 	}
 	return 0
-}
-
-// sheet gives a popup the look of the mockup's sheet: a hairline rim and a long shadow, a lighter rim in the dark and a
-// Border one with high contrast.
-func sheet(c *ui.Context, e ui.Element, offset, blur float32) {
-	t := c.Theme()
-	switch {
-	case c.Preferences().HighContrast:
-		e.Border(1, t.Border)
-	case t.Dark:
-		e.Border(1, ui.RGBA(255, 255, 255, 0.08))
-	default:
-		e.Border(0.5, theme.Ink(t, 0.12))
-	}
-	if t.Dark {
-		e.Shadow(0, offset, blur, 0, ui.RGBA(0, 0, 0, 0.55))
-	} else {
-		e.Shadow(0, offset, blur, 0, ui.RGBA(28, 24, 18, 0.25))
-	}
 }

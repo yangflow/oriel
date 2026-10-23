@@ -150,7 +150,7 @@
      URL parameters: state, scope=all|article|video|social|image|source, scheme=light|dark, lang=en|zh-Hans,
      size=default|min|wide. -->
 <style>
-:root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
+:root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --scrim:rgba(28,24,18,.32); --t:140ms ease-out;
   --background:#fdfcfa; --surface:#f6f3ee; --raised:#ffffff; --track:#ece8e0; --disabled:#b3ada1;
   --text:#25221e; --text2:#58534a; --muted:#736d62; --prose:#3a362f;
   --ink:37,34,30; --hover:rgba(var(--ink),.03); --pressed:rgba(var(--ink),.05); --sel:rgba(var(--ink),.065); --border:rgba(var(--ink),.075);
@@ -528,8 +528,10 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .button.primary:hover { background:var(--accent-hover) }
 .empty-actions { margin-top:8px; display:flex; flex-wrap:wrap; justify-content:center; gap:8px }
 
-.scrim { position:absolute; inset:0; z-index:3; display:grid; place-items:center; background:rgba(var(--shadow),.32) }
+.scrim { position:absolute; inset:0; z-index:3; display:grid; place-items:center; background:var(--scrim) }
 .toast { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:4; display:flex; align-items:center; gap:10px; max-width:calc(100% - 40px); min-height:40px; padding:6px 6px 6px 14px; border-radius:14px; background:#2a2620; color:#f4efe6; font-size:12px; box-shadow:0 10px 30px rgba(var(--shadow),.28), 0 0 0 .5px rgba(255,248,235,.08) }
+:root[data-scheme=dark] { --scrim:rgba(0,0,0,.45) }
+:root[data-scheme=dark] .sheet, :root[data-scheme=dark] .palette { box-shadow:0 0 0 1px rgba(255,255,255,.08), 0 20px 50px rgba(0,0,0,.55) }
 :root[data-scheme=dark] .toast { background:#333837 }
 .toast svg.icon { flex:none }
 .toast .msg { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere }
@@ -572,7 +574,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 .sheet kbd, .palette kbd { min-width:22px; height:22px; padding:0 6px; display:inline-grid; place-items:center; border-radius:6px; background:var(--track); font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; color:var(--text) }
 .sheet .or, .palette .or { align-self:center; font-size:11px; color:var(--muted) }
 .scrim.top { place-items:start center; padding-top:15% }
-.palette { width:560px; max-width:calc(100% - 48px); display:flex; flex-direction:column; min-height:0; max-height:calc(100% - 15% - 24px); border-radius:14px; background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 20px 50px rgba(var(--shadow),.25) }
+.palette { width:560px; max-width:calc(100% - 48px); display:flex; flex-direction:column; min-height:0; max-height:calc(100% - 15% - 24px); border-radius:16px; background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--ink),.12), 0 20px 50px rgba(var(--shadow),.25) }
 .palette .field { flex:none; height:32px; margin:8px 8px 4px; display:flex; align-items:center; gap:8px; padding:0 10px; border-radius:8px; background:var(--raised); box-shadow:0 0 0 2px var(--focus); color:var(--muted) }
 .palette .field input { flex:1; min-width:0; border:0; outline:0; background:none; font:inherit; color:var(--text) }
 .palette .field input::placeholder { color:var(--muted) }

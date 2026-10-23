@@ -403,3 +403,41 @@ func TestMonogramSizes(t *testing.T) {
 		t.Fatal("glyph radii")
 	}
 }
+
+func TestSheet(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		dark, high bool
+	}{{"light", false, false}, {"dark", true, false}, {"light high", false, true}, {"dark high", true, true}} {
+		th := applied(t, tc.dark, ui.Preferences{HighContrast: tc.high})
+		pop, dlg := SheetFor(&th, tc.high, Popup), SheetFor(&th, tc.high, Dialog)
+		if pop.Radius != 12 || dlg.Radius != 16 || pop.Blur >= dlg.Blur || pop.Offset >= dlg.Offset {
+			t.Errorf("%s: popup %+v, dialog %+v", tc.name, pop, dlg)
+		}
+		switch {
+		case tc.high:
+			if dlg.RimWidth != 1 || dlg.Rim != th.Border {
+				t.Errorf("%s: rim %v %v", tc.name, dlg.RimWidth, dlg.Rim)
+			}
+		case tc.dark:
+			if dlg.RimWidth != 1 || dlg.Rim != ui.RGBA(255, 255, 255, 0.08) || dlg.Shadow != ui.RGBA(0, 0, 0, 0.55) {
+				t.Errorf("%s: rim %v %v, shadow %v", tc.name, dlg.RimWidth, dlg.Rim, dlg.Shadow)
+			}
+		default:
+			if dlg.RimWidth != 0.5 || dlg.Rim != Ink(&th, 0.12) || dlg.Shadow != ui.RGBA(28, 24, 18, 0.25) {
+				t.Errorf("%s: rim %v %v, shadow %v", tc.name, dlg.RimWidth, dlg.Rim, dlg.Shadow)
+			}
+		}
+	}
+	light, dark := applied(t, false, ui.Preferences{}), applied(t, true, ui.Preferences{})
+	for _, tc := range []struct {
+		th   *ui.Theme
+		high bool
+		want ui.Color
+	}{{&light, false, ui.RGBA(28, 24, 18, 0.32)}, {&dark, false, ui.RGBA(0, 0, 0, 0.45)},
+		{&light, true, ui.RGBA(28, 24, 18, 0.5)}, {&dark, true, ui.RGBA(0, 0, 0, 0.6)}} {
+		if got := ScrimFor(tc.th, tc.high); got != tc.want {
+			t.Errorf("dark %v high %v: scrim %v, want %v", tc.th.Dark, tc.high, got, tc.want)
+		}
+	}
+}

@@ -2655,10 +2655,10 @@ func (s *Screen) keySheet(c *ui.Context) {
 	anywhere := []key{{s.text.KeyPalette, [][]string{{cmd, "K"}}}, {s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.KeyAddContinue, [][]string{{cmd, "↩"}}}, {s.text.RefreshAll, [][]string{{cmd, "R"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
 		{s.text.KeyToggleSidebar, [][]string{{cmd, "\\"}}}, {s.text.KeyKeys, one("?")}}
 	ui.DialogBase(c, &s.keys, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(0, 0, 0, 0.28)).Padding(t.Space(4))
-		panel.Column().Width(min(theme.Px(t, 560), width-t.Space(8))).MaxHeight(height-t.Space(8)).Radius(theme.Px(t, 14)).
-			Background(theme.RaisedFill(t)).Border(0.5, theme.LineStrong(t)).Shadow(0, 16, 40, 0, ui.RGBA(0, 0, 0, 0.25)).
+		theme.Scrim(c, backdrop).Padding(t.Space(4))
+		panel.Column().Width(min(theme.Px(t, 560), width-t.Space(8))).MaxHeight(height - t.Space(8)).
 			Label(s.text.KeysTitle)
+		theme.Sheet(c, panel, theme.Dialog)
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Padding(t.Space(4), t.Space(4), t.Space(2), t.Space(5)).
 			Children(func() {
 				ui.Text(c, s.text.KeysTitle).Grow(1).FontSize(theme.Px(t, 15)).FontWeight(600).Role(ui.RoleHeading).
