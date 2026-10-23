@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	_ "github.com/egoist/mygo/locales/zh-Hans" // MyGo's own words (find bar, dialogs, menus) in Simplified Chinese
 	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
@@ -37,6 +38,15 @@ var (
 	// logFile is the rotated log file in the data directory; it takes records once openLog has found the directory.
 	logFile = diag.NewRotator()
 )
+
+// systemLocale is the language the system reads best. MyGo's own Locale is the language the app shows, which Oriel sets
+// to its interface language, so it cannot say what the system reads.
+func systemLocale() string {
+	if preferred := mygo.App.PreferredLanguages(); len(preferred) > 0 {
+		return preferred[0]
+	}
+	return mygo.App.Locale()
+}
 
 // openLog starts the log file in dataDir. A file that cannot be opened is a warning on stderr, not the end of the app.
 func openLog(dataDir string) {
@@ -162,8 +172,11 @@ func desktop() {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
 	}
+	// MyGo shows one of the languages the app is written in: the ones Oriel's catalogs carry, so that its own controls
+	// can follow the interface language (see showLanguage).
+	mygo.App.SetLanguages(locale.Languages...)
 	// The update window speaks the UI's language, so a Traditional Chinese system reads Simplified there too.
-	mygo.Use(native.New(updater.Options{Language: locale.Language(mygo.App.Locale())}))
+	mygo.Use(native.New(updater.Options{Language: locale.Language(systemLocale())}))
 	client.SetVersion(version)
 	var b *backend
 	dataDir, err := mygo.App.Path(mygo.PathUserData)
@@ -179,11 +192,11 @@ func desktop() {
 	var window *mygo.Window
 	mygo.App.WhenReady(func() {
 		if err != nil {
-			mygo.Dialog.Error(startup.Message(mygo.App.Locale(), errors.Is(err, store.ErrLocked), err))
+			mygo.Dialog.Error(startup.Message(systemLocale(), errors.Is(err, store.ErrLocked), err))
 			mygo.App.Quit()
 			return
 		}
-		systemLocale := mygo.App.Locale()
+		system := systemLocale()
 		goAsync := func(work func() func()) {
 			go func() {
 				// A task that panics is logged with its stack and shows nothing; the app stays usable.
@@ -241,7 +254,7 @@ func desktop() {
 				return path, err
 			},
 		}
-		root := newShell(systemLocale, filepath.Join(dataDir, sessionFile), filepath.Join(dataDir, prefs.File),
+		root := newShell(system, filepath.Join(dataDir, sessionFile), filepath.Join(dataDir, prefs.File),
 			client.Session{Server: "http://" + b.addr}, goAsync, files)
 		setMenu := func(language string) {
 			help, keys := timeline.MenuLabels(language)
@@ -288,8 +301,13 @@ func desktop() {
 				}},
 			}))
 		}
-		root.language = setMenu
-		setMenu(locale.Resolve(root.prefs.Language, systemLocale))
+		// The menu, and MyGo's own controls and menus, speak the interface language, whichever the system reads.
+		showLanguage := func(language string) {
+			setMenu(language)
+			mygo.App.SetLocale(language)
+		}
+		root.language = showLanguage
+		showLanguage(locale.Resolve(root.prefs.Language, system))
 		window = mygo.NewWindow(mainWindowOptions(ui.View(root.View)))
 		// The marker of what the reader last looked at moves only while the window is in front.
 		focus := func(on bool) func() { return func() { window.Update(func() { root.focus(on) }) } }
