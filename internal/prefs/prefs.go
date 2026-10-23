@@ -64,6 +64,9 @@ const (
 	SortUnread = "unread" // unread count descending, then by name
 )
 
+// DefaultDwellSec is the stay MarkAfterStay waits for until the user picks another.
+const DefaultDwellSec = 5
+
 // Sizes and Spacings list the choices of the reading preferences in the order the settings show them.
 var (
 	Sizes     = []string{SizeSmall, SizeMedium, SizeLarge, SizeXLarge}
@@ -334,7 +337,7 @@ func (g Places) normalized() Places { return encodePlaces(g.entries()) }
 func Default() Preferences {
 	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ChineseTypesetting: true,
 		Density: DensityComfortable, ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle,
-		MarkReadWhen: MarkOnOpen, MarkReadDwellSec: 5}
+		MarkReadWhen: MarkOnOpen, MarkReadDwellSec: DefaultDwellSec}
 }
 
 // Normalize replaces every value it does not know with the default. A font is kept as it is: it may be installed
@@ -355,12 +358,7 @@ func (p Preferences) Normalize() Preferences {
 	if !slices.Contains(Densities, p.Density) {
 		p.Density = DensityComfortable
 	}
-	if !slices.Contains(MarkReadChoices, p.MarkReadWhen) {
-		p.MarkReadWhen = MarkOnOpen
-	}
-	if !slices.Contains(DwellSeconds, p.MarkReadDwellSec) {
-		p.MarkReadDwellSec = 5
-	}
+	p.MarkReadWhen, p.MarkReadDwellSec = p.markRead()
 	if !slices.Contains(ArticleViewers, p.ArticleViewer) {
 		p.ArticleViewer = ViewList
 	}
@@ -392,14 +390,20 @@ func (p Preferences) Normalize() Preferences {
 // the default where it holds a value Normalize would replace. The timeline asks it on every frame, which Normalize
 // would make dear.
 func (p Preferences) MarkRead() (when string, stay time.Duration) {
-	when, seconds := p.MarkReadWhen, p.MarkReadDwellSec
+	when, seconds := p.markRead()
+	return when, time.Duration(seconds) * time.Second
+}
+
+// markRead is the one rule for both: each of the two values as it is when it is known, else its default.
+func (p Preferences) markRead() (when string, seconds int) {
+	when, seconds = p.MarkReadWhen, p.MarkReadDwellSec
 	if !slices.Contains(MarkReadChoices, when) {
 		when = MarkOnOpen
 	}
 	if !slices.Contains(DwellSeconds, seconds) {
-		seconds = 5
+		seconds = DefaultDwellSec
 	}
-	return when, time.Duration(seconds) * time.Second
+	return when, seconds
 }
 
 // Dark tells whether the theme is dark, given whether the system is.
