@@ -57,6 +57,8 @@ func TestMigrationMakesDefaultIntervalAuto(t *testing.T) {
 		"DROP TABLE ai_usage",
 		"DROP TABLE rules",
 		"DROP INDEX entries_extract_open",
+		"DROP INDEX entry_ai_open",
+		"CREATE INDEX entry_ai_status ON entry_ai (status)",
 		"PRAGMA user_version = 9",
 	} {
 		if _, err := s.db.ExecContext(ctx, q); err != nil {
