@@ -143,7 +143,7 @@ aside { width:216px; flex:none; margin:8px 0 8px 8px; padding-top:40px; display:
 .item .paused { color:var(--muted) }
 .item .warn svg.icon, .item .paused svg.icon { width:14px; height:14px; color:inherit }
 .item.is-paused .name { color:var(--muted) }
-.mono { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:4px; font-size:10px; font-weight:600; background:var(--pressed); color:var(--text) }
+.mono { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:4px; font-size:9px; font-weight:600; background:var(--pressed); color:var(--text) }
 .mono.big { width:32px; height:32px; border-radius:8px; font-size:15px; background:var(--track); color:var(--text2) }
 .fav { position:relative; width:16px; height:16px; flex:none; border-radius:4px; overflow:hidden }
 .fav::after { content:""; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18) }
@@ -197,7 +197,7 @@ aside { width:216px; flex:none; margin:8px 0 8px 8px; padding-top:40px; display:
 .box.select { color:var(--text); justify-content:space-between }
 .box.select svg.icon { color:var(--muted); width:14px; height:14px }
 textarea { width:100%; min-height:72px; resize:none; padding:7px 10px; border:0; outline:0; border-radius:8px; background:var(--surface); box-shadow:inset 0 0 0 .5px var(--edge-line); font:inherit; color:var(--text); line-height:1.5 }
-textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace }
+textarea.prompt { min-height:58px; font:12px/1.5 ui-monospace,Menlo,Consolas,monospace }
 .disclosure { display:flex; align-items:center; gap:6px; align-self:flex-start; padding:2px 0; border:0; background:none; font:inherit; font-size:12px; font-weight:500; color:var(--text); cursor:pointer }
 .disclosure svg.icon { width:14px; height:14px; color:var(--muted); transition:transform var(--t) }
 .disclosure[aria-expanded=false] svg.icon { transform:rotate(-90deg) }
@@ -247,7 +247,7 @@ textarea.prompt { min-height:58px; font:12.5px/1.5 ui-monospace,Menlo,Consolas,m
 .group-title svg.icon { width:14px; height:14px }
 
 /* Dialogs and the menu. A tall dialog scrolls only its form; a hairline marks an edge where content hides. */
-.toast { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:4; display:flex; align-items:center; gap:10px; max-width:calc(100% - 40px); min-height:40px; padding:6px 6px 6px 14px; border-radius:14px; background:#2a2620; color:#f4efe6; font-size:12.5px; box-shadow:0 10px 30px rgba(var(--ink),.28), 0 0 0 .5px rgba(255,248,235,.08) }
+.toast { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:4; display:flex; align-items:center; gap:10px; max-width:calc(100% - 40px); min-height:40px; padding:6px 6px 6px 14px; border-radius:14px; background:#2a2620; color:#f4efe6; font-size:12px; box-shadow:0 10px 30px rgba(var(--ink),.28), 0 0 0 .5px rgba(255,248,235,.08) }
 :root[data-scheme=dark] .toast { background:#333837 }
 .toast svg.icon { flex:none }
 .toast .msg { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }

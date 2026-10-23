@@ -71,8 +71,8 @@ weight, then size. Sizes are `px(t, n)`; line height is a multiple of the size a
 
 | Role | Size en / zh | Line height en / zh | Weight | Color | Tracking en / zh |
 |---|---|---|---|---|---|
-| Title (reader title, connect title) | 24 | 1.28 / 1.42 | 600 | `Text` | -0.015em / 0 |
-| Row title, section head, screen title | 15 | 1.35 / 1.5 | 600; a read row's 500 in `TextMuted` | `Text` | -0.005em / 0 |
+| Title (reader title) | 24 | 1.28 / 1.42 | 600 | `Text` | -0.015em / 0 |
+| Row title, section head, screen title (connect title) | 15 | 1.35 / 1.5 | 600; a read row's 500 in `TextMuted` | `Text` | -0.005em / 0 |
 | Body UI (summary, social text, cards, notes, buttons) | 13 | 1.5 / 1.7 | 400 | `Text2` (social text `Text`) | 0 |
 | Meta, labels, segments | 12 | 1.4 / 1.4 | source name 500 in `Text2`, the rest 400 in `TextMuted`; segments and the capsule 500 | | +0.005em (segments +0.01em) |
 | Small label (section heads in the pane, counts, duration) | 11 / 12 | 1.3 | 500 | `TextMuted` (pane: `ChromeMuted`) | +0.04em / +0.02em |
@@ -84,7 +84,22 @@ Notes:
 - The reading body and its headings are a sixth, separate scale, set by the reading preferences below; they are
   the article's own text and not interface type. Headings in prose use the interface font: h2 19 / 600, h3 16 / 600,
   line height 1.35 / 1.4 (zh 1.5), h2 tracking -0.01em (zh 0).
-- Monospace (code, addresses): 0.86em of the surrounding text in a block of 13, line height 1.6.
+- Monospace (code, addresses): 0.86em of the surrounding text in a block of 13, line height 1.6. Monospace
+  fields (rewrite rules, prompts, the keywords of a rule) are 12.
+- Notes, status lines, toasts, the shortcut sheet's action names and its key caps are 12 (a size between 12 and 13
+  is not drawn).
+- A text that ends in the picture grid's "+N" tile is 15 semibold.
+
+Exceptions: sizes outside the five, each tied to something that is not running text. Nothing else may differ.
+
+| Size | Where | Why |
+|---|---|---|
+| 21 | the reader title in a window narrower than 760 | at 24 a long title takes more lines in a narrow window; 21 keeps it above the 15 row title and the page short. Line height and tracking as for 24 |
+| 10.5 | the monogram letter on the 18 tile (timeline pane) | the letter follows its tile: 0.58 of the tile |
+| 9 | the monogram letter on the 15 and 16 tiles (meta line, reader, the also-in list, the subscription candidate row) | the same ratio; the smallest tiles cannot take the 11 of the Small label |
+
+The monogram letter on the 32 tile (subscriptions list) is 15, a tier. The reading body, h2, h3 and code of the reader (Reading text) are the sixth scale above and are not listed here.
+Icons are not type: their sizes are in Components, icon.
 
 ## Reading text
 
