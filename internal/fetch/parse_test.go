@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/store"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/encoding/unicode"
 )
 
 const rssFeed = `<?xml version="1.0" encoding="UTF-8"?>
@@ -61,7 +64,7 @@ const discourseFeed = `<rss version="2.0"><channel><title>Forum</title><item>
 func mustParse(t *testing.T, body, base string) parsed {
 	t.Helper()
 	u, _ := url.Parse(base)
-	feed, err := parse([]byte(body), u)
+	feed, err := parse([]byte(body), "", u)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +119,7 @@ func TestParseDropsQuotedPosts(t *testing.T) {
 }
 
 func TestParseRejectsNonFeeds(t *testing.T) {
-	if _, err := parse([]byte("<html><body>not a feed</body></html>"), nil); err == nil {
+	if _, err := parse([]byte("<html><body>not a feed</body></html>"), "", nil); err == nil {
 		t.Error("parsed an HTML page")
 	}
 }
@@ -137,6 +140,122 @@ func TestPlatform(t *testing.T) {
 	} {
 		if got := platform(link); got != want {
 			t.Errorf("%q: %q, want %q", link, got, want)
+		}
+	}
+}
+
+func TestParseDecodesTheHeaderCharset(t *testing.T) {
+	const xmlBody = `<rss version="2.0"><channel><title>中文博客</title><item><title>第一篇</title><guid>1</guid>` +
+		`<description>你好，世界</description></item></channel></rss>`
+	gbk, err := simplifiedchinese.GBK.NewEncoder().String(xmlBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared, err := simplifiedchinese.GBK.NewEncoder().String(`<?xml version="1.0" encoding="gbk"?>` + xmlBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conflicting, err := simplifiedchinese.GBK.NewEncoder().String(`<?xml version="1.0" encoding="utf-8"?>` + xmlBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, c := range map[string]struct{ body, contentType string }{
+		"header only":            {`<?xml version="1.0"?>` + gbk, "application/rss+xml; charset=gbk"},
+		"no declaration":         {gbk, "application/rss+xml; charset=GBK"},
+		"declaration only":       {declared, "application/rss+xml"},
+		"both":                   {declared, `application/xml; charset="gb2312"`},
+		"the header wins":        {conflicting, "text/xml; charset=gbk"},
+		"unknown header charset": {declared, "application/xml; charset=nonsense"},
+	} {
+		feed, err := parse([]byte(c.body), c.contentType, nil)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if feed.title != "中文博客" || len(feed.entries) != 1 || feed.entries[0].Title != "第一篇" || feed.entries[0].Summary != "你好，世界" {
+			t.Errorf("%s: %q %+v", name, feed.title, feed.entries)
+		}
+	}
+
+	// Text that is already UTF-8 stays as it is, with or without a charset in the header.
+	for _, contentType := range []string{"", "application/rss+xml", "application/rss+xml; charset=utf-8"} {
+		feed, err := parse([]byte(`<?xml version="1.0" encoding="UTF-8"?>`+xmlBody), contentType, nil)
+		if err != nil || feed.title != "中文博客" {
+			t.Errorf("%q: %q %v", contentType, feed.title, err)
+		}
+	}
+}
+
+func TestParseTrustsTheHeaderOnlyWhenItFitsTheBytes(t *testing.T) {
+	const xmlBody = `<rss version="2.0"><channel><title>中文博客</title><item><title>第一篇</title><guid>1</guid>` +
+		`<description>你好，世界</description></item></channel></rss>`
+	encode := func(enc *encoding.Encoder, s string) string {
+		out, err := enc.String(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	gbkDeclared := encode(simplifiedchinese.GBK.NewEncoder(), `<?xml version="1.0" encoding="gbk"?>`+xmlBody)
+	utf8Declared := `<?xml version="1.0" encoding="utf-8"?>` + xmlBody
+	utf8Bom := "\xef\xbb\xbf" + utf8Declared
+	utf16 := func(e unicode.Endianness, bom unicode.BOMPolicy, s string) string {
+		return encode(unicode.UTF16(e, bom).NewEncoder(), s)
+	}
+	utf16Declared := `<?xml version="1.0" encoding="utf-16"?>` + xmlBody
+	for name, c := range map[string]struct{ body, contentType string }{
+		"gbk declared, header says utf-8":       {gbkDeclared, "text/xml; charset=utf-8"},
+		"gbk declared, header says us-ascii":    {gbkDeclared, "text/xml; charset=US-ASCII"},
+		"utf-8 declared, header says gbk":       {utf8Declared, "text/xml; charset=gbk"},
+		"utf-8 declared, header says latin-1":   {utf8Declared, "application/xml; charset=iso-8859-1"},
+		"utf-8 with a byte order mark":          {utf8Bom, ""},
+		"utf-8 with a byte order mark, header":  {utf8Bom, "application/xml; charset=utf-8"},
+		"utf-8 mark, header says gbk":           {utf8Bom, "application/xml; charset=gbk"},
+		"utf-16 le with a mark":                 {utf16(unicode.LittleEndian, unicode.UseBOM, utf16Declared), ""},
+		"utf-16 be with a mark":                 {utf16(unicode.BigEndian, unicode.UseBOM, utf16Declared), ""},
+		"utf-16 with a mark and a header":       {utf16(unicode.LittleEndian, unicode.UseBOM, utf16Declared), "application/xml; charset=utf-16"},
+		"utf-16 mark beats the header":          {utf16(unicode.BigEndian, unicode.UseBOM, utf16Declared), "application/xml; charset=utf-16le"},
+		"utf-16 header, no mark":                {utf16(unicode.LittleEndian, unicode.IgnoreBOM, xmlBody), "application/xml; charset=utf-16"},
+		"utf-16le header, no mark":              {utf16(unicode.LittleEndian, unicode.IgnoreBOM, utf16Declared), "application/xml; charset=utf-16le"},
+		"utf-16be header, no mark":              {utf16(unicode.BigEndian, unicode.IgnoreBOM, utf16Declared), "application/xml; charset=UTF-16BE"},
+		"gbk declared, header says nothing":     {gbkDeclared, "application/xml"},
+		"utf-8 declared, utf-8 header, no mark": {utf8Declared, "application/xml; charset=utf-8"},
+	} {
+		feed, err := parse([]byte(c.body), c.contentType, nil)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if feed.title != "中文博客" || len(feed.entries) != 1 || feed.entries[0].Title != "第一篇" || feed.entries[0].Summary != "你好，世界" {
+			t.Errorf("%s: %q %+v", name, feed.title, feed.entries)
+		}
+	}
+
+	// UTF-16 with neither a mark nor a header cannot be told apart from noise: a plain parse error, not garbage.
+	if feed, err := parse([]byte(utf16(unicode.LittleEndian, unicode.IgnoreBOM, utf16Declared)), "application/xml", nil); err == nil {
+		t.Errorf("utf-16 without a mark or a header parsed as %q", feed.title)
+	}
+}
+
+func TestParseJSONFeedWithACharsetHeader(t *testing.T) {
+	const body = `{"version":"https://jsonfeed.org/version/1.1","title":"中文博客","items":[{"id":"1","title":"第一篇",` +
+		`"content_text":"你好，世界"}]}`
+	gbk, err := simplifiedchinese.GBK.NewEncoder().String(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, c := range map[string]struct{ body, contentType string }{
+		"utf-8": {body, "application/feed+json; charset=utf-8"},
+		"none":  {body, "application/feed+json"},
+		"gbk":   {gbk, "application/feed+json; charset=gbk"},
+	} {
+		feed, err := parse([]byte(c.body), c.contentType, nil)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if feed.title != "中文博客" || len(feed.entries) != 1 || feed.entries[0].Title != "第一篇" || feed.entries[0].Summary != "你好，世界" {
+			t.Errorf("%s: %q %+v", name, feed.title, feed.entries)
 		}
 	}
 }

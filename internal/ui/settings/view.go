@@ -28,6 +28,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 	"github.com/yangflow/oriel/internal/ui/typeset"
+	"golang.org/x/net/html/charset"
 )
 
 //go:embed copy.json
@@ -958,6 +959,7 @@ func (s *Screen) imported(gen int, name string, imported client.Imported, err er
 func subscriptionsIn(data []byte) int {
 	n := 0
 	d := xml.NewDecoder(bytes.NewReader(data))
+	d.CharsetReader = charset.NewReaderLabel
 	for {
 		token, err := d.Token()
 		if err != nil {

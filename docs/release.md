@@ -12,8 +12,8 @@ Merging it creates a draft release with that section as its notes and the tag `v
 updates to the draft, then publishing the release once every platform uploaded. Installed copies check the latest
 published release of `yangflow/oriel` once a day and from "Check for Updates…" in the app menu, and install nothing
 before the user confirms in the update window, which shows the version's section of `CHANGELOG.md`. The update mechanism is MyGo's
-([auto-updates](https://github.com/egoist/mygo/blob/v0.4.1/docs/updates.md),
-[GitHub Actions](https://github.com/egoist/mygo/blob/v0.4.1/docs/github-actions.md)).
+([auto-updates](https://github.com/egoist/mygo/blob/v0.5.5/docs/updates.md),
+[GitHub Actions](https://github.com/egoist/mygo/blob/v0.5.5/docs/github-actions.md)).
 
 ## One-time setup
 

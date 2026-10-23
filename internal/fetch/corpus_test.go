@@ -136,7 +136,7 @@ func TestCorpusFeeds(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			feed, err := parse(body, base)
+			feed, err := parse(body, "", base)
 			if err != nil {
 				t.Fatal(err)
 			}

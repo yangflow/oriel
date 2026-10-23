@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/fetch"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 const importFile = `<?xml version="1.0" encoding="UTF-8"?>
@@ -144,5 +146,29 @@ func TestOPMLImportSpreadsFirstFetches(t *testing.T) {
 		if strings.HasSuffix(src.URL, "/single") && src.NextFetchAt.Sub(c.now()) >= importSpreadEach {
 			t.Errorf("a one-source file waits %s", src.NextFetchAt.Sub(c.now()))
 		}
+	}
+}
+
+func TestOPMLImportOtherEncodings(t *testing.T) {
+	gbk, err := simplifiedchinese.GBK.NewEncoder().String(`<?xml version="1.0" encoding="GBK"?>
+<opml version="2.0"><body><outline text="博客" type="rss" xmlUrl="https://example.org/gbk"/></body></opml>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	latin, err := charmap.ISO8859_1.NewEncoder().String(`<?xml version="1.0" encoding="ISO-8859-1"?>
+<opml version="2.0"><body><outline text="Café" type="rss" xmlUrl="https://example.org/latin"/></body></opml>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	for _, file := range []string{gbk, latin} {
+		w := do(s, "POST", "/api/opml/import", file, bearer(token))
+		if body := decode(t, w); w.Code != http.StatusOK || body["added"] != 1.0 {
+			t.Fatalf("import: %d %v", w.Code, body)
+		}
+	}
+	if got := fmt.Sprint(subscriptions(t, s, bearer(token))); got != "[article https://example.org/gbk 博客 article https://example.org/latin Café]" {
+		t.Errorf("sources: %s", got)
 	}
 }

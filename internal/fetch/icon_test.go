@@ -45,7 +45,7 @@ func TestParseFeedIcon(t *testing.T) {
 		`{"version": "https://jsonfeed.org/version/1.1", "title": "A", "icon": "/i.jpg", "items": []}`:    "https://example.org/i.jpg",
 		`<rss version="2.0"><channel><title>A</title><image><url>/logo.svg</url></image></channel></rss>`: "",
 	} {
-		got, err := parse([]byte(feed), base)
+		got, err := parse([]byte(feed), "", base)
 		if err != nil {
 			t.Fatal(err)
 		}

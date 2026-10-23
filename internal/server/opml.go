@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/xml"
 	"errors"
 	"io"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/store"
+	"golang.org/x/net/html/charset"
 )
 
 // maxOPML is the largest OPML file an import accepts.
@@ -93,7 +95,10 @@ func (s *Server) importOPML(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var doc opmlDocument
-	if err := xml.Unmarshal(data, &doc); err != nil {
+	// A file in another encoding (GBK, ISO-8859-1) says so in its XML declaration.
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	decoder.CharsetReader = charset.NewReaderLabel
+	if err := decoder.Decode(&doc); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_opml")
 		return
 	}

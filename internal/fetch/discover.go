@@ -65,12 +65,12 @@ func (d *Discoverer) Discover(ctx context.Context, address string) ([]Candidate,
 	ctx, cancel := context.WithTimeout(ctx, discoverTimeout)
 	defer cancel()
 
-	body, page, err := d.get(ctx, address)
+	body, kind, page, err := d.get(ctx, address)
 	if errors.Is(err, ErrBlockedAddress) {
 		return nil, err
 	}
 	if err == nil {
-		if feed, perr := parse(body, page); perr == nil {
+		if feed, perr := parse(body, kind, page); perr == nil {
 			return []Candidate{{URL: page.String(), Title: feed.title, Origin: "feed"}}, nil
 		}
 		if doc, derr := parseHTML(body); derr == nil {
@@ -92,14 +92,14 @@ func (d *Discoverer) Discover(ctx context.Context, address string) ([]Candidate,
 	for _, path := range commonPaths {
 		probe := root
 		probe.Path = path
-		body, final, perr := d.get(ctx, probe.String())
+		body, kind, final, perr := d.get(ctx, probe.String())
 		if perr != nil {
 			if ctx.Err() != nil {
 				break
 			}
 			continue
 		}
-		feed, perr := parse(body, final)
+		feed, perr := parse(body, kind, final)
 		if perr != nil || seen[final.String()] {
 			continue
 		}
@@ -114,29 +114,29 @@ func (d *Discoverer) Discover(ctx context.Context, address string) ([]Candidate,
 
 // get downloads an address through the guarded client and returns the body with the address reached after
 // redirects. The body is limited to maxBytes.
-func (d *Discoverer) get(ctx context.Context, address string) ([]byte, *url.URL, error) {
+func (d *Discoverer) get(ctx context.Context, address string) ([]byte, string, *url.URL, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", nil, err
 	}
 	req.Header.Set("User-Agent", d.userAgent)
 	req.Header.Set("Accept", "text/html, application/xhtml+xml, application/rss+xml, application/atom+xml, application/feed+json, application/xml;q=0.9, */*;q=0.8")
 	resp, err := d.client.Do(req)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("status %d", resp.StatusCode)
+		return nil, "", nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
-		return nil, nil, err
+		return nil, "", nil, err
 	}
 	if len(body) > maxBytes {
-		return nil, nil, errTooLarge
+		return nil, "", nil, errTooLarge
 	}
-	return body, resp.Request.URL, nil
+	return body, resp.Header.Get("Content-Type"), resp.Request.URL, nil
 }
 
 func parseHTML(body []byte) (*html.Node, error) {
