@@ -39,11 +39,13 @@ func Toasts(c *ui.Context) {
 				box.Padding(Px(t, 6), Px(t, 6), Px(t, 6), Px(t, 14))
 			}
 			box.Opacity(fade(c, p))
+			cut := false
 			box.Children(func() {
 				if look.Icon != nil {
 					ui.Icon(c, look.Icon).FontSize(Px(t, 16))
 				}
-				ui.Text(c, ts.Title).Shrink(1).MinWidth(0).SingleLine().FontSize(Px(t, 12))
+				title := ui.Text(c, ts.Title).Shrink(1).MinWidth(0).MaxLines(2).FontSize(Px(t, 12))
+				cut = Cut(c, title, ts.Title, Px(t, 12), 0, 2)
 				if ts.Action == "" {
 					return
 				}
@@ -70,6 +72,9 @@ func Toasts(c *ui.Context) {
 					ui.Icon(c, icons.X).FontSize(Px(t, 14)).TextColor(text.Alpha(0.7))
 				})
 			})
+			if cut {
+				Tip(c, p.Root, ts.Title)
+			}
 		}
 	})
 }

@@ -2810,17 +2810,24 @@ func (s *Screen) tabs(c *ui.Context, focus bool) {
 				if n > 0 {
 					tab.Description(s.format(s.text.UnreadCount, n))
 				}
+				cut := false
 				tab.Children(func() {
 					ui.Icon(c, kindIcon(kind)).FontSize(theme.Px(t, 16)).TextColor(icon)
 					label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(theme.Text2(t))
+					weight := 0
 					if on {
 						label.TextColor(t.Text).FontWeight(500)
+						weight = 500
 					}
+					cut = theme.Cut(c, label, name, 0, weight, 1)
 					if n > 0 {
 						ui.Text(c, countText(n)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
 							TextColor(count)
 					}
 				})
+				if cut {
+					theme.Tip(c, tab, name)
+				}
 				if tab.Clicked() {
 					s.sideKeyed = tab.FocusVisible()
 					s.tab = i
@@ -3132,6 +3139,7 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 		s.sideKeyed = s.sideKeyed || first
 	}
 	s.sideKeyed = s.sideKeyed || item.FocusVisible()
+	cut := false
 	item.Children(func() {
 		s.glyph(c, name, src.IconURL, 18)
 		color := theme.Text2(t)
@@ -3139,9 +3147,12 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 			color = t.TextMuted
 		}
 		title := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(color)
+		weight := 0
 		if chosen {
 			title.TextColor(t.Text).FontWeight(500)
+			weight = 500
 		}
+		cut = theme.Cut(c, title, name, 0, weight, 1)
 		if fetching && !src.Paused {
 			ui.Spinner(c).FontSize(theme.Px(t, 13)).Label(label)
 		} else if src.Paused {
@@ -3159,6 +3170,9 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 				TextColor(count)
 		}
 	})
+	if cut {
+		theme.Tip(c, item, name)
+	}
 	if item.Clicked() {
 		s.sideKeyed = item.FocusVisible()
 		s.choose(scope{kind: src.Kind, source: src.ID})

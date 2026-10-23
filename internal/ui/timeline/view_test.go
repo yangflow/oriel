@@ -2756,7 +2756,10 @@ func TestTooltips(t *testing.T) {
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
-	for _, text := range []string{name, "Everything", "Unread"} {
+	if !tipShows(t, tt, name) {
+		t.Error("a subscription name cut short has no tooltip")
+	}
+	for _, text := range []string{"Go Blog", "Everything", "Unread"} {
 		if tipShows(t, tt, text) {
 			t.Errorf("%q has a tooltip", text)
 		}
@@ -2771,6 +2774,25 @@ func TestTooltips(t *testing.T) {
 	tt.Frame()
 	if tipShows(t, tt, "Refreshing, 0 of 4 checked") {
 		t.Error("the refresh progress has a tooltip")
+	}
+}
+
+// A kind's name in the sidebar shows in full in a tooltip only when the pane cuts it short.
+func TestKindTooltipOnlyWhenCut(t *testing.T) {
+	sources, entries := sample()
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New("en", f.deps())
+	long := "Videos, talks, lectures, conference recordings and every other long form moving picture"
+	s.text.Video = long
+	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 900, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	if !tipShows(t, tt, long) {
+		t.Error("a kind name cut short has no tooltip")
+	}
+	if tipShows(t, tt, "Articles") {
+		t.Error("a kind name that fits has a tooltip")
 	}
 }
 
