@@ -147,3 +147,30 @@ func TestSharedLinkIsNotMerged(t *testing.T) {
 		t.Fatalf("twin in the fetch: %d new, %d entries", n, count())
 	}
 }
+
+func TestSaveFeedGivesAIRowsByEntry(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	now := time.UnixMilli(1_000_000)
+	src, _ := s.CreateSource(ctx, NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "Feed", now)
+	feed := FeedSource{ID: src.ID, Kind: src.Kind, AITasks: []string{TaskSummary}}
+	aiRows := func() int {
+		t.Helper()
+		var n int
+		if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM entry_ai").Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	// A GUID twice in one fetch is one new entry with one result per task.
+	items := []FeedEntry{{GUID: "a", Title: "A", URL: "https://example.org/a"}, {GUID: "a", Title: "A again", URL: "https://example.org/a"},
+		{GUID: "b", Title: "B", URL: "https://example.org/b"}}
+	if n, err := s.SaveFeed(ctx, feed, "", "", items, "", time.Time{}, now); err != nil || n != 2 || aiRows() != 2 {
+		t.Fatalf("first save: %d new, %d results, %v", n, aiRows(), err)
+	}
+	// Unchanged and changed existing entries get no new results.
+	items[2].Title = "B, edited"
+	if n, err := s.SaveFeed(ctx, feed, "", "", items, "", time.Time{}, now.Add(time.Hour)); err != nil || n != 0 || aiRows() != 2 {
+		t.Fatalf("second save: %d new, %d results, %v", n, aiRows(), err)
+	}
+}
