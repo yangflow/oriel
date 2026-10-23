@@ -1976,3 +1976,63 @@ func TestSubscriptionsInCountsOtherEncodings(t *testing.T) {
 		}
 	}
 }
+
+// TestEscapeInField has Escape in a text field give up the focus, not leave, and keep what was typed.
+func TestEscapeInField(t *testing.T) {
+	s, f, tt := openAI(t, "en", true)
+	r, _ := tt.Find(s.text.Model)
+	tt.ClickAt(r.X+20, r.Y+r.H+28)
+	tt.Type("-2")
+	typed := s.aiModel
+	if !s.typing || typed == "small" {
+		t.Fatalf("typing %v, model %q", s.typing, typed)
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if f.back != 0 || s.aiModel != typed || s.typing {
+		t.Fatalf("back %d, model %q, typing %v", f.back, s.aiModel, s.typing)
+	}
+	// The next Escape finds the page with a change not saved, and stays.
+	tt.Key(0, ui.KeyEscape)
+	if f.back != 0 || !slices.Contains(tt.Announcements(), s.text.Unsaved) {
+		t.Fatalf("back %d, announcements %v", f.back, tt.Announcements())
+	}
+}
+
+// TestEscapeUnsaved has Escape keep the page, and say so, while text on it is not saved, in either language.
+func TestEscapeUnsaved(t *testing.T) {
+	for _, language := range []string{"en", "zh-Hans"} {
+		s, f, tt := openAI(t, language, true)
+		edit(tt, func() { s.aiModel = "other" })
+		tt.Key(0, ui.KeyEscape)
+		if f.back != 0 || s.aiModel != "other" || !slices.Contains(tt.Announcements(), s.text.Unsaved) || s.text.Unsaved == "" {
+			t.Fatalf("%s: back %d, model %q, announcements %v", language, f.back, s.aiModel, tt.Announcements())
+		}
+		// The back button still leaves.
+		press(t, tt, s.text.BackTimeline)
+		if f.back != 1 {
+			t.Fatalf("%s: back %d", language, f.back)
+		}
+	}
+	for name, change := range map[string]func(s *Screen){
+		"prompt": func(s *Screen) { s.prompts[0] = "mine" },
+		"rsshub": func(s *Screen) { s.base += "\nhttps://hub.example.com" },
+		"muted":  func(s *Screen) { s.rules.muted = "spoiler" },
+	} {
+		s, f, tt := openAI(t, "en", true)
+		edit(tt, func() { change(s) })
+		tt.Key(0, ui.KeyEscape)
+		if f.back != 0 {
+			t.Errorf("%s: back %d", name, f.back)
+		}
+	}
+}
+
+// TestEscapeClean has Escape go back when nothing on the page is changed.
+func TestEscapeClean(t *testing.T) {
+	_, f, tt := openAI(t, "en", true)
+	tt.Key(0, ui.KeyEscape)
+	if f.back != 1 {
+		t.Fatalf("back %d", f.back)
+	}
+}

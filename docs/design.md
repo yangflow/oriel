@@ -891,7 +891,7 @@ Overlays share focus and Escape behavior; see
 - **Settings.** The settings take the whole window, in place of the timeline: their own sidebar has "Back to the
   timeline" on top, one item per group (Appearance, Fetching, Rules, Import and export, AI, Devices, Activity and storage) and the server bar, which says whose
   settings these are and does not open the connect screen. They open from the gear beside the timeline's server bar
-  or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. The page's toolbar title lines up with the left edge
+  or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. Escape never throws typing away: with a text field focused it only takes the focus off the field (to the back button; the text stays), and with text not saved (AI endpoint, model, key, language and limits, the prompts, the RSSHub instances, the muted keywords) it does not leave and the page does not change, it only announces "Some changes are not saved" with `Announce` (no new dialog or visual; the Save button already turns primary); otherwise it returns. The back button always returns. A MyGo text field does not consume Escape (the headless test shows it reaches the window shortcut), so the page decides. The page's toolbar title lines up with the left edge
   of its content column. **Page width.** A page is one column centered in the room beside the sidebar, its width
   taken from the page and the room, not from the window: a form page (Appearance, Fetching, Rules, Import and export, Activity and storage) keeps
   a column at most 600 wide, padding included, for a readable line; Devices is a list and widens to 880 once the room
