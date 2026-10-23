@@ -30,7 +30,7 @@ func queryPlan(t *testing.T, s *Store, query string, args ...any) string {
 func TestPendingExtractionsUsesOpenIndex(t *testing.T) {
 	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
 	plan := queryPlan(t, s, pendingExtractionsQuery, 1000, 10)
-	if !strings.Contains(plan, "INDEX entries_extract_open") || strings.Contains(plan, "SCAN e") {
+	if !strings.Contains(plan, "SEARCH e USING INDEX entries_extract_open") || strings.Contains(plan, "SCAN") {
 		t.Errorf("want a search of entries_extract_open and no scan of entries, got\n%s", plan)
 	}
 }

@@ -393,7 +393,8 @@ type ExtractTarget struct {
 }
 
 // pendingExtractionsQuery is the query of PendingExtractions. The condition on extract_status repeats the one of the
-// partial index entries_extract_open, which the planner needs to see to use it.
+// partial index entries_extract_open, which the planner needs to see to use it. The sort that remains runs over the
+// open entries only: a plan that read the index in the wanted order would walk the whole timeline instead.
 const pendingExtractionsQuery = `
 		SELECT e.id, e.url, e.title, e.extract_attempts, s.extract_selector, s.extract_referer, s.extract_rewrites FROM entries e JOIN sources s ON s.id = e.source_id
 		WHERE s.kind = 'article' AND s.deleted_at IS NULL AND e.extract_status IN ('pending', 'failed')
