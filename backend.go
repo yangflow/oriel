@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"sync"
@@ -117,7 +118,7 @@ func (g *background) shutdown() {
 }
 
 // start opens the database in dataDir and serves the API until close. Mode is diag.ModeDesktop or diag.ModeHeadless. Port 0 picks a free port.
-func start(ctx context.Context, dataDir, password, mode string, port int) (*backend, error) {
+func start(ctx context.Context, dataDir, password, mode string, port int, proxies []netip.Prefix) (*backend, error) {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, err
 	}
@@ -131,7 +132,7 @@ func start(ctx context.Context, dataDir, password, mode string, port int) (*back
 	auto := autobackup.New(st, version)
 	work := &background{store: st, poller: poller, worker: worker, copier: fetch.NewCopier(st, images), auto: auto}
 	api, err := server.New(st, server.Config{Password: password, Version: version, Images: images,
-		Discover: fetch.NewDiscoverer(version), AI: worker, Fetching: poller.Fetching, Log: logs, Mode: mode, Pause: work.pause, AutoBackup: auto})
+		Discover: fetch.NewDiscoverer(version), AI: worker, Fetching: poller.Fetching, Log: logs, Mode: mode, Pause: work.pause, AutoBackup: auto, TrustedProxies: proxies})
 	if err != nil {
 		st.Close()
 		return nil, err

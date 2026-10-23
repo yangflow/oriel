@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/netip"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,7 +19,7 @@ import (
 func TestBackend(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
-	b, err := start(ctx, dir, "", diag.ModeHeadless, 0)
+	b, err := start(ctx, dir, "", diag.ModeHeadless, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +37,7 @@ func TestBackend(t *testing.T) {
 		t.Fatalf("health: %d %+v", resp.StatusCode, health)
 	}
 
-	if _, err := start(ctx, dir, "", diag.ModeHeadless, 0); !errors.Is(err, store.ErrLocked) {
+	if _, err := start(ctx, dir, "", diag.ModeHeadless, 0, nil); !errors.Is(err, store.ErrLocked) {
 		t.Fatalf("second backend on the same data: %v", err)
 	}
 	if err := b.close(ctx); err != nil {
@@ -45,7 +46,7 @@ func TestBackend(t *testing.T) {
 	if _, err := http.Get("http://" + b.addr + "/health"); err == nil {
 		t.Fatal("still serving after close")
 	}
-	again, err := start(ctx, dir, "", diag.ModeHeadless, 0)
+	again, err := start(ctx, dir, "", diag.ModeHeadless, 0, nil)
 	if err != nil {
 		t.Fatalf("restart after close: %v", err)
 	}
@@ -53,7 +54,7 @@ func TestBackend(t *testing.T) {
 }
 
 func TestServerTimeouts(t *testing.T) {
-	b, err := start(context.Background(), t.TempDir(), "", diag.ModeHeadless, 0)
+	b, err := start(context.Background(), t.TempDir(), "", diag.ModeHeadless, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,5 +107,46 @@ func TestCloseCutsOffSlowRequestsBeforeClosingTheStore(t *testing.T) {
 		}
 	default:
 		t.Fatal("close returned while the handler was still running")
+	}
+}
+
+// loginFrom sends a login the server counts as wrong without deriving a key, the way a reverse proxy would, with the client in X-Forwarded-For.
+func loginFrom(t *testing.T, addr, client string) int {
+	t.Helper()
+	req, err := http.NewRequest("POST", "http://"+addr+"/auth/login", strings.NewReader("not json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Forwarded-For", client)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
+
+func TestLoginThrottleBehindTrustedProxy(t *testing.T) {
+	for _, trusted := range []bool{true, false} {
+		var proxies []netip.Prefix
+		if trusted {
+			proxies = []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}
+		}
+		b, err := start(context.Background(), t.TempDir(), "secret", diag.ModeHeadless, 0, proxies)
+		if err != nil {
+			t.Fatal(err)
+		}
+		addr := "127.0.0.1" + b.addr[strings.LastIndex(b.addr, ":"):]
+		for i := 0; i < 6; i++ {
+			loginFrom(t, addr, "203.0.113.1")
+		}
+		if got := loginFrom(t, addr, "203.0.113.1"); got != http.StatusTooManyRequests {
+			t.Errorf("trusted %v: the guessing client got %d", trusted, got)
+		}
+		other := loginFrom(t, addr, "203.0.113.2")
+		if want := map[bool]int{true: http.StatusUnauthorized, false: http.StatusTooManyRequests}[trusted]; other != want {
+			t.Errorf("trusted %v: another client got %d, want %d", trusted, other, want)
+		}
+		b.close(context.Background())
 	}
 }

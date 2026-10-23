@@ -19,6 +19,7 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/prefs"
+	"github.com/yangflow/oriel/internal/server"
 	"github.com/yangflow/oriel/internal/store"
 	"github.com/yangflow/oriel/internal/ui/connect"
 	"github.com/yangflow/oriel/internal/ui/locale"
@@ -71,8 +72,9 @@ func serve(args []string) int {
 	flags := flag.NewFlagSet("oriel serve", flag.ContinueOnError)
 	dataDir := flags.String("data", "", "data directory (default: the user data directory)")
 	port := flags.Int("port", defaultPort, "TCP port")
+	proxy := flags.String("trusted-proxy", "", "reverse proxies (comma-separated IPs or CIDRs) whose X-Forwarded-For the login throttle believes")
 	flags.Usage = func() {
-		fmt.Fprintln(flags.Output(), "Usage: oriel serve [-data dir] [-port n]")
+		fmt.Fprintln(flags.Output(), "Usage: oriel serve [-data dir] [-port n] [-trusted-proxy list]")
 		fmt.Fprintln(flags.Output(), "Set ORIEL_PASSWORD to require sign-in and listen on every interface.")
 		flags.PrintDefaults()
 	}
@@ -91,10 +93,19 @@ func serve(args []string) int {
 		}
 		*dataDir = dir
 	}
+	proxies, err := server.ParseProxies(*proxy)
+	if err != nil {
+		hint := ""
+		if errors.Is(err, server.ErrProxyFormat) {
+			hint = " (expected IP addresses or CIDR ranges, comma-separated, e.g. 10.0.0.1 or 10.0.0.0/8,192.0.2.7)"
+		}
+		fmt.Fprintln(flags.Output(), "-trusted-proxy:", err.Error()+hint)
+		return 2
+	}
 	password := os.Getenv("ORIEL_PASSWORD")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	b, err := start(ctx, *dataDir, password, diag.ModeHeadless, *port)
+	b, err := start(ctx, *dataDir, password, diag.ModeHeadless, *port, proxies)
 	if err != nil {
 		slog.Error("Cannot start", "error", err, "data", *dataDir)
 		return 1
@@ -137,7 +148,7 @@ func desktop() {
 	var b *backend
 	dataDir, err := mygo.App.Path(mygo.PathUserData)
 	if err == nil {
-		b, err = start(context.Background(), dataDir, "", diag.ModeDesktop, 0)
+		b, err = start(context.Background(), dataDir, "", diag.ModeDesktop, 0, nil)
 	}
 	if err != nil {
 		slog.Error("Cannot start", "error", err, "data", dataDir)

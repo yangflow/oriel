@@ -116,6 +116,8 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
 
 Without `ORIEL_PASSWORD` the server listens on `127.0.0.1` only. The password is read from the environment only,
 so it never appears in the process list. `-data` defaults to the user data directory.
+Behind a reverse proxy, pass `-trusted-proxy <ip-or-cidr,...>` so the login throttle reads `X-Forwarded-For` for requests
+that come from those addresses; it is off by default. List only your proxies, never client networks or `0.0.0.0/0` (a `/0` range is refused).
 
 ## Development
 
