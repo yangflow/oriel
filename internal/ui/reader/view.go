@@ -41,7 +41,7 @@ type copy struct {
 	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint         string
 	SelectionAIOff, ExplanationReady, TranslateDone, LanguageZhHans, LanguageEn                                   string
 	AlsoHead                                                                                                      string
-	ExitImmersive                                                                                                 string
+	ExitImmersive, FindLabel                                                                                      string
 	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles        string
 }
 
@@ -178,6 +178,7 @@ type Screen struct {
 
 	jobs       [2]job
 	sel        selection
+	find       find // the find row and its matches
 	aiOff      bool // AI is not set up: the card says where to set it
 	shown      int  // with the translation ready, 0 shows it and 1 the original
 	title      string
@@ -346,6 +347,7 @@ func (s *Screen) Open(e client.Entry) {
 	s.pics.Reset()
 	s.jobs, s.aiOff, s.shown, s.title, s.translated, s.aiPolling = [2]job{}, false, 0, "", nil, false
 	s.closeSelection()
+	s.closeFind()
 	if i := slices.IndexFunc(s.cache, func(c cached) bool { return c.id == e.ID }); i >= 0 {
 		c := s.cache[i]
 		s.remember(c)
@@ -788,6 +790,8 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 			{ui.KeyZ, s.immerse},
 			{ui.KeyEscape, func() {
 				switch {
+				case s.find.open:
+					s.closeFind()
 				case s.sel.on:
 					s.closeSelection()
 				case nav.Immersive:
@@ -799,7 +803,13 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 		} {
 			c.OnShortcut(0, k.key, k.do)
 		}
+		c.OnShortcut(ui.Cmd, ui.KeyF, s.openFind)
 	}
+	if s.find.was && !s.find.open {
+		// The row closed, by Escape or Done: the focus goes back to the article.
+		s.focus = true
+	}
+	s.find.was = s.find.open
 	width, _ := c.Size()
 	narrow := width < 760
 	// The toolbar row floats over the article, which scrolls under it and fades under the scroll edge.
@@ -818,6 +828,7 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 		}
 		theme.Edge(c, s.scroll.Y > 0)
 		s.toolbar(c, nav, ready, narrow)
+		s.findRow(c, narrow)
 		s.selectionCard(c)
 	})
 	s.track(c)
@@ -1159,6 +1170,9 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 	if narrow {
 		pad = []float32{theme.Bar + theme.Px(t, 20), theme.Px(t, 20), theme.Px(t, 40), theme.Px(t, 20)}
 	}
+	if s.find.open {
+		pad[0] += findHeight(t)
+	}
 	title := strings.TrimSpace(e.Title)
 	if s.translating() && s.title != "" {
 		title = s.title
@@ -1178,6 +1192,7 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 		if s.translating() {
 			blocks, how = s.translated, whole
 		}
+		s.findRefresh(title, blocks)
 		body := ui.Column(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Padding(pad...).Selectable()
 		// The menu is built by this call, so the body is named before it.
 		body.ContextMenu(func(m *ui.Menu) { s.selectionMenu(m, body) })
@@ -1204,7 +1219,7 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 			if theme.Han(title) {
 				tracking = 0
 			}
-			s.plain(c, &s.titleSet, title, s.han, size, tracking).FontSize(size).FontWeight(600).LineHeight(line).
+			s.plain(c, &s.titleSet, title, unitTitle, s.han, size, tracking).FontSize(size).FontWeight(600).LineHeight(line).
 				LetterSpacing(tracking).TextColor(t.Text).Wrap().Margin(theme.Px(t, 12), 0, 0, 0).Role(ui.RoleHeading).Level(1)
 			s.alsoLine(c, e)
 			if s.jobs[translation].on {
@@ -1514,7 +1529,7 @@ func (s *Screen) summaryCard(c *ui.Context) {
 				}
 			})
 			text := strings.TrimSpace(j.text)
-			s.plain(c, &s.summarySet, text, theme.Han(text), theme.Px(t, 13), 0).Margin(theme.Px(t, 6), 0, 0, 0).FontSize(theme.Px(t, 13)).
+			s.plain(c, &s.summarySet, text, unitSummary, theme.Han(text), theme.Px(t, 13), 0).Margin(theme.Px(t, 6), 0, 0, 0).FontSize(theme.Px(t, 13)).
 				LineHeight(cardLine(text)).TextColor(t.Text).Wrap()
 		})
 	}
@@ -1570,7 +1585,7 @@ func (s *Screen) translationNote(c *ui.Context) {
 		row.Background(theme.Soft(t, t.Accent)).Children(func() {
 			ui.Icon(c, icons.Languages).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
 			by := strings.ReplaceAll(s.text.Translated, "{model}", j.model)
-			s.plain(c, &s.translatedSet, by, s.han, theme.Px(t, 12), 0).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).
+			s.plain(c, &s.translatedSet, by, -1, s.han, theme.Px(t, 12), 0).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).
 				TextColor(text2).Wrap()
 			seg := ui.SegmentedBase(c, &s.shown, 2)
 			seg.Track.Margin(-4, -6, -4, 0).Padding(2).Gap(2).Radius(theme.Px(t, 8)).Background(theme.Ink(t, 0.07)).
@@ -1650,7 +1665,7 @@ func (s *Screen) blocks(c *ui.Context, blocks []block) {
 	t := c.Theme()
 	for i := 0; i < len(blocks); {
 		if blocks[i].quote == 0 {
-			s.block(c, blocks, i, theme.Prose(t))
+			s.block(c, blocks, i, 0, theme.Prose(t))
 			i++
 			continue
 		}
@@ -1662,7 +1677,7 @@ func (s *Screen) blocks(c *ui.Context, blocks []block) {
 		ui.Column(c).Key(start).FillWidth().Margin(gap(t, blocks, start, s.scale()), 0, 0, 0).Padding(0, 0, 0, theme.Px(t, 18)).
 			BorderWidth(0, 0, 0, 2).BorderColor(theme.Ink(t, 0.16)).Children(func() {
 			for k := range run {
-				s.block(c, run, k, theme.Text2(t))
+				s.block(c, run, k, start, theme.Text2(t))
 			}
 		})
 	}
@@ -1696,7 +1711,7 @@ func gap(t *ui.Theme, blocks []block, i int, scale float32) float32 {
 	return theme.Px(t, 1.05*16) * scale
 }
 
-func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
+func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Color) {
 	t := c.Theme()
 	if s.typeset() && !blocks[i].laid {
 		blocks[i].set, blocks[i].laid = s.layout(blocks[i].spans), true
@@ -1708,8 +1723,10 @@ func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 	if b.depth > 0 {
 		indent += theme.Px(t, 22) * float32(b.depth-1)
 	}
+	unit := unitBlocks + base + i
 	box := ui.Column(c).Key(i).FillWidth().Margin(top, 0, 0, indent)
 	box.Children(func() {
+		s.revealBlock(c, unit)
 		switch b.kind {
 		case rule:
 			ui.Box(c).FillWidth().Height(1).Background(t.Border)
@@ -1717,7 +1734,15 @@ func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 			s.picture(c, b)
 		case code:
 			ui.ScrollHorizontal(c).FillWidth().Radius(theme.Px(t, 12)).Background(t.Surface).Children(func() {
-				ui.Text(c, b.text).Font("monospace").FontSize(theme.Px(t, 13)*scale).LineHeight(1.6).NoWrap().TextColor(t.Text).
+				text := ui.Text(c, b.text)
+				if marks := s.find.marks(unit, 0, len([]rune(b.text))); len(marks) > 0 {
+					text = ui.RichText(c).Children(func() {
+						for n, p := range cut([]typeset.Piece{{Text: b.text}}, marks) {
+							s.mark(c, ui.Text(c, p.text).Key(n), p.state)
+						}
+					})
+				}
+				text.Font("monospace").FontSize(theme.Px(t, 13)*scale).LineHeight(1.6).NoWrap().TextColor(t.Text).
 					Padding(theme.Px(t, 14), theme.Px(t, 16))
 			})
 		case heading:
@@ -1731,14 +1756,14 @@ func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 			if b.quote == 0 {
 				color = t.Text
 			}
-			s.inline(c, b, color, size).FontSize(size).FontWeight(600).LineHeight(line).LetterSpacing(tracking * size).
+			s.inline(c, b, unit, color, size).FontSize(size).FontWeight(600).LineHeight(line).LetterSpacing(tracking * size).
 				Role(ui.RoleHeading).Level(b.level)
 		case caption:
-			s.inline(c, b, t.TextMuted, theme.Px(t, 12)).FontSize(theme.Px(t, 12)).LineHeight(1.5)
+			s.inline(c, b, unit, t.TextMuted, theme.Px(t, 12)).FontSize(theme.Px(t, 12)).LineHeight(1.5)
 		default:
 			line := float32(s.reading().Leading(s.han))
 			if b.depth == 0 {
-				s.prose(c, b, color, theme.Px(t, 16)*scale).FontSize(theme.Px(t, 16) * scale).LineHeight(line)
+				s.prose(c, b, unit, color, theme.Px(t, 16)*scale).FontSize(theme.Px(t, 16) * scale).LineHeight(line)
 				return
 			}
 			ui.Row(c).FillWidth().AlignItems(ui.Start).Children(func() {
@@ -1747,7 +1772,7 @@ func (s *Screen) block(c *ui.Context, blocks []block, i int, color ui.Color) {
 				if face := s.face(); face != "" {
 					marker.Font(face)
 				}
-				s.prose(c, b, color, theme.Px(t, 16)*scale).Grow(1).MinWidth(0).FontSize(theme.Px(t, 16) * scale).LineHeight(line)
+				s.prose(c, b, unit, color, theme.Px(t, 16)*scale).Grow(1).MinWidth(0).FontSize(theme.Px(t, 16) * scale).LineHeight(line)
 			})
 		}
 	})
@@ -1777,8 +1802,8 @@ func (s *Screen) face() string {
 }
 
 // prose draws spans as the article's body, in the reading font; the interface font where it is "".
-func (s *Screen) prose(c *ui.Context, b block, color ui.Color, size float32) ui.Element {
-	e := s.inline(c, b, color, size)
+func (s *Screen) prose(c *ui.Context, b block, unit int, color ui.Color, size float32) ui.Element {
+	e := s.inline(c, b, unit, color, size)
 	if face := s.face(); face != "" {
 		e.Font(face)
 	}
@@ -1818,7 +1843,22 @@ func (s *Screen) layout(spans []span) [][]typeset.Piece {
 
 // plain is a text drawn as one element: a Text, or when the text is Chinese, typesetting is on and it needs spacing, a
 // RichText of its pieces. size is the font size and base the letter spacing the caller gives the element.
-func (s *Screen) plain(c *ui.Context, m *memo, text string, chinese bool, size, base float32) ui.Element {
+func (s *Screen) plain(c *ui.Context, m *memo, text string, unit int, chinese bool, size, base float32) ui.Element {
+	if marks := s.find.marks(unit, 0, len([]rune(text))); len(marks) > 0 {
+		e := ui.RichText(c).Children(func() {
+			for n, p := range cut(s.pieceList(m, text, chinese), marks) {
+				e := ui.Text(c, p.text).Key(n)
+				if p.em != 0 {
+					e.LetterSpacing(base + p.em*size)
+				}
+				s.mark(c, e, p.state)
+			}
+		})
+		if s.find.current() == unit && s.find.reveal() {
+			e.ScrollIntoView()
+		}
+		return e
+	}
 	if !chinese || !s.reading().ChineseTypesetting || m.of(text) == nil {
 		return ui.Text(c, text)
 	}
@@ -1846,10 +1886,10 @@ func (s *Screen) pieces(c *ui.Context, m *memo, text string, chinese bool, size,
 
 // inline is a paragraph of spans, their links opening in the browser. size is the font size it will have, the em of
 // the spacing of Chinese typesetting, whose pieces b has when it is set.
-func (s *Screen) inline(c *ui.Context, b block, color ui.Color, size float32) ui.Element {
+func (s *Screen) inline(c *ui.Context, b block, unit int, color ui.Color, size float32) ui.Element {
 	t := c.Theme()
 	return ui.RichText(c).TextColor(color).Wrap().Children(func() {
-		n := 0
+		n, base := 0, 0
 		for k, sp := range b.spans {
 			pieces := []typeset.Piece{{Text: sp.text}}
 			if b.set != nil && len(b.set[k]) > 0 {
@@ -1857,6 +1897,31 @@ func (s *Screen) inline(c *ui.Context, b block, color ui.Color, size float32) ui
 			}
 			n++
 			plain := len(pieces) == 1 && pieces[0].Em == 0
+			length := len([]rune(sp.text))
+			marks := s.find.marks(unit, base, length)
+			base += length
+			if len(marks) > 0 {
+				// A span with a match is cut into the parts the match divides it into; the rest of its look stays.
+				parts := cut(pieces, marks)
+				draw := func(c *ui.Context) {
+					for _, p := range parts {
+						n++
+						e := ui.Text(c, p.text).Key(n)
+						if p.em != 0 {
+							e.LetterSpacing(p.em * size)
+						}
+						s.style(c, e, sp)
+						s.mark(c, e, p.state)
+					}
+				}
+				if sp.link != "" {
+					e := ui.Link(c.Key(n), "", sp.link).TextColor(t.Accent).Underline()
+					e.Children(func() { draw(c) })
+				} else {
+					draw(c)
+				}
+				continue
+			}
 			switch {
 			case sp.link != "" && plain:
 				s.style(c, ui.Link(c.Key(n), sp.text, sp.link).TextColor(t.Accent).Underline(), sp)

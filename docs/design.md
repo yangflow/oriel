@@ -324,7 +324,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   (getting the text, no text, can't load) are a 48 tile, a 15 semibold heading, a hint at most 320 wide and a button; "no text" has two, the primary "Open the original" and "Try again", which runs the extraction again and shows the getting state meanwhile.
   The whole text is one selection.
 - **Immersive reading.** Z (plain, not with Cmd/Ctrl) in the reader hides the sidebar and the toolbar so the article has the whole window;
-  Z again or Escape leaves (Escape closes the selection card first, then leaves immersive reading, and only then goes back to the list).
+  Z again or Escape leaves (Escape closes the find bar first, then the selection card, then leaves immersive reading, and only then goes back to the list).
   Entering changes nothing vertically: the 52 high band at the top stays, empty and in `Background` (the window buttons sit in it, so text is
   never under them, and it is the drag area), the article keeps its own column (`MaxWidth` 680 at Medium, following the Text size), now centered in the
   whole window, and the scroll position, selection and focus stay. Pointer in that band shows the toolbar over it (no animation, no
@@ -338,6 +338,22 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   It ends with the reader (back to the list, a lost session) and is not remembered across restarts. Resizing the window keeps it; the system's full screen is
   separate and untouched. Accessibility: entering announces "Immersive reading on" and leaving "Immersive reading off" with `Announce`, and the focus stays on the
   article (a focused toolbar button that disappears hands the focus to the article). Drawn in `design/screens/reader.html`, `immersive` and `immersive-bar`.
+- **Find in the article.** Cmd/Ctrl+F in the reader opens a find row; it does nothing while the article is still loading or has failed (no text to search), and it
+  never leaves the reader. The row is `ui.FindBar` (field, count, Previous, Next, Done), 44 high, laid between the toolbar band and the article: it sits under the
+  52 high toolbar with `Background` and the hairline below it, and its content is aligned to the article column like the toolbar's. The article moves down by
+  the row's height (no overlay, so no text is hidden under it) and returns when it closes; the scroll position of the text is kept. In immersive reading the row
+  shows in the same place in the empty band without bringing the toolbar. The field is 28 high, `Soft` ink fill, radius 8, search icon, placeholder "Find" (the toolkit's own word),
+  the Focus ring while focused; the count is 12 tabular muted ("2 of 4"), "No matches" in `Danger` (the field and the buttons stay, Previous and Next disabled);
+  Previous and Next are 28 icon buttons (`chevron-up`, `chevron-down`) and Done is a text button. States: empty (field focused, no count, no highlight), typing
+  (every match highlighted, the first match of the text is current, the view scrolls just enough to show it, count "n of m"), no matches, closed.
+  Highlight: all matches `Warning` at 25% over `Background`; the current one `Warning` at 40% plus a 1.5 `Text` underline, so it is not told apart by color alone (the toolkit draws no outline round text).
+  Text inside a match is always `Text` (links, muted and code color give way), which keeps at least 5.8:1 on the 40% fill in both schemes (prose, the accent and
+  the muted color fall under 4.5:1 there). Keys: Enter or Cmd+G / F3 goes to the next match and Shift+Enter or Shift+Cmd+G / Shift+F3 to the previous, both
+  wrapping; typing updates the matches as it goes; reopening selects the last query. Escape or Done closes the row, clears the highlight and returns the focus to
+  the article body. It searches only the text shown (the original, the translation or the summary card, whichever is on), case and diacritics ignored,
+  locally and without a request, and when the view changes (original, translation) or another article opens it runs again on the new text (a new article closes it). Counting stops at 1000 and reads "1 of 1000".
+  Accessibility: the row is a toolbar named "Find in article", the field is labeled by it, the count is announced as it changes ("2 of 4", "No matches")
+  with `Announce`, and no pointer is needed. Drawn in `design/screens/reader.html`, `find-empty`, `find`, `find-none`, `find-translation` and `immersive-find`.
 - **Summary and translation in the reader.** The summary is a card under the title, radius 14, padded 14/16/16, text
   13 at line height 1.65 (1.75 in Chinese), its head 12 medium: while it is made, `Soft(Accent)` with a spinner,
   "Summarizing…", a Cancel text button and three skeleton lines; done, `Soft(Accent)` with "Summary · by {model}", the
@@ -666,7 +682,7 @@ What Oriel uses today:
 | `c.Toast`, `c.Announce` | Feedback after starring, marking, refreshing all subscriptions (the result, plain, `refreshed`) and failures, and "No unread entries below" and "Back where you left off" (the reader opening a part-read article scrolled to its place, with the rotate-ccw icon, `resumed` in the reader mockup); counts announced without moving the focus. A title takes up to two lines, then an ellipsis, with the whole text in a tooltip while it is cut and as the accessible name (`fetched-long`). |
 | `c.ToastAction` | Deleting a subscription (`deleted` in `subscriptions.html`): "Deleted “Go Blog”" with Undo and a close button, in the `Trash2` icon, for 8 seconds; announced, takes no focus; Undo restores the subscription with its entries and all that went with it, and a toast "Can’t undo this any more" says when the server no longer has it. "Mark all as read", "Mark above as read", "Mark subscription as read", "Mark older than … as read" and the V key act at once and offer Undo here, with a close button, one Undo shared by all, shown for 8 seconds, announced by screen readers and never taking the focus, and none when more than 10000 entries were marked (`marked-older`: "Marked 7 entries in “All” older than 1 week as read"); when no unread entry is that old a plain toast without Undo says so (`marked-older-none`); Cmd/Ctrl+Z undoes it while the toast shows. The toast is centered at the bottom as an `Inverse` tile with `InverseText`. |
 | Command palette | Cmd/Ctrl+K, from the timeline and the reader. `ui.DialogBase` drawn like the key sheet (`theme.Scrim`, then `theme.Sheet` at the Dialog level: `Raised`, radius 16, rim and shadow) but anchored 15% from the top, 560 wide at most (the window width less the margins when narrower). Top: a 32 high search field (search icon, label and placeholder "Go to…") with the Focus ring, focused on open. Below it the list, at most 60% of the window high, scrolling inside: small muted group headers (Actions, Kinds, Subscriptions, Settings) over rows 32 high with radius 6 and 13 type. A row has its icon (the sidebar's kind icon, the subscription's glyph, the action's or page's icon), its name, and at the right a muted tabular unread count (subscriptions and kinds; above 999 it reads "999+") or the action's existing shortcut as key chips like the key sheet's. While the reader shows, the Actions group has one more row, "Immersive reading" (the `maximize-2` icon, chip Z), named "Exit immersive reading" while it is on (`minimize-2`). The highlight is a `Chosen` fill and starts on the first row; Up and Down move it and wrap, it scrolls into view, Return or a click runs the row and closes the palette, Escape or Cmd/Ctrl+K closes it. Typing filters and ranks (prefix, word start, substring, then scattered letters; case and spaces ignored) over the loaded names only, with no request; at most 50 rows, and the matches are one ranked list without headers, each row naming its group in muted text after its name. No match: one muted line, "No matches". Accessibility: the field is labeled "Go to…", rows are list items named by their group and name, the highlighted one is announced with `Announce`, and the result count is announced as the query changes. Drawn in `design/screens/timeline.html`, `palette`, `palette-query`, `palette-none`. |
-| `ui.DialogBase` (key sheet) | The keyboard shortcut sheet, drawn like the subscription dialogs: two columns (timeline, reader) and an "Anywhere" group below (the Reader column lists "Immersive reading" Z and "Leave immersive reading" Esc before "Back to the list" Esc), each key a small chip; one column below a 760 wide window. Escape or Close dismisses it. |
+| `ui.DialogBase` (key sheet) | The keyboard shortcut sheet, drawn like the subscription dialogs: two columns (timeline, reader) and an "Anywhere" group below (the Reader column lists "Find in article" Cmd/Ctrl+F, "Immersive reading" Z and "Leave immersive reading" Esc before "Back to the list" Esc), each key a small chip; one column below a 760 wide window. Escape or Close dismisses it. |
 | `ui.DialogBase` (lightbox) | The pictures of a social or image entry, full window, see "The lightbox" in Layout and spacing. A click on a picture in a row opens it on that picture, Space on a chosen row on the first; the title and text still open the browser. It uses the dialog's focus return, Escape and key blocking, with its own paging keys; the pictures come through the image proxy and the decode cache like the rows' do. No video. Drawn in `design/screens/timeline.html`, `lightbox`, `lightbox-failed`. |
 
 **Tooltips.**
@@ -839,7 +855,7 @@ Overlays share focus and Escape behavior; see
 - **Timeline keys.** J or Down and K or Up move between entries, N goes to the next unread entry below the chosen one
   (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in the
   reader, anything else in the browser) and marks it read, Space opens the pictures of a chosen social or image entry in the lightbox, S stars it, M toggles read, V marks the entries fully in view as
-  read and scrolls the first one below them to the top (see "Mark visible" below), `/` and Cmd/Ctrl+F go to search, Escape clears it. The list keys are
+  read and scrolls the first one below them to the top (see "Mark visible" below), `/` and Cmd/Ctrl+F go to search while the list shows (in the reader Cmd/Ctrl+F opens find in the article instead and does not go back), Escape clears it. The list keys are
   window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
   Cmd/Ctrl+K opens the command palette (see Components), which goes to any subscription, kind or Settings page and runs the common actions. Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+R refreshes all subscriptions (see "Refresh all" below), Cmd/Ctrl+Z undoes the last "mark as read" action while its toast shows, and `?` or Cmd/Ctrl+/
   opens the key sheet, which the Help menu also lists as "Keyboard shortcuts".
@@ -922,7 +938,7 @@ Overlays share focus and Escape behavior; see
   The focus ring on a sidebar item is 2 DIPs of the pane's own accent at 70% (`sidebar-focus` in the mockup).
 - **Reader keys.** While the reader shows, J and K go to the next and previous article, N to the next unread one (a
   toast when there is none, staying on this article), S stars, M toggles read, O
-  opens the original in the browser, Z enters immersive reading (see above) and Escape goes back to the list, the entry it opened from focused (while immersive reading is on, Escape leaves it first). The article
+  opens the original in the browser, Z enters immersive reading (see above), Cmd/Ctrl+F opens find in the article (see above; Enter and Shift+Enter step through the matches) and Escape goes back to the list, the entry it opened from focused. Escape works in this order: the find row, the selection card, immersive reading, then back, one step per press. The article
   takes the focus when it opens, so the arrows, Space, Page Up/Down and Home/End scroll it, and Tab goes through its
   links. Every icon-only toolbar button names its key in the tooltip; the back button carries its name as text and has no
   tooltip, its key is in the key sheet.
@@ -1062,6 +1078,7 @@ MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
 - [ ] The whole UI works with the keyboard: the focus order is the standard one and follows reading order, there is
       a visible focus ring (do not remove it), shortcuts exist for frequent actions, Escape closes overlays.
 - [ ] Immersive reading announces "Immersive reading on" and "Immersive reading off", keeps the focus on the article, leaves with Z or Escape, and needs no pointer for any reader action.
+- [ ] Find in the article announces the match count ("2 of 4", "No matches") as it changes, highlights the current match by underline as well as fill, keeps text inside matches at 4.5:1 or more in both schemes, and Escape closes it with the focus back on the article.
 - [ ] The lightbox is a dialog named for its entry; paging announces "Picture {n} of {total}", every button has a name, the focus order is bar, then Previous and Next, and Escape closes it with the focus back on its row.
 - [ ] A row's screen-reader label reads source, title, time, reading time, unread or read, starred; the reading-time
       button's name states the current budget, and its menu items are radio items with the current one checked.
@@ -1111,6 +1128,10 @@ color, and the row actions fade. See
   reads Simplified Chinese; everything else reads English. Screens use it rather than their own mapping. The Interface
   language preference (System, 简体中文, English; Settings, Appearance) overrides it: System means the mapping above.
   Its choices are named in their own language and are not translated. A change rebuilds the screens at once.
+  MyGo's own words (find bar, dialogs, menus) follow the same language. MyGo keeps the language it is given for the
+  next launches, and an app-level language beats the system's, so System gives it none and MyGo follows the system by
+  itself; only a language chosen in Settings is given. The one exception is a Chinese in another script (zh-Hant,
+  zh-TW): MyGo finds Simplified no match for it and would say English, so Simplified is given then.
 - Every key has both translations, and each screen's test fails on a missing or untranslated entry. Accessible
   names are copy too: translate `Label` and `Description`.
 - Feed content (titles, text, author names) is shown as it comes, in whatever language it is in; it is not copy.

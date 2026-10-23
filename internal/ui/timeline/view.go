@@ -42,7 +42,7 @@ type copy struct {
 	AddSource, EditSource, AddFirst, ImportOPML, RestoreBackup, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                  string
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                                                    string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
-	KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                                                     string
+	KeyFind, KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                                            string
 	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                        string
 	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkBelow, MarkedBelow, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                 string
 	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                                        string
@@ -2317,10 +2317,10 @@ func (s *Screen) View(c *ui.Context) {
 	open := s.keys || s.subs.Open() || s.pal.open || s.lb.open
 	if !open {
 		c.OnShortcut(ui.Cmd, ui.KeyK, s.openPalette)
-		c.OnShortcut(ui.Cmd, ui.KeyF, func() {
-			s.back()
-			s.searchBox = true
-		})
+		if s.reading == 0 {
+			// In the reader the same keys find in the article, which the reader handles.
+			c.OnShortcut(ui.Cmd, ui.KeyF, func() { s.searchBox = true })
+		}
 		c.OnShortcut(ui.Cmd, ui.KeyN, s.subs.Add)
 		c.OnShortcut(ui.Cmd, ui.KeyR, s.RefreshAll)
 		c.OnShortcut(ui.Cmd, ui.KeySlash, s.ShowKeys)
@@ -2682,7 +2682,7 @@ func (s *Screen) keySheet(c *ui.Context) {
 		{s.text.KeyBack, one("L", "→", "Esc")}, {s.text.KeyMenu, menu}, {s.text.KeyUndo, [][]string{{cmd, "Z"}}}}
 	reading := []key{{s.text.KeyNextArticle, one("J")}, {s.text.KeyPreviousArticle, one("K")},
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyStar, one("S")}, {s.text.KeyRead, one("M")},
-		{s.text.KeyOpenBrowser, one("O")}, {s.text.KeyImmersive, one("Z")}, {s.text.KeyImmersiveExit, one("Esc")},
+		{s.text.KeyOpenBrowser, one("O")}, {s.text.KeyFind, [][]string{{cmd, "F"}}}, {s.text.KeyImmersive, one("Z")}, {s.text.KeyImmersiveExit, one("Esc")},
 		{s.text.KeyBack, one("Esc")}}
 	anywhere := []key{{s.text.KeyPalette, [][]string{{cmd, "K"}}}, {s.text.KeyAdd, [][]string{{cmd, "N"}}}, {s.text.KeyAddContinue, [][]string{{cmd, "↩"}}}, {s.text.RefreshAll, [][]string{{cmd, "R"}}}, {s.text.KeySettings, [][]string{{cmd, ","}}},
 		{s.text.KeyToggleSidebar, [][]string{{cmd, "\\"}}}, {s.text.KeyKeys, one("?")}}

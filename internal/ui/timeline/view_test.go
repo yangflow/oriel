@@ -2411,6 +2411,31 @@ func TestKeySheet(t *testing.T) {
 	}
 }
 
+// TestFindInTheReader shows Cmd+F finds in the open article and stays in the reader, where the list's search is not
+// reached, and that the search still opens from the list.
+func TestFindInTheReader(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if err := tt.Click("Go Blog, Go 1.27 is released, 5 min ago, Unread"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Frame()
+	if s.reading == 0 || s.searchBox || !tt.HasText("Done") {
+		t.Fatalf("reading %d, search %v, texts %v", s.reading, s.searchBox, tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if s.reading != 0 {
+		t.Fatal("Escape twice does not go back to the list")
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	if !tt.Focused("Search entries") {
+		t.Fatal("Cmd+F in the list does not focus the search")
+	}
+}
+
 func TestStates(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
