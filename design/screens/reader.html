@@ -61,6 +61,11 @@
      buttons never sit over text and nothing moves when it is entered). immersive-bar: the pointer is in that band (or the focus is
      in the toolbar), so the toolbar shows over it with the one extra button, "Exit immersive reading" (minimize-2, tooltip with Z),
      before More; it hides again when the pointer leaves and the focus is not in it. J and K still change the article.
+     Find in the article (docs/design.md, Find in the article; Cmd/Ctrl+F once the article shows): a 44 high row under the toolbar band with the
+     field, the count, Previous and Next, and Done. find-empty: just opened (the last query, if any, selected; no count), find: typed, every
+     match marked and the current one ringed ("2 of 9"), find-none: nothing matches ("No matches", Previous and Next dimmed), find-translation:
+     the same over the translation (only the text shown is searched), immersive-find: the row in immersive reading. Closed is every other state.
+     The marks are Warning at 25% (the others) and 40% (the current one, with a 1.5 DIP Warning ring), the text in them always Text.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
@@ -316,6 +321,28 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .tip { position:absolute; z-index:5; max-width:260px; padding:5px 9px; border-radius:6px; font-size:12px; line-height:1.4; color:var(--text); background:var(--raised); box-shadow:0 0 0 .5px rgba(var(--shadow),.18),0 4px 14px rgba(var(--shadow),.16) }
 .more-menu button:hover, .more-menu button.hover { background:var(--sel) }
 .toast .msg { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+
+/* Find in the article (docs/design.md, Find in the article): a 44 high row of Background under the toolbar band, hairline below, the field and the
+   count at the article column's left end and Done at its right end. The article gains the row's 44 at its top while it is open. */
+.find { position:absolute; top:52px; left:0; right:0; z-index:2; height:44px; display:flex; align-items:center; gap:4px; border-bottom:.5px solid var(--border); background:var(--background);
+  padding:0 max(16px,calc((100% - var(--col))/2 + 32px)) 0 max(16px,calc((100% - var(--col))/2 + 32px)) }
+.immersive .find { padding-left:max(16px,min(calc((100% - var(--col))/2 + 32px),calc((100% - 640px)/2))); padding-right:max(16px,min(calc((100% - var(--col))/2 + 32px),calc((100% - 640px)/2))) }
+.finding .page { padding-top:100px }
+.min .finding .page { padding-top:96px }
+.find .field { flex:0 1 320px; min-width:0; height:28px; display:flex; align-items:center; gap:6px; padding:0 8px; margin-right:4px; border-radius:8px; background:rgba(var(--ink),.055); color:var(--muted) }
+.find .field.focus { background:var(--raised); box-shadow:0 0 0 2px var(--focus) }
+:root[data-scheme=dark] .find .field.focus { background:var(--track) }
+.find .field svg.icon { width:14px; height:14px }
+.find .field input { flex:1; min-width:0; height:100%; border:0; outline:0; background:none; padding:0; font:inherit; color:var(--text) }
+.find .field input::placeholder { color:var(--muted) }
+.find .count { flex:none; min-width:72px; font-size:12px; font-variant-numeric:tabular-nums; color:var(--muted) }
+.find .count.none { color:var(--danger) }
+.find .tool { width:28px; height:28px; border-radius:7px }
+.find .tool svg.icon { width:14px; height:14px }
+.find .done { height:28px; padding:0 10px; border-radius:8px; font-size:13px; font-weight:500; color:var(--text2) }
+.find .done:hover { background:var(--hover); color:var(--text) }
+mark.hit { background:color-mix(in srgb,var(--warning) 25%,transparent); color:var(--text); border-radius:3px; box-shadow:0 0 0 1px color-mix(in srgb,var(--warning) 25%,transparent) }
+mark.hit.now { background:color-mix(in srgb,var(--warning) 40%,transparent); box-shadow:0 0 0 1.5px var(--warning) }
 </style>
 <div class="switcher" aria-hidden="true">
   <label>state <select id="state"></select></label>
@@ -328,7 +355,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar'];
+const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
@@ -421,6 +448,7 @@ const copy={
     aiOff:'Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.',
     alsoHead:'Also in', noMoreUnread:'No unread articles after this one', resumed:'Back where you left off', aiOffTitle:'AI isn’t set up', openSettings:'Open settings', close:'Close',
     translateSel:'Translate selection', explainSel:'Explain selection', copyAction:'Copy', selectAll:'Select All', selTranslation:'Translation', selExplanation:'Explanation',
+    find:'Find', matches:'{current} of {total}', noMatches:'No matches', prevMatch:'Previous match', nextMatch:'Next match', done:'Done',
     selFailed:'Couldn’t get an answer. {reason}', selTooLong:'Select less text', selTooLongHint:'Up to 2000 characters can be translated or explained at a time.', selAiOff:'Translating and explaining use an AI endpoint of your choosing. Set one up in Settings first.',
   },
   'zh-Hans':{
@@ -443,6 +471,7 @@ const copy={
     aiOff:'摘要和翻译走你自己选的 AI 接口，例如 OpenAI 或本机的模型。先在设置里配好。',
     alsoHead:'另见', noMoreUnread:'后面没有未读文章了', resumed:'回到上次读到的位置', aiOffTitle:'还没配置 AI', openSettings:'打开设置', close:'关闭',
     translateSel:'翻译所选', explainSel:'解释所选', copyAction:'复制', selectAll:'全选', selTranslation:'译文', selExplanation:'解释',
+    find:'查找', matches:'第 {current} 项，共 {total} 项', noMatches:'无匹配项', prevMatch:'上一处匹配', nextMatch:'下一处匹配', done:'完成',
     selFailed:'没能得到回答。{reason}', selTooLong:'请少选一些文字', selTooLongHint:'一次最多翻译或解释 2000 个字。', selAiOff:'翻译和解释使用你自己选定的 AI 端点，请先在设置里配置。',
   },
 }[lang];
@@ -585,7 +614,8 @@ let page;
 switch(state){
   case 'selection-menu':case 'selection-explain':page=article('',markExplain(full));break;
   case 'selection-loading':case 'selection-translate':case 'selection-failed':case 'selection-too-long':case 'selection-ai-off':page=original('').replace(zh?'it indexes every run of three characters':'把文本切成所有连续的三个字符',m=>`<mark class="sel">${m}</mark>`);break;
-  case 'immersive':case 'immersive-bar':page=article('',full);break;
+  case 'immersive':case 'immersive-bar':case 'immersive-find':case 'find-empty':case 'find':case 'find-none':page=article('',full);break;
+  case 'find-translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'summarizing':case 'summary':case 'summary-failed':case 'summary-cap':case 'ai-off':page=article(card[state],full);break;
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
@@ -601,7 +631,23 @@ switch(state){
   case 'loading':page=`<div class="page skeleton" aria-busy="true"><div class="bar m"></div><div class="bar h"></div>${'<div class="bar s"></div>'.repeat(3)}<div class="bar e"></div><br>${'<div class="bar s"></div>'.repeat(2)}<div class="bar e"></div></div>`;break;
   case 'error':page=empty('wifiOff',copy.error,copy.errorHint,`<button class="button">${icon('refresh')}${copy.retry}</button>`,'danger');break;
 }
-document.getElementById('app').innerHTML=`${sidebar}<section class="main${imm?' immersive '+(state==='immersive-bar'?'bar':'quiet'):''}"><div class="toolbar">${tools}</div><div class="scroll">${page}</div>${selMenu}${isSel?selCard():''}${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}${state==='link-copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.linkCopied}</span></div>`:''}${state==='copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.copied}</span></div>`:''}${state==='resumed'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${copy.resumed}</span></div>`:''}</section>`;
+const finding=state.startsWith('find')||state==='immersive-find';
+const findQuery=state==='find-none'?(zh?'二叉树':'binary tree'):state==='find-empty'?'':(zh?'索引':'index');
+const findRow=finding?`<div class="find" role="toolbar" aria-label="${copy.find}"><div class="field focus">${icon('search')}<input type="search" value="${findQuery}" placeholder="${copy.find}" aria-label="${copy.find}"></div><span class="count" role="status"></span>
+<button class="tool" aria-label="${copy.prevMatch}" title="${copy.prevMatch} (Shift+Enter)">${icon('chevronUp')}</button><button class="tool" aria-label="${copy.nextMatch}" title="${copy.nextMatch} (Enter)">${icon('chevronDown')}</button><span class="spacer"></span><button class="done" title="${copy.done} (Esc)">${copy.done}</button></div>`:'';
+document.getElementById('app').innerHTML=`${sidebar}<section class="main${imm?' immersive '+(state==='immersive-bar'?'bar':'quiet'):''}${finding?' finding':''}"><div class="toolbar">${tools}</div>${findRow}<div class="scroll">${page}</div>${selMenu}${isSel?selCard():''}${state==='no-more-unread'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.noMoreUnread}</span></div>`:''}${state==='link-copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.linkCopied}</span></div>`:''}${state==='copied'?`<div class="toast" role="status">${icon('circleCheck')}<span class="msg">${copy.copied}</span></div>`:''}${state==='resumed'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${copy.resumed}</span></div>`:''}</section>`;
+if(finding&&findQuery){
+  const q=findQuery.toLowerCase(),hits=[],walker=document.createTreeWalker(document.querySelector('.page'),NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement.closest('.meta,button,.switch,.segmented')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}),nodes=[];
+  while(walker.nextNode())nodes.push(walker.currentNode);
+  for(const node of nodes){
+    const text=node.nodeValue,low=text.toLowerCase();let at=0,i;const frag=document.createDocumentFragment();
+    while((i=low.indexOf(q,at))>=0){frag.append(text.slice(at,i));const m=document.createElement('mark');m.className='hit';m.textContent=text.slice(i,i+q.length);frag.append(m);hits.push(m);at=i+q.length}
+    if(at){frag.append(text.slice(at));node.replaceWith(frag)}
+  }
+  const now=Math.min(2,hits.length);if(now)hits[now-1].classList.add('now');
+  document.querySelector('.find .count').textContent=hits.length?t('matches',{current:now,total:hits.length}):copy.noMatches;
+  if(!hits.length){document.querySelector('.find .count').classList.add('none');document.querySelectorAll('.find .tool').forEach(b=>b.disabled=true)}
+}
 if(state==='more-menu'||state==='more-narrow'){
   const w=document.getElementById('window'),a=document.querySelector('.toolbar .tool[aria-haspopup]').getBoundingClientRect(),b=w.getBoundingClientRect();
   w.insertAdjacentHTML('beforeend',`<div class="more-menu" role="menu" aria-label="${copy.more}">${narrow?`<button role="menuitem" class="hover">${copy.copyLink}</button><hr>`:''}<button role="menuitem"${narrow?'':' class="hover"'}>${copy.copyMd}</button><button role="menuitem">${copy.saveMd}</button></div>`);
