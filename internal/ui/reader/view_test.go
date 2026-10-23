@@ -798,6 +798,9 @@ func TestAIOff(t *testing.T) {
 	if !slices.Equal(f.calls, []string{"settings"}) {
 		t.Fatalf("calls %v", f.calls)
 	}
+	if r, ok := tt.Find("Close"); !ok || r.W < theme.MinTarget || r.H < theme.MinTarget {
+		t.Errorf("the close button is %v, under %d by %d", r, theme.MinTarget, theme.MinTarget)
+	}
 	click(t, tt, "Close")
 	absent(t, tt, "AI isn’t set up")
 	click(t, tt, "Summarize")

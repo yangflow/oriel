@@ -252,6 +252,9 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .result .close { width:20px; height:20px; display:grid; place-items:center; border-radius:5px; color:var(--muted) }
 .result .close:hover { background:var(--hover); color:var(--text) }
 .result .close svg.icon { width:13px; height:13px; margin:0 }
+/* Hit area: a control drawn under 24 keeps its look; an invisible 24 by 24 minimum target surrounds it (docs/design.md, Accessibility). */
+.result .close { position:relative }
+.result .close::after { content:""; position:absolute; inset:-2px }
 .device { display:flex; align-items:center; gap:12px }
 .device .glyph { width:32px; height:32px; flex:none; display:grid; place-items:center; border-radius:8px; background:var(--track); color:var(--text2) }
 .device .text { flex:1; min-width:0 }

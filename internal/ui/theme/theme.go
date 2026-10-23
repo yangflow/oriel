@@ -207,6 +207,47 @@ func Fade(e ui.Element) ui.Element {
 	return e.Transition(fillFade)
 }
 
+// MinTarget is the least side of a pointer target in DIPs (WCAG 2.5.8, docs/design.md): a control drawn smaller is
+// still this big to the pointer.
+const MinTarget = 24
+
+// Hit is a small control: what it draws, W by H with Radius and Fill, and the pointer target around it, at least
+// MinTarget on each side. A W of 0 draws as wide as its children and PadX around them.
+type Hit struct {
+	W, H, Radius float32
+	Fill         ui.Color
+	PadX, Gap    float32
+	Fade         bool // the fill fades in and out
+}
+
+// Apply makes b the target and draws the control inside it, centered, from children. The target takes more room
+// than the control draws, so the caller gives the room back with the margins it returns, across and down, both 0 or
+// negative: b.Margin(y, x, y, x) leaves the control in its place in the row, and the target reaches into the gap
+// beside it, not into its neighbor.
+func (h Hit) Apply(c *ui.Context, b ui.Element, children func()) (x, y float32) {
+	side := max(MinTarget, h.H)
+	b.Height(side).Center()
+	x, y = 0, (h.H-side)/2
+	if h.W > 0 {
+		wide := max(MinTarget, h.W)
+		b.Width(wide)
+		x = (h.W - wide) / 2
+	} else {
+		b.MinWidth(MinTarget)
+	}
+	b.Children(func() {
+		in := ui.Row(c).Height(h.H).Center().Gap(h.Gap).PaddingX(h.PadX).Radius(h.Radius).Background(h.Fill)
+		if h.W > 0 {
+			in.Width(h.W)
+		}
+		if h.Fade {
+			Fade(in)
+		}
+		in.Children(children)
+	})
+	return x, y
+}
+
 // Raised draws the chosen segment of a control on a Track: RaisedFill with a hairline.
 func Raised(t *ui.Theme, b ui.Element) {
 	b.Background(RaisedFill(t)).Shadow(0, 0, 0, 1, t.Border)

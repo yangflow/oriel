@@ -2845,14 +2845,17 @@ func (s *Screen) section(c *ui.Context, failing int) {
 					s.failingOnly = true
 				}
 			}
-			b := ui.ButtonBase(c).Size(theme.Px(t, 22), theme.Px(t, 22)).Shrink(0).Radius(theme.Px(t, 8)).Label(s.text.AddSource).
-				Tooltip(s.text.AddSource)
+			b := ui.ButtonBase(c).Shrink(0).Label(s.text.AddSource).Tooltip(s.text.AddSource)
 			color := t.TextMuted
+			var fill ui.Color
 			if b.Hovered() {
-				b.Background(t.SurfaceHover)
+				fill = t.SurfaceHover
 				color = t.Text
 			}
-			b.Children(func() { ui.Icon(c, icons.Plus).FontSize(theme.Px(t, 14)).TextColor(color) })
+			mx, my := theme.Hit{W: theme.Px(t, 22), H: theme.Px(t, 22), Radius: theme.Px(t, 8), Fill: fill}.Apply(c, b, func() {
+				ui.Icon(c, icons.Plus).FontSize(theme.Px(t, 14)).TextColor(color)
+			})
+			b.Margin(my, mx, my, mx)
 			if b.Clicked() {
 				s.subs.Add()
 			}
@@ -2942,12 +2945,15 @@ func (s *Screen) sourceTools(c *ui.Context) {
 				input.OnShortcut(0, k, func() { s.firstFocus = true })
 			}
 			if s.sideQuery != "" {
-				clear := ui.ButtonBase(c).Size(theme.Px(t, 20), theme.Px(t, 20)).Radius(theme.Px(t, 6)).Label(s.text.ClearFilter).
-					Tooltip(s.text.ClearFilter)
+				clear := ui.ButtonBase(c).Label(s.text.ClearFilter).Tooltip(s.text.ClearFilter)
+				var fill ui.Color
 				if clear.Hovered() {
-					clear.Background(t.SurfaceHover)
+					fill = t.SurfaceHover
 				}
-				clear.Children(func() { ui.Icon(c, icons.X).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted) })
+				mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: theme.Px(t, 6), Fill: fill}.Apply(c, clear, func() {
+					ui.Icon(c, icons.X).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+				})
+				clear.Margin(my, mx, my, mx)
 				cleared = clear.Clicked()
 			}
 		})
@@ -2987,17 +2993,18 @@ func (s *Screen) sourceTools(c *ui.Context) {
 // link is a small text button in the sidebar's section header, with an optional icon; it reports a click.
 func (s *Screen) link(c *ui.Context, icon *ui.SVG, text, label string, color ui.Color) bool {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Height(theme.Px(t, 20)).Gap(theme.Px(t, 4)).PaddingX(theme.Px(t, 6)).Radius(theme.Px(t, 6)).Label(label).
-		Tooltip(label)
+	b := ui.ButtonBase(c).Label(label).Tooltip(label)
+	var fill ui.Color
 	if b.Hovered() {
-		b.Background(t.SurfaceHover)
+		fill = t.SurfaceHover
 	}
-	b.Children(func() {
+	_, y := theme.Hit{H: theme.Px(t, 20), Radius: theme.Px(t, 6), Fill: fill, PadX: theme.Px(t, 6), Gap: theme.Px(t, 4)}.Apply(c, b, func() {
 		if icon != nil {
 			ui.Icon(c, icon).FontSize(theme.Px(t, 12)).TextColor(color)
 		}
 		ui.Text(c, text).SingleLine().FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(color)
 	})
+	b.Margin(y, 0, y, 0)
 	return b.Clicked()
 }
 
@@ -3422,11 +3429,15 @@ func (s *Screen) searchField(c *ui.Context, opened bool) {
 			Placeholder(s.text.Search)
 		if s.query != "" {
 			input.OnShortcut(0, ui.KeyEscape, func() { s.clearing = true })
-			clear := ui.ButtonBase(c).Size(theme.Px(t, 20), theme.Px(t, 20)).Radius(theme.Px(t, 6)).Label(s.text.Clear)
+			clear := ui.ButtonBase(c).Label(s.text.Clear)
+			var fill ui.Color
 			if clear.Hovered() {
-				clear.Background(t.SurfaceHover)
+				fill = t.SurfaceHover
 			}
-			clear.Children(func() { ui.Icon(c, icons.X).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted) })
+			mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: theme.Px(t, 6), Fill: fill}.Apply(c, clear, func() {
+				ui.Icon(c, icons.X).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+			})
+			clear.Margin(my, mx, my, mx)
 			if clear.Clicked() {
 				cleared = true
 			}
@@ -3584,13 +3595,15 @@ func (s *Screen) stale(c *ui.Context) {
 		if busy {
 			name, color = s.text.Retrying, t.TextMuted
 		}
-		b := ui.ButtonBase(c).Height(theme.Px(t, 22)).PaddingX(theme.Px(t, 8)).Radius(theme.Px(t, 6)).Shrink(0).Label(name).Disabled(busy)
+		b := ui.ButtonBase(c).Shrink(0).Label(name).Disabled(busy)
+		var fill ui.Color
 		if b.Hovered() && !busy {
-			b.Background(t.SurfaceHover)
+			fill = t.SurfaceHover
 		}
-		b.Children(func() {
+		_, y := theme.Hit{H: theme.Px(t, 22), Radius: theme.Px(t, 6), Fill: fill, PadX: theme.Px(t, 8)}.Apply(c, b, func() {
 			ui.Text(c, name).FontSize(theme.Px(t, 12)).FontWeight(500).TextColor(color).NoWrap()
 		})
+		b.Margin(y, 0, y, 0)
 		if b.Clicked() {
 			s.polledAt = time.Time{}
 			c.Invalidate()
@@ -4041,25 +4054,26 @@ func (s *Screen) alsoChip(c *ui.Context, e client.Entry, muted ui.Color) {
 	t := c.Theme()
 	n := len(e.Group.Entries)
 	open := s.also == e.ID
-	b := ui.ButtonBase(c).Key("also").Height(theme.Px(t, 20)).Padding(0, theme.Px(t, 6), 0, theme.Px(t, 4)).Radius(theme.Px(t, 6)).
-		Label(s.format(s.text.AlsoName, n)).Expanded(open)
+	b := ui.ButtonBase(c).Key("also").Label(s.format(s.text.AlsoName, n)).Expanded(open)
 	color := muted
+	var fill ui.Color
 	switch {
 	case b.Pressed():
-		b.Background(theme.Chosen(t))
+		fill = theme.Chosen(t)
 		color = theme.Text2(t)
 	case b.Hovered():
-		b.Background(t.SurfacePressed)
+		fill = t.SurfacePressed
 		color = theme.Text2(t)
 	case open:
 		color = theme.Text2(t)
 	}
-	b.Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 3)).Children(func() {
+	_, y := theme.Hit{H: theme.Px(t, 20), Radius: theme.Px(t, 6), Fill: fill}.Apply(c, b, func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 3)).Padding(0, theme.Px(t, 6), 0, theme.Px(t, 4)).Children(func() {
 			ui.Icon(c, icons.Layers).FontSize(theme.Px(t, 13)).TextColor(color)
 			ui.Text(c, s.format(s.text.AlsoChip, n)).FontSize(theme.Px(t, 12)).NoWrap().TextColor(color)
 		})
 	})
+	b.Margin(y, 0, y, 0)
 	if b.Clicked() {
 		if open {
 			s.also = 0
