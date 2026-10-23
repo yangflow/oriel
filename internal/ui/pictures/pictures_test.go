@@ -203,3 +203,33 @@ func TestKeep(t *testing.T) {
 		t.Fatalf("kept %d pictures, want the two drawn last, c and d", q.Len())
 	}
 }
+
+// TestAgain asks for one failed picture at once, past Retry and Tries, and leaves the others alone.
+func TestAgain(t *testing.T) {
+	q, f, r := New(false, 0), &source{fails: map[string]int{"a": 100, "b": 100}}, &run{}
+	at := now
+	for range Tries {
+		q.Get("a", at)
+		q.Get("b", at)
+		start(q, f, r, at, yes)
+		r.settle()
+		at = at.Add(Retry)
+	}
+	asked := len(f.asked)
+	q.Again("a")
+	if q.Peek("a") != nil || q.Peek("b") == nil || !q.Peek("b").Failed {
+		t.Fatalf("a: %+v, b: %+v", q.Peek("a"), q.Peek("b"))
+	}
+	f.fails["a"] = 0
+	q.Get("a", at)
+	q.Get("b", at)
+	start(q, f, r, at, yes)
+	r.settle()
+	if len(f.asked) != asked+1 || q.Peek("a").Bitmap == nil || !q.Peek("b").Failed {
+		t.Fatalf("asked %d more times; a: %+v, b: %+v", len(f.asked)-asked, q.Peek("a"), q.Peek("b"))
+	}
+	q.Again("a")
+	if q.Peek("a") == nil {
+		t.Fatal("a picture that loaded was dropped")
+	}
+}

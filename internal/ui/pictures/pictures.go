@@ -101,6 +101,14 @@ func (q *Queue) ForgetFailed() {
 	}
 }
 
+// Again drops the picture at address when it failed, so the next draw asks for it again from the start, at once and
+// with all its tries; it is what a reader's own request for one picture does.
+func (q *Queue) Again(address string) {
+	if p := q.pics[address]; p != nil && p.Failed {
+		delete(q.pics, address)
+	}
+}
+
 // Download starts the pictures asked for, up to MaxDownloads at a time. Each runs through run, which does the work
 // in the background and applies its result on the UI thread; alive tells, on the UI thread, whether the screen still
 // wants that result, and the result of one that does not is dropped.
