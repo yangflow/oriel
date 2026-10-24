@@ -4,15 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 	"time"
 
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )
 
-// MovedSeenNeeded is how many fetches in a row must reach the same permanent address before it is suggested. The
-// sources queries spell it as 3.
+// MovedSeenNeeded is how many fetches in a row must reach the same permanent address before it is suggested.
 const MovedSeenNeeded = 3
+
+// movedShown is the SQL, with the column prefix prefix, that gives the suggested address of a source row: the one seen MovedSeenNeeded times, else none.
+func movedShown(prefix string) string {
+	return "CASE WHEN " + prefix + "moved_seen >= " + strconv.Itoa(MovedSeenNeeded) + " THEN " + prefix + "moved_url ELSE '' END"
+}
 
 // ErrMoveChanged reports that the address to move to is not the one the caller was shown: it changed, or there is
 // none any more.
@@ -36,13 +41,7 @@ func (s *Store) NoteRedirect(ctx context.Context, id int64, final string, now ti
 		}
 		return err
 	}
-	newMoved, newSeen := final, 1
-	switch {
-	case final == "" || final == dismissed:
-		newMoved, newSeen = "", 0
-	case final == moved:
-		newSeen = min(seen+1, MovedSeenNeeded)
-	}
+	newMoved, newSeen := nextMoved(moved, seen, dismissed, final)
 	if newMoved == moved && newSeen == seen {
 		return nil
 	}
@@ -55,6 +54,27 @@ func (s *Store) NoteRedirect(ctx context.Context, id int64, final string, now ti
 		}
 	}
 	return tx.Commit()
+}
+
+// NoteFetchRedirect is NoteRedirect for a source as the fetcher read it: when that state shows nothing would change,
+// which is the common case of no redirect and no suggestion, it does not touch the database. The state is read again
+// inside NoteRedirect's transaction when it does, so a change made in between is not lost.
+func (s *Store) NoteFetchRedirect(ctx context.Context, src FeedSource, final string, now time.Time) error {
+	if moved, seen := nextMoved(src.MovedURL, src.MovedSeen, src.MovedDismissed, final); moved == src.MovedURL && seen == src.MovedSeen {
+		return nil
+	}
+	return s.NoteRedirect(ctx, src.ID, final, now)
+}
+
+// nextMoved is the suggestion state after one fetch that ended at final.
+func nextMoved(moved string, seen int, dismissed, final string) (string, int) {
+	switch {
+	case final == "" || final == dismissed:
+		return "", 0
+	case final == moved:
+		return moved, min(seen+1, MovedSeenNeeded)
+	}
+	return final, 1
 }
 
 // AcceptMove moves a subscription to the address its site moved to: the address becomes shown, the validators are
@@ -78,15 +98,21 @@ func (s *Store) AcceptMove(ctx context.Context, id int64, shown string, now time
 			return Source{}, &ExistsError{ID: have}
 		}
 	}
-	// A deleted subscription with this address goes now, as when the feed is added again.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Source{}, err
+	}
+	defer tx.Rollback()
+	// A deleted subscription with this address goes now, as when the feed is added again; if the move then fails,
+	// the rollback keeps it.
 	for _, gone := range idx.deletedLike(NewSource{URL: shown}) {
-		if _, err := s.db.ExecContext(ctx, "DELETE FROM sources WHERE id = ?", gone); err != nil {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM sources WHERE id = ?", gone); err != nil {
 			return Source{}, err
 		}
 	}
-	result, err := s.db.ExecContext(ctx, `
+	result, err := tx.ExecContext(ctx, `
 		UPDATE sources SET url = ?1, etag = '', last_modified = '', moved_url = '', moved_seen = 0, next_fetch_at = ?2, updated_at = ?2
-		WHERE id = ?3 AND moved_url = ?1 AND moved_seen >= 3 AND deleted_at IS NULL`, shown, now.UnixMilli(), id)
+		WHERE id = ?3 AND moved_url = ?1 AND moved_seen >= ?4 AND deleted_at IS NULL`, shown, now.UnixMilli(), id, MovedSeenNeeded)
 	if err != nil {
 		var sqliteErr *sqlite.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
@@ -97,6 +123,9 @@ func (s *Store) AcceptMove(ctx context.Context, id int64, shown string, now time
 	if n, _ := result.RowsAffected(); n == 0 {
 		return Source{}, ErrMoveChanged
 	}
+	if err := tx.Commit(); err != nil {
+		return Source{}, err
+	}
 	return s.Source(ctx, id)
 }
 
@@ -105,7 +134,7 @@ func (s *Store) AcceptMove(ctx context.Context, id int64, shown string, now time
 func (s *Store) DismissMove(ctx context.Context, id int64, shown string, now time.Time) (Source, error) {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE sources SET moved_dismissed = moved_url, moved_url = '', moved_seen = 0, updated_at = ?1
-		WHERE id = ?2 AND moved_url = ?3 AND moved_seen >= 3 AND deleted_at IS NULL`, now.UnixMilli(), id, shown)
+		WHERE id = ?2 AND moved_url = ?3 AND moved_seen >= ?4 AND deleted_at IS NULL`, now.UnixMilli(), id, shown, MovedSeenNeeded)
 	if err != nil {
 		return Source{}, err
 	}

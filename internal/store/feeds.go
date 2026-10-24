@@ -43,7 +43,11 @@ type FeedSource struct {
 	KeepDays int
 	// Proxy is the source's own fetch proxy.
 	Proxy SourceProxy
-	// MovedDismissed is the address the user turned down as the place the subscription moved to.
+	// MovedURL and MovedSeen are the permanent address the last fetches ended at and how many in a row did;
+	// MovedDismissed is the address the user turned down. The fetcher compares them with a fetch to see whether the
+	// stored state has to change.
+	MovedURL       string
+	MovedSeen      int
 	MovedDismissed string
 }
 
@@ -67,7 +71,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, fetch_interval_auto, last_success_at IS NULL, consecutive_failures,
 			auto_summary, auto_translate, site_url, icon_url, icon_checked_site, websub_hub, websub_topic,
-			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days, COALESCE(last_success_at, created_at), proxy, proxy_user, proxy_password, moved_dismissed
+			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days, COALESCE(last_success_at, created_at), proxy, proxy_user, proxy_password, moved_url, moved_seen, moved_dismissed
 		FROM sources WHERE paused = 0 AND deleted_at IS NULL AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
@@ -83,7 +87,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		var since int64
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
 			&interval, &src.FetchIntervalAuto, &src.FirstSuccess, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
-			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays, &since, &src.Proxy.URL, &src.Proxy.User, &src.Proxy.Password, &src.MovedDismissed); err != nil {
+			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays, &since, &src.Proxy.URL, &src.Proxy.User, &src.Proxy.Password, &src.MovedURL, &src.MovedSeen, &src.MovedDismissed); err != nil {
 			return nil, err
 		}
 		if until.Valid {

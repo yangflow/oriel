@@ -93,13 +93,13 @@ type SourcePatch struct {
 }
 
 // sourceColumnsHead and sourceColumnsTail surround the unread count, which Source and Sources compute differently.
-const sourceColumnsHead = `
+var sourceColumnsHead = `
 	s.id, s.url, s.rsshub_path, s.title, s.site_url, s.icon_url, s.kind, s.fetch_interval_sec, s.fetch_interval_auto, s.suggested_kind, s.next_fetch_at,
 	s.last_fetched_at, s.last_success_at, s.last_error, s.last_error_kind, s.consecutive_failures, s.prompt_summary, s.prompt_translate,
 	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused, s.keep_days, s.pace_sec, s.extract_selector, s.extract_referer, s.extract_rewrites, s.rsshub_instance,
 	s.proxy, s.proxy_user <> '' OR s.proxy_password <> '',
 	s.websub_hub, CASE WHEN s.websub_state = 'active' THEN s.websub_expires_at END,
-	CASE WHEN s.moved_seen >= 3 THEN s.moved_url ELSE '' END, -- MovedSeenNeeded
+	` + movedShown("s.") + `,
 	`
 
 const sourceColumnsTail = `, s.created_at, s.updated_at`

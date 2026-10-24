@@ -682,7 +682,7 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 	now := p.now()
 	switch {
 	case resp.StatusCode == http.StatusNotModified:
-		if err := p.store.NoteRedirect(ctx, src.ID, moved, now); err != nil {
+		if err := p.store.NoteFetchRedirect(ctx, src, moved, now); err != nil {
 			return 0, err
 		}
 		return 0, p.recordSuccess(ctx, src, etag, lastModified, instance, now)
@@ -745,7 +745,7 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 			return 0, err
 		}
 	}
-	if err := p.store.NoteRedirect(ctx, src.ID, moved, now); err != nil {
+	if err := p.store.NoteFetchRedirect(ctx, src, moved, now); err != nil {
 		return 0, err
 	}
 	return created, p.recordSuccess(ctx, src, etag, lastModified, instance, now)

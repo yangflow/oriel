@@ -382,7 +382,7 @@
     "MovedDone": "已更新订阅地址",
     "MovedDismissed": "已忽略",
     "HealthMoved": "已搬到 {to}",
-    "MovedUpdateSource": "更新{name}的地址",
-    "MovedDismissSource": "忽略{name}的搬家提示"
+    "MovedUpdateSource": "更新 {name} 的地址",
+    "MovedDismissSource": "忽略 {name} 的搬家提示"
   }
 }

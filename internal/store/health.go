@@ -56,8 +56,8 @@ const day = 24 * time.Hour
 func (s *Store) SourcesHealth(ctx context.Context, now time.Time) ([]SourceHealth, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, url, rsshub_path, title, icon_url, kind, created_at, last_success_at, consecutive_failures, last_error,
-			CASE WHEN moved_seen >= 3 THEN moved_url ELSE '' END
-		FROM sources WHERE paused = 0 AND deleted_at IS NULL`)
+			CASE WHEN moved_seen >= ?1 THEN moved_url ELSE '' END
+		FROM sources WHERE paused = 0 AND deleted_at IS NULL`, MovedSeenNeeded)
 	if err != nil {
 		return nil, err
 	}

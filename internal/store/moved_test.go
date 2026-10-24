@@ -339,3 +339,25 @@ func TestSetFeedIcon(t *testing.T) {
 		t.Fatalf("icon %q", got.IconURL)
 	}
 }
+
+func TestAcceptMoveKeepsDeletedSourceWhenItFails(t *testing.T) {
+	s, src, now := movedStore(t)
+	ctx := context.Background()
+	gone, err := s.CreateSource(ctx, NewSource{URL: newAddress, Kind: "article", FetchInterval: time.Hour}, "Gone", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteSource(ctx, gone.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	for range MovedSeenNeeded {
+		note(t, s, src.ID, newAddress, now)
+	}
+	if _, err := s.AcceptMove(ctx, src.ID, "https://stale.example/feed.atom", now); !errors.Is(err, ErrMoveChanged) {
+		t.Fatalf("AcceptMove with a stale address = %v, want ErrMoveChanged", err)
+	}
+	var n int
+	if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM sources WHERE id = ?", gone.ID).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("deleted source rows = %d, %v; want 1", n, err)
+	}
+}
