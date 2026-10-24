@@ -115,6 +115,19 @@ func TestEmbedOnlyFullTextFallsBackToTheFeed(t *testing.T) {
 	absent(t, tt, "Only a video here", "No text to show")
 }
 
+func TestEmbedOnlyFeedKeepsTheSummaryAfterTheRows(t *testing.T) {
+	a := embedArticle("failed", "", `<iframe src="https://player.example/x"></iframe>`)
+	a.Summary = "A short summary."
+	_, tt := opened(t, a)
+	expect(t, tt, "There\u2019s embedded content here", "A short summary.")
+	absent(t, tt, "Only embedded content here", "No text to show")
+	texts := tt.Texts()
+	row, sum := slices.Index(texts, "There\u2019s embedded content here"), slices.Index(texts, "A short summary.")
+	if row < 0 || sum < row {
+		t.Fatalf("summary at %d should follow the row at %d", sum, row)
+	}
+}
+
 func TestNoTextAtAll(t *testing.T) {
 	_, tt := opened(t, embedArticle("failed", "", `<script>x()</script><form></form>`))
 	expect(t, tt, "No text to show")
