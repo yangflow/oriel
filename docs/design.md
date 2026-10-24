@@ -430,7 +430,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   the muted color fall under 4.5:1 there). Keys: Enter or Cmd+G / F3 goes to the next match and Shift+Enter or Shift+Cmd+G / Shift+F3 to the previous, both
   wrapping; typing updates the matches as it goes; reopening selects the last query. Escape or Done closes the row, clears the highlight and returns the focus to
   the article body. It searches only the text shown (the original, the translation or the summary card, whichever is on), case and diacritics ignored,
-  locally and without a request, and when the view changes (original, translation) or another article opens it runs again on the new text (a new article closes it). Counting stops at 1000 and reads "1 of 1000".
+  locally and without a request, the cells and the caption of a data table included (a match never runs from one cell into the next; it is highlighted in the cell like any other, and stepping to it scrolls the table sideways, as far as the cell needs, as well as the page), and when the view changes (original, translation) or another article opens it runs again on the new text (a new article closes it). Counting stops at 1000 and reads "1 of 1000".
   Accessibility: the row is a toolbar named "Find in article", the field is labeled by it, the count is announced as it changes ("2 of 4", "No matches")
   with `Announce`, and no pointer is needed. Drawn in `design/screens/reader.html`, `find-empty`, `find`, `find-none`, `find-translation` and `immersive-find`.
 - **Summary and translation in the reader.** The summary is a card under the title, radius 14, padded 14/16/16, text

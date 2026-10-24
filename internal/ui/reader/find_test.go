@@ -2,6 +2,7 @@ package reader
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -278,5 +279,74 @@ func TestFindInChineseTypesetText(t *testing.T) {
 	tt.Frame()
 	if len(s.find.hits) != 0 {
 		t.Fatalf("hits %v", s.find.hits)
+	}
+}
+
+func TestFindCountsTheCellsOfATable(t *testing.T) {
+	a := full()
+	a.ExtractedHTML = `<p>Intro.</p><table><caption>Sizes of Zebra</caption><tr><th>Name</th><th>Size</th></tr>` +
+		`<tr><td>Yak</td><td>Yak Yak</td></tr><tr><td>Ox</td><td>Zebra</td></tr></table>`
+	s, f, tt, _ := findSetup(t, "en")
+	f.article = a
+	s.Open(a.Entry)
+	f.settle(tt)
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("yak")
+	tt.Frame()
+	if n := len(s.find.hits); n != 3 {
+		t.Fatalf("%d matches of yak in the cells, want 3", n)
+	}
+	if !tt.HasText("1 of 3") {
+		t.Fatalf("the bar does not count them: %v", tt.Texts())
+	}
+	for _, c := range []struct{ query, count string }{{"zebra", "1 of 2"}, {"ox", "1 of 1"}, {"yak size", "No matches"}, {"size ya", "No matches"}} {
+		tt.Key(ui.Cmd, ui.KeyA)
+		tt.Type(c.query)
+		tt.Frame()
+		if !tt.HasText(c.count) {
+			t.Errorf("%q: want %q, got %v", c.query, c.count, tt.Texts())
+		}
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("ox")
+	tt.Frame()
+	if r, ok := tt.Find("Ox"); !ok || r.W == 0 {
+		t.Fatalf("the match is not drawn: %v", tt.Texts())
+	}
+}
+
+func TestFindScrollsATableToTheMatch(t *testing.T) {
+	long := strings.Repeat("one two three four five six seven eight ", 3)
+	a := full()
+	a.ExtractedHTML = `<table><tr>` + strings.Repeat("<th>H</th>", 5) + `</tr><tr>` + strings.Repeat("<td>"+long+"</td>", 4) +
+		`<td>` + long + `needle</td></tr></table>`
+	s, f, tt, _ := findSetup(t, "en")
+	f.article = a
+	s.Open(a.Entry)
+	f.settle(tt)
+	tt.Frame()
+	frame, ok := tt.Find("Table, 5 columns, 2 rows")
+	if !ok {
+		t.Fatal("no table")
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Type("needle")
+	for range 4 {
+		tt.Frame()
+	}
+	if len(s.find.hits) != 1 {
+		t.Fatalf("%d matches", len(s.find.hits))
+	}
+	r, ok := tt.Find(long + "needle")
+	if !ok {
+		t.Fatalf("the cell is not drawn: %v", tt.Texts())
+	}
+	if r.X < frame.X || r.X+r.W > frame.X+frame.W {
+		t.Fatalf("the match at %v..%v is outside the table %v..%v", r.X, r.X+r.W, frame.X, frame.X+frame.W)
+	}
+	for _, st := range s.tables {
+		if st.X < 1 {
+			t.Fatalf("the table did not scroll: %v of %v", st.X, st.MaxX)
+		}
 	}
 }
