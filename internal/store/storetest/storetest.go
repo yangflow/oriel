@@ -66,7 +66,15 @@ func Path(tb testing.TB, file string) string {
 	if err != nil {
 		tb.Fatal(err)
 	}
-	if err := os.WriteFile(file, data, 0o600); err != nil {
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	_, err = f.Write(data)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
 		tb.Fatal(err)
 	}
 	return file
