@@ -21,7 +21,6 @@ func TestRadiiAreTiers(t *testing.T) {
 	allowed := map[float64]bool{
 		4: true, 6: true, 8: true, 10: true, 12: true, 14: true, 16: true, // the tiers
 		2: true, // the selection marker, an exception in design/tokens.md
-		5: true, // the box of a checkbox drawn by hand, an exception in design/tokens.md
 		0: true, // square corners
 	}
 	forms := map[string]bool{

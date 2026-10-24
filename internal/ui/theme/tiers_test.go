@@ -110,10 +110,10 @@ func TestTextSizesAreTiers(t *testing.T) {
 }
 
 // TestIconSizesAreTiers keeps icon sizes to the three of design/tokens.md: every ui.Icon takes its FontSize from
-// IconSmall, IconMedium or IconLarge (or the 12 DIP tick of a checkbox box), or from a variable that a caller filled with one of them, so an icon follows the
+// IconSmall, IconMedium or IconLarge, or from a variable that a caller filled with one of them, so an icon follows the
 // text size and no screen writes a size of its own.
 func TestIconSizesAreTiers(t *testing.T) {
-	allowed := regexp.MustCompile(`^(?:theme\.)?Icon(?:Small|Medium|Large)\([a-z]+\)$|^mark$|^theme\.Px\(t, 12\)$`)
+	allowed := regexp.MustCompile(`^(?:theme\.)?Icon(?:Small|Medium|Large)\([a-z]+\)$|^mark$`)
 	err := filepath.WalkDir("..", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err

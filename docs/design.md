@@ -337,8 +337,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   tabular), the small buttons "Pause" (`pause`) and "Resume" (`play`) (each drawn only when some selected row needs it,
   so both show for a mixed selection), "Change settings…" (`sliders-horizontal`), "Delete…" (`trash2`, `Danger` text, no
   fill), and at the far right a 28 square quiet `x` that clears the selection. The buttons sit on `Raised` with the edge
-  hairline so they read on the band. The checkbox is 16, radius 5, a 1.5 `EdgeLine` ring on `Raised`; checked it is
-  filled `Accent` with a 12 `check`, partly selected a 12 `minus`. Rows are 48 high, 12 horizontal and 6 vertical padding,
+  hairline so they read on the band. The checkbox is 16, radius 4, a 1.5 `EdgeLine` ring on `Raised`; checked it is
+  filled `Accent` with a 14 `check`, partly selected a 14 `minus`. Rows are 48 high, 12 horizontal and 6 vertical padding,
   8 radius, 2 apart, no hairlines: checkbox, the glyph (16), then the title (13 medium, one line, with the 14
   `triangle-alert` in `Warning` for a failing source and a 14 `pause` in `TextMuted` for a paused one) over a muted 12
   line, "Every 6 hours · Articles · Keep 1 month" ("Auto · 6 h" when the interval follows the server). A paused row's
@@ -350,7 +350,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   "Check every", "Show as", "Keep entries", each a select that starts on "Keep as is" in `TextMuted`, with a muted 12
   line under it, "Now: {value}" or "Now: mixed". A field that was changed shows its value in `Text`. "Apply" is primary
   and disabled until a field changed; "Cancel" beside it. Delete uses the standard delete alert, "Delete {n}
-  subscriptions?", with the danger tile, the usual body and Cancel and Delete. After it the rows leave the list and the
+  subscriptions?", with the danger tile, the usual body and Cancel and Delete. When the run is done the rows leave the list and the
   toast, "Deleted {n} subscriptions" with Undo and close, sits at the bottom of the window over the dialog, drawn like
   the single-delete toast.
   A running action replaces the bar with a muted line, a spinning `loader-circle` and "Pausing… 5 of 8"; the rows dim to
