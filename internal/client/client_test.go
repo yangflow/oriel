@@ -477,8 +477,11 @@ func TestSettingsAPI(t *testing.T) {
 		case "/api/sessions/3":
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte(`{"error":"not_found"}`))
+		case "/api/opml/import/start":
+			w.WriteHeader(http.StatusAccepted)
+			w.Write([]byte(`{"id":"a1","phase":"running","progress":{"done":0,"total":3}}`))
 		case "/api/opml/import":
-			w.Write([]byte(`{"added":2,"existing":1,"failed":[{"title":"G","address":"ftp://x","error":"invalid_url"}]}`))
+			w.Write([]byte(`{"id":"a1","phase":"done","progress":{"done":3,"total":3},"result":{"added":2,"existing":1,"failed":[{"title":"G","address":"ftp://x","error":"invalid_url"}]}}`))
 		case "/api/opml/export":
 			w.Header().Set("Content-Type", "text/x-opml")
 			w.Write([]byte("<opml/>"))
@@ -499,10 +502,14 @@ func TestSettingsAPI(t *testing.T) {
 	if err := session.RevokeDevice(ctx, 3); !errors.As(err, &apiErr) || apiErr.Code != "not_found" {
 		t.Errorf("RevokeDevice: %v", err)
 	}
-	imported, err := session.ImportOPML(ctx, []byte("<opml/>"))
-	if err != nil || imported.Added != 2 || imported.Existing != 1 ||
-		imported.Failed[0] != (ImportFail{Title: "G", Address: "ftp://x", Error: "invalid_url"}) {
-		t.Errorf("ImportOPML = %+v, %v", imported, err)
+	job, err := session.StartOPMLImport(ctx, []byte("<opml/>"))
+	if err != nil || job.ID != "a1" || job.Phase != OPMLRunning || job.Progress.Total != 3 || job.Result != nil {
+		t.Errorf("StartOPMLImport = %+v, %v", job, err)
+	}
+	job, err = session.OPMLImportStatus(ctx)
+	if err != nil || job.Phase != OPMLDone || job.Progress.Done != 3 || job.Result == nil || job.Result.Added != 2 ||
+		job.Result.Existing != 1 || job.Result.Failed[0] != (ImportFail{Title: "G", Address: "ftp://x", Error: "invalid_url"}) {
+		t.Errorf("OPMLImportStatus = %+v, %v", job, err)
 	}
 	if opml, err := session.ExportOPML(ctx); err != nil || string(opml) != "<opml/>" {
 		t.Errorf("ExportOPML = %q, %v", opml, err)
@@ -514,7 +521,8 @@ func TestSettingsAPI(t *testing.T) {
 	want := []string{
 		"GET /api/sessions  " + agent + " ",
 		"DELETE /api/sessions/3  " + agent + " ",
-		"POST /api/opml/import text/x-opml " + agent + " <opml/>",
+		"POST /api/opml/import/start text/x-opml " + agent + " <opml/>",
+		"GET /api/opml/import  " + agent + " ",
 		"GET /api/opml/export  " + agent + " ",
 		"GET /api/diagnostics  " + agent + " ",
 	}
