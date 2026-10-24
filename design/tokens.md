@@ -121,6 +121,9 @@ interface, Medium, Standard and Chinese typesetting on. The choice of a serif is
 | Reading face | by default the interface font: the theme's `Font`, so the system UI font (SF and PingFang SC on macOS, Segoe UI and Microsoft YaHei on Windows, the GTK default on Linux) or the family chosen in Interface font; otherwise the Reading font below |
 | Weight, color | 400, `theme.Prose` |
 | Interface font preference | changes the reading face with the rest of the interface while the Reading font is Follow interface |
+| Superscript, subscript | the Unicode characters in the line's own size; no tier of their own. Without such a character: `^(…)` or `_(…)` at body size |
+| Footnotes | reference: `Accent`, no underline; notes: 0.8125em, `Text2`, under a 96 wide hairline; jump highlight `Soft(Accent)` radius 6 for about 1.6 s |
+| Tables | cells 0.8125em in `theme.Prose` (13 at Medium, scaling with the Text size like code), padding 8 by 12, columns 48 to 240; frame radius 12 and ink 10% outline of 0.5; dividers 0.5 `Border`; header row `Surface`, 600, `Text`; caption 12 `TextMuted`; edge fade 32 `Background`; position bar 3 high, `Track` with an ink 28% thumb, radius 4 |
 | Applies to | the article's body only (paragraphs, lists, quotes). The title, the source line, notes, captions, h2 and h3, code and the toolbar keep the interface font (code stays monospace) |
 
 | Preference | Choice | Value |

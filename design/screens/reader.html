@@ -66,6 +66,16 @@
      match marked and the current one underlined ("2 of 9"), find-none: nothing matches ("No matches", Previous and Next dimmed), find-translation:
      the same over the translation (only the text shown is searched), immersive-find: the row in immersive reading. Closed is every other state.
      The marks are Warning at 25% (the others) and 40% (the current one, with a 1.5 DIP underline), the text in them always Text.
+     Article structure (docs/design.md, The reader; issue 370): footnotes shows superscript and subscript (set as the Unicode
+     characters, 10⁶, 2¹⁰, H₂O; text with no such character is drawn at body size as ^(i+1) or _(i+1)) and
+     in-page footnote links: a reference is an Accent mark named "Footnote N"; the notes sit under a rule at 0.8125em in
+     Text2, each ending in a back arrow. footnote-jump: the reference was clicked, the reader scrolled so the note is
+     near the top, and the note carries an Accent-soft fill (radius 6) for about 1.6 s (no fade with reduced motion). The
+     arrow returns to the reference the same way. table: a data table that fits the column keeps the width of its
+     content (columns at most 240, wrapping beyond that), header row on Surface in 600, number columns right aligned
+     with tabular figures, the caption below at 12. table-wide: a table wider than the column scrolls sideways inside
+     the column (trackpad, arrow keys when focused, shift and wheel); an edge fade 32 wide marks each clipped side and a
+     3 high position bar under the table shows where you are. Scroll the table in the mockup to see both fades.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
@@ -223,6 +233,33 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .prose .pic { width:100% }
 .prose figcaption { margin-top:8px; font:400 12px/1.5 system-ui,-apple-system,"PingFang SC",sans-serif; color:var(--muted) }
 .prose hr { border:0; border-top:1px solid var(--border); margin:24px 0 }
+.prose a.fnref { text-decoration:none; padding:0 1px; border-radius:4px }
+.prose a.fnref:hover { background:var(--accent-soft) }
+.prose a.fnback { text-decoration:none; margin-left:.4em }
+.prose .footnotes { margin-top:2em; font-size:.8125em; line-height:1.6; color:var(--text2) }
+.prose .footnotes hr { margin:0 0 1em; width:96px }
+.prose .footnotes ol { margin:0; padding-left:1.6em }
+.prose .footnotes li { margin:0 0 .5em -.4em; padding:.15em .4em; border-radius:6px }
+.prose .footnotes li.jump { background:var(--accent-soft) }
+.prose .footnotes p { margin:0 }
+.prose .tablebox { position:relative; margin:1.4em 0 }
+.prose .tablescroll { overflow-x:auto; border-radius:12px; outline:.5px solid rgba(var(--ink),.10); outline-offset:-.5px; scrollbar-width:none }
+.prose .tablebox.fits .tablescroll { width:fit-content; max-width:100% }
+.prose .tablescroll:focus-visible { outline:2px solid var(--focus); outline-offset:2px }
+.prose table { border-collapse:collapse; font:400 .8125em/1.5 var(--reading); color:var(--prose) }
+.prose th, .prose td { padding:8px 12px; text-align:left; vertical-align:top; min-width:48px; border-top:.5px solid var(--border) }
+.prose thead th { border-top:0; border-bottom:.5px solid var(--border); background:var(--surface); font-weight:600; color:var(--text); white-space:nowrap }
+.prose .c { width:max-content; max-width:240px; min-width:24px }
+.prose .num .c { margin-left:auto }
+.prose td.num, .prose th.num { text-align:right; font-variant-numeric:tabular-nums }
+.prose .tablebox .fade { position:absolute; top:0; bottom:9px; width:32px; pointer-events:none; opacity:0; transition:opacity var(--t) }
+.prose .tablebox .fade.l { left:0; border-radius:12px 0 0 12px; background:linear-gradient(90deg,var(--background) 20%,color-mix(in srgb,var(--background) 0%,transparent)) }
+.prose .tablebox .fade.r { right:0; border-radius:0 12px 12px 0; background:linear-gradient(270deg,var(--background) 20%,color-mix(in srgb,var(--background) 0%,transparent)) }
+.prose .tablebox .fade.on { opacity:1 }
+.prose .tablebox .pos { height:3px; margin-top:6px; border-radius:4px; background:var(--track) }
+.prose .tablebox .pos i { display:block; height:100%; border-radius:4px; background:rgba(var(--ink),.28) }
+.prose .tablebox.fits .pos, .prose .tablebox.fits .fade { display:none }
+.prose .tcap { margin-top:8px; font:400 12px/1.5 system-ui,-apple-system,"PingFang SC",sans-serif; color:var(--muted) }
 .g1 { background-image:linear-gradient(135deg,#d6c7a8,#7b8f86) }
 :root[data-scheme=dark] .g1 { background-image:linear-gradient(135deg,#5b564a,#44605a) }
 
@@ -355,7 +392,7 @@ mark.hit.now { background:color-mix(in srgb,var(--warning) 40%,transparent); box
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar'];
+const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar''footnotes','footnote-jump','table','table-wide',];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
@@ -449,6 +486,7 @@ const copy={
     alsoHead:'Also in', noMoreUnread:'No unread articles after this one', resumed:'Back where you left off', aiOffTitle:'AI isn’t set up', openSettings:'Open settings', close:'Close',
     translateSel:'Translate selection', explainSel:'Explain selection', copyAction:'Copy', selectAll:'Select All', selTranslation:'Translation', selExplanation:'Explanation',
     find:'Find', matches:'{current} of {total}', noMatches:'No matches', prevMatch:'Previous match', nextMatch:'Next match', done:'Done',
+    backToText:'Back to the text', footnote:'Footnote {n}', tableName:'Table, {c} columns, {r} rows',
     selFailed:'Couldn’t get an answer. {reason}', selTooLong:'Select less text', selTooLongHint:'Up to 2000 characters can be translated or explained at a time.', selAiOff:'Translating and explaining use an AI endpoint of your choosing. Set one up in Settings first.',
   },
   'zh-Hans':{
@@ -472,6 +510,7 @@ const copy={
     alsoHead:'另见', noMoreUnread:'后面没有未读文章了', resumed:'回到上次读到的位置', aiOffTitle:'还没配置 AI', openSettings:'打开设置', close:'关闭',
     translateSel:'翻译所选', explainSel:'解释所选', copyAction:'复制', selectAll:'全选', selTranslation:'译文', selExplanation:'解释',
     find:'查找', matches:'第 {current} 项，共 {total} 项', noMatches:'无匹配项', prevMatch:'上一处匹配', nextMatch:'下一处匹配', done:'完成',
+    backToText:'回到正文', footnote:'脚注 {n}', tableName:'表格，{c} 列 {r} 行',
     selFailed:'没能得到回答。{reason}', selTooLong:'请少选一些文字', selTooLongHint:'一次最多翻译或解释 2000 个字。', selAiOff:'翻译和解释使用你自己选定的 AI 端点，请先在设置里配置。',
   },
 }[lang];
@@ -565,6 +604,51 @@ const fullOf=zh=>zh?cjk(`
 );</code></pre>
 <p>The index ends up about three times the size of the text. For a personal reader that is usually fine.</p>`;
 const title=titleOf(zh), full=fullOf(zh);
+const ref=n=>`<a class="fnref" href="#fn${n}" id="r${n}" aria-label="${t('footnote',{n})}">${'¹²³'[n-1]}</a>`;
+const back=n=>`<a class="fnback" href="#r${n}" aria-label="${copy.backToText}" title="${copy.backToText}">↩</a>`;
+const notesOf=zh=>zh?cjk(`
+<p>FTS5 建在倒排索引上。${ref(1)}索引体积随词元长度变化：存 10⁶ 行、每行 2¹⁰ 字节的正文，三字符词元大约要三倍的空间；写成公式是 x^(i+1)，其中 x_(max) 是最长的行。化学名也一样，H₂O 和 CO₂ 照常显示。</p>
+<p>词元越短，命中越宽，代价也越大。${ref(2)}作者的取舍是三个字符，也就是 trigram。</p>
+<p>如果只想搜英文单词，unicode61 就够了。${ref(3)}</p>
+<section class="footnotes" role="doc-endnotes"><hr><ol>
+<li id="fn1"><p>倒排索引记录每个词元出现在哪些行里。${back(1)}</p></li>
+<li id="fn2"><p>短于三个字的查询用不上这个索引，会退回到全表扫描。${back(2)}</p></li>
+<li id="fn3"><p>unicode61 是 FTS5 的默认分词器，按空白和标点切词。${back(3)}</p></li>
+</ol></section>`)
+:`
+<p>FTS5 builds on an inverted index.${ref(1)} Its size depends on the token length: for 10⁶ rows of 2¹⁰ bytes of text, three-character tokens take about three times the space. Written as a formula that is x^(i+1), where x_(max) is the longest row. Chemical names work too, H₂O and CO₂ show as they are.</p>
+<p>The shorter the token, the wider the match, and the higher the price.${ref(2)} The author settled on three characters, which is the trigram.</p>
+<p>If you only search English words, unicode61 is enough.${ref(3)}</p>
+<section class="footnotes" role="doc-endnotes"><hr><ol>
+<li id="fn1"><p>An inverted index records which rows each token appears in. ${back(1)}</p></li>
+<li id="fn2"><p>A query shorter than three characters cannot use this index and falls back to a full scan. ${back(2)}</p></li>
+<li id="fn3"><p>unicode61 is the default tokenizer of FTS5; it splits on whitespace and punctuation. ${back(3)}</p></li>
+</ol></section>`;
+const tableOf=(zh,wide)=>{
+  const head=zh?(wide?['分词器','查询','行数','构建（秒）','索引（MB）','命中率','p50（毫秒）','p99（毫秒）','备注']:['分词器','切分依据','索引（MB）']):(wide?['Tokenizer','Query','Rows','Build (s)','Size (MB)','Hit rate','p50 (ms)','p99 (ms)','Notes']:['Tokenizer','Splits on','Index (MB)']);
+  const rows=zh?(wide?[
+    ['unicode61','空白和标点','120000','4.2','38','61%','0.8','3.1','对中文几乎无效'],
+    ['porter','词干','120000','4.9','41','63%','0.9','3.3','只适合英文'],
+    ['trigram','每三个字符','120000','11.7','118','97%','1.4','6.0','任意子串命中，索引约三倍'],
+    ['trigram（区分大小写）','每三个字符','120000','11.5','116','94%','1.3','5.8','需要区分大小写时使用'],
+    ['自定义','词典','120000','18.3','72','88%','2.2','9.4','要维护词典']]
+    :[['unicode61','空白和标点','38'],['porter','词干','41'],['trigram','每三个字符','118']])
+   :(wide?[
+    ['unicode61','splits at whitespace and punctuation marks','120000','4.2','38','61%','0.8','3.1','Poor for Chinese: a sentence is one word'],
+    ['porter','word stems','120000','4.9','41','63%','0.9','3.3','English only'],
+    ['trigram','every run of three characters, in any language','120000','11.7','118','97%','1.4','6.0','Any substring matches; index about 3x'],
+    ['trigram (case sensitive)','every run of three characters','120000','11.5','116','94%','1.3','5.8','Use it when case matters'],
+    ['custom','a dictionary','120000','18.3','72','88%','2.2','9.4','The dictionary needs upkeep']]
+    :[['unicode61','whitespace and punctuation','38'],['porter','word stems','41'],['trigram','every three characters','118']]);
+  const numeric=wide?[2,3,4,5,6,7]:[2];
+  const cell=(tag,x,k)=>`<${tag}${numeric.includes(k)?' class="num"':''}${tag==='th'?' scope="col"':''}><div class="c">${x}</div></${tag}>`;
+  const cap=zh?'三种分词器在同一份语料上的比较。':'Three tokenizers on the same corpus.';
+  const label=t('tableName',{c:head.length,r:rows.length+1});
+  const lead=zh?'三种分词器的取舍，一张表看完：':'The trade-offs of the three tokenizers, in one table:';
+  const tail=zh?'表里的数字来自同一台机器，只用来比较。':'The numbers come from one machine and are only for comparing.';
+  const html=`<p>${lead}</p><div class="tablebox${wide?'':' fits'}"><div class="tablescroll" role="group" aria-label="${label}"${wide?' tabindex="0"':''}><table><thead><tr>${head.map((x,k)=>cell('th',x,k)).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((x,k)=>cell('td',x,k)).join('')}</tr>`).join('')}</tbody></table></div><i class="fade l" aria-hidden="true"></i><i class="fade r" aria-hidden="true"></i><div class="pos" aria-hidden="true"><i></i></div><div class="tcap">${cap}</div></div><p>${tail}</p>`;
+  return zh?cjk(html):html;
+};
 const feed=zh?cjk(`<p>trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。</p><p><a href="#">继续阅读 →</a></p>`):`<p>The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.</p><p><a href="#">Continue reading →</a></p>`;
 const note=(cls,glyph,text)=>`<div class="note ${cls}" role="note">${icon(glyph,glyph==='loader'?'spin':'')}<span>${text} ${cls?`<a class="link" href="#">${copy.openOriginal}</a>`:''}</span>${cls==='warn'?`<a class="textlink" href="#">${copy.tryAgain}</a>`:''}</div>`;
 const switcher=feedOn=>`<div class="switch"><div class="segmented" role="radiogroup" aria-label="${copy.textSwitch}"><button role="radio" aria-checked="${!feedOn}" class="${feedOn?'':'on'}">${copy.fullText}</button><button role="radio" aria-checked="${feedOn}" class="${feedOn?'on':''}">${copy.feedText}</button></div></div>`;
@@ -616,6 +700,8 @@ switch(state){
   case 'selection-loading':case 'selection-translate':case 'selection-failed':case 'selection-too-long':case 'selection-ai-off':page=original('').replace(zh?'it indexes every run of three characters':'把文本切成所有连续的三个字符',m=>`<mark class="sel">${m}</mark>`);break;
   case 'immersive':case 'immersive-bar':case 'immersive-find':case 'find-empty':case 'find':case 'find-none':page=article('',full);break;
   case 'find-translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
+  case 'footnotes':case 'footnote-jump':page=article('',notesOf(zh));break;
+  case 'table':case 'table-wide':page=article('',tableOf(zh,state==='table-wide'));break;
   case 'summarizing':case 'summary':case 'summary-failed':case 'summary-cap':case 'ai-off':page=article(card[state],full);break;
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
@@ -652,6 +738,14 @@ if(state==='more-menu'||state==='more-narrow'){
   const w=document.getElementById('window'),a=document.querySelector('.toolbar .tool[aria-haspopup]').getBoundingClientRect(),b=w.getBoundingClientRect();
   w.insertAdjacentHTML('beforeend',`<div class="more-menu" role="menu" aria-label="${copy.more}">${narrow?`<button role="menuitem" class="hover">${copy.copyLink}</button><hr>`:''}<button role="menuitem"${narrow?'':' class="hover"'}>${copy.copyMd}</button><button role="menuitem">${copy.saveMd}</button></div>`);
   const m=w.lastElementChild;m.style.left=Math.min(a.left-b.left,b.width-m.offsetWidth-8)+'px';m.style.top=(a.bottom-b.top+4)+'px';
+}
+if(state==='footnote-jump'){const li=document.getElementById('fn2');li.classList.add('jump');const box=document.querySelector('.scroll');box.scrollTop=li.getBoundingClientRect().top-box.getBoundingClientRect().top+box.scrollTop-96}
+for(const box of document.querySelectorAll('.tablebox:not(.fits)')){
+  const sc=box.querySelector('.tablescroll'),l=box.querySelector('.fade.l'),r=box.querySelector('.fade.r'),thumb=box.querySelector('.pos i');
+  const sync=()=>{const max=sc.scrollWidth-sc.clientWidth,w=sc.clientWidth/sc.scrollWidth;
+    l.classList.toggle('on',sc.scrollLeft>1);r.classList.toggle('on',sc.scrollLeft<max-1);
+    thumb.style.width=w*100+'%';thumb.style.marginLeft=(max>0?sc.scrollLeft/max*(1-w)*100:0)+'%'};
+  sc.addEventListener('scroll',sync);sync();
 }
 if(state==='resumed'){const box=document.querySelector('.scroll');box.scrollTop=(box.scrollHeight-box.clientHeight)*.4}
 if(state==='scrolled')document.querySelector('.scroll').scrollTop=96;

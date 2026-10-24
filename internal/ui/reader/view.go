@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -42,6 +43,7 @@ type copy struct {
 	SelectionAIOff, ExplanationReady, TranslateDone, LanguageZhHans, LanguageEn                                   string
 	AlsoHead                                                                                                      string
 	ExitImmersive, FindLabel                                                                                      string
+	BackToText, Footnote, TableName                                                                               string
 	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles        string
 }
 
@@ -169,6 +171,15 @@ type Screen struct {
 	retrying bool // a request to get the full text again is under way
 	feedText int  // 0 shows the full text, 1 what the feed carries, when the entry has both
 
+	// Footnotes and tables, see docs/design.md "阅读器": the block a link within the page last led to, the block of the
+	// reference last followed by footnote, the scroll of each table wider than the text by its block, the blocks
+	// drawn now, and the width each table was last seen to scroll, to draw it again when that changes.
+	landing landing
+	refs    map[int]int
+	tables  map[int]*ui.ScrollState
+	drawn   []block
+	seen    map[int][2]float32
+
 	scroll ui.ScrollState
 	focus  bool   // give the page the focus in the next frame
 	han    bool   // the article is Chinese, so its text runs taller and is typeset by the Chinese rules
@@ -212,6 +223,17 @@ type Screen struct {
 	clip     string // text for the clipboard, once converted
 	clipped  bool
 }
+
+// landing is the block a link within the page led to: it is lit for a moment, and scrolled to once, in the next frame.
+type landing struct {
+	ix     int
+	at     time.Time
+	on     bool
+	scroll bool
+}
+
+// lit is how long the block a link led to stays lit.
+const lit = 1600 * time.Millisecond
 
 // write is a reading position to store for an entry.
 type write struct {
@@ -342,6 +364,7 @@ func (s *Screen) Open(e client.Entry) {
 	s.id, s.loading, s.failed, s.polling, s.retrying, s.feedText = e.ID, true, false, false, false, 0
 	s.article, s.full, s.feed = client.Article{Entry: e}, nil, nil
 	s.scroll.X, s.scroll.Y = 0, 0
+	s.landing, s.refs, s.tables, s.seen, s.drawn = landing{}, nil, nil, nil, nil
 	s.startPosition(e)
 	s.focus = true
 	s.pics.Reset()
@@ -670,6 +693,7 @@ func (s *Screen) switched(c *ui.Context, from int) {
 		s.save()
 	}
 	s.scroll.X, s.scroll.Y = 0, 0
+	s.landing, s.refs, s.tables, s.seen = landing{}, nil, nil, nil
 	s.lastY, s.moved, s.resume = 0, false, -1
 	c.Invalidate()
 }
@@ -1193,6 +1217,14 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 			blocks, how = s.translated, whole
 		}
 		s.findRefresh(title, blocks)
+		s.drawn = blocks
+		if s.landing.on {
+			if left := lit - s.deps.Now().Sub(s.landing.at); left > 0 {
+				c.After(left)
+			} else {
+				s.landing.on = false
+			}
+		}
 		body := ui.Column(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Padding(pad...).Selectable()
 		// The menu is built by this call, so the body is named before it.
 		body.ContextMenu(func(m *ui.Menu) { s.selectionMenu(m, body) })
@@ -1699,8 +1731,16 @@ func gap(t *ui.Theme, blocks []block, i int, scale float32) float32 {
 		return theme.Px(t, 0.6*19) * scale
 	case before.kind == heading:
 		return theme.Px(t, 0.5*16) * scale
+	case b.kind == rule && b.notes:
+		return theme.Px(t, 2*13) * scale
+	case before.kind == rule && before.notes:
+		return theme.Px(t, 13) * scale
+	case b.notes && before.notes:
+		return theme.Px(t, 0.5*13) * scale
 	case b.kind == rule || before.kind == rule:
 		return theme.Px(t, 24)
+	case b.kind == table || before.kind == table:
+		return theme.Px(t, 1.4*16) * scale
 	case b.kind == caption && before.kind == picture:
 		return theme.Px(t, 8)
 	case b.kind == picture || before.kind == picture || before.kind == caption:
@@ -1725,11 +1765,44 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 	}
 	unit := unitBlocks + base + i
 	box := ui.Column(c).Key(i).FillWidth().Margin(top, 0, 0, indent)
+	notes := b.notes && b.kind != rule
+	if notes {
+		box.Padding(theme.Px(t, 2), theme.Px(t, 6))
+	}
+	// The block a link led to is lit for a moment; it fades in and out, unless the desktop asks for less motion.
+	arrived := !s.landing.at.IsZero() && b.ix == s.landing.ix && !s.translating()
+	if arrived {
+		if s.landing.on {
+			box.Background(theme.Soft(t, t.Accent))
+		}
+		box.Radius(theme.Px(t, 6))
+		if !c.Preferences().ReduceMotion {
+			theme.Fade(box)
+		}
+	}
 	box.Children(func() {
 		s.revealBlock(c, unit)
+		if arrived && s.landing.scroll {
+			// The block is scrolled to about 96 below the top: the sentinel is 96 above it and taller than the window,
+			// and a region taller than the window is shown from its start.
+			s.landing.scroll = false
+			ui.Box(c).Key(-1).Absolute().Top(-theme.Px(t, 96)).Left(0).Width(1).Height(theme.Px(t, 4000)).PassThrough().
+				ScrollIntoView()
+		}
 		switch b.kind {
 		case rule:
-			ui.Box(c).FillWidth().Height(1).Background(t.Border)
+			width := float32(0)
+			if b.notes {
+				width = theme.Px(t, 96)
+			}
+			hair := ui.Box(c).Height(1).Background(t.Border)
+			if width > 0 {
+				hair.Width(width)
+			} else {
+				hair.FillWidth()
+			}
+		case table:
+			s.table(c, b)
 		case picture:
 			s.picture(c, b)
 		case code:
@@ -1762,17 +1835,25 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 			s.inline(c, b, unit, t.TextMuted, theme.Px(t, 12)).FontSize(theme.Px(t, 12)).LineHeight(1.5)
 		default:
 			line := float32(s.reading().Leading(s.han))
+			body := theme.Px(t, 16) * scale
+			size := body
+			if b.notes {
+				size = theme.Px(t, 13) * scale
+				if b.quote == 0 {
+					color = theme.Text2(t)
+				}
+			}
 			if b.depth == 0 {
-				s.prose(c, b, unit, color, theme.Px(t, 16)*scale).FontSize(theme.Px(t, 16) * scale).LineHeight(line)
+				s.prose(c, b, unit, color, size).FontSize(size).LineHeight(line)
 				return
 			}
 			ui.Row(c).FillWidth().AlignItems(ui.Start).Children(func() {
-				marker := ui.Text(c, b.marker).Width(theme.Px(t, 22) * scale).Shrink(0).FontSize(theme.Px(t, 16) * scale).LineHeight(line).
+				marker := ui.Text(c, b.marker).Width(theme.Px(t, 22) * scale).Shrink(0).FontSize(size).LineHeight(line).
 					TextColor(t.TextMuted)
 				if face := s.face(); face != "" {
 					marker.Font(face)
 				}
-				s.prose(c, b, unit, color, theme.Px(t, 16)*scale).Grow(1).MinWidth(0).FontSize(theme.Px(t, 16) * scale).LineHeight(line)
+				s.prose(c, b, unit, color, size).Grow(1).MinWidth(0).FontSize(size).LineHeight(line)
 			})
 		}
 	})
@@ -1923,6 +2004,24 @@ func (s *Screen) inline(c *ui.Context, b block, unit int, color ui.Color, size f
 				continue
 			}
 			switch {
+			case sp.jump != "" || sp.back:
+				e := ui.Link(c.Key(n), sp.text, "").TextColor(t.Accent)
+				if !plain {
+					e = ui.Link(c.Key(n), "", "").TextColor(t.Accent)
+					e.Children(func() { s.runs(c, pieces, size) })
+				}
+				switch {
+				case sp.back:
+					e.Label(s.text.BackToText)
+				case sp.ref > 0:
+					e.Label(strings.ReplaceAll(s.text.Footnote, "{n}", strconv.Itoa(sp.ref)))
+				default:
+					e.Underline()
+				}
+				s.style(c, e, sp)
+				if e.Clicked() {
+					s.follow(c, b, sp)
+				}
 			case sp.link != "" && plain:
 				s.style(c, ui.Link(c.Key(n), sp.text, sp.link).TextColor(t.Accent).Underline(), sp)
 			case sp.link != "":
@@ -1942,6 +2041,140 @@ func (s *Screen) inline(c *ui.Context, b block, unit int, color ui.Color, size f
 					s.style(c, e, sp)
 				}
 			}
+		}
+	})
+}
+
+// follow goes where a link within the page leads, from the block b: to the top, to the block with the id, or from a
+// footnote back to the reference last followed, else the first one. The block it reaches is scrolled to and lit.
+func (s *Screen) follow(c *ui.Context, b block, sp span) {
+	to := -1
+	switch {
+	case sp.jump == top:
+		s.scroll.ScrollTo(0, 0, ui.Smooth)
+		return
+	case sp.back && sp.jump == "":
+		if at, ok := s.refs[b.note]; ok {
+			to = at
+		} else {
+			to = slices.IndexFunc(s.drawn, func(o block) bool {
+				return slices.ContainsFunc(o.spans, func(sp span) bool { return sp.ref == b.note })
+			})
+		}
+	default:
+		to = slices.IndexFunc(s.drawn, func(o block) bool { return slices.Contains(o.ids, sp.jump) })
+		if sp.ref > 0 {
+			if s.refs == nil {
+				s.refs = map[int]int{}
+			}
+			s.refs[sp.ref] = b.ix
+		}
+	}
+	if to < 0 || to >= len(s.drawn) {
+		return
+	}
+	s.landing = landing{ix: s.drawn[to].ix, at: s.deps.Now(), on: true, scroll: true}
+	c.Invalidate()
+}
+
+// table is a table of the text: a grid in a frame that scrolls sideways when it is wider than the text, with a fade
+// where cells are cut off and a bar for the place; see docs/design.md "阅读器".
+func (s *Screen) table(c *ui.Context, b block) {
+	t := c.Theme()
+	g := b.table
+	size := theme.Px(t, 13) * s.scale()
+	if s.tables == nil {
+		s.tables, s.seen = map[int]*ui.ScrollState{}, map[int][2]float32{}
+	}
+	st := s.tables[b.ix]
+	if st == nil {
+		st = &ui.ScrollState{}
+		s.tables[b.ix] = st
+	}
+	// The scroll range is that of the frame before; draw again when it or the place changes.
+	if now := [2]float32{st.X, st.MaxX}; s.seen[b.ix] != now {
+		s.seen[b.ix] = now
+		c.Invalidate()
+	}
+	wide := st.MaxX > 0.5
+	radius := theme.Px(t, 12)
+	label := strings.NewReplacer("{c}", strconv.Itoa(g.cols), "{r}", strconv.Itoa(len(g.rows))).Replace(s.text.TableName)
+	frame := ui.Box(c).AlignSelf(ui.Start).MaxWidth(math.MaxFloat32).Radius(radius).Clip()
+	var view ui.Element
+	frame.Children(func() {
+		view = ui.ScrollHorizontal(c).TrackScroll(st).Radius(radius).Role(ui.RoleTable).Label(label)
+		if wide {
+			view.Focusable()
+		}
+		view.Children(func() {
+			tracks := make([]ui.Track, g.cols)
+			for k := range tracks {
+				tracks[k] = ui.FitContent()
+			}
+			ui.Grid(c).ColumnTracks(tracks...).Children(func() {
+				n := 0
+				for r, row := range g.rows {
+					for _, cl := range row {
+						n++
+						s.cell(c, cl, r, size, n)
+					}
+				}
+			})
+		})
+		ui.Box(c).Absolute().Fill().Radius(radius).Border(0.5, theme.Ink(t, 0.1)).PassThrough()
+		if wide && st.X > 0.5 {
+			ui.Box(c).Absolute().Top(0).Bottom(0).Left(0).Width(theme.Px(t, 32)).PassThrough().
+				LinearGradient(ui.LinearGradient{From: t.Background, To: t.Background.Alpha(0), Angle: 90})
+		}
+		if wide && st.X < st.MaxX-0.5 {
+			ui.Box(c).Absolute().Top(0).Bottom(0).Right(0).Width(theme.Px(t, 32)).PassThrough().
+				LinearGradient(ui.LinearGradient{From: t.Background.Alpha(0), To: t.Background, Angle: 90})
+		}
+	})
+	if wide {
+		seen := view.Bounds().W
+		ui.Row(c).FillWidth().Height(theme.Px(t, 3)).Margin(theme.Px(t, 6), 0, 0, 0).Radius(theme.Px(t, 4)).Background(theme.Track(t)).
+			Children(func() {
+				ui.Box(c).Grow(max(st.X, 0)).Basis(0)
+				ui.Box(c).Grow(seen).Basis(0).Height(theme.Px(t, 3)).Radius(theme.Px(t, 4)).Background(theme.Ink(t, 0.28))
+				ui.Box(c).Grow(max(st.MaxX-st.X, 0)).Basis(0)
+			})
+	}
+	if len(g.caption) > 0 {
+		s.inline(c, block{spans: g.caption}, -1, t.TextMuted, theme.Px(t, 12)).FontSize(theme.Px(t, 12)).LineHeight(1.5).
+			Margin(theme.Px(t, 8), 0, 0, 0)
+	}
+}
+
+// cell is a cell of a table, in row r: padded, with a divider above it unless it is in the first row, the header
+// row on the Surface color in Text at weight 600.
+func (s *Screen) cell(c *ui.Context, cl cell, r int, size float32, key int) {
+	t := c.Theme()
+	box := ui.Column(c).Key(key).ColumnSpan(cl.span).MinWidth(theme.Px(t, 48)).MaxWidth(theme.Px(t, 240)).
+		Padding(theme.Px(t, 8), theme.Px(t, 12))
+	if cl.head {
+		box.Background(t.Surface)
+	}
+	if r > 0 {
+		box.BorderWidth(0.5, 0, 0, 0).BorderColor(t.Border)
+	}
+	box.Children(func() {
+		color := theme.Prose(t)
+		if cl.head {
+			color = t.Text
+		}
+		e := s.inline(c, block{spans: cl.spans}, -1, color, size).FontSize(size).LineHeight(1.5).FillWidth()
+		switch cl.align {
+		case alignCenter:
+			e.TextAlign(ui.Center)
+		case alignEnd:
+			e.TextAlign(ui.End)
+		}
+		if cl.head {
+			e.FontWeight(600)
+		}
+		if cl.number {
+			e.FontFeatures("tnum")
 		}
 	})
 }
