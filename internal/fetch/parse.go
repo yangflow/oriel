@@ -152,7 +152,7 @@ func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
 			published = item.UpdatedParsed
 		}
 		durationSec := duration(item)
-		if jsonFeed != nil {
+		if durationSec == 0 && jsonFeed != nil && i < len(jsonFeed.Items) {
 			durationSec = jsonDuration(jsonFeed.Items[i])
 		}
 		entry := store.FeedEntry{
