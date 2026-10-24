@@ -231,3 +231,39 @@ func TestPictureAboveTheViewSettlesWithoutMovingTheText(t *testing.T) {
 	}
 	near(t, "the paragraph read", now.Y, at.Y)
 }
+
+func TestPictureAboveTheViewSettlesWithTheFindBarOpen(t *testing.T) {
+	var body strings.Builder
+	body.WriteString(`<img src="/a.png" alt="Chart">`)
+	for i := range 60 {
+		body.WriteString("<p>Paragraph ")
+		body.WriteString(strings.Repeat("x", i%7+1))
+		body.WriteString(" of a long article that goes on for a few lines so that the page is much taller than the window.</p>")
+	}
+	s, f, tt, _ := pictureSetup(t, body.String(), 1100)
+	f.imageAt = map[string]image.Point{"https://go.dev/a.png": image.Pt(2000, 1000)}
+	loadText(f, tt)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyF)
+	if !s.find.open {
+		t.Fatal("find did not open")
+	}
+	s.scroll.Y = 900
+	for range 3 {
+		tt.Frame()
+	}
+	read := "Paragraph xxx of a long article that goes on for a few lines so that the page is much taller than the window."
+	at, ok := tt.Find(read)
+	if !ok {
+		t.Fatalf("no %q on screen in %v", read, tt.Texts())
+	}
+	f.settle(tt)
+	for range 3 {
+		tt.Frame()
+	}
+	now, ok := tt.Find(read)
+	if !ok {
+		t.Fatalf("the text left the screen: scroll %v", s.scroll.Y)
+	}
+	near(t, "the paragraph read", now.Y, at.Y)
+}
