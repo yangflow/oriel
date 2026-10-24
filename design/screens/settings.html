@@ -32,6 +32,8 @@
      is not http or https), reader-fetching (progress, Cancel), reader-preview (what was found, nothing added yet; Import),
      reader-writing, reader-done (what was added and what was left out), reader-failed (the server turned the credential
      down; Try again), devices (a remote server and its sessions),
+     desktop (the Desktop card, all off), desktop-on (all on), desktop-error (Linux: the tray icon could not start, the switch went back off),
+     desktop-tray-menu (the tray menu); ?os=mac|win|linux picks the rows (the Dock badge row is macOS only);
      devices-local (this computer's server, no sessions), revoke (confirming a revocation), loading, error;
      activity (storage figures, one fetch under way, recent fetches with the newest attempt of each source),
      activity-open (one source expanded to its attempts, a failed one with its reason), activity-empty (nothing fetching,
@@ -414,14 +416,16 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
   <label>scheme <select id="scheme"></select></label>
   <label>lang <select id="lang"></select></label>
   <label>size <select id="size"></select></label>
+  <label>os <select id="os"></select></label>
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','mark-read','mark-read-scroll','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','mark-read','mark-read-scroll','desktop','desktop-on','desktop-error','desktop-tray-menu','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
-const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
+const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],os:['mac','win','linux']};
 const state=pick('state',states,'ai');
+const os=pick('os',options.os,state==='desktop-error'?'linux':'mac');
 const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
 const size=pick('size',options.size,'default');
@@ -432,7 +436,7 @@ document.getElementById('window').classList.toggle('wide',size==='wide');
 for(const [id,list] of Object.entries(options)){
   const select=document.getElementById(id);
   select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
-  select.value={state,scheme,lang,size}[id];
+  select.value={state,scheme,lang,size,os}[id];
   select.onchange=()=>{query.set(id,select.value);location.search=query};
 }
 
@@ -522,6 +526,7 @@ const copy={
     followInterface:'Follow interface', serif:'Serif', textSize:'Text size', textSizeHelp:'The text of an article in the reader.',
     sizeSmall:'Small', sizeMedium:'Medium', sizeLarge:'Large', sizeXLarge:'Extra large',
     lineSpacing:'Line spacing', lineSpacingHelp:'The space between the lines of an article.',
+    desktop:'Desktop', loginRow:'Open at login', loginHelp:'Opens Oriel after you sign in to the computer.', loginHelpTray:'Opens Oriel after you sign in to the computer. The window stays hidden and only the icon appears.', loginHelpMac:'Only the installed Oriel app can open at login.', trayRowMac:'Menu bar icon', trayRowWin:'Tray icon', trayHelpMac:'Shows the unread count in the menu bar. Oriel keeps updating in the background after the window is closed.', trayHelpWin:'Shows an icon in the tray. Oriel keeps updating in the background after the window is closed.', badgeRow:'Unread badge on the Dock icon', badgeHelp:'Shows the unread count on the Dock icon.', trayFailed:'This system can’t show a tray icon. Install libayatana-appindicator3 and try again.', trayUnread:'{n} unread', trayOpen:'Open Oriel', trayRefresh:'Refresh all', trayQuit:'Quit',
     timeline:'Timeline', density:'List density', densityHelp:'How tight the rows sit. Compact keeps everything and only tightens the spacing.', dComfortable:'Comfortable', dCompact:'Compact', markRead:'Mark as read', markReadHelpOpen:'Opening an entry marks it as read.', markReadHelpDwell:'An entry opened in the reader or the picture viewer is marked once you stay on it for the time below. Anything opened in the browser is marked at once.', markReadHelpScroll:'Entries are marked as they scroll off the top of the list. Opening one does not mark it.', markReadHelpNever:'Nothing is marked unless you do it: the read button, M, V or Mark all as read.', mrOpen:'When opened', mrDwell:'After staying', mrScroll:'After scrolling past', mrNever:'Never automatically', dwell:'Stay time', dwellHelp:'How long an article stays open before it is marked.', sec3:'3 s', sec5:'5 s', sec10:'10 s', group:'Show an article once', groupHelp:'When several subscriptions carry the same article, the timeline shows one row.',
     viewAs:'View as',
     vArticles:'Articles', vVideos:'Videos', vSocial:'Social', vImages:'Images',
@@ -628,6 +633,7 @@ const copy={
     followInterface:'跟随界面', serif:'衬线', textSize:'文字大小', textSizeHelp:'阅读窗格里文章正文的大小。',
     sizeSmall:'小', sizeMedium:'中', sizeLarge:'大', sizeXLarge:'特大',
     lineSpacing:'行距', lineSpacingHelp:'文章正文的行与行之间的距离。',
+    desktop:'桌面', loginRow:'登录时打开', loginHelp:'登录电脑后自动打开 Oriel。', loginHelpTray:'登录电脑后自动打开 Oriel。窗口不弹出，只留图标。', loginHelpMac:'只有安装后的 Oriel 应用能登录时打开。', trayRowMac:'菜单栏图标', trayRowWin:'托盘图标', trayHelpMac:'在菜单栏显示未读数，关掉窗口后 Oriel 继续在后台更新。', trayHelpWin:'在托盘显示图标，关掉窗口后 Oriel 继续在后台更新。', badgeRow:'Dock 未读角标', badgeHelp:'在 Dock 图标上显示未读数。', trayFailed:'这个系统不支持托盘图标。安装 libayatana-appindicator3 后再试。', trayUnread:'{n} 条未读', trayOpen:'打开 Oriel', trayRefresh:'全部更新', trayQuit:'退出',
     timeline:'时间线', density:'列表密度', densityHelp:'行与行之间的松紧。紧凑不删任何内容，只收紧间距。', dComfortable:'舒适', dCompact:'紧凑', markRead:'何时标为已读', markReadHelpOpen:'打开条目就标为已读。', markReadHelpDwell:'在阅读器或看图层里打开的条目，停留满下面的时间才标为已读；在浏览器里打开的立即标为已读。', markReadHelpScroll:'条目滚出列表顶部时标为已读，打开它不标。', markReadHelpNever:'不自动标，只有你自己标才算：已读按钮、M、V 或「全部标为已读」。', mrOpen:'打开时', mrDwell:'停留一会儿后', mrScroll:'滚过之后', mrNever:'从不自动', dwell:'停留时间', dwellHelp:'文章打开多久后标为已读。', sec3:'3 秒', sec5:'5 秒', sec10:'10 秒', group:'同一篇文章只显示一次', groupHelp:'几个订阅带同一篇文章时，时间线只显示一行。',
     viewAs:'查看方式',
     vArticles:'文章', vVideos:'视频', vSocial:'社交', vImages:'图片',
@@ -704,7 +710,7 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state.startsWith('rule')||state.startsWith('muted-')?'rules':state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'||state.startsWith('mark-read')?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
+const group=state.startsWith('rule')||state.startsWith('muted-')?'rules':state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'||state.startsWith('mark-read')||state.startsWith('desktop')?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
 
 const groups=[['appearance','palette'],['fetching','rss'],['rules','listFilter'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop'],['activity','database']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
@@ -747,6 +753,17 @@ const fontOpen=state.startsWith('font-'), readingOpen=state==='reading-font-open
 const serifFace=`'New York','Songti SC',Georgia,serif`;
 const menu=(label,value,style='',open=false)=>`<button class="select${open?' open':''}" aria-haspopup="listbox"${open?' aria-expanded="true"':''} aria-label="${label}"><span${style?` style="${style}"`:''}>${value}</span>${icon('chevronDown')}</button>`;
 const setting=(label,help,control)=>`<div class="row"><div class="device"><div class="text"><span class="label">${label}</span>${help?`<p class="help">${help}</p>`:''}</div>${control}</div></div>`;
+const dOn=state==='desktop-on'||state==='desktop-tray-menu';
+const dTray=dOn;
+const trayFail=state==='desktop-error';
+const loginHelp=os==='mac'&&state==='desktop-error'?copy.loginHelpMac:dTray?copy.loginHelpTray:copy.loginHelp;
+const desktopRows=[
+  switchRow(copy.loginRow,loginHelp,dOn),
+  switchRow(os==='mac'?copy.trayRowMac:copy.trayRowWin,os==='mac'?copy.trayHelpMac:copy.trayHelpWin,dTray),
+  trayFail?`<div class="row"><div class="status error" role="alert">${icon('alert')}${copy.trayFailed}</div></div>`:'',
+  os==='mac'?switchRow(copy.badgeRow,copy.badgeHelp,dOn):'',
+].join('\n');
+const trayMenu=state==='desktop-tray-menu'?`<div class="menu" id="menu" role="menu" style="right:24px;top:56px;min-width:200px"><button role="menuitem" disabled>${t('trayUnread',{n:12})}</button><hr style="border:0;border-top:.5px solid var(--hairline,rgba(128,128,128,.3));margin:4px 0"><button role="menuitem">${copy.trayOpen}</button><button role="menuitem">${copy.trayRefresh}</button><hr style="border:0;border-top:.5px solid var(--hairline,rgba(128,128,128,.3));margin:4px 0"><button role="menuitem">${copy.trayQuit}</button></div>`:'';
 const appearance=`<p class="lead">${copy.appearanceLead}</p><div class="card">
 ${setting(copy.theme,copy.themeHelp,seg(copy.theme,[['system',copy.themeSystem],['light',copy.themeLight],['dark',copy.themeDark]],'system'))}
 ${setting(copy.uiLanguage,copy.uiLanguageHelp,menu(copy.uiLanguage,copy.systemChoice))}
@@ -768,6 +785,8 @@ ${setting(copy.vVideos,'',seg(copy.vVideos,[['grid',copy.vGrid],['cover',copy.vC
 ${setting(copy.vSocial,'',seg(copy.vSocial,[['card',copy.vCard],['compact',copy.vCompact]],'card'))}
 ${setting(copy.vImages,'',seg(copy.vImages,[['wall',copy.vWall],['grid',copy.vGrid],['card',copy.vCard]],viewed?'grid':'wall'))}
 <div class="row"><p class="help">${copy.viewAsHelp}</p></div>
+</div><h2 class="section-title" id="desktop">${copy.desktop}</h2><div class="card">
+${desktopRows}
 </div>`;
 
 const fetching=`<p class="lead">${copy.lead}</p><div class="card">
@@ -979,6 +998,7 @@ ${bad?`<div class="status error" role="alert">${icon('alert')}${copy.errNoAction
 <p class="help" style="margin:12px 0 4px">${copy.ruleNote}</p></div>
 <div class="buttons"><button class="button">${copy.cancel}</button><button class="button primary">${copy.save}</button></div></div></div>`;
 }
+if(trayMenu)overlay=trayMenu;
 if(state==='rule-menu')overlay=`<div class="menu" id="menu" role="menu"><button role="menuitem">${icon('pencil')}${copy.menuEdit}</button><button role="menuitem" class="danger">${icon('trash')}${copy.menuDelete}</button></div>`;
 if(state==='restore-confirm')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${copy.restoreTitle}</h2><p id="ab">${t('restoreBody',{file:bfile})}</p><div class="buttons"><button class="button default">${copy.cancel}</button><button class="button danger">${copy.restoreConfirm}</button></div></div></div>`;
 if(state==='revoke')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${t('revokeTitle',{name:'Safari · iPhone'})}</h2><p id="ab">${copy.revokeBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.revokeConfirm}</button></div></div></div>`;
@@ -1034,6 +1054,7 @@ if(state==='rule-menu'){
 }
 if(mEdited){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById('muted').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
 if(viewed||dense||state.startsWith('mark-read')){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById(viewed?'view-as':'timeline').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
+if(state.startsWith('desktop')){document.querySelector('.page').style.paddingBottom='200px';const sc=document.querySelector('.scroll');sc.scrollTop+=document.getElementById('desktop').getBoundingClientRect().top-sc.getBoundingClientRect().top-60}
 {const sc=document.querySelector('.scroll'),mn=document.querySelector('.main');if(sc&&mn){const bar=()=>mn.classList.toggle('scrolled',sc.scrollTop>0);sc.addEventListener('scroll',bar);bar()}}
 </script>
 </html>
