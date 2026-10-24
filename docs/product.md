@@ -187,6 +187,7 @@ WantedBy=multi-user.target
 | `keep_days` | 这个源自己的保留期限，单位天：`0` 跟随全局的 `retention_days`（默认），`-1` 永久保留，`1` 到 3650 是天数。其它值（小于 -1，大于 3650）不接受，见「保留期限」。迁移 0014 加这一列。 |
 | `pace_sec` | 这个源的节奏：条目在「全部」和「未读」里停留多久，单位秒。`0` 是关（默认，条目一直在），否则是 3600 到 2592000（30 天）的整数，见「节奏」。迁移 0015 加这一列。 |
 | `extract_selector`、`extract_referer`、`extract_rewrites` | 这个源自己的正文抽取规则，默认都是空串（不用规则，行为不变）：一个 CSS 选择器，抽取时要发的 `Referer`，以及抽取前改写条目链接的规则（按行分隔）。语法、上限和失败时的行为见「正文抽取」的「按源规则」。迁移 0016 加这三列。 |
+| `fetch_user_agent`、`fetch_referer` | 这个源自己的抓取请求头，默认都是空串（不改，行为不变）：抓取时发的 `User-Agent`（空串是 `Oriel/<版本>`）和 `Referer`。哪些请求用、校验和边界见「抓取」的「自定义请求头」。不是密钥，照常备份。迁移 0027 加这两列。 |
 | `proxy`、`proxy_user`、`proxy_password` | 这个源自己的抓取代理，默认空串（跟随全局，见「抓取」的「代理」）。`proxy` 是 `direct`（这个源直连，不走全局代理，也不认环境变量）或代理地址（`http`、`https`、`socks5`、`socks5h`，写法同设置 `fetch_proxy`）；`proxy_user`、`proxy_password` 是它的用户名和密码，和 AI 的 API key 一样只存库里，接口不下发。迁移 0025 加这三列。 |
 | `websub_hub`、`websub_topic` | 订阅里声明的 WebSub hub 和主题（`rel="self"`），没有为空串，见「WebSub 推送」。迁移 0012 加这组 `websub_*` 列。 |
 | `websub_key`、`websub_secret` | 这个源的回调路径令牌和签名密钥，各自随机生成，只存库里，接口不下发。 |
@@ -399,7 +400,7 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
    - 同一个主机（主机名加端口）同时最多 2 个请求，两次请求的开头至少隔 1 秒。RSSHub 源发往 `rsshub_base_url` 里的实例，所以受实例所在主机的约束；备用实例在别的主机上时，规则见下面第 3 条。主机忙或还在间隔里时，该主机的源留在到期队列里，线程先去取别的主机的源。
    - 抓取返回 429 或 503 且带 `Retry-After`（解析同下）时，这个主机在这段时间里不再发新的抓取请求，其他主机不受影响；该主机上还没抓的源保持到期，等限制过去再抓，不因此记失败。
    - 抽取正文和清理过期条目各在自己的循环里跑，不占抓取线程，也不等抓取。
-2. 带 ETag / Last-Modified 条件请求。超时 25 秒，响应最大 8 MiB，User-Agent `Oriel/<版本>`。
+2. 带 ETag / Last-Modified 条件请求。超时 25 秒，响应最大 8 MiB，User-Agent 默认 `Oriel/<版本>`（源可以自己填，见「自定义请求头」）。
 3. RSSHub 源用设置 `rsshub_base_url` 加 `rsshub_path` 拼地址，换实例只改设置，改动最迟 2 秒后生效（抓取循环最多每 2 秒读一次这个设置）。没设根地址时这次抓取记为失败。完整的 RSSHub 地址（例如 `https://rsshub.app/bilibili/hot-search`）按普通源抓，用不到根地址；根地址只给只填路由的订阅用。
    - `rsshub_base_url` 可以放多个实例：每行一个根地址（最多 5 个），按优先级排，第一个是主实例。去掉空行和末尾的 `/`，重复的只留第一次出现的。旧版只存一个地址，它就是只有一个实例的列表。
    - 一个路由按顺序试各实例，第一个答上来的就是结果。**无响应**（连不上、超时、读到一半断开）、**5xx** 和 **429** 是实例的问题，同一次抓取里换下一个实例；其他失败（404、解析失败、响应过大等）是路由的问题，换实例也一样，不再换，按这个实例的结果记失败。
@@ -440,13 +441,25 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
 
 **已移除（410）。** 响应状态码是 410 Gone，站点在说这个订阅被永久移除。这次抓取照常按失败记（计数、抓取记录不变），`last_error` 写 `status 410: the feed was removed (Gone)`，同时 `last_error_kind` 记 `gone`；下一次成功抓取清掉它。服务端不自己暂停源，也不放弃它：410 偶尔是站点的误答，所以按上面「一直失败」的长间隔继续试，下一次至少等 6 小时，不必等满 3 天。界面看到 `lastErrorKind` 为 `gone` 时建议用户暂停或退订这个订阅，由用户决定（见「订阅管理」里的「已移除的说法」）。RSSHub 路由上，一个实例答 410 就是路由本身的结论，和 404 一样不再换实例，原因前加实例名。
 
-**被拦截。** 公共的 `rsshub.app` 和不少站点放在 Cloudflare 后面，会把程序的请求当成机器人，答一个挑战页。响应状态码是 403、429 或 503，并且带 `cf-mitigated: challenge`，或者由 `server: cloudflare` 发出、`Content-Type` 是 `text/html`（要订阅却回了网页），就是被拦截。这次抓取照常按失败记（计数、退避、抓取记录都不变），`last_error` 写原始文字（`status 403: blocked by Cloudflare`），同时 `last_error_kind` 记 `blocked`；下一次成功抓取清掉它。RSSHub 路由在每个实例都失败时，只要其中有一个是被拦截，整体也记 `blocked`。Oriel 不改 User-Agent，也不试图绕过挑战：被拦的订阅要换一个不拦的实例，或者用户自己的 RSSHub。
+**被拦截。** 公共的 `rsshub.app` 和不少站点放在 Cloudflare 后面，会把程序的请求当成机器人，答一个挑战页。响应状态码是 403、429 或 503，并且带 `cf-mitigated: challenge`，或者由 `server: cloudflare` 发出、`Content-Type` 是 `text/html`（要订阅却回了网页），就是被拦截。这次抓取照常按失败记（计数、退避、抓取记录都不变），`last_error` 写原始文字（`status 403: blocked by Cloudflare`），同时 `last_error_kind` 记 `blocked`；下一次成功抓取清掉它。RSSHub 路由在每个实例都失败时，只要其中有一个是被拦截，整体也记 `blocked`。Oriel 默认不改 User-Agent（用户可以给单个订阅自己填，见「自定义请求头」），也不试图绕过挑战：被拦的订阅要换一个不拦的实例，或者用户自己的 RSSHub；填了自定义请求头仍被挑战页拦住的，照旧记 `blocked`，不加任何绕过办法。
 
 **失败原因的短语。** `last_error` 存的是原始的英文文字，界面不直接把它当说明：客户端按文字认出常见的几类，换成用户语言的短语，`last_error` 的存储格式不变。分类：超时（`deadline exceeded`、`timeout`）、域名解析失败（`no such host`、`lookup`）、证书错误（`x509`、`tls:`）、连不上（`connection refused`、`connection reset`、`dial tcp`、`EOF`、代理连不上）、状态码 401/403（拒绝访问）、404/410（找不到）、429（被限流，稍后重试）、5xx（站点故障，稍后重试）、`not a feed`（返回的不是订阅内容）。多个实例的原因用 `; ` 隔开时，各段同类才用短语。认不出的原因原样显示；`blocked` 和 `gone` 仍按 `last_error_kind` 用各自的句子。短语出现在订阅管理的健康行、时间线侧栏的提示和抓取失败的提示里；原文放进悬浮提示（“原文：…”），屏幕阅读器读短语，并能读到原文。
 
 订阅地址是用户自己填的，可以指向本机或内网（例如自建的 RSSHub），不做 SSRF 检查。订阅内容带出来的地址由正文抽取检查（见下一节）。
 
 没有配置代理（见下面的「代理」）时，抓订阅认 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，不读系统代理设置。
+
+### 自定义请求头
+
+有些站点（图床、站点自己的 feed）要特定的 `User-Agent` 或 `Referer` 才肯返回内容。每个源可以自己填这两个值，默认空串，行为和以前一样。
+
+- **只有这两个头。** 界面和接口只收这两个值，没有「头名」，所以没有办法发 `Cookie`、`Authorization` 或别的头：Oriel 不登录原站账号（见产品定位）。服务端也不保存响应里的 `Set-Cookie`，不带 cookie jar。`fetchUserAgent` 以 `cookie:` 或 `authorization:`（不分大小写）开头时拒绝，是拦用户把整行头贴进来。
+- **哪些请求用。** `fetch_user_agent` 用于这个源的订阅抓取和它条目页面的正文抽取；`fetch_referer` 只用于订阅抓取。正文抽取的 `Referer` 仍只看 `extract_referer`（见「正文抽取」的「按源规则」），不受 `fetch_referer` 影响。不用于图片代理取图、收藏的本地副本取图、WebSub 订阅请求、订阅发现、RSSHub 路由查找和预览：这些不属于抓某个源的内容，也和现在一样不带 `Referer`。
+- **只发给这个源自己的站点。** 请求的主机（主机名加端口）和订阅地址的主机相同时才带这两个头；正文抽取的条目页面在别的主机上时，User-Agent 用默认值。重定向到别的主机时不带，那一跳起 User-Agent 回到默认，也没有 `Referer`；重定向回原主机时再带上。请求仍按原来的规则经过 `guardedClient` 和代理，请求头不改变这些检查。
+- **RSSHub 路由没有这两个头。** 只填路由、地址由 `rsshub_base_url` 拼出来的源，请求发往用户自己的实例，不发往上游站点，这两个头对上游没有作用，也不该交给实例：这样的源不能设（`PATCH` 返回 `fetch_headers_unsupported`），界面不显示这一组。填了完整地址的源（包括完整的 RSSHub 地址）按普通源处理。
+- **校验。** 去掉首尾空白后：`fetchUserAgent` 是空串，或最长 500 个字符、只含可打印的 ASCII（0x20 到 0x7E）、不以上面两个名字加冒号开头，否则 `invalid_fetch_user_agent`；`fetchReferer` 是空串，或带主机名的 http 或 https 绝对地址、最长 2000 个字符、不带用户信息（`user:pw@`），否则 `invalid_fetch_referer`。空串是不用，回到默认。
+- **不是绕过功能。** 填了请求头不改变失败的处理：状态码、退避、`blocked` 的判断都照旧，不加重试、不换头再试。
+- 请求头的值不是密钥，进备份，接口照常下发；诊断文件和日志里不记它们。改动从下一次抓取起生效。
 
 ### 代理
 
@@ -683,7 +696,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 
 ## 订阅接口
 
-都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`lastErrorKind`（上次失败的稳定代码，`blocked`、`gone` 或空串，见「抓取」）、`movedTo`（站点永久搬走的新地址，等用户决定；没有建议为空串，见「抓取」的「永久重定向」）、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见「正文抽取」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`proxy`（`direct`、代理地址，或空串即跟随全局，见「抓取」的「代理」）、`proxyAuthSet`（这个源是否存了代理的用户名和密码；用户名和密码不下发）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
+都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`lastErrorKind`（上次失败的稳定代码，`blocked`、`gone` 或空串，见「抓取」）、`movedTo`（站点永久搬走的新地址，等用户决定；没有建议为空串，见「抓取」的「永久重定向」）、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见「正文抽取」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`fetchUserAgent`、`fetchReferer`（按源的抓取请求头，空串是不改，见「抓取」的「自定义请求头」）、`proxy`（`direct`、代理地址，或空串即跟随全局，见「抓取」的「代理」）、`proxyAuthSet`（这个源是否存了代理的用户名和密码；用户名和密码不下发）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
 
 | 路由 | 作用 |
 |---|---|
@@ -713,12 +726,13 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 - `fetchIntervalSec` 是 60 到 604800（7 天）的整数，否则 `invalid_interval`。给了它就是固定间隔；`fetchIntervalAuto` 是布尔值，缺省为 `true`，即两个都不给时间隔「自动」，起点 900。`fetchIntervalAuto` 为 `true` 又给了 `fetchIntervalSec`，返回 `invalid_interval`。
 - 同一订阅已经有了（订阅地址按「源」一节规范化后比较：末尾多一个 `/`、主机名大小写、默认端口、`http` 对 `https`、`www.`、跟踪参数、查询参数的顺序不同，或同一个上游走了 RSSHub 路由和普通地址两条路，都算已有），返回 409，`{ "error": "source_exists", "sourceId": 已有的那个订阅的编号 }`；有几个重复时取最早的。`allowDuplicate` 为 `true` 时不做这个比较，照样添加（用户看了提示仍要加第二个）；写法完全相同的地址仍然加不了，也是 409 `source_exists`。
 
-能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`、`extractSelector`、`extractReferer`、`extractRewrites`、`proxy`、`proxyUser`、`proxyPassword`。订阅地址不能用 `PATCH` 改：换地址只有一条路，接受服务端的搬家建议（`POST /api/sources/{id}/move`，见「抓取」的「永久重定向」）；别的换地址要删了重加。
+能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`、`extractSelector`、`extractReferer`、`extractRewrites`、`fetchUserAgent`、`fetchReferer`、`proxy`、`proxyUser`、`proxyPassword`。订阅地址不能用 `PATCH` 改：换地址只有一条路，接受服务端的搬家建议（`POST /api/sources/{id}/move`，见「抓取」的「永久重定向」）；别的换地址要删了重加。
 
 - `keepDays` 是 -1 到 3650 的整数，否则 `invalid_keep_days`。
 - `paceSec` 是 `0` 或 3600 到 2592000 的整数，否则 `invalid_pace`。
 - `extractSelector` 去掉首尾空白后最长 500 个字符，且是能解析的 CSS 选择器，否则 `invalid_extract_selector`；空串是不用。
 - `extractReferer` 去掉首尾空白后是空串，或带主机名的 http 或 https 绝对地址、最长 2000 个字符，否则 `invalid_extract_referer`。
+- `fetchUserAgent`、`fetchReferer` 的规则和错误码见「抓取」的「自定义请求头」（`invalid_fetch_user_agent`、`invalid_fetch_referer`、只填路由的源是 `fetch_headers_unsupported`）；空串清除。
 - `extractRewrites` 按行保存，每行去掉首尾空白，丢掉空行。最多 10 条，每条最长 500 个字符，写法是「正文抽取」里的两种，否则 `invalid_extract_rewrites`。
 - `proxy` 去掉首尾空白后是空串（跟随全局）、`direct`，或带主机名和端口的代理地址（`http`、`https`、`socks5`、`socks5h`，不带路径、查询串、片段和用户信息，最长 500 个字符），否则 `invalid_proxy`。`proxyUser`、`proxyPassword`（各最长 255 个字节，SOCKS5 的上限，超出 `invalid_proxy`）只能写：不带就不动，空串删掉；`proxy` 改了，这个源存的用户名和密码一并删掉，除非同一个请求带了新的；用户名和密码不管 `proxy` 是什么值都能设。从下一次抓取起生效。
 - 标题改成空串时，下次抓取用订阅里的标题补上。

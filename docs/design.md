@@ -296,7 +296,14 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   in the mockup). Opened, it holds a "Content selector" box, a "Referer" box and a "Link rewrites" box (monospace,
   three lines that grow to eight, one `from => to` per line), each with a muted 12 help line that says what an empty
   field does. Saving checks the three on the server, and a refusal shows under the field it concerns, in the
-  field's error style. The dialog ends with "Summaries and
+  field's error style. "Request headers" follows in the same disclosure style (`edit-headers-empty`, `edit-headers`,
+  `edit-headers-error`), collapsed unless one of its two fields is set, with a muted 12 help line: a "User-Agent" box
+  and a "Referer" box, each with a muted 12 help line that says where it is sent, and a closing muted 12 note: cookies
+  and sign-in are not supported, the headers go only to the subscription's own site, and a site that blocks Oriel
+  stays blocked. The placeholder of User-Agent is the one Oriel sends (`Oriel/{version}`) and the Referer's is
+  `https://example.com/`, so an empty box reads as the default. There is no "header name" field and no third box.
+  A refusal from the server shows under the field it concerns in the error style, and the box takes the `Danger`
+  outline. A subscription kept as an RSSHub route only has no such row. The dialog ends with "Summaries and
   translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
   monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
   Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open settings".
