@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -130,5 +131,62 @@ func TestStorageWithoutImageCache(t *testing.T) {
 	body := decode(t, do(s, "GET", "/api/storage", "", nil))
 	if body["images"] != 0.0 || body["imageBytes"] != 0.0 || body["copies"] != 0.0 || body["copyBytes"] != 0.0 {
 		t.Fatalf("storage: %v", body)
+	}
+}
+
+func TestRSSHubHealthRoute(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	if w := do(s, "GET", "/api/rsshub/health", "", nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without session: %d", w.Code)
+	}
+
+	w := do(s, "GET", "/api/rsshub/health", "", bearer(token))
+	body := decode(t, w)
+	if w.Code != http.StatusOK || body["keep"] != float64(fetch.InstanceHealthKeep) || body["days"] != float64(fetch.InstanceHealthDays) {
+		t.Fatalf("no instances: %d %s", w.Code, w.Body)
+	}
+	if list, ok := body["instances"].([]any); !ok || len(list) != 0 {
+		t.Fatalf("instances = %#v, want an empty array", body["instances"])
+	}
+
+	ctx := context.Background()
+	if err := s.store.SetSetting(ctx, fetch.RSSHubSetting, "https://a.example\nhttps://b.example\n"); err != nil {
+		t.Fatal(err)
+	}
+	w = do(s, "GET", "/api/rsshub/health", "", bearer(token))
+	list := decode(t, w)["instances"].([]any)
+	if len(list) != 2 {
+		t.Fatalf("without the hook: %s", w.Body)
+	}
+	for i, url := range []string{"https://a.example", "https://b.example"} {
+		row := list[i].(map[string]any)
+		if row["url"] != url || row["requests"] != float64(0) || row["successRate"] != nil || row["medianMs"] != nil || row["coolingUntil"] != nil {
+			t.Errorf("row %d = %v: want zero requests and null figures", i, row)
+		}
+	}
+
+	rate, median := 0.96, int64(420)
+	until := time.Date(2026, 5, 1, 12, 30, 0, 0, time.UTC)
+	var asked []string
+	s.instanceHealth = func(instances []string) []fetch.InstanceHealth {
+		asked = instances
+		return []fetch.InstanceHealth{
+			{URL: "https://b.example", Requests: 3, CoolingUntil: &until},
+			{URL: "https://a.example", Requests: 50, SuccessRate: &rate, MedianMs: &median},
+			{URL: "https://gone.example", Requests: 9},
+		}
+	}
+	w = do(s, "GET", "/api/rsshub/health", "", bearer(token))
+	list = decode(t, w)["instances"].([]any)
+	if len(asked) != 2 || asked[0] != "https://a.example" || len(list) != 2 {
+		t.Fatalf("asked %v, got %s", asked, w.Body)
+	}
+	a, b := list[0].(map[string]any), list[1].(map[string]any)
+	if a["url"] != "https://a.example" || a["requests"] != float64(50) || a["successRate"] != 0.96 || a["medianMs"] != float64(420) || a["coolingUntil"] != nil {
+		t.Errorf("a = %v", a)
+	}
+	if b["url"] != "https://b.example" || b["requests"] != float64(3) || b["successRate"] != nil || b["medianMs"] != nil || b["coolingUntil"] != float64(until.UnixMilli()) {
+		t.Errorf("b = %v", b)
 	}
 }

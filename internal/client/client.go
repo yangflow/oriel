@@ -756,6 +756,31 @@ func (s Session) Activity(ctx context.Context) (Activity, error) {
 	return activity, err
 }
 
+// InstanceHealth is how the latest requests to one RSSHub instance went. SuccessRate (0 to 1), MedianMs and
+// CoolingUntil (Unix milliseconds) are nil when there is nothing to say.
+type InstanceHealth struct {
+	URL          string   `json:"url"`
+	Requests     int      `json:"requests"`
+	SuccessRate  *float64 `json:"successRate"`
+	MedianMs     *int64   `json:"medianMs"`
+	CoolingUntil *int64   `json:"coolingUntil"`
+}
+
+// RSSHubHealth is the health of the RSSHub instances in the settings, in their order. The server counts the latest
+// Keep requests that are at most Days old.
+type RSSHubHealth struct {
+	Keep      int              `json:"keep"`
+	Days      int              `json:"days"`
+	Instances []InstanceHealth `json:"instances"`
+}
+
+// RSSHubHealth asks the server how the latest requests to each RSSHub instance went.
+func (s Session) RSSHubHealth(ctx context.Context) (RSSHubHealth, error) {
+	var health RSSHubHealth
+	err := s.call(ctx, http.MethodGet, "/api/rsshub/health", nil, &health)
+	return health, err
+}
+
 // The states of a Vacuum.
 const (
 	VacuumIdle    = "idle"

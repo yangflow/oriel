@@ -57,6 +57,9 @@ type fake struct {
 	storageErr  error
 	vacuumErr   error
 	reads       int // how many times the activity was read
+	health      client.RSSHubHealth
+	healthErr   error
+	healthReads int // how many times the RSSHub health was read
 	vacuums     int // how many times a compaction was started
 
 	model string        // the model that answers a test

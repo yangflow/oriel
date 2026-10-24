@@ -150,7 +150,7 @@ func start(ctx context.Context, dataDir, password, mode string, port int, proxie
 	auto := autobackup.New(st, version)
 	work := &background{store: st, poller: poller, worker: worker, copier: fetch.NewCopier(st, images), auto: auto}
 	api, err := server.New(st, server.Config{Password: password, Version: version, Images: images,
-		Discover: discover, Routes: routes, AI: worker, Fetching: poller.Fetching, Log: logs, DataDir: dataDir, Mode: mode, Pause: work.pause, AutoBackup: auto, TrustedProxies: proxies})
+		Discover: discover, Routes: routes, AI: worker, Fetching: poller.Fetching, InstanceHealth: poller.InstanceHealth, Log: logs, DataDir: dataDir, Mode: mode, Pause: work.pause, AutoBackup: auto, TrustedProxies: proxies})
 	if err != nil {
 		st.Close()
 		return nil, err

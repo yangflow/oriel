@@ -208,6 +208,7 @@ type Poller struct {
 	spacing   time.Duration // between two feed fetches to one host
 	hosts     hostGate      // limits and spaces out requests to one site, for feeds and extraction
 	rsshub    instanceGate  // the RSSHub instances that are cooling down
+	stats     instanceStats // how the latest requests to each RSSHub instance went
 	lastPrune time.Time     // only touched by prune, which runs in one loop
 	vacuuming func() bool   // whether a vacuum is running; no new fetch starts while it is
 	readHook  func()        // tests only: called before a refill reads the database
@@ -463,6 +464,19 @@ func (p *Poller) Fetching() []int64 {
 	return ids
 }
 
+// requestInstance is fetchFrom for an RSSHub instance, counting the request in the instance's health. A request
+// that ended because ctx was canceled does not count: it says nothing about the instance.
+func (p *Poller) requestInstance(ctx context.Context, src store.FeedSource, address, base string) (int, error) {
+	start := p.now()
+	created, err := p.fetchFrom(ctx, src, address, base)
+	if ctx.Err() != nil && err != nil {
+		return created, err
+	}
+	var unavailable *unavailableError
+	p.stats.record(base, healthSample{at: start, took: p.now().Sub(start), answered: !errors.As(err, &unavailable)})
+	return created, err
+}
+
 // statusKey carries the place where fetchFrom leaves the HTTP status it received, for the fetch log.
 type statusKey struct{}
 
@@ -550,7 +564,7 @@ func (p *Poller) fetchAndSave(ctx context.Context, src store.FeedSource, host st
 // held is the host whose place the caller holds already.
 func (p *Poller) fetchRoute(ctx context.Context, src store.FeedSource, instances []string, held string) (int, error) {
 	if len(instances) == 1 {
-		return p.fetchFrom(ctx, src, sourceAddress(src, instances[0]), instances[0])
+		return p.requestInstance(ctx, src, sourceAddress(src, instances[0]), instances[0])
 	}
 	var reasons []string
 	var blocked bool
@@ -575,7 +589,7 @@ func (p *Poller) fetchRoute(ctx context.Context, src store.FeedSource, instances
 			busy = true
 			continue
 		}
-		created, err := p.fetchFrom(ctx, src, address, base)
+		created, err := p.requestInstance(ctx, src, address, base)
 		if !owned {
 			p.hosts.release(host)
 		}

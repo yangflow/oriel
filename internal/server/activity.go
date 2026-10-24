@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/yangflow/oriel/internal/diag"
+	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/store"
 )
 
@@ -80,6 +81,43 @@ func (s *Server) activity(w http.ResponseWriter, r *http.Request) {
 		sources[i] = item
 	}
 	reply(w, http.StatusOK, map[string]any{"keep": store.FetchLogKeep, "fetching": fetching, "sources": sources})
+}
+
+type instanceHealthJSON struct {
+	URL          string   `json:"url"`
+	Requests     int      `json:"requests"`
+	SuccessRate  *float64 `json:"successRate"`
+	MedianMs     *int64   `json:"medianMs"`
+	CoolingUntil *int64   `json:"coolingUntil"`
+}
+
+// rsshubHealth answers GET /api/rsshub/health: how the latest requests to each RSSHub instance in the settings went.
+func (s *Server) rsshubHealth(w http.ResponseWriter, r *http.Request) {
+	raw, err := s.store.Setting(r.Context(), fetch.RSSHubSetting)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	instances := fetch.Instances(raw)
+	var health []fetch.InstanceHealth
+	if s.instanceHealth != nil {
+		health = s.instanceHealth(instances)
+	}
+	byURL := make(map[string]fetch.InstanceHealth, len(health))
+	for _, h := range health {
+		byURL[h.URL] = h
+	}
+	out := make([]instanceHealthJSON, len(instances))
+	for i, base := range instances {
+		h := byURL[base]
+		item := instanceHealthJSON{URL: base, Requests: h.Requests, SuccessRate: h.SuccessRate, MedianMs: h.MedianMs}
+		if h.CoolingUntil != nil {
+			ms := h.CoolingUntil.UnixMilli()
+			item.CoolingUntil = &ms
+		}
+		out[i] = item
+	}
+	reply(w, http.StatusOK, map[string]any{"keep": fetch.InstanceHealthKeep, "days": fetch.InstanceHealthDays, "instances": out})
 }
 
 // storage answers GET /api/storage: the size of the database, the image cache and the state of the vacuum.
