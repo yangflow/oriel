@@ -2327,6 +2327,22 @@ func TestDesktopCardSwitches(t *testing.T) {
 	}
 }
 
+func TestDesktopCardLoginFailed(t *testing.T) {
+	s, f, tt := openDesktop(t, &Desktop{OS: "linux"})
+	if tt.HasText(s.text.LoginFailed) {
+		t.Fatal("the error shows before anything failed")
+	}
+	s.LoginFailed()
+	tt.Frame()
+	if !tt.HasText(s.text.LoginFailed) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	flip(t, s, tt, s.text.OpenAtLogin, s.text.OpenAtLoginHelpTray)
+	if tt.HasText(s.text.LoginFailed) || !f.prefs.OpenAtLogin {
+		t.Errorf("the error stayed after the switch was used: %+v", f.prefs)
+	}
+}
+
 func TestDesktopCardTrayFailed(t *testing.T) {
 	s, f, tt := openDesktop(t, &Desktop{OS: "linux"})
 	s.TrayFailed()

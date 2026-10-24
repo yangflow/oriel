@@ -350,13 +350,10 @@ func desktop() {
 			window.Restore()
 			window.Focus()
 		}
-		// A hidden window never draws, so the timeline does not update the count the icon shows; this does, and only
-		// while the window is hidden or minimized.
+		// A hidden window never draws, so the timeline does not update the count the icon shows; this does, and the
+		// controller runs it only while the window is hidden or minimized.
 		tick := func() {
 			<-made
-			if window.IsVisible() && !window.IsMinimized() {
-				return
-			}
 			window.Update(root.pollUnread)
 		}
 		integration := newDesktopController(nativeHost(trayActions{
@@ -370,6 +367,15 @@ func desktop() {
 		options.Hidden = integration.HideAtLaunch(mygo.App.WasOpenedAtLogin())
 		window = mygo.NewWindow(options)
 		close(made)
+		// The controller polls the count only while the window draws nothing.
+		hiddenNow := func() {
+			window.Update(func() { integration.SetHidden(!window.IsVisible() || window.IsMinimized()) })
+		}
+		window.OnShow(hiddenNow)
+		window.OnHide(hiddenNow)
+		window.OnMinimize(hiddenNow)
+		window.OnRestore(hiddenNow)
+		integration.SetHidden(options.Hidden)
 		// Closing the window leaves Oriel running in the tray; Quit still closes it.
 		var quitting atomic.Bool
 		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { quitting.Store(true) })

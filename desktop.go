@@ -69,6 +69,7 @@ type desktopController struct {
 	tray     trayHandle
 	hasTray  atomic.Bool // tray != nil, for the close of the window, which is told on another thread
 	badge    bool
+	hidden   bool // the window is hidden or minimized, so it draws nothing
 	stopPoll func()
 }
 
@@ -172,9 +173,16 @@ func (c *desktopController) show() {
 	}
 }
 
-// poll runs while the tray or the badge shows the count, which a hidden window does not keep up to date.
+// SetHidden is told whether the window is hidden or minimized. Only then does the controller poll the unread count:
+// a window that shows keeps the count fresh itself.
+func (c *desktopController) SetHidden(hidden bool) {
+	c.hidden = hidden
+	c.poll()
+}
+
+// poll runs while the window is hidden and the tray or the badge shows the count.
 func (c *desktopController) poll() {
-	want := c.tray != nil || c.badge
+	want := c.hidden && (c.tray != nil || c.badge)
 	switch {
 	case want && c.stopPoll == nil:
 		c.stopPoll = c.host.Poll(unreadEvery)

@@ -598,7 +598,8 @@ func TestShellDesktopLoginFailed(t *testing.T) {
 	p.OpenAtLogin = true
 	s.change(p)
 	tt.Frame()
-	if s.prefs.OpenAtLogin || !tt.HasText("Couldn’t save that choice. It went back to what it was.") {
+	if s.prefs.OpenAtLogin || !tt.HasText("Couldn’t change opening at login.") ||
+		tt.HasText("Couldn’t save that choice. It went back to what it was.") {
 		t.Fatalf("in use %v, texts %v", s.prefs, tt.Texts())
 	}
 }

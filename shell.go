@@ -189,8 +189,8 @@ func (s *shell) save(p prefs.Preferences, tell bool) {
 	if s.desktop != nil {
 		var failed desktopFailure
 		p, failed = s.desktop.Sync(p)
-		if failed.Login && tell {
-			s.settings.PreferenceFailed()
+		if failed.Login {
+			s.settings.LoginFailed()
 		}
 		if failed.Tray {
 			s.settings.TrayFailed()

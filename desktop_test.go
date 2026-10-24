@@ -181,9 +181,10 @@ func TestBadge(t *testing.T) {
 	}
 }
 
-func TestPollRunsOnlyWhileTheCountIsShown(t *testing.T) {
+func TestPollRunsOnlyWhileHiddenAndTheCountIsShown(t *testing.T) {
 	sys := &fakeSystem{}
 	c := newDesktopController(sys.host("darwin", true), "en")
+	c.SetHidden(true)
 	c.Sync(prefs.Preferences{})
 	if sys.polling != 0 {
 		t.Fatal("polling with nothing to show")
@@ -200,6 +201,38 @@ func TestPollRunsOnlyWhileTheCountIsShown(t *testing.T) {
 	c.Sync(prefs.Preferences{})
 	if sys.polling != 0 {
 		t.Error("the poll kept running with the tray and the badge off")
+	}
+}
+
+func TestPollStartsWhenHiddenAndStopsWhenShown(t *testing.T) {
+	sys := &fakeSystem{}
+	c := newDesktopController(sys.host("linux", false), "en")
+	c.Sync(prefs.Preferences{TrayIcon: true})
+	if sys.polling != 0 {
+		t.Fatal("polling while the window shows")
+	}
+	c.SetHidden(true)
+	if sys.polling != 1 {
+		t.Fatal("no poll once the window is hidden")
+	}
+	c.SetHidden(true)
+	if sys.pollStart != 1 {
+		t.Error("hiding twice started a second poll")
+	}
+	c.SetHidden(false)
+	if sys.polling != 0 {
+		t.Error("the poll kept running with the window shown")
+	}
+}
+
+func TestPollStopsWhenTheTrayGoesOffWhileHidden(t *testing.T) {
+	sys := &fakeSystem{}
+	c := newDesktopController(sys.host("linux", false), "en")
+	c.Sync(prefs.Preferences{TrayIcon: true})
+	c.SetHidden(true)
+	c.Sync(prefs.Preferences{})
+	if sys.polling != 0 {
+		t.Error("the poll kept running with the tray off")
 	}
 }
 

@@ -62,7 +62,7 @@ type copy struct {
 	Preset, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                               string
 	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                                                                                                                                              string
 	Desktop, OpenAtLogin, OpenAtLoginHelp, OpenAtLoginHelpTray, OpenAtLoginNeedsApp, MenuBarIcon, MenuBarIconHelp                                                                                                                                                                                                                           string
-	TrayIcon, TrayIconHelp, DockBadge, DockBadgeHelp, TrayFailed                                                                                                                                                                                                                                                                            string
+	TrayIcon, TrayIconHelp, DockBadge, DockBadgeHelp, LoginFailed, TrayFailed                                                                                                                                                                                                                                                               string
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                                                                                                                                                       string
 	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                                                    string
 	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10 string
@@ -327,7 +327,8 @@ type Screen struct {
 
 	restored *restoration // the last "Restore default" of a prompt, until its toast closes
 
-	trayFailed bool // the tray icon could not start and its switch went back off; the card says so
+	loginFailed bool // the login item could not change and its switch went back; the card says so
+	trayFailed  bool // the tray icon could not start and its switch went back off; the card says so
 }
 
 // restoration is a prompt put back to its default, with the text it had, which Undo returns.
@@ -419,6 +420,10 @@ func (s *Screen) OpenPage(name string) {
 func (s *Screen) PreferenceFailed() {
 	s.toast = s.text.PreferenceFailed
 }
+
+// LoginFailed tells the login item could not change: its switch went back and the Desktop card says so, until the
+// switch is used again.
+func (s *Screen) LoginFailed() { s.loginFailed = true }
 
 // TrayFailed tells the tray icon could not start: its switch went back off and the Desktop card says why, until the
 // switch is used again.
@@ -2672,15 +2677,20 @@ func (s *Screen) desktopCard(c *ui.Context, p prefs.Preferences, d Desktop) {
 	}
 	rows := []func(){
 		toggle(s.text.OpenAtLogin, loginHelp, &p.OpenAtLogin, needsApp, func(on bool) {
+			s.loginFailed = false
 			p.OpenAtLogin = on
 			s.deps.Change(p)
 		}),
+	}
+	if s.loginFailed {
+		rows = append(rows, func() { statusLine(c, status{text: s.text.LoginFailed}) })
+	}
+	rows = append(rows,
 		toggle(trayLabel, trayHelp, &p.TrayIcon, false, func(on bool) {
 			s.trayFailed = false
 			p.TrayIcon = on
 			s.deps.Change(p)
-		}),
-	}
+		}))
 	if s.trayFailed {
 		rows = append(rows, func() { statusLine(c, status{text: s.text.TrayFailed}) })
 	}
