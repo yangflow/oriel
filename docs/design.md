@@ -328,6 +328,47 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `health-empty`. Accessibility: the dialog is labeled by its title, each row is a list item named by the source and
   its reason, the buttons carry the source's name ("Pause {name}", "Unsubscribe {name}"), and the loaded count is
   announced with `Announce`.
+- **Manage subscriptions.** A dialog 640 wide, opened from the command palette action "Manage subscriptions…" and the
+  menu item "Subscriptions > Manage subscriptions…"; the sidebar gets no checkboxes. Header: the `list-checks` icon, the
+  title and a muted line, "Select several to change them together." Under it a filter field (the settings search field),
+  then, in the same 40-high band slot, one of two things. With nothing selected, a plain "Select all" row: the
+  checkbox, the label in `TextSecondary`, and "{n} subscriptions" muted 12 tabular at the right. With a selection, the
+  action bar replaces it: an `AccentSoft` band, 10 radius, 6 gaps; the tri-state checkbox, "{n} selected" (13 medium,
+  tabular), the small buttons "Pause" (`pause`) and "Resume" (`play`) (each drawn only when some selected row needs it,
+  so both show for a mixed selection), "Change settings…" (`sliders-horizontal`), "Delete…" (`trash2`, `Danger` text, no
+  fill), and at the far right a 28 square quiet `x` that clears the selection. The buttons sit on `Raised` with the edge
+  hairline so they read on the band. The checkbox is 16, radius 5, a 1.5 `EdgeLine` ring on `Raised`; checked it is
+  filled `Accent` with a 12 `check`, partly selected a 12 `minus`. Rows are 48 high, 12 horizontal and 6 vertical padding,
+  8 radius, 2 apart, no hairlines: checkbox, the glyph (16), then the title (13 medium, one line, with the 14
+  `triangle-alert` in `Warning` for a failing source and a 14 `pause` in `TextMuted` for a paused one) over a muted 12
+  line, "Every 6 hours · Articles · Keep 1 month" ("Auto · 6 h" when the interval follows the server). A paused row's
+  title is `TextMuted`, regular. A selected row is filled `AccentSoft`; the keyboard focus ring is the usual 2 `Focus`
+  ring around the row. The list scrolls inside the dialog; the footer has the hint "Shift selects a range, ⌘/Ctrl adds
+  one." at the left and "Close" at the right.
+  The settings sheet is the 440 dialog stacked over the list (the list stays visible and dimmed behind): header
+  `sliders-horizontal`, "Change settings for {n} subscriptions" and "Only the fields you change are sent."; three fields,
+  "Check every", "Show as", "Keep entries", each a select that starts on "Keep as is" in `TextMuted`, with a muted 12
+  line under it, "Now: {value}" or "Now: mixed". A field that was changed shows its value in `Text`. "Apply" is primary
+  and disabled until a field changed; "Cancel" beside it. Delete uses the standard delete alert, "Delete {n}
+  subscriptions?", with the danger tile, the usual body and Cancel and Delete. After it the rows leave the list and the
+  toast, "Deleted {n} subscriptions" with Undo and close, sits at the bottom of the window over the dialog, drawn like
+  the single-delete toast.
+  A running action replaces the bar with a muted line, a spinning `loader-circle` and "Pausing… 5 of 8"; the rows dim to
+  55 %, the filter field, Close and the close button are disabled. A partial failure draws a result band between the
+  filter and the bar: `DangerSoft`, 10 radius, a 14 `circle-alert`, "Paused 5. 3 couldn’t be finished." (12 `Danger`),
+  and two small buttons, "Try again" and "Dismiss", at the right. The failed rows stay selected and carry a third line, a
+  14 `circle-alert` and the reason ("Couldn’t reach the server", "It no longer exists", "The server had an error") in
+  12 `Danger`; the succeeded rows are no longer selected. The band stays until dismissed. When a delete partly fails the
+  toast is still drawn for the ones that went through.
+  Drawn in `design/screens/subscriptions.html`: `manage` (nothing selected), `manage-selected` (three selected, one
+  paused, one with the focus ring), `manage-all`, `manage-change` (all fields "Keep as is", Apply disabled),
+  `manage-change-set`, `manage-working`, `manage-partial`, `manage-delete`, `manage-deleted` and
+  `manage-deleted-partial`. Accessibility: the dialog is labeled by its title; the list is a multi-selectable listbox and
+  each row an option named "{title}, {interval}, {kind}, paused", with its reason appended after a failure; the action bar
+  is a toolbar named "Actions for {n} selected subscriptions" and its buttons carry the count ("Pause {n}
+  subscriptions"); the count, progress and result are announced with `Announce`; the result band is an alert. The
+  checkbox is never the only way: Space, Shift+Arrow and ⌘/Ctrl+A do the same from the keyboard, and a selected row is
+  told by its state, not by the fill alone.
 - **Hiding the sidebar.** The button sits in the pane's top 40, at its right end, centered on the pane line (25 from the pane's edge, like the add, Unread first and settings buttons) and on the toolbar row's middle line,
   level with the window buttons at the left; it is a bare 32 square icon button with
   the Lucide `panel-left` icon (16, `toolFill` colors, radius 8), named "Hide sidebar" while the pane shows and "Show
