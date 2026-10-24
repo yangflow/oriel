@@ -12,7 +12,7 @@ import (
 func Counts(n *html.Node, src string) bool {
 	width, _ := strconv.Atoi(attr(n, "width"))
 	height, _ := strconv.Atoi(attr(n, "height"))
-	return width > 0 && width <= 2 || height > 0 && height <= 2 || hidden(n) || KnownAddress(src)
+	return width > 0 && width <= 2 || height > 0 && height <= 2 || Hidden(n) || KnownAddress(src)
 }
 
 // attr is the value of the attribute key of n, "" when it has none.
@@ -25,9 +25,9 @@ func attr(n *html.Node, key string) string {
 	return ""
 }
 
-// hidden reports whether a picture is kept from view by its attributes or its inline style: hidden, display none,
+// Hidden reports whether an element is kept from view by its attributes or its inline style: hidden, display none,
 // visibility hidden, or a width or height of nothing or a pixel.
-func hidden(n *html.Node) bool {
+func Hidden(n *html.Node) bool {
 	for _, a := range n.Attr {
 		if a.Key == "hidden" {
 			return true

@@ -87,6 +87,14 @@
      width=narrow|standard|wide (default standard) multiplies the column by 0.85 / 1 / 1.2 (578 / 680 / 816 at Medium). The states
      preset-sepia, preset-mist, width-narrow and width-wide are the full article with that choice (size=wide for the widest
      columns); the parameters combine with any other state, e.g. state=immersive&preset=sepia&scheme=dark.
+     Media and embeds (docs/design.md, Media and embeds; issue 369): the reader never plays video or audio and loads no embedded page,
+     but it no longer drops them silently. Each iframe, video, audio, object and embed becomes one row in its place: Surface, radius 10,
+     0.5 ink 10% outline, an icon for the kind (play, volume-2, app-window), "There's a video here" and, at the end, "Open in browser" in
+     Accent with the external icon; the whole row is one button that opens the entry's link. embeds: an article with a video, a podcast player
+     and an embedded page among its text (the row sits where the element was). embed-only: the entry's text is one video and nothing
+     else, so the reader shows the empty state "Only a video here" with "Open in browser" as the primary button, never "No text to show";
+     embed-only-audio: the same with one audio element (the heading and the tile icon follow the kind; a mix or an embedded page says
+     "Only embedded content here").
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk, preset, width. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
@@ -273,6 +281,13 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .pic.failed.strip .alt { max-width:none; -webkit-line-clamp:1 }
 .pic.failed.strip .button { margin:0 }
 .prose figcaption { margin-top:8px; font:400 12px/1.5 system-ui,-apple-system,"PingFang SC",sans-serif; color:var(--muted) }
+a.embed { display:flex; align-items:center; gap:10px; min-height:40px; margin:1.4em 0; padding:10px 12px; border-radius:10px; background:var(--surface); outline:.5px solid rgba(var(--ink),.10); outline-offset:-.5px; font:400 13px/1.4 system-ui,-apple-system,"PingFang SC",sans-serif; color:var(--text2); text-decoration:none }
+a.embed:hover { background:color-mix(in srgb,var(--surface) 92%,var(--text)) }
+a.embed:focus-visible { outline:2px solid var(--focus); outline-offset:1px }
+a.embed svg.icon { width:16px; height:16px; flex:none; color:var(--muted) }
+a.embed .what { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+a.embed .go { flex:none; display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:500; color:var(--accent) }
+a.embed .go svg.icon { width:14px; height:14px; color:inherit }
 .prose hr { border:0; border-top:1px solid var(--border); margin:24px 0 }
 .prose a.fnref { text-decoration:none; padding:0 1px; border-radius:4px }
 .prose a.fnref:hover { background:var(--accent-soft) }
@@ -435,7 +450,7 @@ mark.hit.now { background:color-mix(in srgb,var(--warning) 40%,transparent); box
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar','preset-sepia','preset-mist','width-narrow','width-wide','image-failed','image-unsized','image-settled','image-wrong-size','footnotes','footnote-jump','table','table-wide'];
+const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar','preset-sepia','preset-mist','width-narrow','width-wide','image-failed','image-unsized','image-settled','image-wrong-size','footnotes','footnote-jump','table','table-wide','embeds','embed-only','embed-only-audio'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off'],preset:['theme','sepia','mist'],width:['narrow','standard','wide']};
@@ -476,6 +491,8 @@ const icons={
   circle:'<circle cx="12" cy="12" r="10"/>',
   checkCheck:'<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
   minimize2:'<path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/>',
+  volume2:'<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/>',
+  appWindow:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/>',
   imageOff:'<line x1="2" x2="22" y1="2" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" x2="6" y1="13.5" y2="21"/><line x1="18" x2="21" y1="12" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/>',
   rotateCcw:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   circleCheck:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
@@ -534,6 +551,8 @@ const copy={
     translateSel:'Translate selection', explainSel:'Explain selection', copyAction:'Copy', selectAll:'Select All', selTranslation:'Translation', selExplanation:'Explanation',
     find:'Find', matches:'{current} of {total}', noMatches:'No matches', prevMatch:'Previous match', nextMatch:'Next match', done:'Done',
     backToText:'Back to the text', footnote:'Footnote {n}', tableName:'Table, {c} columns, {r} rows',
+    embedVideo:'There’s a video here', embedAudio:'There’s audio here', embedOther:'There’s embedded content here', embedName:'{what}. Open in browser',
+    onlyVideo:'Only a video here', onlyAudio:'Only audio here', onlyOther:'Only embedded content here', onlyHint:'The reader doesn’t play video or audio. Open it in the browser.',
     picFailed:'This picture can’t be shown', picFailedName:'{alt}. This picture can’t be shown', picFailedNoAlt:'Picture. It can’t be shown', picRetry:'Try loading the picture again',
     selFailed:'Couldn’t get an answer. {reason}', selTooLong:'Select less text', selTooLongHint:'Up to 2000 characters can be translated or explained at a time.', selAiOff:'Translating and explaining use an AI endpoint of your choosing. Set one up in Settings first.',
   },
@@ -559,6 +578,8 @@ const copy={
     translateSel:'翻译所选', explainSel:'解释所选', copyAction:'复制', selectAll:'全选', selTranslation:'译文', selExplanation:'解释',
     find:'查找', matches:'第 {current} 项，共 {total} 项', noMatches:'无匹配项', prevMatch:'上一处匹配', nextMatch:'下一处匹配', done:'完成',
     backToText:'回到正文', footnote:'脚注 {n}', tableName:'表格，{c} 列 {r} 行',
+    embedVideo:'这里有一个视频', embedAudio:'这里有一段音频', embedOther:'这里有嵌入内容', embedName:'{what}。在浏览器中打开',
+    onlyVideo:'这里只有视频', onlyAudio:'这里只有音频', onlyOther:'这里只有嵌入内容', onlyHint:'阅读器不播放视频和音频，请在浏览器中打开。',
     picFailed:'这张图片无法显示', picFailedName:'{alt}。这张图片无法显示', picFailedNoAlt:'图片。无法显示', picRetry:'重新加载这张图片',
     selFailed:'没能得到回答。{reason}', selTooLong:'请少选一些文字', selTooLongHint:'一次最多翻译或解释 2000 个字。', selAiOff:'翻译和解释使用你自己选定的 AI 端点，请先在设置里配置。',
   },
@@ -761,8 +782,22 @@ const imageText=()=>{
   return pre+figs+post;
 };
 
+const embedRow=kind=>{const what=copy[{video:'embedVideo',audio:'embedAudio',other:'embedOther'}[kind]], ic={video:'video',audio:'volume2',other:'appWindow'}[kind];
+  return `<a class="embed" href="#" aria-label="${t('embedName',{what})}">${icon(ic)}<span class="what">${what}</span><span class="go">${copy.open}${icon('external')}</span></a>`};
+const embedText=()=>{
+  const pre=zh?'<p>这一期聊了 FTS5 的三种分词器，先看视频，再听一段访谈。</p>':'<p>This episode goes through the three tokenizers of FTS5: first the video, then an interview.</p>';
+  const mid=zh?'<p>访谈的文字稿在下面，页面里的演示也可以单独打开。</p>':'<p>The transcript of the interview is below, and the demo on the page can be opened by itself.</p>';
+  const post=zh?'<p>索引大约是原文的三倍。对一个个人阅读器来说，这通常可以接受。</p>':'<p>The index ends up about three times the size of the text. For a personal reader that is usually fine.</p>';
+  return pre+embedRow('video')+embedRow('audio')+mid+embedRow('other')+post;
+};
+const embedOnly=()=>{const kind=state==='embed-only-audio'?'audio':'video';
+  const heading=kind==='audio'?copy.onlyAudio:copy.onlyVideo;
+  return `<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1></article>`+empty(kind==='audio'?'volume2':'video',heading,copy.onlyHint,openButton('primary').replace(copy.openOriginal,copy.open)).replace('class="empty"','class="empty" style="min-height:0;padding-top:24px"')};
+
 let page;
 switch(state){
+  case 'embeds':page=article('',embedText());break;
+  case 'embed-only':case 'embed-only-audio':page=embedOnly();break;
   case 'selection-menu':case 'selection-explain':page=article('',markExplain(full));break;
   case 'selection-loading':case 'selection-translate':case 'selection-failed':case 'selection-too-long':case 'selection-ai-off':page=original('').replace(zh?'it indexes every run of three characters':'把文本切成所有连续的三个字符',m=>`<mark class="sel">${m}</mark>`);break;
   case 'image-failed':case 'image-unsized':case 'image-settled':case 'image-wrong-size':page=article('',imageText());break;

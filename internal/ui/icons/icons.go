@@ -20,6 +20,7 @@ func parse(name string) *ui.SVG {
 }
 
 var (
+	AppWindow      = parse("app-window")
 	ArrowRight     = parse("arrow-right")
 	ArrowUp        = parse("arrow-up")
 	ArrowUpDown    = parse("arrow-up-down")
@@ -86,6 +87,7 @@ var (
 	Trash2         = parse("trash-2")
 	TriangleAlert  = parse("triangle-alert")
 	Upload         = parse("upload")
+	Volume2        = parse("volume-2")
 	WifiOff        = parse("wifi-off")
 	X              = parse("x")
 )
