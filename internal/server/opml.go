@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"errors"
 	"io"
@@ -83,31 +84,47 @@ type importFailure struct {
 	Error   string `json:"error"`
 }
 
-func (s *Server) importOPML(w http.ResponseWriter, r *http.Request) {
+// opmlResult is what an import reports: the subscriptions it added, the ones that were there already, and the ones
+// it could not add.
+type opmlResult struct {
+	Added    int             `json:"added"`
+	Existing int             `json:"existing"`
+	Failed   []importFailure `json:"failed"`
+}
+
+// readOPML reads and checks the file of an import request. It answers the request itself and returns false when the
+// file is too large or is not OPML, so that nothing is added and no job starts.
+func readOPML(w http.ResponseWriter, r *http.Request) (opmlDocument, bool) {
+	var doc opmlDocument
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxOPML))
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
 		fail(w, http.StatusRequestEntityTooLarge, "opml_too_large")
-		return
+		return doc, false
 	}
 	if err != nil {
 		fail(w, http.StatusBadRequest, "invalid_opml")
-		return
+		return doc, false
 	}
-	var doc opmlDocument
 	// A file in another encoding (GBK, ISO-8859-1) says so in its XML declaration.
 	decoder := xml.NewDecoder(bytes.NewReader(data))
 	decoder.CharsetReader = charset.NewReaderLabel
 	if err := decoder.Decode(&doc); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_opml")
-		return
+		return doc, false
 	}
-	idx, err := s.store.DuplicateIndex(r.Context())
+	return doc, true
+}
+
+// addSources adds the subscriptions of doc and calls progress with how many it has handled, after each one. Those it
+// has added stay when it stops on an error; the result then holds the counts up to there.
+func (s *Server) addSources(ctx context.Context, doc opmlDocument, progress func(done int)) (opmlResult, error) {
+	res := opmlResult{Failed: []importFailure{}}
+	idx, err := s.store.DuplicateIndex(ctx)
 	if err != nil {
-		internal(w, err)
-		return
+		return res, err
 	}
-	added, existing, failed := 0, 0, []importFailure{}
+	done := 0
 	spread := min(importSpreadMax, time.Duration(countOutlines(doc.Body))*importSpreadEach)
 	var walk func([]opmlOutline) error
 	walk = func(outlines []opmlOutline) error {
@@ -116,19 +133,21 @@ func (s *Server) importOPML(w http.ResponseWriter, r *http.Request) {
 				src, title := o.source()
 				switch code := checkSource(src); {
 				case code != "":
-					failed = append(failed, importFailure{Title: title, Address: src.URL + src.RSSHubPath, Error: code})
+					res.Failed = append(res.Failed, importFailure{Title: title, Address: src.URL + src.RSSHubPath, Error: code})
 				default:
 					src.FirstFetchDelay = time.Duration(rand.Int64N(int64(max(spread, 1))))
-					_, err := s.store.CreateSourceIn(r.Context(), idx, src, title, s.now())
+					_, err := s.store.CreateSourceIn(ctx, idx, src, title, s.now())
 					switch {
 					case errors.Is(err, store.ErrExists):
-						existing++
+						res.Existing++
 					case err != nil:
 						return err
 					default:
-						added++
+						res.Added++
 					}
 				}
+				done++
+				progress(done)
 			}
 			if err := walk(o.Outlines); err != nil {
 				return err
@@ -136,11 +155,27 @@ func (s *Server) importOPML(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	}
-	if err := walk(doc.Body); err != nil {
+	return res, walk(doc.Body)
+}
+
+// importOPML adds the subscriptions of the file and answers when it is done. It takes the same one-at-a-time lock as
+// the import job.
+func (s *Server) importOPML(w http.ResponseWriter, r *http.Request) {
+	doc, ok := readOPML(w, r)
+	if !ok {
+		return
+	}
+	if !s.opml.begin() {
+		fail(w, http.StatusConflict, "opml_import_busy")
+		return
+	}
+	defer s.opml.endSync()
+	res, err := s.addSources(r.Context(), doc, func(int) {})
+	if err != nil {
 		internal(w, err)
 		return
 	}
-	reply(w, http.StatusOK, map[string]any{"added": added, "existing": existing, "failed": failed})
+	reply(w, http.StatusOK, res)
 }
 
 func (s *Server) exportOPML(w http.ResponseWriter, r *http.Request) {

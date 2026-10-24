@@ -172,3 +172,196 @@ func TestOPMLImportOtherEncodings(t *testing.T) {
 		t.Errorf("sources: %s", got)
 	}
 }
+
+// opmlFile builds an OPML file of n subscriptions, one of them, when bad is true, with an address no one can add.
+func opmlFile(n int, bad bool) string {
+	var file strings.Builder
+	file.WriteString(`<opml version="2.0"><body><outline text="Group">`)
+	for i := range n {
+		address := fmt.Sprintf("https://example.org/%d", i)
+		if bad && i == 1 {
+			address = "ftp://example.org/feed"
+		}
+		fmt.Fprintf(&file, `<outline text="s%d" xmlUrl="%s"/>`, i, address)
+	}
+	file.WriteString(`</outline></body></opml>`)
+	return file.String()
+}
+
+// opmlStatusOf reads the status of the import job.
+func opmlStatusOf(t *testing.T, s *Server, header map[string]string) map[string]any {
+	t.Helper()
+	w := do(s, "GET", "/api/opml/import", "", header)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", w.Code, w.Body)
+	}
+	return decode(t, w)
+}
+
+// waitOPML waits until the job has left the running phase.
+func waitOPML(t *testing.T, s *Server, header map[string]string) map[string]any {
+	t.Helper()
+	for range 500 {
+		if st := opmlStatusOf(t, s, header); st["phase"] != "running" {
+			return st
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the job did not end")
+	return nil
+}
+
+func TestOPMLJobReportsProgress(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	header := bearer(token)
+	if w := do(s, "POST", "/api/opml/import/start", importFile, nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("start without session: %d", w.Code)
+	}
+	if w := do(s, "GET", "/api/opml/import", "", nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("status without session: %d", w.Code)
+	}
+	if st := opmlStatusOf(t, s, header); st["phase"] != "idle" || st["id"] != nil {
+		t.Fatalf("before any job: %v", st)
+	}
+
+	// The job holds after its second subscription, so the status can be read in the middle.
+	reached, release := make(chan struct{}), make(chan struct{})
+	s.opml.step = func(done int) {
+		if done == 2 {
+			close(reached)
+			<-release
+		}
+	}
+	w := do(s, "POST", "/api/opml/import/start", opmlFile(5, true), header)
+	started := decode(t, w)
+	id, _ := started["id"].(string)
+	if w.Code != http.StatusAccepted || id == "" || started["phase"] != "running" || fmt.Sprint(started["progress"]) != "map[done:0 total:5]" {
+		t.Fatalf("start: %d %v", w.Code, started)
+	}
+	<-reached
+	if st := opmlStatusOf(t, s, header); st["id"] != id || st["phase"] != "running" || fmt.Sprint(st["progress"]) != "map[done:2 total:5]" || st["result"] != nil {
+		t.Fatalf("in the middle: %v", st)
+	}
+
+	// While it runs, both routes turn another import away, and the file is still checked first.
+	for _, target := range []string{"/api/opml/import", "/api/opml/import/start"} {
+		w := do(s, "POST", target, importFile, header)
+		if w.Code != http.StatusConflict || decode(t, w)["error"] != "opml_import_busy" {
+			t.Errorf("%s while running: %d %s", target, w.Code, w.Body)
+		}
+	}
+	if w := do(s, "POST", "/api/opml/import/start", "not xml", header); w.Code != http.StatusBadRequest {
+		t.Errorf("a bad file while running: %d", w.Code)
+	}
+	close(release)
+
+	st := waitOPML(t, s, header)
+	if st["id"] != id || st["phase"] != "done" || fmt.Sprint(st["progress"]) != "map[done:5 total:5]" || st["error"] != nil ||
+		fmt.Sprint(st["result"]) != "map[added:4 existing:0 failed:[map[address:ftp://example.org/feed error:invalid_url title:s1]]]" {
+		t.Fatalf("done: %v", st)
+	}
+	// The result stays until the next job, and a second job gets another id, with every subscription already there.
+	if again := opmlStatusOf(t, s, header); fmt.Sprint(again) != fmt.Sprint(st) {
+		t.Fatalf("kept: %v", again)
+	}
+	s.opml.step = nil
+	next := decode(t, do(s, "POST", "/api/opml/import/start", opmlFile(5, true), header))
+	if next["id"] == id {
+		t.Fatalf("the same id twice: %v", next)
+	}
+	if st := waitOPML(t, s, header); st["id"] != next["id"] || fmt.Sprint(st["result"]) != "map[added:0 existing:4 failed:[map[address:ftp://example.org/feed error:invalid_url title:s1]]]" {
+		t.Fatalf("second job: %v", st)
+	}
+	// The synchronous route works again once the job is over.
+	if w := do(s, "POST", "/api/opml/import", importFile, header); w.Code != http.StatusOK {
+		t.Fatalf("sync after the job: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestOPMLJobWithoutSubscriptionsIsDoneAtOnce(t *testing.T) {
+	s, _ := newServer(t, "")
+	do(s, "POST", "/api/opml/import/start", `<opml version="2.0"><body><outline text="Empty"/></body></opml>`, nil)
+	if st := waitOPML(t, s, nil); st["phase"] != "done" || fmt.Sprint(st["progress"]) != "map[done:0 total:0]" {
+		t.Fatalf("empty file: %v", st)
+	}
+}
+
+func TestOPMLSyncImportHoldsTheLock(t *testing.T) {
+	s, _ := newServer(t, "")
+	if !s.opml.begin() {
+		t.Fatal("the lock was taken")
+	}
+	for _, target := range []string{"/api/opml/import", "/api/opml/import/start"} {
+		w := do(s, "POST", target, importFile, nil)
+		if w.Code != http.StatusConflict || decode(t, w)["error"] != "opml_import_busy" {
+			t.Errorf("%s during a synchronous import: %d %s", target, w.Code, w.Body)
+		}
+	}
+	s.opml.endSync()
+	if w := do(s, "POST", "/api/opml/import/start", importFile, nil); w.Code != http.StatusAccepted {
+		t.Fatalf("after it: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestOPMLJobRejectsBadFilesBeforeStarting(t *testing.T) {
+	s, _ := newServer(t, "")
+	for body, want := range map[string]struct {
+		status int
+		code   string
+	}{
+		`<rss version="2.0"><channel></channel></rss>`: {http.StatusBadRequest, "invalid_opml"},
+		`not xml`: {http.StatusBadRequest, "invalid_opml"},
+		"<opml><body>" + strings.Repeat(" ", maxOPML) + "</body></opml>": {http.StatusRequestEntityTooLarge, "opml_too_large"},
+	} {
+		w := do(s, "POST", "/api/opml/import/start", body, nil)
+		if w.Code != want.status || decode(t, w)["error"] != want.code {
+			t.Errorf("%.30s: %d %s", body, w.Code, w.Body)
+		}
+		if st := opmlStatusOf(t, s, nil); st["phase"] != "idle" {
+			t.Errorf("%.30s started a job: %v", body, st)
+		}
+	}
+}
+
+func TestOPMLJobFailsWithTheCountsSoFar(t *testing.T) {
+	s, _ := newServer(t, "")
+	// The server shuts down after the second subscription: the third cannot be written.
+	s.opml.step = func(done int) {
+		if done == 2 {
+			s.opml.cancel()
+		}
+	}
+	do(s, "POST", "/api/opml/import/start", opmlFile(5, false), nil)
+	st := waitOPML(t, s, nil)
+	if st["phase"] != "failed" || st["error"] != "import_failed" || fmt.Sprint(st["result"]) != "map[added:2 existing:0 failed:[]]" {
+		t.Fatalf("failed: %v", st)
+	}
+	if got := subscriptions(t, s, nil); len(got) != 2 {
+		t.Fatalf("the added ones stay: %q", got)
+	}
+}
+
+func TestOPMLJobPanicFailsTheJob(t *testing.T) {
+	s, _ := newServer(t, "")
+	s.opml.step = func(int) { panic("boom") }
+	do(s, "POST", "/api/opml/import/start", opmlFile(3, false), nil)
+	if st := waitOPML(t, s, nil); st["phase"] != "failed" || st["error"] != "import_failed" {
+		t.Fatalf("panic: %v", st)
+	}
+	if w := do(s, "POST", "/api/opml/import/start", importFile, nil); w.Code != http.StatusAccepted {
+		t.Fatalf("after a panic: %d", w.Code)
+	}
+}
+
+func TestOPMLJobDoesNotStartAfterClose(t *testing.T) {
+	s, _ := newServer(t, "")
+	s.Close()
+	w := do(s, "POST", "/api/opml/import/start", importFile, nil)
+	if w.Code != http.StatusServiceUnavailable || decode(t, w)["error"] != "server_closing" {
+		t.Fatalf("start after Close: %d %s", w.Code, w.Body)
+	}
+	if st := opmlStatusOf(t, s, nil); st["phase"] != "idle" {
+		t.Fatalf("a job started: %v", st)
+	}
+}

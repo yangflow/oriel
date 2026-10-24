@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -41,6 +42,10 @@ type fake struct {
 	settings client.Settings
 	devices  []client.Device
 	imported client.Imported
+	jobID    string // the id of the last job started
+	jobN     int
+	jobPolls int                                    // how many times a job was asked about
+	jobPoll  func(n int) (client.OPMLImport, error) // what the nth poll answers; an empty phase and no error means done
 	opml     []byte
 	diag     []byte
 
@@ -84,6 +89,7 @@ type fake struct {
 	names      []string // the file names the save dialog was offered
 	back       int
 	refreshed  int
+	viewed     int
 	expired    int
 
 	rules      []client.Rule
@@ -173,9 +179,40 @@ func (f *fake) RevokeDevice(_ context.Context, id int64) error {
 	return f.revokeErr
 }
 
-func (f *fake) ImportOPML(_ context.Context, opml []byte) (client.Imported, error) {
+// StartOPMLImport starts a job that reports running until the test says otherwise, and then done with f.imported.
+func (f *fake) StartOPMLImport(_ context.Context, opml []byte) (client.OPMLImport, error) {
 	f.sent = append(f.sent, opml)
-	return f.imported, f.importErr
+	if f.importErr != nil {
+		return client.OPMLImport{}, f.importErr
+	}
+	f.jobN++
+	f.jobID = fmt.Sprintf("job-%d", f.jobN)
+	return client.OPMLImport{ID: f.jobID, Phase: client.OPMLRunning}, nil
+}
+
+func (f *fake) OPMLImportStatus(context.Context) (client.OPMLImport, error) {
+	f.jobPolls++
+	if f.jobPoll != nil {
+		if job, err := f.jobPoll(f.jobPolls); job.Phase != "" || err != nil {
+			if job.ID == "" {
+				job.ID = f.jobID
+			}
+			return job, err
+		}
+	}
+	result := f.imported
+	return client.OPMLImport{ID: f.jobID, Phase: client.OPMLDone, Result: &result}, nil
+}
+
+// finish runs the queued work and lets the clock move on one poll at a time until the import is over.
+func (f *fake) finish(tt *ui.Tester, s *Screen) {
+	f.settle(tt)
+	for range 100 {
+		if s.run == nil {
+			return
+		}
+		f.after(tt, importEvery)
+	}
 }
 
 func (f *fake) ExportOPML(context.Context) ([]byte, error) { return f.opml, f.exportErr }
@@ -316,6 +353,7 @@ func (f *fake) deps() Deps {
 		},
 		Back:        func() { f.back++ },
 		Imported:    func() { f.refreshed++ },
+		ViewSources: func() { f.viewed++ },
 		Expired:     func() { f.expired++ },
 		Preferences: func() prefs.Preferences { return f.prefs },
 		Fonts:       func() []string { return f.fonts },
@@ -566,10 +604,10 @@ func TestImport(t *testing.T) {
 	f.queue = f.queue[1:]
 	work()()
 	tt.Frame()
-	if !tt.HasText("Importing feeds.opml") {
+	if !tt.HasText("Importing feeds.opml…") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
-	f.settle(tt)
+	f.finish(tt, s)
 	if len(f.sent) != 1 || string(f.sent[0]) != "<opml/>" || f.filters[0] != s.text.OPMLFiles {
 		t.Fatalf("sent %q, filters %v", f.sent, f.filters)
 	}
@@ -598,10 +636,10 @@ func TestImportDropped(t *testing.T) {
 	f.imported = client.Imported{Added: 3, Existing: 1}
 	s.ImportFiles([]string{writeOPML(t, "feeds.OPML", "<opml/>")})
 	tt.Frame()
-	if s.group != opml || !tt.HasText("Importing feeds.OPML") {
+	if s.group != opml || !tt.HasText("Importing feeds.OPML…") {
 		t.Fatalf("group %v, texts %v", s.group, tt.Texts())
 	}
-	f.settle(tt)
+	f.finish(tt, s)
 	if len(f.sent) != 1 || string(f.sent[0]) != "<opml/>" || f.refreshed != 1 {
 		t.Fatalf("sent %q, refreshed %d", f.sent, f.refreshed)
 	}
@@ -613,7 +651,7 @@ func TestImportDropped(t *testing.T) {
 func TestImportDroppedNotOPML(t *testing.T) {
 	s, f, tt := setup(t, "en", true)
 	s.ImportFiles([]string{writeOPML(t, "notes.txt", "hello")})
-	f.settle(tt)
+	f.finish(tt, s)
 	if len(f.sent) != 0 || !tt.HasText("notes.txt is not an OPML file. Nothing was added.") {
 		t.Fatalf("sent %q, texts %v", f.sent, tt.Texts())
 	}
@@ -633,7 +671,7 @@ func TestImportDroppedSeveral(t *testing.T) {
 		writeOPML(t, "b.xml", "<opml/>"),
 	}
 	s.ImportFiles(paths)
-	f.settle(tt)
+	f.finish(tt, s)
 	if len(f.sent) != 2 || f.refreshed != 1 {
 		t.Fatalf("sent %d files, refreshed %d", len(f.sent), f.refreshed)
 	}
@@ -649,7 +687,7 @@ func TestImportDroppedSeveral(t *testing.T) {
 func TestImportDroppedAllFail(t *testing.T) {
 	s, f, tt := setup(t, "en", true)
 	s.ImportFiles([]string{writeOPML(t, "a.txt", "x"), writeOPML(t, "b.txt", "x")})
-	f.settle(tt)
+	f.finish(tt, s)
 	if s.result.tone != refused || f.refreshed != 0 || !tt.HasText("Imported 2 files: 0 added, 0 already subscribed, 2 not added.") {
 		t.Fatalf("result %+v, texts %v", s.result, tt.Texts())
 	}
@@ -665,13 +703,13 @@ func TestImportDroppedBusy(t *testing.T) {
 	if !tt.HasText(s.text.DropBusy) {
 		t.Fatalf("no busy message in %v", tt.Texts())
 	}
-	f.settle(tt)
+	f.finish(tt, s)
 	if len(f.sent) != 1 {
 		t.Fatalf("sent %d files", len(f.sent))
 	}
 	s.confirming = true
 	s.ImportFiles([]string{path})
-	f.settle(tt)
+	f.finish(tt, s)
 	if len(f.sent) != 1 {
 		t.Fatalf("sent %d files with a dialog open", len(f.sent))
 	}
@@ -681,7 +719,7 @@ func TestImportDroppedSignedOut(t *testing.T) {
 	s, f, tt := setup(t, "en", true)
 	f.importErr = client.ErrUnauthorized
 	s.ImportFiles([]string{writeOPML(t, "a.opml", "<opml/>"), writeOPML(t, "b.opml", "<opml/>")})
-	f.settle(tt)
+	f.finish(tt, s)
 	if len(f.sent) != 1 || s.api != nil || s.busy {
 		t.Fatalf("sent %d, api %v, busy %v", len(f.sent), s.api, s.busy)
 	}
@@ -707,7 +745,7 @@ func TestImportRefused(t *testing.T) {
 		if err := tt.Click(s.text.Import); err != nil {
 			t.Fatal(err)
 		}
-		f.settle(tt)
+		f.finish(tt, s)
 		if !tt.HasText(c.want) {
 			t.Errorf("no %q in %v", c.want, tt.Texts())
 		}

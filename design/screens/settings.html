@@ -21,7 +21,10 @@
      a file dropped anywhere else in the window opens this page and imports with no highlight; one dropped while an import, backup or
      restore runs or a dialog is open is refused with the toast "Busy. Try again when the current import finishes.",
      imported-several (several files dropped at once: one result for all, files that could not be read listed with the
-     subscriptions), importing, imported (with failures), import-error, exported, backup (the Back up and restore block, after a backup was saved),
+     subscriptions), importing (a bar and "Processed 136 of 340", the count from the file), importing-several (the second of
+     three dropped files), imported-ok (all added, with the quiet "View subscriptions" button), imported (with failures),
+     import-stopped (the server stopped partway; what was added stays), import-lost (the connection dropped while the server
+     may still be importing), import-error, exported, backup (the Back up and restore block, after a backup was saved),
      restore-confirm (the alert before the data is replaced), restoring, restored, restore-failed (a file that is not a backup; the data is as it was), auto-off (Automatic backup switched off, nothing chosen yet),
      auto-on (on, a folder chosen, the last success), auto-failed (the last attempt failed: warning line, retried within the hour),
      auto-remote (a remote server: the folder is a text field), reader (the Import from Reader dialog, Miniflux: service,
@@ -379,6 +382,9 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .counts li + li { border-top:1px solid var(--border) }
 .counts .what { flex:1 } .counts .n { font-variant-numeric:tabular-nums; font-weight:500 }
 .counts .note { padding-top:0; color:var(--muted); font-size:12px; border:0 }
+.bar.thin { height:4px; margin:8px 0 4px } .tabular { font-variant-numeric:tabular-nums }
+.result .quiet { flex:none; height:22px; padding:0 8px; margin:-2px 0; border:0; border-radius:6px; background:none; font:inherit; font-weight:500; color:var(--accent); cursor:pointer }
+.result .quiet:hover { background:rgba(var(--ink),.05) }
 .bar { height:6px; border-radius:3px; background:var(--track); overflow:hidden; margin:8px 0 12px } .bar i { display:block; height:100%; background:var(--accent) }
 /* Rules: a row is the condition as a sentence, the scope and the action under it, then the switch and the menu. */
 .rule .when { font-weight:500; overflow-wrap:anywhere }
@@ -411,7 +417,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','mark-read','mark-read-scroll','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','imported','imported-several','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','mark-read','mark-read-scroll','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -558,7 +564,8 @@ const copy={
     autoLabel:'Back up automatically', autoHelp:'Saves a backup to a folder on a schedule and removes older ones beyond the number to keep. Only files it wrote itself are removed.', autoFolder:'Folder', autoChoose:'Choose…', autoNoFolder:'No folder chosen yet', autoFrequency:'How often', autoDaily:'Every day', autoWeekly:'Every week', autoKeep:'Keep', autoCopies:'backups', autoNever:'No backup yet', autoLast:'Last backup: {time}, {file}', autoFailed:'Last backup failed: {reason}. Trying again within the hour.', autoNoWrite:'the folder cannot be written to', autoRemote:'The folder is on the server’s computer, and the path must exist there.', autoPlaceholder:'/var/backups/oriel',
     backingUp:'Backing up…', backedUp:'Backed up to {file}.', restoring:'Restoring {file}…', restored:'Restored {sources} subscriptions and {entries} entries.', restoreNotBackup:'{file} is not an Oriel backup. Nothing was changed.',
     restoreTitle:'Replace your data with this backup?', restoreBody:'The subscriptions, entries and settings here are replaced by the ones in {file}. This cannot be undone.', restoreConfirm:'Replace data',
-    import:'Choose file…', export:'Save as…', importing:'Importing {file}…',
+    import:'Choose file…', export:'Save as…', importing:'Importing {file}…', importingOf:'Importing {file} (file {i} of {n})…', progress:'Processed {done} of {total}', viewSources:'View subscriptions',
+    stopped:'Stopped importing {file}: {added} added before it stopped, {existing} already subscribed.', lost:'Lost the connection while importing {file}. The server may still be adding subscriptions; check the list in a moment.',
     imported:'Imported {file}: {added} added, {existing} already subscribed, {failed} could not be added.',
     importedOk:'Imported {file}: {added} added, {existing} already subscribed.',
     invalidOpml:'{file} is not an OPML file. Nothing was added.', tooLarge:'{file} is larger than 1 MB.',
@@ -663,7 +670,8 @@ const copy={
     autoLabel:'自动备份', autoHelp:'定期把备份存进一个文件夹，超出保留份数的旧备份会删掉。只删它自己写的文件。', autoFolder:'文件夹', autoChoose:'选择…', autoNoFolder:'还没选文件夹', autoFrequency:'频率', autoDaily:'每天', autoWeekly:'每周', autoKeep:'保留', autoCopies:'份', autoNever:'还没有备份过', autoLast:'上次备份：{time}，{file}', autoFailed:'上次备份失败：{reason}。会在一小时内重试。', autoNoWrite:'文件夹写不进去', autoRemote:'文件夹在服务端那台电脑上，路径要在那台电脑上存在。', autoPlaceholder:'/var/backups/oriel',
     backingUp:'正在备份…', backedUp:'已备份到 {file}。', restoring:'正在恢复 {file}…', restored:'已恢复 {sources} 个订阅、{entries} 条条目。', restoreNotBackup:'{file} 不是 Oriel 的备份，没有改动任何数据。',
     restoreTitle:'用这个备份替换现有数据？', restoreBody:'现在的订阅、条目和设置会被 {file} 里的替换，不能撤销。', restoreConfirm:'替换数据',
-    import:'选择文件…', export:'存储为…', importing:'正在导入 {file}…',
+    import:'选择文件…', export:'存储为…', importing:'正在导入 {file}…', importingOf:'正在导入 {file}（第 {i} 个，共 {n} 个文件）…', progress:'已处理 {done} / 共 {total}', viewSources:'查看订阅',
+    stopped:'导入 {file} 中途停了：停下前新增 {added} 个，{existing} 个已经订阅。', lost:'导入 {file} 时连接断了。服务端可能还在添加订阅，过一会儿再看列表。',
     imported:'已导入 {file}：新增 {added} 个，{existing} 个已经订阅，{failed} 个没能添加。',
     importedOk:'已导入 {file}：新增 {added} 个，{existing} 个已经订阅。',
     invalidOpml:'{file} 不是 OPML 文件，什么都没有添加。', tooLarge:'{file} 超过 1 MB。',
@@ -696,7 +704,7 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state.startsWith('rule')||state.startsWith('muted-')?'rules':state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'||state.startsWith('mark-read')?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','opml-drop','importing','imported','imported-several','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
+const group=state.startsWith('rule')||state.startsWith('muted-')?'rules':state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'||state.startsWith('mark-read')?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
 
 const groups=[['appearance','palette'],['fetching','rss'],['rules','listFilter'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop'],['activity','database']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
@@ -770,13 +778,23 @@ ${field}<div class="actions">${status||'<span class="status"></span>'}<button cl
 </div>`;
 
 const file='feeds.opml';
-const busy=state==='importing'||state==='restoring';
+const busy=state==='importing'||state==='importing-several'||state==='restoring';
 let result='';
-if(state==='importing')result=`<div class="status busy" role="status">${icon('loader','spin')}${t('importing',{file})}</div>`;
-if(state==='imported')result=`<div class="result warn" role="status"><div class="head">${icon('triangle')}<span class="grow">${t('imported',{file,added:12,existing:3,failed:2})}</span><button class="close" aria-label="${copy.dismiss}">${icon('x')}</button></div>
+const view=`<button class="quiet">${copy.viewSources}</button>`;
+const closeBtn=`<button class="close" aria-label="${copy.dismiss}">${icon('x')}</button>`;
+if(state==='importing'||state==='importing-several'){
+  const several=state==='importing-several', done=several?52:136, total=several?120:340;
+  result=`<div class="status busy" role="status">${icon('loader','spin')}${several?t('importingOf',{file:'work.opml',i:2,n:3}):t('importing',{file})}</div>
+<div class="bar thin" role="progressbar" aria-label="${copy.importLabel}" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><i style="width:${Math.round(done/total*100)}%"></i></div>
+<p class="help tabular">${t('progress',{done,total})}</p>`;
+}
+if(state==='imported-ok')result=`<div class="result" role="status"><div class="head" style="color:var(--success)">${icon('check')}<span class="grow" style="color:var(--text)">${t('importedOk',{file,added:12,existing:3})}</span>${view}${closeBtn}</div></div>`;
+if(state==='import-stopped')result=`<div class="result warn" role="status"><div class="head">${icon('triangle')}<span class="grow">${t('stopped',{file,added:120,existing:3})}</span>${view}${closeBtn}</div></div>`;
+if(state==='import-lost')result=`<div class="result warn" role="status"><div class="head">${icon('triangle')}<span class="grow">${t('lost',{file})}</span>${closeBtn}</div></div>`;
+if(state==='imported')result=`<div class="result warn" role="status"><div class="head">${icon('triangle')}<span class="grow">${t('imported',{file,added:12,existing:3,failed:2})}</span>${view}${closeBtn}</div>
 <ul aria-label="${copy.notAdded}"><li><span class="what">Gopher Weekly · <span class="mono-text">ftp://example.org/feed</span></span><span class="why">${copy.invalidUrl}</span></li>
 <li><span class="what">${zh?'播客合集':'Podcasts'} · <span class="mono-text">https://example.com/podcast.xml</span></span><span class="why">${copy.invalidKind}</span></li></ul></div>`;
-if(state==='imported-several')result=`<div class="result warn" role="status"><div class="head">${icon('triangle')}<span class="grow">${t('importedMany',{n:3,added:14,existing:3,failed:2})}</span><button class="close" aria-label="${copy.dismiss}">${icon('x')}</button></div>
+if(state==='imported-several')result=`<div class="result warn" role="status"><div class="head">${icon('triangle')}<span class="grow">${t('importedMany',{n:3,added:14,existing:3,failed:2})}</span>${view}${closeBtn}</div>
 <ul aria-label="${copy.notAdded}"><li><span class="what">Gopher Weekly · <span class="mono-text">ftp://example.org/feed</span></span><span class="why">${copy.invalidUrl}</span></li>
 <li><span class="what mono-text">notes.txt</span><span class="why">${copy.notOpmlWhy}</span></li></ul></div>`;
 if(state==='import-error')result=`<div class="result error" role="alert"><div class="head">${icon('alert')}<span class="grow">${t('invalidOpml',{file:'notes.txt'})}</span><button class="close" aria-label="${copy.dismiss}">${icon('x')}</button></div></div>`;

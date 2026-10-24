@@ -494,6 +494,28 @@ type ImportFail struct {
 	Error   string `json:"error"`
 }
 
+// The phases of an OPML import job.
+const (
+	OPMLIdle    = "idle"
+	OPMLRunning = "running"
+	OPMLDone    = "done"
+	OPMLFailed  = "failed"
+)
+
+// OPMLImport is an OPML import job. ID names the job, so that a client reads only its own. Progress counts the
+// subscriptions of the file handled so far, of all of them. Result is there when the job has ended, and holds the
+// counts up to where it stopped when Phase is OPMLFailed, with Error its code.
+type OPMLImport struct {
+	ID       string `json:"id"`
+	Phase    string `json:"phase"`
+	Progress struct {
+		Done  int `json:"done"`
+		Total int `json:"total"`
+	} `json:"progress"`
+	Result *Imported `json:"result"`
+	Error  string    `json:"error"`
+}
+
 // MaxOPML is the largest OPML file the server imports.
 const MaxOPML = 1 << 20
 
@@ -1025,18 +1047,27 @@ func (s Session) RevokeDevice(ctx context.Context, id int64) error {
 	return s.call(ctx, http.MethodDelete, "/api/sessions/"+strconv.FormatInt(id, 10), nil, nil)
 }
 
-// ImportOPML adds the subscriptions of an OPML file, at most MaxOPML bytes.
-func (s Session) ImportOPML(ctx context.Context, opml []byte) (Imported, error) {
-	resp, err := s.send(ctx, httpClient, http.MethodPost, "/api/opml/import", "text/x-opml", bytes.NewReader(opml))
+// StartOPMLImport starts the import of an OPML file, at most MaxOPML bytes, and returns the job. The file is checked
+// at once: a file that is too large or is not OPML is an error (opml_too_large, invalid_opml) and starts no job, and
+// an import already running is opml_import_busy.
+func (s Session) StartOPMLImport(ctx context.Context, opml []byte) (OPMLImport, error) {
+	resp, err := s.send(ctx, httpClient, http.MethodPost, "/api/opml/import/start", "text/x-opml", bytes.NewReader(opml))
 	if err != nil {
-		return Imported{}, err
+		return OPMLImport{}, err
 	}
 	defer resp.Body.Close()
-	var imported Imported
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(&imported); err != nil {
-		return Imported{}, fmt.Errorf("import: %w", err)
+	var job OPMLImport
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(&job); err != nil {
+		return OPMLImport{}, fmt.Errorf("import: %w", err)
 	}
-	return imported, nil
+	return job, nil
+}
+
+// OPMLImportStatus returns the OPML import job, the one running or the one that ended last.
+func (s Session) OPMLImportStatus(ctx context.Context) (OPMLImport, error) {
+	var job OPMLImport
+	err := s.call(ctx, http.MethodGet, "/api/opml/import", nil, &job)
+	return job, err
 }
 
 // ExportOPML returns every subscription as an OPML file.
