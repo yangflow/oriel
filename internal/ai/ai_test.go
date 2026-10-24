@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/store"
+	"github.com/yangflow/oriel/internal/store/storetest"
 )
 
 // upstream is a fake OpenAI-compatible endpoint that records what it was sent.
@@ -99,11 +99,7 @@ type fixture struct {
 
 func newFixture(t *testing.T, endpoint string) *fixture {
 	t.Helper()
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "oriel.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	f := &fixture{t: t, store: st, now: time.UnixMilli(1_790_000_000_000)}
 	f.worker = New(st, "0.1.0")
 	f.worker.now = func() time.Time { return f.now }

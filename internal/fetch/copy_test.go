@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/store"
+	"github.com/yangflow/oriel/internal/store/storetest"
 )
 
 // fakePictures answers by address: a picture, or the error given for it. Anything else is a 404.
@@ -46,11 +46,7 @@ type copyFixture struct {
 func newCopyFixture(t *testing.T) *copyFixture {
 	t.Helper()
 	ctx := context.Background()
-	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "oriel.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	now := time.UnixMilli(1_790_000_000_000)
 	src, err := st.CreateSource(ctx, store.NewSource{URL: "https://example.org/feed", Kind: "article", FetchInterval: time.Hour}, "", now)
 	if err != nil {

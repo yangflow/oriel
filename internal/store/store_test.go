@@ -27,7 +27,68 @@ func deleteForGood(t *testing.T, s *Store, id int64) {
 	}
 }
 
+var (
+	templateOnce sync.Once
+	templateDir  string
+	templateFile string
+	templateErr  error
+)
+
+// TestMain removes the template database that open copies.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if templateDir != "" {
+		os.RemoveAll(templateDir)
+	}
+	os.Exit(code)
+}
+
+// buildTemplate opens and closes a new database once per test binary. Opening a copy of it skips the backup and the
+// migrations, which cost seconds under the race detector.
+func buildTemplate() {
+	templateDir, templateErr = os.MkdirTemp("", "oriel-template-")
+	if templateErr != nil {
+		return
+	}
+	templateFile = filepath.Join(templateDir, "oriel.sqlite")
+	s, err := Open(context.Background(), templateFile)
+	if err != nil {
+		templateErr = err
+		return
+	}
+	if templateErr = s.Close(); templateErr != nil {
+		return
+	}
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if _, err := os.Stat(templateFile + suffix); err == nil {
+			templateErr = errors.New("the template database left " + suffix + " behind")
+			return
+		}
+	}
+}
+
+// open opens the database at file and closes it when the test ends. A file that does not exist yet starts as a copy of
+// the migrated template; tests about opening and migrating a new file call openNew.
 func open(t *testing.T, file string) *Store {
+	t.Helper()
+	if _, err := os.Stat(file); errors.Is(err, os.ErrNotExist) {
+		templateOnce.Do(buildTemplate)
+		if templateErr != nil {
+			t.Fatal(templateErr)
+		}
+		data, err := os.ReadFile(templateFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return openNew(t, file)
+}
+
+// openNew calls Open on file as it is, a new file included.
+func openNew(t *testing.T, file string) *Store {
 	t.Helper()
 	s, err := Open(context.Background(), file)
 	if err != nil {
@@ -40,8 +101,8 @@ func open(t *testing.T, file string) *Store {
 func TestMigrationsAreRepeatable(t *testing.T) {
 	ctx := context.Background()
 	file := filepath.Join(t.TempDir(), "oriel.sqlite")
-	open(t, file).Close()
-	s := open(t, file)
+	openNew(t, file).Close()
+	s := openNew(t, file)
 	if runtime.GOOS != "windows" {
 		for _, name := range []string{file, file + "-wal"} {
 			if info, err := os.Stat(name); err != nil || info.Mode().Perm() != 0o600 {

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/store"
+	"github.com/yangflow/oriel/internal/store/storetest"
 )
 
 func TestValidProxyURL(t *testing.T) {
@@ -89,12 +89,7 @@ func (p *connectProxy) address() string { return "http://" + p.Listener.Addr().S
 
 func openStore(t *testing.T) *store.Store {
 	t.Helper()
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "oriel.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
-	return st
+	return storetest.Open(t)
 }
 
 func setProxy(t *testing.T, st *store.Store, address, user, password string) {
