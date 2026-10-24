@@ -52,7 +52,8 @@ type fake struct {
 	retryTo  client.Article
 	retryErr error
 
-	saved []saved // the reading positions stored, in order
+	setErr error   // what SetEntry answers with
+	saved  []saved // the reading positions stored, in order
 
 	selected  []string // the tasks and texts asked about a selection, as "task: text"
 	selTitles []string // the titles sent with them
@@ -115,7 +116,7 @@ func (f *fake) SetEntry(_ context.Context, id int64, patch client.EntryPatch) (c
 	if patch.ReadProgress != nil {
 		f.saved = append(f.saved, saved{id, *patch.ReadProgress})
 	}
-	return client.Entry{ID: id}, nil
+	return client.Entry{ID: id}, f.setErr
 }
 
 func (f *fake) RetryExtraction(_ context.Context, id int64) (client.Article, error) {

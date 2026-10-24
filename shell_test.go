@@ -692,3 +692,25 @@ func TestShellPollUnread(t *testing.T) {
 		t.Errorf("a failed poll changed the count: %+v", got)
 	}
 }
+
+func TestShellPollUnreadDropsAnswerOfLeftSession(t *testing.T) {
+	sys := &fakeSystem{}
+	s, _, _ := desktopShell(t, sys)
+	p := s.prefs
+	p.TrayIcon = true
+	s.change(p)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"sources":[],"unreadTotal":8}`))
+	}))
+	defer srv.Close()
+	s.local = client.Session{Server: srv.URL}
+	var apply func()
+	s.goAsync = func(work func() func()) { apply = work() }
+	s.pollUnread()
+	s.session = &client.Session{Server: "http://127.0.0.1:1"} // signed in to another server meanwhile
+	apply()
+	shown := sys.trays[0].shown
+	if got := shown[len(shown)-1]; got.Unread == "8 unread" {
+		t.Errorf("the count of the server left was shown: %+v", got)
+	}
+}

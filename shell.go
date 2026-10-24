@@ -274,15 +274,16 @@ func (s *shell) pollUnread() {
 		return
 	}
 	var api client.Session
-	if s.session != nil {
-		api = *s.session
+	polled := s.session
+	if polled != nil {
+		api = *polled
 	} else {
 		api = s.local
 	}
 	s.goAsync(func() func() {
 		list, err := api.Sources(context.Background())
 		return func() {
-			if err == nil && s.desktop != nil {
+			if err == nil && s.desktop != nil && s.session == polled { // not the count of a server left meanwhile
 				s.desktop.SetUnread(list.UnreadTotal)
 			}
 		}
