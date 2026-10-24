@@ -58,6 +58,8 @@ type job struct {
 	failed   []int64
 	fails    map[int64]failure
 	merge    bool // a delete that retries the failed ones of an earlier run: its undo joins the toast on screen
+	ctx      context.Context
+	stop     context.CancelFunc // cancels the requests still under way when the server is left
 }
 
 // redo is what Try again repeats.
@@ -731,7 +733,8 @@ func (s *Screen) startJob(kind int, patch client.SourcePatch, list []int64, merg
 		}
 	}
 	m.again = redo{kind: kind, patch: patch}
-	m.run = &job{kind: kind, patch: patch, ids: list, srcs: srcs, fails: map[int64]failure{}, merge: merge}
+	ctx, stop := context.WithCancel(context.Background())
+	m.run = &job{kind: kind, patch: patch, ids: list, srcs: srcs, fails: map[int64]failure{}, merge: merge, ctx: ctx, stop: stop}
 	s.announce = s.count([]string{s.text.AnnouncePause, s.text.AnnounceResume, s.text.AnnounceChange, s.text.AnnounceDelete,
 		s.text.AnnounceRestore}[kind], len(list))
 	s.pump()
@@ -752,7 +755,7 @@ func (s *Screen) step(j *job, id int64) {
 	s.deps.Go(func() func() {
 		var src client.Source
 		var err error
-		ctx := context.Background()
+		ctx := j.ctx
 		switch j.kind {
 		case jobDelete:
 			err = api.DeleteSource(ctx, id)
@@ -811,6 +814,7 @@ func (s *Screen) settle(j *job, id int64, src client.Source, err error) {
 func (s *Screen) finish(j *job) {
 	m := &s.manage
 	m.run = nil
+	j.stop()
 	defer func() {
 		if u := s.pending; u != nil {
 			s.pending = nil

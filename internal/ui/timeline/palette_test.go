@@ -320,3 +320,16 @@ func TestPaletteKeySheet(t *testing.T) {
 		})
 	}
 }
+
+// TestPaletteFarHighlight wraps the highlight to the last row, far from the rows built at first: the row is built and
+// shown when it is the one the field points assistive technology at (ActiveDescendant is called while it is built).
+func TestPaletteFarHighlight(t *testing.T) {
+	s, _, tt := setup(t, "en")
+	openPalette(t, s, tt)
+	shown := paletteShown(s.paletteItems(), "")
+	tt.Key(0, ui.KeyUp)
+	tt.Frame()
+	if last := len(shown) - 1; s.pal.hl != last || !tt.HasText(shown[last].name) {
+		t.Fatalf("highlight %d of %d, texts %v", s.pal.hl, len(shown), tt.Texts())
+	}
+}

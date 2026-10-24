@@ -294,7 +294,6 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 		}
 		p.reveal = stay
 
-		var active ui.Element
 		rule, status := p.layout(loaded)
 		list := ui.List(c, &p.list, p.rows(loaded), func(i int) {
 			switch {
@@ -314,7 +313,7 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 			opt := p.shown[o]
 			row := s.pickerOption(c, opt, opt.value == current, o == p.hl)
 			if o == p.hl {
-				active = row
+				in.ActiveDescendant(row)
 			}
 			if row.Clicked() {
 				picked, chosen = opt.value, true
@@ -322,9 +321,6 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 		})
 		list.Grow(1).MinHeight(0).Margin(theme.Px(t, 6), 0, 0, 0).Padding(theme.Px(t, 6), theme.Px(t, 8), theme.Px(t, 8), theme.Px(t, 8)).
 			Label(s.text.FontList)
-		if active.Valid() {
-			in.ActiveDescendant(active)
-		}
 	})
 	return picked, chosen
 }

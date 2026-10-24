@@ -1,7 +1,6 @@
 package reader
 
 import (
-	"context"
 	"math"
 	"time"
 
@@ -117,9 +116,9 @@ func (s *Screen) send(w write) {
 		return
 	}
 	s.writing = true
-	api, epoch := s.api, s.epoch
+	api, epoch, ctx := s.api, s.epoch, s.server.get()
 	s.deps.Go(func() func() {
-		_, err := api.SetEntry(context.Background(), w.id, client.EntryPatch{ReadProgress: &w.progress})
+		_, err := api.SetEntry(ctx, w.id, client.EntryPatch{ReadProgress: &w.progress})
 		return func() {
 			s.writing = false
 			if epoch == s.epoch { // not after a switch of server: its refusal is not the new session's

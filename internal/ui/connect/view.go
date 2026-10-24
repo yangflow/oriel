@@ -78,7 +78,8 @@ type Screen struct {
 	address, password string
 	shown             bool
 	phase             phase
-	run               int // counts connections, so a result the user moved on from is dropped
+	run               int                // counts connections, so a result the user moved on from is dropped
+	cancel            context.CancelFunc // ends the requests of the connection under way
 	problem           problem
 	expired           string // the server whose session expired, as shown
 	focus             field  // the field to give the focus in the next frame
@@ -98,13 +99,22 @@ func (s *Screen) SetLanguage(systemLocale string) {
 // Open shows the form again for server, empty for none, with why the saved session of it can no longer be used:
 // client.ErrUnauthorized when it expired, or the error of checking it. The password is always empty.
 func (s *Screen) Open(server string, err error) {
-	s.run++
+	s.advance()
 	s.address, s.password, s.shown, s.phase, s.problem, s.expired = server, "", false, idle, problem{}, ""
 	s.focus = addressField
 	if errors.Is(err, client.ErrUnauthorized) {
 		s.expired, s.focus = host(server), passwordField
 	} else if err != nil {
 		s.fail(err)
+	}
+}
+
+// advance drops the connection under way and cancels its requests.
+func (s *Screen) advance() {
+	s.run++
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
 	}
 }
 
@@ -148,16 +158,18 @@ func (s *Screen) connect() {
 		s.focus = addressField
 		return
 	}
-	s.run++
+	s.advance()
 	run, address, password := s.run, s.address, s.password
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
 	s.phase, s.problem, s.focus = probing, problem{}, none
 	s.deps.Go(func() func() {
-		server, err := s.deps.Probe(context.Background(), address)
+		server, err := s.deps.Probe(ctx, address)
 		if err != nil {
 			return func() { s.finish(run, client.Session{}, err) }
 		}
 		s.deps.Go(func() func() {
-			session, err := s.deps.Login(context.Background(), server, password)
+			session, err := s.deps.Login(ctx, server, password)
 			return func() { s.finish(run, session, err) }
 		})
 		return func() {
@@ -173,6 +185,7 @@ func (s *Screen) finish(run int, session client.Session, err error) {
 		return
 	}
 	s.phase = idle
+	s.advance()
 	if err != nil {
 		s.fail(err)
 		return
@@ -362,7 +375,7 @@ func (s *Screen) actions(c *ui.Context, busy bool) {
 	ui.Row(c).FillWidth().Gap(t.Space(2)).Children(func() {
 		local := theme.Button{Grow: true, Disabled: busy, Icon: icons.Laptop, Text: s.text.UseLocal}.Draw(c)
 		if local.Clicked() && !busy {
-			s.run++
+			s.advance()
 			s.deps.UseLocal()
 		}
 		label, icon := s.text.Connect, icons.ArrowRight

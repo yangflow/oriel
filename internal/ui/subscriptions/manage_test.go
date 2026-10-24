@@ -791,3 +791,22 @@ func TestManageClosesWhenTheLastSubscriptionIsGone(t *testing.T) {
 		t.Fatalf("sources %d", len(f.sources))
 	}
 }
+
+func TestManageRunCancelledByUse(t *testing.T) {
+	s, f, tt := managing6(t, "en")
+	press(t, tt, s, "all")
+	press(t, tt, s, "pause")
+	for _, work := range f.queue {
+		work()
+	}
+	f.queue = nil
+	if len(f.updateCtx) == 0 || f.updateCtx[0].Err() != nil {
+		t.Fatalf("the requests of the run are not under way: %v", f.updateCtx)
+	}
+	s.Use(f)
+	for i, ctx := range f.updateCtx {
+		if ctx.Err() == nil {
+			t.Fatalf("request %d of the run was not cancelled", i)
+		}
+	}
+}

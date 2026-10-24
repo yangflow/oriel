@@ -35,9 +35,10 @@ type fake struct {
 	err      error
 	asked    int
 	pictures []string
-	imageCtx []context.Context      // the context of each request for a picture
-	imageErr int                    // pictures that fail before they work again
-	imageAt  map[string]image.Point // the size of the pictures that are not 4 by 3
+	imageCtx []context.Context          // the context of each request for a picture
+	ctxs     map[string]context.Context // the context of the last request of each kind
+	imageErr int                        // pictures that fail before they work again
+	imageAt  map[string]image.Point     // the size of the pictures that are not 4 by 3
 	nav      Nav
 	calls    []string // what the reader asked the timeline to do
 
@@ -69,12 +70,20 @@ type saved struct {
 	progress float64
 }
 
-func (f *fake) Entry(_ context.Context, id int64) (client.Article, error) {
+func (f *fake) Entry(ctx context.Context, id int64) (client.Article, error) {
+	f.record("entry", ctx)
 	f.asked++
 	if f.err != nil {
 		return client.Article{}, f.err
 	}
 	return f.article, nil
+}
+
+func (f *fake) record(kind string, ctx context.Context) {
+	if f.ctxs == nil {
+		f.ctxs = map[string]context.Context{}
+	}
+	f.ctxs[kind] = ctx
 }
 
 func (f *fake) Image(ctx context.Context, address string) ([]byte, error) {
@@ -96,12 +105,14 @@ func (f *fake) Image(ctx context.Context, address string) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func (f *fake) AI(_ context.Context, id int64) (client.AIResults, error) {
+func (f *fake) AI(ctx context.Context, id int64) (client.AIResults, error) {
+	f.record("ai", ctx)
 	f.polls++
 	return f.ai, f.aiErr
 }
 
-func (f *fake) RequestAI(_ context.Context, id int64, task string) (client.AIResult, error) {
+func (f *fake) RequestAI(ctx context.Context, id int64, task string) (client.AIResult, error) {
+	f.record("request", ctx)
 	f.requests = append(f.requests, task)
 	return f.reply, f.replyErr
 }
@@ -112,14 +123,16 @@ func (f *fake) Selection(_ context.Context, task, text, title string) (string, s
 	return f.selReply, "gpt-4o-mini", f.selErr
 }
 
-func (f *fake) SetEntry(_ context.Context, id int64, patch client.EntryPatch) (client.Entry, error) {
+func (f *fake) SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error) {
+	f.record("set", ctx)
 	if patch.ReadProgress != nil {
 		f.saved = append(f.saved, saved{id, *patch.ReadProgress})
 	}
 	return client.Entry{ID: id}, f.setErr
 }
 
-func (f *fake) RetryExtraction(_ context.Context, id int64) (client.Article, error) {
+func (f *fake) RetryExtraction(ctx context.Context, id int64) (client.Article, error) {
+	f.record("retry", ctx)
 	f.retried++
 	if f.retryErr != nil {
 		return client.Article{}, f.retryErr
@@ -1849,5 +1862,55 @@ func TestReadingAppearanceMenusStayNative(t *testing.T) {
 	plain, sepia := menu(""), menu(prefs.PresetSepia)
 	if len(plain) == 0 || !slices.Equal(plain, sepia) {
 		t.Fatalf("menu %v on paper, %v without", sepia, plain)
+	}
+}
+
+// run starts every queued request, as the goroutines would, and leaves the results unapplied.
+func (f *fake) run() {
+	for _, work := range f.queue {
+		work()
+	}
+	f.queue = nil
+}
+
+// TestRequestsCancelledByOtherArticle opens another article while the text and the summary of the first are being
+// asked for: both are cancelled. A request the user made of the server is not, until the server is left.
+func TestRequestsCancelledByOtherArticle(t *testing.T) {
+	s, f, _ := setup(t, "en", full())
+	f.run()
+	s.request(summary)
+	f.run()
+	entryCtx, aiCtx, askCtx := f.ctxs["entry"], f.ctxs["ai"], f.ctxs["request"]
+	if entryCtx == nil || aiCtx == nil || askCtx == nil {
+		t.Fatalf("a request was not made: %v", f.ctxs)
+	}
+	other := entry()
+	other.ID = 9
+	s.Open(other)
+	if entryCtx.Err() == nil || aiCtx.Err() == nil {
+		t.Fatal("the requests for the article before were not cancelled")
+	}
+	if askCtx.Err() != nil {
+		t.Fatal("opening an article cancelled the request made of the server")
+	}
+	s.Use(&fake{now: now})
+	if askCtx.Err() == nil {
+		t.Fatal("leaving the server did not cancel the request made of it")
+	}
+}
+
+// TestPrefetchCancelledByForget drops the list the articles are got ahead for.
+func TestPrefetchCancelledByForget(t *testing.T) {
+	s, f, _ := setup(t, "en", full())
+	f.run()
+	s.Prefetch(11)
+	f.run()
+	ahead := f.ctxs["entry"]
+	if ahead.Err() != nil {
+		t.Fatal("the prefetch is cancelled at once")
+	}
+	s.Forget()
+	if ahead.Err() == nil {
+		t.Fatal("the prefetch was not cancelled")
 	}
 }
