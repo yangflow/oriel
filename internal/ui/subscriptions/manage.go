@@ -53,6 +53,8 @@ type job struct {
 	done     int
 	okIDs    []int64
 	deleted  []client.Source // what the run deleted, to undo
+	changed  []client.Source // what the run changed
+	restored []client.Source // what the run brought back
 	failed   []int64
 	fails    map[int64]failure
 	merge    bool // a delete that retries the failed ones of an earlier run: its undo joins the toast on screen
@@ -124,7 +126,7 @@ func (s *Screen) visible() []client.Source {
 	}
 	q := strings.ToLower(strings.TrimSpace(s.manage.filter))
 	if q == "" {
-		return all
+		return slices.Clone(all) // Deps.Removed may shorten the list while a frame is still walking these rows
 	}
 	var out []client.Source
 	for _, src := range all {
@@ -271,7 +273,7 @@ func (s *Screen) rowLabel(src client.Source, selected bool) string {
 // checkBox draws the 16 DIP box of a row or of select all: state 0 off, 1 on, 2 partly on.
 func checkBox(c *ui.Context, key string, state int) ui.Element {
 	t := c.Theme()
-	b := ui.Box(c).Key(key).Size(theme.Px(t, 16), theme.Px(t, 16)).Radius(5).Center().Role(ui.RoleNone)
+	b := ui.Box(c).Key(key).Size(theme.Px(t, 16), theme.Px(t, 16)).Radius(4).Center().Role(ui.RoleNone)
 	if state == 0 {
 		return b.Background(theme.RaisedFill(t)).Border(1.5, theme.LineStrong(t))
 	}
@@ -280,7 +282,7 @@ func checkBox(c *ui.Context, key string, state int) ui.Element {
 		icon = icons.Minus
 	}
 	return b.Background(t.Accent).Children(func() {
-		ui.Icon(c, icon).FontSize(theme.Px(t, 12)).TextColor(t.AccentText)
+		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(t.AccentText)
 	})
 }
 
@@ -388,7 +390,7 @@ func (s *Screen) extend(c *ui.Context, rows []client.Source, id int64, step int)
 	if i < 0 || i >= len(rows) {
 		return
 	}
-	if len(m.selected) == 0 {
+	if len(m.selected) == 0 || indexOf(rows, m.anchor) < 0 {
 		m.anchor = id
 	}
 	s.rangeTo(c, rows, rows[i].ID)
@@ -425,6 +427,11 @@ func (s *Screen) common(srcs []client.Source, of func(client.Source) string) str
 func (s *Screen) manageDialog(c *ui.Context) {
 	t := c.Theme()
 	m := &s.manage
+	if m.run == nil && s.deps.Sources != nil && len(s.deps.Sources()) == 0 { // the last subscription is gone: nothing to manage
+		s.clearBand()
+		m.open = false
+		return
+	}
 	_, height := c.Size()
 	rows := s.visible()
 	for id := range m.selected {
@@ -527,7 +534,7 @@ func (s *Screen) selectAllButton(c *ui.Context, rows []client.Source) {
 	m := &s.manage
 	state := s.selectState(rows)
 	b := ui.ButtonBase(c).Key("mall").Role(ui.RoleCheckBox).Checked(state == 1).Label(s.text.SelectAll).
-		Disabled(len(rows) == 0 || m.run != nil).AlignItems(ui.Center).Radius(5)
+		Disabled(len(rows) == 0 || m.run != nil).AlignItems(ui.Center).Radius(4)
 	if state == 2 {
 		b.Mixed()
 	}
@@ -695,7 +702,6 @@ func (s *Screen) changeSheet(c *ui.Context, sel []client.Source) {
 				if sh.every == 0 {
 					patch.FetchIntervalAuto = new(true)
 				} else {
-					patch.FetchIntervalAuto = new(false)
 					patch.FetchIntervalSec = new(sh.every)
 				}
 			}
@@ -774,19 +780,17 @@ func (s *Screen) settle(j *job, id int64, src client.Source, err error) {
 		case jobDelete:
 			j.deleted = append(j.deleted, j.srcs[id])
 			s.dropHealth(id)
-			s.deps.Removed(id)
 		case jobRestore:
-			s.deps.Restored(src)
+			j.restored = append(j.restored, src)
 		default:
 			if src.Paused {
 				s.dropHealth(id)
 			}
-			s.deps.Changed(src)
+			j.changed = append(j.changed, src)
 		}
 	case j.kind == jobDelete && code(err) == "not_found":
 		j.okIDs = append(j.okIDs, id)
 		s.dropHealth(id)
-		s.deps.Removed(id)
 	default:
 		f := failure{reason: s.text.RServer, detail: err.Error()}
 		switch {
@@ -807,10 +811,21 @@ func (s *Screen) settle(j *job, id int64, src client.Source, err error) {
 func (s *Screen) finish(j *job) {
 	m := &s.manage
 	m.run = nil
+	defer func() {
+		if u := s.pending; u != nil {
+			s.pending = nil
+			s.restoreMany(u)
+		}
+	}()
 	for _, id := range j.okIDs {
 		delete(m.selected, id)
 	}
 	ok, bad := len(j.okIDs), len(j.failed)
+	var removed []int64
+	if j.kind == jobDelete {
+		removed = j.okIDs
+	}
+	s.deps.Bulk(j.changed, removed, j.restored)
 	if j.kind == jobDelete && len(j.deleted) > 0 {
 		s.pushUndo(j.deleted, j.merge)
 	}
@@ -872,6 +887,10 @@ func (s *Screen) bulkToast(c *ui.Context) {
 	}
 	u.shown = true
 	version := u.version
+	for _, d := range s.deleted { // one toast at a time: a new bulk delete voids the Undo of the single deletes before it
+		c.CloseToast(deletedToast + strconv.FormatInt(d.src.ID, 10))
+	}
+	s.deleted = nil
 	c.AddToast(ui.Toast{ID: bulkToastID, Title: s.count(s.text.DeletedMany, len(u.srcs)), Timeout: undoToast,
 		Action:   s.text.Undo,
 		OnAction: func() { s.restoreMany(u) },
@@ -886,7 +905,11 @@ func (s *Screen) bulkToast(c *ui.Context) {
 // restoreMany takes the bulk delete of u back, one request per subscription.
 func (s *Screen) restoreMany(u *bulkUndo) {
 	m := &s.manage
-	if s.api == nil || m.run != nil {
+	if s.api == nil {
+		return
+	}
+	if m.run != nil { // Undo was pressed while a run is going: it starts when that run is done
+		s.pending = u
 		return
 	}
 	if s.undo == u {

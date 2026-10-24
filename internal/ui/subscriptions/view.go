@@ -106,15 +106,18 @@ type API interface {
 // connect screen because the server no longer takes the session. Icon returns a site icon once the timeline has
 // decoded it, nil until then.
 type Deps struct {
-	Go           func(work func() (apply func()))
-	Now          func() time.Time
-	Sources      func() []client.Source
-	Icon         func(address string) *ui.Bitmap
-	Added        func(client.Source)
-	Refreshed    func(client.Source) // src was queued to fetch now; the timeline waits for the result
-	Changed      func(client.Source)
-	Removed      func(id int64)
-	Restored     func(client.Source)
+	Go        func(work func() (apply func()))
+	Now       func() time.Time
+	Sources   func() []client.Source
+	Icon      func(address string) *ui.Bitmap
+	Added     func(client.Source)
+	Refreshed func(client.Source) // src was queued to fetch now; the timeline waits for the result
+	Changed   func(client.Source)
+	Removed   func(id int64)
+	Restored  func(client.Source)
+	// Bulk tells what a bulk run did, once it is done: the subscriptions it changed, the IDs it deleted and the ones it
+	// brought back, so the timeline loads the subscriptions and its entries once rather than once for each.
+	Bulk         func(changed []client.Source, removed []int64, restored []client.Source)
 	Show         func(id int64)
 	MarkRead     func(src client.Source)
 	MarkOlder    func(src client.Source, days int)
@@ -255,6 +258,7 @@ type Screen struct {
 	deleted   []*deletion // the toasts that offer to undo a delete
 	manage    managing    // the dialog that changes several subscriptions at once
 	undo      *bulkUndo   // the toast that offers to undo the last bulk delete
+	pending   *bulkUndo   // an Undo pressed while a bulk run was going, started when the run is done
 	closeBulk bool        // the toast of the bulk delete is closed at the next frame
 }
 
@@ -277,7 +281,7 @@ func (s *Screen) Use(api API) {
 	s.api = api
 	s.gen++
 	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
-	s.manage, s.undo = managing{}, nil
+	s.manage, s.undo, s.pending = managing{}, nil, nil
 }
 
 // Open reports whether a dialog shows, which takes the keys from the timeline.
@@ -337,7 +341,7 @@ func (s *Screen) expired(err error) bool {
 	s.gen++
 	s.api = nil
 	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
-	s.manage, s.undo = managing{}, nil
+	s.manage, s.undo, s.pending = managing{}, nil, nil
 	s.deps.Expired()
 	return true
 }

@@ -384,7 +384,7 @@ func TestManageChangeIntervalAndKeep(t *testing.T) {
 	mustClick(t, tt, s.text.Apply)
 	f.settle(tt)
 	p = f.patches[1][1]
-	if p.FetchIntervalAuto == nil || *p.FetchIntervalAuto || p.FetchIntervalSec == nil || *p.FetchIntervalSec != intervals[len(intervals)-1] || p.KeepDays != nil {
+	if p.FetchIntervalAuto != nil || p.FetchIntervalSec == nil || *p.FetchIntervalSec != intervals[len(intervals)-1] || p.KeepDays != nil {
 		t.Fatalf("interval patch %+v", p)
 	}
 }
@@ -445,7 +445,7 @@ func TestManageAllFailed(t *testing.T) {
 	mustClickWith(t, tt, ui.Ctrl, "Bravo")
 	press(t, tt, s, "pause")
 	f.settle(tt)
-	if s.manage.band != "Nothing was done, nothing changed: Couldn’t reach the server." {
+	if s.manage.band != "Nothing was done and nothing changed. Couldn’t reach the server." {
 		t.Fatalf("band %q", s.manage.band)
 	}
 	wantChosen(t, s, 1, 2)
@@ -687,5 +687,107 @@ func TestManageClosedByDeps(t *testing.T) {
 	tt.Frame()
 	if s.manage.open || s.Open() {
 		t.Fatal("Use left the dialog open")
+	}
+}
+
+func TestManageRowsDoNotAliasTheTimelineList(t *testing.T) {
+	s, f, _ := managing6(t, "en")
+	rows := s.visible()
+	f.sources = slices.DeleteFunc(f.sources, func(src client.Source) bool { return src.ID == 1 })
+	if len(rows) != 6 || rows[0].ID != 1 || rows[5].ID != 6 {
+		t.Fatalf("the rows of the frame followed a delete: %v", rows)
+	}
+}
+
+func TestManageShiftRangeWhenTheAnchorIsFilteredAway(t *testing.T) {
+	s, _, tt := managing6(t, "en")
+	mustClick(t, tt, s.text.FilterLabel)
+	tt.Type("o")
+	tt.Frame()
+	s.manage.selected, s.manage.anchor = map[int64]bool{5: true}, 1 // Alpha is not in the list now
+	tt.Key(0, ui.KeyDown)
+	tt.Key(ui.Shift, ui.KeyDown)
+	wantChosen(t, s, 2, 5)
+}
+
+func TestManageBulkTellsTheTimelineOnce(t *testing.T) {
+	s, f, tt := managing6(t, "en")
+	press(t, tt, s, "all")
+	press(t, tt, s, "pause")
+	f.settle(tt)
+	if f.bulks != 1 || len(f.changed) != 6 {
+		t.Fatalf("bulks %d changed %d", f.bulks, len(f.changed))
+	}
+	press(t, tt, s, "all")
+	press(t, tt, s, "delete")
+	tt.Frame()
+	mustClick(t, tt, s.text.ConfirmDelete)
+	f.settle(tt)
+	if f.bulks != 2 || len(f.removed) != 6 {
+		t.Fatalf("bulks %d removed %d", f.bulks, len(f.removed))
+	}
+}
+
+func TestManageUndoPressedDuringARunWaits(t *testing.T) {
+	s, f, tt := managing6(t, "en")
+	mustClick(t, tt, "Alpha")
+	mustClickWith(t, tt, ui.Ctrl, "Bravo")
+	press(t, tt, s, "delete")
+	tt.Frame()
+	mustClick(t, tt, s.text.ConfirmDelete)
+	f.settle(tt)
+	tt.Frame()
+	mustClick(t, tt, "Charlie")
+	press(t, tt, s, "pause")
+	if s.manage.run == nil {
+		t.Fatal("no run")
+	}
+	mustClick(t, tt, s.text.Undo)
+	if len(f.restoredIDs) != 0 || s.pending == nil {
+		t.Fatalf("undo during a run: restored %v pending %v", f.restoredIDs, s.pending)
+	}
+	f.settle(tt)
+	tt.Frame()
+	if !slices.Equal(f.restoredIDs, []int64{1, 2}) || s.pending != nil || len(f.sources) != 6 {
+		t.Fatalf("restored %v pending %v sources %d", f.restoredIDs, s.pending, len(f.sources))
+	}
+}
+
+func TestManageBulkDeleteReplacesSingleDeleteToasts(t *testing.T) {
+	s, f, tt := managing6(t, "en")
+	single := f.sources[5]
+	s.deleted = append(s.deleted, &deletion{src: single})
+	tt.Frame()
+	want := s.fill(s.text.Deleted, Name(single))
+	if !tt.HasText(want) {
+		t.Fatalf("no toast of the single delete: %v", tt.Texts())
+	}
+	mustClick(t, tt, "Alpha")
+	press(t, tt, s, "delete")
+	tt.Frame()
+	mustClick(t, tt, s.text.ConfirmDelete)
+	f.settle(tt)
+	tt.Frame()
+	if tt.HasText(want) || len(s.deleted) != 0 || !tt.HasText("Deleted 1 subscription") {
+		t.Fatalf("the single toast stayed: %v", tt.Texts())
+	}
+}
+
+func TestManageClosesWhenTheLastSubscriptionIsGone(t *testing.T) {
+	s, f, tt := managing6(t, "en")
+	press(t, tt, s, "all")
+	press(t, tt, s, "delete")
+	tt.Frame()
+	mustClick(t, tt, s.text.ConfirmDelete)
+	f.settle(tt)
+	tt.Frame()
+	if s.manage.open || s.Open() {
+		t.Fatal("the dialog stayed over an empty list")
+	}
+	mustClick(t, tt, s.text.Undo)
+	f.settle(tt)
+	tt.Frame()
+	if len(f.sources) != 6 {
+		t.Fatalf("sources %d", len(f.sources))
 	}
 }

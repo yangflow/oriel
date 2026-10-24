@@ -29,6 +29,7 @@ type fake struct {
 	patches     map[int64][]client.SourcePatch
 	deleted     []int64
 	restoredIDs []int64
+	bulks       int
 	restoreErr  error
 	fetched     []int64
 	set         []client.SettingsPatch
@@ -198,7 +199,7 @@ func (f *fake) PreviewRoute(_ context.Context, path string) (client.RoutePreview
 }
 
 func (f *fake) deps() Deps {
-	return Deps{
+	d := Deps{
 		Go:      func(work func() func()) { f.queue = append(f.queue, work) },
 		Now:     func() time.Time { return now.Add(f.lateBy) },
 		Sources: func() []client.Source { return f.sources },
@@ -225,6 +226,19 @@ func (f *fake) deps() Deps {
 		OpenRSSHub:   func() { f.rsshub++ },
 		Expired:      func() { f.expired++ },
 	}
+	d.Bulk = func(changed []client.Source, removed []int64, restored []client.Source) {
+		f.bulks++
+		for _, src := range changed {
+			d.Changed(src)
+		}
+		for _, id := range removed {
+			d.Removed(id)
+		}
+		for _, src := range restored {
+			d.Restored(src)
+		}
+	}
+	return d
 }
 
 // settle runs the queued work until there is none, applying each result as the window does on the UI thread.
