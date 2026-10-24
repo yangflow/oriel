@@ -2,9 +2,11 @@ package fetch
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -280,10 +282,20 @@ func TestFullURLSubscriptionsAreNotCounted(t *testing.T) {
 	}
 }
 
-func TestRequestDurationRunsFromSendingToTheResult(t *testing.T) {
+// shiftClock makes the poller's clock run ahead by whatever is added to the returned counter, safe to use from the
+// goroutines of the server and the transport.
+func (f *fixture) shiftClock() *atomic.Int64 {
+	var shift atomic.Int64
+	base := f.now
+	f.poller.now = func() time.Time { return base.Add(time.Duration(shift.Load())) }
+	return &shift
+}
+
+func TestRequestDurationRunsFromSendingToTheHeaders(t *testing.T) {
 	f := newFixture(t)
+	shift := f.shiftClock()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f.now = f.now.Add(1500 * time.Millisecond)
+		shift.Add(int64(1500 * time.Millisecond))
 		w.Write([]byte(rssFeed))
 	}))
 	defer srv.Close()
@@ -292,5 +304,66 @@ func TestRequestDurationRunsFromSendingToTheResult(t *testing.T) {
 	f.poller.fetchDue(context.Background())
 	if got := f.poller.InstanceHealth([]string{srv.URL}); got[0].MedianMs == nil || *got[0].MedianMs != 1500 {
 		t.Errorf("%+v", got[0])
+	}
+}
+
+// slowBody makes reading the response take d on the fake clock, as a big feed or a slow save would.
+type slowBody struct {
+	http.RoundTripper
+	shift *atomic.Int64
+	d     time.Duration
+}
+
+func (s slowBody) RoundTrip(r *http.Request) (*http.Response, error) {
+	resp, err := s.RoundTripper.RoundTrip(r)
+	if err == nil {
+		resp.Body = &slowReader{ReadCloser: resp.Body, shift: s.shift, d: s.d}
+	}
+	return resp, err
+}
+
+type slowReader struct {
+	io.ReadCloser
+	shift *atomic.Int64
+	d     time.Duration
+	done  bool
+}
+
+func (r *slowReader) Read(p []byte) (int, error) {
+	if !r.done {
+		r.done = true
+		r.shift.Add(int64(r.d))
+	}
+	return r.ReadCloser.Read(p)
+}
+
+func TestLatencyIsTheTimeToHeadersOnly(t *testing.T) {
+	f := newFixture(t)
+	srv := newInstance(t, http.StatusOK)
+	shift := f.shiftClock()
+	f.poller.client = &http.Client{Transport: slowBody{RoundTripper: http.DefaultTransport, shift: shift, d: 5 * time.Second}}
+	f.useInstances(srv.URL)
+	f.add(store.NewSource{RSSHubPath: "/a"})
+	f.poller.fetchDue(context.Background())
+	if srv.hits.Load() != 1 {
+		t.Fatalf("%d requests", srv.hits.Load())
+	}
+	h := f.health(srv)[0]
+	if h.Requests != 1 || h.MedianMs == nil || *h.MedianMs != 0 {
+		t.Errorf("%+v: reading the body took 5 s, the headers none", h)
+	}
+}
+
+func TestHealthIsFoundForInstancesAsSaved(t *testing.T) {
+	f := newFixture(t)
+	srv := newInstance(t, http.StatusOK)
+	raw := "  " + srv.URL + "/ \n"
+	if err := f.store.SetSetting(context.Background(), RSSHubSetting, raw); err != nil {
+		t.Fatal(err)
+	}
+	f.add(store.NewSource{RSSHubPath: "/a"})
+	f.poller.fetchDue(context.Background())
+	if h := f.poller.InstanceHealth(Instances(raw)); len(h) != 1 || h[0].Requests != 1 {
+		t.Errorf("%+v: the instance with a trailing slash lost its requests", h)
 	}
 }

@@ -27,8 +27,8 @@ type InstanceHealth struct {
 
 // healthSample is one request sent to an instance.
 type healthSample struct {
-	at       time.Time // when it was sent
-	took     time.Duration
+	at       time.Time     // when it was sent
+	took     time.Duration // until the response headers arrived
 	answered bool
 }
 
@@ -52,7 +52,9 @@ func (s *instanceStats) record(base string, sample healthSample) {
 	s.samples[base] = list
 }
 
-// read returns the health of each of instances in order, as of now, and forgets the instances not in the list.
+// read returns the health of each of instances in order, as of now, and forgets the instances not in the list. An
+// instance taken out of the settings and put back later starts from nothing; that is the price of keeping no
+// separate list of what is saved.
 func (s *instanceStats) read(instances []string, now time.Time) []InstanceHealth {
 	s.mu.Lock()
 	defer s.mu.Unlock()

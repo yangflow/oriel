@@ -465,17 +465,22 @@ func (p *Poller) Fetching() []int64 {
 }
 
 // requestInstance is fetchFrom for an RSSHub instance, counting the request in the instance's health. A request
-// that ended because ctx was canceled does not count: it says nothing about the instance.
+// that ended because ctx was canceled does not count: it says nothing about the instance. Its latency is the time
+// until the response headers arrived, so reading the body and saving the entries are not part of it.
 func (p *Poller) requestInstance(ctx context.Context, src store.FeedSource, address, base string) (int, error) {
 	start := p.now()
-	created, err := p.fetchFrom(ctx, src, address, base)
+	var headers time.Duration
+	created, err := p.fetchFrom(context.WithValue(ctx, headersKey{}, &headers), src, address, base)
 	if ctx.Err() != nil && err != nil {
 		return created, err
 	}
 	var unavailable *unavailableError
-	p.stats.record(base, healthSample{at: start, took: p.now().Sub(start), answered: !errors.As(err, &unavailable)})
+	p.stats.record(base, healthSample{at: start, took: headers, answered: !errors.As(err, &unavailable)})
 	return created, err
 }
+
+// headersKey carries the place where fetchFrom leaves how long the response headers took, for the instance's health.
+type headersKey struct{}
 
 // statusKey carries the place where fetchFrom leaves the HTTP status it received, for the fetch log.
 type statusKey struct{}
@@ -656,11 +661,15 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 	if err != nil {
 		return 0, err
 	}
+	sent := p.now()
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, unavailable(ctx, instance, err)
 	}
 	defer resp.Body.Close()
+	if took, ok := ctx.Value(headersKey{}).(*time.Duration); ok {
+		*took = p.now().Sub(sent)
+	}
 	if status, ok := ctx.Value(statusKey{}).(*int); ok {
 		*status = resp.StatusCode
 	}
