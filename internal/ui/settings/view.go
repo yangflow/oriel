@@ -1938,13 +1938,29 @@ func lead(c *ui.Context, text string) {
 
 // card draws rows on a tinted Surface card, an inset hairline between each.
 func card(c *ui.Context, rows ...func()) {
+	keyed := make([]cardRow, len(rows))
+	for i, row := range rows {
+		keyed[i] = cardRow{key: i, draw: row}
+	}
+	cardOf(c, keyed)
+}
+
+// cardRow is a row of a card with the key that follows it when rows before it come and go.
+type cardRow struct {
+	key  any
+	draw func()
+}
+
+// cardOf is card for rows that come and go: each is keyed by its own key, which is unique in the card, so a row below
+// one that appears or disappears keeps its focus.
+func cardOf(c *ui.Context, rows []cardRow) {
 	t := c.Theme()
 	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Children(func() {
 		for i, row := range rows {
 			if i > 0 {
 				ui.Box(c).FillWidth().Height(1).Margin(0, theme.Px(t, 20)).Background(t.Border)
 			}
-			ui.Column(c).Key(i).FillWidth().Padding(theme.Px(t, 16), theme.Px(t, 20)).Children(row)
+			ui.Column(c).Key(row.key).FillWidth().Padding(theme.Px(t, 16), theme.Px(t, 20)).Children(row.draw)
 		}
 	})
 }
@@ -2696,32 +2712,32 @@ func (s *Screen) desktopCard(c *ui.Context, p prefs.Preferences, d Desktop) {
 	if needsApp {
 		loginHelp = s.text.OpenAtLoginNeedsApp
 	}
-	rows := []func(){
-		toggle(s.text.OpenAtLogin, loginHelp, &p.OpenAtLogin, needsApp, func(on bool) {
+	rows := []cardRow{
+		{"login", toggle(s.text.OpenAtLogin, loginHelp, &p.OpenAtLogin, needsApp, func(on bool) {
 			s.loginFailed = false
 			p.OpenAtLogin = on
 			s.deps.Change(p)
-		}),
+		})},
 	}
 	if s.loginFailed {
-		rows = append(rows, func() { statusLine(c, status{text: s.text.LoginFailed}) })
+		rows = append(rows, cardRow{"loginFailed", func() { statusLine(c, status{text: s.text.LoginFailed}) }})
 	}
 	rows = append(rows,
-		toggle(trayLabel, trayHelp, &p.TrayIcon, false, func(on bool) {
+		cardRow{"tray", toggle(trayLabel, trayHelp, &p.TrayIcon, false, func(on bool) {
 			s.trayFailed = false
 			p.TrayIcon = on
 			s.deps.Change(p)
-		}))
+		})})
 	if s.trayFailed {
-		rows = append(rows, func() { statusLine(c, status{text: s.text.TrayFailed}) })
+		rows = append(rows, cardRow{"trayFailed", func() { statusLine(c, status{text: s.text.TrayFailed}) }})
 	}
 	if mac {
-		rows = append(rows, toggle(s.text.DockBadge, s.text.DockBadgeHelp, &p.DockBadge, false, func(on bool) {
+		rows = append(rows, cardRow{"dock", toggle(s.text.DockBadge, s.text.DockBadgeHelp, &p.DockBadge, false, func(on bool) {
 			p.DockBadge = on
 			s.deps.Change(p)
-		}))
+		})})
 	}
-	card(c, rows...)
+	cardOf(c, rows)
 }
 
 // viewer is the segmented control of one kind's viewer; it returns the viewer chosen and whether the user just chose it.
