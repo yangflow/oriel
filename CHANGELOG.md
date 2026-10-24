@@ -23,6 +23,31 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.10.0](https://github.com/yangflow/oriel/compare/v0.9.0...v0.10.0) (2026-10-24)
+
+
+### Added
+
+* **desktop:** launch at login, menu bar or tray icon and Dock unread badge ([#464](https://github.com/yangflow/oriel/issues/464)) ([f7133d9](https://github.com/yangflow/oriel/commit/f7133d9cf1d43bfc1e2de72e6cf956545a5546d5))
+* **import:** drop an OPML file onto the window to import it ([#340](https://github.com/yangflow/oriel/issues/340)) ([#443](https://github.com/yangflow/oriel/issues/443)) ([3348aca](https://github.com/yangflow/oriel/commit/3348acad7b7e429e77cc7b2200a083fd3147e6ee))
+* **import:** show OPML import progress and offer View subscriptions when it ends ([#463](https://github.com/yangflow/oriel/issues/463)) ([06b709a](https://github.com/yangflow/oriel/commit/06b709ab4c84224f5596a8a39ef3f63390918417))
+* **reader:** choose a sepia or mist page and a narrow, standard or wide line ([#459](https://github.com/yangflow/oriel/issues/459)) ([b338ab1](https://github.com/yangflow/oriel/commit/b338ab1e04d855a975673e439b4c247c4cb3dc03))
+* **reader:** find in the article with Cmd/Ctrl+F ([#449](https://github.com/yangflow/oriel/issues/449)) ([c849b85](https://github.com/yangflow/oriel/commit/c849b8572ecfed0405f8ecedf4cf620d8457c113))
+* **reader:** show a row for video, audio and embedded content, and open the entry from it ([#466](https://github.com/yangflow/oriel/issues/466)) ([26b0016](https://github.com/yangflow/oriel/commit/26b00169972b8c9eb08c1ce3dc7f0b9d7c4d64f9))
+* **settings:** show each RSSHub instance's success rate and latency ([#338](https://github.com/yangflow/oriel/issues/338)) ([#462](https://github.com/yangflow/oriel/issues/462)) ([f74d921](https://github.com/yangflow/oriel/commit/f74d921a6026ee79ff1294a50f39b82f7faabbb3))
+* **subscriptions:** let a subscription carry its own User-Agent and Referer ([#467](https://github.com/yangflow/oriel/issues/467)) ([1d24bdc](https://github.com/yangflow/oriel/commit/1d24bdc529d49ae93c5d8a5e2f2e278ce35d8707))
+* **subscriptions:** manage several subscriptions at once ([#469](https://github.com/yangflow/oriel/issues/469)) ([4265e00](https://github.com/yangflow/oriel/commit/4265e003a09bb0341f75fedaf2afc01c634f1896))
+* **subscriptions:** suggest the new address when a subscription is permanently redirected ([#465](https://github.com/yangflow/oriel/issues/465)) ([c7cfe42](https://github.com/yangflow/oriel/commit/c7cfe427f97fa304526df25b5ca1073ad5fef2f0))
+* **timeline:** mark the entries below as read from the entry menu ([#445](https://github.com/yangflow/oriel/issues/445)) ([8f67d9e](https://github.com/yangflow/oriel/commit/8f67d9e7f5c96781da9e65ea3e1910b3564a9de6))
+* **timeline:** search with phrases, exclusions and from:, kind:, after:, before: ([#458](https://github.com/yangflow/oriel/issues/458)) ([2ffaf94](https://github.com/yangflow/oriel/commit/2ffaf9442603ec90691bf6ed05d041f518812f38))
+
+
+### Fixed
+
+* **reader:** find in the article also matches the text in table cells ([#468](https://github.com/yangflow/oriel/issues/468)) ([667307c](https://github.com/yangflow/oriel/commit/667307c19438083637a080c7581bb0e1d3094e63))
+* **reader:** keep failed pictures in the text with Try again, and settle pictures without jumps or crops ([#457](https://github.com/yangflow/oriel/issues/457)) ([f6c1094](https://github.com/yangflow/oriel/commit/f6c1094c823d2c79e072f0780b30ac66a9fc8f39))
+* **reader:** show tables, footnotes, superscript and subscript as the article wrote them ([#460](https://github.com/yangflow/oriel/issues/460)) ([d7a3864](https://github.com/yangflow/oriel/commit/d7a386439723e4bf1eef2ef97168e3c7509964cd))
+
 ## [0.9.0](https://github.com/yangflow/oriel/compare/v0.8.0...v0.9.0) (2026-10-23)
 
 
