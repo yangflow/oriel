@@ -41,6 +41,7 @@ type backend struct {
 	http       *http.Server
 	addr       string
 	background *background
+	api        *server.Server
 	// running counts the requests being handled; close waits for them to return before it closes the store.
 	running atomic.Int64
 }
@@ -169,6 +170,7 @@ func start(ctx context.Context, dataDir, password, mode string, port int, proxie
 		background: work,
 	}
 	b.http.Handler = b.track(api)
+	b.api = api
 	go func() {
 		defer diag.Recover("server")
 		if err := b.http.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
@@ -187,6 +189,9 @@ func (b *backend) close(ctx context.Context) error {
 	if err != nil {
 		err = errors.Join(err, b.http.Close())
 		b.waitForHandlers(requestGrace)
+	}
+	if b.api != nil {
+		b.api.Close() // stops an import in progress, which writes to the store
 	}
 	b.background.shutdown()
 	return errors.Join(err, b.store.Close())
