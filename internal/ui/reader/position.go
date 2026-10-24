@@ -117,12 +117,14 @@ func (s *Screen) send(w write) {
 		return
 	}
 	s.writing = true
-	api := s.api
+	api, epoch := s.api, s.epoch
 	s.deps.Go(func() func() {
 		_, err := api.SetEntry(context.Background(), w.id, client.EntryPatch{ReadProgress: &w.progress})
 		return func() {
 			s.writing = false
-			s.deps.Expired(err)
+			if epoch == s.epoch { // not after a switch of server: its refusal is not the new session's
+				s.deps.Expired(err)
+			}
 			if q := s.queued; q != nil {
 				s.queued = nil
 				s.send(*q)

@@ -206,6 +206,27 @@ func TestKeepsThePositionStoredThisSession(t *testing.T) {
 	expect(t, tt, "Back where you left off")
 }
 
+func TestLateRefusalOfAServerLeftIsIgnored(t *testing.T) {
+	s, f, tt := openLong(t, "en", long(nil))
+	var expired []error
+	deps := s.deps.Expired
+	s.deps.Expired = func(err error) bool { expired = append(expired, err); return deps(err) }
+	scrollDown(t, s, tt)
+	s.Leave() // the write is in flight
+	if len(f.queue) != 1 {
+		t.Fatalf("%d jobs queued", len(f.queue))
+	}
+	f.setErr = errExpired
+	s.Use(&fake{now: now}) // another server meanwhile
+	f.settle(tt)
+	if len(expired) != 0 {
+		t.Fatalf("the old server's refusal reached the new session: %v", expired)
+	}
+	if s.writing {
+		t.Fatal("the write of the old server still blocks the new one")
+	}
+}
+
 // both is a long full text with what the feed carries too.
 func both(progress *float64) client.Article {
 	a := long(progress)
