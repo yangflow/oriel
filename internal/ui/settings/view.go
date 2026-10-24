@@ -70,6 +70,8 @@ type copy struct {
 	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                                            string
 	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                                                                                                                                                      string
 
+	DropHelp, ImportedMany, NotOpmlWhy, TooLargeWhy, ReadWhy, FailedWhy, DropBusy string
+
 	Rules, RulesLead, RulesNone, RulesNoneHelp, AddRule, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs     string
 	RwKeywords, RwAuthor, RwOnly, ActStar, ActRead, MenuEdit, MenuDelete, RuleDeleted, RuleAddTitle, RuleEditTitle string
 	RuleWhen, RuleWhenHelp, RuleSub, RuleKind, KindAny, RuleKeywords, RuleKeywordsHelp, RuleAuthor, RuleAuthorHint string
@@ -972,12 +974,121 @@ func (s *Screen) imported(gen int, name string, imported client.Imported, err er
 		s.result = result{tone: refused, text: s.fill(s.text.TooLarge, file, name)}
 	case errors.Is(err, errRead):
 		s.result = result{tone: refused, text: s.fill(s.text.ReadFailed, file, name)}
-	case code(err) == "invalid_opml":
+	case errors.Is(err, errNotOPML) || code(err) == "invalid_opml":
 		s.result = result{tone: refused, text: s.fill(s.text.InvalidOPML, file, name)}
 	default:
 		s.result = result{tone: refused, text: s.fill(s.text.ImportFailed, file, name)}
 	}
 	s.announce = s.result.text
+}
+
+// fileOutcome is what importing one dropped file came to.
+type fileOutcome struct {
+	name     string
+	imported client.Imported
+	err      error
+}
+
+var errNotOPML = errors.New("not an OPML file")
+
+// busyDrop reports whether files dropped now are turned away, because an import, backup or restore is running or a
+// dialog is open; it says so with a toast.
+func (s *Screen) busyDrop() bool {
+	if s.busy || s.confirming || s.revoking || s.reader.open || s.rules.dialog.open {
+		s.toast = s.text.DropBusy
+		return true
+	}
+	return false
+}
+
+// ImportFiles imports the OPML files dropped on the window, from the shell once it has opened the screen, and shows
+// one result for all of them. Files that are not OPML, are too large or cannot be read are listed with the
+// subscriptions that could not be added.
+func (s *Screen) ImportFiles(paths []string) {
+	if s.api == nil || len(paths) == 0 {
+		return
+	}
+	s.group = opml
+	if s.busyDrop() {
+		return
+	}
+	s.busy, s.result = true, result{}
+	names := make([]string, len(paths))
+	for i, path := range paths {
+		names[i] = filepath.Base(path)
+	}
+	name := strings.Join(names, ", ")
+	s.importing = name
+	s.announce = s.fill(s.text.Importing, "{file}", name)
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		outcomes := make([]fileOutcome, len(paths))
+		for i, path := range paths {
+			o := fileOutcome{name: names[i]}
+			if ext := strings.ToLower(filepath.Ext(path)); ext != ".opml" && ext != ".xml" {
+				o.err = errNotOPML
+			} else if data, err := readOPML(path); err != nil {
+				o.err = err
+			} else {
+				o.imported, o.err = api.ImportOPML(context.Background(), data)
+			}
+			outcomes[i] = o
+			if errors.Is(o.err, client.ErrUnauthorized) {
+				outcomes = outcomes[:i+1]
+				break
+			}
+		}
+		return func() { s.importedFiles(gen, outcomes) }
+	})
+}
+
+// importedFiles shows the result of the dropped files: that of the existing import for one, a merged one for several.
+func (s *Screen) importedFiles(gen int, outcomes []fileOutcome) {
+	if len(outcomes) == 1 {
+		o := outcomes[0]
+		s.imported(gen, o.name, o.imported, o.err)
+		return
+	}
+	if gen != s.gen {
+		return
+	}
+	var added, existing int
+	var fails []client.ImportFail
+	for _, o := range outcomes {
+		if s.expired(o.err) {
+			return
+		}
+		if o.err == nil {
+			added += o.imported.Added
+			existing += o.imported.Existing
+			fails = append(fails, o.imported.Failed...)
+			continue
+		}
+		why := "import_failed"
+		switch {
+		case errors.Is(o.err, errNotOPML) || code(o.err) == "invalid_opml":
+			why = "not_opml"
+		case errors.Is(o.err, errTooLarge) || code(o.err) == "opml_too_large":
+			why = "too_large"
+		case errors.Is(o.err, errRead):
+			why = "unreadable"
+		}
+		fails = append(fails, client.ImportFail{Title: o.name, Error: why})
+	}
+	s.busy, s.importing = false, ""
+	tone := done
+	switch {
+	case len(fails) > 0 && added+existing == 0:
+		tone = refused
+	case len(fails) > 0:
+		tone = partly
+	}
+	s.result = result{tone: tone, fails: fails, text: s.fill(s.text.ImportedMany, "{n}", strconv.Itoa(len(outcomes)),
+		"{added}", strconv.Itoa(added), "{existing}", strconv.Itoa(existing), "{failed}", strconv.Itoa(len(fails)))}
+	s.announce = s.result.text
+	if added > 0 {
+		s.deps.Imported()
+	}
 }
 
 // subscriptionsIn counts the subscriptions of an OPML file: the outlines with a feed address or an RSSHub route.
@@ -2488,11 +2599,26 @@ func (s *Screen) opmlPage(c *ui.Context) {
 	t := c.Theme()
 	lead(c, s.text.OPMLHelp)
 	card(c, func() {
-		labeled(c, s.text.ImportLabel, s.text.ImportHelp, func() {
-			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Upload, Text: s.text.Import}.Draw(c)
-			if b.Clicked() {
-				s.chooseImport()
+		zone := ui.Column(c).FillWidth().Radius(theme.Px(t, 10))
+		over := zone.FileDragOver()
+		if over {
+			zone.Background(theme.Soft(t, t.Accent)).Border(1.5, t.Accent).BorderStyle(ui.BorderDashed).
+				Padding(theme.Px(t, 12))
+		}
+		if paths := zone.DroppedFiles(); len(paths) > 0 {
+			s.ImportFiles(paths)
+		}
+		zone.Children(func() {
+			help := s.text.ImportHelp
+			if over {
+				help = s.text.DropHelp
 			}
+			labeled(c, s.text.ImportLabel, help, func() {
+				b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Upload, Text: s.text.Import}.Draw(c)
+				if b.Clicked() {
+					s.chooseImport()
+				}
+			})
 		})
 		if s.importing != "" {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 6)).Margin(theme.Px(t, 6), 0, 0, 0).Role(ui.RoleStatus).
@@ -2783,6 +2909,8 @@ func (s *Screen) failRow(c *ui.Context, i int, f client.ImportFail) {
 	why := map[string]string{
 		"invalid_url": s.text.InvalidURL, "invalid_rsshub_path": s.text.InvalidRoute,
 		"invalid_kind": s.text.InvalidKind, "invalid_source": s.text.InvalidSource,
+		"not_opml": s.text.NotOpmlWhy, "too_large": s.text.TooLargeWhy, "unreadable": s.text.ReadWhy,
+		"import_failed": s.text.FailedWhy,
 	}[f.Error]
 	if why == "" {
 		why = f.Error
@@ -2791,9 +2919,14 @@ func (s *Screen) failRow(c *ui.Context, i int, f client.ImportFail) {
 		Children(func() {
 			spans := []ui.Span{}
 			if title := strings.TrimSpace(f.Title); title != "" {
-				spans = append(spans, ui.Span{Text: title + " · "})
+				if f.Address != "" {
+					title += " · "
+				}
+				spans = append(spans, ui.Span{Text: title})
 			}
-			spans = append(spans, ui.Span{Text: f.Address, Font: "monospace", Size: theme.Px(t, 12)})
+			if f.Address != "" {
+				spans = append(spans, ui.Span{Text: f.Address, Font: "monospace", Size: theme.Px(t, 12)})
+			}
 			ui.RichText(c, spans...).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).SingleLine()
 			ui.Text(c, why).FontSize(theme.Px(t, 12)).TextColor(theme.Text2(t)).NoWrap()
 		})

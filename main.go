@@ -347,6 +347,8 @@ func desktop() {
 		window.OnBlur(focus(false))
 		window.OnHide(focus(false))
 		window.OnMinimize(focus(false))
+		// Files dropped where no element took them are imported like the ones dropped on a drop zone.
+		window.OnFileDrop(func(e *mygo.FileDropEvent) { window.Update(func() { root.dropped(e.Paths) }) })
 		// A computer that wakes may have its network back: the timeline checks the server at once.
 		mygo.Power.OnResume(func() { window.Update(root.wake) })
 		root.restore()

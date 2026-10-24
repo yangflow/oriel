@@ -37,6 +37,9 @@ func remote(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/sessions", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"sessions":[{"id":1,"userAgent":"Oriel/0.9.0 (macOS)","current":true}]}`))
 	})
+	mux.HandleFunc("POST /api/opml/import", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"added":4,"existing":1,"failed":[]}`))
+	})
 	s := httptest.NewServer(mux)
 	t.Cleanup(s.Close)
 	return s
@@ -51,6 +54,7 @@ type fakeHome struct {
 	all       int
 	checks    int
 	languages []string
+	busy      bool
 }
 
 func (h *fakeHome) Use(api timeline.API, server string) {
@@ -66,6 +70,8 @@ func (h *fakeHome) ShowKeys() { h.keys++ }
 func (h *fakeHome) Run(cmd timeline.Command) { h.ran = append(h.ran, cmd) }
 func (h *fakeHome) RefreshAll()              { h.all++ }
 func (h *fakeHome) Check()                   { h.checks++ }
+
+func (h *fakeHome) DropBusy() bool { return h.busy }
 
 func (h *fakeHome) View(c *ui.Context) { ui.Text(c, "Home") }
 
@@ -238,6 +244,62 @@ func TestShellImportSettings(t *testing.T) {
 	tt.Frame()
 	if !s.setting || !tt.HasText("Choose file…") {
 		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func dropFile(t *testing.T, name string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte("<opml/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestShellDropOpensImport(t *testing.T) {
+	server := remote(t)
+	s, tt, _ := newTestShell(t)
+	s.connected(client.Session{Server: server.URL, Token: "t1"})
+	tt.Frame()
+	s.dropped([]string{dropFile(t, "feeds.opml")})
+	tt.Frame()
+	if !s.setting || !tt.HasText("Imported feeds.opml: 4 added, 1 already subscribed.") {
+		t.Fatalf("setting %v, texts %v", s.setting, tt.Texts())
+	}
+	if home := s.home.(*fakeHome); home.refreshed != 1 {
+		t.Fatalf("refreshed %d", home.refreshed)
+	}
+	// Dropped again on another page of the settings, it shows the import page.
+	s.settings.OpenAI()
+	tt.Frame()
+	s.dropped([]string{dropFile(t, "again.opml"), dropFile(t, "notes.txt")})
+	tt.Frame()
+	if !tt.HasText("Imported 2 files: 4 added, 1 already subscribed, 1 not added.") || !tt.HasText("notes.txt") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestShellDropIgnoredOnConnect(t *testing.T) {
+	server := remote(t)
+	s, tt, _ := newTestShell(t)
+	s.connected(client.Session{Server: server.URL, Token: "t1"})
+	s.openConnect()
+	s.dropped([]string{dropFile(t, "feeds.opml")})
+	tt.Frame()
+	if !s.showing || s.setting {
+		t.Fatalf("showing %v, setting %v", s.showing, s.setting)
+	}
+}
+
+func TestShellDropBusyHome(t *testing.T) {
+	server := remote(t)
+	s, tt, _ := newTestShell(t)
+	s.connected(client.Session{Server: server.URL, Token: "t1"})
+	s.home.(*fakeHome).busy = true
+	s.dropped([]string{dropFile(t, "feeds.opml")})
+	tt.Frame()
+	if s.setting {
+		t.Fatal("the settings opened under a dialog")
 	}
 }
 

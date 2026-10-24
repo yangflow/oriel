@@ -32,6 +32,8 @@ import (
 var catalog []byte
 
 type copy struct {
+	DropTitle, DropHint, DropBusy string
+
 	AlsoChip, AlsoName, AlsoHead                                                                                                                                        string
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
@@ -124,6 +126,7 @@ type Deps struct {
 	OpenSettings     func()
 	OpenAISettings   func()
 	OpenImport       func()
+	DropFiles        func(paths []string)
 	OpenSettingsPage func(page string)
 	Expired          func()
 	Reading          func() prefs.Preferences
@@ -3909,10 +3912,33 @@ func (s *Screen) skeleton(c *ui.Context) {
 	})
 }
 
+// DropBusy reports whether files dropped now are turned away, because a dialog is open, and says so with a toast.
+func (s *Screen) DropBusy() bool {
+	if s.keys || s.subs.Open() || s.pal.open || s.lb.open {
+		s.toast = s.text.DropBusy
+		return true
+	}
+	return false
+}
+
 func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed bool) {
 	t := c.Theme()
-	ui.Column(c).Fill().Center().Gap(t.Space(3)).Padding(s.top()+t.Space(6), t.Space(6), t.Space(6)).
-		Role(ui.RoleStatus).Children(func() {
+	col := ui.Column(c).Fill().Center().Gap(t.Space(3)).Padding(s.top()+t.Space(6), t.Space(6), t.Space(6)).
+		Role(ui.RoleStatus)
+	// The first-run empty state takes OPML files dropped on it, handing them to the settings' import like the rest
+	// of the window.
+	first := title == s.text.NoSubscriptions
+	if first {
+		if over := col.FileDragOver(); over {
+			icon, title, hint = icons.Upload, s.text.DropTitle, s.text.DropHint
+			col.Background(theme.Soft(t, t.Accent)).Border(1.5, t.Accent).BorderStyle(ui.BorderDashed).Radius(t.Radius)
+			first = false
+		}
+		if paths := col.DroppedFiles(); len(paths) > 0 && s.deps.DropFiles != nil {
+			s.deps.DropFiles(paths)
+		}
+	}
+	col.Children(func() {
 		fill, color := t.Surface, t.TextMuted
 		if failed {
 			fill, color = theme.Soft(t, t.Danger), t.Danger
@@ -3954,7 +3980,7 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed b
 				s.setBudget(0)
 			}
 		}
-		if title == s.text.NoSubscriptions {
+		if first {
 			ui.Row(c).Wrap().Justify(ui.Center).Gap(t.Space(2)).Children(func() {
 				b := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(t.Radius).
 					Background(t.Accent)
