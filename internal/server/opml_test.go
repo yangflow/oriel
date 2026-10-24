@@ -353,3 +353,15 @@ func TestOPMLJobPanicFailsTheJob(t *testing.T) {
 		t.Fatalf("after a panic: %d", w.Code)
 	}
 }
+
+func TestOPMLJobDoesNotStartAfterClose(t *testing.T) {
+	s, _ := newServer(t, "")
+	s.Close()
+	w := do(s, "POST", "/api/opml/import/start", importFile, nil)
+	if w.Code != http.StatusServiceUnavailable || decode(t, w)["error"] != "server_closing" {
+		t.Fatalf("start after Close: %d %s", w.Code, w.Body)
+	}
+	if st := opmlStatusOf(t, s, nil); st["phase"] != "idle" {
+		t.Fatalf("a job started: %v", st)
+	}
+}

@@ -72,6 +72,7 @@ type copy struct {
 	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                                                                                                                                                      string
 
 	ImportingOf, Progress, ViewSources, Stopped, Lost, ImportBusy, BusyWhy        string
+	StoppedMany, LostMany, SkippedWhy                                             string
 	DropHelp, ImportedMany, NotOpmlWhy, TooLargeWhy, ReadWhy, FailedWhy, DropBusy string
 
 	Rules, RulesLead, RulesNone, RulesNoneHelp, AddRule, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs     string
@@ -1095,9 +1096,14 @@ func (s *Screen) polled(r *importRun, job client.OPMLImport, err error) {
 func (s *Screen) fileEnded(r *importRun, o fileOutcome) {
 	r.outcomes = append(r.outcomes, o)
 	r.job, r.starting, r.polling, r.lost, r.said = client.OPMLImport{}, false, false, 0, 0
-	if r.next++; r.next < len(r.paths) {
+	// A file that stopped or was lost ends the run: the files after it are not imported.
+	halted := o.stopped || errors.Is(o.err, errLost)
+	if r.next++; r.next < len(r.paths) && !halted {
 		s.importFile(r)
 		return
+	}
+	for ; r.next < len(r.paths); r.next++ {
+		r.outcomes = append(r.outcomes, fileOutcome{name: r.names[r.next], err: errSkipped})
 	}
 	s.busy, s.run = false, nil
 	if len(r.paths) == 1 {
@@ -1150,6 +1156,7 @@ type fileOutcome struct {
 var (
 	errNotOPML = errors.New("not an OPML file")
 	errLost    = errors.New("lost the import job")
+	errSkipped = errors.New("not imported, an earlier file stopped")
 )
 
 // busyDrop reports whether files dropped now are turned away, because an import, backup or restore is running or a
@@ -1182,15 +1189,21 @@ func (s *Screen) ImportFiles(paths []string) {
 func (s *Screen) importedFiles(outcomes []fileOutcome) {
 	var added, existing int
 	var fails []client.ImportFail
-	for _, o := range outcomes {
+	halt, haltLost := 0, false // the file that stopped or was lost, counted from 1
+	for i, o := range outcomes {
+		if halt == 0 && (o.stopped || errors.Is(o.err, errLost)) {
+			halt, haltLost = i+1, errors.Is(o.err, errLost)
+		}
 		added += o.imported.Added
 		existing += o.imported.Existing
 		fails = append(fails, o.imported.Failed...)
-		if o.err == nil && !o.stopped {
+		if (o.err == nil && !o.stopped) || errors.Is(o.err, errLost) {
 			continue
 		}
 		why := "import_failed"
 		switch {
+		case errors.Is(o.err, errSkipped):
+			why = "skipped"
 		case errors.Is(o.err, errNotOPML) || code(o.err) == "invalid_opml":
 			why = "not_opml"
 		case errors.Is(o.err, errTooLarge) || code(o.err) == "opml_too_large":
@@ -1209,7 +1222,14 @@ func (s *Screen) importedFiles(outcomes []fileOutcome) {
 	case len(fails) > 0:
 		tone = partly
 	}
-	s.result = result{tone: tone, fails: fails, view: added > 0, text: s.fill(s.text.ImportedMany, "{n}", strconv.Itoa(len(outcomes)),
+	text := s.text.ImportedMany
+	if halt > 0 {
+		tone, text = partly, s.text.StoppedMany
+		if haltLost {
+			text = s.text.LostMany
+		}
+	}
+	s.result = result{tone: tone, fails: fails, view: added > 0, text: s.fill(text, "{n}", strconv.Itoa(len(outcomes)), "{i}", strconv.Itoa(halt),
 		"{added}", strconv.Itoa(added), "{existing}", strconv.Itoa(existing), "{failed}", strconv.Itoa(len(fails)))}
 	s.announce = s.result.text
 	if added > 0 {
@@ -3078,7 +3098,7 @@ func (s *Screen) failRow(c *ui.Context, i int, f client.ImportFail) {
 		"invalid_url": s.text.InvalidURL, "invalid_rsshub_path": s.text.InvalidRoute,
 		"invalid_kind": s.text.InvalidKind, "invalid_source": s.text.InvalidSource,
 		"not_opml": s.text.NotOpmlWhy, "too_large": s.text.TooLargeWhy, "unreadable": s.text.ReadWhy,
-		"import_failed": s.text.FailedWhy, "busy": s.text.BusyWhy,
+		"import_failed": s.text.FailedWhy, "busy": s.text.BusyWhy, "skipped": s.text.SkippedWhy,
 	}[f.Error]
 	if why == "" {
 		why = f.Error

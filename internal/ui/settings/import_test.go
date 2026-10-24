@@ -275,3 +275,44 @@ func TestImportSignedOutDuringJob(t *testing.T) {
 		t.Fatalf("api %v, run %v, busy %v, expired %d", s.api, s.run, s.busy, f.expired)
 	}
 }
+
+func TestImportSeveralStopsAtAStoppedFile(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	f.jobPoll = func(n int) (client.OPMLImport, error) {
+		if n == 1 {
+			return client.OPMLImport{Phase: client.OPMLDone, Result: &client.Imported{Added: 3}}, nil
+		}
+		return client.OPMLImport{Phase: client.OPMLFailed, Error: "import_failed", Result: &client.Imported{Added: 3, Existing: 1}}, nil
+	}
+	paths := []string{writeOPML(t, "a.opml", "<opml/>"), writeOPML(t, "b.opml", "<opml/>"), writeOPML(t, "c.opml", "<opml/>")}
+	s.ImportFiles(paths)
+	f.finish(tt, s)
+	if len(f.sent) != 2 || s.run != nil || s.busy {
+		t.Fatalf("sent %d, run %v, busy %v", len(f.sent), s.run, s.busy)
+	}
+	want := "Stopped during file 2 of 3, the files after it were not imported: 6 added, 1 already subscribed, 2 not added."
+	if !tt.HasText(want) || s.result.tone != partly || !tt.HasText(s.text.ViewSources) || f.refreshed != 1 {
+		t.Fatalf("no %q in %v", want, tt.Texts())
+	}
+	if !tt.HasText("c.opml") || !tt.HasText(s.text.SkippedWhy) {
+		t.Fatalf("the file not imported is not listed: %v", tt.Texts())
+	}
+}
+
+func TestImportSeveralStopsAtALostFile(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	f.jobPoll = func(int) (client.OPMLImport, error) { return client.OPMLImport{}, errors.New("offline") }
+	s.ImportFiles([]string{writeOPML(t, "a.opml", "<opml/>"), writeOPML(t, "b.opml", "<opml/>")})
+	tt.Frame()
+	f.settle(tt)
+	for i := 0; i < 4; i++ {
+		f.after(tt, importEvery)
+	}
+	if len(f.sent) != 1 || s.run != nil || s.busy {
+		t.Fatalf("sent %d, run %v, busy %v", len(f.sent), s.run, s.busy)
+	}
+	want := s.fill(s.text.LostMany, "{i}", "1", "{n}", "2", "{added}", "0", "{existing}", "0", "{failed}", "1")
+	if !tt.HasText(want) || s.result.tone != partly || tt.HasText(s.text.ViewSources) || f.refreshed != 0 {
+		t.Fatalf("no %q in %v", want, tt.Texts())
+	}
+}

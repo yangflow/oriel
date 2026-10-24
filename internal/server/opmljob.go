@@ -38,6 +38,7 @@ type opmlState struct {
 	mu      sync.Mutex
 	syncing bool // a synchronous POST /api/opml/import is running
 	job     *opmlStatus
+	closed  bool            // Close has begun: no job starts any more
 	ctx     context.Context // the context of every job; Close cancels it
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -93,6 +94,10 @@ func (s *Server) startOPML(w http.ResponseWriter, r *http.Request) {
 	st := s.opml
 	st.mu.Lock()
 	defer st.mu.Unlock()
+	if st.closed {
+		fail(w, http.StatusServiceUnavailable, "server_closing")
+		return
+	}
 	if st.busy() {
 		fail(w, http.StatusConflict, "opml_import_busy")
 		return
@@ -143,6 +148,9 @@ func (s *Server) opmlJobStatus(w http.ResponseWriter, r *http.Request) {
 
 // Close stops the OPML import in progress and waits until it has stopped.
 func (s *Server) Close() {
+	s.opml.mu.Lock()
+	s.opml.closed = true // no job starts from here on, so wg is not added to while it is waited for
+	s.opml.mu.Unlock()
 	s.opml.cancel()
 	s.opml.wg.Wait()
 }
