@@ -1486,9 +1486,13 @@ func openAppearance(t *testing.T, language string) (*Screen, *fake, *ui.Tester) 
 // reveal scrolls the page until the element showing text sits at revealTop, clear of the header and with the rows
 // that follow it in the window, and returns where it is. A test then does not depend on how tall the page is with this
 // platform's fonts. An element outside the window is laid out but has no size, and one above it is reported at the
-// top edge. When the page cannot scroll that far, or the element is outside the page, it stays where it is.
+// top edge. When the page cannot scroll that far, or the element is outside the page, it stays where it is. It starts
+// from the top of the page, so a text that shows more than once, such as "System" for the theme and the interface
+// language, always finds its first place on the page and not the one the last scroll left in view.
 func reveal(t *testing.T, tt *ui.Tester, text string) ui.Rect {
 	t.Helper()
+	tt.Scroll(450, 300, 0, -100000)
+	tt.Frame()
 	r, ok := tt.Find(text)
 	for range 40 {
 		if !ok || (r.H > 0 && r.Y > revealTop-1 && r.Y < revealTop+1) {
