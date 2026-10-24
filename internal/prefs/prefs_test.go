@@ -405,3 +405,36 @@ func TestPlaces(t *testing.T) {
 		}
 	}
 }
+
+func TestDesktop(t *testing.T) {
+	if d := Default(); d.OpenAtLogin || d.TrayIcon || d.DockBadge {
+		t.Fatalf("the desktop switches are not all off by default: %+v", d)
+	}
+	path := filepath.Join(t.TempDir(), File)
+	if err := Save(path, Default()); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	for _, key := range []string{"openAtLogin", "trayIcon", "dockBadge"} {
+		if strings.Contains(string(data), key) {
+			t.Errorf("the default is written: %s", data)
+		}
+	}
+	p := Default()
+	p.OpenAtLogin, p.TrayIcon, p.DockBadge = true, true, true
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load(path); !got.OpenAtLogin || !got.TrayIcon || !got.DockBadge {
+		t.Errorf("round trip: %+v", got)
+	}
+	data, _ = os.ReadFile(path)
+	for _, want := range []string{`"openAtLogin":true`, `"trayIcon":true`, `"dockBadge":true`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("file %s lacks %s", data, want)
+		}
+	}
+	if got := p.Normalize(); got != p {
+		t.Errorf("Normalize changed the desktop switches: %+v", got)
+	}
+}

@@ -141,6 +141,9 @@ type Deps struct {
 	// Remember keeps the scope and filter the timeline was left in on a server (its host, "" for this computer), in
 	// the background. nil keeps nothing.
 	Remember func(server string, place prefs.Place)
+	// Unread is told the unread entries of All as the server counts them, each time the count changes, for the Dock
+	// badge and the tray icon. nil is told nothing.
+	Unread func(n int)
 }
 
 // scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
@@ -417,7 +420,8 @@ func (s *Screen) Use(api API, server string) {
 	s.gen++
 	s.pass = passing{}
 	s.pics.Stop()
-	s.sources, s.unreadTotal, s.sourcesLoaded = nil, 0, false
+	s.sources, s.sourcesLoaded = nil, false
+	s.setUnread(0)
 	s.sourcesGen++
 	s.scope, s.tab, s.filter, s.budget = scope{}, 0, everything, 0
 	s.restorePlace()
@@ -655,8 +659,20 @@ func (s *Screen) restored(src client.Source) {
 
 // setSources takes the subscriptions as the server counts them.
 func (s *Screen) setSources(list client.SourceList) {
-	s.sources, s.unreadTotal, s.sourcesLoaded = list.Sources, list.UnreadTotal, true
+	s.sources, s.sourcesLoaded = list.Sources, true
+	s.setUnread(list.UnreadTotal)
 	s.sourcesGen++
+}
+
+// setUnread takes the unread count of All and tells Deps.Unread when it changed.
+func (s *Screen) setUnread(n int) {
+	if n == s.unreadTotal {
+		return
+	}
+	s.unreadTotal = n
+	if s.deps.Unread != nil {
+		s.deps.Unread(n)
+	}
 }
 
 func (s *Screen) loadSources() {
@@ -1621,7 +1637,7 @@ func (s *Screen) setRow(i int, patch client.EntryPatch) {
 			delta = -1
 		}
 		s.count(*e, delta)
-		s.unreadTotal = max(0, s.unreadTotal+delta)
+		s.setUnread(max(0, s.unreadTotal+delta))
 	}
 	if patch.Starred != nil {
 		e.Starred = *patch.Starred

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -542,5 +543,117 @@ func TestShellRemember(t *testing.T) {
 	s.remember("home.lan:7470", prefs.Place{})
 	if prefs.Load(file).Places != "" {
 		t.Fatalf("saved %v", prefs.Load(file).Places)
+	}
+}
+
+// desktopShell is a shell with the desktop integration on a fake system.
+func desktopShell(t *testing.T, sys *fakeSystem) (*shell, *ui.Tester, string) {
+	t.Helper()
+	s, tt, path := newTestShell(t)
+	s.desktop = newDesktopController(sys.host("linux", false), "en")
+	s.files.Desktop = &settings.Desktop{OS: "linux"}
+	s.build()
+	s.use()
+	s.openSettings()
+	s.settings.OpenAppearance()
+	return s, tt, path
+}
+
+func TestShellDesktopPreferences(t *testing.T) {
+	sys := &fakeSystem{}
+	s, _, path := desktopShell(t, sys)
+	p := s.prefs
+	p.OpenAtLogin, p.TrayIcon = true, true
+	s.change(p)
+	file := filepath.Join(filepath.Dir(path), prefs.File)
+	if !sys.login || !s.desktop.HasTray() || prefs.Load(file) != p || s.prefs != p {
+		t.Fatalf("login %v, tray %v, saved %v, in use %v", sys.login, s.desktop.HasTray(), prefs.Load(file), s.prefs)
+	}
+	p.OpenAtLogin, p.TrayIcon = false, false
+	s.change(p)
+	if sys.login || s.desktop.HasTray() || prefs.Load(file) != p {
+		t.Fatalf("login %v, tray %v, saved %v", sys.login, s.desktop.HasTray(), prefs.Load(file))
+	}
+}
+
+func TestShellDesktopTrayFailed(t *testing.T) {
+	sys := &fakeSystem{trayErr: errors.New("no appindicator")}
+	s, tt, path := desktopShell(t, sys)
+	p := s.prefs
+	p.TrayIcon = true
+	s.change(p)
+	tt.Frame()
+	if s.prefs.TrayIcon || s.desktop.HasTray() || prefs.Load(filepath.Join(filepath.Dir(path), prefs.File)).TrayIcon {
+		t.Fatal("a tray that cannot show stayed on or was saved")
+	}
+	if !tt.HasText("This system can’t show a tray icon. Install libayatana-appindicator3 and try again.") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestShellDesktopLoginFailed(t *testing.T) {
+	sys := &fakeSystem{loginErr: errors.New("read-only")}
+	s, tt, _ := desktopShell(t, sys)
+	p := s.prefs
+	p.OpenAtLogin = true
+	s.change(p)
+	tt.Frame()
+	if s.prefs.OpenAtLogin || !tt.HasText("Couldn’t save that choice. It went back to what it was.") {
+		t.Fatalf("in use %v, texts %v", s.prefs, tt.Texts())
+	}
+}
+
+func TestShellDesktopNotSaved(t *testing.T) {
+	sys := &fakeSystem{}
+	s, _, path := desktopShell(t, sys)
+	s.prefsPath = filepath.Join(filepath.Dir(path), "missing", prefs.File)
+	p := s.prefs
+	p.OpenAtLogin, p.TrayIcon = true, true
+	s.change(p)
+	if sys.login || s.desktop.HasTray() || s.prefs.OpenAtLogin || s.prefs.TrayIcon {
+		t.Fatalf("login %v, tray %v: a choice that was not saved stayed", sys.login, s.desktop.HasTray())
+	}
+}
+
+func TestShellDesktopUnreadAndLanguage(t *testing.T) {
+	sys := &fakeSystem{}
+	s, _, _ := desktopShell(t, sys)
+	p := s.prefs
+	p.TrayIcon = true
+	s.change(p)
+	s.unread(3)
+	p.Language = prefs.LanguageChinese
+	s.change(p)
+	shown := sys.trays[0].shown
+	if got := shown[len(shown)-1]; got.Unread != "3 条未读" || got.Words.Quit != "退出" {
+		t.Errorf("tray shows %+v", got)
+	}
+}
+
+func TestShellPollUnread(t *testing.T) {
+	sys := &fakeSystem{}
+	s, _, _ := desktopShell(t, sys)
+	p := s.prefs
+	p.TrayIcon = true
+	s.change(p)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/sources" {
+			w.Write([]byte(`{"sources":[],"unreadTotal":8}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+	s.local = client.Session{Server: srv.URL}
+	s.pollUnread()
+	shown := sys.trays[0].shown
+	if got := shown[len(shown)-1]; got.Unread != "8 unread" {
+		t.Errorf("tray shows %+v", got)
+	}
+	s.local = client.Session{Server: "http://127.0.0.1:1"}
+	s.pollUnread()
+	shown = sys.trays[0].shown
+	if got := shown[len(shown)-1]; got.Unread != "8 unread" {
+		t.Errorf("a failed poll changed the count: %+v", got)
 	}
 }
