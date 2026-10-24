@@ -545,7 +545,7 @@ function editDialog(){
   const backup=state==='edit-backup';
   const served=backup?`<span class="help">${copy.servedByBackup.replace('{host}','rsshub.backup.example')}</span><span class="help">${copy.servedByBackupHint}</span>`:'';
   return `<div class="scrim"><div class="dialog wide" role="dialog" aria-labelledby="dt">
-    <header><span class="mono big">G</span><div class="titles"><h2 id="dt">${copy.editTitle}</h2><p>${backup?'/github/trending/daily':'https://go.dev/blog/feed.atom'}</p></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>
+    <header><span class="mono big">G</span><div class="titles"><h2 id="dt">${copy.editTitle}</h2><p>${backup?'/github/trending/daily':state.startsWith('edit-moved')?'http://blog.golang.org/feed.atom':'https://go.dev/blog/feed.atom'}</p></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>
     <div class="form">
       ${health}${served}
       ${moved}
