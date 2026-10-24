@@ -347,12 +347,43 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   19 and 16 semibold, 1.9em and 1.3em above, 0.6em below; 1.05em between paragraphs, 0.3em between list items, a 22
   wide marker column; quotes behind a 2 DIP ink 16% line in `Text2`; code on `Surface` at 13 monospace, radius 12,
   scrolling sideways, inline code on an ink 5.5% fill, radius 4; links in `Accent` with a 1 DIP underline 3 below in
-  `Accent` at 38%; pictures at their own aspect ratio (16:9 until known), radius 12 with a 0.5 DIP ink 10% outline,
-  at most their own width, captions 12 in `TextMuted`. Loading is a skeleton of `Surface` bars; the empty states
+  `Accent` at 38%; pictures radius 12 with a 0.5 DIP ink 10% outline, sized as in Pictures in the text below,
+  captions 12 in `TextMuted`. Loading is a skeleton of `Surface` bars; the empty states
   (getting the text, no text, can't load) are a 48 tile, a 15 semibold heading, a hint at most 320 wide and a button; "no text" has two, the primary "Open the original" and "Try again", which runs the extraction again and shows the getting state meanwhile.
   **Superscript, subscript and footnotes.** Marks are set in the same line and size as the text, as the Unicode superscript and subscript characters (10⁶, 2¹⁰, H₂O); MyGo cannot shift a baseline, and a mark with a character that has no such form (letters beyond a few, an expression) is drawn at body size as `^(i+1)` or `_(max)`, never smaller than the five tiers. No Chinese spacing is added beside a mark. A footnote reference is the mark in `Accent` without an underline (it is a link, named "Footnote N" to screen readers); clicking it scrolls the note to about 96 below the top of the article and fills the note with `Soft(Accent)`, radius 6, for about 1.6 seconds (no fade with Reduce motion); the note's own back arrow (or, when the page has none, one Oriel adds after the note's text, `Accent`, named "Back to the text") returns to the reference the same way. The notes (`role="doc-endnotes"` or class `footnotes`) sit under a 96 wide hairline at 0.8125em in `Text2`. A link to `#top` or `#` goes to the top; an in-page link whose target is not on the page stays plain text.
   **Tables.** A table of at least two rows and two columns whose cells hold only inline content is a data table: a frame of radius 12 with a 0.5 DIP ink 10% outline, cells at 0.8125em in `Prose` padded 8 by 12 with 0.5 DIP `Border` dividers between rows only, the header row (a `thead`, or a first row of `th`) on `Surface` in `Text` at weight 600, set apart by its bottom divider. A column is as wide as its widest cell, at most 240 (longer text wraps) and at least 48; a table narrower than the text column keeps that width, left aligned, and its frame hugs it. Cells align left, or as the `align` attribute says; a column of only numbers aligns right with tabular figures. A `caption` goes below the frame at 12 in `TextMuted`. A table wider than the column scrolls sideways inside the column, as code blocks do: a 32 wide fade of `Background` on each side where cells are cut off, a 3 high position bar (`Track` with a thumb of ink 28%, radius 4) 6 under the frame, and the frame takes the keyboard focus (arrow keys scroll, the focus ring is drawn around the frame); it is read as "Table, N columns, M rows". `colspan` is honored; `rowspan` is not (the covered cell stays empty). A table that is not a data table (one row or one column, or blocks inside the cells) stays as lines of text with the cells set apart by a dot.
   The whole text is one selection.
+  **Pictures in the text.** What the page declares only reserves room; the real picture, once decoded, decides. A picture never
+  leaves the text and is never cropped (`Fit(Contain)` in a box of its own ratio).
+  - *Declared size.* Before the picture arrives, the box is the declared ratio on `Surface`, at most the declared width. Once
+    decoded, the real ratio and the real width (never more than the column) replace both, so a thumbnail size written on a
+    full-size picture ends up whole and at the width of the column, not cropped and not small. Same ratio: nothing changes.
+  - *No declared size.* The box is a flat 180 high (the 16:9 height when the column is under 320 wide) at the column's width, on
+    `Surface`, with no icon, so the body under it is laid out once and the picture arrives into room that was held.
+    Download and place first was not chosen: it would hold every picture back.
+  - *Settling.* The picture fades in over 140 ms (opacity only). The box takes its real height at once, with no moving
+    animation (Motion). Reading position: if the box lies wholly above the line at the top of the viewport, the scroll offset
+    moves by the same change in height, so the text being read does not move; on screen or below, the text under it moves
+    once and nothing else does. Selection and focus stay.
+  - *Failed.* The box keeps the size it had (declared ratio, or the 180 above) so nothing moves, on `Surface` with the usual
+    outline, and holds, centered with 8 between: the image-off icon (24, `IconLarge`, `TextMuted`), the alt text (13 `Text2`, at
+    most 3 lines and 360 wide, ellipsis at the end), under it "This picture can't be shown" (12 `TextMuted`; with no alt it
+    is the 13 `Text2` line and the alt line is left out), and a small secondary button "Try again" (rotate-ccw 14, 32 high,
+    4 above). Try again asks for that picture at once, drops the failed mark and shows the loading box; it is how a
+    picture that gave up after the automatic retries (`pictures.Retry`, `pictures.Tries`) is asked again. A box under 140 high
+    takes one row instead, 8 padding and 10 between: icon (16, `IconMedium`), the alt text or the line in one line with an
+    ellipsis, and the button at the end; a box under 48 high is raised to 48. A picture declared under 48 in width or
+    height is decoration (icons, spacers): when it fails it is left out as before, with no box. Failing again after Try again
+    shows the box again, with no toast. If the retry succeeds the box fills as above.
+  - *Names.* A picture is an image named by its alt text. A failed picture is a group named "{alt}. This picture can't be shown"
+    ("Picture. It can't be shown" with no alt), and its button "Try loading the picture again"; nothing is announced when a
+    picture fails, since a page can have many. Tab reaches each Try again in reading order. The failed state does not
+    rely on color: the icon and the words say it. Strings: `copy.json` of the reader, `en` and `zh-Hans`
+    ("This picture can't be shown" / "这张图片无法显示", "Try again" / "重试", the two names, "Try loading the picture
+    again" / "重新加载这张图片").
+  - Mockup: `design/screens/reader.html`, `image-failed` (with alt, without alt, the one-row strip), `image-unsized` (the
+    180 boxes), `image-settled` (the same article decoded, each picture at its own ratio), `image-wrong-size` (declared 16:9,
+    really 4:3, shown whole).
 - **Immersive reading.** Z (plain, not with Cmd/Ctrl) in the reader hides the sidebar and the toolbar so the article has the whole window;
   Z again or Escape leaves (Escape closes the find bar first, then the selection card, then leaves immersive reading, and only then goes back to the list).
   Entering changes nothing vertically: the 52 high band at the top stays, empty and in `Background` (the window buttons sit in it, so text is

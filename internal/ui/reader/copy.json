@@ -81,7 +81,11 @@
     "Saved": "Saved as {file}",
     "SaveFailed": "Couldn’t save {file}",
     "ExportFailed": "Couldn’t get this entry. Check the connection.",
-    "MarkdownFiles": "Markdown"
+    "MarkdownFiles": "Markdown",
+    "PicFailed": "This picture can’t be shown",
+    "PicFailedName": "{alt}. This picture can’t be shown",
+    "PicFailedNoAlt": "Picture. It can’t be shown",
+    "PicRetry": "Try loading the picture again"
   },
   "zh-Hans": {
     "Back": "回到{scope}",
@@ -165,6 +169,10 @@
     "Saved": "已保存为 {file}",
     "SaveFailed": "没能保存 {file}",
     "ExportFailed": "没能取到这篇文章，检查一下连接。",
-    "MarkdownFiles": "Markdown"
+    "MarkdownFiles": "Markdown",
+    "PicFailed": "这张图片无法显示",
+    "PicFailedName": "{alt}。这张图片无法显示",
+    "PicFailedNoAlt": "图片。无法显示",
+    "PicRetry": "重新加载这张图片"
   }
 }

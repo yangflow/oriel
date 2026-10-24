@@ -66,6 +66,11 @@
      match marked and the current one underlined ("2 of 9"), find-none: nothing matches ("No matches", Previous and Next dimmed), find-translation:
      the same over the translation (only the text shown is searched), immersive-find: the row in immersive reading. Closed is every other state.
      The marks are Warning at 25% (the others) and 40% (the current one, with a 1.5 DIP underline), the text in them always Text.
+     Picture states (a figure in the text): image-failed (the picture could not be loaded: the box keeps its size, with the image-off
+     icon, the alt text and "Try again"; the second one has no alt text, the third is a flat strip that takes the one-row layout),
+     image-unsized (the page gives no width and height: a 180 high box until the picture is decoded), image-settled (the same
+     article once the pictures are decoded: each at its real aspect ratio; the reading position did not move), image-wrong-size
+     (the page declared 16:9 but the picture is 4:3: it is shown whole at its real ratio, never cropped).
      Article structure (docs/design.md, The reader; issue 370): footnotes shows superscript and subscript (set as the Unicode
      characters, 10⁶, 2¹⁰, H₂O; text with no such character is drawn at body size as ^(i+1) or _(i+1)) and
      in-page footnote links: a reference is an Accent mark named "Footnote N"; the notes sit under a rule at 0.8125em in
@@ -231,6 +236,16 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .prose figure { margin:1.4em 0 }
 .pic { border-radius:12px; background-color:var(--surface); outline:.5px solid rgba(var(--ink),.10); outline-offset:-.5px }
 .prose .pic { width:100% }
+.pic.failed { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:16px; text-align:center; color:var(--muted); background-image:none }
+.pic.failed svg.icon { width:24px; height:24px }
+.pic.failed .alt { max-width:360px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; font-size:13px; line-height:1.5; color:var(--text2); overflow-wrap:anywhere }
+.pic.failed .why { font-size:12px; line-height:1.4; color:var(--muted) }
+.pic.failed .button { margin-top:4px }
+.pic.failed.strip { flex-direction:row; justify-content:flex-start; gap:10px; padding:8px 12px; text-align:left }
+.pic.failed.strip svg.icon { width:16px }
+.pic.failed.strip .words { flex:1; min-width:0; display:flex; flex-direction:column }
+.pic.failed.strip .alt { max-width:none; -webkit-line-clamp:1 }
+.pic.failed.strip .button { margin:0 }
 .prose figcaption { margin-top:8px; font:400 12px/1.5 system-ui,-apple-system,"PingFang SC",sans-serif; color:var(--muted) }
 .prose hr { border:0; border-top:1px solid var(--border); margin:24px 0 }
 .prose a.fnref { text-decoration:none; padding:0 1px; border-radius:4px }
@@ -392,7 +407,7 @@ mark.hit.now { background:color-mix(in srgb,var(--warning) 40%,transparent); box
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar''footnotes','footnote-jump','table','table-wide',];
+const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar','image-failed','image-unsized','image-settled','image-wrong-size','footnotes','footnote-jump','table','table-wide'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
@@ -430,6 +445,7 @@ const icons={
   circle:'<circle cx="12" cy="12" r="10"/>',
   checkCheck:'<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
   minimize2:'<path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/>',
+  imageOff:'<line x1="2" x2="22" y1="2" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" x2="6" y1="13.5" y2="21"/><line x1="18" x2="21" y1="12" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/>',
   rotateCcw:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   circleCheck:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
   search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
@@ -487,6 +503,7 @@ const copy={
     translateSel:'Translate selection', explainSel:'Explain selection', copyAction:'Copy', selectAll:'Select All', selTranslation:'Translation', selExplanation:'Explanation',
     find:'Find', matches:'{current} of {total}', noMatches:'No matches', prevMatch:'Previous match', nextMatch:'Next match', done:'Done',
     backToText:'Back to the text', footnote:'Footnote {n}', tableName:'Table, {c} columns, {r} rows',
+    picFailed:'This picture can’t be shown', picFailedName:'{alt}. This picture can’t be shown', picFailedNoAlt:'Picture. It can’t be shown', picRetry:'Try loading the picture again',
     selFailed:'Couldn’t get an answer. {reason}', selTooLong:'Select less text', selTooLongHint:'Up to 2000 characters can be translated or explained at a time.', selAiOff:'Translating and explaining use an AI endpoint of your choosing. Set one up in Settings first.',
   },
   'zh-Hans':{
@@ -511,6 +528,7 @@ const copy={
     translateSel:'翻译所选', explainSel:'解释所选', copyAction:'复制', selectAll:'全选', selTranslation:'译文', selExplanation:'解释',
     find:'查找', matches:'第 {current} 项，共 {total} 项', noMatches:'无匹配项', prevMatch:'上一处匹配', nextMatch:'下一处匹配', done:'完成',
     backToText:'回到正文', footnote:'脚注 {n}', tableName:'表格，{c} 列 {r} 行',
+    picFailed:'这张图片无法显示', picFailedName:'{alt}。这张图片无法显示', picFailedNoAlt:'图片。无法显示', picRetry:'重新加载这张图片',
     selFailed:'没能得到回答。{reason}', selTooLong:'请少选一些文字', selTooLongHint:'一次最多翻译或解释 2000 个字。', selAiOff:'翻译和解释使用你自己选定的 AI 端点，请先在设置里配置。',
   },
 }[lang];
@@ -694,10 +712,29 @@ const selCard=()=>{
 const selMenu=state==='selection-menu'?`<div class="menu" role="menu"><div class="row on" role="menuitem">${icon('languages')}${copy.translateSel}</div><div class="row" role="menuitem">${icon('sparkles')}${copy.explainSel}</div><hr><div class="row" role="menuitem">${copy.copyAction}</div><div class="row" role="menuitem">${copy.selectAll}</div></div>`:'';
 const markExplain=html=>html.replace('<code>unicode61</code>','<mark class="sel"><code>unicode61</code></mark>');
 
+const picFailed=(ratio,alt,strip)=>{const name=alt?t('picFailedName',{alt}):copy.picFailedNoAlt;
+  return `<div class="pic failed${strip?' strip':''}" style="aspect-ratio:${ratio}" role="group" aria-label="${name}">${icon('imageOff')}${strip?`<div class="words">${alt?`<span class="alt">${alt}</span>`:`<span class="alt">${copy.picFailed}</span>`}</div>`:`<span class="alt">${alt||copy.picFailed}</span>${alt?`<span class="why">${copy.picFailed}</span>`:''}`}<button class="button small" aria-label="${copy.picRetry}">${icon('rotateCcw')}${copy.tryAgain}</button></div>`};
+const fig=(ratio,alt,cap,cls='')=>`<figure><div class="pic g1 ${cls}" style="aspect-ratio:${ratio}" role="img" aria-label="${alt}"></div>${cap?`<figcaption>${cap}</figcaption>`:''}</figure>`;
+const imageText=()=>{
+  const a=zh?['索引大小对比图','分词器的查询耗时','各语料的命中率']:['Chart of index sizes','Query time per tokenizer','Hit rate per corpus'];
+  const c=zh?['同一份语料在三种分词器下的索引大小。','三种分词器的查询耗时。','各语料的命中率。']:['The same corpus under the three tokenizers.','Query time under each tokenizer.','Hit rate on each corpus.'];
+  const pre=zh?'<p>SQLite 的 FTS5 自带三种分词器，下面三张图比较了它们。</p>':'<p>SQLite’s FTS5 ships with three tokenizers; the three figures below compare them.</p>';
+  const post=zh?'<p>索引大约是原文的三倍。对一个个人阅读器来说，这通常可以接受。</p>':'<p>The index ends up about three times the size of the text. For a personal reader that is usually fine.</p>';
+  let figs;
+  switch(state){
+    case 'image-failed':figs=`<figure>${picFailed('16/9',a[0])}<figcaption>${c[0]}</figcaption></figure><figure>${picFailed('16/9','')}</figure><figure>${picFailed('6/1',a[2],true)}</figure>`;break;
+    case 'image-unsized':figs=[0,1,2].map(k=>`<figure><div class="pic" style="height:180px;background-image:none" role="img" aria-label="${a[k]}"></div><figcaption>${c[k]}</figcaption></figure>`).join('');break;
+    case 'image-settled':figs=fig('16/9',a[0],c[0])+fig('3/2',a[1],c[1])+fig('2/1',a[2],c[2]);break;
+    default:figs=fig('4/3',a[0],c[0])+fig('3/2',a[1],c[1]);
+  }
+  return pre+figs+post;
+};
+
 let page;
 switch(state){
   case 'selection-menu':case 'selection-explain':page=article('',markExplain(full));break;
   case 'selection-loading':case 'selection-translate':case 'selection-failed':case 'selection-too-long':case 'selection-ai-off':page=original('').replace(zh?'it indexes every run of three characters':'把文本切成所有连续的三个字符',m=>`<mark class="sel">${m}</mark>`);break;
+  case 'image-failed':case 'image-unsized':case 'image-settled':case 'image-wrong-size':page=article('',imageText());break;
   case 'immersive':case 'immersive-bar':case 'immersive-find':case 'find-empty':case 'find':case 'find-none':page=article('',full);break;
   case 'find-translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'footnotes':case 'footnote-jump':page=article('',notesOf(zh));break;

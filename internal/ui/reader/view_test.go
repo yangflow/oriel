@@ -35,8 +35,9 @@ type fake struct {
 	err      error
 	asked    int
 	pictures []string
-	imageCtx []context.Context // the context of each request for a picture
-	imageErr int               // pictures that fail before they work again
+	imageCtx []context.Context      // the context of each request for a picture
+	imageErr int                    // pictures that fail before they work again
+	imageAt  map[string]image.Point // the size of the pictures that are not 4 by 3
 	nav      Nav
 	calls    []string // what the reader asked the timeline to do
 
@@ -86,7 +87,11 @@ func (f *fake) Image(ctx context.Context, address string) ([]byte, error) {
 		return nil, errors.New("broken")
 	}
 	var b bytes.Buffer
-	png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 4, 3)))
+	size := image.Pt(4, 3)
+	if at, ok := f.imageAt[address]; ok {
+		size = at
+	}
+	png.Encode(&b, image.NewRGBA(image.Rectangle{Max: size}))
 	return b.Bytes(), nil
 }
 

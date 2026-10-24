@@ -45,6 +45,7 @@ type copy struct {
 	ExitImmersive, FindLabel                                                                                      string
 	BackToText, Footnote, TableName                                                                               string
 	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles        string
+	PicFailed, PicFailedName, PicFailedNoAlt, PicRetry                                                            string
 }
 
 var translations = func() map[string]copy {
@@ -186,6 +187,11 @@ type Screen struct {
 	target string // the language translations are made in, "" until the server says
 
 	pics *pictures.Queue // the pictures of the article open; its downloads are cancelled when another opens or the server changes
+	// How tall each picture of the text was drawn, in the order of the text, and the top of the page area: a picture that
+	// settles above the top moves the scroll offset by its change in height.
+	settled map[int]settle
+	nth     int
+	viewTop float32
 
 	jobs       [2]job
 	sel        selection
@@ -365,6 +371,7 @@ func (s *Screen) Open(e client.Entry) {
 	s.article, s.full, s.feed = client.Article{Entry: e}, nil, nil
 	s.scroll.X, s.scroll.Y = 0, 0
 	s.landing, s.refs, s.tables, s.seen, s.drawn = landing{}, nil, nil, nil, nil
+	s.settled = nil
 	s.startPosition(e)
 	s.focus = true
 	s.pics.Reset()
@@ -694,6 +701,7 @@ func (s *Screen) switched(c *ui.Context, from int) {
 	}
 	s.scroll.X, s.scroll.Y = 0, 0
 	s.landing, s.refs, s.tables, s.seen = landing{}, nil, nil, nil
+	s.settled = nil
 	s.lastY, s.moved, s.resume = 0, false, -1
 	c.Invalidate()
 }
@@ -1207,6 +1215,7 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 		area.Focus()
 		s.focus = false
 	}
+	s.viewTop, s.nth = area.Bounds().Y, 0
 	area.Children(func() {
 		if s.loading {
 			s.skeleton(c, pad)
@@ -1804,7 +1813,7 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 		case table:
 			s.table(c, b)
 		case picture:
-			s.picture(c, b)
+			s.picture(c, b, box.Bounds().W)
 		case code:
 			ui.ScrollHorizontal(c).FillWidth().Radius(theme.Px(t, 12)).Background(t.Surface).Children(func() {
 				text := ui.Text(c, b.text)
@@ -2206,32 +2215,164 @@ func (s *Screen) style(c *ui.Context, e ui.Element, sp span) {
 	}
 }
 
-// picture is a picture of the text on the Surface color until it loads, as wide as the page says or the text,
-// whichever is less; one that fails to load is left out.
-func (s *Screen) picture(c *ui.Context, b block) {
+// settle is how a picture of the text was last drawn: what it showed (loading, loaded or failed) and how tall.
+type settle struct {
+	state  int
+	height float32
+}
+
+const (
+	pictureLoading = iota
+	pictureLoaded
+	pictureFailed
+)
+
+// picture is a picture of the text. Until it arrives it is a box on the Surface color, as the page declares it or a
+// flat 180 high; once it has, the real size decides, the whole picture at its own ratio and no wider than the column,
+// fading in. One that fails keeps the box and says so, with the alt text and Try again; one declared under 48 is
+// decoration and is left out. avail is the width of the column, as the last frame had it, 0 until known. See
+// docs/design.md "Pictures in the text".
+func (s *Screen) picture(c *ui.Context, b block, avail float32) {
 	t := c.Theme()
 	bitmap, failed := s.bitmap(b.src)
-	if failed {
+	n := s.nth
+	s.nth++
+	if failed && (b.width > 0 && b.width < 48 || b.height > 0 && b.height < 48) {
 		return
 	}
-	width, height := b.width, b.height
-	if (width == 0 || height == 0) && bitmap != nil {
-		width, height = bitmap.Size()
+	state, ratio, limit, fixed := pictureLoading, float32(0), float32(b.width), float32(0)
+	switch {
+	case bitmap != nil:
+		w, h := bitmap.Size()
+		state, ratio, limit = pictureLoaded, float32(w)/float32(h), float32(w)
+	case b.width > 0 && b.height > 0:
+		ratio = float32(b.width) / float32(b.height)
+	case avail > 0 && avail < theme.Px(t, 320):
+		ratio = 16.0 / 9
+	default:
+		fixed = theme.Px(t, 180)
 	}
-	ratio := float32(16.0 / 9)
-	if width > 0 && height > 0 {
-		ratio = float32(width) / float32(height)
+	if failed {
+		state = pictureFailed
 	}
-	box := ui.Box(c).FillWidth().AspectRatio(ratio).Radius(theme.Px(t, 12)).Background(t.Surface).Clip().Role(ui.RoleImage).
-		Label(b.alt)
-	if width > 0 {
-		box.MaxWidth(float32(width))
+	width := avail
+	if limit > 0 && (width == 0 || limit < width) {
+		width = limit
 	}
+	height := fixed
+	if ratio > 0 {
+		height = width / ratio
+	}
+	least := float32(0)
+	if failed {
+		least = theme.Px(t, 48)
+		height = max(height, least)
+	}
+	strip := failed && height < theme.Px(t, 140)
+	name := b.alt
+	if failed {
+		name = strings.ReplaceAll(s.text.PicFailedName, "{alt}", b.alt)
+		if b.alt == "" {
+			name = s.text.PicFailedNoAlt
+		}
+	}
+	box := ui.Box(c).FillWidth().Radius(theme.Px(t, 12)).Background(t.Surface).Clip().Label(name)
+	if ratio > 0 {
+		box.AspectRatio(ratio)
+	} else {
+		box.Height(fixed)
+	}
+	if failed {
+		box.MinHeight(least).Role(ui.RoleGroup)
+	} else {
+		box.Role(ui.RoleImage)
+	}
+	if limit > 0 {
+		box.MaxWidth(limit)
+	}
+	s.compensate(box, n, settle{state, height}, avail)
 	box.Children(func() {
-		if bitmap != nil {
-			ui.Image(c, bitmap).Fit(ui.Cover).Fill()
+		switch {
+		case bitmap != nil:
+			ui.Image(c, bitmap).Key("bitmap").Fit(ui.Contain).Fill().Transition(pictureFade)
+		case failed:
+			s.pictureFailed(c, b, strip)
 		}
 		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, 12)).Border(0.5, theme.Ink(t, 0.1)).PassThrough()
+	})
+}
+
+// pictureFade is how a picture appears once decoded: its opacity only, so the box has already taken its height.
+var pictureFade = ui.ElementTransition{Duration: 140 * time.Millisecond, Enter: &ui.Motion{}}
+
+// compensate keeps the text being read where it is when a picture settles: if the box lay wholly above the top of the
+// page area as the last frame drew it, the scroll offset moves by the change in height, in this same frame. A box on
+// screen or below moves what is under it once. While the saved position waits to be restored, it is left to that.
+func (s *Screen) compensate(box ui.Element, n int, now settle, avail float32) {
+	if avail == 0 {
+		return
+	}
+	if s.settled == nil {
+		s.settled = map[int]settle{}
+	}
+	before, known := s.settled[n]
+	s.settled[n] = now
+	if !known || before.state == now.state || before.height == now.height || s.resume >= 0 {
+		return
+	}
+	if r := box.Bounds(); r.H > 0 && r.Y+r.H <= s.viewTop {
+		s.scroll.Y += now.height - before.height
+		s.lastY = s.scroll.Y
+	}
+}
+
+// pictureFailed is what a failed picture holds: the image-off icon, the alt text, what happened and Try again; in one
+// row when the box is low.
+func (s *Screen) pictureFailed(c *ui.Context, b block, strip bool) {
+	t := c.Theme()
+	retry := func() {
+		button := ui.ButtonBase(c).Height(theme.Px(t, 32)).Gap(t.Space(1.5)).PaddingX(theme.Px(t, 10)).Radius(theme.Px(t, 8)).
+			Label(s.text.PicRetry)
+		switch {
+		case button.Pressed():
+			button.Background(theme.Track(t).Mix(t.Text, 0.16))
+		case button.Hovered():
+			button.Background(theme.Track(t).Mix(t.Text, 0.1))
+		default:
+			button.Background(theme.Track(t))
+		}
+		button.Children(func() {
+			ui.Icon(c, icons.RotateCcw).FontSize(theme.IconSmall(t)).TextColor(t.Text)
+			ui.Text(c, s.text.Retry).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(t.Text)
+		})
+		if button.Clicked() {
+			s.pics.Again(b.src)
+			s.download()
+			c.Invalidate()
+		}
+	}
+	if strip {
+		ui.Row(c).Fill().AlignItems(ui.Center).Gap(theme.Px(t, 10)).Padding(theme.Px(t, 8), theme.Px(t, 12)).Children(func() {
+			ui.Icon(c, icons.ImageOff).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
+			line := s.text.PicFailed
+			if b.alt != "" {
+				line = b.alt
+			}
+			ui.Text(c, line).FontSize(theme.Px(t, 13)).TextColor(theme.Text2(t)).MaxLines(1).Grow(1).Shrink(1).MinWidth(0)
+			retry()
+		})
+		return
+	}
+	ui.Column(c).Fill().Center().Gap(theme.Px(t, 8)).Padding(theme.Px(t, 16)).Children(func() {
+		ui.Icon(c, icons.ImageOff).FontSize(theme.IconLarge(t)).TextColor(t.TextMuted)
+		if b.alt != "" {
+			ui.Text(c, b.alt).FontSize(theme.Px(t, 13)).MaxWidth(theme.Px(t, 360)).MaxLines(3).TextAlign(ui.Center).
+				TextColor(theme.Text2(t))
+			ui.Text(c, s.text.PicFailed).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+		} else {
+			ui.Text(c, s.text.PicFailed).FontSize(theme.Px(t, 13)).TextColor(theme.Text2(t))
+		}
+		retry()
 	})
 }
 
