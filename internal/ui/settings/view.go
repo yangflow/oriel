@@ -66,6 +66,7 @@ type copy struct {
 	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10 string
 	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, Compacting                                                                                                                                                                                                                string
 	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                                                                                                                                                                                                                                        string
+	Health, HealthHelp, HealthEmpty, MainBadge, NoData, NoAnswer, LastN, Cooling, CoolingSoon                                                                                                                                                                                                                                               string
 	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                                                                                                                                                          string
 	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                                            string
 	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                                                                                                                                                      string
@@ -141,6 +142,7 @@ type API interface {
 	SetSettings(ctx context.Context, patch client.SettingsPatch) (client.Settings, error)
 	Devices(ctx context.Context) ([]client.Device, error)
 	Activity(ctx context.Context) (client.Activity, error)
+	RSSHubHealth(ctx context.Context) (client.RSSHubHealth, error)
 	Storage(ctx context.Context) (client.Storage, error)
 	StartVacuum(ctx context.Context) (client.Vacuum, error)
 	RevokeDevice(ctx context.Context, id int64) error
@@ -260,6 +262,10 @@ type Screen struct {
 	activity    client.Activity
 	storage     client.Storage
 	actState    int
+	health      client.RSSHubHealth
+	healthShown bool      // the health was read; false hides the block
+	healthAsked bool      // the health was asked for since the Fetching group was opened
+	healthLoads int       // counts requests for the health, so a result a newer one has passed is dropped
 	actLoads    int       // counts requests for the activity, so a result a newer one has passed is dropped
 	actBusy     bool      // the activity is being fetched
 	actAt       time.Time // when it was last asked for
@@ -354,6 +360,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.state, s.deviceState, s.restored = loading, loading, nil
 	s.activity, s.storage, s.actState, s.actBusy, s.actOpen = client.Activity{}, client.Storage{}, loading, false, 0
 	s.vacStarting, s.vacError, s.actAt = false, "", time.Time{}
+	s.health, s.healthShown, s.healthAsked = client.RSSHubHealth{}, false, false
 	s.reader = reader{}
 	s.rules = rulesPage{state: loading}
 	if sameServer { // signing in again keeps the Undo of a rule just deleted
@@ -405,6 +412,7 @@ func (s *Screen) Open() {
 	s.loadDevices()
 	s.loadRules()
 	s.actState, s.actAt = loading, time.Time{}
+	s.healthAsked = false
 }
 
 func (s *Screen) expired(err error) bool {
@@ -418,6 +426,7 @@ func (s *Screen) expired(err error) bool {
 	s.autoSaving = false
 	s.aiSaving, s.testing, s.promptSaving = false, false, false
 	s.actBusy, s.vacStarting = false, false
+	s.health, s.healthShown = client.RSSHubHealth{}, false
 	s.reader = reader{}
 	s.rules = rulesPage{state: loading, deleted: s.rules.deleted} // the Undo of a deleted rule outlives the reset
 	s.deps.Expired()
@@ -557,6 +566,7 @@ func (s *Screen) saveBase() {
 				s.settings.RSSHubBaseURL, s.settings.RSSHubBaseURLs = settings.RSSHubBaseURL, settings.RSSHubBaseURLs
 				s.base = strings.Join(settings.RSSHubBaseURLs, "\n")
 				s.baseStatus = status{ok: true, text: s.text.Saved}
+				s.fetchHealth()
 				s.announce = s.baseStatus.text
 			case code(err) == "invalid_rsshub_base_url":
 				s.refuseBase(s.text.InvalidBaseAny)
@@ -1602,6 +1612,9 @@ func (s *Screen) navItem(c *ui.Context, g int, icon *ui.SVG) {
 		}
 	})
 	if item.Clicked() {
+		if g != s.group {
+			s.healthAsked = false
+		}
 		s.group = g
 	}
 }
@@ -1837,6 +1850,7 @@ func coded(c *ui.Context, text, placeholder, code string) ui.Element {
 
 func (s *Screen) fetchingPage(c *ui.Context) {
 	t := c.Theme()
+	s.watchHealth()
 	lead(c, s.text.Lead)
 	card(c, func() {
 		ui.Text(c, s.text.RSSHub).FontWeight(500)
@@ -1858,6 +1872,7 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 				s.saveBase()
 			}
 		})
+		s.healthBlock(c)
 	}, func() {
 		labeled(c, s.text.Retention, s.text.RetentionHelp, func() { s.retentionSelect(c) })
 		statusLine(c, s.keepStatus)

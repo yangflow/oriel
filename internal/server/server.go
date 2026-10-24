@@ -57,6 +57,9 @@ type Config struct {
 	AI *ai.Worker
 	// Fetching returns the ids of the sources being fetched now, for GET /api/activity; nil means none are.
 	Fetching func() []int64
+	// InstanceHealth returns how the latest requests to each of the RSSHub instances went, for GET /api/rsshub/health;
+	// nil means there is no data.
+	InstanceHealth func(instances []string) []fetch.InstanceHealth
 	// Log holds the recent warnings and errors for GET /api/diagnostics; nil says the file has none to show.
 	Log *diag.Handler
 	// DataDir is where the log file lives, whose end GET /api/diagnostics shows; empty says there is none.
@@ -94,24 +97,25 @@ type RouteFinder interface {
 
 // Server serves the HTTP API on top of a store.
 type Server struct {
-	store    *store.Store
-	images   Images
-	discover Discoverer
-	routes   RouteFinder
-	ai       *ai.Worker
-	version  string
-	salt     []byte
-	derived  []byte // nil when no password is set
-	now      func() time.Time
-	throttle *throttle
-	proxies  []netip.Prefix
-	probe    writeProbe
-	writable func(context.Context) error // the write probe of /health; tests replace it
-	handler  http.Handler
-	fetching func() []int64
-	log      *diag.Handler
-	dataDir  string
-	mode     string
+	store          *store.Store
+	images         Images
+	discover       Discoverer
+	routes         RouteFinder
+	ai             *ai.Worker
+	version        string
+	salt           []byte
+	derived        []byte // nil when no password is set
+	now            func() time.Time
+	throttle       *throttle
+	proxies        []netip.Prefix
+	probe          writeProbe
+	writable       func(context.Context) error // the write probe of /health; tests replace it
+	handler        http.Handler
+	fetching       func() []int64
+	instanceHealth func(instances []string) []fetch.InstanceHealth
+	log            *diag.Handler
+	dataDir        string
+	mode           string
 
 	imports      importState
 	importClient func() *importer.Client // makes the client of one import; tests replace it
@@ -129,7 +133,7 @@ type Server struct {
 
 // New derives the password key once and builds the routes.
 func New(st *store.Store, cfg Config) (*Server, error) {
-	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, log: cfg.Log, dataDir: cfg.DataDir, mode: cfg.Mode, pause: cfg.Pause, auto: cfg.AutoBackup, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), proxies: cfg.TrustedProxies, vacuum: vacuumState{State: "idle"}}
+	s := &Server{store: st, images: cfg.Images, discover: cfg.Discover, routes: cfg.Routes, ai: cfg.AI, fetching: cfg.Fetching, instanceHealth: cfg.InstanceHealth, log: cfg.Log, dataDir: cfg.DataDir, mode: cfg.Mode, pause: cfg.Pause, auto: cfg.AutoBackup, version: cfg.Version, now: time.Now, importClient: importer.NewClient, throttle: newThrottle(), proxies: cfg.TrustedProxies, vacuum: vacuumState{State: "idle"}}
 	if s.routes == nil {
 		s.routes = fetch.NewRoutes(cfg.Version)
 	}
@@ -195,6 +199,7 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("POST /api/import/cancel", s.authed(s.cancelImport))
 	mux.HandleFunc("GET /api/image", s.authed(s.image))
 	mux.HandleFunc("GET /api/activity", s.authed(s.activity))
+	mux.HandleFunc("GET /api/rsshub/health", s.authed(s.rsshubHealth))
 	mux.HandleFunc("GET /api/storage", s.authed(s.storage))
 	mux.HandleFunc("POST /api/storage/vacuum", s.authed(s.startVacuum))
 	mux.HandleFunc("GET /api/diagnostics", s.authed(s.diagnostics))

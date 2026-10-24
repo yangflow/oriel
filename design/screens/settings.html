@@ -14,7 +14,9 @@
      Appearance is saved and applied as soon as a control is changed; it has no Save button. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License).
      States: appearance, fetching (one RSSHub instance), several (three instances: the first is the primary, the others
-     take over in order), edited (the list changed, not saved), invalid (a line is not a valid address; nothing is sent), saved, opml,
+     take over in order), health (the same three, with the Instance health block under the field: one instance healthy,
+     one answering about two thirds of the time and slowly, one cooling down), health-empty (the block when nothing has
+     been fetched since the server started), edited (the list changed, not saved), invalid (a line is not a valid address; nothing is sent), saved, opml,
      opml-drop (an OPML file dragged over the Import row: dashed Accent outline, soft fill, the help line says to drop it),
      a file dropped anywhere else in the window opens this page and imports with no highlight; one dropped while an import, backup or
      restore runs or a dialog is open is refused with the toast "Busy. Try again when the current import finishes.",
@@ -305,6 +307,13 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .src .chev { color:var(--muted); transition:transform .14s ease-out }
 .src.open .chev { transform:rotate(180deg) }
 .ok-ic { color:var(--success) } .bad-ic { color:var(--danger) }
+.health { margin-top:16px; padding-top:14px; box-shadow:inset 0 .5px 0 var(--edge-line) } .health .label { font-weight:500 } .health .help { margin:2px 0 8px }
+.inst { display:flex; flex-wrap:wrap; align-items:center; gap:2px 12px; min-height:32px; padding:4px 0 }
+.inst .addr { flex:1 1 160px; min-width:0; display:flex; align-items:center; gap:8px; font:12px ui-monospace,Menlo,Consolas,monospace }
+.inst .addr span:first-child { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.inst .addr .badge { flex:none; font-family:inherit }
+.inst .figures { flex:none; margin-left:auto; font-size:12px; color:var(--text2); font-variant-numeric:tabular-nums } .inst .figures.none { color:var(--muted) }
+.inst .cool { flex-basis:100%; margin:0; font-size:12px; color:var(--text) } .inst .cool svg.icon { color:var(--warning); vertical-align:-3px; margin-right:6px; width:14px; height:14px }
 .attempt { display:flex; flex-wrap:wrap; align-items:center; gap:2px 10px; padding:6px 20px 6px 50px; font-size:12px; color:var(--text2); font-variant-numeric:tabular-nums }
 .attempt .reason { flex-basis:100%; padding-left:24px; color:var(--danger) }
 .attempt svg.icon { width:14px; height:14px }
@@ -402,7 +411,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','mark-read','mark-read-scroll','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','edited','invalid','saved','opml','opml-drop','importing','imported','imported-several','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','density','mark-read','mark-read-scroll','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','imported','imported-several','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
@@ -536,6 +545,9 @@ const copy={
     promptHelp:'<code>{language}</code> becomes the language above. Each subscription can use its own in Edit subscription.', reset:'Restore default',
     rsshub:'RSSHub instances', rsshubHelp:'Subscriptions given as an RSSHub route, such as <code>/github/issue/golang/go</code>, are fetched from these addresses. One address per line. The first is the main address; when it does not answer, the next one is used as a fallback. Leave it empty if you use none.',
     rsshubPlaceholder:'https://rsshub.example.com', save:'Save', saved:'Saved. The next fetch uses it.',
+    health:'Instance health', healthHelp:'The latest {keep} requests at most, none older than {days} days. Counted again when the Oriel server restarts.',
+    healthEmpty:'No data yet. The success rate and speed of each instance appear after an RSSHub subscription has been fetched.',
+    mainBadge:'Main', noData:'No data yet', noAnswer:'No answer', lastN:'last {n}', cooling:'Cooling down, about {n} minutes to retry',
     invalidBase:'Line {n} is not a full http or https address with a host name, such as https://rsshub.example.com.',
     retention:'Keep entries', retentionHelp:'Older entries are removed once an hour, read or not. Starred entries are always kept.',
     forever:'Forever', days:'{n} days', week:'1 week', month:'1 month', months3:'3 months', months6:'6 months', year:'1 year',
@@ -638,6 +650,9 @@ const copy={
     promptHelp:'<code>{language}</code> 会换成上面的输出语言。每个订阅可以在「编辑订阅」里用自己的。', reset:'恢复默认',
     rsshub:'RSSHub 实例', rsshubHelp:'只填 RSSHub 路由的订阅（例如 <code>/github/issue/golang/go</code>）从这些地址抓取。一行一个地址，第一个是主地址，它没有响应时按顺序换用后面的备用地址。不用 RSSHub 就留空。',
     rsshubPlaceholder:'https://rsshub.example.com', save:'保存', saved:'已保存，下次抓取起生效。',
+    health:'实例状况', healthHelp:'最近最多 {keep} 次请求，不超过 {days} 天。Oriel 服务端重启后重新计算。',
+    healthEmpty:'还没有数据。抓取过 RSSHub 订阅后显示各实例的成功率和延迟。',
+    mainBadge:'主实例', noData:'还没有数据', noAnswer:'无响应', lastN:'近 {n} 次', cooling:'冷却中，约 {n} 分钟后再试',
     invalidBase:'第 {n} 行不是带主机名的完整 http 或 https 地址，例如 https://rsshub.example.com。',
     retention:'条目保留', retentionHelp:'过期的条目每小时清理一次，已读未读都删。收藏的条目一直保留。',
     forever:'永久', days:'{n} 天', week:'1 周', month:'1 个月', months3:'3 个月', months6:'半年', year:'1 年',
@@ -688,10 +703,18 @@ const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.b
 <nav class="nav" aria-label="${copy.settings}"><div class="section">${copy.settings}</div>${groups.map(([k,g])=>`<button class="item${k===group?' chosen':''}"${k===group?' aria-current="page"':''}>${icon(g)}<span class="name">${copy[k]}</span></button>`).join('')}</nav>
 <div class="server" title="${copy.serverNote}">${icon(remote?'server':'laptop')}<span class="name">${remote?host:copy.thisComputer}</span><span class="dot" aria-hidden="true"></span></div></aside>`;
 
-const lines=state==='several'?['https://rsshub.example.net','https://rsshub.backup.example','http://localhost:1200']
+const healthy=state==='health'||state==='health-empty';
+const lines=state==='several'||healthy?['https://rsshub.example.net','https://rsshub.backup.example','http://localhost:1200']
   :state==='edited'?['https://rsshub.app','https://rsshub.example.net']:state==='invalid'?['https://rsshub.app','rsshub.example']:['https://rsshub.app'];
 const field=`<div class="textarea${state==='edited'?' focused':''}${state==='invalid'?' invalid':''}" role="textbox" aria-multiline="true" aria-label="${copy.rsshub}"${state==='invalid'?' aria-invalid="true"':''}>${lines.map((l,i)=>`<span class="line${state==='invalid'&&i===1?' bad':''}">${l}</span>`).join('')}</div>`;
 const dirty=state==='edited'||state==='invalid';
+const instRow=(addr,main,figures,none,cool)=>`<div class="inst"><span class="addr" title="${addr}"><span>${addr}</span>${main?`<span class="badge">${copy.mainBadge}</span>`:''}</span><span class="figures${none?' none':''}">${figures}</span>${cool?`<p class="cool" role="status">${icon('alert')}${t('cooling',{n:4})}</p>`:''}</div>`;
+const healthRows=state==='health'?[
+  instRow('rsshub.example.net',true,`98% · 420 ms · ${t('lastN',{n:50})}`),
+  instRow('rsshub.backup.example',false,`66% · 1.8 s · ${t('lastN',{n:14})}`),
+  instRow('localhost:1200',false,`0% · ${copy.noAnswer} · ${t('lastN',{n:3})}`,false,true)].join(''):'';
+const healthBlock=healthy?`<div class="health" aria-label="${copy.health}"><span class="label">${copy.health}</span>
+${state==='health'?`<p class="help">${t('healthHelp',{keep:50,days:7})}</p>${healthRows}`:`<p class="help">${copy.healthEmpty}</p>`}</div>`:'';
 let status='';
 if(state==='invalid')status=`<div class="status error" role="alert">${icon('alert')}${t('invalidBase',{n:2})}</div>`;
 if(state==='saved')status=`<div class="status ok" role="status">${icon('check')}${copy.saved}</div>`;
@@ -741,7 +764,7 @@ ${setting(copy.vImages,'',seg(copy.vImages,[['wall',copy.vWall],['grid',copy.vGr
 
 const fetching=`<p class="lead">${copy.lead}</p><div class="card">
 <div class="row"><span class="label">${copy.rsshub}</span><p class="help">${copy.rsshubHelp}</p>
-${field}<div class="actions">${status||'<span class="status"></span>'}<button class="button${dirty?' primary':''}"${dirty?'':' disabled'}>${copy.save}</button></div></div>
+${field}<div class="actions">${status||'<span class="status"></span>'}<button class="button${dirty?' primary':''}"${dirty?'':' disabled'}>${copy.save}</button></div>${healthBlock}</div>
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.retention}</span><p class="help">${copy.retentionHelp}</p></div>
 <button class="select" aria-haspopup="listbox" aria-label="${copy.retention}"><span>${copy.months3}</span>${icon('chevronDown')}</button></div></div>
 </div>`;

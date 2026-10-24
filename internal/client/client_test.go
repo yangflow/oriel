@@ -703,3 +703,25 @@ func TestRulesAPI(t *testing.T) {
 		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+func TestRSSHubHealth(t *testing.T) {
+	var seen string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Method + " " + r.URL.Path + " " + r.Header.Get("Authorization")
+		w.Write([]byte(`{"keep":50,"days":7,"instances":[
+			{"url":"https://a","requests":50,"successRate":0.96,"medianMs":420,"coolingUntil":null},
+			{"url":"https://b","requests":0,"successRate":null,"medianMs":null,"coolingUntil":1700000000000}]}`))
+	}))
+	defer srv.Close()
+	got, err := (Session{Server: srv.URL, Token: "tok"}).RSSHubHealth(context.Background())
+	if err != nil || seen != "GET /api/rsshub/health Bearer tok" || got.Keep != 50 || got.Days != 7 || len(got.Instances) != 2 {
+		t.Fatalf("RSSHubHealth = %+v, %v (%s)", got, err, seen)
+	}
+	a, b := got.Instances[0], got.Instances[1]
+	if a.URL != "https://a" || a.Requests != 50 || a.SuccessRate == nil || *a.SuccessRate != 0.96 || *a.MedianMs != 420 || a.CoolingUntil != nil {
+		t.Errorf("a = %+v", a)
+	}
+	if b.SuccessRate != nil || b.MedianMs != nil || b.CoolingUntil == nil || *b.CoolingUntil != 1700000000000 {
+		t.Errorf("b = %+v", b)
+	}
+}
