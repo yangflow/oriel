@@ -3,7 +3,7 @@
 #
 # The default is what a pull request runs (the `check` job of ci.yml). The race detector makes the UI screen packages
 # about 18 times slower (ui/timeline 277 s against 15 s), so a pull request runs it only on the packages that start
-# goroutines or share state between them; the others are plain tests. --race runs it on everything, and ci.yml does
+# goroutines or share state between them; the others are plain tests. --race runs it on everything, and full.yml does
 # that on every push to main and daily. --cross adds the six cross-compiled targets (scripts/cross.sh), which a pull
 # request also compiles in the separate `cross` job. The UI screen packages also do background work; their races are
 # found by the full run on main and daily, not skipped for good.
