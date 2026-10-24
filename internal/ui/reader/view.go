@@ -1903,7 +1903,7 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 		}
 	}
 	box.Children(func() {
-		s.revealBlock(c, unit)
+		lit := s.revealBlock(c, unit)
 		if arrived && s.landing.scroll {
 			// The block is scrolled to about 96 below the top: the sentinel is 96 above it and taller than the window,
 			// and a region taller than the window is shown from its start.
@@ -1924,7 +1924,7 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 				hair.FillWidth()
 			}
 		case table:
-			s.table(c, b)
+			s.table(c, b, unit, lit)
 		case picture:
 			s.picture(c, b, box.Bounds().W)
 		case embed:
@@ -1953,10 +1953,10 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 			if b.quote == 0 {
 				color = t.Text
 			}
-			s.inline(c, b, unit, color, size).FontSize(size).FontWeight(600).LineHeight(line).LetterSpacing(tracking * size).
+			s.inline(c, b, unit, 0, color, size).FontSize(size).FontWeight(600).LineHeight(line).LetterSpacing(tracking * size).
 				Role(ui.RoleHeading).Level(b.level)
 		case caption:
-			s.inline(c, b, unit, t.TextMuted, theme.Px(t, 12)).FontSize(theme.Px(t, 12)).LineHeight(1.5)
+			s.inline(c, b, unit, 0, t.TextMuted, theme.Px(t, 12)).FontSize(theme.Px(t, 12)).LineHeight(1.5)
 		default:
 			line := float32(s.reading().Leading(s.han))
 			body := theme.Px(t, 16) * scale
@@ -2008,7 +2008,7 @@ func (s *Screen) face() string {
 
 // prose draws spans as the article's body, in the reading font; the interface font where it is "".
 func (s *Screen) prose(c *ui.Context, b block, unit int, color ui.Color, size float32) ui.Element {
-	e := s.inline(c, b, unit, color, size)
+	e := s.inline(c, b, unit, 0, color, size)
 	if face := s.face(); face != "" {
 		e.Font(face)
 	}
@@ -2091,10 +2091,10 @@ func (s *Screen) pieces(c *ui.Context, m *memo, text string, chinese bool, size,
 
 // inline is a paragraph of spans, their links opening in the browser. size is the font size it will have, the em of
 // the spacing of Chinese typesetting, whose pieces b has when it is set.
-func (s *Screen) inline(c *ui.Context, b block, unit int, color ui.Color, size float32) ui.Element {
+func (s *Screen) inline(c *ui.Context, b block, unit, from int, color ui.Color, size float32) ui.Element {
 	t := c.Theme()
 	return ui.RichText(c).TextColor(color).Wrap().Children(func() {
-		n, base := 0, 0
+		n, base := 0, from
 		for k, sp := range b.spans {
 			pieces := []typeset.Piece{{Text: sp.text}}
 			if b.set != nil && len(b.set[k]) > 0 {
@@ -2203,7 +2203,7 @@ func (s *Screen) follow(c *ui.Context, b block, sp span) {
 
 // table is a table of the text: a grid in a frame that scrolls sideways when it is wider than the text, with a fade
 // where cells are cut off and a bar for the place; see docs/design.md "阅读器".
-func (s *Screen) table(c *ui.Context, b block) {
+func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 	t := c.Theme()
 	g := b.table
 	size := theme.Px(t, 13) * s.scale()
@@ -2236,11 +2236,12 @@ func (s *Screen) table(c *ui.Context, b block) {
 				tracks[k] = ui.FitContent()
 			}
 			ui.Grid(c).ColumnTracks(tracks...).Children(func() {
-				n := 0
+				n, base := 0, 0
 				for r, row := range g.rows {
 					for _, cl := range row {
 						n++
-						s.cell(c, cl, r, size, n)
+						s.cell(c, cl, r, size, n, unit, base, lit)
+						base += cellLen(cl) + 1
 					}
 				}
 			})
@@ -2265,14 +2266,16 @@ func (s *Screen) table(c *ui.Context, b block) {
 			})
 	}
 	if len(g.caption) > 0 {
-		s.inline(c, block{spans: g.caption}, -1, t.TextMuted, theme.Px(t, 12)).FontSize(theme.Px(t, 12)).LineHeight(1.5).
+		s.inline(c, block{spans: g.caption}, unit, gridLen(g), t.TextMuted, theme.Px(t, 12)).FontSize(theme.Px(t, 12)).LineHeight(1.5).
 			Margin(theme.Px(t, 8), 0, 0, 0)
 	}
 }
 
 // cell is a cell of a table, in row r: padded, with a divider above it unless it is in the first row, the header
-// row on the Surface color in Text at weight 600.
-func (s *Screen) cell(c *ui.Context, cl cell, r int, size float32, key int) {
+// row on the Surface color in Text at weight 600. unit and base say where its text begins in the text the table is
+// searched as, and lit that the match the find bar has just gone to is to be shown: when it is in this cell, the
+// cell is scrolled into view, the table sideways with it.
+func (s *Screen) cell(c *ui.Context, cl cell, r int, size float32, key, unit, base int, lit bool) {
 	t := c.Theme()
 	box := ui.Column(c).Key(key).ColumnSpan(cl.span).MinWidth(theme.Px(t, 48)).MaxWidth(theme.Px(t, 240)).
 		Padding(theme.Px(t, 8), theme.Px(t, 12))
@@ -2287,7 +2290,10 @@ func (s *Screen) cell(c *ui.Context, cl cell, r int, size float32, key int) {
 		if cl.head {
 			color = t.Text
 		}
-		e := s.inline(c, block{spans: cl.spans}, -1, color, size).FontSize(size).LineHeight(1.5).FillWidth()
+		e := s.inline(c, block{spans: cl.spans}, unit, base, color, size).FontSize(size).LineHeight(1.5).FillWidth()
+		if lit && s.find.within(unit, base, cellLen(cl)) {
+			e.ScrollIntoView()
+		}
 		switch cl.align {
 		case alignCenter:
 			e.TextAlign(ui.Center)

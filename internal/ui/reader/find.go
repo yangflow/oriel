@@ -114,8 +114,44 @@ func blockText(b block) string {
 	if b.kind == code {
 		return b.text
 	}
+	if b.table != nil {
+		return gridText(b.table)
+	}
+	return spansText(b.spans)
+}
+
+// gridText is the text of a table as it is searched: its cells row by row, each followed by a line break so that a
+// match never runs from one cell into the next, then its caption.
+func gridText(g *grid) string {
 	var sb strings.Builder
-	for _, sp := range b.spans {
+	for _, row := range g.rows {
+		for _, cl := range row {
+			sb.WriteString(spansText(cl.spans))
+			sb.WriteByte('\n')
+		}
+	}
+	sb.WriteString(spansText(g.caption))
+	return sb.String()
+}
+
+// gridLen is the runes of gridText before the caption.
+func gridLen(g *grid) int {
+	n := 0
+	for _, row := range g.rows {
+		for _, cl := range row {
+			n += cellLen(cl) + 1
+		}
+	}
+	return n
+}
+
+// cellLen is the runes of the text of a cell.
+func cellLen(cl cell) int { return len([]rune(spansText(cl.spans))) }
+
+// spansText is the text of spans, one after another.
+func spansText(spans []span) string {
+	var sb strings.Builder
+	for _, sp := range spans {
 		sb.WriteString(sp.text)
 	}
 	return sb.String()
@@ -194,6 +230,15 @@ func (f *find) current() int {
 		return -1
 	}
 	return f.hits[f.cur].unit
+}
+
+// within says that the match the bar is on begins in the runes [base, base+n) of the text of unit.
+func (f *find) within(unit, base, n int) bool {
+	if f.current() != unit {
+		return false
+	}
+	from := f.hits[f.cur].from
+	return from >= base && from < base+n
 }
 
 // reveal says that the match the bar is on has not been scrolled to yet, and that it now has been.
@@ -287,11 +332,13 @@ func findHeight(t *ui.Theme) float32 { return theme.Px(t, 44) }
 
 // revealBlock puts a marker in the block of unit that reaches up under the toolbar and the find row, and has it scrolled
 // into view when the block holds the match the bar has just gone to: the match comes to rest below the bars, not behind.
-func (s *Screen) revealBlock(c *ui.Context, unit int) {
+// It says whether it did, for a table to bring the cell of the match into view as well.
+func (s *Screen) revealBlock(c *ui.Context, unit int) bool {
 	if s.find.current() != unit || !s.find.reveal() {
-		return
+		return false
 	}
 	t := c.Theme()
 	up := theme.Bar + findHeight(t) + theme.Px(t, 16)
 	ui.Box(c).Key("find-reveal").Absolute().Top(-up).Left(0).Right(0).Bottom(0).PassThrough().ScrollIntoView()
+	return true
 }
