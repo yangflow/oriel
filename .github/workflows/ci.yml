@@ -27,26 +27,17 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
-      - name: Format, module, tests with the race detector and cross-compilation
-        run: scripts/check.sh --cross --race
+      # The pull request set, about 3 minutes: the race detector runs only on the packages with real concurrency (the
+      # list is in check.sh). The full race run, the cross-compiles and the Docker build are in full.yml, on main and
+      # daily. The job names `check` and `test-windows` are the required status checks of the `main` ruleset.
+      - name: Format, module, vet, tests and script tests
+        run: scripts/check.sh
       - name: Secret scan of the history
         run: python3 scripts/scan_secrets.py
       # Pinned so a new release of the tool cannot fail CI by itself; fails the job on a vulnerability the code
       # reaches, in the standard library or in a dependency.
       - name: Known vulnerabilities
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
-  # Builds the server image for both architectures without pushing it (no registry login, no secrets), then runs it for
-  # this machine until Docker calls it healthy.
-  docker:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - name: Build for linux/amd64 and linux/arm64
-        run: docker buildx build --platform linux/amd64,linux/arm64 .
-      - name: Run it and wait for the health check
-        run: scripts/docker_smoke.sh
   # The data directory lock and paths take a separate code path on Windows; check.sh only cross-compiles it.
   test-windows:
     runs-on: windows-latest

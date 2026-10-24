@@ -49,8 +49,12 @@ docs/, design/           product spec, design language, ADRs, mockups, tokens
 ## Commands
 
 ```sh
-scripts/check.sh --cross --race  # gofmt, go mod tidy without diff, vet, tests (--race: with the race detector, as CI runs
-                                 # them), script tests, six cross-compiled targets
+scripts/check.sh                 # what a pull request runs (the `check` job, about 3 minutes): gofmt, go mod tidy without
+                                 # diff, vet, tests, -race only on the packages with real concurrency (listed in the
+                                 # script), script tests
+scripts/check.sh --cross --race  # everything: -race on every package and the six cross-compiled targets; CI runs this
+                                 # on every push to main and daily (`full.yml`, with the Docker build); a failure there
+                                 # opens or updates an issue
 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...  # known vulnerabilities; CI runs it with this pinned version
 go tool mygo dev
 go tool mygo build

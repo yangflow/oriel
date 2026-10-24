@@ -17,7 +17,7 @@ before the user confirms in the update window, which shows the version's section
 
 ## Container image (proposal, not active)
 
-The `docker` job of `ci.yml` builds the `Dockerfile` for `linux/amd64` and `linux/arm64` and runs it for the CI
+The `docker` job of `full.yml` (on every push to `main` and daily) builds the `Dockerfile` for `linux/amd64` and `linux/arm64` and runs it for the CI
 machine until Docker calls it healthy (`scripts/docker_smoke.sh`). It pushes nothing and uses no secrets. Publishing
 the image sends it to an external registry, so it waits for the maintainer's confirmation. Proposed, once confirmed:
 

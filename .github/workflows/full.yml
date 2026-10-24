@@ -1,0 +1,79 @@
+name: full
+
+# The slow checks that a pull request does not wait for: the race detector over every package, the six cross-compiled
+# targets and the Docker build. They run on every push to main and once a day; a failure opens or updates an issue.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A run on main is never cancelled by the next one: every merged commit gets its verdict.
+concurrency:
+  group: full-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  race-and-cross:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: Everything with the race detector, and cross-compilation
+        run: scripts/check.sh --cross --race
+  # Builds the server image for both architectures without pushing it (no registry login, no secrets), then runs it for
+  # this machine until Docker calls it healthy.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build for linux/amd64 and linux/arm64
+        run: docker buildx build --platform linux/amd64,linux/arm64 .
+      - name: Run it and wait for the health check
+        run: scripts/docker_smoke.sh
+  # Keeps one open issue per failing state: the first failure creates it, later failures comment on it. It closes
+  # nothing; the maintainer closes it once main is green. Uses only the workflow's GITHUB_TOKEN, and only this job may
+  # write issues.
+  report:
+    needs: [race-and-cross, docker]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: The full checks on main are failing
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      EVENT: ${{ github.event_name }}
+      SHA: ${{ github.sha }}
+    steps:
+      - name: Open or update the issue
+        run: |
+          body="The \`full\` workflow failed (${EVENT}, commit ${SHA}): ${RUN_URL}"
+          number="$(gh issue list --state open --search "\"${TITLE}\" in:title" --json number,title \
+            --jq "map(select(.title == env.TITLE)) | .[0].number // empty")"
+          if [[ -n "$number" ]]; then
+            gh issue comment "$number" --body "$body"
+          else
+            what="The race detector over every package, the cross-compiles and the Docker build pass on main."
+            how="Run \`scripts/check.sh --cross --race\`, and \`scripts/docker_smoke.sh\` for the image."
+            gh issue create --title "$TITLE" --label bug --body "$(printf '%s\n' \
+              '## What happened' '' "$body" '' \
+              '## What you expected' '' "$what" '' \
+              '## Steps to reproduce' '' "$how" '' \
+              '## Version and environment' '' "Commit ${SHA} on main.")"
+          fi
