@@ -128,16 +128,25 @@ func PaneTheme(main *ui.Theme) *ui.Theme {
 // Ink is the color of every alpha fill, at alpha a: rgb(37, 34, 30) in light, rgb(234, 240, 238) in dark, and the
 // pane's warm white or mint white in the pane.
 func Ink(t *ui.Theme, a float32) ui.Color {
+	if p := presetOf(t); p != nil {
+		return p.text.Alpha(a)
+	}
 	return pick(t, paperInk, graphiteInk, paneLightInk, paneDarkInk).Alpha(a)
 }
 
 // Text2 is the step between Text and TextMuted: source names, summaries, unselected names in the pane.
 func Text2(t *ui.Theme) ui.Color {
+	if p := presetOf(t); p != nil {
+		return p.text2
+	}
 	return pick(t, ui.Hex("#58534a"), ui.Hex("#aab0ae"), ui.Hex("#cdc7bb"), ui.Hex("#cbd5d2"))
 }
 
 // Prose is the color of the reading body; the pane has none and returns its Text.
 func Prose(t *ui.Theme) ui.Color {
+	if p := presetOf(t); p != nil {
+		return p.prose
+	}
 	if isPane(t) {
 		return t.Text
 	}
@@ -146,6 +155,9 @@ func Prose(t *ui.Theme) ui.Color {
 
 // Track is the trough of a segmented control, a monogram tile and a skeleton bar; in the pane, ink at 11%.
 func Track(t *ui.Theme) ui.Color {
+	if p := presetOf(t); p != nil {
+		return p.track
+	}
 	if isPane(t) {
 		return Ink(t, 0.11)
 	}
@@ -155,6 +167,9 @@ func Track(t *ui.Theme) ui.Color {
 // RaisedFill is the face of a focused search, a dialog, a sheet, a popover and the chosen segment on a Track; the
 // pane has none and returns its Surface.
 func RaisedFill(t *ui.Theme) ui.Color {
+	if p := presetOf(t); p != nil {
+		return p.raisedFill
+	}
 	if isPane(t) {
 		return t.Surface
 	}
@@ -163,6 +178,9 @@ func RaisedFill(t *ui.Theme) ui.Color {
 
 // LineStrong is the edge of a form field, rarely; in the pane, ink at 16%.
 func LineStrong(t *ui.Theme) ui.Color {
+	if presetOf(t) != nil {
+		return Ink(t, 0.16)
+	}
 	if isPane(t) {
 		return Ink(t, 0.16)
 	}
@@ -171,6 +189,9 @@ func LineStrong(t *ui.Theme) ui.Color {
 
 // Disabled colors inactive icons and glyphs, never the only copy of a label; in the pane, TextMuted at 55%.
 func Disabled(t *ui.Theme) ui.Color {
+	if presetOf(t) != nil {
+		return t.TextMuted.Alpha(0.55)
+	}
 	if isPane(t) {
 		return t.TextMuted.Alpha(0.55)
 	}
@@ -179,6 +200,9 @@ func Disabled(t *ui.Theme) ui.Color {
 
 // Star colors a starred entry; a graphic, never text.
 func Star(t *ui.Theme) ui.Color {
+	if p := presetOf(t); p != nil {
+		return p.star
+	}
 	return pick(t, ui.Hex("#b98a22"), ui.Hex("#e2b24f"), ui.Hex("#e2b24f"), ui.Hex("#e2b24f"))
 }
 
@@ -288,6 +312,11 @@ func Capsule(c *ui.Context, e ui.Element, hover bool) ui.Element {
 	tint := ui.RGBA(255, 254, 251, 0.66)
 	if t.Dark {
 		tint = ui.RGBA(58, 63, 62, 0.52)
+	}
+	if presetOf(t) != nil {
+		raised := RaisedFill(t)
+		raised.A = tint.A
+		tint = raised
 	}
 	if hover {
 		tint = tint.Mix(Ink(t, 1), 0.08)

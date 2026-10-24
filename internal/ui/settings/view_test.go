@@ -1686,6 +1686,8 @@ func TestGroupSameLinkSwitch(t *testing.T) {
 // TestChineseTypesettingSwitch shows the switch follows Line spacing and flips the setting.
 func TestChineseTypesettingSwitch(t *testing.T) {
 	s, f, tt := openAppearance(t, "en")
+	tt.SetSize(900, 1600)
+	tt.Frame()
 	spacing, ok := tt.Find(s.text.LineSpacing)
 	if !ok {
 		t.Fatalf("no %q in %v", s.text.LineSpacing, tt.Texts())
@@ -2353,5 +2355,42 @@ func TestDesktopCardTrayFailed(t *testing.T) {
 	flip(t, s, tt, s.text.TrayIcon, s.text.TrayIconHelp)
 	if tt.HasText(s.text.TrayFailed) || !f.prefs.TrayIcon {
 		t.Errorf("the error stayed after the switch was used: %+v", f.prefs)
+	}
+}
+
+// TestReadingAppearanceRows shows the Reading card offers Line width and Reading appearance after Line spacing, that
+// each choice saves only its own setting, and that the sample keeps the paper of the appearance and the width of the line.
+func TestReadingAppearanceRows(t *testing.T) {
+	s, f, tt := openAppearance(t, "en")
+	tt.SetSize(900, 1600)
+	tt.Frame()
+	spacing, _ := tt.Find(s.text.LineSpacing)
+	width, ok := tt.Find(s.text.LineWidth)
+	look, ok2 := tt.Find(s.text.ReadingAppearance)
+	if !ok || !ok2 || width.Y <= spacing.Y || look.Y <= width.Y {
+		t.Fatalf("rows %v %v after line spacing %v: %v", width, look, spacing, tt.Texts())
+	}
+	for _, want := range []string{s.text.LineWidthHelp, s.text.ReadingAppearanceHelp, s.text.WidthNarrow, s.text.WidthStandard,
+		s.text.WidthWide, s.text.PresetTheme, s.text.PresetSepia, s.text.PresetMist} {
+		if !tt.HasText(want) {
+			t.Errorf("missing %q in %v", want, tt.Texts())
+		}
+	}
+	sample, _ := tt.Find(s.text.PreviewText)
+	press(t, tt, s.text.WidthWide)
+	press(t, tt, s.text.PresetSepia)
+	want := prefs.Default()
+	want.ReadingWidth, want.ReadingPreset = prefs.WidthWide, prefs.PresetSepia
+	if len(f.changes) != 2 || f.prefs != want {
+		t.Fatalf("changes %v, prefs %+v", f.changes, f.prefs)
+	}
+	tt.Frame()
+	if wider, _ := tt.Find(s.text.PreviewText); wider.W <= sample.W {
+		t.Errorf("the sample is %v wide at Wide, %v at Standard", wider.W, sample.W)
+	}
+	press(t, tt, s.text.PresetTheme)
+	press(t, tt, s.text.WidthNarrow)
+	if f.prefs.ReadingPreset != "" || f.prefs.ReadingWidth != prefs.WidthNarrow {
+		t.Fatalf("prefs %+v", f.prefs)
 	}
 }

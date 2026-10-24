@@ -204,13 +204,14 @@ value.
 | `AccentHover` | `#22584e` | `#9acfc1` | `#1d5a65` | `#95ccd6` |
 | `AccentPressed` | `#255146` | `#7bb1a2` | `#1d525d` | `#76adb7` |
 | `Danger` | `#a2452f` | `#e0897a` | `#a2452f` | `#e0897a` |
+| `theme.Star` | `#a07414` | `#e2b24f` | `#a07414` | `#e2b24f` |
 | `theme.Track` | `#e6dcc2` | `#3a3226` | `#d6dee4` | `#2b353d` |
 | `theme.RaisedFill` | `#fbf6e9` | `#433a2d` | `#f3f6f8` | `#34404a` |
 
 `AccentHover` is `Accent` mixed 17% toward `Text` in the light variants and 12% toward white in the dark ones; `AccentPressed` is 30% toward `Text` in light and 12% toward black in dark.
 
-`Warning`, `Success` and `Star` keep the theme's values: they are graphics (3:1), and on a preset page Warning is 3.7:1
-or more and Success 4.1:1 or more. `Danger` is darker in the light variants because the failure line is text, drawn on the page and never on a `Surface`. Alpha
+`Warning` and `Success` keep the theme's values: they are graphics (3:1), and on a preset page Warning is 3.7:1
+or more and Success 4.1:1 or more. `Star` is darker in the light variants (3.2:1 or more on `Surface`, 3.6:1 on the page), and `Focus` is `Accent` at 80%, not 70%, so the ring holds 3:1 on `Surface`. `Danger` is darker in the light variants because the failure line is text, drawn on the page and never on a `Surface`. Alpha
 fills are `theme.Ink` of the preset `Text`, with the percentages of State fills (8 / 12 / 16 with high contrast on).
 `Selection` is `Accent` 22% (light) / 30% (dark) over the page. The high-contrast rules are the theme's: Border is
 `Text` at 55%, `TextMuted` mixes 40% toward `Text`, `Focus` is opaque.
@@ -231,7 +232,7 @@ focus ring 3:1):
 | `Accent` (link) on `Surface` | 5.5 | 7.7 | 5.5 | 7.3 | 5.2 | 7.4 |
 | `AccentText` on `Accent` | 6.0 | 7.6 | 7.1 | 8.6 | 6.8 | 8.4 |
 | `Danger` on `Background` | 4.8 | 6.8 | 5.2 | 5.9 | 5.2 | 6.2 |
-| `Prose` on `Selection` | 8.6 | 5.6 | 7.0 | 4.9 | 7.4 | 5.2 |
+| `Prose` on `Selection` | 8.6 | 5.6 | 7.0 | 4.8 | 7.4 | 5.2 |
 | High contrast: `TextMuted` on `Background` | 7.9 | 8.1 | 7.4 | 7.6 | 7.7 | 8.1 |
 | High contrast: Border (`Text` 55%) on `Background` | 3.6 | 4.9 | 3.3 | 4.6 | 3.4 | 4.9 |
 

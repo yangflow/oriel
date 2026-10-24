@@ -1692,3 +1692,52 @@ func TestPictureRetried(t *testing.T) {
 		}
 	})
 }
+
+// TestReadingWidthAndPresetLive shows the line width and the reading appearance apply to an open reader at the next
+// frame, with the article kept where it is scrolled.
+func TestReadingWidthAndPresetLive(t *testing.T) {
+	art := full()
+	art.ExtractedHTML = strings.Repeat(`<p>`+strings.Repeat("word ", 120)+`</p>`, 12)
+	f := &fake{now: now, article: art, nav: Nav{Entry: art.Entry, Scope: "All"}}
+	deps := f.deps()
+	p := prefs.Default()
+	deps.Reading = func() prefs.Preferences { return p }
+	s := New("en", deps)
+	s.Use(f)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1800, 700)
+	s.Open(art.Entry)
+	tt.Frame()
+	f.settle(tt)
+	body := func() ui.Rect {
+		for _, text := range tt.Texts() {
+			if strings.HasPrefix(text, "word word") {
+				r, _ := tt.Find(text)
+				return r
+			}
+		}
+		t.Fatalf("no body in %v", tt.Texts())
+		return ui.Rect{}
+	}
+	standard := body().W
+	s.scroll.Y = 300
+	tt.Frame()
+	y := s.scroll.Y
+	if y == 0 {
+		t.Fatal("the article does not scroll")
+	}
+	p.ReadingWidth = prefs.WidthWide
+	tt.Frame()
+	if wide := body().W; wide <= standard*1.1 {
+		t.Errorf("wide %v, standard %v", wide, standard)
+	}
+	p.ReadingWidth = prefs.WidthNarrow
+	tt.Frame()
+	if narrow := body().W; narrow >= standard*0.95 {
+		t.Errorf("narrow %v, standard %v", narrow, standard)
+	}
+	p.ReadingPreset = prefs.PresetSepia
+	tt.Frame()
+	if s.scroll.Y == 0 {
+		t.Errorf("the scroll was %v and is back at the top", y)
+	}
+}

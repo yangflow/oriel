@@ -46,7 +46,7 @@ func TestChineseTypesetting(t *testing.T) {
 func TestLoadUnknownValues(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	os.WriteFile(path, []byte(`{"theme":"sepia","language":"fr","font":"Gone Sans","readingSize":"huge","lineSpacing":"relaxed","readingFont":"Gone Serif"}`), 0o600)
-	want := Preferences{Font: "Gone Sans", ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingFont: "Gone Serif", ChineseTypesetting: true, Density: DensityComfortable,
+	want := Preferences{Font: "Gone Sans", ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingWidth: WidthStandard, ReadingFont: "Gone Serif", ChineseTypesetting: true, Density: DensityComfortable,
 		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle, MarkReadWhen: MarkOnOpen, MarkReadDwellSec: 5}
 	if got := Load(path); got != want {
 		t.Errorf("got %+v, want %+v", got, want)
@@ -126,7 +126,7 @@ func TestMarkReadWhen(t *testing.T) {
 
 func TestSaveLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
-	p := Preferences{Theme: ThemeDark, Language: LanguageChinese, Font: "Georgia", ReadingSize: SizeXLarge, LineSpacing: SpacingCompact, ReadingFont: ReadingSerif, ChineseTypesetting: false,
+	p := Preferences{Theme: ThemeDark, Language: LanguageChinese, Font: "Georgia", ReadingSize: SizeXLarge, LineSpacing: SpacingCompact, ReadingWidth: WidthWide, ReadingPreset: PresetSepia, ReadingFont: ReadingSerif, ChineseTypesetting: false,
 		ArticleViewer: ViewCompact, VideoViewer: ViewCover, SocialViewer: ViewCompact, ImageViewer: ViewGrid, SourceSort: SortUnread,
 		Density: DensityCompact, OldestFirst: true, MarkReadWhen: MarkOnScroll, MarkReadDwellSec: 10}
 	if err := Save(path, p); err != nil {
@@ -436,5 +436,35 @@ func TestDesktop(t *testing.T) {
 	}
 	if got := p.Normalize(); got != p {
 		t.Errorf("Normalize changed the desktop switches: %+v", got)
+	}
+}
+
+// TestReadingAppearance shows the line width and the reading appearance start at Standard and Follow theme, also in a
+// file from before they existed, that a value this build does not offer reads as those, and that a choice is kept.
+func TestReadingAppearance(t *testing.T) {
+	path := filepath.Join(t.TempDir(), File)
+	for content, want := range map[string][2]string{
+		`{}`: {WidthStandard, ""},
+		`{"readingWidth":"huge","readingPreset":"neon"}`:    {WidthStandard, ""},
+		`{"readingWidth":"narrow","readingPreset":"sepia"}`: {WidthNarrow, PresetSepia},
+		`{"readingWidth":"wide","readingPreset":"mist"}`:    {WidthWide, PresetMist},
+	} {
+		os.WriteFile(path, []byte(content), 0o600)
+		if got := Load(path); got.ReadingWidth != want[0] || got.ReadingPreset != want[1] {
+			t.Errorf("%s: width %q, preset %q", content, got.ReadingWidth, got.ReadingPreset)
+		}
+	}
+}
+
+// TestColumnWidth shows the three line widths scale the column by 0.85, 1 and 1.2, and that an unknown width is Standard.
+func TestColumnWidth(t *testing.T) {
+	for width, want := range map[string]float64{WidthNarrow: 578, WidthStandard: 680, WidthWide: 816, "": 680, "huge": 680} {
+		p := Preferences{ReadingSize: SizeMedium, ReadingWidth: width}
+		if got := p.Column(); got != want {
+			t.Errorf("%q: column %v, want %v", width, got, want)
+		}
+	}
+	if got := (Preferences{ReadingSize: SizeSmall, ReadingWidth: WidthWide}).Column(); got != 762 {
+		t.Errorf("small and wide: column %v, want 762", got)
 	}
 }

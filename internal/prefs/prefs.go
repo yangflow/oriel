@@ -39,6 +39,15 @@ const (
 	SpacingStandard = "standard"
 	SpacingRelaxed  = "relaxed"
 
+	// The widths of the reader's text column; the second is the default. The empty ReadingPreset follows the theme.
+	WidthNarrow   = "narrow"
+	WidthStandard = "standard"
+	WidthWide     = "wide"
+
+	// The reading appearance presets besides following the theme: the paper and ink of the reader's content area.
+	PresetSepia = "sepia"
+	PresetMist  = "mist"
+
 	// The densities of the timeline's rows; the first is the default.
 	DensityComfortable = "comfortable"
 	DensityCompact     = "compact"
@@ -71,6 +80,8 @@ const DefaultDwellSec = 5
 var (
 	Sizes     = []string{SizeSmall, SizeMedium, SizeLarge, SizeXLarge}
 	Spacings  = []string{SpacingCompact, SpacingStandard, SpacingRelaxed}
+	Widths    = []string{WidthNarrow, WidthStandard, WidthWide}
+	Presets   = []string{"", PresetSepia, PresetMist}
 	Densities = []string{DensityComfortable, DensityCompact}
 
 	MarkReadChoices = []string{MarkOnOpen, MarkAfterStay, MarkOnScroll, MarkNever}
@@ -90,6 +101,10 @@ type Preferences struct {
 	ReadingFont string `json:"readingFont,omitempty"` // "" follows the interface font, else ReadingSerif or an installed family
 	ReadingSize string `json:"readingSize"`           // one of Sizes
 	LineSpacing string `json:"lineSpacing"`           // one of Spacings
+	// ReadingWidth is the width of the text column: one of Widths. ReadingPreset is the paper and ink of the reader:
+	// "" follows the theme, else PresetSepia or PresetMist.
+	ReadingWidth  string `json:"readingWidth"`
+	ReadingPreset string `json:"readingPreset,omitempty"`
 
 	// ChineseTypesetting sets Chinese text in the reader by the rules of docs/design.md. A file without the field
 	// reads as on, because Load starts from Default.
@@ -341,7 +356,7 @@ func (g Places) normalized() Places { return encodePlaces(g.entries()) }
 
 // Default has every preference at its default.
 func Default() Preferences {
-	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ChineseTypesetting: true,
+	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ReadingWidth: WidthStandard, ChineseTypesetting: true,
 		Density: DensityComfortable, ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle,
 		MarkReadWhen: MarkOnOpen, MarkReadDwellSec: DefaultDwellSec}
 }
@@ -360,6 +375,12 @@ func (p Preferences) Normalize() Preferences {
 	}
 	if !slices.Contains(Spacings, p.LineSpacing) {
 		p.LineSpacing = SpacingStandard
+	}
+	if !slices.Contains(Widths, p.ReadingWidth) {
+		p.ReadingWidth = WidthStandard
+	}
+	if !slices.Contains(Presets, p.ReadingPreset) {
+		p.ReadingPreset = ""
 	}
 	if !slices.Contains(Densities, p.Density) {
 		p.Density = DensityComfortable
@@ -437,9 +458,21 @@ func (p Preferences) Scale() float64 {
 	return 1
 }
 
-// Column is the greatest width of the reader's text column, in the units of the mockup: 680 times the Scale, rounded
-// to a whole unit, so 635, 680, 771 and 861.
-func (p Preferences) Column() float64 { return math.Round(680 * p.Scale()) }
+// WidthFactor is the factor of the reading column for the Line width: 0.85, 1 and 1.2; a value it does not know is
+// the standard.
+func (p Preferences) WidthFactor() float64 {
+	switch p.ReadingWidth {
+	case WidthNarrow:
+		return 0.85
+	case WidthWide:
+		return 1.2
+	}
+	return 1
+}
+
+// Column is the greatest width of the reader's text column, in the units of the mockup: 680 times the Scale and the
+// WidthFactor, rounded to a whole unit, so 680, 635, 771 and 861 at the standard width.
+func (p Preferences) Column() float64 { return math.Round(680 * p.Scale() * p.WidthFactor()) }
 
 // SystemSerif is how MyGo names New York, the serif face of macOS. It is a system font, not a family the font list
 // has, and MyGo finds it by this name and not by "New York".
