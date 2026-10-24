@@ -85,7 +85,16 @@
     "PicFailed": "This picture can’t be shown",
     "PicFailedName": "{alt}. This picture can’t be shown",
     "PicFailedNoAlt": "Picture. It can’t be shown",
-    "PicRetry": "Try loading the picture again"
+    "PicRetry": "Try loading the picture again",
+    "EmbedVideo": "There’s a video here",
+    "EmbedAudio": "There’s audio here",
+    "EmbedOther": "There’s embedded content here",
+    "EmbedTitled": "{what}: {title}",
+    "EmbedName": "{what}. Open in browser",
+    "OnlyVideo": "Only a video here",
+    "OnlyAudio": "Only audio here",
+    "OnlyOther": "Only embedded content here",
+    "OnlyHint": "The reader doesn’t play video or audio. Open it in the browser."
   },
   "zh-Hans": {
     "Back": "回到{scope}",
@@ -173,6 +182,15 @@
     "PicFailed": "这张图片无法显示",
     "PicFailedName": "{alt}。这张图片无法显示",
     "PicFailedNoAlt": "图片。无法显示",
-    "PicRetry": "重新加载这张图片"
+    "PicRetry": "重新加载这张图片",
+    "EmbedVideo": "这里有一个视频",
+    "EmbedAudio": "这里有一段音频",
+    "EmbedOther": "这里有嵌入内容",
+    "EmbedTitled": "{what}：{title}",
+    "EmbedName": "{what}。在浏览器中打开",
+    "OnlyVideo": "这里只有视频",
+    "OnlyAudio": "这里只有音频",
+    "OnlyOther": "这里只有嵌入内容",
+    "OnlyHint": "阅读器不播放视频和音频，请在浏览器中打开。"
   }
 }

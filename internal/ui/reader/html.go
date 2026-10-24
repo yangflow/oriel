@@ -27,6 +27,14 @@ const (
 	caption // a figcaption
 	rule    // an hr
 	table   // a table of plain cells
+	embed   // a video, audio, iframe, object or embed, shown as one row
+)
+
+// The kinds of an embed row, kept in the level of its block.
+const (
+	embedVideo = iota
+	embedAudio
+	embedOther
 )
 
 // top is the jump of a link to the top of the page.
@@ -74,15 +82,15 @@ type grid struct {
 // block is a line of the article as the reader draws it.
 type block struct {
 	kind   int
-	level  int    // of a heading: 2 for h1 and h2, 3 for the smaller ones
+	level  int    // of a heading: 2 for h1 and h2, 3 for the smaller ones; of an embed: embedVideo, embedAudio or embedOther
 	quote  int    // how many blockquotes it is in
 	depth  int    // how many lists it is in
 	marker string // the bullet or number of the first block of a list item
 	spans  []span // of a paragraph, heading or caption
 	text   string // of a code block
 	src    string // of a picture, an absolute http or https address
-	alt    string
-	width  int // of a picture, 0 when the page does not say
+	alt    string // of a picture its description, of an embed the title the element gives
+	width  int    // of a picture, 0 when the page does not say
 	height int
 	table  *grid    // of a table
 	ids    []string // the ids and names within the page that lead here
@@ -239,9 +247,11 @@ func (b *builder) walk(n *html.Node, st style) {
 		return
 	}
 	switch n.DataAtom {
-	case atom.Script, atom.Style, atom.Noscript, atom.Template, atom.Head, atom.Iframe, atom.Object, atom.Embed,
-		atom.Form, atom.Button, atom.Input, atom.Select, atom.Textarea, atom.Svg, atom.Math, atom.Video, atom.Audio,
-		atom.Canvas:
+	case atom.Script, atom.Style, atom.Noscript, atom.Template, atom.Head, atom.Form, atom.Button, atom.Input,
+		atom.Select, atom.Textarea, atom.Svg, atom.Math, atom.Canvas:
+		return
+	case atom.Iframe, atom.Object, atom.Embed, atom.Video, atom.Audio:
+		b.embed(n)
 		return
 	case atom.Br:
 		b.add(st.of("\n"))
@@ -800,6 +810,31 @@ func (b *builder) picture(n *html.Node) {
 	b.flush(paragraph, 0)
 	b.blocks = append(b.blocks, b.mark(block{kind: picture, src: src, alt: strings.TrimSpace(attr(n, "alt")),
 		width: width, height: height}))
+}
+
+// embed puts one row in the place of a video, audio, iframe, object or embed element: the reader plays nothing and
+// loads no page, but says what is here. Hidden elements get none, and what an element holds as a fallback is not
+// shown.
+func (b *builder) embed(n *html.Node) {
+	if tracker.Hidden(n) {
+		return
+	}
+	kind := embedOther
+	switch n.DataAtom {
+	case atom.Video:
+		kind = embedVideo
+	case atom.Audio:
+		kind = embedAudio
+	}
+	b.flush(paragraph, 0)
+	bl := b.attach(block{kind: embed, level: kind, alt: firstLine(attr(n, "title"))})
+	bl.quote, bl.depth = b.quote, len(b.lists)
+	b.blocks = append(b.blocks, bl)
+}
+
+// textual reports whether blocks hold anything but embed rows, that is, something to read.
+func textual(blocks []block) bool {
+	return slices.ContainsFunc(blocks, func(b block) bool { return b.kind != embed })
 }
 
 // address resolves a link of the page against its address, keeping http and https and the other schemes given;

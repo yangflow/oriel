@@ -69,6 +69,7 @@ func render(blocks []block) string {
 	var body, notes []block
 	for _, b := range blocks {
 		switch {
+		case b.kind == embed: // the rows say what the reader cannot show; they are not text
 		case b.note > 0:
 			notes = append(notes, b)
 		case b.notes && b.kind == rule: // the line above the notes, which have their own place

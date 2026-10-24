@@ -46,6 +46,7 @@ type copy struct {
 	BackToText, Footnote, TableName                                                                               string
 	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles        string
 	PicFailed, PicFailedName, PicFailedNoAlt, PicRetry                                                            string
+	EmbedVideo, EmbedAudio, EmbedOther, EmbedTitled, EmbedName, OnlyVideo, OnlyAudio, OnlyOther, OnlyHint         string
 }
 
 var translations = func() map[string]copy {
@@ -340,8 +341,8 @@ func (s *Screen) Prefetch(ids ...int64) {
 func article(a client.Article) cached {
 	base, _ := url.Parse(a.URL)
 	c := cached{id: a.ID, article: a, full: parse(a.ExtractedHTML, base, a.Title), feed: parse(a.ContentHTML, base, a.Title)}
-	if summary := strings.Join(strings.Fields(a.Summary), " "); len(c.feed) == 0 && summary != "" {
-		c.feed = []block{{kind: paragraph, spans: []span{{text: summary}}}}
+	if summary := strings.Join(strings.Fields(a.Summary), " "); !textual(c.feed) && summary != "" {
+		c.feed = append(c.feed, block{kind: paragraph, spans: []span{{text: summary}}})
 	}
 	return c
 }
@@ -420,7 +421,7 @@ func (s *Screen) load(poll bool) {
 				}
 				return
 			}
-			if poll && a.ExtractStatus == "ok" && len(c.full) > 0 {
+			if poll && a.ExtractStatus == "ok" && textual(c.full) {
 				s.announce = s.text.FullText
 			}
 			s.article, s.full, s.feed = a, c.full, c.feed
@@ -673,18 +674,19 @@ func translated(text string) (string, []block) {
 }
 
 const (
-	whole   = iota // the full text
-	carried        // what the feed carries, the text not got
-	getting        // what the feed carries, the text being got
-	waiting        // nothing yet, the text being got
-	nothing        // nothing to show
-	chosen         // what the feed carries, as the reader chose it over the full text
+	whole    = iota // the full text
+	carried         // what the feed carries, the text not got
+	getting         // what the feed carries, the text being got
+	waiting         // nothing yet, the text being got
+	nothing         // nothing to show
+	chosen          // what the feed carries, as the reader chose it over the full text
+	embedded        // nothing to read, but the text holds a video, audio or embedded content
 )
 
 // switchable reports whether the article has both the full text and what the feed carries, so that the reader can
 // choose between them.
 func (s *Screen) switchable() bool {
-	return s.article.ExtractStatus == "ok" && len(s.full) > 0 && len(s.feed) > 0
+	return s.article.ExtractStatus == "ok" && textual(s.full) && textual(s.feed)
 }
 
 // chosenFeed reports whether the reader chose what the feed carries; a translation, made of the full text, takes
@@ -711,14 +713,22 @@ func (s *Screen) body() ([]block, int) {
 	switch {
 	case s.chosenFeed():
 		return s.feed, chosen
-	case s.article.ExtractStatus == "ok" && len(s.full) > 0:
+	case s.article.ExtractStatus == "ok" && textual(s.full):
 		return s.full, whole
-	case s.article.ExtractStatus == "pending" && len(s.feed) > 0:
+	case s.article.ExtractStatus == "pending" && textual(s.feed):
 		return s.feed, getting
 	case s.article.ExtractStatus == "pending":
 		return nil, waiting
-	case len(s.feed) > 0:
+	case textual(s.feed):
 		return s.feed, carried
+	}
+	// Nothing to read; a text that holds only video, audio or embedded content is told apart from one with nothing.
+	rows := s.feed
+	if s.article.ExtractStatus == "ok" && len(s.full) > 0 {
+		rows = s.full
+	}
+	if len(rows) > 0 {
+		return rows, embedded
 	}
 	return nil, nothing
 }
@@ -1130,7 +1140,7 @@ func (s *Screen) Export(e client.Entry, save bool) {
 // exported is the text of an article that goes into its Markdown: the full text when it was extracted, else what the
 // feed carries, as the reader shows it.
 func exported(c cached) []block {
-	if c.article.ExtractStatus == "ok" && len(c.full) > 0 {
+	if c.article.ExtractStatus == "ok" && textual(c.full) {
 		return c.full
 	}
 	return c.feed
@@ -1236,6 +1246,10 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 		if s.translating() {
 			blocks, how = s.translated, whole
 		}
+		rows := blocks
+		if how == embedded {
+			blocks = nil // the rows are told in the empty state, not drawn
+		}
 		s.findRefresh(title, blocks)
 		s.drawn = blocks
 		if s.landing.on {
@@ -1302,6 +1316,8 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 					s.openOriginal(c)
 				}
 			}).FillWidth().Padding(t.Space(6), t.Space(6), t.Space(6), t.Space(6))
+		case embedded:
+			s.embeddedOnly(c, rows)
 		case nothing:
 			s.empty(c, icons.FileText, t.TextMuted, s.text.Failed, s.text.FailedHint, func() {
 				if s.button(c, icons.ExternalLink, s.text.OpenOriginal, true) {
@@ -1313,6 +1329,90 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 			}).FillWidth().Padding(t.Space(6), t.Space(6), t.Space(6), t.Space(6))
 		}
 	})
+}
+
+// embedWords is what an embed row says, and the icon in front of it, by the kind of the element.
+func (s *Screen) embedWords(b block) (string, *ui.SVG) {
+	words, icon := s.text.EmbedOther, icons.AppWindow
+	switch b.level {
+	case embedVideo:
+		words, icon = s.text.EmbedVideo, icons.Play
+	case embedAudio:
+		words, icon = s.text.EmbedAudio, icons.Volume2
+	}
+	return words, icon
+}
+
+// embedLabel is what a screen reader hears of an embed row: the words, and the title the element gives, which is
+// never drawn.
+func (s *Screen) embedLabel(b block, words string) string {
+	if b.alt == "" {
+		return words
+	}
+	return strings.NewReplacer("{what}", words, "{title}", b.alt).Replace(s.text.EmbedTitled)
+}
+
+// embedRow is the row for a video, audio or embedded content: its icon, what it is and, at the end, Open in browser.
+// The whole row is one button that opens the entry's link; with no link it is plain text.
+func (s *Screen) embedRow(c *ui.Context, b block) {
+	t := c.Theme()
+	words, icon := s.embedWords(b)
+	parts := func(open bool) {
+		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
+		ui.Text(c, words).FontSize(theme.Px(t, 13)).TextColor(theme.Text2(t)).MaxLines(1).Grow(1).Shrink(1).MinWidth(0)
+		if open {
+			ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(theme.Px(t, 5)).Children(func() {
+				ui.Text(c, s.text.Open).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(t.Accent)
+				ui.Icon(c, icons.ExternalLink).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
+			})
+		}
+	}
+	label := s.embedLabel(b, words)
+	if s.article.URL == "" {
+		ui.Row(c).FillWidth().MinHeight(theme.Px(t, 40)).AlignItems(ui.Center).Gap(theme.Px(t, 10)).
+			Padding(theme.Px(t, 10), theme.Px(t, 12)).Radius(theme.Px(t, 10)).Background(t.Surface).
+			Border(0.5, theme.Ink(t, 0.1)).Label(label).Children(func() { parts(false) })
+		return
+	}
+	row := ui.ButtonBase(c).FillWidth().MinHeight(theme.Px(t, 40)).Gap(theme.Px(t, 10)).
+		Padding(theme.Px(t, 10), theme.Px(t, 12)).Radius(theme.Px(t, 10)).Border(0.5, theme.Ink(t, 0.1)).
+		Label(strings.ReplaceAll(s.text.EmbedName, "{what}", label))
+	switch {
+	case row.Pressed():
+		row.Background(t.Surface.Mix(t.Text, 0.12))
+	case row.Hovered():
+		row.Background(t.Surface.Mix(t.Text, 0.08))
+	default:
+		row.Background(t.Surface)
+	}
+	row.Children(func() { parts(true) })
+	if row.Clicked() {
+		s.openOriginal(c)
+	}
+}
+
+// embeddedOnly is the empty state of a text that is nothing but video, audio and embedded content: it says what is
+// here, by the kind of the rows, and offers the entry's link; nothing failed, so there is no Try again.
+func (s *Screen) embeddedOnly(c *ui.Context, rows []block) {
+	t := c.Theme()
+	kinds := map[int]bool{}
+	for _, b := range rows {
+		if b.kind == embed {
+			kinds[b.level] = true
+		}
+	}
+	title, icon := s.text.OnlyOther, icons.AppWindow
+	switch {
+	case len(kinds) == 1 && kinds[embedVideo]:
+		title, icon = s.text.OnlyVideo, icons.Play
+	case len(kinds) == 1 && kinds[embedAudio]:
+		title, icon = s.text.OnlyAudio, icons.Volume2
+	}
+	s.empty(c, icon, t.TextMuted, title, s.text.OnlyHint, func() {
+		if s.article.URL != "" && s.button(c, icons.ExternalLink, s.text.Open, true) {
+			s.openOriginal(c)
+		}
+	}).FillWidth().Padding(t.Space(6), t.Space(6), t.Space(6), t.Space(6))
 }
 
 // alsoLine is the other sources that carry the article, under its title: a text button each, with the source's
@@ -1763,7 +1863,9 @@ func gap(t *ui.Theme, blocks []block, i int, scale float32) float32 {
 		return theme.Px(t, 1.4*16) * scale
 	case b.kind == caption && before.kind == picture:
 		return theme.Px(t, 8)
-	case b.kind == picture || before.kind == picture || before.kind == caption:
+	case b.kind == caption && before.kind == embed:
+		return theme.Px(t, 8)
+	case b.kind == picture || before.kind == picture || before.kind == caption || b.kind == embed || before.kind == embed:
 		return theme.Px(t, 1.4*16) * scale
 	case b.depth > 0 && before.depth > 0:
 		return theme.Px(t, 0.3*16) * scale
@@ -1825,6 +1927,8 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 			s.table(c, b)
 		case picture:
 			s.picture(c, b, box.Bounds().W)
+		case embed:
+			s.embedRow(c, b)
 		case code:
 			ui.ScrollHorizontal(c).FillWidth().Radius(theme.Px(t, 12)).Background(t.Surface).Children(func() {
 				text := ui.Text(c, b.text)

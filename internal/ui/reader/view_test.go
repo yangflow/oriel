@@ -628,7 +628,17 @@ func TestParse(t *testing.T) {
 				{kind: picture, src: "https://substackcdn.com/image/fetch/w_800/a.png"},
 				{kind: picture, src: "https://x.list-manage.com/images/logo.png"}}},
 		{"dropped elements", `<script>x()</script><style>p{}</style><iframe src="/v"></iframe><form><input></form>` +
-			`<video src="v.mp4">no video</video><p>kept</p>`, []want{{text: "kept"}}},
+			`<video src="v.mp4">no video</video><p>kept</p>`,
+			[]want{{kind: embed, level: embedOther}, {kind: embed, level: embedVideo}, {text: "kept"}}},
+		{"embed kinds", `<p>a<audio controls><source src="a.mp3"></audio>b</p><object data="x.swf"><embed src="x.swf"></object>` +
+			`<embed src="y">`, []want{{text: "a"}, {kind: embed, level: embedAudio}, {text: "b"}, {kind: embed, level: embedOther},
+			{kind: embed, level: embedOther}}},
+		{"hidden embeds", `<iframe src="/v" hidden></iframe><video style="display:none"></video>` +
+			`<audio style="width:0"></audio><p>kept</p>`, []want{{text: "kept"}}},
+		{"embed fallback is not drawn", `<video src="v.mp4"><p>Your browser has no video</p><track src="t.vtt"></video>`,
+			[]want{{kind: embed, level: embedVideo}}},
+		{"embed in a figure keeps its caption", `<figure><iframe src="/v"></iframe><figcaption>Talk</figcaption></figure>`,
+			[]want{{kind: embed, level: embedOther}, {kind: caption, text: "Talk"}}},
 		{"links", `<p><a href="javascript:alert(1)">script</a></p><p><a href="#top">top</a></p>` +
 			`<p><a href="../about">about</a></p><p><a href="mailto:a@example.com">mail</a></p>`,
 			[]want{{text: "script"}, {text: "top"}, {text: "about", link: "https://example.com/about"},
