@@ -77,6 +77,7 @@ func parseProxy(raw string) (*url.URL, error) {
 type Network struct {
 	store  *store.Store
 	refuse func(netip.AddrPort) bool
+	lookup lookupFunc // resolves a target name before it is handed to a proxy; tests replace it
 
 	mu       sync.Mutex
 	global   store.SourceProxy
@@ -90,6 +91,7 @@ func NewNetwork(st *store.Store) *Network {
 	return &Network{
 		store:   st,
 		refuse:  func(a netip.AddrPort) bool { return blocked(a.Addr()) },
+		lookup:  systemLookup,
 		guarded: map[store.SourceProxy]*http.Client{},
 		feeds:   map[store.SourceProxy]*http.Client{},
 	}
@@ -135,7 +137,7 @@ func (n *Network) Guarded(ctx context.Context, per store.SourceProxy, direct *ht
 		return direct, nil
 	}
 	return n.cached(n.guarded, eff, func(u *url.URL) *http.Client {
-		return guardedClientVia(n.refuse, tunnel(u, eff, n.refuse))
+		return guardedClientVia(n.refuse, tunnel(u, eff, n.refuse, n.lookup))
 	})
 }
 
@@ -228,7 +230,7 @@ func localHost(host string) bool {
 // tunnel dials a target through the proxy. It resolves the target here first and refuses when any answer is
 // refused, the same rule as the direct guard, then hands the host name to the proxy, so a proxy that resolves
 // names itself (a fake-IP proxy) keeps working. The proxy may resolve the name again to another answer.
-func tunnel(u *url.URL, cred store.SourceProxy, refuse func(netip.AddrPort) bool) func(context.Context, string, string) (net.Conn, error) {
+func tunnel(u *url.URL, cred store.SourceProxy, refuse func(netip.AddrPort) bool, lookup lookupFunc) func(context.Context, string, string) (net.Conn, error) {
 	secrets := secretsOf(u, cred)
 	return func(ctx context.Context, _, address string) (net.Conn, error) {
 		host, portText, err := net.SplitHostPort(address)
@@ -239,7 +241,7 @@ func tunnel(u *url.URL, cred store.SourceProxy, refuse func(netip.AddrPort) bool
 		if err != nil {
 			return nil, err
 		}
-		if err := checkTarget(ctx, host, uint16(port), refuse); err != nil {
+		if err := checkTarget(ctx, host, uint16(port), refuse, lookup); err != nil {
 			return nil, err
 		}
 		var conn net.Conn
@@ -255,14 +257,22 @@ func tunnel(u *url.URL, cred store.SourceProxy, refuse func(netip.AddrPort) bool
 	}
 }
 
+// lookupFunc resolves a host name to its addresses.
+type lookupFunc func(ctx context.Context, host string) ([]netip.Addr, error)
+
+// systemLookup resolves through the system resolver.
+func systemLookup(ctx context.Context, host string) ([]netip.Addr, error) {
+	return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+}
+
 // checkTarget refuses a target whose address, or any of whose resolved addresses, the guard refuses. A name that
 // does not resolve is refused too: letting the proxy resolve it would skip the check.
-func checkTarget(ctx context.Context, host string, port uint16, refuse func(netip.AddrPort) bool) error {
+func checkTarget(ctx context.Context, host string, port uint16, refuse func(netip.AddrPort) bool, lookup lookupFunc) error {
 	var addrs []netip.Addr
 	if ip, err := netip.ParseAddr(strings.SplitN(host, "%", 2)[0]); err == nil {
 		addrs = []netip.Addr{ip}
 	} else {
-		if addrs, err = net.DefaultResolver.LookupNetIP(ctx, "ip", host); err != nil {
+		if addrs, err = lookup(ctx, host); err != nil {
 			return fmt.Errorf("resolve %s: %w", host, err)
 		}
 		if len(addrs) == 0 {

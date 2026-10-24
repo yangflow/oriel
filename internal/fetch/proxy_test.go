@@ -165,6 +165,13 @@ func TestGuardedProxyChecksTheTargetBeforeConnecting(t *testing.T) {
 	proxy := newConnectProxy(t)
 	setProxy(t, st, proxy.address(), "", "")
 	n := NewNetwork(st)
+	// A fixed resolver, so the answers do not depend on the system DNS (a fake-IP DNS resolves every name).
+	n.lookup = func(_ context.Context, host string) ([]netip.Addr, error) {
+		if host == "localhost" {
+			return []netip.Addr{netip.MustParseAddr("127.0.0.1")}, nil
+		}
+		return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
+	}
 	direct := guardedClient(func(netip.AddrPort) bool { return false })
 	client, err := n.Guarded(context.Background(), store.SourceProxy{}, direct)
 	if err != nil {

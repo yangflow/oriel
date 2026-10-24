@@ -1092,9 +1092,10 @@ func TestOpenPage(t *testing.T) {
 	}
 }
 
-// press clicks the element showing or labeled label.
+// press clicks the element showing or labeled label, scrolling it into view first.
 func press(t *testing.T, tt *ui.Tester, label string) {
 	t.Helper()
+	reveal(t, tt, label)
 	if err := tt.Click(label); err != nil {
 		t.Fatalf("%v in %v", err, tt.Texts())
 	}
@@ -1474,12 +1475,38 @@ func TestAIExpired(t *testing.T) {
 func openAppearance(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
 	s, f, tt := setup(t, language, true)
+	tt.SetSize(900, 1000)
 	f.prefs = prefs.Default()
 	s.OpenAppearance()
 	f.settle(tt)
 	tt.Frame()
 	return s, f, tt
 }
+
+// reveal scrolls the page until the element showing text sits at revealTop, clear of the header and with the rows
+// that follow it in the window, and returns where it is. A test then does not depend on how tall the page is with this
+// platform's fonts. An element outside the window is laid out but has no size, and one above it is reported at the
+// top edge. When the page cannot scroll that far, or the element is outside the page, it stays where it is.
+func reveal(t *testing.T, tt *ui.Tester, text string) ui.Rect {
+	t.Helper()
+	r, ok := tt.Find(text)
+	for range 40 {
+		if !ok || (r.H > 0 && r.Y > revealTop-1 && r.Y < revealTop+1) {
+			break
+		}
+		tt.Scroll(450, 300, 0, r.Y-revealTop)
+		tt.Frame()
+		moved, _ := tt.Find(text)
+		if moved == r {
+			break
+		}
+		r = moved
+	}
+	return r
+}
+
+// revealTop is where reveal puts a row: below the header of every page, with room under it for what follows.
+const revealTop = 200
 
 func TestAppearanceShows(t *testing.T) {
 	s, _, tt := openAppearance(t, "en")
@@ -1515,10 +1542,7 @@ func TestAppearanceChoices(t *testing.T) {
 // by the segment before it.
 func pressNext(t *testing.T, tt *ui.Tester, text string) {
 	t.Helper()
-	r, ok := tt.Find(text)
-	if !ok {
-		t.Fatalf("no %q in %v", text, tt.Texts())
-	}
+	r := reveal(t, tt, text)
 	tt.ClickAt(r.X+r.W+20, r.Y+r.H/2)
 }
 
@@ -1526,9 +1550,6 @@ func pressNext(t *testing.T, tt *ui.Tester, text string) {
 // changes only its own kind's viewer.
 func TestViewAs(t *testing.T) {
 	s, f, tt := openAppearance(t, "en")
-	// Tall enough that the whole page fits on every platform's fonts, so no press lands past the bottom.
-	tt.SetSize(900, 2400)
-	tt.Frame()
 	for _, want := range []string{s.text.ViewAs, s.text.ViewArticles, s.text.ViewVideos, s.text.ViewSocial,
 		s.text.ViewImages, s.text.ViewCover, s.text.ViewWall, s.text.ViewAsHelp} {
 		if !tt.HasText(want) {
@@ -1573,8 +1594,6 @@ func TestViewAs(t *testing.T) {
 // segment changes only that preference.
 func TestListDensity(t *testing.T) {
 	s, f, tt := openAppearance(t, "en")
-	tt.SetSize(900, 2400)
-	tt.Frame()
 	for _, want := range []string{s.text.Timeline, s.text.Density, s.text.DensityHelp, s.text.DensityComfortable} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q in %v", want, tt.Texts())
@@ -1602,8 +1621,6 @@ func TestListDensity(t *testing.T) {
 // time shows only for "After staying", and that each choice changes only its own preference.
 func TestMarkReadWhen(t *testing.T) {
 	s, f, tt := openAppearance(t, "en")
-	tt.SetSize(900, 2400)
-	tt.Frame()
 	for _, want := range []string{s.text.MarkRead, s.text.MarkReadHelpOpen, s.text.MarkReadOpen} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q in %v", want, tt.Texts())
@@ -1648,8 +1665,6 @@ func TestMarkReadWhen(t *testing.T) {
 // flipping it saves only that setting and has the timeline load again, and that a refusal puts it back.
 func TestGroupSameLinkSwitch(t *testing.T) {
 	s, f, tt := openAppearance(t, "en")
-	tt.SetSize(900, 2400)
-	tt.Frame()
 	for _, want := range []string{s.text.GroupSameLink, s.text.GroupSameLinkHelp} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q in %v", want, tt.Texts())
@@ -1664,8 +1679,10 @@ func TestGroupSameLinkSwitch(t *testing.T) {
 	s.settings.GroupSameLink = true
 	f.set, f.refreshed = nil, 0
 	// The switch sits at the right of its label and help, centered on them.
-	help, _ := tt.Find(s.text.GroupSameLinkHelp)
 	toggle := func() {
+		reveal(t, tt, s.text.GroupSameLink)
+		row, _ := tt.Find(s.text.GroupSameLink)
+		help, _ := tt.Find(s.text.GroupSameLinkHelp)
 		tt.ClickAt(row.X+row.W+30, (row.Y+help.Y+help.H)/2)
 		f.settle(tt)
 		tt.Frame()
@@ -1687,8 +1704,6 @@ func TestGroupSameLinkSwitch(t *testing.T) {
 // TestChineseTypesettingSwitch shows the switch follows Line spacing and flips the setting.
 func TestChineseTypesettingSwitch(t *testing.T) {
 	s, f, tt := openAppearance(t, "en")
-	tt.SetSize(900, 2400)
-	tt.Frame()
 	spacing, ok := tt.Find(s.text.LineSpacing)
 	if !ok {
 		t.Fatalf("no %q in %v", s.text.LineSpacing, tt.Texts())
@@ -1701,9 +1716,11 @@ func TestChineseTypesettingSwitch(t *testing.T) {
 		t.Fatal("off by default")
 	}
 	// The switch ends where the Line spacing choices end, centered on the label and its help, which may wrap.
-	help, _ := tt.Find(s.text.ChineseTypesettingHelp)
-	relaxed, _ := tt.Find(s.text.SpacingRelaxed)
 	toggle := func() {
+		reveal(t, tt, s.text.SpacingRelaxed) // the topmost of the three, so the others stay in view
+		row, _ := tt.Find(s.text.ChineseTypesetting)
+		help, _ := tt.Find(s.text.ChineseTypesettingHelp)
+		relaxed, _ := tt.Find(s.text.SpacingRelaxed)
 		tt.ClickAt(relaxed.X+relaxed.W-relaxed.H/2, (row.Y+help.Y+help.H)/2)
 		tt.Frame()
 	}
@@ -2363,8 +2380,6 @@ func TestDesktopCardTrayFailed(t *testing.T) {
 // each choice saves only its own setting, and that the sample keeps the paper of the appearance and the width of the line.
 func TestReadingAppearanceRows(t *testing.T) {
 	s, f, tt := openAppearance(t, "en")
-	tt.SetSize(900, 2400)
-	tt.Frame()
 	spacing, _ := tt.Find(s.text.LineSpacing)
 	width, ok := tt.Find(s.text.LineWidth)
 	look, ok2 := tt.Find(s.text.ReadingAppearance)
@@ -2377,7 +2392,7 @@ func TestReadingAppearanceRows(t *testing.T) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
 		}
 	}
-	sample, _ := tt.Find(s.text.PreviewText)
+	sample := reveal(t, tt, s.text.PreviewText)
 	press(t, tt, s.text.WidthWide)
 	press(t, tt, s.text.PresetSepia)
 	want := prefs.Default()
@@ -2386,7 +2401,7 @@ func TestReadingAppearanceRows(t *testing.T) {
 		t.Fatalf("changes %v, prefs %+v", f.changes, f.prefs)
 	}
 	tt.Frame()
-	if wider, _ := tt.Find(s.text.PreviewText); wider.W <= sample.W {
+	if wider := reveal(t, tt, s.text.PreviewText); wider.W <= sample.W {
 		t.Errorf("the sample is %v wide at Wide, %v at Standard", wider.W, sample.W)
 	}
 	press(t, tt, s.text.PresetTheme)
