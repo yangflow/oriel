@@ -2,6 +2,7 @@ package fetch
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -204,7 +205,7 @@ func (p *Poller) startExtractions(ctx context.Context, limit int, tried map[int6
 // extractOne extracts one article and saves the result. Hold and retry times count from the moment of the failure,
 // not from when the attempt started.
 func (p *Poller) extractOne(ctx context.Context, target store.ExtractTarget, address, host string) {
-	content, err := p.extract(ctx, address, target.Selector, target.Referer, target.Proxy)
+	content, err := p.extract(ctx, address, target.Selector, target.Referer, entryAgent(target, address), target.Proxy)
 	if ctx.Err() != nil {
 		return // shutting down: the attempt does not count
 	}
@@ -226,6 +227,20 @@ func (p *Poller) extractOne(ctx context.Context, target store.ExtractTarget, add
 	}
 }
 
+// entryAgent is the User-Agent of the entry's source for the request to address: only a page on the host of the
+// source's own address gets it.
+func entryAgent(target store.ExtractTarget, address string) string {
+	if target.UserAgent == "" {
+		return ""
+	}
+	own, err := url.Parse(target.SourceURL)
+	page, err2 := url.Parse(address)
+	if err != nil || err2 != nil || !strings.EqualFold(own.Host, page.Host) {
+		return ""
+	}
+	return target.UserAgent
+}
+
 // targetAddress is the page to request for an entry: its link after the rewrite rules of its source.
 func targetAddress(target store.ExtractTarget) (string, error) {
 	rules, err := parseRewrites(target.Rewrites)
@@ -237,9 +252,10 @@ func targetAddress(target store.ExtractTarget) (string, error) {
 
 // extract downloads an article page through the guarded client and returns its main content as HTML. A selector, when
 // the page has a readable element for it, names the content; otherwise the page is extracted automatically. A
-// referer, when not empty, is sent with the request.
-func (p *Poller) extract(ctx context.Context, address, selector, referer string, via store.SourceProxy) (string, error) {
-	doc, page, err := p.page(ctx, address, referer, via)
+// referer, when not empty, is sent with the request, and an agent, when not empty, replaces the User-Agent for as
+// long as the request stays on the host of the address.
+func (p *Poller) extract(ctx context.Context, address, selector, referer, agent string, via store.SourceProxy) (string, error) {
+	doc, page, err := p.page(ctx, address, referer, agent, via)
 	if err != nil {
 		return "", err
 	}
@@ -261,8 +277,9 @@ func (p *Poller) extract(ctx context.Context, address, selector, referer string,
 
 // page downloads a web page through the guarded client and parses it. The returned address is the one
 // reached after redirects, which relative links resolve against. A referer, when not empty, is the only header sent
-// besides the User-Agent.
-func (p *Poller) page(ctx context.Context, address, referer string, via store.SourceProxy) (*html.Node, *url.URL, error) {
+// besides the User-Agent. An agent, when not empty, is the User-Agent for the host of the address; a redirect to
+// another host gets the default one.
+func (p *Poller) page(ctx context.Context, address, referer, agent string, via store.SourceProxy) (*html.Node, *url.URL, error) {
 	page, err := url.Parse(address)
 	if err != nil || (page.Scheme != "http" && page.Scheme != "https") {
 		return nil, nil, permanent(fmt.Errorf("not a web address: %q", address))
@@ -271,13 +288,21 @@ func (p *Poller) page(ctx context.Context, address, referer string, via store.So
 	if err != nil {
 		return nil, nil, err
 	}
-	req.Header.Set("User-Agent", p.userAgent)
+	req.Header.Set("User-Agent", cmp.Or(agent, p.userAgent))
 	if referer != "" {
 		req.Header.Set("Referer", referer)
 	}
 	client, err := p.network.Guarded(ctx, via, p.guarded)
 	if err != nil {
 		return nil, nil, &extractError{error: err, temporary: true}
+	}
+	if agent != "" {
+		client = onRedirect(client, func(next *http.Request) {
+			next.Header.Set("User-Agent", p.userAgent)
+			if sameHost(next, page) {
+				next.Header.Set("User-Agent", agent)
+			}
+		})
 	}
 	resp, err := client.Do(req)
 	if err != nil {

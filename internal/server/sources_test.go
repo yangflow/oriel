@@ -453,3 +453,48 @@ func TestMoveSuggestionRoutes(t *testing.T) {
 		t.Fatalf("accept: %d %s", w.Code, w.Body)
 	}
 }
+
+func TestSourceFetchHeaders(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	blog := decode(t, do(s, "POST", "/api/sources", `{"url":"https://example.org/feed","kind":"article"}`, bearer(token)))
+	id := strconv.Itoa(int(blog["id"].(float64)))
+	route := decode(t, do(s, "POST", "/api/sources", `{"rsshubPath":"/github/issue/x","kind":"social"}`, bearer(token)))
+	routeID := strconv.Itoa(int(route["id"].(float64)))
+	if blog["fetchUserAgent"] != "" || blog["fetchReferer"] != "" {
+		t.Fatalf("a new source has headers: %v", blog)
+	}
+
+	for body, code := range map[string]string{
+		`{"fetchUserAgent":"Cookie: a=b"}`:                      "invalid_fetch_user_agent",
+		`{"fetchUserAgent":" authorization: Bearer x"}`:         "invalid_fetch_user_agent",
+		`{"fetchUserAgent":"two\nlines"}`:                       "invalid_fetch_user_agent",
+		`{"fetchUserAgent":"` + strings.Repeat("a", 501) + `"}`: "invalid_fetch_user_agent",
+		`{"fetchReferer":"example.org"}`:                        "invalid_fetch_referer",
+		`{"fetchReferer":"https://user:pw@example.org/"}`:       "invalid_fetch_referer",
+	} {
+		if w := do(s, "PATCH", "/api/sources/"+id, body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
+			t.Errorf("patch %s: %d %s", body, w.Code, w.Body)
+		}
+	}
+	w := do(s, "PATCH", "/api/sources/"+id, `{"fetchUserAgent":" MyReader/1.0 ","fetchReferer":" https://example.org/start "}`, bearer(token))
+	if got := decode(t, w); w.Code != http.StatusOK || got["fetchUserAgent"] != "MyReader/1.0" || got["fetchReferer"] != "https://example.org/start" {
+		t.Fatalf("headers: %d %s", w.Code, w.Body)
+	}
+	if got := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"fetchUserAgent":""}`, bearer(token))); got["fetchUserAgent"] != "" || got["fetchReferer"] != "https://example.org/start" {
+		t.Fatalf("clearing only the User-Agent: %v", got)
+	}
+
+	// A route is served by RSSHub instances, not by the subscription's own site.
+	for _, body := range []string{`{"fetchUserAgent":"MyReader/1.0"}`, `{"fetchReferer":"https://example.org/"}`} {
+		if w := do(s, "PATCH", "/api/sources/"+routeID, body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "fetch_headers_unsupported" {
+			t.Errorf("route %s: %d %s", body, w.Code, w.Body)
+		}
+	}
+	if w := do(s, "PATCH", "/api/sources/"+routeID, `{"fetchUserAgent":"","fetchReferer":""}`, bearer(token)); w.Code != http.StatusOK {
+		t.Errorf("clearing on a route: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "PATCH", "/api/sources/9999", `{"fetchUserAgent":"MyReader/1.0"}`, bearer(token)); w.Code != http.StatusNotFound {
+		t.Errorf("missing source: %d %s", w.Code, w.Body)
+	}
+}

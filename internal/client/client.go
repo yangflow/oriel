@@ -53,8 +53,17 @@ var httpClient = &http.Client{Timeout: 15 * time.Second, Transport: agent{}}
 // userAgent names the app to the server, which lists each signed-in device by it; SetVersion adds the version.
 var userAgent = "Oriel (" + platform() + ")"
 
+// appVersion is the version given to SetVersion, empty before that.
+var appVersion string
+
+// Version is the app's version as SetVersion was given it, empty when it was not.
+func Version() string { return appVersion }
+
 // SetVersion puts the app's version in the User-Agent of every request; call it before the first one.
-func SetVersion(version string) { userAgent = "Oriel/" + version + " (" + platform() + ")" }
+func SetVersion(version string) {
+	appVersion = version
+	userAgent = "Oriel/" + version + " (" + platform() + ")"
+}
 
 func platform() string {
 	switch runtime.GOOS {
@@ -339,6 +348,8 @@ type Source struct {
 	PaceSec             int    `json:"paceSec"`
 	ExtractSelector     string `json:"extractSelector"`
 	ExtractReferer      string `json:"extractReferer"`
+	FetchUserAgent      string `json:"fetchUserAgent"`
+	FetchReferer        string `json:"fetchReferer"`
 	ExtractRewrites     string `json:"extractRewrites"`
 	UnreadCount         int    `json:"unreadCount"`
 	PromptSummary       string `json:"promptSummary"`
@@ -377,6 +388,9 @@ type SourcePatch struct {
 	// ExtractSelector, ExtractReferer and ExtractRewrites are the source's extraction rules; an empty string clears one.
 	ExtractSelector *string `json:"extractSelector,omitempty"`
 	ExtractReferer  *string `json:"extractReferer,omitempty"`
+	// FetchUserAgent and FetchReferer are the headers sent to the subscription's own host; an empty string clears one.
+	FetchUserAgent  *string `json:"fetchUserAgent,omitempty"`
+	FetchReferer    *string `json:"fetchReferer,omitempty"`
 	ExtractRewrites *string `json:"extractRewrites,omitempty"`
 	PromptSummary   *string `json:"promptSummary,omitempty"`
 	PromptTranslate *string `json:"promptTranslate,omitempty"`
