@@ -17,9 +17,10 @@ before the user confirms in the update window, which shows the version's section
 
 ## Container image (proposal, not active)
 
-The `docker` job of `full.yml` (on every push to `main` and daily) builds the `Dockerfile` for `linux/amd64` and `linux/arm64` and runs it for the CI
-machine until Docker calls it healthy (`scripts/docker_smoke.sh`). It pushes nothing and uses no secrets. Publishing
-the image sends it to an external registry, so it waits for the maintainer's confirmation. Proposed, once confirmed:
+The `docker` job of `full.yml` (on every push to `main`, daily, and on pull requests that change the image's inputs)
+builds the `Dockerfile` for `linux/amd64` and `linux/arm64` and runs it for the CI machine until Docker calls it
+healthy (`scripts/docker_smoke.sh`). It pushes nothing and uses no secrets. Publishing the image sends it to an
+external registry, so it waits for the maintainer's confirmation. Proposed, once confirmed:
 
 - Registry: GitHub Container Registry, `ghcr.io/yangflow/oriel`, public. It needs no extra secret, because the
   workflow's own `GITHUB_TOKEN` can push with `packages: write`.

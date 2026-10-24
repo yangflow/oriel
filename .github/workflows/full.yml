@@ -3,6 +3,16 @@ name: full
 # The slow checks that a pull request does not wait for: the race detector over every package, the six cross-compiled
 # targets and the Docker build. They run on every push to main and once a day; a failure opens or updates an issue.
 on:
+  # Only the docker job runs on a pull request, and only when what the image is built from changes.
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - deploy/**
+      - scripts/docker_smoke.sh
+      - go.mod
+      - go.sum
+      - .github/workflows/full.yml
   push:
     branches: [main]
   schedule:
@@ -12,13 +22,15 @@ on:
 permissions:
   contents: read
 
-# A run on main is never cancelled by the next one: every merged commit gets its verdict.
+# A new push to a pull request cancels its older run; a run on main is never cancelled by the next one, so every merged
+# commit gets its verdict.
 concurrency:
   group: full-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   race-and-cross:
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -48,7 +60,7 @@ jobs:
   # write issues.
   report:
     needs: [race-and-cross, docker]
-    if: ${{ failure() }}
+    if: ${{ failure() && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

@@ -28,8 +28,9 @@ jobs:
         with:
           python-version: '3.14'
       # The pull request set, about 3 minutes: the race detector runs only on the packages with real concurrency (the
-      # list is in check.sh). The full race run, the cross-compiles and the Docker build are in full.yml, on main and
-      # daily. The job names `check` and `test-windows` are the required status checks of the `main` ruleset.
+      # list is in check.sh). The full race run is in full.yml, on main and daily, with the Docker build (also on a pull
+      # request that changes the image's inputs); the cross-compiles are the `cross` job. The job names `check` and `test-windows` are the required
+      # status checks of the `main` ruleset.
       - name: Format, module, vet, tests and script tests
         run: scripts/check.sh
       - name: Secret scan of the history
@@ -38,6 +39,16 @@ jobs:
       # reaches, in the standard library or in a dependency.
       - name: Known vulnerabilities
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+  # The six release targets compile. Not a required check, and it runs beside `check`, so it adds no wall time.
+  cross:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: scripts/cross.sh
   # The data directory lock and paths take a separate code path on Windows; check.sh only cross-compiles it.
   test-windows:
     runs-on: windows-latest
