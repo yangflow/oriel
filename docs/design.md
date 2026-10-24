@@ -983,7 +983,24 @@ Overlays share focus and Escape behavior; see
   multi-line monospace text input (as the prompts and mute words), one address per line, the first the primary; Enter
   breaks the line, so only Save sends it. A line that is not an http or https address with a host name is named under
   the field ("Line 2 is not ..."), the field takes the `Danger` outline, nothing is sent and the focus stays. Five
-  addresses at most. A setting is saved
+  addresses at most. Under the field and its Save button, in the same card, an "Instance health" block (a 13 medium
+  label, then a 12 `TextMuted` line: "The latest 50 requests at most, none older than 7 days. Counted again when the
+  Oriel server restarts.", the numbers from the API) lists the saved instances, not the unsaved text, one 32 high row
+  each, in the order of the field: the address without its scheme in 12 monospace, cut with an ellipsis (the full
+  address in a tooltip), the first one followed by an 11 "Main" badge (the `Accent` soft badge of the devices page),
+  and at the right 12 tabular `TextSecondary` figures, "98% · 420 ms · last 50": the share of requests answered
+  (rounded down, so only a perfect run reads 100%), the median time, and how many requests that covers ("No answer"
+  where no request was answered). The figures take no color from the rate: the page states facts and does not judge.
+  Where the address and the figures do not fit on one line the figures wrap to a second line under the address, so nothing is squeezed or cut.
+  An instance cooling down adds a second 12 line under its row, a 14 triangle in `Warning` and "Cooling down, about 4
+  minutes to retry" in `Text`. An instance without a request shows "No data yet" in `TextMuted` at the right; when no
+  instance has any request the block keeps its title and the 12 `TextMuted` line "No data yet. The success rate and
+  speed of each instance appear after an RSSHub subscription has been fetched." and lists nothing. With no instance
+  set the block is absent, and it is also absent when the health could not be read (no error, no retry: it is extra
+  information and must not get in the way of editing the instances). It is read when the group opens and after the
+  instances are saved, and never refreshes by itself. Drawn in `design/screens/settings.html`, `health` (three
+  instances: healthy, answering about two thirds of the time and slowly, and cooling down) and `health-empty`.
+  A setting is saved
   where it is changed: the RSSHub instances with their Save button, the retention as soon as another is
   chosen; the line under it says it was saved, or why not, and a refused value keeps the focus in its field. OPML
   files are chosen and saved with the system's file dialogs, read and sent in the background; the result stays
