@@ -2549,6 +2549,28 @@ func TestUseDropsTheServerBefore(t *testing.T) {
 	}
 }
 
+// TestPollRunsAfterSwitch shows that a poll still in flight when the server is switched does not stop polling on the
+// new server.
+func TestPollRunsAfterSwitch(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	if len(f.queue) == 0 || !s.polling {
+		t.Fatal("the poll did not start")
+	}
+	other := &fake{now: f.now, patches: map[int64][]client.EntryPatch{}}
+	s.Use(other, "home.lan")
+	f.settle(t, tt)
+	loads := other.sourceLoads
+	f.now = f.now.Add(pollEvery)
+	other.now = f.now
+	tt.Frame()
+	f.settle(t, tt)
+	if other.sourceLoads == loads {
+		t.Fatal("polling never ran again after the server was switched")
+	}
+}
+
 func TestSubscriptions(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	if err := tt.Click("Add subscription"); err != nil {
