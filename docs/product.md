@@ -340,7 +340,7 @@ WantedBy=multi-user.target
 
 来源，按顺序取第一个适用的：
 
-1. `duration_sec` 大于 0（视频、播客，来自 `itunes:duration`、`media:content`）：`reading_sec` 就是这个时长，不再看文字。
+1. `duration_sec` 大于 0（视频、播客，来自 `itunes:duration`、`media:content`、JSON Feed 的 `attachments.duration_in_seconds`）：`reading_sec` 就是这个时长，不再看文字。JSON Feed 有多个附件时，使用第一个大于 0 的时长。
 2. 形态是视频或图片：没有时长就为空，不拿描述文字估，因为文字不是要花时间的内容。
 3. 文章和社交：按文字估，文字取手头最好的一份——抽取的正文（`extract_status` 为 `ok` 时的 `search_text`）；没有就用订阅里的正文（`rss_content_html` 的纯文本）；再没有就用摘要（`rss_summary`）。只有摘要时照样估、照样显示（按摘要估的，满 1 分钟才会显示，所以很少见）；抽取还没完成时先按订阅里的内容估，抽出全文后重算。
 4. 没有任何文字（去掉标签和空白后一个字都没有）：为空。

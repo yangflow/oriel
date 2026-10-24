@@ -1,7 +1,9 @@
 package fetch
 
 import (
+	"context"
 	"net/url"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -258,4 +260,76 @@ func TestParseJSONFeedWithACharsetHeader(t *testing.T) {
 			t.Errorf("%s: %q %+v", name, feed.title, feed.entries)
 		}
 	}
+}
+
+func TestParseJSONFeedAttachmentDuration(t *testing.T) {
+	for _, version := range []string{"1", "1.1"} {
+		for _, c := range []struct {
+			name, attachments string
+			want              int
+		}{
+			{"audio", `[{"url":"https://example.org/episode.mp3","mime_type":"audio/mpeg","duration_in_seconds":95}]`, 95},
+			{"video", `[{"url":"https://example.org/episode.mp4","mime_type":"video/mp4","duration_in_seconds":125}]`, 125},
+			{"first positive", `[{"duration_in_seconds":0},{"duration_in_seconds":95},{"duration_in_seconds":125}]`, 95},
+			{"negative then positive", `[{"duration_in_seconds":-5},{"duration_in_seconds":95}]`, 95},
+			{"negative", `[{"duration_in_seconds":-5}]`, 0},
+			{"zero", `[{"duration_in_seconds":0}]`, 0},
+			{"size is not duration", `[{"url":"https://example.org/episode.mp3","mime_type":"audio/mpeg","size_in_bytes":95000}]`, 0},
+			{"empty", `[]`, 0},
+			{"null", `null`, 0},
+		} {
+			t.Run(version+"/"+c.name, func(t *testing.T) {
+				body := `{"version":"https://jsonfeed.org/version/` + version + `","title":"Podcast","items":[` +
+					`{"id":"episode","content_text":"A short description.","attachments":` + c.attachments + `},` +
+					`{"id":"text","content_text":"A text-only entry."}]}`
+				feed := mustParse(t, body, "https://example.org/feed.json")
+				if len(feed.entries) != 2 {
+					t.Fatalf("got %d entries, want 2", len(feed.entries))
+				}
+				if got := feed.entries[0].DurationSec; got != c.want {
+					t.Errorf("duration = %d, want %d", got, c.want)
+				}
+				if got := feed.entries[1].DurationSec; got != 0 {
+					t.Errorf("text-only duration = %d, want 0", got)
+				}
+			})
+		}
+	}
+}
+
+func TestJSONFeedPodcastKeepsItsReadingTime(t *testing.T) {
+	body, err := os.ReadFile("testdata/feeds/jsonfeed-1.1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	feed := mustParse(t, string(body), corpusFeedBase)
+	st := openStore(t)
+	ctx := context.Background()
+	now := time.UnixMilli(1_790_000_000_000)
+	src, err := st.CreateSource(ctx, store.NewSource{URL: "https://example.org/feed.json", Kind: "article", FetchInterval: time.Hour}, "", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: src.Kind}, feed.title, feed.siteURL, feed.entries, "", time.Time{}, now); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := st.Entries(ctx, store.EntryFilter{SourceID: src.ID}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.URL == "https://bench.example.com/2026/podcast" {
+			if entry.DurationSec != 95 {
+				t.Errorf("podcast duration = %d, want 95 seconds", entry.DurationSec)
+			}
+			if entry.ReadingSec == nil {
+				t.Fatal("podcast reading time is missing")
+			}
+			if *entry.ReadingSec != 95 {
+				t.Errorf("podcast reading time = %d, want 95 seconds", *entry.ReadingSec)
+			}
+			return
+		}
+	}
+	t.Fatal("podcast was not stored")
 }

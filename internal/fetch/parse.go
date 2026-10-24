@@ -11,6 +11,7 @@ import (
 
 	"github.com/mmcdole/gofeed"
 	ext "github.com/mmcdole/gofeed/extensions"
+	jsonfeed "github.com/mmcdole/gofeed/json"
 	"github.com/yangflow/oriel/internal/store"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -115,7 +116,9 @@ func decodeFeed(body []byte, contentType string) []byte {
 // parse reads RSS, Atom or JSON Feed. contentType is the response's Content-Type, empty when there is none. base
 // resolves relative links.
 func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
-	feed, err := gofeed.NewParser().Parse(bytes.NewReader(decodeFeed(body, contentType)))
+	parser := gofeed.NewParser()
+	parser.KeepOriginalFeed = true
+	feed, err := parser.Parse(bytes.NewReader(decodeFeed(body, contentType)))
 	if err != nil {
 		return parsed{}, err
 	}
@@ -125,7 +128,8 @@ func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
 			out.iconURL = icon
 		}
 	}
-	for _, item := range feed.Items {
+	jsonFeed, _ := feed.OriginalFeed().(*jsonfeed.Feed)
+	for i, item := range feed.Items {
 		link := absolute(base, item.Link)
 		guid := strings.TrimSpace(item.GUID)
 		if guid == "" {
@@ -147,6 +151,10 @@ func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
 		if published == nil {
 			published = item.UpdatedParsed
 		}
+		durationSec := duration(item)
+		if jsonFeed != nil {
+			durationSec = jsonDuration(jsonFeed.Items[i])
+		}
 		entry := store.FeedEntry{
 			GUID:         guid,
 			Title:        text(item.Title),
@@ -155,7 +163,7 @@ func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
 			Summary:      summary,
 			ContentHTML:  content,
 			ThumbnailURL: thumbnail(item, base),
-			DurationSec:  duration(item),
+			DurationSec:  durationSec,
 			Platform:     platform(link),
 			Images:       images(item, content, base),
 		}
@@ -271,6 +279,19 @@ func duration(item *gofeed.Item) int {
 	for _, content := range media(item, "content") {
 		if seconds := parseDuration(content.Attrs["duration"]); seconds > 0 {
 			return seconds
+		}
+	}
+	return 0
+}
+
+// jsonDuration reads the first positive attachment duration, which gofeed's universal model omits.
+func jsonDuration(item *jsonfeed.Item) int {
+	if item.Attachments == nil {
+		return 0
+	}
+	for _, attachment := range *item.Attachments {
+		if attachment.DurationInSeconds > 0 {
+			return int(attachment.DurationInSeconds)
 		}
 	}
 	return 0
