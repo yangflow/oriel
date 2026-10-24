@@ -20,10 +20,11 @@ var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 
 // fake stands in for the server, the timeline and the background: work waits in a queue until step runs it.
 type fake struct {
-	queue    []func() func()
-	sources  []client.Source
-	settings client.Settings
-	health   client.Health
+	queue     []func() func()
+	updateCtx []context.Context // the context of each update of a subscription
+	sources   []client.Source
+	settings  client.Settings
+	health    client.Health
 
 	added       []client.NewSource
 	patches     map[int64][]client.SourcePatch
@@ -76,7 +77,8 @@ func (f *fake) AddSource(_ context.Context, src client.NewSource) (client.Source
 		FetchIntervalSec: src.FetchIntervalSec}, nil
 }
 
-func (f *fake) UpdateSource(_ context.Context, id int64, patch client.SourcePatch) (client.Source, error) {
+func (f *fake) UpdateSource(ctx context.Context, id int64, patch client.SourcePatch) (client.Source, error) {
+	f.updateCtx = append(f.updateCtx, ctx)
 	f.patches[id] = append(f.patches[id], patch)
 	if f.updateErr != nil {
 		return client.Source{}, f.updateErr

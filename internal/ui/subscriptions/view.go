@@ -280,8 +280,16 @@ func (s *Screen) SetLanguage(systemLocale string) {
 func (s *Screen) Use(api API) {
 	s.api = api
 	s.gen++
+	s.stopRun()
 	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
 	s.manage, s.undo, s.pending = managing{}, nil, nil
+}
+
+// stopRun cancels the requests of a bulk run under way, whose results are dropped.
+func (s *Screen) stopRun() {
+	if j := s.manage.run; j != nil {
+		j.stop()
+	}
 }
 
 // Open reports whether a dialog shows, which takes the keys from the timeline.
@@ -339,6 +347,7 @@ func (s *Screen) expired(err error) bool {
 		return false
 	}
 	s.gen++
+	s.stopRun()
 	s.api = nil
 	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
 	s.manage, s.undo, s.pending = managing{}, nil, nil

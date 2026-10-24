@@ -21,16 +21,19 @@ type fake struct {
 	loginErr  error
 	connected []client.Session
 	local     int
+	ctxs      []context.Context // the context of each probe and login
 }
 
 func (f *fake) deps() Deps {
 	return Deps{
-		Probe: func(_ context.Context, address string) (client.Server, error) {
+		Probe: func(ctx context.Context, address string) (client.Server, error) {
 			f.probed = append(f.probed, address)
+			f.ctxs = append(f.ctxs, ctx)
 			return client.Server{URL: "http://" + address, Auth: true}, f.probeErr
 		},
-		Login: func(_ context.Context, server client.Server, password string) (client.Session, error) {
+		Login: func(ctx context.Context, server client.Server, password string) (client.Session, error) {
 			f.passwords = append(f.passwords, password)
+			f.ctxs = append(f.ctxs, ctx)
 			if f.loginErr != nil {
 				return client.Session{}, f.loginErr
 			}
@@ -263,5 +266,39 @@ func TestAppearance(t *testing.T) {
 	}
 	if err := tt.Click("Connect"); err != nil {
 		t.Fatalf("connect is out of reach at the minimum size: %v", err)
+	}
+}
+
+// TestRequestsCancelled moves on from a probe and from a login under way: each request is cancelled.
+func TestRequestsCancelled(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.address, s.password = "home.lan", "secret"
+	tt.Frame()
+	if err := tt.Click("Connect"); err != nil {
+		t.Fatal(err)
+	}
+	work := f.queue[0]
+	f.queue = f.queue[1:]
+	work()
+	f.queue = nil // the login the probe asked for
+	s.Open("", nil)
+	if len(f.ctxs) != 1 || f.ctxs[0].Err() == nil {
+		t.Fatalf("the probe was not cancelled: %v", f.ctxs)
+	}
+	s.address = "home.lan"
+	tt.Frame()
+	if err := tt.Click("Connect"); err != nil {
+		t.Fatal(err)
+	}
+	f.step(t, tt)
+	login := f.queue[0]
+	f.queue = f.queue[1:]
+	login()
+	if len(f.ctxs) != 3 || f.ctxs[1].Err() != nil || f.ctxs[2].Err() != nil {
+		t.Fatalf("the requests of the connection now under way are cancelled: %v", f.ctxs)
+	}
+	s.Open("", nil)
+	if f.ctxs[2].Err() == nil {
+		t.Fatal("the login was not cancelled")
 	}
 }

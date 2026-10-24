@@ -162,6 +162,10 @@ type Screen struct {
 	gen   int        // counts articles opened, so the results for the one before are dropped
 	icon  *ui.Bitmap // the site icon of the entry, as the timeline last had it
 
+	// The requests under way end with what they were for: current with the article, ahead with the list the cache is for,
+	// server with the server (what the reader asked the server to make or store stays asked when the article changes).
+	current, ahead, server scope
+
 	id       int64
 	loading  bool
 	failed   bool
@@ -281,10 +285,32 @@ func (s *Screen) SetLanguage(systemLocale string) {
 	s.text = translations[s.lang]
 }
 
+// scope is a context that ends when the work it is for is dropped, and a fresh one begins.
+type scope struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func (p *scope) get() context.Context {
+	if p.ctx == nil {
+		p.renew()
+	}
+	return p.ctx
+}
+
+func (p *scope) renew() {
+	if p.cancel != nil {
+		p.cancel()
+	}
+	p.ctx, p.cancel = context.WithCancel(context.Background())
+}
+
 // Use reads from api from now on, dropping the work under way for the server before.
 func (s *Screen) Use(api API) {
 	s.api = api
 	s.gen++
+	s.current.renew()
+	s.server.renew()
 	s.pics.Stop()
 	s.id, s.moved, s.queued, s.resume = 0, false, nil, -1
 	s.closeSelection()
@@ -295,6 +321,7 @@ func (s *Screen) Use(api API) {
 // Forget drops the articles got ahead and the answers still to come, as when the list they were beside changes.
 func (s *Screen) Forget() {
 	s.epoch++
+	s.ahead.renew()
 	s.cache, s.fetching = nil, map[int64]bool{}
 }
 
@@ -308,18 +335,18 @@ func (s *Screen) Prefetch(ids ...int64) {
 		return
 	}
 	s.cache = slices.DeleteFunc(s.cache, func(c cached) bool { return c.id != s.id && !slices.Contains(ids, c.id) })
-	epoch, api := s.epoch, s.api
+	epoch, api, ctx := s.epoch, s.api, s.ahead.get()
 	for _, id := range ids {
 		if id == s.id || s.fetching[id] || slices.ContainsFunc(s.cache, func(c cached) bool { return c.id == id && c.hasAI }) {
 			continue
 		}
 		s.fetching[id] = true
 		s.deps.Go(func() func() {
-			a, err := api.Entry(context.Background(), id)
+			a, err := api.Entry(ctx, id)
 			var r client.AIResults
 			var aiErr error
 			if err == nil {
-				r, aiErr = api.AI(context.Background(), id)
+				r, aiErr = api.AI(ctx, id)
 			}
 			return func() {
 				if epoch != s.epoch {
@@ -367,6 +394,7 @@ func (s *Screen) Ready() bool { return s.id != 0 && !s.loading && !s.failed }
 func (s *Screen) Open(e client.Entry) {
 	s.Leave()
 	s.gen++
+	s.current.renew()
 	s.pics.Stop()
 	s.id, s.loading, s.failed, s.polling, s.retrying, s.feedText = e.ID, true, false, false, false, 0
 	s.article, s.full, s.feed = client.Article{Entry: e}, nil, nil
@@ -399,10 +427,10 @@ func (s *Screen) load(poll bool) {
 	if s.api == nil || s.id == 0 {
 		return
 	}
-	gen, epoch, api, id := s.gen, s.epoch, s.api, s.id
+	gen, epoch, api, id, ctx := s.gen, s.epoch, s.api, s.id, s.current.get()
 	s.polling = poll
 	s.deps.Go(func() func() {
-		a, err := api.Entry(context.Background(), id)
+		a, err := api.Entry(ctx, id)
 		var c cached
 		if err == nil {
 			c = article(a)
@@ -438,12 +466,12 @@ func (s *Screen) retry() {
 	if s.api == nil || s.id == 0 || s.retrying || s.article.ExtractStatus != "failed" {
 		return
 	}
-	gen, epoch, api, id := s.gen, s.epoch, s.api, s.id
+	gen, epoch, api, id, ctx := s.gen, s.epoch, s.api, s.id, s.server.get()
 	s.retrying, s.polledAt = true, s.deps.Now()
 	s.article.ExtractStatus = "pending"
 	s.announce = s.text.Extracting
 	s.deps.Go(func() func() {
-		a, err := api.RetryExtraction(context.Background(), id)
+		a, err := api.RetryExtraction(ctx, id)
 		var c cached
 		if err == nil {
 			c = article(a)
@@ -490,10 +518,10 @@ func (s *Screen) loadAI(first bool) {
 	if s.api == nil || s.id == 0 {
 		return
 	}
-	gen, epoch, api, id := s.gen, s.epoch, s.api, s.id
+	gen, epoch, api, id, ctx := s.gen, s.epoch, s.api, s.id, s.current.get()
 	s.aiPolling = true
 	s.deps.Go(func() func() {
-		r, err := api.AI(context.Background(), id)
+		r, err := api.AI(ctx, id)
 		return func() {
 			if gen != s.gen {
 				return
@@ -550,9 +578,9 @@ func (s *Screen) request(i int) {
 	if i == translation {
 		s.shown = 0
 	}
-	gen, ticket, api, id := s.gen, j.ticket, s.api, s.id
+	gen, ticket, api, id, ctx := s.gen, j.ticket, s.api, s.id, s.server.get()
 	s.deps.Go(func() func() {
-		r, err := api.RequestAI(context.Background(), id, tasks[i])
+		r, err := api.RequestAI(ctx, id, tasks[i])
 		return func() {
 			if gen != s.gen || ticket != j.ticket {
 				return
@@ -737,10 +765,11 @@ func (s *Screen) openOriginal(c *ui.Context) {
 	if s.article.URL == "" {
 		return
 	}
+	svc := c.Services()
 	c.OpenURLThen(s.article.URL, func(err error) {
 		if err != nil {
 			s.toast = s.text.OpenFailed
-			c.Invalidate()
+			svc.Invalidate()
 		}
 	})
 }

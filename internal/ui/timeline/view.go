@@ -1761,10 +1761,11 @@ func (s *Screen) browse(c *ui.Context, i int) {
 	e := s.entries[i]
 	s.selected = i
 	if e.URL != "" {
+		svc := c.Services()
 		c.OpenURLThen(e.URL, func(err error) {
 			if err != nil {
 				s.toast = s.text.OpenFailed
-				c.Invalidate()
+				svc.Invalidate()
 			}
 		})
 	}
@@ -4423,10 +4424,11 @@ func (s *Screen) openCopy(c *ui.Context, id int64, m client.GroupMember) {
 	e := s.entries[i]
 	if e.Kind != "article" {
 		if m.URL != "" {
+			svc := c.Services()
 			c.OpenURLThen(m.URL, func(err error) {
 				if err != nil {
 					s.toast = s.text.OpenFailed
-					c.Invalidate()
+					svc.Invalidate()
 				}
 			})
 		}
@@ -5209,10 +5211,11 @@ func (s *Screen) viewPictures(c *ui.Context) {
 			})
 			pic := ui.ButtonBase(c).Size(theme.Px(t, 32), theme.Px(t, 32)).Center()
 			if button(pic, s.text.LbOpenPicture, theme.Px(t, 8), true) {
+				svc := c.Services()
 				c.OpenURLThen(list[at], func(err error) {
 					if err != nil {
 						s.toast = s.text.OpenFailed
-						c.Invalidate()
+						svc.Invalidate()
 					}
 				})
 			}

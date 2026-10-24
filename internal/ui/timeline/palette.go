@@ -311,7 +311,6 @@ func (s *Screen) palette(c *ui.Context) {
 			p.list.ScrollIntoView(at[p.hl])
 			p.reveal = false
 		}
-		var active ui.Element
 		list := ui.List(c, &p.list, len(lines), func(i int) {
 			line := lines[i]
 			if line.header {
@@ -320,7 +319,7 @@ func (s *Screen) palette(c *ui.Context) {
 			}
 			row := s.paletteRow(c, shown[line.item], line.item == p.hl, query != "")
 			if line.item == p.hl {
-				active = row
+				in.ActiveDescendant(row)
 			}
 			if row.Clicked() {
 				run = shown[line.item].run
@@ -328,9 +327,6 @@ func (s *Screen) palette(c *ui.Context) {
 		})
 		list.Height(min(theme.Px(t, listHeight), theme.Px(t, paletteList), height*paletteShare)).Padding(0, theme.Px(t, 8), theme.Px(t, paletteBottom), theme.Px(t, 8)).
 			Label(s.text.PaletteGoTo)
-		if active.Valid() {
-			in.ActiveDescendant(active)
-		}
 	})
 
 	s.paletteCount(c, query, len(shown), now)
