@@ -81,7 +81,13 @@
      with tabular figures, the caption below at 12. table-wide: a table wider than the column scrolls sideways inside
      the column (trackpad, arrow keys when focused, shift and wheel); an edge fade 32 wide marks each clipped side and a
      3 high position bar under the table shows where you are. Scroll the table in the mockup to see both fades.
-     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk. -->
+     Reading appearance and line width (Settings, Appearance, Reading, kept per device; docs/design.md, Color and dark mode,
+     Reading appearance): preset=theme|sepia|mist (default theme) swaps the paper and ink of the content area (page, toolbar bar,
+     text, links, code, note, AI card; the sidebar and the menus keep the theme), each in its light and dark variant by scheme;
+     width=narrow|standard|wide (default standard) multiplies the column by 0.85 / 1 / 1.2 (578 / 680 / 816 at Medium). The states
+     preset-sepia, preset-mist, width-narrow and width-wide are the full article with that choice (size=wide for the widest
+     columns); the parameters combine with any other state, e.g. state=immersive&preset=sepia&scheme=dark.
+     URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk, preset, width. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
   --background:#fdfcfa; --surface:#f6f3ee; --raised:#ffffff; --track:#ece8e0; --disabled:#b3ada1;
@@ -100,6 +106,26 @@
   --danger:#e0897a; --danger-soft:rgba(224,137,122,.13); --warning:#d6aa55; --warning-soft:rgba(214,170,85,.13); --success:#8ab997; --star:#e2b24f;
   --chrome:#1a2422; --chrome-ink:235,248,244; --chrome-text:#e8eeec; --chrome-text2:#cbd5d2; --chrome-muted:#93a39f;
   --glass:rgba(58,63,62,.52); --glass-rim:inset 0 0 0 .5px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 .5px rgba(0,0,0,.55) }
+/* Reading appearance presets (design/tokens.md, Reading appearance presets): they swap the paper and ink of the reader's
+   content area only (.main); the sidebar, the menus and the tooltip keep the theme. Hover and pressed accent step 17% / 33% toward Text in light,
+   12% toward white / 10% toward black in dark. */
+:root[data-scheme=light] .window[data-preset=sepia] .main { --background:#f4ecd8; --surface:#ebe1c8; --raised:#fbf6e9; --track:#e6dcc2; --text:#33291d; --text2:#5a4c39; --muted:#6f5f48; --prose:#44382a;
+  --ink:51,41,29; --hover:rgba(51,41,29,.03); --pressed:rgba(51,41,29,.05); --sel:rgba(51,41,29,.065); --border:rgba(51,41,29,.075);
+  --accent:#1f6258; --accent-hover:#22584e; --accent-text:#ffffff; --accent-soft:rgba(31,98,88,.09); --focus:rgba(31,98,88,.7);
+  --danger:#a2452f; --danger-soft:rgba(162,69,47,.09) }
+:root[data-scheme=dark] .window[data-preset=sepia] .main { --background:#2a241b; --surface:#332c21; --raised:#433a2d; --track:#3a3226; --text:#eadfc8; --text2:#bcae92; --muted:#a79a7c; --prose:#d8cbb0;
+  --ink:234,223,200; --hover:rgba(234,223,200,.04); --pressed:rgba(234,223,200,.06); --sel:rgba(234,223,200,.08); --border:rgba(234,223,200,.075);
+  --accent:#8cc9b8; --accent-hover:#9acfc1; --accent-text:#10241f; --accent-soft:rgba(140,201,184,.12); --focus:rgba(140,201,184,.7);
+  --danger:#e0897a; --danger-soft:rgba(224,137,122,.13) }
+:root[data-scheme=light] .window[data-preset=mist] .main { --background:#e8edf0; --surface:#dce3e8; --raised:#f3f6f8; --track:#d6dee4; --text:#1d2830; --text2:#464f57; --muted:#56616b; --prose:#2c3841;
+  --ink:29,40,48; --hover:rgba(29,40,48,.03); --pressed:rgba(29,40,48,.05); --sel:rgba(29,40,48,.065); --border:rgba(29,40,48,.075);
+  --accent:#1d6470; --accent-hover:#1d5a65; --accent-text:#ffffff; --accent-soft:rgba(29,100,112,.09); --focus:rgba(29,100,112,.7);
+  --danger:#a2452f; --danger-soft:rgba(162,69,47,.09) }
+:root[data-scheme=dark] .window[data-preset=mist] .main { --background:#1b2227; --surface:#232c33; --raised:#34404a; --track:#2b353d; --text:#e2e9ee; --text2:#a9b4bc; --muted:#8d9aa4; --prose:#c6d0d7;
+  --ink:226,233,238; --hover:rgba(226,233,238,.04); --pressed:rgba(226,233,238,.06); --sel:rgba(226,233,238,.08); --border:rgba(226,233,238,.075);
+  --accent:#86c5d0; --accent-hover:#95ccd6; --accent-text:#102329; --accent-soft:rgba(134,197,208,.12); --focus:rgba(134,197,208,.7);
+  --danger:#e0897a; --danger-soft:rgba(224,137,122,.13) }
+.window[data-preset] .main { background:var(--background) }
 * { box-sizing:border-box }
 html { -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility }
 body { margin:0; padding:24px; font:13px/1.5 system-ui,-apple-system,"SF Pro Text","PingFang SC","Segoe UI",sans-serif; background:var(--stage); color:var(--text) }
@@ -404,13 +430,15 @@ mark.hit.now { background:color-mix(in srgb,var(--warning) 40%,transparent); box
   <label>textsize <select id="textsize"></select></label>
   <label>font <select id="font"></select></label>
   <label>cjk <select id="cjk"></select></label>
+  <label>preset <select id="preset"></select></label>
+  <label>width <select id="width"></select></label>
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar','image-failed','image-unsized','image-settled','image-wrong-size','footnotes','footnote-jump','table','table-wide'];
+const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar','preset-sepia','preset-mist','width-narrow','width-wide','image-failed','image-unsized','image-settled','image-wrong-size','footnotes','footnote-jump','table','table-wide'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
-const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off']};
+const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off'],preset:['theme','sepia','mist'],width:['narrow','standard','wide']};
 const state=pick('state',states,'full');
 const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
@@ -418,19 +446,22 @@ const size=state==='more-narrow'?'min':pick('size',options.size,'default');
 const textsize=pick('textsize',options.textsize,'medium');
 const font=pick('font',options.font,'interface');
 const cjkOn=pick('cjk',options.cjk,'on')==='on';
+const preset=pick('preset',options.preset,state==='preset-sepia'?'sepia':state==='preset-mist'?'mist':'theme');
+const width=pick('width',options.width,state==='width-narrow'?'narrow':state==='width-wide'?'wide':'standard');
 const scale={small:14/15,medium:1,large:17/15,xlarge:19/15}[textsize];
 const root=document.documentElement.style;
 root.setProperty('--scale',scale);
-root.setProperty('--col',Math.round(680*scale)+'px');
+root.setProperty('--col',Math.round(680*scale*{narrow:.85,standard:1,wide:1.2}[width])+'px');
 if(font==='serif')root.setProperty('--reading','"New York","Songti SC",Georgia,"Noto Serif","Noto Serif CJK SC",serif');
 document.documentElement.dataset.scheme=scheme;
 document.documentElement.lang=lang;
+if(preset!=='theme')document.getElementById('window').dataset.preset=preset;
 document.getElementById('window').classList.toggle('min',size==='min');
 document.getElementById('window').classList.toggle('wide',size==='wide');
 for(const [id,list] of Object.entries(options)){
   const select=document.getElementById(id);
   select.innerHTML=list.map(s=>`<option>${s}</option>`).join('');
-  select.value={state,scheme,lang,size:pick('size',options.size,'default'),textsize,font,cjk:cjkOn?'on':'off'}[id];
+  select.value={state,scheme,lang,size:pick('size',options.size,'default'),textsize,font,cjk:cjkOn?'on':'off',preset,width}[id];
   select.onchange=()=>{query.set(id,select.value);location.search=query};
 }
 
@@ -743,7 +774,7 @@ switch(state){
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
-  case 'full':case 'no-more-unread':case 'resumed':case 'more-menu':case 'more-narrow':case 'copied':case 'link-copied':case 'scrolled':case 'also':page=article('',full);break;
+  case 'full':case 'preset-sepia':case 'preset-mist':case 'width-narrow':case 'width-wide':case 'no-more-unread':case 'resumed':case 'more-menu':case 'more-narrow':case 'copied':case 'link-copied':case 'scrolled':case 'also':page=article('',full);break;
   case 'translate-disabled':page=zh?article('',full):original('');break;
   case 'full-switch':page=article(switcher(false),full);break;
   case 'feed-text':page=article(switcher(true),feed);break;

@@ -40,7 +40,7 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | pane-line | 25 from the pane's right edge | center line | the centers of the pane's trailing icon buttons: hide sidebar (32), add (22), Unread first (28) and the settings gear (28). With the lists' 8 side padding, the insets are 9, 6, 3 and 11 from the pane's edge or the row's edge, and the add button's 14 icon (24 hit area, so 5 in from its edge) ends where the row counts do (10 in from the row highlight) |
 | pane-add | 22 square, radius 8, 14 icon, centered on the pane line; 24 square hit area | 22 | the add button at the end of the pane's section header |
 | pane-filter | 28 high, radius 8, 10 left padding, 6 gap; toggle 28 square, 4 gap | 28 | the subscription filter field and the Unread first toggle |
-| column | `MaxWidth` 680 (720 for Social) | 680 / 720 | article, social and mixed rows in the timeline; the reader's text column is 680 at Medium and follows the Text size (Reading text) |
+| column | `MaxWidth` 680 (720 for Social) | 680 / 720 | article, social and mixed rows in the timeline; the reader's text column is 680 at Medium and follows the Text size and the Line width (Reading text) |
 | row | padding 16, gap 14, radius 12 | | an entry row; 28 on the left, where the unread dot (7, 11 from the edge) sits |
 | density-compact | row padding 16 to 10 (social compact 12 to 8), one-line article 36 to 30, gap between parts 14 to 10, text gap 3 to 2, large cover gap 8 to 6, grid and wall gap 14 to 10, wall tile gap 16 to 10 | | List density Compact; Comfortable keeps the values above |
 | row-meta | 20 high | 20 | the meta line of a row; it keeps 88 free at the right for the row actions |
@@ -112,9 +112,9 @@ Icons are not type: their three sizes are in Components, icon small, medium and 
 ## Reading text
 
 The reader's article text is set in the interface font by default, never a serif: Song and other thin serifs blur at
-screen sizes and tire the eye over a long read. Four per-device preferences (Settings, Appearance, the Reading card)
-change the article's text: the font, the size, the line height and Chinese typesetting. The default is Follow
-interface, Medium, Standard and Chinese typesetting on. The choice of a serif is the reader's; the default does not change.
+screen sizes and tire the eye over a long read. Six per-device preferences (Settings, Appearance, the Reading card)
+change the article's text and page: the font, the size, the line height, Chinese typesetting, the Reading appearance and
+the Line width. The default is Follow interface, Medium, Standard, Chinese typesetting on, Follow theme and Standard. The choice of a serif is the reader's; the default does not change.
 
 | Part | Value |
 |---|---|
@@ -131,6 +131,9 @@ interface, Medium, Standard and Chinese typesetting on. The choice of a serif is
 | Reading font | Follow interface / Serif / an installed family | Follow interface (default): the reading face above. Serif: the platform serif set below. A family: that family, with the interface font behind it for the glyphs it lacks |
 | Text size | Small / Medium / Large / Extra large | body 14.9 / 16 / 18.1 / 20.3 in every language, scale 0.933 / 1 / 1.133 / 1.267 (exactly 14/15, 1, 17/15, 19/15); column 635 / 680 / 771 / 861 |
 | Line spacing | Compact / Standard / Relaxed | line height 1.55 / 1.7 / 1.85; Simplified Chinese 1.7 / 1.85 / 2.0 |
+
+| Reading appearance | Follow theme / Sepia / Mist | Follow theme (default): the theme's own colors. Sepia and Mist: the paper, ink and link colors of Reading appearance presets below, for the reader's content area only |
+| Line width | Narrow / Standard / Wide | Standard (default). Factor 0.85 / 1 / 1.2 on the column width below; column at Medium 578 / 680 / 816 |
 
 | Chinese typesetting | on / off | on (default). On: rules 1 and 2 below, for text that is Chinese (docs/design.md, Chinese typesetting). Off: text as the font gives it. Line height and paragraph spacing are the same either way |
 
@@ -163,12 +166,79 @@ New York is not in the installed family list on macOS and MyGo does not find it 
 by the system font name `.AppleSystemUIFontSerif`; it is taken as installed without a check.
 
 The reading column grows with the Text size so that the characters per line stay about the same: its maximum width
-(the `MaxWidth` of the column, padding included) is 680 times the size scale, rounded to a whole DIP: 635 (Small), 680
-(Medium), 771 (Large), 861 (Extra large). The window still limits it: the column is never wider than the space the
-window leaves beside the ink pane. Line spacing and the
-Reading font do not change the width. The title, the source line and the note sit in the same column, and in a wide
-window the toolbar lines up with its edges (docs/design.md, Reader). Social rows in the timeline keep 720; this rule is
-the reader's text only.
+(the `MaxWidth` of the column, padding included) is 680 times the size scale times the Line width factor, rounded to
+a whole DIP. Line width is a factor and not a pixel value, so the three steps are the same proportion at every Text
+size:
+
+| Text size | Narrow (0.85) | Standard (1) | Wide (1.2) |
+|---|---|---|---|
+| Small (0.933) | 540 | 635 | 762 |
+| Medium (1) | 578 | 680 | 816 |
+| Large (1.133) | 655 | 771 | 925 |
+| Extra large (1.267) | 732 | 861 | 1033 |
+
+The window still limits it: the column is never wider than the space the window leaves beside the ink pane, and then
+the steps that do not fit look the same. Line spacing and the Reading font do not change the width. The title, the
+source line and the note sit in the same column, and in a wide window the toolbar lines up with its edges
+(docs/design.md, Reader). Social rows in the timeline keep 720; this rule is the reader's text only.
+
+## Reading appearance presets
+
+Two presets besides Follow theme. Each has a light and a dark variant that follows the app's Appearance (System,
+Light, Dark), so a preset never overrides the scheme, only the paper and ink in it. A preset recolors the reader's
+content area (the page, the toolbar bar, the text, the links, the code block, the note and the AI card); the ink pane,
+the timeline, dialogs, sheets, popovers and toasts keep the theme. The reader draws with a pane theme made from the
+main theme with the roles below swapped, so every helper in `internal/ui/theme` called with it returns the preset
+value.
+
+| Role or helper | Sepia light | Sepia dark | Mist light | Mist dark |
+|---|---|---|---|---|
+| `Background` | `#f4ecd8` | `#2a241b` | `#e8edf0` | `#1b2227` |
+| `Surface` | `#ebe1c8` | `#332c21` | `#dce3e8` | `#232c33` |
+| `Text` (ink) | `#33291d` | `#eadfc8` | `#1d2830` | `#e2e9ee` |
+| `theme.Prose` | `#44382a` | `#d8cbb0` | `#2c3841` | `#c6d0d7` |
+| `theme.Text2` | `#5a4c39` | `#bcae92` | `#464f57` | `#a9b4bc` |
+| `TextMuted` | `#6f5f48` | `#a79a7c` | `#56616b` | `#8d9aa4` |
+| `Accent` | `#1f6258` | `#8cc9b8` | `#1d6470` | `#86c5d0` |
+| `AccentText` | `#ffffff` | `#10241f` | `#ffffff` | `#102329` |
+| `AccentHover` | `#22584e` | `#9acfc1` | `#1d5a65` | `#95ccd6` |
+| `AccentPressed` | `#255146` | `#7bb1a2` | `#1d525d` | `#76adb7` |
+| `Danger` | `#a2452f` | `#e0897a` | `#a2452f` | `#e0897a` |
+| `theme.Star` | `#a07414` | `#e2b24f` | `#a07414` | `#e2b24f` |
+| `theme.Track` | `#e6dcc2` | `#3a3226` | `#d6dee4` | `#2b353d` |
+| `theme.RaisedFill` | `#fbf6e9` | `#433a2d` | `#f3f6f8` | `#34404a` |
+
+`AccentHover` is `Accent` mixed 17% toward `Text` in the light variants and 12% toward white in the dark ones; `AccentPressed` is 30% toward `Text` in light and 12% toward black in dark.
+
+`Warning` and `Success` keep the theme's values: they are graphics (3:1), and on a preset page Warning is 3.7:1
+or more and Success 4.1:1 or more. `Star` is darker in the light variants (3.2:1 or more on `Surface`, 3.6:1 on the page), and `Focus` is `Accent` at 80%, not 70%, so the ring holds 3:1 on `Surface`. `Danger` is darker in the light variants because the failure line is text, drawn on the page and never on a `Surface`. Alpha
+fills are `theme.Ink` of the preset `Text`, with the percentages of State fills (8 / 12 / 16 with high contrast on).
+`Selection` is `Accent` 22% (light) / 30% (dark) over the page. The high-contrast rules are the theme's: Border is
+`Text` at 55%, `TextMuted` mixes 40% toward `Text`, `Focus` is opaque.
+
+Contrast, WCAG 2.x, computed from the hex values above and in Roles on the theme (text needs 4.5:1, graphics and the
+focus ring 3:1):
+
+| Pair | Theme light | Theme dark | Sepia light | Sepia dark | Mist light | Mist dark |
+|---|---|---|---|---|---|---|
+| `Text` on `Background` | 15.4 | 13.4 | 12.1 | 11.6 | 12.7 | 13.1 |
+| `Prose` on `Background` (body) | 11.7 | 10.5 | 9.7 | 9.6 | 10.2 | 10.3 |
+| `Prose` on `Surface` (code, note) | 10.9 | 9.9 | 8.7 | 8.6 | 9.3 | 9.1 |
+| `Text2` on `Background` | 7.4 | 8.0 | 7.1 | 7.0 | 7.1 | 7.6 |
+| `Text2` on `Surface` | 6.9 | 7.5 | 6.4 | 6.3 | 6.4 | 6.7 |
+| `TextMuted` on `Background` | 5.0 | 5.5 | 5.2 | 5.5 | 5.4 | 5.6 |
+| `TextMuted` on `Surface` | 4.6 | 5.2 | 4.7 | 5.0 | 4.9 | 4.9 |
+| `Accent` (link) on `Background` | 5.9 | 8.2 | 6.1 | 8.2 | 5.7 | 8.4 |
+| `Accent` (link) on `Surface` | 5.5 | 7.7 | 5.5 | 7.3 | 5.2 | 7.4 |
+| `AccentText` on `Accent` | 6.0 | 7.6 | 7.1 | 8.6 | 6.8 | 8.4 |
+| `Danger` on `Background` | 4.8 | 6.8 | 5.2 | 5.9 | 5.2 | 6.2 |
+| `Prose` on `Selection` | 8.6 | 5.6 | 7.0 | 4.8 | 7.4 | 5.2 |
+| High contrast: `TextMuted` on `Background` | 7.9 | 8.1 | 7.4 | 7.6 | 7.7 | 8.1 |
+| High contrast: Border (`Text` 55%) on `Background` | 3.6 | 4.9 | 3.3 | 4.6 | 3.4 | 4.9 |
+
+Sepia dark's `TextMuted` and Mist light's are tuned (`#a79a7c`, `#56616b`) so that a muted line on `Surface` stays 4.5:1
+or more; the theme's own pair is 4.6 on `Surface` in light. Every pair that is text holds 4.5:1; the border, the focus
+ring and the icons hold 3:1.
 
 ## Color roles
 

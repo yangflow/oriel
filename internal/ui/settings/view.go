@@ -12,6 +12,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -58,6 +59,8 @@ type copy struct {
 	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                                                                                                                                                                                                                                    string
 	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                                                                                                                                                                                                                                    string
 	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed                                                                                                                                                                                                                                    string
+	LineWidth, LineWidthHelp, WidthNarrow, WidthStandard, WidthWide                                                                                                                                                                                                                                                                         string
+	ReadingAppearance, ReadingAppearanceHelp, PresetTheme, PresetSepia, PresetMist                                                                                                                                                                                                                                                          string
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                                                                                                                                               string
 	Preset, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                               string
 	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                                                                                                                                              string
@@ -2543,6 +2546,22 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
+		labeled(c, s.text.LineWidth, s.text.LineWidthHelp, func() {
+			names := []string{s.text.WidthNarrow, s.text.WidthStandard, s.text.WidthWide}
+			if i, changed := s.segments(c, s.text.LineWidth, names, slices.Index(prefs.Widths, p.ReadingWidth)); changed {
+				p.ReadingWidth = prefs.Widths[i]
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		labeled(c, s.text.ReadingAppearance, s.text.ReadingAppearanceHelp, func() {
+			names := []string{s.text.PresetTheme, s.text.PresetSepia, s.text.PresetMist}
+			if i, changed := s.segments(c, s.text.ReadingAppearance, names, slices.Index(prefs.Presets, p.ReadingPreset)); changed {
+				p.ReadingPreset = prefs.Presets[i]
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
 		labeled(c, s.text.ChineseTypesetting, s.text.ChineseTypesettingHelp, func() {
 			on := p.ChineseTypesetting
 			ui.Switch(c, &on).Label(s.text.ChineseTypesetting).Description(s.text.ChineseTypesettingHelp)
@@ -2552,10 +2571,12 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		ui.Column(c).FillWidth().Padding(theme.Px(t, 12), theme.Px(t, 14)).Radius(8).Background(t.Background).Children(func() {
+		paper := theme.ReadingTheme(t, p.ReadingPreset)
+		ui.Column(c).FillWidth().Padding(theme.Px(t, 12), theme.Px(t, 14)).Radius(8).Background(paper.Background).Children(func() {
 			size := 16 * float32(p.Scale())
 			sample := s.sample(c, p.ChineseTypesetting && s.lang == prefs.LanguageChinese, size).FontSize(size).
-				TextColor(theme.Prose(t)).LineHeight(float32(p.Leading(s.lang == prefs.LanguageChinese))).Wrap()
+				TextColor(theme.Prose(paper)).LineHeight(float32(p.Leading(s.lang == prefs.LanguageChinese))).Wrap().
+				MaxWidth(float32(math.Round(320*p.Scale()*p.WidthFactor()))).Margin(0, ui.Auto)
 			if face := s.deps.ReadingFont(); face != "" {
 				sample.Font(face)
 			}

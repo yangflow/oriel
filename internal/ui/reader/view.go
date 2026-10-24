@@ -846,10 +846,18 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	narrow := width < 760
 	// The toolbar row floats over the article, which scrolls under it and fades under the scroll edge.
 	// The column keeps its identity when the sidebar beside it comes and goes, so the focus in the article stays.
-	ui.Column(c).Key("reader").Grow(1).MinWidth(0).Children(func() {
+	// A reading appearance recolors the article, its toolbar and its scroll edge; the selection card, the toasts and
+	// everything else keep the theme.
+	paper := theme.ReadingTheme(t, s.reading().ReadingPreset)
+	c.SetTheme(paper)
+	col := ui.Column(c).Key("reader").Grow(1).MinWidth(0)
+	if paper != t {
+		col.Background(paper.Background)
+	}
+	col.Children(func() {
 		switch {
 		case s.failed:
-			s.empty(c, icons.WifiOff, t.Danger, s.text.Error, s.text.ErrorHint, func() {
+			s.empty(c, icons.WifiOff, paper.Danger, s.text.Error, s.text.ErrorHint, func() {
 				if s.button(c, icons.RefreshCw, s.text.Retry, false) {
 					s.loading, s.failed = true, false
 					s.load(false)
@@ -861,8 +869,11 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 		theme.Edge(c, s.scroll.Y > 0)
 		s.toolbar(c, nav, ready, narrow)
 		s.findRow(c, narrow)
+		c.SetTheme(t)
 		s.selectionCard(c)
+		c.SetTheme(paper)
 	})
+	c.SetTheme(t)
 	s.track(c)
 	s.toasts(c)
 	s.download()

@@ -1692,3 +1692,151 @@ func TestPictureRetried(t *testing.T) {
 		}
 	})
 }
+
+// TestReadingWidthAndPresetLive shows the line width and the reading appearance apply to an open reader at the next
+// frame, with the article kept where it is scrolled.
+func TestReadingWidthAndPresetLive(t *testing.T) {
+	art := full()
+	art.ExtractedHTML = strings.Repeat(`<p>`+strings.Repeat("word ", 120)+`</p>`, 12)
+	f := &fake{now: now, article: art, nav: Nav{Entry: art.Entry, Scope: "All"}}
+	deps := f.deps()
+	p := prefs.Default()
+	deps.Reading = func() prefs.Preferences { return p }
+	s := New("en", deps)
+	s.Use(f)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c, f.nav) }, 1800, 700)
+	s.Open(art.Entry)
+	tt.Frame()
+	f.settle(tt)
+	body := func() ui.Rect {
+		for _, text := range tt.Texts() {
+			if strings.HasPrefix(text, "word word") {
+				r, _ := tt.Find(text)
+				return r
+			}
+		}
+		t.Fatalf("no body in %v", tt.Texts())
+		return ui.Rect{}
+	}
+	standard := body().W
+	s.scroll.Y = 300
+	tt.Frame()
+	y := s.scroll.Y
+	if y == 0 {
+		t.Fatal("the article does not scroll")
+	}
+	p.ReadingWidth = prefs.WidthWide
+	tt.Frame()
+	if wide := body().W; wide <= standard*1.1 {
+		t.Errorf("wide %v, standard %v", wide, standard)
+	}
+	p.ReadingWidth = prefs.WidthNarrow
+	tt.Frame()
+	if narrow := body().W; narrow >= standard*0.95 {
+		t.Errorf("narrow %v, standard %v", narrow, standard)
+	}
+	p.ReadingPreset = prefs.PresetSepia
+	tt.Frame()
+	if s.scroll.Y == 0 {
+		t.Errorf("the scroll was %v and is back at the top", y)
+	}
+}
+
+// paperOf opens an article in the reader with a reading appearance and returns the tester, the theme of the window and
+// the paper theme the article is drawn with. Beside the reader sits a box without a color of its own, which shows the
+// window's root background.
+func paperOf(t *testing.T, preset string, dark bool, setup func(f *fake)) (*ui.Tester, *ui.Theme, *ui.Theme, *Screen) {
+	t.Helper()
+	art := full()
+	f := &fake{now: now, article: art, nav: Nav{Entry: art.Entry, Scope: "All"}}
+	if setup != nil {
+		setup(f)
+	}
+	deps := f.deps()
+	deps.Reading = func() prefs.Preferences { return prefs.Preferences{ReadingPreset: preset} }
+	s := New("en", deps)
+	s.Use(f)
+	var main, paper *ui.Theme
+	tt := ui.NewTester(func(c *ui.Context) {
+		main = c.Theme()
+		paper = theme.ReadingTheme(main, preset)
+		ui.Row(c).FillWidth().FillHeight().Children(func() {
+			s.View(c, f.nav)
+			ui.Box(c).Width(60).FillHeight()
+		})
+		if c.Theme() != main {
+			t.Errorf("the reader left the window on a theme other than its own")
+		}
+	}, 1100, 800)
+	tt.SetDark(dark)
+	s.Open(art.Entry)
+	tt.Frame()
+	f.settle(tt)
+	tt.Frame()
+	return tt, main, paper, s
+}
+
+// colorCount is how many pixels of the image are exactly the color.
+func colorCount(img *image.RGBA, want ui.Color) int {
+	n := 0
+	for i := 0; i+3 < len(img.Pix); i += 4 {
+		got := ui.Color{R: img.Pix[i], G: img.Pix[i+1], B: img.Pix[i+2]}
+		if sameColor(got, want) {
+			n++
+		}
+	}
+	return n
+}
+
+// TestReadingAppearanceKeepsTheWindowTheme shows the window's root background stays the theme's after the reader
+// draws a preset paper, the article is on that paper, and the failed state draws its icon in the paper's own danger color.
+func TestReadingAppearanceKeepsTheWindowTheme(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, preset := range []string{prefs.PresetSepia, prefs.PresetMist} {
+			t.Run(fmt.Sprint(preset, " dark=", dark), func(t *testing.T) {
+				tt, main, paper, _ := paperOf(t, preset, dark, nil)
+				img := tt.Image()
+				if main.Background == paper.Background {
+					t.Fatal("the preset does not change the paper")
+				}
+				// The box beside the article shows the root; the article shows the paper.
+				root := img.RGBAAt(img.Bounds().Dx()-4, img.Bounds().Dy()/2)
+				if got := (ui.Color{R: root.R, G: root.G, B: root.B}); !sameColor(got, main.Background) {
+					t.Errorf("root background %v, want the theme's %v", got, main.Background)
+				}
+				if colorCount(img, paper.Background) == 0 {
+					t.Error("no paper drawn")
+				}
+				tt, main, paper, _ = paperOf(t, preset, dark, func(f *fake) { f.err = errors.New("down") })
+				img = tt.Image()
+				if colorCount(img, paper.Danger) == 0 || colorCount(img, main.Danger) != 0 {
+					t.Errorf("failed icon: paper danger %d, theme danger %d", colorCount(img, paper.Danger), colorCount(img, main.Danger))
+				}
+			})
+		}
+	}
+}
+
+// sameColor tells two colors apart by more than the rounding of an 8 bit channel.
+func sameColor(a, b ui.Color) bool {
+	near := func(x, y uint8) bool { return int(x)-int(y) < 2 && int(y)-int(x) < 2 }
+	return near(a.R, b.R) && near(a.G, b.G) && near(a.B, b.B)
+}
+
+// TestReadingAppearanceMenusStayNative shows the More menu is the system's menu, which no appearance recolors: it
+// offers the same items on paper as without, and it opens from a window that is back on the theme's own colors.
+func TestReadingAppearanceMenusStayNative(t *testing.T) {
+	menu := func(preset string) []string {
+		tt, _, _, s := paperOf(t, preset, false, nil)
+		tt.SetSize(500, 800)
+		tt.Frame()
+		if err := tt.Click(s.text.More); err != nil {
+			t.Fatal(err)
+		}
+		return tt.Menu()
+	}
+	plain, sepia := menu(""), menu(prefs.PresetSepia)
+	if len(plain) == 0 || !slices.Equal(plain, sepia) {
+		t.Fatalf("menu %v on paper, %v without", sepia, plain)
+	}
+}
