@@ -2380,6 +2380,26 @@ func TestDesktopCardTrayFailed(t *testing.T) {
 	}
 }
 
+// TestDesktopCardKeepsFocusWhenNoteMoves shows a failure note that appears or goes away above a focused switch does
+// not take the focus from it.
+func TestDesktopCardKeepsFocusWhenNoteMoves(t *testing.T) {
+	s, _, tt := openDesktop(t, &Desktop{OS: "linux"})
+	flip(t, s, tt, s.text.TrayIcon, s.text.TrayIconHelp)
+	if !tt.Focused(s.text.TrayIcon) {
+		t.Fatal("the switch was not focused by using it")
+	}
+	s.LoginFailed()
+	tt.Frame()
+	if !tt.HasText(s.text.LoginFailed) || !tt.Focused(s.text.TrayIcon) {
+		t.Errorf("the focus left the switch when the note appeared above it: %v", tt.Texts())
+	}
+	s.loginFailed = false
+	tt.Frame()
+	if tt.HasText(s.text.LoginFailed) || !tt.Focused(s.text.TrayIcon) {
+		t.Errorf("the focus left the switch when the note went away: %v", tt.Texts())
+	}
+}
+
 // TestReadingAppearanceRows shows the Reading card offers Line width and Reading appearance after Line spacing, that
 // each choice saves only its own setting, and that the sample keeps the paper of the appearance and the width of the line.
 func TestReadingAppearanceRows(t *testing.T) {
