@@ -274,7 +274,15 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   text (health line, sidebar tooltip, toast) is one localized sentence in place of the raw HTTP text (`edit-blocked`). Other known failures (timeout, name not found, certificate, no connection, 401/403, 404/410, 429, 5xx, not a feed) read as a short phrase in the same places in place of the English text the server stores (`edit-failing`); the raw text is in the tooltip of the health line, the sidebar mark and the health list ("Original: …") and in the description a screen reader reads. Text it does not know is shown as it is. No new element: the line is the same, only its words and its tooltip change. The edit dialog starts with a health line
   (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail.
   For a route that has been fetched, a muted 12 line under it names the RSSHub instance that served the last fetch
-  (host only, "Served by fallback address {host}" with a second muted line saying the first address did not answer, when it is not the first of the list). The interval offers Auto
+  (host only, "Served by fallback address {host}" with a second muted line saying the first address did not answer, when it is not the first of the list).
+  When the site has moved the feed for good (the server saw a permanent redirect to the same new address three times)
+  a moved card sits under that line and above the title: `Surface` fill, 8 radius, 10 12 padding, 8 between its parts,
+  12 type. The head is a 14 `signpost` icon in `Accent` and "This subscription has moved to" in 12 medium `Text`; under it
+  the new address in 12 monospace on `Text`, wrapping anywhere and selectable; then two small buttons, "Update address"
+  (primary) and "Dismiss" (secondary). Neither belongs to the form: they act at once and Save does not carry them. If
+  the new address is already another subscription, a 12 `Danger` error line with `circle-alert` sits between the address and the buttons and the
+  card stays (`edit-moved-exists`). After Update address the card is gone and the toast says "Address updated". Drawn in
+  `design/screens/subscriptions.html`, `edit-moved` and `edit-moved-exists`. The interval offers Auto
   first, and an automatic subscription reads "Auto · 6 h" with the interval in use. When the first fetch found the feed to look like
   another kind, a line in the style of the health line sits under the kind picker with the kind's icon, one sentence and a small
   button "Show as Videos"; it only chooses the kind in the dialog. "Keep entries" follows, a full-width select in the
@@ -303,10 +311,11 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   with a spinning `loader-circle`, "Checking…"; an error is an `errorLine` with a small "Try again"; empty is a centered
   `circle-check-big` in `Success` over "All your subscriptions look healthy"; otherwise the list, scrolling inside the
   dialog. A row has the source's glyph (16, as in the sidebar) and name (13 medium, one line) at the left, under it the reason in 12 on
-  `Warning` (`dead` and `failing`) or `TextMuted` (`rarelyRead`) with a 14 icon (`circle-alert`, `triangle-alert`,
-  `eye`), and a second muted 12 tabular line with the last 30 days' numbers; at the right two small buttons, "Pause"
+  `Warning` (`dead` and `failing`) or `TextMuted` (`rarelyRead` and `moved`) with a 14 icon (`circle-alert`, `triangle-alert`,
+  `eye`, and `signpost` in `TextMuted` for a moved source), and a second muted 12 tabular line with the last 30 days' numbers; at the right two small buttons, "Pause"
   (`pause`, quiet) and "Unsubscribe…" (`trash2`, `Danger` text, no fill). Rows are separated by a hairline, 12 high
-  paddings, no card around them. A failing reason shows the last error on a second line, one line truncated. A row
+  paddings, no card around them. A moved row's reason reads "Moved to {address}" (one line, truncated) and its buttons are
+  "Update address" and "Dismiss" in place of Pause and Unsubscribe… (`health`, the fourth row). A failing reason shows the last error on a second line, one line truncated. A row
   leaves the list as soon as its action succeeds; the footer has one "Close" button. Unsubscribe opens the same
   confirmation as Delete. Drawn in `design/screens/subscriptions.html`, `health`, `health-loading`, `health-error`,
   `health-empty`. Accessibility: the dialog is labeled by its title, each row is a list item named by the source and

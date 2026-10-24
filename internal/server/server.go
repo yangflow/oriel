@@ -168,6 +168,8 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("PATCH /api/sources/{id}", s.authed(s.updateSource))
 	mux.HandleFunc("DELETE /api/sources/{id}", s.authed(s.deleteSource))
 	mux.HandleFunc("POST /api/sources/{id}/restore", s.authed(s.restoreSource))
+	mux.HandleFunc("POST /api/sources/{id}/move", s.authed(s.moveSource))
+	mux.HandleFunc("POST /api/sources/{id}/dismiss-move", s.authed(s.dismissMove))
 	mux.HandleFunc("POST /api/sources/{id}/muted-count", s.authed(s.mutedCount))
 	mux.HandleFunc("POST /api/muted-count", s.authed(s.mutedCountAll))
 	mux.HandleFunc("GET /api/rules", s.authed(s.listRules))

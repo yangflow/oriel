@@ -364,7 +364,7 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	}
 	// Make it look like version 20, before the link key that groups an article carried by several sources, the rules and the extraction and AI queue indexes.
 	for _, stmt := range []string{
-		"DROP TABLE rules", "DROP INDEX entry_ai_open", "CREATE INDEX entry_ai_status ON entry_ai (status)", "DROP INDEX entries_extract_open", "DROP INDEX entries_link_key", "ALTER TABLE entries DROP COLUMN link_key", "ALTER TABLE sources DROP COLUMN proxy", "ALTER TABLE sources DROP COLUMN proxy_user", "ALTER TABLE sources DROP COLUMN proxy_password", "PRAGMA user_version = 20",
+		"DROP TABLE rules", "DROP INDEX entry_ai_open", "CREATE INDEX entry_ai_status ON entry_ai (status)", "DROP INDEX entries_extract_open", "DROP INDEX entries_link_key", "ALTER TABLE entries DROP COLUMN link_key", "ALTER TABLE sources DROP COLUMN proxy", "ALTER TABLE sources DROP COLUMN proxy_user", "ALTER TABLE sources DROP COLUMN proxy_password", "ALTER TABLE sources DROP COLUMN moved_url", "ALTER TABLE sources DROP COLUMN moved_seen", "ALTER TABLE sources DROP COLUMN moved_dismissed", "ALTER TABLE sources DROP COLUMN feed_title", "PRAGMA user_version = 20",
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)

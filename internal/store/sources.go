@@ -58,6 +58,7 @@ type Source struct {
 	RSSHubInstance      string    // the RSSHub instance that served the last successful fetch, empty when none did
 	WebSubHub           string    // the hub the feed declares, empty for none
 	WebSubUntil         time.Time // when the active push subscription runs out, zero when there is none
+	MovedTo             string    // the address the site moved to for good, once it is sure enough to suggest; empty for none
 	Proxy               string    // "" follows the global fetch proxy, ProxyDirect connects without one, else the proxy's address
 	ProxyAuthSet        bool      // whether a user name or password is stored for Proxy; they are never read back
 	UnreadCount         int
@@ -92,12 +93,13 @@ type SourcePatch struct {
 }
 
 // sourceColumnsHead and sourceColumnsTail surround the unread count, which Source and Sources compute differently.
-const sourceColumnsHead = `
+var sourceColumnsHead = `
 	s.id, s.url, s.rsshub_path, s.title, s.site_url, s.icon_url, s.kind, s.fetch_interval_sec, s.fetch_interval_auto, s.suggested_kind, s.next_fetch_at,
 	s.last_fetched_at, s.last_success_at, s.last_error, s.last_error_kind, s.consecutive_failures, s.prompt_summary, s.prompt_translate,
 	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused, s.keep_days, s.pace_sec, s.extract_selector, s.extract_referer, s.extract_rewrites, s.rsshub_instance,
 	s.proxy, s.proxy_user <> '' OR s.proxy_password <> '',
 	s.websub_hub, CASE WHEN s.websub_state = 'active' THEN s.websub_expires_at END,
+	` + movedShown("s.") + `,
 	`
 
 const sourceColumnsTail = `, s.created_at, s.updated_at`
@@ -394,7 +396,7 @@ func scanSource(row interface{ Scan(...any) error }) (Source, error) {
 	var fetched, success, websubUntil sql.NullInt64
 	if err := row.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Title, &src.SiteURL, &src.IconURL, &src.Kind, &interval,
 		&src.FetchIntervalAuto, &src.SuggestedKind, &next, &fetched, &success, &src.LastError, &src.LastErrorKind, &src.ConsecutiveFailures, &src.PromptSummary, &src.PromptTranslate,
-		&src.AutoSummary, &src.AutoTranslate, &src.MuteKeywords, &src.Paused, &src.KeepDays, &src.PaceSec, &src.ExtractSelector, &src.ExtractReferer, &src.ExtractRewrites, &src.RSSHubInstance, &src.Proxy, &src.ProxyAuthSet, &src.WebSubHub, &websubUntil, &src.UnreadCount, &created, &updated); err != nil {
+		&src.AutoSummary, &src.AutoTranslate, &src.MuteKeywords, &src.Paused, &src.KeepDays, &src.PaceSec, &src.ExtractSelector, &src.ExtractReferer, &src.ExtractRewrites, &src.RSSHubInstance, &src.Proxy, &src.ProxyAuthSet, &src.WebSubHub, &websubUntil, &src.MovedTo, &src.UnreadCount, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Source{}, ErrNotFound
 		}

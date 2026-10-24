@@ -22,6 +22,7 @@ const (
 const (
 	HealthDead       = "dead"
 	HealthFailing    = "failing"
+	HealthMoved      = "moved"
 	HealthRarelyRead = "rarelyRead"
 
 	HealthCauseFailing = "failing"
@@ -36,25 +37,27 @@ type SourceHealth struct {
 	Title               string
 	IconURL             string
 	Kind                string
-	State               string // HealthDead, HealthFailing or HealthRarelyRead
+	State               string // HealthDead, HealthFailing, HealthMoved or HealthRarelyRead
 	Cause               string // for HealthDead, HealthCauseFailing or HealthCauseSilent; empty otherwise
 	Days                int    // how many whole days the reason has held
 	ConsecutiveFailures int
 	LastError           string
-	Recent              int // entries that arrived in the last HealthWindowDays, muted ones left out
+	MovedTo             string // for HealthMoved, the address the site moved to
+	Recent              int    // entries that arrived in the last HealthWindowDays, muted ones left out
 	RecentRead          int
 	RecentStarred       int
 }
 
 const day = 24 * time.Hour
 
-// SourcesHealth returns the sources that are dead, failing or rarely read at now, worst first and by title within a
+// SourcesHealth returns the sources that are dead, failing, moved or rarely read at now, worst first and by title within a
 // state. Paused sources are left out. Three queries (the sources, the newest entry of each, the last window's counts
 // of each) are merged here, so there is no subquery per source.
 func (s *Store) SourcesHealth(ctx context.Context, now time.Time) ([]SourceHealth, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, url, rsshub_path, title, icon_url, kind, created_at, last_success_at, consecutive_failures, last_error
-		FROM sources WHERE paused = 0 AND deleted_at IS NULL`)
+		SELECT id, url, rsshub_path, title, icon_url, kind, created_at, last_success_at, consecutive_failures, last_error,
+			CASE WHEN moved_seen >= ?1 THEN moved_url ELSE '' END
+		FROM sources WHERE paused = 0 AND deleted_at IS NULL`, MovedSeenNeeded)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +72,7 @@ func (s *Store) SourcesHealth(ctx context.Context, now time.Time) ([]SourceHealt
 		var created int64
 		var success sql.NullInt64
 		if err := rows.Scan(&c.ID, &c.URL, &c.RSSHubPath, &c.Title, &c.IconURL, &c.Kind, &created, &success,
-			&c.ConsecutiveFailures, &c.LastError); err != nil {
+			&c.ConsecutiveFailures, &c.LastError, &c.MovedTo); err != nil {
 			return nil, err
 		}
 		c.created = time.UnixMilli(created)
@@ -150,15 +153,20 @@ func (s *Store) SourcesHealth(ctx context.Context, now time.Time) ([]SourceHealt
 			h.State, h.Cause, h.Days = HealthDead, HealthCauseSilent, wholeDays(lastEntry)
 		case failing:
 			h.State = HealthFailing
+		case h.MovedTo != "":
+			h.State = HealthMoved
 		case wholeDays(c.created) >= HealthWindowDays && h.Recent >= healthMinRecent && h.RecentRead*100 < h.Recent*healthReadPercentMax:
 			h.State, h.Days = HealthRarelyRead, HealthWindowDays
 		default:
 			continue
 		}
+		if h.State != HealthMoved {
+			h.MovedTo = ""
+		}
 		flagged = append(flagged, h)
 	}
 
-	rank := map[string]int{HealthDead: 0, HealthFailing: 1, HealthRarelyRead: 2}
+	rank := map[string]int{HealthDead: 0, HealthFailing: 1, HealthMoved: 2, HealthRarelyRead: 3}
 	name := func(h SourceHealth) string {
 		switch {
 		case h.Title != "":

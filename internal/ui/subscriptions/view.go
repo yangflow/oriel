@@ -50,6 +50,8 @@ type copy struct {
 	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                                                              string
 	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                                             string
 	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                                          string
+	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                                                     string
+	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                                             string
 }
 
 var translations = func() map[string]copy {
@@ -81,6 +83,8 @@ type API interface {
 	RestoreSource(ctx context.Context, id int64) (client.Source, error)
 	RefreshSource(ctx context.Context, id int64) error
 	SourcesHealth(ctx context.Context) (client.Health, error)
+	MoveSource(ctx context.Context, id int64, movedTo string) (client.Source, error)
+	DismissMove(ctx context.Context, id int64, movedTo string) (client.Source, error)
 	MutedCount(ctx context.Context, id int64, keywords string) (int, error)
 	Settings(ctx context.Context) (client.Settings, error)
 	SetSettings(ctx context.Context, patch client.SettingsPatch) (client.Settings, error)
@@ -200,6 +204,7 @@ type editing struct {
 	aiOff    bool      // the settings have no AI endpoint, so the switches do nothing yet
 	primary  string    // the first RSSHub instance of the settings, "" until they are loaded
 	formErr  string
+	movedErr string // why the move could not be taken, shown in the moved card
 	busy     bool
 	focus    bool
 }
@@ -771,6 +776,77 @@ func (s *Screen) SetPaused(src client.Source, paused bool) {
 				s.gone(src.ID)
 			default:
 				s.toast = s.text.ActionFailed
+			}
+		}
+	})
+}
+
+// moveSource takes the new address the server suggests for src. In the edit dialog a refusal shows in the moved card;
+// in the health list, as a toast.
+func (s *Screen) moveSource(src client.Source, movedTo string) { s.actOnMove(src, movedTo, true) }
+
+// dismissMove drops the suggestion to move src to movedTo.
+func (s *Screen) dismissMove(src client.Source, movedTo string) { s.actOnMove(src, movedTo, false) }
+
+func (s *Screen) actOnMove(src client.Source, movedTo string, accept bool) {
+	if s.api == nil {
+		return
+	}
+	s.edit.movedErr = ""
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		var changed client.Source
+		var err error
+		if accept {
+			changed, err = api.MoveSource(context.Background(), src.ID, movedTo)
+		} else {
+			changed, err = api.DismissMove(context.Background(), src.ID, movedTo)
+		}
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			inDialog := s.edit.open && s.edit.src.ID == src.ID
+			switch {
+			case err == nil:
+				s.deps.Changed(changed)
+				s.dropHealth(src.ID)
+				if inDialog {
+					s.edit.src = changed
+				}
+				s.announce = s.text.MovedDismissed
+				if accept {
+					s.toast = s.text.MovedDone
+					s.announce = ""
+				}
+			case code(err) == "source_exists":
+				line := s.text.MovedExistsUnknown
+				var apiErr *client.APIError
+				errors.As(err, &apiErr)
+				if apiErr != nil && apiErr.SourceID != 0 {
+					for _, known := range s.deps.Sources() {
+						if known.ID == apiErr.SourceID {
+							line = s.fill(s.text.MovedExists, Name(known))
+						}
+					}
+				}
+				if inDialog {
+					s.edit.movedErr, s.announce = line, line
+				} else {
+					s.toast = line
+				}
+			case code(err) == "move_changed":
+				s.toast = s.text.MovedChanged
+				if inDialog {
+					s.edit.src.MovedTo = "" // the next sources the timeline loads bring the new suggestion
+				}
+				if s.report.open {
+					s.loadHealth()
+				}
+			case code(err) == "not_found":
+				s.gone(src.ID)
+			default:
+				s.toast = s.problem(err)
 			}
 		}
 	})
@@ -1727,6 +1803,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 	}, func() {
 		s.health(c)
 		s.servedBy(c)
+		s.movedCard(c)
 		focus := e.focus
 		e.focus = false
 		s.pair(c, func() {
@@ -1806,6 +1883,41 @@ func (s *Screen) servedBy(c *ui.Context) {
 	if hint != "" {
 		help(c, hint)
 	}
+}
+
+// movedCard offers the address the site moved the feed to for good, once the server has seen it three times in a row.
+// Neither button is part of Save.
+func (s *Screen) movedCard(c *ui.Context) {
+	src := s.edit.src
+	if src.MovedTo == "" {
+		return
+	}
+	t := c.Theme()
+	ui.Column(c).FillWidth().Gap(t.Space(2)).Padding(theme.Px(t, 10), theme.Px(t, 12)).Radius(t.Radius).
+		Background(t.Surface).Role(ui.RoleStatus).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Children(func() {
+			ui.Icon(c, icons.Signpost).FontSize(theme.IconSmall(t)).TextColor(t.Accent).Margin(2, 0, 0, 0)
+			ui.Text(c, s.text.Moved).FontSize(theme.Px(t, 12)).FontWeight(500).Shrink(1).Wrap()
+		})
+		ui.Column(c).FillWidth().Selectable().Children(func() {
+			ui.Text(c, src.MovedTo).Font("monospace").FontSize(theme.Px(t, 12)).Wrap()
+		})
+		if s.edit.movedErr != "" {
+			errorLine(c, s.edit.movedErr, "")
+		}
+		ui.Row(c).Gap(t.Space(2)).Children(func() {
+			update := theme.Button{Small: true, Style: theme.Primary, Text: s.text.MovedUpdate,
+				Label: s.fill(s.text.MovedUpdateSource, Name(src))}.Draw(c)
+			if update.Clicked() {
+				s.moveSource(src, src.MovedTo)
+			}
+			dismiss := theme.Button{Small: true, Style: theme.Secondary, Text: s.text.MovedDismiss,
+				Label: s.fill(s.text.MovedDismissSource, Name(src))}.Draw(c)
+			if dismiss.Clicked() {
+				s.dismissMove(src, src.MovedTo)
+			}
+		})
+	})
 }
 
 func (s *Screen) health(c *ui.Context) {
@@ -1991,6 +2103,8 @@ func healthSource(h client.SourceHealth) client.Source {
 // healthReason says why h is listed, with the last error when the fetch is what fails.
 func (s *Screen) healthReason(h client.SourceHealth) string {
 	switch {
+	case h.State == client.HealthMoved:
+		return strings.ReplaceAll(s.text.HealthMoved, "{to}", h.MovedTo)
 	case h.State == client.HealthRarelyRead:
 		text := locale.Count(s.count(s.text.HealthRare, h.Recent), "days", s.report.days)
 		return strings.ReplaceAll(text, "{read}", strconv.Itoa(h.RecentRead))
@@ -2068,6 +2182,8 @@ func (s *Screen) healthRow(c *ui.Context, h client.SourceHealth) {
 	switch h.State {
 	case client.HealthRarelyRead:
 		icon, color = icons.Eye, t.TextMuted
+	case client.HealthMoved:
+		icon, color = icons.Signpost, t.TextMuted
 	case client.HealthFailing:
 		icon = icons.TriangleAlert
 	}
@@ -2087,6 +2203,18 @@ func (s *Screen) healthRow(c *ui.Context, h client.SourceHealth) {
 			ui.Text(c, s.healthNumbers(h)).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine()
 		})
 		ui.Row(c).Gap(t.Space(1)).Children(func() {
+			if h.State == client.HealthMoved {
+				update := theme.Button{Small: true, Text: s.text.MovedUpdate, Label: s.fill(s.text.MovedUpdateSource, name)}.Draw(c)
+				if update.Clicked() {
+					s.moveSource(src, h.MovedTo)
+				}
+				dismiss := theme.Button{Style: theme.Plain, Small: true, Text: s.text.MovedDismiss,
+					Label: s.fill(s.text.MovedDismissSource, name)}.Draw(c)
+				if dismiss.Clicked() {
+					s.dismissMove(src, h.MovedTo)
+				}
+				return
+			}
 			pause := theme.Button{Small: true, Icon: icons.Pause, Text: s.text.Pause,
 				Label: s.fill(s.text.PauseSource, name)}.Draw(c)
 			if pause.Clicked() {

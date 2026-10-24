@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -376,5 +377,79 @@ func TestCreateSourceEdges(t *testing.T) {
 	// An rsshub path is saved trimmed; the same path again is a duplicate.
 	if w := do(s, "POST", "/api/sources", `{"rsshubPath":"/x/y","kind":"image"}`, nil); w.Code != http.StatusConflict {
 		t.Errorf("duplicate rsshub path: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestMoveSuggestionRoutes(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	old := decode(t, do(s, "POST", "/api/sources", `{"url":"http://blog.example.org/feed","kind":"article","title":"Blog"}`, bearer(token)))
+	id := strconv.Itoa(int(old["id"].(float64)))
+	taken := decode(t, do(s, "POST", "/api/sources", `{"url":"https://elsewhere.example.org/feed","kind":"article"}`, bearer(token)))
+	suggest := func(to string) {
+		t.Helper()
+		for range store.MovedSeenNeeded {
+			if err := s.store.NoteRedirect(ctx, int64(old["id"].(float64)), to, c.t); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	const target = "https://blog.example.org/feed.atom"
+	body := `{"url":"` + target + `"}`
+
+	if w := do(s, "POST", "/api/sources/"+id+"/move", "", nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without session: %d", w.Code)
+	}
+	if w := do(s, "POST", "/api/sources/"+id+"/move", body, bearer(token)); w.Code != http.StatusConflict || decode(t, w)["error"] != "move_changed" {
+		t.Fatalf("no suggestion: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "POST", "/api/sources/"+id+"/dismiss-move", body, bearer(token)); w.Code != http.StatusConflict || decode(t, w)["error"] != "move_changed" {
+		t.Fatalf("dismiss with no suggestion: %d %s", w.Code, w.Body)
+	}
+	if w := do(s, "POST", "/api/sources/999/move", body, bearer(token)); w.Code != http.StatusNotFound {
+		t.Fatalf("unknown source: %d %s", w.Code, w.Body)
+	}
+
+	suggest(target)
+	list := decode(t, do(s, "GET", "/api/sources", "", bearer(token)))["sources"].([]any)
+	var listed map[string]any
+	for _, item := range list {
+		if item.(map[string]any)["title"] == "Blog" {
+			listed = item.(map[string]any)
+		}
+	}
+	if listed["movedTo"] != target {
+		t.Fatalf("listed %v", listed)
+	}
+	health := decode(t, do(s, "GET", "/api/sources/health", "", bearer(token)))["sources"].([]any)
+	if len(health) != 1 || health[0].(map[string]any)["state"] != "moved" || health[0].(map[string]any)["movedTo"] != target {
+		t.Fatalf("health %v", health)
+	}
+
+	if w := do(s, "POST", "/api/sources/"+id+"/move", `{"url":"https://other.example.org/feed"}`, bearer(token)); w.Code != http.StatusConflict || decode(t, w)["error"] != "move_changed" {
+		t.Fatalf("another address: %d %s", w.Code, w.Body)
+	}
+	dismissed := do(s, "POST", "/api/sources/"+id+"/dismiss-move", body, bearer(token))
+	if got := decode(t, dismissed); dismissed.Code != http.StatusOK || got["movedTo"] != nil && got["movedTo"] != "" {
+		t.Fatalf("dismiss: %d %s", dismissed.Code, dismissed.Body)
+	}
+	if health := decode(t, do(s, "GET", "/api/sources/health", "", bearer(token)))["sources"].([]any); len(health) != 0 {
+		t.Fatalf("dismissed source still in health: %v", health)
+	}
+
+	// An address the user already subscribes to is refused, naming that source.
+	suggest("https://elsewhere.example.org/feed")
+	w := do(s, "POST", "/api/sources/"+id+"/move", `{"url":"https://elsewhere.example.org/feed"}`, bearer(token))
+	if got := decode(t, w); w.Code != http.StatusConflict || got["error"] != "source_exists" || got["sourceId"] != taken["id"] {
+		t.Fatalf("taken: %d %s", w.Code, w.Body)
+	}
+
+	// The dismissed address is not suggested again; a different one is.
+	const target2 = "https://blog.example.org/atom.xml"
+	suggest(target2)
+	w = do(s, "POST", "/api/sources/"+id+"/move", `{"url":"`+target2+`"}`, bearer(token))
+	if got := decode(t, w); w.Code != http.StatusOK || got["url"] != target2 || got["movedTo"] != nil && got["movedTo"] != "" || got["title"] != "Blog" {
+		t.Fatalf("accept: %d %s", w.Code, w.Body)
 	}
 }

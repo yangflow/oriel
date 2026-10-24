@@ -725,3 +725,49 @@ func TestRSSHubHealth(t *testing.T) {
 		t.Errorf("b = %+v", b)
 	}
 }
+
+func TestMoveSuggestionAPI(t *testing.T) {
+	ctx := context.Background()
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		seen = append(seen, r.Method+" "+r.URL.Path+" "+string(body))
+		switch {
+		case strings.Contains(string(body), "taken"):
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(`{"error":"source_exists","sourceId":9}`))
+		case strings.Contains(string(body), "stale"):
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(`{"error":"move_changed"}`))
+		case r.URL.Path == "/api/sources/4/move":
+			w.Write([]byte(`{"id":4,"url":"https://b.example/feed.atom","kind":"article"}`))
+		default:
+			w.Write([]byte(`{"id":4,"url":"http://b.example/feed","kind":"article"}`))
+		}
+	}))
+	defer srv.Close()
+	session := Session{Server: srv.URL, Token: "t1"}
+
+	if src, err := session.MoveSource(ctx, 4, "https://b.example/feed.atom"); err != nil || src.URL != "https://b.example/feed.atom" || src.MovedTo != "" {
+		t.Errorf("MoveSource = %+v, %v", src, err)
+	}
+	if src, err := session.DismissMove(ctx, 4, "https://b.example/feed.atom"); err != nil || src.MovedTo != "" {
+		t.Errorf("DismissMove = %+v, %v", src, err)
+	}
+	var apiErr *APIError
+	if _, err := session.MoveSource(ctx, 4, "taken"); !errors.As(err, &apiErr) || apiErr.Code != "source_exists" || apiErr.SourceID != 9 {
+		t.Errorf("MoveSource taken: %v", err)
+	}
+	if _, err := session.DismissMove(ctx, 4, "stale"); !errors.As(err, &apiErr) || apiErr.Code != "move_changed" {
+		t.Errorf("DismissMove stale: %v", err)
+	}
+	want := []string{
+		`POST /api/sources/4/move {"url":"https://b.example/feed.atom"}`,
+		`POST /api/sources/4/dismiss-move {"url":"https://b.example/feed.atom"}`,
+		`POST /api/sources/4/move {"url":"taken"}`,
+		`POST /api/sources/4/dismiss-move {"url":"stale"}`,
+	}
+	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
+		t.Errorf("requests %q", seen)
+	}
+}

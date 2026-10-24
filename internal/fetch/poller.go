@@ -661,6 +661,7 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 	if err != nil {
 		return 0, err
 	}
+	client, permanent := watchRedirects(client)
 	sent := p.now()
 	resp, err := client.Do(req)
 	if err != nil {
@@ -670,6 +671,10 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 	if took, ok := ctx.Value(headersKey{}).(*time.Duration); ok {
 		*took = p.now().Sub(sent)
 	}
+	moved := ""
+	if instance == "" && src.RSSHubPath == "" {
+		moved = movedAddress(src.URL, resp, *permanent)
+	}
 	if status, ok := ctx.Value(statusKey{}).(*int); ok {
 		*status = resp.StatusCode
 	}
@@ -677,6 +682,9 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 	now := p.now()
 	switch {
 	case resp.StatusCode == http.StatusNotModified:
+		if err := p.store.NoteFetchRedirect(ctx, src, moved, now); err != nil {
+			return 0, err
+		}
 		return 0, p.recordSuccess(ctx, src, etag, lastModified, instance, now)
 	case resp.StatusCode < 200 || resp.StatusCode > 299:
 		err := statusError(resp, src)
@@ -722,7 +730,12 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 	if err != nil {
 		return 0, err
 	}
-	if src.IconURL == "" {
+	switch {
+	case feed.iconURL != "" && feed.iconURL != src.IconURL:
+		if err := p.store.SetFeedIcon(ctx, src.ID, feed.iconURL); err != nil {
+			return 0, err
+		}
+	case src.IconURL == "":
 		if err := p.fillIcon(ctx, src, feed); err != nil {
 			return 0, err
 		}
@@ -731,6 +744,9 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 		if err := p.store.SuggestKind(ctx, src.ID, SuggestKind(feed.entries, src.Kind)); err != nil {
 			return 0, err
 		}
+	}
+	if err := p.store.NoteFetchRedirect(ctx, src, moved, now); err != nil {
+		return 0, err
 	}
 	return created, p.recordSuccess(ctx, src, etag, lastModified, instance, now)
 }

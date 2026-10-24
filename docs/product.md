@@ -177,6 +177,8 @@ WantedBy=multi-user.target
 | `fetch_interval_sec` | 现在用的抓取间隔（秒）。`fetch_interval_auto` 为 0 时是用户定的固定值；为 1 时是上一次成功抓取后算出的自动间隔，没算过时是 900。 |
 | `fetch_interval_auto` | 0 或 1，新订阅默认 1：间隔「自动」，见「抓取」。迁移 0010 加这一列：`fetch_interval_sec` 恰好是 900（旧的默认值）的源改成 1，别的保持 0。 |
 | `suggested_kind` | 第一次成功抓取后，服务端觉得订阅更像哪种形态（`video` 或 `image`），空串表示没有建议。只是建议，不会自己改 `kind`。迁移 0010 加这一列。 |
+| `moved_url`、`moved_seen`、`moved_dismissed` | 订阅地址被永久重定向（301、308）的记录，见「抓取」的「永久重定向」：`moved_url` 是连续落到的新地址，空串表示没有；`moved_seen` 是已经连续几次落在它上面；`moved_dismissed` 是用户忽略过的新地址，空串表示没有。迁移 0026 加这三列，默认空串、0、空串。 |
+| `feed_title` | 标题上次是从订阅里取来的那个值，用来分辨标题是用户改过的还是一直跟着订阅走的，见「抓取」第 9 条。默认空串，迁移 0026 加这一列。 |
 | `next_fetch_at` | 到期时间。「更新」和「全部更新」只把它改成现在，不在请求里抓。 |
 | `prompt_summary`、`prompt_translate` | 覆盖全局 prompt，空就用全局的。 |
 | `auto_summary`、`auto_translate` | 按源开关，默认关。没有全局开关。 |
@@ -194,13 +196,14 @@ WantedBy=multi-user.target
 
 ### 订阅健康
 
-把没在认真订阅的源挑出来，让用户自己决定暂停还是退订。只看没暂停的源（暂停是用户已经做过的决定），每个源最多落在一种状态里，从重到轻依次判断：
+把没在认真订阅的源挑出来，让用户自己决定暂停还是退订。只看没暂停的源（暂停是用户已经做过的决定），每个源最多落在一种状态里，从重到轻依次判断（已失效、总在失败、已搬家、很少读）：
 
 | 状态 | 原因 `cause` | 条件 |
 |---|---|---|
 | 已失效 `dead` | `failing`：一直失败 | 连续失败至少 3 次，且距离上次成功抓取（从没成功过则距离订阅时间）已满 30 天。 |
 | 已失效 `dead` | `silent`：没有新内容 | 距离最新一条条目的写入时间（`created_at`；源里还没有条目则距离订阅时间）已满 90 天。两个原因都成立时记为 `failing`。 |
 | 总在失败 `failing` | 无 | 连续失败至少 3 次，还没到失效。 |
+| 已搬家 `moved` | 无 | 有等着用户决定的地址建议（`moved_url` 不为空，见「抓取」的「永久重定向」）。不是问题，是一个能一键办完的整理：这一行的动作是「更新地址」和「忽略」，不是「暂停」和「退订…」。 |
 | 很少读 `rarelyRead` | 无 | 订阅已满 30 天，近 30 天写入的条目至少 10 条，其中已读的不到 10%。 |
 
 - 天数按 24 小时算，`days` 是这个原因已经持续了多少整天：失败和没有新内容是上面各自的间隔，很少读是 30（统计窗口）。
@@ -410,8 +413,18 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
 6. 已有的条目只在内容变了时更新，`updated_at` 也只在这时改；已读和收藏不动。
 7. 文章形态的新条目 `extract_status` 为 `pending`，其他形态为 `skipped`。
 8. Discourse 论坛帖子里引用别人的 `<aside class="quote">` 去掉，免得回帖把别人的话当成自己的正文。
-9. 源的标题和站点地址为空时，用订阅里的补上，不覆盖用户改过的。
-10. 源的图标（`icon_url`）为空时找一次：先用订阅里带的图（RSS 的 `<image><url>`、Atom 的 `<icon>` 或 `<logo>`、JSON Feed 的 `icon`），没有就取站点地址的首页，读 `<link rel="apple-touch-icon">` 和 `<link rel="icon">`，apple-touch-icon 优先，其次 PNG，SVG 和 ICO 不要。首页按「正文抽取」的规则取（只连公网地址，经同一个受限客户端）。找不到就留空，站点地址变了之前不再找。
+9. 源的标题和站点地址为空时，用订阅里的补上。标题还会跟着订阅变：每次成功解析（304 不算）订阅里的标题不为空时，只要源的标题等于 `feed_title`（上次从订阅里取来的值，说明用户没改过），就把标题和 `feed_title` 一起改成订阅里现在的；用户在编辑对话框里改过标题（标题不等于 `feed_title`）的不动，订阅里的标题再变也不动。标题改成空串仍是「交还给订阅」：下次抓取补上订阅里的，之后又跟着变。升级前就有的源 `feed_title` 是空串：下一次成功解析时，源的标题恰好等于订阅里的标题就记下它（以后跟随），不等就当作用户改过，保持原样，也不记。站点地址只在为空时补，不跟随。
+10. 源的图标（`icon_url`）为空时找一次：先用订阅里带的图（RSS 的 `<image><url>`、Atom 的 `<icon>` 或 `<logo>`、JSON Feed 的 `icon`），没有就取站点地址的首页，读 `<link rel="apple-touch-icon">` 和 `<link rel="icon">`，apple-touch-icon 优先，其次 PNG，SVG 和 ICO 不要。首页按「正文抽取」的规则取（只连公网地址，经同一个受限客户端）。找不到就留空，站点地址变了之前不再找。订阅自己带的图（上面「先用订阅里带的图」那几种）还会跟着变：每次成功解析时订阅带了图、并且地址和 `icon_url` 不同，就改成新的；订阅没带图时不动（不会因为订阅不再带图就清空，也不会重新去首页找）。图标不是用户能设的，所以没有「手动改过」要避开。
+
+**永久重定向。** 站点把订阅永久搬走时，Oriel 一直跟着重定向，库里的仍是旧地址：多一跳，旧地址哪天失效就开始失败。服务端记下来，建议用户更新地址，但从不自己改。
+
+- 只看用户填的订阅地址（普通源，包括完整的 RSSHub 地址；只存路由的 RSSHub 源没有订阅地址，换实例走设置）。地址里带用户名或密码的源不建议：新地址不会带凭据，改过去会让抓取失败。
+- 算数的是一次成功的抓取（2xx，304 也算）。这次请求从订阅地址一路到终点，每一跳的状态都是 301 或 308 才算永久；有任何一跳是 302、303、307 或别的状态，就不算。终点和订阅地址不是同一个地址（逐字比较，去掉 `#` 片段；所以 `http` 变 `https`、加或去 `www.` 都算搬家，虽然「源」一节的重复比较把它们当成同一个）。新地址可以在别的主机上。跳数的上限和每一跳的 SSRF 检查不变（重定向最多 5 次，从公网跳到本机或内网会被拒绝，见「代理」）：抓取没有成功，就不会有建议，所以新地址一定是通过了同一个受限客户端的。
+- 连续 3 次抓取成功、都是永久重定向、都落在同一个新地址，才给建议。每次这样的抓取：终点等于 `moved_url` 时 `moved_seen` 加一，否则 `moved_url` 改成这个终点、`moved_seen` 记 1。抓取成功但没有重定向、或不是永久的，`moved_url` 清空、`moved_seen` 归零（旧地址又直接答了，之前的建议作废）。失败的抓取（含 5xx、超时）不动这几个字段。
+- 终点等于 `moved_dismissed`（用户忽略过的）时不记，也不给建议；终点是另一个地址时照常记。`moved_seen` 到 3 且 `moved_url` 不为空，源的 `movedTo` 就是 `moved_url`，否则是空串。
+- 接受（`POST /api/sources/{id}/move`）：把 `url` 换成 `movedTo`，清掉 `etag` 和 `last_modified`（它们属于旧地址），清空 `moved_*` 三列的建议，`next_fetch_at` 改成现在。条目、已读和收藏不动：条目按 `(source_id, guid)` 对应，源的编号没变，新地址上的同一批条目认作原来那些。新地址和另一个订阅按「源」一节的规则算重复（或数据库唯一索引拦下）时不改，返回 409 `source_exists` 和那个订阅的编号，建议留着：用户要退订其中一个。
+- 忽略（`POST /api/sources/{id}/dismiss-move`）：`moved_dismissed` 记下 `moved_url`，`moved_url` 清空、`moved_seen` 归零。以后这个地址不再提；站点又搬去别的地址，会重新数 3 次。
+- 两个接口的请求体都是 `{ "url": "<界面上看到的新地址>" }`，和现在的 `movedTo` 不一致（建议已经变了或没了）时返回 409 `move_changed`，不改任何东西，免得用户按下的是一个过期的地址。
 
 新增订阅（`POST /api/sources`）马上到期。导入 OPML 时，新增的源把第一次抓取摊开：每个源的 `next_fetch_at` 是导入时刻加一个随机延迟，延迟在 `[0, min(10 分钟, 2 秒 × 本次导入的条数))` 内，所以几百个源不会同时到期；只导入一两个时最多等几秒。
 
@@ -670,7 +683,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 
 ## 订阅接口
 
-都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`lastErrorKind`（上次失败的稳定代码，`blocked`、`gone` 或空串，见「抓取」）、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见「正文抽取」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`proxy`（`direct`、代理地址，或空串即跟随全局，见「抓取」的「代理」）、`proxyAuthSet`（这个源是否存了代理的用户名和密码；用户名和密码不下发）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
+都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`lastErrorKind`（上次失败的稳定代码，`blocked`、`gone` 或空串，见「抓取」）、`movedTo`（站点永久搬走的新地址，等用户决定；没有建议为空串，见「抓取」的「永久重定向」）、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见「节奏」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见「正文抽取」）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`proxy`（`direct`、代理地址，或空串即跟随全局，见「抓取」的「代理」）、`proxyAuthSet`（这个源是否存了代理的用户名和密码；用户名和密码不下发）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
 
 | 路由 | 作用 |
 |---|---|
@@ -685,9 +698,11 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 | `GET /api/discover?url=<地址>` | 订阅发现（见「订阅发现」）：返回 `{ "candidates": [...] }`，没找到为空数组。每项：`url`（订阅地址，路由候选为空串）、`rsshubPath`（RSSHub 路由，普通订阅为空串）、`title`（页面或订阅给的标题，可为空）、`kind`（建议的形态，可为空）、`origin`（`rule`、`feed`、`alternate`、`common`）、`subscribedId`（已经订阅了同一个订阅的那个订阅的编号，按「源」一节的规则比较，没有为 `0`）；`origin` 为 `rule` 时还有 `site`（`youtube`、`bilibili`、`weibo`、`zhihu`、`x`）、`label`（`videos`、`dynamic`、`posts`、`activities`、`answers`、`column`、`topic`、`collection`、`question`、`channel`、`playlist`）和 `subject`（用户名、编号或话题名），界面据此按语言拼出名字。不写库。 |
 | `GET /api/routes?q=<链接或名字>&refresh=1` | RSSHub 路由查找（见「RSSHub 路由查找」）：返回 `{ "available": 目录是否读得出, "instance": 读目录的实例根地址（没有为空串）, "total": 匹配总数, "routes": [...] }`，`available` 为 `false` 或没有匹配时 `routes` 为空数组。每项：`path`（路由模板，例如 `/github/issue/:user/:repo`）、`name`、`namespace`（命名空间的键）、`namespaceName`、`example`（可为空）、`parameters`（按出现顺序的 `{ name, description, optional }`）和 `values`（从链接取到的参数值，可为空对象）。`refresh=1` 重读目录。`q` 为空时 400 `invalid_query`。不写库。 |
 | `GET /api/routes/preview?path=<路由>` | 预览一条填好参数的路由：返回 `{ "instance": 答了的实例根地址, "title": 订阅标题, "entries": [{ "title", "url", "publishedAt" }] }`，最多 5 条，`publishedAt` 是毫秒时间戳或 `null`。`path` 不以 `/` 开头或以 `//` 开头时 400 `invalid_rsshub_path`；没设实例 422 `no_rsshub_instance`；实例答 404 时 502 `route_not_found`；连不上或别的状态码 502 `route_unavailable`；答的内容不是订阅 502 `not_a_feed`。不写库。 |
+| `POST /api/sources/{id}/move` | 接受搬家建议：把订阅地址改成 `movedTo`，返回改后的源。请求体 `{ "url": ... }` 必须等于现在的 `movedTo`，否则 409 `move_changed`；没有建议时也是 `move_changed`；新地址已是另一个订阅时 409 `source_exists`（带 `sourceId`）。见「抓取」的「永久重定向」。 |
+| `POST /api/sources/{id}/dismiss-move` | 忽略搬家建议：返回改后的源（`movedTo` 为空串）。请求体和错误同上，除了没有 `source_exists`。 |
 | `GET /api/sources/health` | 订阅健康（见「订阅健康」）：只返回有问题的源，不带别的源。按需请求，不轮询，也不参与 `GET /api/sources` 的刷新。 |
 
-`GET /api/sources/health` 返回 `{ "windowDays": 30, "sources": [...] }`。每项：`id`、`url`、`rsshubPath`、`title`、`iconUrl`、`kind`、`state`（`dead`、`failing`、`rarelyRead`）、`cause`（`state` 为 `dead` 时是 `failing` 或 `silent`，其余为空串）、`days`（见「订阅健康」）、`consecutiveFailures`、`lastError`，以及窗口内的 `recent`（写入条数）、`recentRead`、`recentStarred`。顺序：已失效、总在失败、很少读；同一档里按标题（空标题用地址）不分大小写排序。没有问题时 `sources` 是空数组。
+`GET /api/sources/health` 返回 `{ "windowDays": 30, "sources": [...] }`。每项：`id`、`url`、`rsshubPath`、`title`、`iconUrl`、`kind`、`state`（`dead`、`failing`、`moved`、`rarelyRead`）、`cause`（`state` 为 `dead` 时是 `failing` 或 `silent`，其余为空串）、`days`（见「订阅健康」）、`consecutiveFailures`、`lastError`、`movedTo`（只在 `state` 为 `moved` 时有，其余为空串），以及窗口内的 `recent`（写入条数）、`recentRead`、`recentStarred`。顺序：已失效、总在失败、已搬家、很少读；同一档里按标题（空标题用地址）不分大小写排序。没有问题时 `sources` 是空数组。
 
 添加时的字段：`url` 和 `rsshubPath` 恰好给一个，`kind` 必填，`title`、`fetchIntervalSec`、`fetchIntervalAuto` 和 `allowDuplicate` 可选。标题去掉首尾空白。
 
@@ -698,7 +713,7 @@ X 的站内页面（见「订阅管理」）不算用户名。规则给出的路
 - `fetchIntervalSec` 是 60 到 604800（7 天）的整数，否则 `invalid_interval`。给了它就是固定间隔；`fetchIntervalAuto` 是布尔值，缺省为 `true`，即两个都不给时间隔「自动」，起点 900。`fetchIntervalAuto` 为 `true` 又给了 `fetchIntervalSec`，返回 `invalid_interval`。
 - 同一订阅已经有了（订阅地址按「源」一节规范化后比较：末尾多一个 `/`、主机名大小写、默认端口、`http` 对 `https`、`www.`、跟踪参数、查询参数的顺序不同，或同一个上游走了 RSSHub 路由和普通地址两条路，都算已有），返回 409，`{ "error": "source_exists", "sourceId": 已有的那个订阅的编号 }`；有几个重复时取最早的。`allowDuplicate` 为 `true` 时不做这个比较，照样添加（用户看了提示仍要加第二个）；写法完全相同的地址仍然加不了，也是 409 `source_exists`。
 
-能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`、`extractSelector`、`extractReferer`、`extractRewrites`、`proxy`、`proxyUser`、`proxyPassword`。订阅地址不能改，要换就删了重加。
+能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`、`extractSelector`、`extractReferer`、`extractRewrites`、`proxy`、`proxyUser`、`proxyPassword`。订阅地址不能用 `PATCH` 改：换地址只有一条路，接受服务端的搬家建议（`POST /api/sources/{id}/move`，见「抓取」的「永久重定向」）；别的换地址要删了重加。
 
 - `keepDays` 是 -1 到 3650 的整数，否则 `invalid_keep_days`。
 - `paceSec` 是 `0` 或 3600 到 2592000 的整数，否则 `invalid_pace`。
@@ -1526,7 +1541,7 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 
 本地识别只认上表；知乎、B 站动态等见「订阅发现」的规则表，由服务端给出。X 的 `home`、`i`、`search`、`explore`、`settings`、`messages`、`notifications` 等站内页面不算用户名。路径以 `.atom`、`.rss`、`.xml` 结尾的本来就是订阅，不再转换。别的地址原样当订阅地址。
 
-修改：右键菜单的「编辑…」或工具栏的编辑按钮打开编辑对话框。最上面一行是抓取状况：「5 分钟前检查过 · 10 分钟后再查」，还没抓过时「还没检查过」，失败时「连续失败 N 次：原因」（`blocked` 时的说法见下面的「被拦截的说法」），暂停时「已暂停，恢复之前不抓取」，旁边是「更新」（失败时叫「重试」，暂停时没有）。RSSHub 源在这一行下面多一行小字「由 rsshub.example 提供」（`rsshubInstance` 去掉协议；从没成功抓取过则没有这一行），实例不是设置里的第一个时这行改写成「由备用地址 rsshub.backup.example 提供」，下面再加一行说明「设置 → RSSHub 里的第一个地址没有响应，所以换用了后面的地址。」，看得出现在走的是备用地址。下面是标题、检查间隔（自动的订阅写成「自动 · 6 小时」，后面是现在用的间隔）、形态、「保留条目」、「节奏」、暂停开关和屏蔽词（每行一个，只管这个订阅；全局的屏蔽词在设置的「规则」页，两份一起生效）。「保留条目」和检查间隔是同样的选择菜单：「跟随设置 · 1 个月」（默认，后面是设置里现在的期限，设置是永久时写「永久」）、1 周、1 个月、3 个月、半年、1 年、永久；服务端存的是别的天数时多一项「N 天」；下面一行小字说明「更早的条目会被清理，收藏的条目一直保留。」。「节奏」是同样的选择菜单，在「保留条目」下面：「关」（默认）、「快讯 · 3 小时」「日更 · 2 天」「周更 · 7 天」；服务端存的是别的秒数时多一项「N 小时」或「N 天」；下面一行小字说明「没读的条目超过这个时间就从“全部”和“未读”里退出，渐隐在前；检索、收藏和这个订阅自己的页面里还在。」。第一次抓取后服务端觉得形态不对时，形态下面多一行建议：「这个订阅的条目大多是视频。」带一个按钮「显示为视频」；按下只是在对话框里选了那个形态，点「保存」才生效，不按就什么都不变。「保存」只发改了的字段。订阅地址不能改。最后一组是「摘要和翻译」：「自动生成摘要」「自动翻译」两个开关（只管打开之后新到的条目），和摘要、翻译两个 prompt 框，留空就用设置里的 prompt。没配置 AI 时这一组上面多一行「还没配置 AI，暂时不会生成摘要和翻译」，带「打开设置…」。
+修改：右键菜单的「编辑…」或工具栏的编辑按钮打开编辑对话框。最上面一行是抓取状况：「5 分钟前检查过 · 10 分钟后再查」，还没抓过时「还没检查过」，失败时「连续失败 N 次：原因」（`blocked` 时的说法见下面的「被拦截的说法」），暂停时「已暂停，恢复之前不抓取」，旁边是「更新」（失败时叫「重试」，暂停时没有）。RSSHub 源在这一行下面多一行小字「由 rsshub.example 提供」（`rsshubInstance` 去掉协议；从没成功抓取过则没有这一行），实例不是设置里的第一个时这行改写成「由备用地址 rsshub.backup.example 提供」，下面再加一行说明「设置 → RSSHub 里的第一个地址没有响应，所以换用了后面的地址。」，看得出现在走的是备用地址。`movedTo` 不为空时，再下面是一张搬家卡：「这个订阅已搬到」，下一行是新地址（等宽字体，可选中复制），两个按钮「更新地址」和「忽略」。「更新地址」发 `POST /api/sources/{id}/move`，成功后对话框留着，抓取状况一行、标题下面的地址和卡片都按新的刷新（卡片消失），提示「已更新订阅地址」；新地址已是另一个订阅（409 `source_exists`）时，卡片里按钮上面写「那个地址已经订阅过了，叫“…”。请退订其中一个。」，卡片留着。「忽略」发 `POST /api/sources/{id}/dismiss-move`，卡片消失，读屏播报「已忽略」。建议已经变了或没了（409 `move_changed`）时，按最新的订阅重画，提示「搬家的建议变了，请再看一下」。两个按钮都是立刻生效，和「保存」无关（地址不在表单里，保存不带它）。下面是标题、检查间隔（自动的订阅写成「自动 · 6 小时」，后面是现在用的间隔）、形态、「保留条目」、「节奏」、暂停开关和屏蔽词（每行一个，只管这个订阅；全局的屏蔽词在设置的「规则」页，两份一起生效）。「保留条目」和检查间隔是同样的选择菜单：「跟随设置 · 1 个月」（默认，后面是设置里现在的期限，设置是永久时写「永久」）、1 周、1 个月、3 个月、半年、1 年、永久；服务端存的是别的天数时多一项「N 天」；下面一行小字说明「更早的条目会被清理，收藏的条目一直保留。」。「节奏」是同样的选择菜单，在「保留条目」下面：「关」（默认）、「快讯 · 3 小时」「日更 · 2 天」「周更 · 7 天」；服务端存的是别的秒数时多一项「N 小时」或「N 天」；下面一行小字说明「没读的条目超过这个时间就从“全部”和“未读”里退出，渐隐在前；检索、收藏和这个订阅自己的页面里还在。」。第一次抓取后服务端觉得形态不对时，形态下面多一行建议：「这个订阅的条目大多是视频。」带一个按钮「显示为视频」；按下只是在对话框里选了那个形态，点「保存」才生效，不按就什么都不变。「保存」只发改了的字段。订阅地址不能在表单里改，只能接受上面的搬家建议。最后一组是「摘要和翻译」：「自动生成摘要」「自动翻译」两个开关（只管打开之后新到的条目），和摘要、翻译两个 prompt 框，留空就用设置里的 prompt。没配置 AI 时这一组上面多一行「还没配置 AI，暂时不会生成摘要和翻译」，带「打开设置…」。
 
 暂停和恢复：右键菜单或编辑对话框的开关，发 `PATCH` 改 `paused`。
 
@@ -1549,7 +1564,7 @@ FreshRSS（Google Reader 兼容接口，`<baseUrl>/api/greader.php`）：
 
 删除：右键菜单或编辑对话框的「删除…」先弹确认窗口：「删除“…”？它的条目会一起删掉，收藏的也是。」正文说明可以撤销：「删除后几秒内可以撤销。」确认后发 `DELETE`，从侧栏去掉；正看着它时回到「全部」。提示条「已删除“…”」带「撤销」按钮和关闭按钮，显示 8 秒，用读屏播报，不抢焦点；点「撤销」发 `POST /api/sources/{id}/restore`，订阅带着条目回到侧栏（在提示条显示期间发现已不在，即 404，提示「现在无法撤销」）。「退订…」（订阅健康）同样。
 
-订阅健康：命令面板里的「订阅健康…」（操作组）打开一个对话框，列出 `GET /api/sources/health` 返回的源；侧边栏不加入口。打开时请求一次，请求中显示「正在检查…」，失败时一行原因和「重试」，没有问题时「订阅都很健康」。每行是图标和名字、一行原因、一行近 30 天的数字，右边两个按钮「暂停」和「退订…」：
+订阅健康：命令面板里的「订阅健康…」（操作组）打开一个对话框，列出 `GET /api/sources/health` 返回的源；侧边栏不加入口。打开时请求一次，请求中显示「正在检查…」，失败时一行原因和「重试」，没有问题时「订阅都很健康」。每行是图标和名字、一行原因、一行近 30 天的数字，右边两个按钮「暂停」和「退订…」；已搬家的行（`state` 为 `moved`）的原因是「已搬到 〈新地址〉」，按钮换成「更新地址」和「忽略」，做的事和编辑对话框里的一样，成功后行离开列表，提示同上：
 - 原因：已失效、没有新内容「已有 N 天没有新条目」；已失效、一直失败「已连续失败 N 天：原因」；总在失败「已连续失败 N 次：原因」；很少读「近 30 天新增 N 条，只读了 M 条」。数字行「近 30 天：新增 N 条，已读 M 条，收藏 K 条」。
 - 「暂停」发 `PATCH` 改 `paused`，行随即离开列表（暂停的源不在健康列表里），提示「已暂停」。「退订…」走和删除一样的确认窗口，确认后发 `DELETE`，行离开列表。什么都不会自动改，对话框关掉后没处理的源保持原样。
 - 没有「一键全部清理」：每一行自己决定，避免一次误删很多源。
