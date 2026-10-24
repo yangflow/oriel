@@ -43,6 +43,9 @@ type fake struct {
 	preview    client.RoutePreview
 	previewErr error
 
+	moved, dismissed []string // the addresses MoveSource and DismissMove were given
+	moveErr          error
+
 	addErr, updateErr, deleteErr, refreshErr, settingsErr, setErr, healthErr, discoverErr error
 
 	hidden    int      // what the server says the mute keywords hide
@@ -108,6 +111,22 @@ func (f *fake) RefreshSource(_ context.Context, id int64) error {
 
 func (f *fake) SourcesHealth(context.Context) (client.Health, error) {
 	return f.health, f.healthErr
+}
+
+func (f *fake) MoveSource(_ context.Context, id int64, movedTo string) (client.Source, error) {
+	f.moved = append(f.moved, movedTo)
+	if f.moveErr != nil {
+		return client.Source{}, f.moveErr
+	}
+	return client.Source{ID: id, Title: "Go Blog", URL: movedTo, Kind: "article", FetchIntervalSec: 900}, nil
+}
+
+func (f *fake) DismissMove(_ context.Context, id int64, movedTo string) (client.Source, error) {
+	f.dismissed = append(f.dismissed, movedTo)
+	if f.moveErr != nil {
+		return client.Source{}, f.moveErr
+	}
+	return client.Source{ID: id, Title: "Go Blog", URL: "http://blog.golang.org/feed.atom", Kind: "article", FetchIntervalSec: 900}, nil
 }
 
 func (f *fake) MutedCount(_ context.Context, _ int64, keywords string) (int, error) {
@@ -1299,5 +1318,136 @@ func TestAddDialogTooltips(t *testing.T) {
 	}
 	if !tipShows(t, tt, s.text.Close) {
 		t.Errorf("%q has no tooltip", s.text.Close)
+	}
+}
+
+const movedTo = "https://go.dev/blog/feed.atom"
+
+func movedSource() client.Source {
+	return client.Source{ID: 1, Title: "Go Blog", URL: "http://blog.golang.org/feed.atom", Kind: "article",
+		FetchIntervalSec: 900, MovedTo: movedTo}
+}
+
+func TestMovedCardUpdates(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.Edit(movedSource())
+	tt.Frame()
+	f.settle(tt)
+	for _, want := range []string{s.text.Moved, movedTo, s.text.MovedUpdate, s.text.MovedDismiss} {
+		if !slices.Contains(tt.Texts(), want) {
+			t.Errorf("no %q in %v", want, tt.Texts())
+		}
+	}
+	if err := tt.Click("Update the address of Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !slices.Equal(f.moved, []string{movedTo}) || len(f.changed) != 1 || f.changed[0].URL != movedTo {
+		t.Fatalf("moved %v, changed %v", f.moved, f.changed)
+	}
+	if !slices.Contains(tt.Texts(), s.text.MovedDone) || !s.edit.open || s.edit.src.MovedTo != "" || s.edit.src.URL != movedTo {
+		t.Fatalf("texts %v, open %v, src %+v", tt.Texts(), s.edit.open, s.edit.src)
+	}
+	if slices.Contains(tt.Texts(), s.text.Moved) {
+		t.Fatal("the card stays after the update")
+	}
+}
+
+func TestMovedCardDismisses(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.Edit(movedSource())
+	tt.Frame()
+	f.settle(tt)
+	if err := tt.Click("Dismiss the move of Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !slices.Equal(f.dismissed, []string{movedTo}) || len(f.moved) != 0 || s.edit.src.MovedTo != "" {
+		t.Fatalf("dismissed %v, moved %v, src %+v", f.dismissed, f.moved, s.edit.src)
+	}
+	if !slices.Contains(tt.Announcements(), s.text.MovedDismissed) {
+		t.Fatalf("announcements %v", tt.Announcements())
+	}
+}
+
+func TestMovedCardAddressTaken(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.sources = append(f.sources, client.Source{ID: 8, Title: "The Go Blog (new)", URL: movedTo})
+	f.moveErr = &client.APIError{Status: 409, Code: "source_exists", SourceID: 8}
+	s.Edit(movedSource())
+	tt.Frame()
+	f.settle(tt)
+	if err := tt.Click("Update the address of Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	want := s.fill(s.text.MovedExists, "The Go Blog (new)")
+	if s.edit.movedErr != want || !slices.Contains(tt.Texts(), want) || s.edit.src.MovedTo != movedTo || len(f.changed) != 0 {
+		t.Fatalf("movedErr %q, texts %v", s.edit.movedErr, tt.Texts())
+	}
+}
+
+func TestMovedCardChanged(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.moveErr = &client.APIError{Status: 409, Code: "move_changed"}
+	s.Edit(movedSource())
+	tt.Frame()
+	f.settle(tt)
+	if err := tt.Click("Update the address of Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !slices.Contains(tt.Texts(), s.text.MovedChanged) || s.edit.src.MovedTo != "" {
+		t.Fatalf("texts %v, src %+v", tt.Texts(), s.edit.src)
+	}
+}
+
+func TestMovedCardAbsent(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.Edit(f.sources[0])
+	tt.Frame()
+	f.settle(tt)
+	if slices.Contains(tt.Texts(), s.text.Moved) {
+		t.Fatal("a subscription that has not moved shows the card")
+	}
+}
+
+func TestHealthDialogMoved(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.health = client.Health{WindowDays: 30, Sources: []client.SourceHealth{
+		{ID: 1, Title: "Go Blog", Kind: "article", State: client.HealthMoved, MovedTo: movedTo, Recent: 6, RecentRead: 5},
+		{ID: 3, Title: "Haiku", Kind: "article", State: client.HealthMoved, MovedTo: "https://haiku.example/feed", Recent: 1},
+	}}
+	s.Health()
+	tt.Frame()
+	f.settle(tt)
+	if !slices.Contains(tt.Texts(), "Moved to "+movedTo) {
+		t.Fatalf("no moved reason in %v", tt.Texts())
+	}
+	if err := tt.Click("Update the address of Go Blog"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !slices.Equal(f.moved, []string{movedTo}) || len(s.report.items) != 1 {
+		t.Fatalf("moved %v, items %v", f.moved, s.report.items)
+	}
+	if err := tt.Click("Dismiss the move of Haiku"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !slices.Equal(f.dismissed, []string{"https://haiku.example/feed"}) || len(s.report.items) != 0 {
+		t.Fatalf("dismissed %v, items %v", f.dismissed, s.report.items)
+	}
+}
+
+func TestMovedChinese(t *testing.T) {
+	s, f, tt := setup(t, "zh-Hans")
+	s.Edit(movedSource())
+	tt.Frame()
+	f.settle(tt)
+	for _, want := range []string{"这个订阅已搬到", "更新地址", "忽略"} {
+		if !slices.Contains(tt.Texts(), want) {
+			t.Errorf("no %q in %v", want, tt.Texts())
+		}
 	}
 }

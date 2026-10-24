@@ -345,6 +345,8 @@ type Source struct {
 	PromptTranslate     string `json:"promptTranslate"`
 	AutoSummary         bool   `json:"autoSummary"`
 	AutoTranslate       bool   `json:"autoTranslate"`
+	// MovedTo is the address the site moved to for good, waiting for the user to accept or dismiss it; empty for none.
+	MovedTo string `json:"movedTo"`
 }
 
 // NewSource is a subscription to add: exactly one of URL and RSSHubPath. An empty Title takes the feed's, and a zero
@@ -673,6 +675,7 @@ func (s Session) Sources(ctx context.Context) (SourceList, error) {
 const (
 	HealthDead        = "dead"
 	HealthFailing     = "failing"
+	HealthMoved       = "moved"
 	HealthRarelyRead  = "rarelyRead"
 	HealthCauseSilent = "silent"
 )
@@ -685,7 +688,7 @@ type SourceHealth struct {
 	Title      string `json:"title"`
 	IconURL    string `json:"iconUrl"`
 	Kind       string `json:"kind"`
-	// State is HealthDead, HealthFailing or HealthRarelyRead; Cause tells a dead one that kept failing ("failing")
+	// State is HealthDead, HealthFailing, HealthMoved or HealthRarelyRead; Cause tells a dead one that kept failing ("failing")
 	// from one that fetches fine but has nothing new (HealthCauseSilent).
 	State string `json:"state"`
 	Cause string `json:"cause"`
@@ -693,6 +696,8 @@ type SourceHealth struct {
 	Days                int    `json:"days"`
 	ConsecutiveFailures int    `json:"consecutiveFailures"`
 	LastError           string `json:"lastError"`
+	// MovedTo is the address a HealthMoved subscription moved to, empty otherwise.
+	MovedTo string `json:"movedTo"`
 	// Recent, RecentRead and RecentStarred count the entries of the last window days.
 	Recent        int `json:"recent"`
 	RecentRead    int `json:"recentRead"`
@@ -953,6 +958,22 @@ func (s Session) DeleteSource(ctx context.Context, id int64) error {
 func (s Session) RestoreSource(ctx context.Context, id int64) (Source, error) {
 	var src Source
 	err := s.call(ctx, http.MethodPost, "/api/sources/"+strconv.FormatInt(id, 10)+"/restore", nil, &src)
+	return src, err
+}
+
+// MoveSource accepts the suggestion to use the address the site moved to: movedTo is the address the user saw, and the
+// subscription keeps its entries. The error code is "move_changed" when the suggestion is not that address any more, and
+// "source_exists" (with SourceID) when another subscription already has it.
+func (s Session) MoveSource(ctx context.Context, id int64, movedTo string) (Source, error) {
+	var src Source
+	err := s.call(ctx, http.MethodPost, "/api/sources/"+strconv.FormatInt(id, 10)+"/move", map[string]string{"url": movedTo}, &src)
+	return src, err
+}
+
+// DismissMove turns the suggested address down; the errors are those of MoveSource but "source_exists".
+func (s Session) DismissMove(ctx context.Context, id int64, movedTo string) (Source, error) {
+	var src Source
+	err := s.call(ctx, http.MethodPost, "/api/sources/"+strconv.FormatInt(id, 10)+"/dismiss-move", map[string]string{"url": movedTo}, &src)
 	return src, err
 }
 

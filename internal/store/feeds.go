@@ -43,6 +43,8 @@ type FeedSource struct {
 	KeepDays int
 	// Proxy is the source's own fetch proxy.
 	Proxy SourceProxy
+	// MovedDismissed is the address the user turned down as the place the subscription moved to.
+	MovedDismissed string
 }
 
 // NewSource describes a subscription to add. Exactly one of URL and RSSHubPath is set.
@@ -65,7 +67,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, fetch_interval_auto, last_success_at IS NULL, consecutive_failures,
 			auto_summary, auto_translate, site_url, icon_url, icon_checked_site, websub_hub, websub_topic,
-			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days, COALESCE(last_success_at, created_at), proxy, proxy_user, proxy_password
+			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days, COALESCE(last_success_at, created_at), proxy, proxy_user, proxy_password, moved_dismissed
 		FROM sources WHERE paused = 0 AND deleted_at IS NULL AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
@@ -81,7 +83,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		var since int64
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
 			&interval, &src.FetchIntervalAuto, &src.FirstSuccess, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
-			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays, &since, &src.Proxy.URL, &src.Proxy.User, &src.Proxy.Password); err != nil {
+			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays, &since, &src.Proxy.URL, &src.Proxy.User, &src.Proxy.Password, &src.MovedDismissed); err != nil {
 			return nil, err
 		}
 		if until.Valid {
@@ -154,6 +156,12 @@ func (s *Store) SetSourceIcon(ctx context.Context, id int64, icon, site string) 
 	return err
 }
 
+// SetFeedIcon records an icon the feed itself carries, replacing the one the source has. It does not change updated_at.
+func (s *Store) SetFeedIcon(ctx context.Context, id int64, icon string) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE sources SET icon_url = ?1 WHERE id = ?2 AND icon_url <> ?1", icon, id)
+	return err
+}
+
 // FetchFailure records a failed fetch and when to try again. kind is the stable code of the reason, empty when
 // the reason has none.
 func (s *Store) FetchFailure(ctx context.Context, id int64, message, kind string, now, next time.Time) error {
@@ -188,7 +196,10 @@ type FeedEntry struct {
 	Images       []Image
 }
 
-// SaveFeed writes the items of one fetch and fills the source's empty title and site address.
+// SaveFeed writes the items of one fetch and fills the source's empty site address. The source's title follows the
+// feed's: it is filled when empty, and changed when the feed renamed itself, unless the user gave the source a title
+// of their own (one that differs from the feed's last, feed_title). A source from before feed_title has none recorded:
+// it starts to follow when its title equals the feed's, and is taken as renamed by the user when it does not.
 // Items are inserted from last to first, so with equal created_at the newest item gets the highest ID.
 // An item with a GUID not yet stored is still an existing entry when it is the only item of the fetch with its link
 // and the source has exactly one entry with that link whose GUID is not in the fetch: the feed changed the GUID, and
@@ -341,9 +352,11 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE sources SET title = CASE WHEN title = '' THEN ? ELSE title END,
-			site_url = CASE WHEN site_url = '' THEN ? ELSE site_url END
-		WHERE id = ?`, title, siteURL, src.ID); err != nil {
+		UPDATE sources SET
+			title = CASE WHEN ?1 <> '' AND (title = '' OR title = feed_title OR (feed_title = '' AND title = ?1)) THEN ?1 ELSE title END,
+			feed_title = CASE WHEN ?1 <> '' AND (title = '' OR title = feed_title OR (feed_title = '' AND title = ?1)) THEN ?1 ELSE feed_title END,
+			site_url = CASE WHEN site_url = '' THEN ?2 ELSE site_url END
+		WHERE id = ?3`, title, siteURL, src.ID); err != nil {
 		return 0, err
 	}
 	return created, tx.Commit()

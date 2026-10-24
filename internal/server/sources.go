@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -55,6 +56,7 @@ type sourceJSON struct {
 	ProxyAuthSet        bool   `json:"proxyAuthSet"`
 	WebSubHub           string `json:"websubHub"`
 	WebSubActive        bool   `json:"websubActive"`
+	MovedTo             string `json:"movedTo"`
 	UnreadCount         int    `json:"unreadCount"`
 	CreatedAt           int64  `json:"createdAt"`
 	UpdatedAt           int64  `json:"updatedAt"`
@@ -74,7 +76,7 @@ func toJSON(src store.Source) sourceJSON {
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
 		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
-		WebSubActive: src.WebSubUntil.After(time.Now()), UnreadCount: src.UnreadCount,
+		WebSubActive: src.WebSubUntil.After(time.Now()), MovedTo: src.MovedTo, UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
 }
@@ -154,12 +156,13 @@ type healthJSON struct {
 	Days                int    `json:"days"`
 	ConsecutiveFailures int    `json:"consecutiveFailures"`
 	LastError           string `json:"lastError"`
+	MovedTo             string `json:"movedTo"`
 	Recent              int    `json:"recent"`
 	RecentRead          int    `json:"recentRead"`
 	RecentStarred       int    `json:"recentStarred"`
 }
 
-// sourcesHealth lists the sources that are dead, failing or rarely read (docs/product.md, "订阅健康").
+// sourcesHealth lists the sources that are dead, failing, moved or rarely read (docs/product.md, "订阅健康").
 func (s *Server) sourcesHealth(w http.ResponseWriter, r *http.Request) {
 	list, err := s.store.SourcesHealth(r.Context(), s.now())
 	if err != nil {
@@ -429,6 +432,41 @@ func replySource(w http.ResponseWriter, src store.Source, err error) {
 		internal(w, err)
 	default:
 		reply(w, http.StatusOK, toJSON(src))
+	}
+}
+
+// moveSource answers POST /api/sources/{id}/move and dismissMove POST /api/sources/{id}/dismiss-move: they act on the
+// suggestion to use the address the site moved to for good, and only when the body's url is the address the caller saw.
+func (s *Server) moveSource(w http.ResponseWriter, r *http.Request) {
+	s.actOnMove(w, r, s.store.AcceptMove)
+}
+
+func (s *Server) dismissMove(w http.ResponseWriter, r *http.Request) {
+	s.actOnMove(w, r, s.store.DismissMove)
+}
+
+func (s *Server) actOnMove(w http.ResponseWriter, r *http.Request, act func(context.Context, int64, string, time.Time) (store.Source, error)) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		URL string `json:"url"`
+	}
+	if !readBody(w, r, &body) {
+		return
+	}
+	src, err := act(r.Context(), id, body.URL, s.now())
+	var exists *store.ExistsError
+	switch {
+	case errors.As(err, &exists):
+		reply(w, http.StatusConflict, map[string]any{"error": "source_exists", "sourceId": exists.ID})
+	case errors.Is(err, store.ErrExists):
+		fail(w, http.StatusConflict, "source_exists")
+	case errors.Is(err, store.ErrMoveChanged):
+		fail(w, http.StatusConflict, "move_changed")
+	default:
+		replySource(w, src, err)
 	}
 }
 

@@ -179,7 +179,18 @@
     "HealthNumbers": "Last {days} {days:day|days}: {recent} new, {read} read, {starred} starred",
     "PauseSource": "Pause {name}",
     "Unsubscribe": "Unsubscribe…",
-    "UnsubscribeSource": "Unsubscribe from {name}"
+    "UnsubscribeSource": "Unsubscribe from {name}",
+    "Moved": "This subscription has moved to",
+    "MovedUpdate": "Update address",
+    "MovedDismiss": "Dismiss",
+    "MovedExists": "That address is already subscribed as “{name}”. Unsubscribe from one of them.",
+    "MovedExistsUnknown": "That address is already subscribed. Unsubscribe from one of them.",
+    "MovedChanged": "The move suggestion changed, take another look",
+    "MovedDone": "Address updated",
+    "MovedDismissed": "Dismissed",
+    "HealthMoved": "Moved to {to}",
+    "MovedUpdateSource": "Update the address of {name}",
+    "MovedDismissSource": "Dismiss the move of {name}"
   },
   "zh-Hans": {
     "Add": "添加订阅",
@@ -361,6 +372,17 @@
     "HealthNumbers": "近 {days} 天：新增 {recent} 条，已读 {read} 条，收藏 {starred} 条",
     "PauseSource": "暂停 {name}",
     "Unsubscribe": "退订…",
-    "UnsubscribeSource": "退订 {name}"
+    "UnsubscribeSource": "退订 {name}",
+    "Moved": "这个订阅已搬到",
+    "MovedUpdate": "更新地址",
+    "MovedDismiss": "忽略",
+    "MovedExists": "那个地址已经订阅过了，叫“{name}”。请退订其中一个。",
+    "MovedExistsUnknown": "那个地址已经订阅过了。请退订其中一个。",
+    "MovedChanged": "搬家的建议变了，请再看一下",
+    "MovedDone": "已更新订阅地址",
+    "MovedDismissed": "已忽略",
+    "HealthMoved": "已搬到 {to}",
+    "MovedUpdateSource": "更新{name}的地址",
+    "MovedDismissSource": "忽略{name}的搬家提示"
   }
 }

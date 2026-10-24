@@ -79,6 +79,7 @@ var (
 	Search         = parse("search")
 	Server         = parse("server")
 	Settings       = parse("settings")
+	Signpost       = parse("signpost")
 	Smartphone     = parse("smartphone")
 	Sparkles       = parse("sparkles")
 	Star           = parse("star")
