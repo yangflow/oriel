@@ -29,6 +29,7 @@ type fake struct {
 	patches     map[int64][]client.SourcePatch
 	deleted     []int64
 	restoredIDs []int64
+	bulks       int
 	restoreErr  error
 	fetched     []int64
 	set         []client.SettingsPatch
@@ -45,6 +46,9 @@ type fake struct {
 
 	moved, dismissed []string // the addresses MoveSource and DismissMove were given
 	moveErr          error
+
+	failOn map[int64]error // why a request about one subscription fails, for the bulk actions
+	trash  map[int64]client.Source
 
 	addErr, updateErr, deleteErr, refreshErr, settingsErr, setErr, healthErr, discoverErr error
 
@@ -77,6 +81,9 @@ func (f *fake) UpdateSource(_ context.Context, id int64, patch client.SourcePatc
 	if f.updateErr != nil {
 		return client.Source{}, f.updateErr
 	}
+	if err := f.failOn[id]; err != nil {
+		return client.Source{}, err
+	}
 	for _, src := range f.sources {
 		if src.ID == id {
 			if patch.Title != nil {
@@ -84,6 +91,18 @@ func (f *fake) UpdateSource(_ context.Context, id int64, patch client.SourcePatc
 			}
 			if patch.Paused != nil {
 				src.Paused = *patch.Paused
+			}
+			if patch.Kind != nil {
+				src.Kind = *patch.Kind
+			}
+			if patch.FetchIntervalAuto != nil {
+				src.FetchIntervalAuto = *patch.FetchIntervalAuto
+			}
+			if patch.FetchIntervalSec != nil {
+				src.FetchIntervalSec = *patch.FetchIntervalSec
+			}
+			if patch.KeepDays != nil {
+				src.KeepDays = *patch.KeepDays
 			}
 			return src, nil
 		}
@@ -93,6 +112,17 @@ func (f *fake) UpdateSource(_ context.Context, id int64, patch client.SourcePatc
 
 func (f *fake) DeleteSource(_ context.Context, id int64) error {
 	f.deleted = append(f.deleted, id)
+	if err := f.failOn[id]; err != nil {
+		return err
+	}
+	for _, src := range f.sources {
+		if src.ID == id {
+			if f.trash == nil {
+				f.trash = map[int64]client.Source{}
+			}
+			f.trash[id] = src
+		}
+	}
 	return f.deleteErr
 }
 
@@ -100,6 +130,12 @@ func (f *fake) RestoreSource(_ context.Context, id int64) (client.Source, error)
 	f.restoredIDs = append(f.restoredIDs, id)
 	if f.restoreErr != nil {
 		return client.Source{}, f.restoreErr
+	}
+	if err := f.failOn[id]; err != nil {
+		return client.Source{}, err
+	}
+	if src, ok := f.trash[id]; ok {
+		return src, nil
 	}
 	return client.Source{ID: id, Title: "Back"}, nil
 }
@@ -163,14 +199,26 @@ func (f *fake) PreviewRoute(_ context.Context, path string) (client.RoutePreview
 }
 
 func (f *fake) deps() Deps {
-	return Deps{
-		Go:           func(work func() func()) { f.queue = append(f.queue, work) },
-		Now:          func() time.Time { return now.Add(f.lateBy) },
-		Sources:      func() []client.Source { return f.sources },
-		Added:        func(src client.Source) { f.sources = append(f.sources, src) },
-		Changed:      func(src client.Source) { f.changed = append(f.changed, src) },
-		Removed:      func(id int64) { f.removed = append(f.removed, id) },
-		Restored:     func(src client.Source) { f.restored = append(f.restored, src) },
+	d := Deps{
+		Go:      func(work func() func()) { f.queue = append(f.queue, work) },
+		Now:     func() time.Time { return now.Add(f.lateBy) },
+		Sources: func() []client.Source { return f.sources },
+		Added:   func(src client.Source) { f.sources = append(f.sources, src) },
+		Changed: func(src client.Source) {
+			f.changed = append(f.changed, src)
+			if i := slices.IndexFunc(f.sources, func(o client.Source) bool { return o.ID == src.ID }); i >= 0 {
+				f.sources[i] = src
+			}
+		},
+		Removed: func(id int64) {
+			f.removed = append(f.removed, id)
+			f.sources = slices.DeleteFunc(f.sources, func(src client.Source) bool { return src.ID == id })
+		},
+		Restored: func(src client.Source) {
+			f.restored = append(f.restored, src)
+			f.sources = append(f.sources, src)
+			slices.SortFunc(f.sources, func(a, b client.Source) int { return int(a.ID - b.ID) })
+		},
 		Show:         func(id int64) { f.shown = append(f.shown, id) },
 		MarkRead:     func(src client.Source) { f.marked = append(f.marked, src.ID) },
 		MarkOlder:    func(src client.Source, days int) { f.older = append(f.older, [2]int64{src.ID, int64(days)}) },
@@ -178,6 +226,19 @@ func (f *fake) deps() Deps {
 		OpenRSSHub:   func() { f.rsshub++ },
 		Expired:      func() { f.expired++ },
 	}
+	d.Bulk = func(changed []client.Source, removed []int64, restored []client.Source) {
+		f.bulks++
+		for _, src := range changed {
+			d.Changed(src)
+		}
+		for _, id := range removed {
+			d.Removed(id)
+		}
+		for _, src := range restored {
+			d.Restored(src)
+		}
+	}
+	return d
 }
 
 // settle runs the queued work until there is none, applying each result as the window does on the UI thread.

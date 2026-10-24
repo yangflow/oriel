@@ -50,7 +50,7 @@ type copy struct {
 	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                        string
 	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkBelow, MarkedBelow, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                 string
 	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                                        string
-	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteActions, PaletteUnreadOnly, PaletteShowAll                    string
+	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteManage, PaletteActions, PaletteUnreadOnly, PaletteShowAll     string
 	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, PageActivity, HideSidebar, ShowSidebar, KeyToggleSidebar string
 	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                                      string
 	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                                          string
@@ -368,6 +368,7 @@ func New(systemLocale string, deps Deps) *Screen {
 		Changed:      s.changed,
 		Removed:      s.removed,
 		Restored:     s.restored,
+		Bulk:         s.bulk,
 		Show:         func(id int64) { s.choose(scope{kind: s.kindOf(id), source: id}) },
 		MarkRead:     s.markSource,
 		MarkOlder:    s.markSourceOlder,
@@ -655,6 +656,43 @@ func (s *Screen) restored(src client.Source) {
 	s.loadSources()
 	s.lists = nil
 	s.reload()
+}
+
+// bulk takes what a bulk run did to the subscriptions as one change: the subscriptions and the entries load once.
+func (s *Screen) bulk(changed []client.Source, removed []int64, restored []client.Source) {
+	again, scopeGone := len(restored) > 0 || len(removed) > 0, false
+	for _, src := range changed {
+		i := slices.IndexFunc(s.sources, func(old client.Source) bool { return old.ID == src.ID })
+		if i < 0 {
+			continue
+		}
+		old := s.sources[i]
+		s.sources[i] = src
+		if s.scope.source == src.ID && src.Kind != old.Kind {
+			s.scope.kind = src.Kind
+			s.tab = max(0, indexOf(kinds, src.Kind))
+		}
+		again = again || src.Title != old.Title || src.Kind != old.Kind || src.MuteKeywords != old.MuteKeywords
+	}
+	for _, id := range removed {
+		scopeGone = scopeGone || s.scope.source == id
+	}
+	s.sources = slices.DeleteFunc(s.sources, func(src client.Source) bool { return slices.Contains(removed, src.ID) })
+	for _, src := range restored {
+		if !slices.ContainsFunc(s.sources, func(old client.Source) bool { return old.ID == src.ID }) {
+			s.sources = append(s.sources, src)
+		}
+	}
+	s.sourcesGen++
+	s.loadSources()
+	switch {
+	case scopeGone:
+		s.lists, s.entries = nil, nil
+		s.choose(scope{})
+	case again:
+		s.lists = nil
+		s.reload()
+	}
 }
 
 // setSources takes the subscriptions as the server counts them.
@@ -2663,11 +2701,22 @@ func TimelineMenu(systemLocale string) (name string, items []MenuItem) {
 		{text.KeyImmersive, Immersive}}
 }
 
-// RefreshMenuLabels are the Subscriptions menu and its item that refreshes all of them, in the language of the system
-// locale.
-func RefreshMenuLabels(systemLocale string) (menu, refresh string) {
+// RefreshMenuLabels are the Subscriptions menu, its item that refreshes all of them and its item that manages
+// several at once, in the language of the system locale.
+func RefreshMenuLabels(systemLocale string) (menu, refresh, manage string) {
 	text := translations[locale.Language(systemLocale)]
-	return text.SubscriptionsMenu, text.RefreshAll
+	return text.SubscriptionsMenu, text.RefreshAll, text.PaletteManage
+}
+
+// HasSources reports whether there is a subscription to manage, which the menu item shows.
+func (s *Screen) HasSources() bool { return s.api != nil && s.subs.HasSources() }
+
+// Manage opens the dialog that changes several subscriptions at once, from the menu.
+func (s *Screen) Manage() {
+	if s.api == nil || s.keys || s.subs.Open() || s.pal.open || s.lb.open {
+		return
+	}
+	s.subs.Manage()
 }
 
 // MenuLabels are the Help menu and its item that shows the key sheet, in the language of the system locale.

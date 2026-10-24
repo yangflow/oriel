@@ -226,6 +226,22 @@ func TestPaletteActions(t *testing.T) {
 			t.Fatalf("palette %v, subscriptions %v", s.pal.open, s.subs.Open())
 		}
 	})
+	t.Run("manage", func(t *testing.T) {
+		s, f, tt := setup(t, "en")
+		run(t, s, tt, "manage subscriptions")
+		f.settle(t, tt)
+		if s.pal.open || !s.subs.Open() || !s.subs.HasSources() {
+			t.Fatalf("palette %v, subscriptions %v", s.pal.open, s.subs.Open())
+		}
+	})
+	t.Run("no manage without subscriptions", func(t *testing.T) {
+		s, _, tt := setup(t, "en")
+		s.sources = nil
+		openPalette(t, s, tt)
+		if s.HasSources() || slices.Contains(tt.Texts(), s.text.PaletteManage) {
+			t.Fatal("the palette offers to manage no subscriptions")
+		}
+	})
 	t.Run("unread", func(t *testing.T) {
 		s, f, tt := setup(t, "en")
 		run(t, s, tt, "unread only")

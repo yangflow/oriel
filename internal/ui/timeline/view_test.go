@@ -4954,9 +4954,9 @@ func TestRefreshAllEntryPoints(t *testing.T) {
 			}
 		})
 	}
-	menu, item := RefreshMenuLabels("zh-Hans")
-	if menu != "订阅" || item != "全部更新" {
-		t.Errorf("labels %q %q", menu, item)
+	menu, item, manage := RefreshMenuLabels("zh-Hans")
+	if menu != "订阅" || item != "全部更新" || manage != "管理订阅…" {
+		t.Errorf("labels %q %q %q", menu, item, manage)
 	}
 }
 
@@ -5762,5 +5762,27 @@ func TestDropBusy(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("Busy. Close the open window and try again.") {
 		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestBulkDropsTheDeletedAndReturnsToEverything(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.choose(scope{source: f.sources[0].ID})
+	tt.Frame()
+	f.settle(t, tt)
+	gone := []int64{f.sources[0].ID, f.sources[1].ID}
+	for _, id := range gone {
+		_ = f.DeleteSource(context.Background(), id)
+	}
+	s.bulk(nil, gone, nil)
+	tt.Frame()
+	f.settle(t, tt)
+	for _, src := range s.sources {
+		if slices.Contains(gone, src.ID) {
+			t.Fatalf("source %d is still in the sidebar", src.ID)
+		}
+	}
+	if s.scope.source != 0 {
+		t.Fatalf("scope %+v", s.scope)
 	}
 }

@@ -53,6 +53,11 @@ type copy struct {
 	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                                          string
 	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                                                     string
 	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                                             string
+	ManageTitle, ManageSub, FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN                                 string
+	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, ManageHint, EveryOf, KeepOf, KeepAll, KeepSet, LabelSep, SelectedMark, PausedMark, FailingMark                          string
+	WorkingPause, WorkingResume, WorkingChange, WorkingDelete, WorkingRestore, AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore                      string
+	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed                            string
+	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, NowMixed, NowOne, Apply, DeleteManyTitle, DeleteManyBody                                   string
 }
 
 var translations = func() map[string]copy {
@@ -101,15 +106,18 @@ type API interface {
 // connect screen because the server no longer takes the session. Icon returns a site icon once the timeline has
 // decoded it, nil until then.
 type Deps struct {
-	Go           func(work func() (apply func()))
-	Now          func() time.Time
-	Sources      func() []client.Source
-	Icon         func(address string) *ui.Bitmap
-	Added        func(client.Source)
-	Refreshed    func(client.Source) // src was queued to fetch now; the timeline waits for the result
-	Changed      func(client.Source)
-	Removed      func(id int64)
-	Restored     func(client.Source)
+	Go        func(work func() (apply func()))
+	Now       func() time.Time
+	Sources   func() []client.Source
+	Icon      func(address string) *ui.Bitmap
+	Added     func(client.Source)
+	Refreshed func(client.Source) // src was queued to fetch now; the timeline waits for the result
+	Changed   func(client.Source)
+	Removed   func(id int64)
+	Restored  func(client.Source)
+	// Bulk tells what a bulk run did, once it is done: the subscriptions it changed, the IDs it deleted and the ones it
+	// brought back, so the timeline loads the subscriptions and its entries once rather than once for each.
+	Bulk         func(changed []client.Source, removed []int64, restored []client.Source)
 	Show         func(id int64)
 	MarkRead     func(src client.Source)
 	MarkOlder    func(src client.Source, days int)
@@ -233,21 +241,25 @@ type reporting struct {
 
 // Screen keeps the dialogs and the work they started.
 type Screen struct {
-	lang     string // the language of the screen
-	deps     Deps
-	text     copy
-	api      API
-	gen      int // counts servers used, so the results of the one before are dropped
-	add      adding
-	edit     editing
-	report   reporting
-	deleting bool
-	muteSeq  atomic.Int64  // counts the questions about the mute keywords, so the work of an older one gives up
-	muteWait time.Duration // the pause after typing before the count is asked for
-	doomed   client.Source // the subscription being deleted
-	announce string
-	toast    string
-	deleted  []*deletion // the toasts that offer to undo a delete
+	lang      string // the language of the screen
+	deps      Deps
+	text      copy
+	api       API
+	gen       int // counts servers used, so the results of the one before are dropped
+	add       adding
+	edit      editing
+	report    reporting
+	deleting  bool
+	muteSeq   atomic.Int64  // counts the questions about the mute keywords, so the work of an older one gives up
+	muteWait  time.Duration // the pause after typing before the count is asked for
+	doomed    client.Source // the subscription being deleted
+	announce  string
+	toast     string
+	deleted   []*deletion // the toasts that offer to undo a delete
+	manage    managing    // the dialog that changes several subscriptions at once
+	undo      *bulkUndo   // the toast that offers to undo the last bulk delete
+	pending   *bulkUndo   // an Undo pressed while a bulk run was going, started when the run is done
+	closeBulk bool        // the toast of the bulk delete is closed at the next frame
 }
 
 // New selects the best available translation, falling back to English.
@@ -269,10 +281,13 @@ func (s *Screen) Use(api API) {
 	s.api = api
 	s.gen++
 	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
+	s.manage, s.undo, s.pending = managing{}, nil, nil
 }
 
 // Open reports whether a dialog shows, which takes the keys from the timeline.
-func (s *Screen) Open() bool { return s.add.open || s.edit.open || s.report.open || s.deleting }
+func (s *Screen) Open() bool {
+	return s.add.open || s.edit.open || s.report.open || s.deleting || s.manage.open
+}
 
 // Name is what names a subscription: its title, which is empty until the first fetch, else the host of its address,
 // else its route.
@@ -326,6 +341,7 @@ func (s *Screen) expired(err error) bool {
 	s.gen++
 	s.api = nil
 	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
+	s.manage, s.undo, s.pending = managing{}, nil, nil
 	s.deps.Expired()
 	return true
 }
@@ -894,6 +910,9 @@ func (s *Screen) remove() {
 			switch {
 			case err == nil:
 				s.deleted = append(s.deleted, &deletion{src: src})
+				if s.undo != nil {
+					s.undo, s.closeBulk = nil, true
+				}
 				s.dropHealth(src.ID)
 				s.deps.Removed(src.ID)
 			case code(err) == "not_found":
@@ -990,6 +1009,9 @@ func (s *Screen) View(c *ui.Context) {
 	if s.report.open && !s.deleting {
 		s.healthDialog(c)
 	}
+	if s.manage.open {
+		s.manageDialog(c)
+	}
 	if s.deleting {
 		name := Name(s.doomed)
 		if ui.AlertDialog(c, &s.deleting, s.fill(s.text.DeleteTitle, name), s.text.DeleteBody, s.text.Cancel,
@@ -998,6 +1020,7 @@ func (s *Screen) View(c *ui.Context) {
 		}
 	}
 	s.toasts(c)
+	s.bulkToast(c)
 	if s.announce != "" {
 		c.Announce(s.announce)
 		s.announce = ""
@@ -1063,6 +1086,11 @@ func (s *Screen) dialog(c *ui.Context, open *bool, scroll *ui.ScrollState, width
 }
 
 func (s *Screen) header(c *ui.Context, open *bool, lead func(), title, sub string) {
+	s.headerBusy(c, open, lead, title, sub, false)
+}
+
+// headerBusy is header whose close button is disabled while busy.
+func (s *Screen) headerBusy(c *ui.Context, open *bool, lead func(), title, sub string, busy bool) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Padding(t.Space(4.5), t.Space(5), t.Space(1),
 		t.Space(5)).Children(func() {
@@ -1074,7 +1102,7 @@ func (s *Screen) header(c *ui.Context, open *bool, lead func(), title, sub strin
 			}
 		})
 		x := theme.Fade(ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(8).AlignSelf(ui.Start).
-			Label(s.text.Close).Tooltip(s.text.Close))
+			Label(s.text.Close).Tooltip(s.text.Close).Disabled(busy))
 		color := t.TextMuted
 		switch {
 		case x.Pressed():
@@ -1112,7 +1140,7 @@ func fieldEdge(c *ui.Context, e ui.Element) {
 }
 
 // box is the frame of a text field: its leading icon, if any, and the input built by input.
-func box(c *ui.Context, key string, lead *ui.SVG, invalid bool, fill ui.Color, input func()) {
+func box(c *ui.Context, key string, lead *ui.SVG, invalid bool, fill ui.Color, input func()) ui.Element {
 	t := c.Theme()
 	b := ui.Row(c).Key(key).FillWidth().Height(theme.Px(t, 32)).AlignItems(ui.Center).Gap(t.Space(2)).
 		PaddingX(t.Space(2.5)).Radius(t.Radius)
@@ -1129,7 +1157,7 @@ func box(c *ui.Context, key string, lead *ui.SVG, invalid bool, fill ui.Color, i
 	case focused:
 		b.Border(0, ui.Color{}).Background(theme.RaisedFill(t)).Shadow(0, 0, 0, 2, t.Focus)
 	}
-	b.Children(func() {
+	return b.Children(func() {
 		if lead != nil {
 			ui.Icon(c, lead).FontSize(theme.IconMedium(t)).TextColor(color)
 		}
@@ -1642,7 +1670,7 @@ func (s *Screen) intervalSelect(c *ui.Context, value *int64, autoNow int64, busy
 	if *value == 0 && autoNow > 0 {
 		shown = strings.ReplaceAll(s.text.AutoEvery, "{every}", s.every(autoNow))
 	}
-	s.choiceSelect(c, value, options, s.text.Every, shown, s.every, busy)
+	s.choiceSelect(c, value, options, s.text.Every, shown, s.every, busy, false)
 }
 
 // keepName names a keep period in days: 0 follows the settings and -1 is forever.
@@ -1685,7 +1713,7 @@ func (s *Screen) keepField(c *ui.Context) {
 		shown = strings.ReplaceAll(s.text.KeepFollowing, "{keep}", global)
 	}
 	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
-		s.choiceSelect(c, &e.keep, options, s.text.Keep, shown, s.keepName, e.busy)
+		s.choiceSelect(c, &e.keep, options, s.text.Keep, shown, s.keepName, e.busy, false)
 		help(c, s.text.KeepHelp)
 	})
 }
@@ -1715,7 +1743,7 @@ func (s *Screen) paceField(c *ui.Context) {
 		slices.Sort(options[1:])
 	}
 	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
-		s.choiceSelect(c, &e.pace, options, s.text.Pace, s.paceName(e.pace), s.paceName, e.busy)
+		s.choiceSelect(c, &e.pace, options, s.text.Pace, s.paceName(e.pace), s.paceName, e.busy, false)
 		help(c, s.text.PaceHelp)
 	})
 }
@@ -1833,7 +1861,7 @@ func (s *Screen) extractInput(c *ui.Context, key string, value *string, labelTex
 
 // choiceSelect is a select of whole numbers named by name, with the label above it; shown is what the closed select
 // reads for the current value.
-func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, busy bool) {
+func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, busy, muted bool) {
 	t := c.Theme()
 	label(c, labelText)
 	sel := ui.SelectBase(c, value)
@@ -1846,7 +1874,10 @@ func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labe
 		sel.Trigger.Background(t.SurfaceHover)
 	}
 	sel.Trigger.Children(func() {
-		ui.Text(c, shown).Grow(1).MinWidth(0).SingleLine()
+		shownText := ui.Text(c, shown).Grow(1).MinWidth(0).SingleLine()
+		if muted {
+			shownText.TextColor(t.TextMuted)
+		}
 		ui.Icon(c, icons.ChevronDown).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {

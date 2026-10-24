@@ -291,6 +291,7 @@ func desktop() {
 		files.Desktop = &settings.Desktop{OS: runtime.GOOS, Bundled: mygo.App.IsPackaged()}
 		root := newShell(system, filepath.Join(dataDir, sessionFile), filepath.Join(dataDir, prefs.File),
 			client.Session{Server: "http://" + b.addr}, goAsync, files)
+		var manageItem *mygo.MenuItem
 		setMenu := func(language string) {
 			help, keys := timeline.MenuLabels(language)
 			view, commands := timeline.TimelineMenu(language)
@@ -300,7 +301,9 @@ func desktop() {
 					window.Update(func() { root.run(it.Command) })
 				}})
 			}
-			subscriptions, refreshAll := timeline.RefreshMenuLabels(language)
+			subscriptions, refreshAll, manage := timeline.RefreshMenuLabels(language)
+			manageItem = &mygo.MenuItem{ID: "manage", Label: manage, Disabled: !root.hasSources,
+				Click: func(*mygo.MenuItem, *mygo.Window) { window.Update(root.manage) }}
 			mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 				{Label: "Oriel", Submenu: []*mygo.MenuItem{
 					{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
@@ -322,6 +325,7 @@ func desktop() {
 					{Label: refreshAll, Accelerator: "CmdOrCtrl+R", Click: func(*mygo.MenuItem, *mygo.Window) {
 						window.Update(root.refreshAll)
 					}},
+					manageItem,
 				}},
 				{Role: mygo.RoleWindowMenu},
 				{Label: help, Submenu: []*mygo.MenuItem{
@@ -342,6 +346,11 @@ func desktop() {
 			showMyGoLanguage(mygo.App.SetLocale, root.prefs.Language, mygo.App.PreferredLanguages())
 		}
 		root.language = showLanguage
+		root.sources = func(has bool) {
+			if manageItem != nil {
+				manageItem.SetEnabled(has)
+			}
+		}
 		showLanguage(locale.Resolve(root.prefs.Language, system))
 		made := make(chan struct{}) // closed once window is set, which the poll goroutine reads
 		// The window, shown again from the tray, the Dock or a second launch.
