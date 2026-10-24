@@ -98,7 +98,8 @@ func TestPictureFailedLowBoxIsOneRow(t *testing.T) {
 	if box.H >= 140**unit {
 		t.Fatalf("height %v is not a strip", box.H)
 	}
-	near(t, "height", box.H, 60**unit)
+	// The declared 600 wide is in pixels of the picture, which the text scale does not change, so the box is 60 high.
+	near(t, "height", box.H, 60)
 	expect(t, tt, "Banner", "Try again")
 	for _, text := range tt.Texts() {
 		if text == "This picture can’t be shown" {
