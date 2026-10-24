@@ -27,6 +27,7 @@ type home interface {
 	Use(api timeline.API, server string)
 	SetLanguage(language string)
 	Refresh()
+	ViewSources()
 	ShowKeys()
 	Run(cmd timeline.Command)
 	RefreshAll()
@@ -99,6 +100,7 @@ func (s *shell) build() {
 		Folder:      s.files.Folder,
 		Back:        func() { s.setting = false },
 		Imported:    func() { s.home.Refresh() },
+		ViewSources: s.viewSources,
 		Expired:     s.expired,
 		Preferences: func() prefs.Preferences { return s.prefs },
 		Fonts:       func() []string { return s.fonts },
@@ -336,6 +338,12 @@ func (s *shell) openAISettings() {
 	}
 	s.setting = true
 	s.settings.OpenAI()
+}
+
+// viewSources goes from the result of an import to the timeline on all subscriptions.
+func (s *shell) viewSources() {
+	s.setting = false
+	s.home.ViewSources()
 }
 
 // openImportSettings shows the settings on the import and export group, from the empty timeline of a first run.

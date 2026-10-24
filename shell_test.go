@@ -37,8 +37,8 @@ func remote(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/sessions", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"sessions":[{"id":1,"userAgent":"Oriel/0.9.0 (macOS)","current":true}]}`))
 	})
-	mux.HandleFunc("POST /api/opml/import", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"added":4,"existing":1,"failed":[]}`))
+	mux.HandleFunc("POST /api/opml/import/start", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"id":"j1","phase":"done","progress":{"done":5,"total":5},"result":{"added":4,"existing":1,"failed":[]}}`))
 	})
 	s := httptest.NewServer(mux)
 	t.Cleanup(s.Close)
@@ -49,6 +49,7 @@ func remote(t *testing.T) *httptest.Server {
 type fakeHome struct {
 	used      []string
 	refreshed int
+	viewed    int
 	keys      int
 	ran       []timeline.Command
 	all       int
@@ -64,6 +65,8 @@ func (h *fakeHome) Use(api timeline.API, server string) {
 func (h *fakeHome) SetLanguage(language string) { h.languages = append(h.languages, language) }
 
 func (h *fakeHome) Refresh() { h.refreshed++ }
+
+func (h *fakeHome) ViewSources() { h.viewed++ }
 
 func (h *fakeHome) ShowKeys() { h.keys++ }
 
@@ -269,6 +272,14 @@ func TestShellDropOpensImport(t *testing.T) {
 	if home := s.home.(*fakeHome); home.refreshed != 1 {
 		t.Fatalf("refreshed %d", home.refreshed)
 	}
+	// View subscriptions leaves the settings for the timeline.
+	if err := tt.Click("View subscriptions"); err != nil {
+		t.Fatal(err)
+	}
+	if home := s.home.(*fakeHome); s.setting || home.viewed != 1 {
+		t.Fatalf("setting %v, viewed %d", s.setting, home.viewed)
+	}
+	s.setting = true
 	// Dropped again on another page of the settings, it shows the import page.
 	s.settings.OpenAI()
 	tt.Frame()

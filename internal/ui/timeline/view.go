@@ -478,6 +478,15 @@ func (s *Screen) Refresh() {
 	s.reload()
 }
 
+// ViewSources shows all subscriptions, from the result of an import that added some: the scope is All, the failure
+// filter and the words typed in the sidebar's filter are cleared, a hidden sidebar shows, and the focus goes to the
+// sidebar as with H.
+func (s *Screen) ViewSources() {
+	s.failingOnly, s.sideQuery = false, ""
+	s.choose(scope{})
+	s.toSidebar()
+}
+
 func (s *Screen) expired(err error) bool {
 	if !errors.Is(err, client.ErrUnauthorized) {
 		return false

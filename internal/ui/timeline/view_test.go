@@ -4001,6 +4001,28 @@ func TestSidebarToggle(t *testing.T) {
 	}
 }
 
+// View subscriptions, from the result of an import, shows All with the sidebar's filters cleared, the sidebar shown and
+// the focus in it.
+func TestViewSources(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := viewing(t, &p)
+	tt.Key(0, ui.Key3)
+	f.settle(t, tt)
+	if s.scope.kind != "video" {
+		t.Fatalf("scope %v", s.scope)
+	}
+	s.failingOnly, s.sideQuery = true, "ph"
+	p.SidebarHidden = true
+	tt.Frame()
+	s.ViewSources()
+	f.settle(t, tt)
+	tt.Frame()
+	if s.scope != (scope{}) || s.failingOnly || s.sideQuery != "" || p.SidebarHidden || !s.inSide {
+		t.Fatalf("scope %v, failing only %v, filter %q, hidden %v, in sidebar %v",
+			s.scope, s.failingOnly, s.sideQuery, p.SidebarHidden, s.inSide)
+	}
+}
+
 // With the sidebar hidden the window buttons sit over the toolbar, so the toolbar's left starts after them.
 func TestSidebarHiddenInset(t *testing.T) {
 	p := prefs.Default()

@@ -71,6 +71,7 @@ type copy struct {
 	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                                            string
 	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                                                                                                                                                      string
 
+	ImportingOf, Progress, ViewSources, Stopped, Lost, ImportBusy, BusyWhy        string
 	DropHelp, ImportedMany, NotOpmlWhy, TooLargeWhy, ReadWhy, FailedWhy, DropBusy string
 
 	Rules, RulesLead, RulesNone, RulesNoneHelp, AddRule, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs     string
@@ -146,7 +147,8 @@ type API interface {
 	Storage(ctx context.Context) (client.Storage, error)
 	StartVacuum(ctx context.Context) (client.Vacuum, error)
 	RevokeDevice(ctx context.Context, id int64) error
-	ImportOPML(ctx context.Context, opml []byte) (client.Imported, error)
+	StartOPMLImport(ctx context.Context, opml []byte) (client.OPMLImport, error)
+	OPMLImportStatus(ctx context.Context) (client.OPMLImport, error)
 	ExportOPML(ctx context.Context) ([]byte, error)
 	Diagnostics(ctx context.Context) ([]byte, error)
 	Backup(ctx context.Context, dst io.Writer) (int64, error)
@@ -184,7 +186,9 @@ type Deps struct {
 	Folder   func() (string, error)
 	Back     func()
 	Imported func()
-	Expired  func()
+	// ViewSources goes back to the timeline on all subscriptions, after an import that added some.
+	ViewSources func()
+	Expired     func()
 
 	Preferences func() prefs.Preferences
 	Fonts       func() []string
@@ -222,6 +226,7 @@ type result struct {
 	fails  []client.ImportFail
 	export bool // shown under the export row, else under the import row
 	backup bool // shown under the restore row, which also holds the result of a backup
+	view   bool // an import that added subscriptions, which View subscriptions goes to
 }
 
 // Screen keeps the settings as loaded and the work under way.
@@ -288,15 +293,15 @@ type Screen struct {
 	promptSaving           bool
 	promptStatus           status
 
-	busy       bool   // a file is being chosen, imported or exported
-	importing  string // the name of the file being imported
-	working    string // what the backup or restore under way says, shown with a spinner under the restore row
-	confirming bool   // the dialog that asks to replace the data is open
-	backupFile string // the backup file the dialog is about
-	autoFolder string // the folder of automatic backups as typed, where it is typed
-	autoKeep   string // the number to keep as typed
-	grouping   bool   // the choice to show an article once is being saved
-	autoSaving bool   // a choice about automatic backups is being chosen or saved
+	busy       bool       // a file is being chosen, imported or exported
+	run        *importRun // the import of the files chosen or dropped, while it is under way
+	working    string     // what the backup or restore under way says, shown with a spinner under the restore row
+	confirming bool       // the dialog that asks to replace the data is open
+	backupFile string     // the backup file the dialog is about
+	autoFolder string     // the folder of automatic backups as typed, where it is typed
+	autoKeep   string     // the number to keep as typed
+	grouping   bool       // the choice to show an article once is being saved
+	autoSaving bool       // a choice about automatic backups is being chosen or saved
 	autoStatus status
 	result     result
 	reader     reader // the dialog that imports from another reader
@@ -352,7 +357,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	sameServer, deleted := server == s.server, s.rules.deleted
 	s.api, s.server, s.signedIn = api, server, signedIn
 	s.gen++
-	s.group, s.busy, s.importing, s.result, s.revoking = fetching, false, "", result{}, false
+	s.group, s.busy, s.run, s.result, s.revoking = fetching, false, nil, result{}, false
 	s.working, s.confirming, s.backupFile = "", false, ""
 	s.autoSaving, s.autoStatus = false, status{}
 	s.grouping = false
@@ -421,7 +426,7 @@ func (s *Screen) expired(err error) bool {
 	}
 	s.gen++
 	s.api = nil
-	s.busy, s.saving, s.keeping, s.revoking = false, false, false, false
+	s.busy, s.run, s.saving, s.keeping, s.revoking = false, nil, false, false, false
 	s.working, s.confirming, s.backupFile = "", false, ""
 	s.autoSaving = false
 	s.aiSaving, s.testing, s.promptSaving = false, false, false
@@ -928,78 +933,224 @@ func (s *Screen) fill(text string, pairs ...string) string {
 	return strings.NewReplacer(pairs...).Replace(text)
 }
 
+// importEvery is how often the screen asks the server how an import goes.
+const importEvery = 250 * time.Millisecond
+
+// importQuarters is the size of the file from which the count is announced when it passes a quarter.
+const importQuarters = 20
+
+// importRun is the import of the files chosen or dropped, one after the other, each as a job of the server.
+type importRun struct {
+	paths, names []string
+	drop         bool // the files were dropped, so their extension is checked
+	next         int  // the file being imported
+	outcomes     []fileOutcome
+	job          client.OPMLImport // the job of this file, as of the last answer
+	starting     bool              // the request that starts the job is under way
+	polling      bool              // a request for the state of the job is under way
+	at           time.Time         // when the job was last asked about
+	lost         int               // how many answers in a row failed or were of another job
+	said         int               // the quarters of this file announced
+}
+
 func (s *Screen) chooseImport() {
 	if s.busy || s.api == nil {
 		return
 	}
 	s.busy, s.result = true, result{}
-	gen, api, filter := s.gen, s.api, s.text.OPMLFiles
+	gen, filter := s.gen, s.text.OPMLFiles
 	s.deps.Go(func() func() {
 		path, err := s.deps.Open(filter)
-		if err != nil || path == "" {
-			return func() {
-				if gen == s.gen {
-					s.busy = false
-				}
-			}
-		}
-		name := filepath.Base(path)
-		s.deps.Go(func() func() {
-			data, err := readOPML(path)
-			var imported client.Imported
-			if err == nil {
-				imported, err = api.ImportOPML(context.Background(), data)
-			}
-			return func() { s.imported(gen, name, imported, err) }
-		})
 		return func() {
-			if gen == s.gen && s.busy {
-				s.importing = name
-				s.announce = s.fill(s.text.Importing, "{file}", name)
+			if gen != s.gen {
+				return
 			}
+			if err != nil || path == "" {
+				s.busy = false
+				return
+			}
+			s.beginImport([]string{path}, false)
 		}
 	})
 }
 
-func (s *Screen) imported(gen int, name string, imported client.Imported, err error) {
-	if gen != s.gen || s.expired(err) {
+// beginImport starts importing the files at paths, one after the other; s.busy is set.
+func (s *Screen) beginImport(paths []string, drop bool) {
+	names := make([]string, len(paths))
+	for i, path := range paths {
+		names[i] = filepath.Base(path)
+	}
+	r := &importRun{paths: paths, names: names, drop: drop}
+	s.run = r
+	s.announce = s.importLabel(r)
+	s.importFile(r)
+}
+
+// importLabel says which file is being imported, and which of several.
+func (s *Screen) importLabel(r *importRun) string {
+	if len(r.paths) == 1 {
+		return s.fill(s.text.Importing, "{file}", r.names[0])
+	}
+	return s.fill(s.text.ImportingOf, "{file}", r.names[r.next], "{i}", strconv.Itoa(r.next+1), "{n}", strconv.Itoa(len(r.paths)))
+}
+
+// importFile reads the file r.next and has the server start importing it.
+func (s *Screen) importFile(r *importRun) {
+	i := r.next
+	path, drop := r.paths[i], r.drop
+	r.starting = true
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		var job client.OPMLImport
+		var err error
+		var data []byte
+		if ext := strings.ToLower(filepath.Ext(path)); drop && ext != ".opml" && ext != ".xml" {
+			err = errNotOPML
+		} else if data, err = readOPML(path); err == nil {
+			job, err = api.StartOPMLImport(context.Background(), data)
+		}
+		return func() {
+			if gen != s.gen || r != s.run {
+				return
+			}
+			s.started(r, job, err)
+		}
+	})
+}
+
+// started takes the answer to the request that starts the job of a file.
+func (s *Screen) started(r *importRun, job client.OPMLImport, err error) {
+	r.starting = false
+	if s.expired(err) {
 		return
 	}
-	s.busy, s.importing = false, ""
-	file := "{file}"
+	if err != nil {
+		s.fileEnded(r, fileOutcome{name: r.names[r.next], err: err})
+		return
+	}
+	r.job, r.at, r.lost, r.said = job, s.deps.Now(), 0, 0
+	if job.Phase != client.OPMLRunning {
+		s.polled(r, job, nil)
+	}
+}
+
+// watchImport asks for the state of the job once its time has come, and wakes the screen for the next time. It runs
+// while the page is drawn; an import goes on without it and shows where it has got to when the page is back.
+func (s *Screen) watchImport(c *ui.Context) {
+	r := s.run
+	if s.api == nil || r == nil || r.starting || r.polling || r.job.Phase != client.OPMLRunning {
+		return
+	}
+	if wait := importEvery - s.deps.Now().Sub(r.at); wait > 0 {
+		c.After(wait)
+		return
+	}
+	r.polling, r.at = true, s.deps.Now()
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		job, err := api.OPMLImportStatus(context.Background())
+		return func() {
+			if gen != s.gen || r != s.run {
+				return
+			}
+			r.polling, r.at = false, s.deps.Now()
+			if s.expired(err) {
+				return
+			}
+			s.polled(r, job, err)
+		}
+	})
+}
+
+// polled takes the state the server reports for the job of a file. More than three answers in a row that fail, or
+// that are of another job, which another device started, mean the screen has lost the job.
+func (s *Screen) polled(r *importRun, job client.OPMLImport, err error) {
+	name := r.names[r.next]
+	if err != nil || job.ID != r.job.ID {
+		if r.lost++; r.lost > 3 {
+			s.fileEnded(r, fileOutcome{name: name, err: errLost})
+		}
+		return
+	}
+	r.lost, r.job = 0, job
+	switch job.Phase {
+	case client.OPMLDone, client.OPMLFailed:
+		o := fileOutcome{name: name, stopped: job.Phase == client.OPMLFailed}
+		if job.Result != nil {
+			o.imported = *job.Result
+		}
+		s.fileEnded(r, o)
+	default:
+		// A long file is announced as it passes a quarter, not at every count.
+		if total := job.Progress.Total; total >= importQuarters {
+			if q := job.Progress.Done * 4 / total; q >= 1 && q <= 3 && q > r.said {
+				r.said = q
+				s.announce = s.fill(s.text.Progress, "{done}", strconv.Itoa(job.Progress.Done), "{total}", strconv.Itoa(total))
+			}
+		}
+	}
+}
+
+// fileEnded records how a file came out and goes on to the next one, or shows the result after the last.
+func (s *Screen) fileEnded(r *importRun, o fileOutcome) {
+	r.outcomes = append(r.outcomes, o)
+	r.job, r.starting, r.polling, r.lost, r.said = client.OPMLImport{}, false, false, 0, 0
+	if r.next++; r.next < len(r.paths) {
+		s.importFile(r)
+		return
+	}
+	s.busy, s.run = false, nil
+	if len(r.paths) == 1 {
+		s.imported(o)
+	} else {
+		s.importedFiles(r.outcomes)
+	}
+}
+
+// imported shows the result of one file.
+func (s *Screen) imported(o fileOutcome) {
+	file, name, imported := "{file}", o.name, o.imported
+	counts := []string{file, name, "{added}", strconv.Itoa(imported.Added), "{existing}", strconv.Itoa(imported.Existing)}
 	switch {
-	case err == nil:
-		r := result{tone: done, text: s.fill(s.text.ImportedOk, file, name, "{added}", strconv.Itoa(imported.Added),
-			"{existing}", strconv.Itoa(imported.Existing))}
-		if len(imported.Failed) > 0 {
-			r = result{tone: partly, text: s.fill(s.text.Imported, file, name, "{added}", strconv.Itoa(imported.Added),
-				"{existing}", strconv.Itoa(imported.Existing), "{failed}", strconv.Itoa(len(imported.Failed))),
-				fails: imported.Failed}
-		}
-		s.result = r
-		if imported.Added > 0 {
-			s.deps.Imported()
-		}
-	case errors.Is(err, errTooLarge) || code(err) == "opml_too_large":
+	case o.err == nil && o.stopped:
+		s.result = result{tone: partly, text: s.fill(s.text.Stopped, counts...), fails: imported.Failed, view: imported.Added > 0}
+	case o.err == nil && len(imported.Failed) > 0:
+		s.result = result{tone: partly, text: s.fill(s.text.Imported, append(counts, "{failed}", strconv.Itoa(len(imported.Failed)))...),
+			fails: imported.Failed, view: imported.Added > 0}
+	case o.err == nil:
+		s.result = result{tone: done, text: s.fill(s.text.ImportedOk, counts...), view: imported.Added > 0}
+	case errors.Is(o.err, errLost):
+		s.result = result{tone: partly, text: s.fill(s.text.Lost, file, name)}
+	case errors.Is(o.err, errTooLarge) || code(o.err) == "opml_too_large":
 		s.result = result{tone: refused, text: s.fill(s.text.TooLarge, file, name)}
-	case errors.Is(err, errRead):
+	case errors.Is(o.err, errRead):
 		s.result = result{tone: refused, text: s.fill(s.text.ReadFailed, file, name)}
-	case errors.Is(err, errNotOPML) || code(err) == "invalid_opml":
+	case errors.Is(o.err, errNotOPML) || code(o.err) == "invalid_opml":
 		s.result = result{tone: refused, text: s.fill(s.text.InvalidOPML, file, name)}
+	case code(o.err) == "opml_import_busy":
+		s.result = result{tone: refused, text: s.text.ImportBusy}
 	default:
 		s.result = result{tone: refused, text: s.fill(s.text.ImportFailed, file, name)}
 	}
 	s.announce = s.result.text
+	if imported.Added > 0 && o.err == nil {
+		s.deps.Imported()
+	}
 }
 
-// fileOutcome is what importing one dropped file came to.
+// fileOutcome is what importing one file came to. A job that stopped part way has stopped set and the counts up to
+// where it stopped in imported.
 type fileOutcome struct {
 	name     string
 	imported client.Imported
 	err      error
+	stopped  bool
 }
 
-var errNotOPML = errors.New("not an OPML file")
+var (
+	errNotOPML = errors.New("not an OPML file")
+	errLost    = errors.New("lost the import job")
+)
 
 // busyDrop reports whether files dropped now are turned away, because an import, backup or restore is running or a
 // dialog is open; it says so with a toast.
@@ -1023,55 +1174,19 @@ func (s *Screen) ImportFiles(paths []string) {
 		return
 	}
 	s.busy, s.result = true, result{}
-	names := make([]string, len(paths))
-	for i, path := range paths {
-		names[i] = filepath.Base(path)
-	}
-	name := strings.Join(names, ", ")
-	s.importing = name
-	s.announce = s.fill(s.text.Importing, "{file}", name)
-	gen, api := s.gen, s.api
-	s.deps.Go(func() func() {
-		outcomes := make([]fileOutcome, len(paths))
-		for i, path := range paths {
-			o := fileOutcome{name: names[i]}
-			if ext := strings.ToLower(filepath.Ext(path)); ext != ".opml" && ext != ".xml" {
-				o.err = errNotOPML
-			} else if data, err := readOPML(path); err != nil {
-				o.err = err
-			} else {
-				o.imported, o.err = api.ImportOPML(context.Background(), data)
-			}
-			outcomes[i] = o
-			if errors.Is(o.err, client.ErrUnauthorized) {
-				outcomes = outcomes[:i+1]
-				break
-			}
-		}
-		return func() { s.importedFiles(gen, outcomes) }
-	})
+	s.beginImport(paths, true)
 }
 
-// importedFiles shows the result of the dropped files: that of the existing import for one, a merged one for several.
-func (s *Screen) importedFiles(gen int, outcomes []fileOutcome) {
-	if len(outcomes) == 1 {
-		o := outcomes[0]
-		s.imported(gen, o.name, o.imported, o.err)
-		return
-	}
-	if gen != s.gen {
-		return
-	}
+// importedFiles shows the result of several files together: the counts of all of them, and a list of the
+// subscriptions that could not be added and of the files that could not be imported.
+func (s *Screen) importedFiles(outcomes []fileOutcome) {
 	var added, existing int
 	var fails []client.ImportFail
 	for _, o := range outcomes {
-		if s.expired(o.err) {
-			return
-		}
-		if o.err == nil {
-			added += o.imported.Added
-			existing += o.imported.Existing
-			fails = append(fails, o.imported.Failed...)
+		added += o.imported.Added
+		existing += o.imported.Existing
+		fails = append(fails, o.imported.Failed...)
+		if o.err == nil && !o.stopped {
 			continue
 		}
 		why := "import_failed"
@@ -1082,10 +1197,11 @@ func (s *Screen) importedFiles(gen int, outcomes []fileOutcome) {
 			why = "too_large"
 		case errors.Is(o.err, errRead):
 			why = "unreadable"
+		case code(o.err) == "opml_import_busy":
+			why = "busy"
 		}
 		fails = append(fails, client.ImportFail{Title: o.name, Error: why})
 	}
-	s.busy, s.importing = false, ""
 	tone := done
 	switch {
 	case len(fails) > 0 && added+existing == 0:
@@ -1093,7 +1209,7 @@ func (s *Screen) importedFiles(gen int, outcomes []fileOutcome) {
 	case len(fails) > 0:
 		tone = partly
 	}
-	s.result = result{tone: tone, fails: fails, text: s.fill(s.text.ImportedMany, "{n}", strconv.Itoa(len(outcomes)),
+	s.result = result{tone: tone, fails: fails, view: added > 0, text: s.fill(s.text.ImportedMany, "{n}", strconv.Itoa(len(outcomes)),
 		"{added}", strconv.Itoa(added), "{existing}", strconv.Itoa(existing), "{failed}", strconv.Itoa(len(fails)))}
 	s.announce = s.result.text
 	if added > 0 {
@@ -2635,15 +2751,7 @@ func (s *Screen) opmlPage(c *ui.Context) {
 				}
 			})
 		})
-		if s.importing != "" {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 6)).Margin(theme.Px(t, 6), 0, 0, 0).Role(ui.RoleStatus).
-				Children(func() {
-					spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-					spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-					ui.Text(c, s.fill(s.text.Importing, "{file}", s.importing)).FontSize(theme.Px(t, 12)).
-						TextColor(t.TextMuted).Shrink(1).Wrap()
-				})
-		}
+		s.importProgress(c)
 		if s.result.text != "" && !s.result.export && !s.result.backup {
 			s.resultBox(c)
 		}
@@ -2877,6 +2985,30 @@ func (s *Screen) autoRows(c *ui.Context) {
 	}
 }
 
+// importProgress is the status row of the import under way: which file, a bar and how many subscriptions are done.
+func (s *Screen) importProgress(c *ui.Context) {
+	r := s.run
+	if r == nil {
+		return
+	}
+	s.watchImport(c)
+	t := c.Theme()
+	p := r.job.Progress
+	ui.Column(c).FillWidth().Margin(theme.Px(t, 6), 0, 0, 0).Gap(theme.Px(t, 6)).Role(ui.RoleStatus).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 6)).Children(func() {
+			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+			ui.Text(c, s.importLabel(r)).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Shrink(1).Wrap()
+		})
+		if p.Total <= 0 {
+			return
+		}
+		how := s.fill(s.text.Progress, "{done}", strconv.Itoa(p.Done), "{total}", strconv.Itoa(p.Total))
+		ui.Progress(c, float64(p.Done)/float64(p.Total)).FillWidth().Height(theme.Px(t, 4)).Label(how)
+		ui.Text(c, how).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+	})
+}
+
 func (s *Screen) resultBox(c *ui.Context) {
 	t := c.Theme()
 	r := s.result
@@ -2892,6 +3024,9 @@ func (s *Screen) resultBox(c *ui.Context) {
 		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Children(func() {
 			ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(iconColor).Margin(2, 0, 0, 0)
 			ui.Text(c, r.text).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap()
+			if r.view {
+				s.viewSources(c)
+			}
 			x := ui.ButtonBase(c).Label(s.text.Dismiss).Tooltip(s.text.Dismiss)
 			xColor := t.TextMuted
 			var xFill ui.Color
@@ -2919,13 +3054,31 @@ func (s *Screen) resultBox(c *ui.Context) {
 	})
 }
 
+// viewSources is the quiet button of an import result that goes to the timeline on all subscriptions.
+func (s *Screen) viewSources(c *ui.Context) {
+	t := c.Theme()
+	b := ui.ButtonBase(c).Label(s.text.ViewSources)
+	color := t.Accent
+	var fill ui.Color
+	if b.Hovered() {
+		fill = theme.Soft(t, t.Accent)
+	}
+	mx, my := theme.Hit{H: theme.Px(t, 22), Radius: 6, Fill: fill, PadX: theme.Px(t, 6)}.Apply(c, b, func() {
+		ui.Text(c, s.text.ViewSources).FontSize(theme.Px(t, 12)).FontWeight(500).TextColor(color).NoWrap()
+	})
+	b.Margin(my, mx, my, mx)
+	if b.Clicked() && s.deps.ViewSources != nil {
+		s.deps.ViewSources()
+	}
+}
+
 func (s *Screen) failRow(c *ui.Context, i int, f client.ImportFail) {
 	t := c.Theme()
 	why := map[string]string{
 		"invalid_url": s.text.InvalidURL, "invalid_rsshub_path": s.text.InvalidRoute,
 		"invalid_kind": s.text.InvalidKind, "invalid_source": s.text.InvalidSource,
 		"not_opml": s.text.NotOpmlWhy, "too_large": s.text.TooLargeWhy, "unreadable": s.text.ReadWhy,
-		"import_failed": s.text.FailedWhy,
+		"import_failed": s.text.FailedWhy, "busy": s.text.BusyWhy,
 	}[f.Error]
 	if why == "" {
 		why = f.Error
