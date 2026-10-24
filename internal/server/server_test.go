@@ -1,17 +1,15 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/yangflow/oriel/internal/store"
+	"github.com/yangflow/oriel/internal/store/storetest"
 )
 
 func init() { passwordRounds = 1 }
@@ -22,11 +20,7 @@ func (c *clock) now() time.Time { return c.t }
 
 func newServer(t *testing.T, password string) (*Server, *clock) {
 	t.Helper()
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "oriel.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	s, err := New(st, Config{Password: password, Version: "0.1.0"})
 	if err != nil {
 		t.Fatal(err)

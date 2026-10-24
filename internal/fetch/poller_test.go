@@ -14,6 +14,7 @@ import (
 
 	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/store"
+	"github.com/yangflow/oriel/internal/store/storetest"
 )
 
 type fixture struct {
@@ -27,7 +28,7 @@ type fixture struct {
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	file := filepath.Join(t.TempDir(), "oriel.sqlite")
-	st, err := store.Open(context.Background(), file)
+	st, err := store.Open(context.Background(), storetest.Path(t, file))
 	if err != nil {
 		t.Fatal(err)
 	}

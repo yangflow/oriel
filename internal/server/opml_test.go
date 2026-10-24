@@ -302,6 +302,8 @@ func TestOPMLSyncImportHoldsTheLock(t *testing.T) {
 	if w := do(s, "POST", "/api/opml/import/start", importFile, nil); w.Code != http.StatusAccepted {
 		t.Fatalf("after it: %d %s", w.Code, w.Body)
 	}
+	// The job writes to the database; let it end before the test closes the store and removes the directory.
+	waitOPML(t, s, nil)
 }
 
 func TestOPMLJobRejectsBadFilesBeforeStarting(t *testing.T) {

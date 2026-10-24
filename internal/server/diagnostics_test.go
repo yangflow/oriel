@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,15 +12,12 @@ import (
 	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/diag"
 	"github.com/yangflow/oriel/internal/store"
+	"github.com/yangflow/oriel/internal/store/storetest"
 )
 
 func TestDiagnostics(t *testing.T) {
 	ctx := context.Background()
-	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "oriel.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
+	st := storetest.Open(t)
 	logs := diag.NewHandler(slog.NewTextHandler(io.Discard, nil), diag.Keep)
 	s, err := New(st, Config{Password: "secret", Version: "1.2.3", Log: logs, Mode: diag.ModeHeadless})
 	if err != nil {
