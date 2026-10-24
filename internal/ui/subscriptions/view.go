@@ -42,6 +42,7 @@ type copy struct {
 	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                                                                string
 	Extract, ExtractHelp, ExtractSelector, ExtractSelectorHelp, ExtractSelectorPlaceholder, ExtractSelectorInvalid                                                                 string
 	ExtractReferer, ExtractRefererHelp, ExtractRefererPlaceholder, ExtractRefererInvalid                                                                                           string
+	Headers, HeadersHelp, HeaderUa, HeaderUaHelp, HeaderReferer, HeaderRefererHelp, HeadersNote, HeaderUaError, HeaderRefererError                                                 string
 	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                                       string
 	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                                                   string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                                string
@@ -181,32 +182,36 @@ type adding struct {
 
 // editing is the edit dialog of src.
 type editing struct {
-	open     bool
-	form     ui.ScrollState
-	src      client.Source
-	title    string
-	kind     int
-	interval int64
-	keep     int64 // in keeps: days, 0 to follow the settings, -1 for forever
-	global   int   // the keep period of the settings in days, 0 for forever
-	pace     int64 // in paces: seconds an unread entry stays in All and Unread, 0 for off
-	paused   bool
-	mute     string
-	extract  bool   // the Extraction group is open
-	selector string // the content selector, the Referer and the link rewrites of the subscription
-	referer  string
-	rewrites string
-	counted  string // the keywords the count was asked for
-	hidden   int    // how many entries the keywords hide, once known
-	known    bool
-	auto     [2]bool   // summarize and translate new entries
-	prompts  [2]string // the summary and translation prompts of the subscription, "" for the ones in the settings
-	aiOff    bool      // the settings have no AI endpoint, so the switches do nothing yet
-	primary  string    // the first RSSHub instance of the settings, "" until they are loaded
-	formErr  string
-	movedErr string // why the move could not be taken, shown in the moved card
-	busy     bool
-	focus    bool
+	open      bool
+	form      ui.ScrollState
+	src       client.Source
+	title     string
+	kind      int
+	interval  int64
+	keep      int64 // in keeps: days, 0 to follow the settings, -1 for forever
+	global    int   // the keep period of the settings in days, 0 for forever
+	pace      int64 // in paces: seconds an unread entry stays in All and Unread, 0 for off
+	paused    bool
+	mute      string
+	extract   bool   // the Extraction group is open
+	selector  string // the content selector, the Referer and the link rewrites of the subscription
+	referer   string
+	rewrites  string
+	headers   bool   // the Request headers group is open
+	agent     string // the User-Agent and the Referer sent to the subscription's own host
+	fetchRef  string
+	headerErr [2]bool // the server refused the User-Agent, the Referer
+	counted   string  // the keywords the count was asked for
+	hidden    int     // how many entries the keywords hide, once known
+	known     bool
+	auto      [2]bool   // summarize and translate new entries
+	prompts   [2]string // the summary and translation prompts of the subscription, "" for the ones in the settings
+	aiOff     bool      // the settings have no AI endpoint, so the switches do nothing yet
+	primary   string    // the first RSSHub instance of the settings, "" until they are loaded
+	formErr   string
+	movedErr  string // why the move could not be taken, shown in the moved card
+	busy      bool
+	focus     bool
 }
 
 // The states of the health dialog's list.
@@ -576,6 +581,7 @@ func (s *Screen) Edit(src client.Source) {
 		interval: intervalChoice(src), keep: int64(src.KeepDays), pace: int64(src.PaceSec), paused: src.Paused, mute: src.MuteKeywords,
 		extract:  src.ExtractSelector != "" || src.ExtractReferer != "" || src.ExtractRewrites != "",
 		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
+		headers: src.FetchUserAgent != "" || src.FetchReferer != "", agent: src.FetchUserAgent, fetchRef: src.FetchReferer,
 		auto:    [2]bool{src.AutoSummary, src.AutoTranslate},
 		prompts: [2]string{src.PromptSummary, src.PromptTranslate}, focus: true}
 	gen, api, id := s.gen, s.api, src.ID
@@ -637,6 +643,12 @@ func (s *Screen) save() {
 	if rewrites := strings.TrimSpace(e.rewrites); rewrites != e.src.ExtractRewrites {
 		patch.ExtractRewrites, changed = &rewrites, true
 	}
+	if agent := strings.TrimSpace(e.agent); agent != e.src.FetchUserAgent {
+		patch.FetchUserAgent, changed = &agent, true
+	}
+	if referer := strings.TrimSpace(e.fetchRef); referer != e.src.FetchReferer {
+		patch.FetchReferer, changed = &referer, true
+	}
 	if auto := e.auto[0]; auto != e.src.AutoSummary {
 		patch.AutoSummary, changed = &auto, true
 	}
@@ -653,7 +665,7 @@ func (s *Screen) save() {
 		e.open = false
 		return
 	}
-	e.busy, e.formErr = true, ""
+	e.busy, e.formErr, e.headerErr = true, "", [2]bool{}
 	gen, api, id := s.gen, s.api, e.src.ID
 	s.deps.Go(func() func() {
 		src, err := api.UpdateSource(context.Background(), id, patch)
@@ -668,6 +680,13 @@ func (s *Screen) save() {
 				s.deps.Changed(src)
 			case code(err) == "not_found":
 				s.gone(id)
+			case code(err) == "invalid_fetch_user_agent" || code(err) == "invalid_fetch_referer":
+				s.edit.headers = true
+				s.edit.headerErr = [2]bool{code(err) == "invalid_fetch_user_agent", code(err) == "invalid_fetch_referer"}
+				s.announce = s.text.HeaderUaError
+				if s.edit.headerErr[1] {
+					s.announce = s.text.HeaderRefererError
+				}
 			default:
 				s.edit.formErr = s.saveProblem(err)
 				s.announce = s.edit.formErr
@@ -1743,6 +1762,62 @@ func (s *Screen) extractGroup(c *ui.Context) {
 	})
 }
 
+// headersGroup is the Request headers disclosure: the User-Agent and Referer sent to the subscription's own site. It
+// is closed unless one is set, and not shown for a route, which RSSHub instances serve and not the subscription's own
+// site.
+func (s *Screen) headersGroup(c *ui.Context) {
+	t := c.Theme()
+	e := &s.edit
+	if e.src.URL == "" {
+		return
+	}
+	ui.Column(c.Key("headers")).FillWidth().Gap(t.Space(1)).Children(func() {
+		head := ui.ButtonBase(c).Key("headers-head").FillWidth().Height(theme.Px(t, 28)).AlignItems(ui.Center).Gap(t.Space(1.5)).
+			Radius(t.Radius).Label(s.text.Headers).Role(ui.RoleDisclosure).Expanded(e.headers)
+		if head.Hovered() {
+			head.Background(t.SurfaceHover)
+		}
+		theme.Fade(head)
+		head.Children(func() {
+			chevron := icons.ChevronRight
+			if e.headers {
+				chevron = icons.ChevronDown
+			}
+			ui.Icon(c, chevron).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+			ui.Text(c, s.text.Headers).FontSize(theme.Px(t, 12)).FontWeight(500)
+		})
+		if head.Clicked() {
+			e.headers = !e.headers
+		}
+		if !e.headers {
+			help(c, s.text.HeadersHelp)
+			return
+		}
+		s.headerInput(c, "agent", &e.agent, e.headerErr[0], s.text.HeaderUa, "Oriel/"+client.Version(),
+			strings.ReplaceAll(s.text.HeaderUaHelp, "{version}", client.Version()), s.text.HeaderUaError)
+		s.headerInput(c, "fetch-referer", &e.fetchRef, e.headerErr[1], s.text.HeaderReferer, "https://example.com/",
+			s.text.HeaderRefererHelp, s.text.HeaderRefererError)
+		help(c, s.text.HeadersNote)
+	})
+}
+
+// headerInput is one single-line field of the Request headers group, with its help line, or the reason the server
+// refused it.
+func (s *Screen) headerInput(c *ui.Context, key string, value *string, invalid bool, labelText, placeholder, helpText, errText string) {
+	t := c.Theme()
+	ui.Column(c.Key(key)).FillWidth().Gap(t.Space(1)).Children(func() {
+		label(c, labelText)
+		box(c, key, nil, invalid, t.Surface, func() {
+			ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(labelText).Description(helpText).
+				Placeholder(placeholder).Disabled(s.edit.busy)
+		})
+		if invalid {
+			errorLine(c, errText, "")
+		}
+		help(c, helpText)
+	})
+}
+
 // extractInput is one single-line field of the Extraction group, with its help line.
 func (s *Screen) extractInput(c *ui.Context, key string, value *string, labelText, placeholder, helpText string) {
 	t := c.Theme()
@@ -1816,6 +1891,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.keepField(c)
 		s.paceField(c)
 		s.extractGroup(c)
+		s.headersGroup(c)
 		s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, s.text.PauseHelp)
 		s.muteField(c)
 		s.aiGroup(c)

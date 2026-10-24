@@ -50,6 +50,8 @@ type sourceJSON struct {
 	PaceSec             int    `json:"paceSec"`
 	ExtractSelector     string `json:"extractSelector"`
 	ExtractReferer      string `json:"extractReferer"`
+	FetchUserAgent      string `json:"fetchUserAgent"`
+	FetchReferer        string `json:"fetchReferer"`
 	ExtractRewrites     string `json:"extractRewrites"`
 	RSSHubInstance      string `json:"rsshubInstance"`
 	Proxy               string `json:"proxy"`
@@ -75,7 +77,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError, LastErrorKind: src.LastErrorKind,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
 		WebSubActive: src.WebSubUntil.After(time.Now()), MovedTo: src.MovedTo, UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
@@ -275,6 +277,8 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		ExtractSelector   *string `json:"extractSelector"`
 		ExtractReferer    *string `json:"extractReferer"`
 		ExtractRewrites   *string `json:"extractRewrites"`
+		FetchUserAgent    *string `json:"fetchUserAgent"`
+		FetchReferer      *string `json:"fetchReferer"`
 		Proxy             *string `json:"proxy"`
 		ProxyUser         *string `json:"proxyUser"`
 		ProxyPassword     *string `json:"proxyPassword"`
@@ -344,6 +348,37 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		patch.ExtractRewrites = &rewrites
+	}
+	if body.FetchUserAgent != nil {
+		agent, err := fetch.ParseUserAgent(*body.FetchUserAgent)
+		if err != nil {
+			fail(w, http.StatusBadRequest, "invalid_fetch_user_agent")
+			return
+		}
+		patch.FetchUserAgent = &agent
+	}
+	if body.FetchReferer != nil {
+		referer, err := fetch.ParseFetchReferer(*body.FetchReferer)
+		if err != nil {
+			fail(w, http.StatusBadRequest, "invalid_fetch_referer")
+			return
+		}
+		patch.FetchReferer = &referer
+	}
+	if (patch.FetchUserAgent != nil && *patch.FetchUserAgent != "") || (patch.FetchReferer != nil && *patch.FetchReferer != "") {
+		// A route is fetched from RSSHub instances, which are not the subscription's own host.
+		src, err := s.store.Source(r.Context(), id)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			fail(w, http.StatusNotFound, "not_found")
+			return
+		case err != nil:
+			internal(w, err)
+			return
+		case src.URL == "":
+			fail(w, http.StatusBadRequest, "fetch_headers_unsupported")
+			return
+		}
 	}
 	if body.Proxy != nil {
 		address := strings.TrimSpace(*body.Proxy)

@@ -651,6 +651,16 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 		return 0, err
 	}
 	req.Header.Set("User-Agent", p.userAgent)
+	custom := instance == "" && src.RSSHubPath == "" && (src.UserAgent != "" || src.Referer != "")
+	if custom {
+		// The subscription's own headers go to its own host only; a redirect elsewhere gets the defaults.
+		if src.UserAgent != "" {
+			req.Header.Set("User-Agent", src.UserAgent)
+		}
+		if src.Referer != "" {
+			req.Header.Set("Referer", src.Referer)
+		}
+	}
 	if src.ETag != "" {
 		req.Header.Set("If-None-Match", src.ETag)
 	}
@@ -662,6 +672,24 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 		return 0, err
 	}
 	client, permanent := watchRedirects(client)
+	if custom {
+		client = onRedirect(client, func(next *http.Request) {
+			switch {
+			case sameHost(next, base):
+				if src.UserAgent != "" {
+					next.Header.Set("User-Agent", src.UserAgent)
+				}
+				if src.Referer != "" {
+					next.Header.Set("Referer", src.Referer)
+				}
+			default:
+				next.Header.Set("User-Agent", p.userAgent)
+				if src.Referer != "" {
+					next.Header.Del("Referer")
+				}
+			}
+		})
+	}
 	sent := p.now()
 	resp, err := client.Do(req)
 	if err != nil {

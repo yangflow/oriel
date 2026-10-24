@@ -49,6 +49,8 @@ type FeedSource struct {
 	MovedURL       string
 	MovedSeen      int
 	MovedDismissed string
+	// UserAgent and Referer are the source's own request headers for its own host, empty for the defaults.
+	UserAgent, Referer string
 }
 
 // NewSource describes a subscription to add. Exactly one of URL and RSSHubPath is set.
@@ -71,7 +73,8 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, fetch_interval_auto, last_success_at IS NULL, consecutive_failures,
 			auto_summary, auto_translate, site_url, icon_url, icon_checked_site, websub_hub, websub_topic,
-			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days, COALESCE(last_success_at, created_at), proxy, proxy_user, proxy_password, moved_url, moved_seen, moved_dismissed
+			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days, COALESCE(last_success_at, created_at), proxy, proxy_user, proxy_password, moved_url, moved_seen, moved_dismissed,
+			fetch_user_agent, fetch_referer
 		FROM sources WHERE paused = 0 AND deleted_at IS NULL AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
@@ -87,7 +90,8 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		var since int64
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
 			&interval, &src.FetchIntervalAuto, &src.FirstSuccess, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
-			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays, &since, &src.Proxy.URL, &src.Proxy.User, &src.Proxy.Password, &src.MovedURL, &src.MovedSeen, &src.MovedDismissed); err != nil {
+			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays, &since, &src.Proxy.URL, &src.Proxy.User, &src.Proxy.Password, &src.MovedURL, &src.MovedSeen, &src.MovedDismissed,
+			&src.UserAgent, &src.Referer); err != nil {
 			return nil, err
 		}
 		if until.Valid {
@@ -485,13 +489,16 @@ type ExtractTarget struct {
 	Rewrites string
 	// Proxy is the fetch proxy of the entry's source.
 	Proxy SourceProxy
+	// SourceURL and UserAgent are the feed address and the User-Agent of the entry's source; the User-Agent goes only
+	// to the host of the feed.
+	SourceURL, UserAgent string
 }
 
 // pendingExtractionsQuery is the query of PendingExtractions. The condition on extract_status repeats the one of the
 // partial index entries_extract_open, which the planner needs to see to use it. The sort that remains runs over the
 // open entries only: a plan that read the index in the wanted order would walk the whole timeline instead.
 const pendingExtractionsQuery = `
-		SELECT e.id, e.url, e.title, e.extract_attempts, s.extract_selector, s.extract_referer, s.extract_rewrites, s.proxy, s.proxy_user, s.proxy_password FROM entries e JOIN sources s ON s.id = e.source_id
+		SELECT e.id, e.url, e.title, e.extract_attempts, s.extract_selector, s.extract_referer, s.extract_rewrites, s.proxy, s.proxy_user, s.proxy_password, s.url, s.fetch_user_agent FROM entries e JOIN sources s ON s.id = e.source_id
 		WHERE s.kind = 'article' AND s.deleted_at IS NULL AND e.extract_status IN ('pending', 'failed')
 			AND (e.extract_status = 'pending' OR (e.extract_status = 'failed' AND e.next_extract_at <= ?))
 		ORDER BY e.extract_status = 'failed', e.created_at DESC, e.id DESC
@@ -509,7 +516,7 @@ func (s *Store) PendingExtractions(ctx context.Context, now time.Time, limit int
 	var targets []ExtractTarget
 	for rows.Next() {
 		var t ExtractTarget
-		if err := rows.Scan(&t.ID, &t.URL, &t.Title, &t.Attempts, &t.Selector, &t.Referer, &t.Rewrites, &t.Proxy.URL, &t.Proxy.User, &t.Proxy.Password); err != nil {
+		if err := rows.Scan(&t.ID, &t.URL, &t.Title, &t.Attempts, &t.Selector, &t.Referer, &t.Rewrites, &t.Proxy.URL, &t.Proxy.User, &t.Proxy.Password, &t.SourceURL, &t.UserAgent); err != nil {
 			return nil, err
 		}
 		targets = append(targets, t)
