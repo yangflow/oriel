@@ -23,6 +23,16 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.10.1](https://github.com/yangflow/oriel/compare/v0.10.0...v0.10.1) (2026-10-24)
+
+
+### Fixed
+
+* **fetch:** preserve JSON Feed podcast durations ([#478](https://github.com/yangflow/oriel/issues/478)) ([8876a8b](https://github.com/yangflow/oriel/commit/8876a8b7ce61b61cf0067b0e42e2653c0b3c6cd8))
+* ignore late answers from a server the app has left ([#484](https://github.com/yangflow/oriel/issues/484)) ([eddc21e](https://github.com/yangflow/oriel/commit/eddc21e07d7401ce821ecb91ac2e63f7629e1790))
+* **settings:** keep focus on a switch when a failure note appears above it ([#486](https://github.com/yangflow/oriel/issues/486)) ([6227cf5](https://github.com/yangflow/oriel/commit/6227cf57f83e2f500abf77925382ae9be7dcb8dd))
+* **timeline:** keep checking for new entries after switching servers ([#483](https://github.com/yangflow/oriel/issues/483)) ([faa1841](https://github.com/yangflow/oriel/commit/faa18412fd81691474e31b41a9a0eb3ca04b3eed))
+
 ## [0.10.0](https://github.com/yangflow/oriel/compare/v0.9.0...v0.10.0) (2026-10-24)
 
 
