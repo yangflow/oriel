@@ -2220,3 +2220,138 @@ func TestEscapeClean(t *testing.T) {
 		t.Fatalf("back %d", f.back)
 	}
 }
+
+// openDesktop shows the Appearance page of a desktop app on the system.
+func openDesktop(t *testing.T, d *Desktop) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	s, f, _ := openAppearance(t, "en")
+	s.deps.Desktop = d
+	// Tall, so the card at the end of the page is in view.
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 2400)
+	tt.Frame()
+	return s, f, tt
+}
+
+// flip clicks the switch of a row of the Desktop card, which ends where the Line spacing choices end, centered on the
+// label and its help.
+func flip(t *testing.T, s *Screen, tt *ui.Tester, label, help string) {
+	t.Helper()
+	row, ok := tt.Find(label)
+	text, ok2 := tt.Find(help)
+	edge, ok3 := tt.Find(s.text.SpacingRelaxed)
+	if !ok || !ok2 || !ok3 {
+		t.Fatalf("no %q, %q or %q in %v", label, help, s.text.SpacingRelaxed, tt.Texts())
+	}
+	tt.ClickAt(edge.X+edge.W-edge.H/2, (row.Y+text.Y+text.H)/2)
+	tt.Frame()
+}
+
+func TestDesktopCardRows(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		d     *Desktop
+		shows []func(*Screen) string
+		hides []func(*Screen) string
+	}{
+		{"mac", &Desktop{OS: "darwin", Bundled: true},
+			[]func(*Screen) string{
+				func(s *Screen) string { return s.text.Desktop }, func(s *Screen) string { return s.text.OpenAtLogin },
+				func(s *Screen) string { return s.text.OpenAtLoginHelp }, func(s *Screen) string { return s.text.MenuBarIcon },
+				func(s *Screen) string { return s.text.MenuBarIconHelp }, func(s *Screen) string { return s.text.DockBadge },
+				func(s *Screen) string { return s.text.DockBadgeHelp }},
+			[]func(*Screen) string{
+				func(s *Screen) string { return s.text.TrayIcon }, func(s *Screen) string { return s.text.OpenAtLoginNeedsApp },
+				func(s *Screen) string { return s.text.TrayFailed }}},
+		{"windows", &Desktop{OS: "windows"},
+			[]func(*Screen) string{
+				func(s *Screen) string { return s.text.Desktop }, func(s *Screen) string { return s.text.OpenAtLogin },
+				func(s *Screen) string { return s.text.OpenAtLoginHelpTray }, func(s *Screen) string { return s.text.TrayIcon },
+				func(s *Screen) string { return s.text.TrayIconHelp }},
+			[]func(*Screen) string{
+				func(s *Screen) string { return s.text.MenuBarIcon }, func(s *Screen) string { return s.text.DockBadge },
+				func(s *Screen) string { return s.text.OpenAtLoginNeedsApp }}},
+		{"linux", &Desktop{OS: "linux"},
+			[]func(*Screen) string{func(s *Screen) string { return s.text.TrayIcon }},
+			[]func(*Screen) string{func(s *Screen) string { return s.text.DockBadge }}},
+		{"server", nil, nil,
+			[]func(*Screen) string{func(s *Screen) string { return s.text.Desktop }, func(s *Screen) string { return s.text.OpenAtLogin }}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _, tt := openDesktop(t, tc.d)
+			for _, text := range tc.shows {
+				if want := text(s); !tt.HasText(want) {
+					t.Errorf("no %q in %v", want, tt.Texts())
+				}
+			}
+			for _, text := range tc.hides {
+				if want := text(s); tt.HasText(want) {
+					t.Errorf("unexpected %q", want)
+				}
+			}
+		})
+	}
+}
+
+func TestDesktopCardNeedsBundle(t *testing.T) {
+	s, f, tt := openDesktop(t, &Desktop{OS: "darwin"})
+	if !tt.HasText(s.text.OpenAtLoginNeedsApp) || tt.HasText(s.text.OpenAtLoginHelp) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	flip(t, s, tt, s.text.OpenAtLogin, s.text.OpenAtLoginNeedsApp)
+	if len(f.changes) != 0 {
+		t.Errorf("a disabled switch changed %v", f.changes)
+	}
+}
+
+func TestDesktopCardSwitches(t *testing.T) {
+	s, f, tt := openDesktop(t, &Desktop{OS: "darwin", Bundled: true})
+	for _, tc := range []struct {
+		label, help string
+		on          func() bool
+	}{
+		{s.text.OpenAtLogin, s.text.OpenAtLoginHelp, func() bool { return f.prefs.OpenAtLogin }},
+		{s.text.MenuBarIcon, s.text.MenuBarIconHelp, func() bool { return f.prefs.TrayIcon }},
+		{s.text.DockBadge, s.text.DockBadgeHelp, func() bool { return f.prefs.DockBadge }},
+	} {
+		if tc.on() {
+			t.Fatalf("%s is on by default", tc.label)
+		}
+		flip(t, s, tt, tc.label, tc.help)
+		if !tc.on() {
+			t.Fatalf("%s did not turn on: %+v", tc.label, f.prefs)
+		}
+		flip(t, s, tt, tc.label, tc.help)
+		if tc.on() {
+			t.Fatalf("%s did not turn off: %+v", tc.label, f.prefs)
+		}
+	}
+}
+
+func TestDesktopCardLoginFailed(t *testing.T) {
+	s, f, tt := openDesktop(t, &Desktop{OS: "linux"})
+	if tt.HasText(s.text.LoginFailed) {
+		t.Fatal("the error shows before anything failed")
+	}
+	s.LoginFailed()
+	tt.Frame()
+	if !tt.HasText(s.text.LoginFailed) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	flip(t, s, tt, s.text.OpenAtLogin, s.text.OpenAtLoginHelpTray)
+	if tt.HasText(s.text.LoginFailed) || !f.prefs.OpenAtLogin {
+		t.Errorf("the error stayed after the switch was used: %+v", f.prefs)
+	}
+}
+
+func TestDesktopCardTrayFailed(t *testing.T) {
+	s, f, tt := openDesktop(t, &Desktop{OS: "linux"})
+	s.TrayFailed()
+	tt.Frame()
+	if !tt.HasText(s.text.TrayFailed) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	flip(t, s, tt, s.text.TrayIcon, s.text.TrayIconHelp)
+	if tt.HasText(s.text.TrayFailed) || !f.prefs.TrayIcon {
+		t.Errorf("the error stayed after the switch was used: %+v", f.prefs)
+	}
+}

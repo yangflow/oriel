@@ -61,6 +61,8 @@ type copy struct {
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                                                                                                                                               string
 	Preset, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                               string
 	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                                                                                                                                              string
+	Desktop, OpenAtLogin, OpenAtLoginHelp, OpenAtLoginHelpTray, OpenAtLoginNeedsApp, MenuBarIcon, MenuBarIconHelp                                                                                                                                                                                                                           string
+	TrayIcon, TrayIconHelp, DockBadge, DockBadgeHelp, LoginFailed, TrayFailed                                                                                                                                                                                                                                                               string
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                                                                                                                                                       string
 	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                                                    string
 	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10 string
@@ -195,6 +197,16 @@ type Deps struct {
 	Fonts       func() []string
 	ReadingFont func() string
 	Change      func(prefs.Preferences)
+
+	// Desktop is what this system offers the Desktop card of the Appearance page; nil, as in a headless server's page,
+	// shows no card.
+	Desktop *Desktop
+}
+
+// Desktop is the desktop app on one system: which rows the Desktop card has, and whether they can be used.
+type Desktop struct {
+	OS      string // runtime.GOOS: "darwin" has the Dock badge row and the menu bar words, any other the tray words
+	Bundled bool   // on macOS whether Oriel runs from an app bundle, which opening at login needs
 }
 
 // restoredToast is the ID of the toast of Restore default on a prompt.
@@ -314,6 +326,9 @@ type Screen struct {
 	toast    string
 
 	restored *restoration // the last "Restore default" of a prompt, until its toast closes
+
+	loginFailed bool // the login item could not change and its switch went back; the card says so
+	trayFailed  bool // the tray icon could not start and its switch went back off; the card says so
 }
 
 // restoration is a prompt put back to its default, with the text it had, which Undo returns.
@@ -405,6 +420,14 @@ func (s *Screen) OpenPage(name string) {
 func (s *Screen) PreferenceFailed() {
 	s.toast = s.text.PreferenceFailed
 }
+
+// LoginFailed tells the login item could not change: its switch went back and the Desktop card says so, until the
+// switch is used again.
+func (s *Screen) LoginFailed() { s.loginFailed = true }
+
+// TrayFailed tells the tray icon could not start: its switch went back off and the Desktop card says why, until the
+// switch is used again.
+func (s *Screen) TrayFailed() { s.trayFailed = true }
 
 // Open loads the settings and the devices again, as the screen is shown.
 func (s *Screen) Open() {
@@ -2621,6 +2644,63 @@ func (s *Screen) appearancePage(c *ui.Context) {
 	}, func() {
 		ui.Text(c, s.text.ViewAsHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
 	})
+	if d := s.deps.Desktop; d != nil {
+		s.desktopCard(c, p, *d)
+	}
+}
+
+// desktopCard is the Desktop card: open at login, the menu bar or tray icon and, on macOS, the Dock badge. Each switch
+// goes to Change at once; an icon that could not start leaves its switch off and the card says why.
+func (s *Screen) desktopCard(c *ui.Context, p prefs.Preferences, d Desktop) {
+	t := c.Theme()
+	mac := d.OS == "darwin"
+	ui.Text(c, s.text.Desktop).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
+		Margin(theme.Px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+	toggle := func(label, help string, on *bool, disabled bool, set func(bool)) func() {
+		return func() {
+			labeled(c, label, help, func() {
+				value := *on
+				ui.Switch(c, &value).Label(label).Description(help).Disabled(disabled)
+				if value != *on {
+					set(value)
+				}
+			})
+		}
+	}
+	loginHelp, trayLabel, trayHelp := s.text.OpenAtLoginHelpTray, s.text.TrayIcon, s.text.TrayIconHelp
+	if mac {
+		loginHelp, trayLabel, trayHelp = s.text.OpenAtLoginHelp, s.text.MenuBarIcon, s.text.MenuBarIconHelp
+	}
+	needsApp := mac && !d.Bundled
+	if needsApp {
+		loginHelp = s.text.OpenAtLoginNeedsApp
+	}
+	rows := []func(){
+		toggle(s.text.OpenAtLogin, loginHelp, &p.OpenAtLogin, needsApp, func(on bool) {
+			s.loginFailed = false
+			p.OpenAtLogin = on
+			s.deps.Change(p)
+		}),
+	}
+	if s.loginFailed {
+		rows = append(rows, func() { statusLine(c, status{text: s.text.LoginFailed}) })
+	}
+	rows = append(rows,
+		toggle(trayLabel, trayHelp, &p.TrayIcon, false, func(on bool) {
+			s.trayFailed = false
+			p.TrayIcon = on
+			s.deps.Change(p)
+		}))
+	if s.trayFailed {
+		rows = append(rows, func() { statusLine(c, status{text: s.text.TrayFailed}) })
+	}
+	if mac {
+		rows = append(rows, toggle(s.text.DockBadge, s.text.DockBadgeHelp, &p.DockBadge, false, func(on bool) {
+			p.DockBadge = on
+			s.deps.Change(p)
+		}))
+	}
+	card(c, rows...)
 }
 
 // viewer is the segmented control of one kind's viewer; it returns the viewer chosen and whether the user just chose it.

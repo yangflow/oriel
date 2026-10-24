@@ -47,6 +47,7 @@ type shell struct {
 	goAsync      func(work func() (apply func()))
 	newHome      func(language string) home // makes the timeline; tests put a stand-in
 	language     func(language string)      // told the interface language in use, at first and when it changes
+	desktop      *desktopController         // the login item, tray icon and Dock badge; nil where the app has none
 	connect      *connect.Screen
 	settings     *settings.Screen
 	home         home
@@ -82,7 +83,8 @@ func newShell(systemLocale, path, prefsPath string, local client.Session, goAsyn
 			OpenSettingsPage: s.openSettingsPage,
 			Expired:          s.expired,
 			Reading:          func() prefs.Preferences { return s.prefs }, ReadingFont: func() string { return s.face },
-			Change: s.change, Save: s.files.Save, Active: s.active, Look: s.look, Remember: s.remember})
+			Change: s.change, Save: s.files.Save, Active: s.active, Look: s.look, Remember: s.remember,
+			Unread: s.unread})
 	}
 	s.updateFace()
 	s.build()
@@ -106,6 +108,7 @@ func (s *shell) build() {
 		Fonts:       func() []string { return s.fonts },
 		ReadingFont: func() string { return s.face },
 		Change:      s.change,
+		Desktop:     s.files.Desktop,
 	})
 	s.connect = connect.New(language, connect.Deps{
 		Probe:     client.Probe,
@@ -183,6 +186,19 @@ func (s *shell) save(p prefs.Preferences, tell bool) {
 	if p == before {
 		return
 	}
+	if s.desktop != nil {
+		var failed desktopFailure
+		p, failed = s.desktop.Sync(p)
+		if failed.Login {
+			s.settings.LoginFailed()
+		}
+		if failed.Tray {
+			s.settings.TrayFailed()
+		}
+		if p == before {
+			return
+		}
+	}
 	s.apply(p)
 	s.changes++
 	n := s.changes
@@ -201,6 +217,9 @@ func (s *shell) save(p prefs.Preferences, tell bool) {
 			slog.Error("Cannot save the preferences", "error", err)
 			if n == s.changes { // a later change decides for itself
 				s.apply(before)
+				if s.desktop != nil {
+					s.desktop.Sync(before)
+				}
 				if tell {
 					s.settings.PreferenceFailed()
 				}
@@ -225,6 +244,45 @@ func (s *shell) apply(p prefs.Preferences) {
 	if s.language != nil {
 		s.language(language)
 	}
+	if s.desktop != nil {
+		s.desktop.SetLanguage(language)
+	}
+}
+
+// startDesktop starts the desktop integration and takes the preferences as the system now has them; see
+// desktopController.Start. It runs once, before the window is made.
+func (s *shell) startDesktop(c *desktopController) {
+	s.desktop = c
+	s.prefs = c.Start(s.prefs)
+}
+
+// unread is told the unread count of the timeline whenever it changes, for the tray icon and the Dock badge.
+func (s *shell) unread(n int) {
+	if s.desktop != nil {
+		s.desktop.SetUnread(n)
+	}
+}
+
+// pollUnread asks the server for the unread count while the window is hidden; the timeline does not draw then, so it
+// does not ask itself. A failed request keeps the count shown. It runs on the UI thread.
+func (s *shell) pollUnread() {
+	if s.showing {
+		return
+	}
+	var api client.Session
+	if s.session != nil {
+		api = *s.session
+	} else {
+		api = s.local
+	}
+	s.goAsync(func() func() {
+		list, err := api.Sources(context.Background())
+		return func() {
+			if err == nil && s.desktop != nil {
+				s.desktop.SetUnread(list.UnreadTotal)
+			}
+		}
+	})
 }
 
 // listFonts lists the font families of the system in the background; the first listing takes a while.

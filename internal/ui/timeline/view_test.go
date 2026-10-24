@@ -1565,6 +1565,53 @@ func TestMarkAllRead(t *testing.T) {
 	}
 }
 
+// TestUnreadReported checks that the count of All reaches Deps.Unread when the sources load, when an entry is marked
+// read or unread, and when a poll finds a new count, and only when it changed.
+func TestUnreadReported(t *testing.T) {
+	sources, entries := sample()
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	var told []int
+	deps := f.deps()
+	deps.Unread = func(n int) { told = append(told, n) }
+	s := New("en", deps)
+	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	if !reflect.DeepEqual(told, []int{5}) {
+		t.Fatalf("told %v after loading", told)
+	}
+	if err := tt.Click("Mark all in “All” as read"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if got := told[len(told)-1]; got != 0 {
+		t.Fatalf("told %v after Mark all as read", told)
+	}
+	if err := tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if got := told[len(told)-1]; got != 5 {
+		t.Fatalf("told %v after Undo", told)
+	}
+	n := len(told)
+	total := 9
+	f.unreadTotal = &total
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	f.settle(t, tt)
+	if !reflect.DeepEqual(told[n:], []int{9}) {
+		t.Fatalf("told %v after a poll", told[n:])
+	}
+	f.now = f.now.Add(pollEvery)
+	tt.Frame()
+	f.settle(t, tt)
+	if len(told) != n+1 {
+		t.Fatalf("told %v: a poll with the same count told it again", told[n:])
+	}
+}
+
 func TestMarkOlder(t *testing.T) {
 	for language, c := range map[string]struct {
 		items                        []string

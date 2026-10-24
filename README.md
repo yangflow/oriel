@@ -82,6 +82,9 @@ Working now:
   never saved.
 - **One storage file.** SQLite with full-text search through a pure Go driver; no cgo in production code. The
   window reads and writes only through the HTTP API, so desktop and headless behave the same.
+- **Desktop integration.** In Settings, Appearance, open Oriel at login, add an icon to the menu bar (macOS) or the tray
+  (Windows, Linux) that shows the unread count and keeps Oriel updating after the window is closed, and show the
+  unread count on the Dock icon (macOS).
 - **Two languages.** The interface is in English and Simplified Chinese.
 
 Planned, in the order of the [milestones](https://github.com/yangflow/oriel/milestones) (rules in the

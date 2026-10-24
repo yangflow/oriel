@@ -1,0 +1,18 @@
+{
+  "en": {
+    "Unread": "{n} unread",
+    "None": "No unread",
+    "Tooltip": "Oriel, {n} unread",
+    "Open": "Open Oriel",
+    "Refresh": "Refresh all",
+    "Quit": "Quit"
+  },
+  "zh-Hans": {
+    "Unread": "{n} 条未读",
+    "None": "没有未读",
+    "Tooltip": "Oriel，{n} 条未读",
+    "Open": "打开 Oriel",
+    "Refresh": "全部更新",
+    "Quit": "退出"
+  }
+}

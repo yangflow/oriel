@@ -116,6 +116,12 @@ type Preferences struct {
 	// that MarkAfterStay waits for: one of DwellSeconds.
 	MarkReadWhen     string `json:"markReadWhen"`
 	MarkReadDwellSec int    `json:"markReadDwellSec"`
+	// OpenAtLogin starts Oriel when the user signs in to the computer, TrayIcon shows the menu-bar or tray icon with
+	// the unread count and keeps Oriel running when the window is closed, and DockBadge shows the unread count on the
+	// Dock icon (macOS). All three are off by default and belong to the desktop mode of this device.
+	OpenAtLogin bool `json:"openAtLogin,omitempty"`
+	TrayIcon    bool `json:"trayIcon,omitempty"`
+	DockBadge   bool `json:"dockBadge,omitempty"`
 	// SidebarHidden is set while the reader has collapsed the sidebar of the timeline; the default is shown.
 	SidebarHidden bool `json:"sidebarHidden,omitempty"`
 	// Places are the scope and filter the timeline was left in, per server; see Places.

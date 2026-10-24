@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -286,6 +288,7 @@ func desktop() {
 				return path, err
 			},
 		}
+		files.Desktop = &settings.Desktop{OS: runtime.GOOS, Bundled: mygo.App.IsPackaged()}
 		root := newShell(system, filepath.Join(dataDir, sessionFile), filepath.Join(dataDir, prefs.File),
 			client.Session{Server: "http://" + b.addr}, goAsync, files)
 		setMenu := func(language string) {
@@ -340,7 +343,53 @@ func desktop() {
 		}
 		root.language = showLanguage
 		showLanguage(locale.Resolve(root.prefs.Language, system))
-		window = mygo.NewWindow(mainWindowOptions(ui.View(root.View)))
+		made := make(chan struct{}) // closed once window is set, which the poll goroutine reads
+		// The window, shown again from the tray, the Dock or a second launch.
+		reveal := func() {
+			window.Show()
+			window.Restore()
+			window.Focus()
+		}
+		// A hidden window never draws, so the timeline does not update the count the icon shows; this does, and the
+		// controller runs it only while the window is hidden or minimized.
+		tick := func() {
+			<-made
+			window.Update(root.pollUnread)
+		}
+		integration := newDesktopController(nativeHost(trayActions{
+			Open:    reveal,
+			Refresh: func() { window.Update(root.refreshAll) },
+			Quit:    mygo.App.Quit,
+		}, tick), locale.Resolve(root.prefs.Language, system))
+		root.startDesktop(integration)
+		options := mainWindowOptions(ui.View(root.View))
+		// A launch at login leaves only the icon, when there is one.
+		options.Hidden = integration.HideAtLaunch(mygo.App.WasOpenedAtLogin())
+		window = mygo.NewWindow(options)
+		close(made)
+		// The controller polls the count only while the window draws nothing.
+		hiddenNow := func() {
+			window.Update(func() { integration.SetHidden(!window.IsVisible() || window.IsMinimized()) })
+		}
+		window.OnShow(hiddenNow)
+		window.OnHide(hiddenNow)
+		window.OnMinimize(hiddenNow)
+		window.OnRestore(hiddenNow)
+		integration.SetHidden(options.Hidden)
+		// Closing the window leaves Oriel running in the tray; Quit still closes it.
+		var quitting atomic.Bool
+		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { quitting.Store(true) })
+		window.OnClose(func(e *mygo.CloseEvent) {
+			if integration.HasTray() && !quitting.Load() {
+				e.PreventDefault()
+				window.Hide()
+			}
+		})
+		mygo.App.OnActivate(func(visible bool) {
+			if !visible {
+				reveal()
+			}
+		})
 		// The marker of what the reader last looked at moves only while the window is in front.
 		focus := func(on bool) func() { return func() { window.Update(func() { root.focus(on) }) } }
 		window.OnFocus(focus(true))
@@ -355,6 +404,7 @@ func desktop() {
 	})
 	mygo.App.OnSecondInstance(func([]string, string) {
 		if window != nil {
+			window.Show()
 			window.Restore()
 			window.Focus()
 		}

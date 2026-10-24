@@ -66,7 +66,7 @@ var twoCapitals = regexp.MustCompile(`\b[A-Z][a-z]+ [A-Z][a-z]+`)
 // Short English labels are in sentence case: "Open settings", "Keyboard shortcuts", "Back up…". A name that is
 // written with capitals is listed here by key.
 func TestEnglishLabelsAreInSentenceCase(t *testing.T) {
-	names := map[string]bool{"reader LanguageZhHans": true}
+	names := map[string]bool{"reader LanguageZhHans": true, "tray Open": true}
 	each(t, func(screen, language, key, text string) {
 		if language != "en" || len(text) >= 45 || names[screen+" "+key] {
 			return

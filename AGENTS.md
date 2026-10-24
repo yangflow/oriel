@@ -25,6 +25,7 @@ do the wrong thing.
 
 ```
 main.go                  dispatches desktop and headless (`oriel serve`) modes; lifecycle, menu, window, native updater
+desktop.go               login item, tray icon, Dock badge and the hidden-window unread poll, behind a host the tests fake
 backend.go               opens the database, starts and stops the HTTP server; shared by both modes
 internal/store/          SQLite and all queries; migrations in internal/store/migrations/
 internal/fetch/          fetch loop, feed parsing, failure backoff, full-text extraction, retention pruning, proxied image fetch and its disk cache
@@ -35,6 +36,7 @@ internal/server/         HTTP API and authentication
 internal/ui/<screen>/    one package per screen: state, copy.json catalog, headless interaction tests
 internal/ui/locale/      system language to UI language (Simplified Chinese, English), shared by all catalogs
 internal/ui/pictures/    the picture queue the reader and the timeline share: download order, cancellation, retry, memory limit
+internal/ui/tray/        copy for the tray menu and the unread count on the icon and badge
 internal/ui/theme/       palette and the helpers every screen shares: Px, Monogram
 internal/ui/startup/     copy for the native error dialog when desktop startup fails
 resources/               shipped licenses and product assets
