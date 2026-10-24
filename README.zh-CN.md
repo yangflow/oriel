@@ -88,8 +88,8 @@ docker compose -f deploy/compose.yaml up -d --build
 ## 开发
 
 ```bash
-scripts/check.sh --cross   # gofmt、go mod tidy、vet、测试、脚本测试，以及六个目标平台的交叉编译
-go test -race ./...
+scripts/check.sh                  # 拉取请求跑的检查：gofmt、go mod tidy、vet、测试、脚本测试，竞态检测只覆盖有并发的包
+scripts/check.sh --cross --race   # 全部，CI 在 main 每次推送和每天各跑一遍：全部包的竞态检测，以及六个目标平台的交叉编译
 ```
 
 | 内容 | 位置 |

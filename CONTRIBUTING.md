@@ -24,13 +24,15 @@ language of the thread.
 Requirements: the Go version in `.go-version` and Python 3 for the helper scripts. No Node, Bun or WebView.
 
 ```bash
-scripts/check.sh --cross     # gofmt, go mod tidy without diff, vet, tests, script tests, six cross-compiled targets
-go test -race ./...
+scripts/check.sh             # what a pull request runs: gofmt, go mod tidy without diff, vet, tests, script tests,
+                             # -race on the packages with real concurrency
+scripts/check.sh --cross --race   # everything, as CI runs it on main and daily: -race on all packages, six targets
 go tool mygo dev             # run the desktop app
 ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470   # run headless
 ```
 
-`scripts/check.sh --cross` and `go test -race ./...` must pass before merge.
+`scripts/check.sh` must pass before merge; the full `scripts/check.sh --cross --race` runs on `main` and daily, and a
+failure there opens an issue.
 
 ## Commits, branches and pull requests
 

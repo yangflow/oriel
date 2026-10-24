@@ -146,8 +146,8 @@ with its data in `/var/lib/oriel`.
 ## Development
 
 ```bash
-scripts/check.sh --cross   # gofmt, go mod tidy, vet, tests, script tests, six cross-compiled targets
-go test -race ./...
+scripts/check.sh                  # what a pull request runs: gofmt, go mod tidy, vet, tests, script tests, -race on the concurrent packages
+scripts/check.sh --cross --race   # everything, as CI runs it on main and daily: -race on all packages, six targets
 ```
 
 | Topic | Where |
