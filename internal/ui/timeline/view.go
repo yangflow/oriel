@@ -435,7 +435,7 @@ func (s *Screen) Use(api API, server string) {
 	s.undoable, s.seeking, s.keys, s.pal = nil, false, false, paletteState{}
 	s.refresh, s.result = nil, nil
 	s.queue, s.sending, s.failures = nil, false, 0
-	s.watching, s.watchBusy, s.notes = nil, false, nil
+	s.watching, s.watchBusy, s.notes, s.polling = nil, false, nil, false
 	s.subs.Use(api)
 	s.reader.Use(api)
 	s.loadSources()
@@ -501,6 +501,7 @@ func (s *Screen) expired(err error) bool {
 	s.api = nil
 	s.lists = nil
 	s.refresh, s.result = nil, nil
+	s.watchBusy, s.polling = false, false
 	s.subs.Use(nil)
 	s.reader.Use(nil)
 	s.reading = 0
