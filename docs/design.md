@@ -545,7 +545,7 @@ values are in [design/tokens.md](../design/tokens.md). See
   (default), Sepia (warm cream, `#f4ecd8`, with dark brown ink) or Mist (cool gray-blue, `#e8edf0`, with slate ink), a
   device preference in Settings, Appearance, Reading. A preset keeps the scheme: Sepia and Mist each have a light and a dark
   variant, picked by the app's Theme, so choosing Sepia never turns a dark window light; and it paints only the reader's
-  page, toolbar bar, text, links, code, notes and the AI card, never the ink pane, the timeline or an overlay. The
+  page, toolbar bar, text, links, code, notes and the AI card, never the ink pane, the timeline or an overlay (the selection card, the toasts and the system menus, such as More, keep the theme; the find bar is part of the page and is on paper). The
   accent stays a muted teal, darker or lighter to hold 4.5:1 on the preset's paper. Every text pair of every preset holds
   4.5:1 and every graphic 3:1, with and without high contrast (the table is in tokens.md, Reading appearance presets,
   and `Warning` and `Star` stay graphics); `TextMuted` is tuned per preset so that it holds 4.5:1 on its `Surface`. The

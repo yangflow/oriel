@@ -857,7 +857,7 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	col.Children(func() {
 		switch {
 		case s.failed:
-			s.empty(c, icons.WifiOff, t.Danger, s.text.Error, s.text.ErrorHint, func() {
+			s.empty(c, icons.WifiOff, paper.Danger, s.text.Error, s.text.ErrorHint, func() {
 				if s.button(c, icons.RefreshCw, s.text.Retry, false) {
 					s.loading, s.failed = true, false
 					s.load(false)
