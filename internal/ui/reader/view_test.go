@@ -630,8 +630,11 @@ func TestParse(t *testing.T) {
 				{text: "mail", link: "mailto:a@example.com"}}},
 		{"inline styles", "<p><strong>b</strong></p><p><em>i</em></p><p><code>m</code></p><p><del>g</del></p>",
 			[]want{{text: "b", bold: true}, {text: "i", italic: true}, {text: "m", mono: true}, {text: "g", gone: true}}},
-		{"table rows", "<table><tr><th>Name</th><th>Size</th></tr><tr><td>a</td><td>1</td></tr></table>",
-			[]want{{text: "Name · Size"}, {text: "a · 1"}}},
+		{"data table", "<table><tr><th>Name</th><th>Size</th></tr><tr><td>a</td><td>1</td></tr></table>",
+			[]want{{kind: table}}},
+		{"table rows without a grid", "<table><tr><th>Name</th><th>Size</th></tr></table>" +
+			"<table><tr><td>x</td></tr><tr><td>y</td></tr></table>",
+			[]want{{text: "Name · Size"}, {text: "x"}, {text: "y"}}},
 		{"rule", "<p>a</p><hr><p>b</p>", []want{{text: "a"}, {kind: rule}, {text: "b"}}},
 	} {
 		t.Run(c.name, func(t *testing.T) {

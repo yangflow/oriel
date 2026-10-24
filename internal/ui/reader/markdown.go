@@ -2,6 +2,7 @@ package reader
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -65,6 +66,52 @@ func firstLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 // render writes blocks as Markdown without the end newline: a blank line between blocks, except between the items of
 // a list, which are tight.
 func render(blocks []block) string {
+	var body, notes []block
+	for _, b := range blocks {
+		switch {
+		case b.note > 0:
+			notes = append(notes, b)
+		case b.notes && b.kind == rule: // the line above the notes, which have their own place
+		default:
+			body = append(body, b)
+		}
+	}
+	text := renderBlocks(body)
+	if defs := definitions(notes); defs != "" {
+		if text != "" {
+			text += "\n\n"
+		}
+		text += defs
+	}
+	return text
+}
+
+// definitions writes the footnotes as [^n]: lines, the later blocks of a note indented under its first.
+func definitions(notes []block) string {
+	var lines []string
+	for i, b := range notes {
+		text := renderBlock(b)
+		if text == "" {
+			continue
+		}
+		first := i == 0 || notes[i-1].note != b.note
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		for j, line := range strings.Split(text, "\n") {
+			switch {
+			case first && j == 0:
+				line = "[^" + strconv.Itoa(b.note) + "]: " + line
+			case line != "":
+				line = "    " + line
+			}
+			lines = append(lines, line)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderBlocks(blocks []block) string {
 	var lines []string
 	for i, b := range blocks {
 		text := renderBlock(b)
@@ -139,8 +186,45 @@ func renderBlock(b block) string {
 		return ""
 	case rule:
 		return "---"
+	case table:
+		return renderTable(b.table)
 	}
 	return lineMarks(inline(b.spans, false))
+}
+
+// renderTable writes a table as a GFM table: its first row heads it, a cell that covers columns is followed by
+// empty ones, and the caption is an italic paragraph below.
+func renderTable(g *grid) string {
+	if g == nil || len(g.rows) == 0 {
+		return ""
+	}
+	row := func(cells []cell) string {
+		var out []string
+		for _, c := range cells {
+			text := strings.NewReplacer("\\\n", " ", "\n", " ", "|", `\|`).Replace(inline(c.spans, false))
+			out = append(out, text)
+			for range max(c.span, 1) - 1 {
+				out = append(out, "")
+			}
+		}
+		for len(out) < g.cols {
+			out = append(out, "")
+		}
+		return "| " + strings.Join(out[:g.cols], " | ") + " |"
+	}
+	lines := []string{row(g.rows[0])}
+	sep := make([]string, g.cols)
+	for i := range sep {
+		sep[i] = "---"
+	}
+	lines = append(lines, "| "+strings.Join(sep, " | ")+" |")
+	for _, r := range g.rows[1:] {
+		lines = append(lines, row(r))
+	}
+	if text := inline(g.caption, false); text != "" {
+		lines = append(lines, "", "*"+strings.ReplaceAll(text, "*", `\*`)+"*")
+	}
+	return strings.Join(lines, "\n")
 }
 
 // destination is a link address that cannot end the link early.
@@ -152,6 +236,13 @@ func destination(address string) string {
 func inline(spans []span, plain bool) string {
 	var out strings.Builder
 	for _, sp := range spans {
+		if sp.back {
+			continue
+		}
+		if sp.ref > 0 {
+			out.WriteString("[^" + strconv.Itoa(sp.ref) + "]")
+			continue
+		}
 		text := sp.text
 		if sp.mono {
 			text = strings.ReplaceAll(text, "\n", " ")
