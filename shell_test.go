@@ -54,6 +54,8 @@ type fakeHome struct {
 	keys      int
 	ran       []timeline.Command
 	all       int
+	managed   int
+	sources   bool
 	checks    int
 	languages []string
 	busy      bool
@@ -74,6 +76,8 @@ func (h *fakeHome) ShowKeys() { h.keys++ }
 func (h *fakeHome) Run(cmd timeline.Command) { h.ran = append(h.ran, cmd) }
 func (h *fakeHome) RefreshAll()              { h.all++ }
 func (h *fakeHome) Check()                   { h.checks++ }
+func (h *fakeHome) Manage()                  { h.managed++ }
+func (h *fakeHome) HasSources() bool         { return h.sources }
 
 func (h *fakeHome) DropBusy() bool { return h.busy }
 
@@ -384,6 +388,36 @@ func TestShellRefreshAll(t *testing.T) {
 	s.refreshAll()
 	if home.all != 1 {
 		t.Fatal("refreshed from the connect screen")
+	}
+}
+
+func TestShellManage(t *testing.T) {
+	s, _, _ := newTestShell(t)
+	home := s.home.(*fakeHome)
+	var told []bool
+	s.sources = func(has bool) { told = append(told, has) }
+	home.sources = true
+	s.manage()
+	if home.managed != 1 {
+		t.Fatalf("manages %d", home.managed)
+	}
+	s.tellSources()
+	s.tellSources()
+	home.sources = false
+	s.tellSources()
+	if !slices.Equal(told, []bool{true, false}) {
+		t.Fatalf("the menu was told %v", told)
+	}
+	s.openSettings()
+	s.manage()
+	if home.managed != 1 {
+		t.Fatal("managed from the settings")
+	}
+	s.setting = false
+	s.openConnect()
+	s.manage()
+	if home.managed != 1 {
+		t.Fatal("managed from the connect screen")
 	}
 }
 

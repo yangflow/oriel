@@ -86,6 +86,9 @@ func (s *Screen) paletteItems() []paletteItem {
 	add(paletteItem{group: groupActions, name: s.text.AddSource, icon: icons.Plus, keys: []string{cmd, "N"}, run: s.subs.Add})
 	add(paletteItem{group: groupActions, name: s.text.RefreshAll, icon: icons.RefreshCw, keys: []string{cmd, "R"}, run: s.RefreshAll})
 	add(paletteItem{group: groupActions, name: s.text.PaletteHealth, icon: icons.HeartPulse, run: s.subs.Health})
+	if s.subs.HasSources() {
+		add(paletteItem{group: groupActions, name: s.text.PaletteManage, icon: icons.ListChecks, run: s.subs.Manage})
+	}
 	if s.filter == unread {
 		add(paletteItem{group: groupActions, name: s.text.PaletteShowAll, icon: icons.CircleDot, keys: []string{"A"}, run: func() { s.setFilter(everything) }})
 	} else {

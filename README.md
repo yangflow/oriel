@@ -59,7 +59,8 @@ Working now:
   by default, worked out from how often the feed publishes) are chosen in the same dialog. Edit, pause, refresh and
   delete a subscription from the sidebar's right-click menu or the pencil in the toolbar; deleting asks first, since
   its entries go too. "Refresh All" (Subscriptions menu, Cmd/Ctrl+R or the command palette) checks every active
-  subscription now, shows progress in the sidebar and ends in a toast.
+  subscription now, shows progress in the sidebar and ends in a toast. "Manage subscriptions…" (Subscriptions menu
+  or the command palette) selects several at once to pause, resume, change their settings or delete them, with undo.
 - **Settings.** Change the RSSHub instances (an ordered list) and how long entries are kept from the gear beside the server bar or
   "Settings…" (Cmd/Ctrl+,); they are kept on the server, so every device connected to it shares them. Signed in to
   a server with a password, see each device signed in and sign out the ones you no longer use.

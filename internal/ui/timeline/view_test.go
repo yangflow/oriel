@@ -4954,9 +4954,9 @@ func TestRefreshAllEntryPoints(t *testing.T) {
 			}
 		})
 	}
-	menu, item := RefreshMenuLabels("zh-Hans")
-	if menu != "订阅" || item != "全部更新" {
-		t.Errorf("labels %q %q", menu, item)
+	menu, item, manage := RefreshMenuLabels("zh-Hans")
+	if menu != "订阅" || item != "全部更新" || manage != "管理订阅…" {
+		t.Errorf("labels %q %q %q", menu, item, manage)
 	}
 }
 

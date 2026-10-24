@@ -31,6 +31,8 @@ type home interface {
 	ShowKeys()
 	Run(cmd timeline.Command)
 	RefreshAll()
+	Manage()
+	HasSources() bool
 	Check()
 	DropBusy() bool
 	View(c *ui.Context)
@@ -48,6 +50,8 @@ type shell struct {
 	newHome      func(language string) home // makes the timeline; tests put a stand-in
 	language     func(language string)      // told the interface language in use, at first and when it changes
 	desktop      *desktopController         // the login item, tray icon and Dock badge; nil where the app has none
+	sources      func(has bool)             // told whether the timeline has subscriptions to manage, when that changes
+	hasSources   bool                       // what sources was told last
 	connect      *connect.Screen
 	settings     *settings.Screen
 	home         home
@@ -380,6 +384,23 @@ func (s *shell) refreshAll() {
 	s.home.RefreshAll()
 }
 
+// tellSources lets the menu know whether "Manage subscriptions…" has anything to open.
+func (s *shell) tellSources() {
+	has := !s.showing && !s.setting && s.home.HasSources()
+	if s.sources != nil && has != s.hasSources {
+		s.sources(has)
+	}
+	s.hasSources = has
+}
+
+// manage opens the dialog that changes several subscriptions at once, from the menu, when the timeline shows.
+func (s *shell) manage() {
+	if s.showing || s.setting {
+		return
+	}
+	s.home.Manage()
+}
+
 // openSettings shows the settings, from the menu or the timeline, unless the connect screen shows.
 func (s *shell) openSettings() {
 	if s.showing || s.setting {
@@ -505,5 +526,6 @@ func (s *shell) View(c *ui.Context) {
 	default:
 		s.home.View(c)
 	}
+	s.tellSources()
 	theme.Toasts(c)
 }

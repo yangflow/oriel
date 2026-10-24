@@ -59,8 +59,8 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 
 Every icon is one of the three sizes, drawn through `theme.IconSmall`, `theme.IconMedium` or `theme.IconLarge`, which
 scale with the text size like `theme.Px`; no screen writes an icon size of its own. `TestIconSizesAreTiers` in
-`internal/ui/theme` fails on any other `ui.Icon` size. The tick inside a checkbox is drawn by the checkbox itself and is
-not an icon of this table. The image-off icon of a picture that cannot be shown is large in a cover and medium in a
+`internal/ui/theme` fails on any other `ui.Icon` size. The tick inside a checkbox (12, in a 16 box) is drawn by the checkbox itself and is
+not an icon of this table; the test lets that one size through. The image-off icon of a picture that cannot be shown is large in a cover and medium in a
 thumbnail; an icon beside text is small when the text is 12 or 13 and medium beside 15 and above.
 
 Sizes of text are in [Typography](#typography); the window sizes follow.
@@ -414,7 +414,7 @@ The ink pane is not glass: it is opaque (see above). Content never sits on glass
 
 | Token | Value |
 |---|---|
-| Radii | 4 (site icon, glyph up to 20, small tile, inline code, badges), 6 (list rows in popups, select options, small icon buttons, the segments of a segmented control, the strip pictures of a post), 8 (controls, pane items, row actions, thumbnails, glyph above 20), 10 (the segmented control track, the Compact row, grid pictures), 12 (rows, code blocks, notes, pictures, video covers), 14 (the ink pane, the AI card), 16 (capsules, dialogs), 22 (the window in mockups; the system draws it). Two more that follow their shape: a pill or a circle is half its height (`theme.Pill`), and the 2 of the selection marker. The box of a checkbox (5) is drawn by MyGo. `internal/ui/theme/radii_test.go` fails on any other radius in the code |
+| Radii | 4 (site icon, glyph up to 20, small tile, inline code, badges), 6 (list rows in popups, select options, small icon buttons, the segments of a segmented control, the strip pictures of a post), 8 (controls, pane items, row actions, thumbnails, glyph above 20), 10 (the segmented control track, the Compact row, grid pictures), 12 (rows, code blocks, notes, pictures, video covers), 14 (the ink pane, the AI card), 16 (capsules, dialogs), 22 (the window in mockups; the system draws it). Two more that follow their shape: a pill or a circle is half its height (`theme.Pill`), and the 2 of the selection marker. The box of a checkbox (5) is drawn by MyGo or, in the subscription manager, by hand; the test lets 5 through. `internal/ui/theme/radii_test.go` fails on any other radius in the code |
 | Hairline | 1 DIP, `Border`, between rows only (28 in from the left, 16 from the right); never around a card or control |
 | Image outline | 0.5 DIP, ink 10% |
 | Link | `Accent`, underline 1 DIP, offset 3, `Accent` at 38%, full `Accent` on hover |
