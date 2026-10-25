@@ -2145,7 +2145,7 @@ func (s *Screen) retentionSelect(c *ui.Context) {
 		slices.Sort(options[1:])
 	}
 	sel := ui.SelectBase(c, &s.retention)
-	sel.Trigger.MinWidth(theme.Px(t, 160)).Height(theme.Px(t, 32)).Gap(t.Space(2)).Padding(0, t.Space(2), 0, theme.Px(t, 10)).
+	sel.Trigger.MinWidth(theme.Px(t, 72)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).Gap(t.Space(2)).Padding(0, t.Space(2), 0, theme.Px(t, 10)).
 		Radius(t.Radius).Label(s.text.Retention).Disabled(s.keeping)
 	trigger(c, sel.Trigger)
 	sel.Trigger.Children(func() {
@@ -2462,7 +2462,7 @@ func (s *Screen) languageSelect(c *ui.Context) {
 		return code
 	}
 	sel := ui.SelectBase(c, &s.aiLanguage)
-	sel.Trigger.MinWidth(theme.Px(t, 160)).Height(theme.Px(t, 32)).Gap(t.Space(2)).Padding(0, t.Space(2), 0, theme.Px(t, 10)).
+	sel.Trigger.MinWidth(theme.Px(t, 72)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).Gap(t.Space(2)).Padding(0, t.Space(2), 0, theme.Px(t, 10)).
 		Radius(t.Radius).Label(s.text.Language).Disabled(s.aiSaving)
 	trigger(c, sel.Trigger)
 	sel.Trigger.Children(func() {
@@ -2829,7 +2829,7 @@ func (s *Screen) pick(c *ui.Context, current, label string, options []choice) (s
 	}
 	value := shown.value
 	sel := ui.SelectBase(c, &value)
-	sel.Trigger.MinWidth(theme.Px(t, 160)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).Gap(t.Space(2)).
+	sel.Trigger.MinWidth(theme.Px(t, 72)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).Gap(t.Space(2)).
 		Padding(0, t.Space(2), 0, theme.Px(t, 10)).Radius(t.Radius).Label(label)
 	trigger(c, sel.Trigger)
 	sel.Trigger.Children(func() {
