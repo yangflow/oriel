@@ -7,14 +7,19 @@
      timeline" on top, then one item per group, and the server bar, which says whose settings these are. Opened from the
      gear button in the timeline's server bar or the app menu's "Settings…" (CmdOrCtrl+,); the back button and Escape
      return to the timeline where it was. Groups: Appearance (first; theme, interface language, interface font and the
-     reading text and how each kind is viewed, kept on this device only, not on the server), Fetching (the RSSHub instances, an ordered list, and how long entries are
-     kept), Import and export (OPML, and a dialog that imports from Miniflux or FreshRSS), AI (the endpoint for summaries and translations, and the global prompts), Devices
+     reading text and how each kind is viewed, kept on this device only, not on the server), Fetching (the RSSHub instances, an ordered list, how long entries are
+     kept, and the fetch proxy in a Proxy card under them), Import and export (OPML, and a dialog that imports from Miniflux or FreshRSS), AI (the endpoint for summaries and translations, and the global prompts), Devices
      (the sessions signed in to the server), Activity and storage (what is being fetched, how each subscription's recent
      fetches went, the database size and the Compact database action).
      Appearance is saved and applied as soon as a control is changed; it has no Save button. Colors are the Oriel palette of
      design/tokens.md; icons are Lucide (ISC License).
      States: appearance, fetching (one RSSHub instance), several (three instances: the first is the primary, the others
-     take over in order), health (the same three, with the Instance health block under the field: one instance healthy,
+     take over in order), proxy-empty (the Proxy card with no proxy), proxy-set (a proxy and a sign-in saved: the sign-in
+     badge reads Configured, both boxes are empty and say Set, and a Remove sign-in button sits beside them), proxy-removed (Remove sign-in
+     pressed, not saved yet: the badge reads Not configured, the boxes say Optional, the button is gone and Save is
+     primary), proxy-edited
+     (the address changed, not saved: a warning line says the saved sign-in is removed unless a new one is entered),
+     proxy-invalid (the server refused the address: the box in the danger edge and the reason under it), health (the same three, with the Instance health block under the field: one instance healthy,
      one answering about two thirds of the time and slowly, one cooling down), health-empty (the block when nothing has
      been fetched since the server started), edited (the list changed, not saved), invalid (a line is not a valid address; nothing is sent), saved, opml,
      opml-drop (an OPML file dragged over the Import row: dashed Accent outline, soft fill, the help line says to drop it),
@@ -438,7 +443,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','reading-appearance','reading-width-wide','density','mark-read','mark-read-scroll','desktop','desktop-on','desktop-error','desktop-login-error','desktop-tray-menu','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','premigrate','premigrate-confirm','premigrate-deleted','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-multi','rule-subs','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','reading-appearance','reading-width-wide','density','mark-read','mark-read-scroll','desktop','desktop-on','desktop-error','desktop-login-error','desktop-tray-menu','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','proxy-empty','proxy-set','proxy-removed','proxy-edited','proxy-invalid','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','premigrate','premigrate-confirm','premigrate-deleted','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-multi','rule-subs','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],os:['mac','win','linux']};
@@ -582,6 +587,13 @@ const copy={
     mainBadge:'Main', noData:'No data yet', noAnswer:'No answer', lastN:'last {n}', cooling:'Cooling down, about {n} minutes to retry',
     invalidBase:'Line {n} is not a full http or https address with a host name, such as https://rsshub.example.com.',
     retention:'Keep entries', retentionHelp:'Older entries are removed once an hour, read or not. Starred entries are always kept.',
+    proxy:'Proxy',
+    proxyAddress:'Proxy address', proxyHelp:'Starts with http://, https://, socks5:// or socks5h://, then a host name and a port, such as {address}. Leave it empty to connect directly. It applies from the next fetch. A subscription can follow this, connect directly, or use its own. AI summaries and translations do not use it.',
+    proxyPlaceholder:'socks5://127.0.0.1:1080', proxyAddressExample:'http://127.0.0.1:7890',
+    proxyAuth:'Sign-in', proxyAuthHelp:'Only if the proxy asks for a user name and a password. Kept on the server and never shown again.',
+    proxyUser:'User name', proxyPassword:'Password', proxyOptional:'Optional', proxyIsSet:'Set', proxyRemoveAuth:'Remove sign-in',
+    proxyChanged:'The saved sign-in is removed when you save a different address, unless you enter a new one here.',
+    invalidProxy:'That is not a proxy address. Use http, https, socks5 or socks5h with a host name and a port, and no path or sign-in in it.',
     forever:'Forever', days:'{n} days', week:'1 week', month:'1 month', months3:'3 months', months6:'6 months', year:'1 year',
     dropHelp:'Drop the OPML file here to add its subscriptions.', importedMany:'Imported {n} files: {added} added, {existing} already subscribed, {failed} not added.', notOpmlWhy:'Not an OPML file', tooLargeWhy:'Larger than 1 MB', readWhy:'Could not be read',
     opmlHelp:'OPML files move subscriptions between Oriel and other readers.',
@@ -692,6 +704,13 @@ const copy={
     mainBadge:'主实例', noData:'还没有数据', noAnswer:'无响应', lastN:'近 {n} 次', cooling:'冷却中，约 {n} 分钟后再试',
     invalidBase:'第 {n} 行不是带主机名的完整 http 或 https 地址，例如 https://rsshub.example.com。',
     retention:'条目保留', retentionHelp:'过期的条目每小时清理一次，已读未读都删。收藏的条目一直保留。',
+    proxy:'代理',
+    proxyAddress:'代理地址', proxyHelp:'以 http://、https://、socks5:// 或 socks5h:// 开头，后面是主机名和端口，例如 {address}。留空就直接连接。从下一次抓取起生效。每个订阅可以跟随这里的设置、直接连接，或者用自己的代理。AI 摘要和翻译不走这个代理。',
+    proxyPlaceholder:'socks5://127.0.0.1:1080', proxyAddressExample:'http://127.0.0.1:7890',
+    proxyAuth:'登录', proxyAuthHelp:'代理要用户名和密码时才填。存在服务端，存好后不再显示。',
+    proxyUser:'用户名', proxyPassword:'密码', proxyOptional:'可不填', proxyIsSet:'已设置', proxyRemoveAuth:'删除登录信息',
+    proxyChanged:'保存另一个地址时，已存的登录信息会一并删除，除非你在这里填了新的。',
+    invalidProxy:'这不是代理地址。用 http、https、socks5 或 socks5h，带主机名和端口，地址里不要有路径和登录信息。',
     forever:'永久', days:'{n} 天', week:'1 周', month:'1 个月', months3:'3 个月', months6:'半年', year:'1 年',
     dropHelp:'把 OPML 文件放到这里，添加它里面的订阅。', importedMany:'已导入 {n} 个文件：新增 {added} 个，{existing} 个已经订阅，{failed} 个没能添加。', notOpmlWhy:'不是 OPML 文件', tooLargeWhy:'超过 1 MB', readWhy:'读不出来',
     opmlHelp:'用 OPML 文件在 Oriel 和别的阅读器之间搬订阅。',
@@ -822,12 +841,28 @@ ${setting(copy.vImages,'',seg(copy.vImages,[['wall',copy.vWall],['grid',copy.vGr
 ${desktopRows}
 </div>`;
 
+const proxyOn=state==='proxy-set'||state==='proxy-edited';
+const proxyAddr=state==='proxy-set'||state==='proxy-removed'?'socks5://127.0.0.1:1080':state==='proxy-edited'?'http://127.0.0.1:7890':state==='proxy-invalid'?'127.0.0.1:7890':'';
+const proxyField=`<div class="field${state==='proxy-edited'?' focused':''}${state==='proxy-invalid'?' invalid':''}" role="textbox" aria-label="${copy.proxyAddress}"${state==='proxy-invalid'?' aria-invalid="true"':''}>${proxyAddr||`<span class="placeholder">${copy.proxyPlaceholder}</span>`}</div>`;
+const pbox=label=>`<div class="field" role="textbox" aria-label="${label}"><span class="placeholder">${proxyOn?copy.proxyIsSet:copy.proxyOptional}</span></div>`;
+const proxyDirty=state==='proxy-edited'||state==='proxy-invalid'||state==='proxy-removed';
+const proxyStatus=state==='proxy-invalid'?`<div class="status error" role="alert">${icon('alert')}${copy.invalidProxy}</div>`:state==='proxy-edited'?`<div class="status warn" role="status">${icon('alert')}${copy.proxyChanged}</div>`:'';
+const proxyCard=`<h2 class="section-title" style="margin-top:28px">${copy.proxy}</h2><div class="card">
+<div class="row"><span class="label">${copy.proxyAddress}</span><p class="help">${copy.proxyHelp.replace('{address}','<span class="mono-text">'+copy.proxyAddressExample+'</span>')}</p>
+<div class="control">${proxyField}</div>${state==='proxy-invalid'?`<div class="status error" role="alert">${icon('alert')}${copy.invalidProxy}</div>`:''}</div>
+<div class="row"><div class="label-row"><span class="label">${copy.proxyAuth}</span><span class="badge${proxyOn?'':' off'}">${proxyOn?copy.keySet:copy.keyUnset}</span></div><p class="help">${copy.proxyAuthHelp}</p>
+<div class="pair" style="margin-top:12px"><div><span class="label">${copy.proxyUser}</span><div class="control" style="margin-top:6px">${pbox(copy.proxyUser)}</div></div><div><span class="label">${copy.proxyPassword}</span><div class="control" style="margin-top:6px">${pbox(copy.proxyPassword)}</div></div></div>
+${proxyOn?`<div class="control"><button class="button">${copy.proxyRemoveAuth}</button></div>`:''}
+${state==='proxy-edited'?proxyStatus:''}</div>
+<div class="row"><div class="actions"><span class="status"></span><button class="button${proxyDirty?' primary':''}"${proxyDirty?'':' disabled'}>${copy.save}</button></div></div>
+</div>`;
+
 const fetching=`<p class="lead">${copy.lead}</p><div class="card">
 <div class="row"><span class="label">${copy.rsshub}</span><p class="help">${copy.rsshubHelp}</p>
 ${field}<div class="actions">${status||'<span class="status"></span>'}<button class="button${dirty?' primary':''}"${dirty?'':' disabled'}>${copy.save}</button></div>${healthBlock}</div>
 <div class="row"><div class="device"><div class="text"><span class="label">${copy.retention}</span><p class="help">${copy.retentionHelp}</p></div>
 <button class="select" aria-haspopup="listbox" aria-label="${copy.retention}"><span>${copy.months3}</span>${icon('chevronDown')}</button></div></div>
-</div>`;
+</div>${proxyCard}`;
 
 const file='feeds.opml';
 const busy=state==='importing'||state==='importing-several'||state==='restoring';
