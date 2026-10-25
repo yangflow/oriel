@@ -3587,6 +3587,31 @@ func TestTimeRange(t *testing.T) {
 	}
 }
 
+// "Today" starts at local midnight of the day it is asked, so a window left open past midnight moves on with the next
+// poll or reload instead of keeping the old day's start.
+func TestTimeRangeMidnight(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.setRange(today)
+	f.settle(t, tt)
+	first := time.Date(2026, 10, 18, 0, 0, 0, 0, time.UTC).UnixMilli()
+	if q := f.queries[len(f.queries)-1]; q.Since != first {
+		t.Fatalf("query %+v, want since %d", q, first)
+	}
+	f.now = time.Date(2026, 10, 19, 0, 30, 0, 0, time.UTC)
+	tt.Frame()
+	f.settle(t, tt)
+	next := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC).UnixMilli()
+	if q := f.queries[len(f.queries)-1]; q.Since != next {
+		t.Fatalf("poll query %+v, want since %d", q, next)
+	}
+	f.now = f.now.Add(24 * time.Hour)
+	s.reload()
+	f.settle(t, tt)
+	if q := f.queries[len(f.queries)-1]; q.Since != next+24*time.Hour.Milliseconds() {
+		t.Fatalf("reload query %+v, want since %d", q, next+24*time.Hour.Milliseconds())
+	}
+}
+
 func TestTimeRangeEmpty(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	f.now = now.Add(60 * 24 * time.Hour)

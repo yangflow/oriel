@@ -119,7 +119,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   under the two orders sits a disabled row with that same sentence (muted by the system, wrapping to two lines in a narrow menu), and the
   sentence is also the clock's tooltip and screen-reader name; the "N new" pill never shows in this order and the note
   is why. The list goes back to its top, the oldest entry, and the "N new" pill is not shown while it
-  is on (new entries appear when paging reaches the end). The order is kept per device. Drawn in `design/screens/timeline.html`, `order-oldest`.
+  is on (new entries appear when paging reaches the end). The order is kept per device. Drawn in
+  `design/screens/timeline.html`, `order-oldest`.
   The time-range button is a bare 32 square calendar-days icon right of the clock, named "Time range: any time"; its
   menu lists Any time (the default), Today and Last 24 hours, each a 28 high radio row with a check on the current
   one. It sits beside the clock because both are the same kind of control, an icon that opens a short menu and shows
@@ -129,8 +130,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   the icon with the 7 `Accent` dot. It is a view filter that marks nothing and, like the budget, hides the title's
   unread count, but mark all as read and its variants stay enabled and mark only what the range holds. With the
   budget and the range both on there are two chips side by side, 4 apart. In a main column under 700 there is no
-  room for another button at every text size, so the range button shows only while a range is on; T, the palette and the Timeline menu
-  reach the range otherwise. When the range leaves nothing the list
+  room for another button at every text size, so the range button shows only while a range is on; T, the palette and
+  the Timeline menu reach the range otherwise. When the range leaves nothing the list
   shows the empty-state pattern: a 48 tile with a calendar, "Nothing new today" (or "Nothing new in the last 24
   hours"), the hint "Entries count from when they arrived in Oriel, not from when they were published.", and one
   secondary button, "Show any time", which clears the range. The range is kept per server with the scope and the
@@ -1269,7 +1270,8 @@ MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
 - [ ] Find in the article announces the match count ("2 of 4", "No matches") as it changes, highlights the current match by underline as well as fill, keeps text inside matches at 4.5:1 or more in both schemes, and Escape closes it with the focus back on the article.
 - [ ] The lightbox is a dialog named for its entry; paging announces "Picture {n} of {total}", every button has a name, the focus order is bar, then Previous and Next, and Escape closes it with the focus back on its row.
 - [ ] A row's screen-reader label reads source, title, time, reading time, unread or read, starred; the reading-time
-      button's name states the current budget and the time-range button's the current range, and their menu items are radio items with the current one checked.
+      button's name states the current budget and the time-range button's the current range, and their menu items
+      are radio items with the current one checked.
 - [ ] Text uses theme sizes (`Rem`) and scales; layouts reflow at larger text and in the longer translation.
 - [ ] Colors are theme roles; contrast holds in both appearances and with high contrast on, and on every Reading appearance (the numbers are in tokens.md, Reading appearance presets).
 - [ ] A Reading appearance or Line width chosen in Settings applies to an open reader at once, keeps the scroll place and is announced by the control's own state; neither is the only cue for anything.
