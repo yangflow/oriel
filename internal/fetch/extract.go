@@ -417,7 +417,8 @@ var (
 )
 
 // discoursePost returns one post of a Discourse topic page, whose reply stream Readability would
-// keep whole. Links name the post as #post_N or /t/<slug>/<topic>/<N>; a bare topic means the first.
+// keep whole. Links name the post as #post_N or /t/<slug>/<topic>/<N>; a bare topic means the first. Relative
+// addresses in the post are resolved against page, the address reached after redirects.
 func discoursePost(doc *html.Node, page *url.URL) string {
 	generator := cascadia.Query(doc, discourseGenerator)
 	if generator == nil || !strings.HasPrefix(attr(generator, "content"), "Discourse") || cascadia.Query(doc, discourseFirstPost) == nil {
@@ -439,6 +440,7 @@ func discoursePost(doc *html.Node, page *url.URL) string {
 	if body == nil {
 		return ""
 	}
+	resolveLinks(body, page)
 	var b strings.Builder
 	for child := body.FirstChild; child != nil; child = child.NextSibling {
 		html.Render(&b, child)
