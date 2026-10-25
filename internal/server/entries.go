@@ -26,28 +26,30 @@ const (
 )
 
 type entryJSON struct {
-	ID            int64         `json:"id"`
-	SourceID      int64         `json:"sourceId"`
-	SourceTitle   string        `json:"sourceTitle"`
-	Kind          string        `json:"kind"`
-	Title         string        `json:"title"`
-	URL           string        `json:"url"`
-	Author        string        `json:"author"`
-	PublishedAt   *int64        `json:"publishedAt"`
-	Summary       string        `json:"summary"`
-	AISummary     string        `json:"aiSummary,omitempty"`
-	ThumbnailURL  string        `json:"thumbnailUrl"`
-	DurationSec   *int          `json:"durationSec"`
-	Platform      string        `json:"platform"`
-	Language      string        `json:"language"`
-	ReadingSec    *int          `json:"readingSec"`
-	ReadProgress  *float64      `json:"readProgress,omitempty"`
-	Images        []store.Image `json:"images"`
-	ExtractStatus string        `json:"extractStatus"`
-	IsRead        bool          `json:"isRead"`
-	ReadAt        *int64        `json:"readAt"`
-	Starred       bool          `json:"starred"`
-	CreatedAt     int64         `json:"createdAt"`
+	ID          int64  `json:"id"`
+	SourceID    int64  `json:"sourceId"`
+	SourceTitle string `json:"sourceTitle"`
+	Kind        string `json:"kind"`
+	Title       string `json:"title"`
+	// TranslatedTitle is the title in the user's language, only when title translation made one that differs.
+	TranslatedTitle string        `json:"translatedTitle,omitempty"`
+	URL             string        `json:"url"`
+	Author          string        `json:"author"`
+	PublishedAt     *int64        `json:"publishedAt"`
+	Summary         string        `json:"summary"`
+	AISummary       string        `json:"aiSummary,omitempty"`
+	ThumbnailURL    string        `json:"thumbnailUrl"`
+	DurationSec     *int          `json:"durationSec"`
+	Platform        string        `json:"platform"`
+	Language        string        `json:"language"`
+	ReadingSec      *int          `json:"readingSec"`
+	ReadProgress    *float64      `json:"readProgress,omitempty"`
+	Images          []store.Image `json:"images"`
+	ExtractStatus   string        `json:"extractStatus"`
+	IsRead          bool          `json:"isRead"`
+	ReadAt          *int64        `json:"readAt"`
+	Starred         bool          `json:"starred"`
+	CreatedAt       int64         `json:"createdAt"`
 	// RemindAt is when a reminded entry comes back as unread, in Unix milliseconds; left out without a reminder.
 	RemindAt *int64 `json:"remindAt,omitempty"`
 	// RevisedAt is when the update that replaced the entry's earlier version was fetched; left out when there is none.
@@ -108,7 +110,7 @@ func entryToJSON(e store.Entry) entryJSON {
 	}
 	return entryJSON{
 		Group: group,
-		ID:    e.ID, SourceID: e.SourceID, SourceTitle: e.SourceTitle, Kind: e.Kind, Title: e.Title, URL: e.URL,
+		ID:    e.ID, SourceID: e.SourceID, SourceTitle: e.SourceTitle, Kind: e.Kind, Title: e.Title, TranslatedTitle: e.TranslatedTitle, URL: e.URL,
 		Author: e.Author, PublishedAt: millis(e.PublishedAt), Summary: e.Summary, ThumbnailURL: e.ThumbnailURL,
 		DurationSec: duration, Platform: e.Platform, Language: e.Language, ReadingSec: e.ReadingSec, ReadProgress: e.ReadProgress, Images: images, ExtractStatus: e.ExtractStatus,
 		IsRead: e.IsRead, ReadAt: millis(e.ReadAt), Starred: e.Starred, CreatedAt: e.CreatedAt.UnixMilli(),

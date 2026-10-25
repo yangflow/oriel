@@ -1259,9 +1259,12 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 	if s.find.open {
 		pad[0] += findHeight(t)
 	}
-	title := strings.TrimSpace(e.Title)
+	title, original := strings.TrimSpace(e.Title), ""
+	if translated := strings.TrimSpace(e.TranslatedTitle); translated != "" {
+		title, original = translated, strings.TrimSpace(e.Title) // the title translation made for the list
+	}
 	if s.translating() && s.title != "" {
-		title = s.title
+		title, original = s.title, ""
 	}
 	area := ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).FillWidth().ScrollbarInsets(theme.Bar, 0, 0, 0).Focusable().
 		FocusRing(false).Label(title)
@@ -1320,6 +1323,10 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 			}
 			s.plain(c, &s.titleSet, title, unitTitle, s.han, size, tracking).FontSize(size).FontWeight(600).LineHeight(line).
 				LetterSpacing(tracking).TextColor(t.Text).Wrap().Margin(theme.Px(t, 12), 0, 0, 0).Role(ui.RoleHeading).Level(1)
+			if original != "" {
+				// The title as the feed wrote it, under the translated one.
+				ui.Text(c, original).FontSize(theme.Px(t, 13)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 6), 0, 0, 0)
+			}
 			s.alsoLine(c, e)
 			s.revisedLine(c, e)
 			if s.jobs[translation].on {

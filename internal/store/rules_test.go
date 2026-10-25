@@ -540,6 +540,13 @@ func TestMigrationMovesTheSourceOfARuleToTheJoinTable(t *testing.T) {
 		"ALTER TABLE sources DROP COLUMN hide_from_all",
 		"DROP INDEX entries_remind",
 		"ALTER TABLE entries DROP COLUMN remind_at",
+		"DROP INDEX entries_title_tr",
+		"DROP INDEX entries_translated_title",
+		"ALTER TABLE entries DROP COLUMN translated_title",
+		"ALTER TABLE entries DROP COLUMN title_tr_status",
+		"ALTER TABLE entries DROP COLUMN title_tr_attempts",
+		"ALTER TABLE entries DROP COLUMN title_tr_at",
+		"ALTER TABLE sources DROP COLUMN translate_titles",
 		"PRAGMA user_version = 28",
 	} {
 		if _, err := db.Exec(stmt); err != nil {

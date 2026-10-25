@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -93,14 +94,20 @@ func (u *upstream) calls() []chatRequest {
 type fixture struct {
 	t      *testing.T
 	store  *store.Store
+	file   string // the database file, for tests that read or change rows the store has no call for
 	worker *Worker
 	now    time.Time
 }
 
 func newFixture(t *testing.T, endpoint string) *fixture {
 	t.Helper()
-	st := storetest.Open(t)
-	f := &fixture{t: t, store: st, now: time.UnixMilli(1_790_000_000_000)}
+	file := storetest.Path(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	st, err := store.Open(context.Background(), file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	f := &fixture{t: t, store: st, file: file, now: time.UnixMilli(1_790_000_000_000)}
 	f.worker = New(st, "0.1.0")
 	f.worker.now = func() time.Time { return f.now }
 	if endpoint != "" {

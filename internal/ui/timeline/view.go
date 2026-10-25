@@ -2360,8 +2360,12 @@ func (s *Screen) when(e client.Entry, now time.Time) string {
 	return locale.Capital(locale.Ago(s.lang, now, time.UnixMilli(ms)))
 }
 
-// title is what names an entry: its title, or the start of its text for a post without one.
+// title is what names an entry: its translated title when there is one, its title, or the start of its text for a
+// post without one.
 func title(e client.Entry) string {
+	if t := strings.TrimSpace(e.TranslatedTitle); t != "" {
+		return t
+	}
 	if t := strings.TrimSpace(e.Title); t != "" {
 		return t
 	}
@@ -2372,9 +2376,22 @@ func title(e client.Entry) string {
 	return text
 }
 
-// label is how assistive technology reads an entry: source, title, time, read or not, starred.
+// original is the title as the feed wrote it when title() shows its translation instead, otherwise "".
+func original(e client.Entry) string {
+	if strings.TrimSpace(e.TranslatedTitle) == "" {
+		return ""
+	}
+	return strings.TrimSpace(e.Title)
+}
+
+// label is how assistive technology reads an entry: source, title, the original title of a translated one, time,
+// read or not, starred.
 func (s *Screen) label(e client.Entry, now time.Time) string {
-	parts := []string{e.SourceTitle, title(e), s.when(e, now)}
+	parts := []string{e.SourceTitle, title(e)}
+	if o := original(e); o != "" {
+		parts = append(parts, o)
+	}
+	parts = append(parts, s.when(e, now))
 	if reading := s.readLabel(e); reading != "" {
 		parts = append(parts, reading)
 	}
@@ -4978,11 +4995,20 @@ func (s *Screen) titleText(c *ui.Context, e client.Entry, size float32, muted ui
 	return text.LineHeight(line).LetterSpacing(tracking)
 }
 
+// subtitle is the original title under the translated one, in 12 muted on one line; nothing without a translation.
+func (s *Screen) subtitle(c *ui.Context, e client.Entry, muted ui.Color) {
+	if o := original(e); o != "" {
+		t := c.Theme()
+		ui.Text(c, o).FontSize(theme.Px(t, 12)).TextColor(muted).SingleLine().MinWidth(0)
+	}
+}
+
 func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
 	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
 		s.meta(c, e, now, false, theme.Px(t, 88), muted, false)
 		s.titleText(c, e, 15, muted)
+		s.subtitle(c, e, muted)
 		summary, generated := strings.Join(strings.Fields(e.Summary), " "), false
 		if ai := strings.Join(strings.Fields(e.AISummary), " "); ai != "" {
 			summary, generated = ai, true
@@ -5064,6 +5090,7 @@ func (s *Screen) largeRow(c *ui.Context, e client.Entry, now time.Time, muted ui
 	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 8, 6)).Children(func() {
 		s.coverOf(c, e, true, true, theme.Px(t, 12), 44).FillWidth().MaxWidth(theme.Px(t, 640))
 		s.titleText(c, e, 15, muted)
+		s.subtitle(c, e, muted)
 		s.meta(c, e, now, false, theme.Px(t, 88), muted, true)
 		s.alsoList(c, e, now, muted)
 	})
@@ -5106,6 +5133,7 @@ func (s *Screen) videoRow(c *ui.Context, e client.Entry, now time.Time, compact 
 	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
 		s.meta(c, e, now, false, theme.Px(t, 88), muted, false)
 		s.titleText(c, e, 15, muted)
+		s.subtitle(c, e, muted)
 		if e.Platform != "" {
 			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 6)).Children(func() {
 				ui.Icon(c, icons.Play).FontSize(theme.IconSmall(t)).TextColor(muted)
@@ -5134,7 +5162,7 @@ func (s *Screen) socialRow(c *ui.Context, e client.Entry, now time.Time, muted u
 		}
 		text := strings.TrimSpace(e.Summary)
 		if text == "" {
-			text = e.Title
+			text = title(e)
 		}
 		body := ui.RichText(c, s.marked(c, text, color)...).FontSize(theme.Px(t, 13)).MaxLines(6).Wrap().LineHeight(1.55)
 		if theme.Han(text) {
@@ -5151,7 +5179,7 @@ func (s *Screen) briefPost(c *ui.Context, e client.Entry, now time.Time, muted, 
 	t := c.Theme()
 	text := strings.TrimSpace(e.Summary)
 	if text == "" {
-		text = e.Title
+		text = title(e)
 	}
 	ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Px(t, 4)).Children(func() {
 		s.meta(c, e, now, false, theme.Px(t, 88), muted, false)

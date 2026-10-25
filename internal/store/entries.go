@@ -17,31 +17,32 @@ import (
 
 // Entry is a timeline item as clients see it. Zero values mean absent; the HTML bodies are only read for one entry.
 type Entry struct {
-	ID            int64
-	SourceID      int64
-	SourceTitle   string
-	Kind          string
-	Title         string
-	URL           string
-	Author        string
-	PublishedAt   time.Time
-	Summary       string
-	AISummary     string // the stored AI summary when it is ok, the start of it in a list; "" when there is none
-	ContentHTML   string
-	ExtractedHTML string
-	ThumbnailURL  string
-	DurationSec   int
-	Platform      string
-	Language      string   // BCP 47 code, "" when unknown
-	ReadingSec    *int     // estimated seconds, nil when unknown; see docs/product.md "阅读时间"
-	ReadProgress  *float64 // how far the article was read, 0 to 1, nil when never scrolled; see docs/product.md "阅读器"
-	Images        []Image
-	ExtractStatus string
-	IsRead        bool
-	ReadAt        time.Time
-	RemindAt      time.Time // when a reminded entry comes back as unread; zero when there is no reminder
-	Starred       bool
-	CreatedAt     time.Time
+	ID              int64
+	SourceID        int64
+	SourceTitle     string
+	Kind            string
+	Title           string
+	TranslatedTitle string // the title in the target language, "" when there is none or it equals Title
+	URL             string
+	Author          string
+	PublishedAt     time.Time
+	Summary         string
+	AISummary       string // the stored AI summary when it is ok, the start of it in a list; "" when there is none
+	ContentHTML     string
+	ExtractedHTML   string
+	ThumbnailURL    string
+	DurationSec     int
+	Platform        string
+	Language        string   // BCP 47 code, "" when unknown
+	ReadingSec      *int     // estimated seconds, nil when unknown; see docs/product.md "阅读时间"
+	ReadProgress    *float64 // how far the article was read, 0 to 1, nil when never scrolled; see docs/product.md "阅读器"
+	Images          []Image
+	ExtractStatus   string
+	IsRead          bool
+	ReadAt          time.Time
+	RemindAt        time.Time // when a reminded entry comes back as unread; zero when there is no reminder
+	Starred         bool
+	CreatedAt       time.Time
 	// RevisedAt is when the update that replaced the earlier version of the entry was fetched; zero when the entry has
 	// no earlier version (see Revision).
 	RevisedAt time.Time
@@ -108,7 +109,7 @@ const entryColumns = `
 	e.id, e.source_id, CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN s.url ELSE s.rsshub_path END, s.kind,
 	e.title, e.url, e.author, e.published_at, e.rss_summary, e.thumbnail_url, e.duration_sec, e.platform, e.images,
 	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec, e.read_progress, e.remind_at,
-	s.pace_sec, coalesce(nullif(e.published_at, 0), e.created_at),
+	e.translated_title, s.pace_sec, coalesce(nullif(e.published_at, 0), e.created_at),
 	(SELECT r.replaced_at FROM entry_revisions r WHERE r.entry_id = e.id)`
 
 // shown keeps the entries of s that none of its mute keywords and none of the global ones hides, and drops those of a deleted source. Starred
@@ -184,11 +185,14 @@ const displayName = "CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN 
 // of the from: names and any of the kinds may match; after: and before: bound the time the entry is shown as.
 func (f EntryFilter) searchWhere(q search.Query, add func(string, ...any)) {
 	term := func(t string) (string, []any) {
+		pattern := "%" + likeEscaper.Replace(t) + "%"
+		// The translated title is matched by LIKE in both cases: the index holds only the original text. The subquery
+		// reads the index of the entries that have a translation.
+		translated := `e.id IN (SELECT id FROM entries WHERE translated_title <> '' AND translated_title LIKE ? ESCAPE '\')`
 		if utf8.RuneCountInString(t) < search.MinIndexed {
-			pattern := "%" + likeEscaper.Replace(t) + "%"
-			return `(coalesce(e.title, '') LIKE ? ESCAPE '\' OR coalesce(e.rss_summary, '') LIKE ? ESCAPE '\')`, []any{pattern, pattern}
+			return `(coalesce(e.title, '') LIKE ? ESCAPE '\' OR coalesce(e.rss_summary, '') LIKE ? ESCAPE '\' OR ` + translated + ")", []any{pattern, pattern, pattern}
 		}
-		return "e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH ?)", []any{`"` + strings.ReplaceAll(t, `"`, `""`) + `"`}
+		return "(e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH ?) OR " + translated + ")", []any{`"` + strings.ReplaceAll(t, `"`, `""`) + `"`, pattern}
 	}
 	for _, t := range q.Include {
 		condition, args := term(t)
@@ -584,7 +588,7 @@ func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error)
 	var revised sql.NullInt64
 	dest := append([]any{&entry.ID, &entry.SourceID, &entry.SourceTitle, &entry.Kind, &entry.Title, &entry.URL,
 		&entry.Author, &published, &entry.Summary, &entry.ThumbnailURL, &duration, &entry.Platform, &images,
-		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading, &progress, &remind, &paceSec, &base, &revised}, extra...)
+		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading, &progress, &remind, &entry.TranslatedTitle, &paceSec, &base, &revised}, extra...)
 	if err := row.Scan(dest...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Entry{}, ErrNotFound

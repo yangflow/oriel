@@ -267,10 +267,12 @@ type Entry struct {
 	SourceTitle string `json:"sourceTitle"`
 	Kind        string `json:"kind"`
 	Title       string `json:"title"`
-	URL         string `json:"url"`
-	Author      string `json:"author"`
-	PublishedAt int64  `json:"publishedAt"`
-	Summary     string `json:"summary"`
+	// TranslatedTitle is the title in the user's language, "" when title translation made none; Title stays the original.
+	TranslatedTitle string `json:"translatedTitle"`
+	URL             string `json:"url"`
+	Author          string `json:"author"`
+	PublishedAt     int64  `json:"publishedAt"`
+	Summary         string `json:"summary"`
 	// AISummary is the start of the entry's stored AI summary, only in a list and only when one is ok; "" otherwise.
 	AISummary    string `json:"aiSummary"`
 	ThumbnailURL string `json:"thumbnailUrl"`
@@ -352,6 +354,7 @@ type Source struct {
 	KeepDays            int    `json:"keepDays"`
 	PaceSec             int    `json:"paceSec"`
 	HideFromAll         bool   `json:"hideFromAll"`
+	TranslateTitles     bool   `json:"translateTitles"`
 	ExtractSelector     string `json:"extractSelector"`
 	ExtractReferer      string `json:"extractReferer"`
 	OpenTarget          string `json:"openTarget"`
@@ -402,6 +405,8 @@ type SourcePatch struct {
 	// HideFromAll keeps the source out of All and the kind timelines and their counts; it stays in its own view,
 	// in search and in Starred.
 	HideFromAll *bool `json:"hideFromAll,omitempty"`
+	// TranslateTitles queues the titles of new entries for translation into the AI language.
+	TranslateTitles *bool `json:"translateTitles,omitempty"`
 	// ExtractSelector, ExtractReferer and ExtractRewrites are the source's extraction rules; an empty string clears one.
 	ExtractSelector *string `json:"extractSelector,omitempty"`
 	ExtractReferer  *string `json:"extractReferer,omitempty"`

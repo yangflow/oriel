@@ -46,25 +46,26 @@ type opmlDocument struct {
 }
 
 // opmlOutline is a subscription when it has an xmlUrl or an orielRsshubPath, otherwise a group.
-// orielKind, orielRsshubPath, orielOpenTarget and orielHideFromAll keep what OPML has no place for.
+// orielKind, orielRsshubPath, orielOpenTarget, orielHideFromAll and orielTranslateTitles keep what OPML has no place for.
 type opmlOutline struct {
-	Text        string        `xml:"text,attr"`
-	Title       string        `xml:"title,attr,omitempty"`
-	Type        string        `xml:"type,attr,omitempty"`
-	XMLURL      string        `xml:"xmlUrl,attr,omitempty"`
-	HTMLURL     string        `xml:"htmlUrl,attr,omitempty"`
-	Kind        string        `xml:"orielKind,attr,omitempty"`
-	RSSHubPath  string        `xml:"orielRsshubPath,attr,omitempty"`
-	OpenTarget  string        `xml:"orielOpenTarget,attr,omitempty"`
-	HideFromAll string        `xml:"orielHideFromAll,attr,omitempty"`
-	Outlines    []opmlOutline `xml:"outline"`
+	Text            string        `xml:"text,attr"`
+	Title           string        `xml:"title,attr,omitempty"`
+	Type            string        `xml:"type,attr,omitempty"`
+	XMLURL          string        `xml:"xmlUrl,attr,omitempty"`
+	HTMLURL         string        `xml:"htmlUrl,attr,omitempty"`
+	Kind            string        `xml:"orielKind,attr,omitempty"`
+	RSSHubPath      string        `xml:"orielRsshubPath,attr,omitempty"`
+	OpenTarget      string        `xml:"orielOpenTarget,attr,omitempty"`
+	HideFromAll     string        `xml:"orielHideFromAll,attr,omitempty"`
+	TranslateTitles string        `xml:"orielTranslateTitles,attr,omitempty"`
+	Outlines        []opmlOutline `xml:"outline"`
 }
 
 // source reads a subscription outline. The RSSHub path wins over xmlUrl, the kind defaults to article, and a title
 // that only repeats the address counts as none, so that the next fetch fills it in.
 func (o opmlOutline) source() (store.NewSource, string) {
 	src := store.NewSource{Kind: o.Kind, OpenTarget: strings.TrimSpace(o.OpenTarget), FetchInterval: defaultInterval, FetchIntervalAuto: true,
-		HideFromAll: strings.TrimSpace(o.HideFromAll) == "1"}
+		HideFromAll: strings.TrimSpace(o.HideFromAll) == "1", TranslateTitles: strings.TrimSpace(o.TranslateTitles) == "1"}
 	if src.RSSHubPath = strings.TrimSpace(o.RSSHubPath); src.RSSHubPath == "" {
 		src.URL = strings.TrimSpace(o.XMLURL)
 	}
@@ -204,6 +205,9 @@ func (s *Server) exportOPML(w http.ResponseWriter, r *http.Request) {
 		}
 		if src.HideFromAll {
 			o.HideFromAll = "1"
+		}
+		if src.TranslateTitles {
+			o.TranslateTitles = "1"
 		}
 		if src.RSSHubPath != "" {
 			o.RSSHubPath = src.RSSHubPath
