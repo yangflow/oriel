@@ -290,6 +290,8 @@ type Entry struct {
 	IsRead        bool   `json:"isRead"`
 	Starred       bool   `json:"starred"`
 	CreatedAt     int64  `json:"createdAt"`
+	// RemindAt, in Unix milliseconds, is when a reminded entry comes back as unread; 0 when it has no reminder.
+	RemindAt int64 `json:"remindAt,omitempty"`
 	// FadesAt and ExpiresAt, in Unix milliseconds, are when an unread entry of a source with a pace starts to fade
 	// and leaves All and Unread; 0 when it has none.
 	FadesAt   int64 `json:"fadesAt,omitempty"`
@@ -654,6 +656,9 @@ type EntryPatch struct {
 	Starred *bool `json:"starred,omitempty"`
 	// ReadProgress is how far the article was read, 0 to 1; the server refuses anything else with invalid_progress.
 	ReadProgress *float64 `json:"readProgress,omitempty"`
+	// RemindAt sets a reminder at this time in Unix milliseconds, which marks the entry read until then; 0 clears it.
+	// The server refuses a time that is not in the future with invalid_remind_at.
+	RemindAt *int64 `json:"remindAt,omitempty"`
 }
 
 // ReadScope says which entries "mark as read" marks: a source, a kind, those up to an entry (it and the older ones),

@@ -44,6 +44,7 @@ const (
 	// The background loops: extraction rounds, and how often to check whether pruning is due.
 	extractEvery = 5 * time.Second
 	pruneCheck   = time.Minute
+	remindEvery  = time.Minute // how often due reminders are brought back
 
 	// After a failure, probe every minute for the first five, then back off up to ten minutes.
 	probeDelay   = time.Minute
@@ -260,6 +261,7 @@ func (p *Poller) Run(ctx context.Context) {
 	}
 	wg.Go(func() { every(ctx, extractEvery, p.extractAll) })
 	wg.Go(func() { every(ctx, pruneCheck, p.prune) })
+	wg.Go(func() { every(ctx, remindEvery, p.remind) })
 	wg.Go(func() { every(ctx, websubEvery, p.websubRound) })
 	wg.Wait()
 }

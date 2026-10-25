@@ -62,6 +62,7 @@ type copy struct {
 	RangeAny, RangeToday, Range24, RangeChipToday, RangeChip24, RangeName, RangeNameOf, NothingNewToday, NothingNew24, NothingNewHint, AnyRange, KeyRange, PaletteRange string
 	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                                 string
 	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu                            string
+	RemindLater, RemindHour, RemindEvening, RemindTomorrow, RemindNextWeek, RemindCancel, RemindSet, RemindAt, RemindCancelled, RemindPalette                           string
 	Retrying, Pending                                                                                                                                                   string
 	Fetching, FetchedEntries, FetchedEntry, FetchedNone, FetchFailed, FreshEntries, FreshEntry, NothingNewIn                                                            string
 }
@@ -1258,6 +1259,11 @@ func (s *Screen) patchLists(ids []int64, patch client.EntryPatch) {
 			if patch.Starred != nil {
 				l.entries[j].Starred = *patch.Starred
 			}
+			if patch.RemindAt != nil {
+				l.entries[j].RemindAt = *patch.RemindAt
+			} else if patch.IsRead != nil && !*patch.IsRead {
+				l.entries[j].RemindAt = 0
+			}
 		}
 	}
 }
@@ -1561,6 +1567,10 @@ func (s *Screen) change(id int64, patch client.EntryPatch) {
 	if patch.Starred != nil {
 		back.Starred = &before.Starred
 	}
+	if patch.RemindAt != nil || patch.IsRead != nil && !*patch.IsRead {
+		was := before.RemindAt
+		back.RemindAt = &was
+	}
 	if s.offline || s.waitingFor(id) >= 0 {
 		// The server is out of reach, or an earlier change of this entry is still waiting and must go first.
 		s.enqueue(id, patch, back, before.Group)
@@ -1653,6 +1663,12 @@ func (s *Screen) enqueue(id int64, patch, back client.EntryPatch, group *client.
 	if patch.Starred != nil {
 		w.patch.Starred = patch.Starred
 	}
+	if patch.RemindAt != nil {
+		w.patch.RemindAt = patch.RemindAt
+	}
+	if w.back.RemindAt == nil {
+		w.back.RemindAt = back.RemindAt
+	}
 	if w.back.IsRead == nil {
 		w.back.IsRead = back.IsRead
 	}
@@ -1734,6 +1750,11 @@ func (s *Screen) setRow(i int, patch client.EntryPatch) {
 	}
 	if patch.Starred != nil {
 		e.Starred = *patch.Starred
+	}
+	if patch.RemindAt != nil {
+		e.RemindAt = *patch.RemindAt
+	} else if patch.IsRead != nil && !*patch.IsRead {
+		e.RemindAt = 0 // marking it unread cancels the reminder
 	}
 }
 
@@ -1852,6 +1873,9 @@ func (s *Screen) markRead(e client.Entry) {
 	if !e.IsRead {
 		on := true
 		s.change(e.ID, client.EntryPatch{IsRead: &on})
+	} else if e.RemindAt > 0 {
+		none := int64(0) // opening a reminded entry earlier cancels its reminder
+		s.change(e.ID, client.EntryPatch{RemindAt: &none})
 	}
 }
 
@@ -2361,6 +2385,9 @@ func (s *Screen) label(e client.Entry, now time.Time) string {
 	}
 	if e.Starred {
 		parts = append(parts, s.text.Starred)
+	}
+	if e.RemindAt > 0 {
+		parts = append(parts, strings.ReplaceAll(s.text.RemindAt, "{time}", s.remindWhen(e.RemindAt)))
 	}
 	if s.waitingFor(e.ID) >= 0 {
 		parts = append(parts, s.text.Pending)
@@ -4390,6 +4417,7 @@ func (s *Screen) entryMenu(c *ui.Context, m *ui.Menu, id int64) {
 	if m.Item(read).Chosen() {
 		s.toggleRead(s.index(id))
 	}
+	m.Submenu(s.text.RemindLater, func(sub *ui.Menu) { s.remindMenu(sub, e) })
 	if m.Item(s.text.OpenReader).Chosen() {
 		s.read(s.index(id))
 	}
@@ -4512,6 +4540,9 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 			}
 			if e.Starred {
 				ui.Icon(c, icons.Star).FontSize(theme.IconSmall(t)).TextColor(theme.Star(t))
+			}
+			if e.RemindAt > 0 {
+				ui.Icon(c, icons.Clock).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
 			}
 			if s.waitingFor(e.ID) >= 0 {
 				ui.Icon(c, icons.Upload).FontSize(theme.IconSmall(t)).TextColor(muted)
@@ -4996,6 +5027,9 @@ func (s *Screen) compactRow(c *ui.Context, e client.Entry, now time.Time, narrow
 		MinWidth(0)
 	if e.Starred {
 		ui.Icon(c, icons.Star).FontSize(theme.IconSmall(t)).TextColor(theme.Star(t))
+	}
+	if e.RemindAt > 0 {
+		ui.Icon(c, icons.Clock).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
 	}
 	if s.waitingFor(e.ID) >= 0 {
 		ui.Icon(c, icons.Upload).FontSize(theme.IconSmall(t)).TextColor(muted)

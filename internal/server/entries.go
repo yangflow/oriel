@@ -21,6 +21,8 @@ const (
 	maxListAISummary = 300
 	// maxBudgetMinutes is the longest reading-time budget a client may ask for: one day.
 	maxBudgetMinutes = 1440
+	// maxRemindAhead is how far ahead a reminder may be set: a year.
+	maxRemindAhead = 366 * 24 * time.Hour
 )
 
 type entryJSON struct {
@@ -46,6 +48,8 @@ type entryJSON struct {
 	ReadAt        *int64        `json:"readAt"`
 	Starred       bool          `json:"starred"`
 	CreatedAt     int64         `json:"createdAt"`
+	// RemindAt is when a reminded entry comes back as unread, in Unix milliseconds; left out without a reminder.
+	RemindAt *int64 `json:"remindAt,omitempty"`
 	// FadesAt and ExpiresAt are set for an unread entry of a source with a pace, in Unix milliseconds.
 	FadesAt   *int64 `json:"fadesAt,omitempty"`
 	ExpiresAt *int64 `json:"expiresAt,omitempty"`
@@ -106,7 +110,7 @@ func entryToJSON(e store.Entry) entryJSON {
 		Author: e.Author, PublishedAt: millis(e.PublishedAt), Summary: e.Summary, ThumbnailURL: e.ThumbnailURL,
 		DurationSec: duration, Platform: e.Platform, Language: e.Language, ReadingSec: e.ReadingSec, ReadProgress: e.ReadProgress, Images: images, ExtractStatus: e.ExtractStatus,
 		IsRead: e.IsRead, ReadAt: millis(e.ReadAt), Starred: e.Starred, CreatedAt: e.CreatedAt.UnixMilli(),
-		FadesAt: millis(e.FadesAt), ExpiresAt: millis(e.ExpiresAt),
+		FadesAt: millis(e.FadesAt), ExpiresAt: millis(e.ExpiresAt), RemindAt: millis(e.RemindAt),
 	}
 }
 
@@ -167,7 +171,19 @@ func zone(name string) *time.Location {
 	return loc
 }
 
+// fireReminders brings back the entries whose reminder is due; the fetch loop does the same every minute.
+func (s *Server) fireReminders(w http.ResponseWriter, r *http.Request) bool {
+	if _, err := s.store.FireReminders(r.Context(), s.now()); err != nil {
+		internal(w, err)
+		return false
+	}
+	return true
+}
+
 func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
+	if !s.fireReminders(w, r) {
+		return
+	}
 	query := r.URL.Query()
 	filter := store.EntryFilter{
 		Kind: query.Get("kind"), Unread: query.Get("unread") == "1", Starred: query.Get("starred") == "1",
@@ -288,8 +304,16 @@ func (s *Server) updateEntry(w http.ResponseWriter, r *http.Request) {
 		IsRead       *bool    `json:"isRead"`
 		Starred      *bool    `json:"starred"`
 		ReadProgress *float64 `json:"readProgress"`
+		RemindAt     *int64   `json:"remindAt"`
 	}
 	if !readBody(w, r, &body) {
+		return
+	}
+	now := s.now()
+	// A reminder is 0 (clear it) or a time within the next year, and it cannot come with isRead false.
+	if at := body.RemindAt; at != nil && *at != 0 &&
+		(*at <= now.UnixMilli() || *at > now.Add(maxRemindAhead).UnixMilli() || (body.IsRead != nil && !*body.IsRead)) {
+		fail(w, http.StatusBadRequest, "invalid_remind_at")
 		return
 	}
 	if p := body.ReadProgress; p != nil && !(*p >= 0 && *p <= 1) {
@@ -301,7 +325,7 @@ func (s *Server) updateEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entry, err := s.store.UpdateEntry(r.Context(), id, store.EntryPatch{IsRead: body.IsRead, Starred: body.Starred,
-		ReadProgress: body.ReadProgress, Group: group}, s.now())
+		ReadProgress: body.ReadProgress, RemindAt: body.RemindAt, Group: group}, now)
 	if err == nil && group {
 		entry, err = s.store.WithGroup(r.Context(), entry)
 	}
