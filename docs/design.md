@@ -1199,9 +1199,9 @@ Overlays share focus and Escape behavior; see
   name). Every control is as wide as the form, none is half width. Then a medium line "Automatically" with two
   Checkboxes (Star, Mark as read; 16 box, radius 5, `Accent` fill with a check when on, 30 high rows) and, right under
   them in the normal size and `Text2`, the note that only entries that arrive from now on are affected and the ones you
-  already have stay as they are. The two titles read as one sentence: "New entries that match … Automatically …". Save
-  is always enabled; pressing it with no
-  condition or no action names the problem under the Author field ("Fill in at least one condition.") and under the
+  already have stay as they are. The two titles read as one sentence: "New entries that match … Automatically …". Save is
+  always enabled; pressing it with no condition or no action names the problem under the Author field ("Fill in at
+  least one condition.") and under the
   checkboxes ("Pick at least one action."), with `Danger` outlines on the empty inputs and the boxes, and the focus
   stays. A server refusal (more than 50 rules, a subscription that is gone) is one `Danger` line above the buttons.
   Deleting acts at once and shows a toast "Rule deleted" with Undo, which puts the rule back; the rows below move up.
