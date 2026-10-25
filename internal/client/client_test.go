@@ -423,6 +423,7 @@ func TestActivityAndStorageAPI(t *testing.T) {
 				{"at":1699999000000,"durationMs":90,"ok":true,"status":200,"newEntries":4,"error":""}]}]}`))
 		case "GET /api/storage":
 			w.Write([]byte(`{"databaseBytes":1000,"reclaimableBytes":200,"entries":30,"images":4,"imageBytes":5000,"copies":2,"copyBytes":700,
+				"premigrate":{"bytes":4096,"version":17},
 				"vacuum":{"state":"done","startedAt":1,"finishedAt":2,"freedBytes":150,"error":""}}`))
 		case "POST /api/storage/vacuum":
 			if len(seen) > 3 {
@@ -432,6 +433,8 @@ func TestActivityAndStorageAPI(t *testing.T) {
 			}
 			w.WriteHeader(http.StatusAccepted)
 			w.Write([]byte(`{"vacuum":{"state":"running","startedAt":7}}`))
+		case "DELETE /api/storage/premigrate":
+			w.WriteHeader(http.StatusNoContent)
 		}
 	}))
 	defer srv.Close()
@@ -459,7 +462,14 @@ func TestActivityAndStorageAPI(t *testing.T) {
 	if _, err := session.StartVacuum(ctx); !errors.As(err, &apiErr) || apiErr.Code != "vacuum_running" || apiErr.Status != http.StatusConflict {
 		t.Errorf("second StartVacuum: %v", err)
 	}
-	want := []string{"GET /api/activity Bearer tok", "GET /api/storage Bearer tok", "POST /api/storage/vacuum Bearer tok", "POST /api/storage/vacuum Bearer tok"}
+	if storage.PreMigrate == nil || *storage.PreMigrate != (PreMigrate{Bytes: 4096, Version: 17}) {
+		t.Errorf("PreMigrate = %+v", storage.PreMigrate)
+	}
+	if err := session.DeletePreMigrate(ctx); err != nil {
+		t.Errorf("DeletePreMigrate: %v", err)
+	}
+	want := []string{"GET /api/activity Bearer tok", "GET /api/storage Bearer tok", "POST /api/storage/vacuum Bearer tok", "POST /api/storage/vacuum Bearer tok",
+		"DELETE /api/storage/premigrate Bearer tok"}
 	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
 		t.Errorf("requests:\n%s", strings.Join(seen, "\n"))
 	}

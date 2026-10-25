@@ -25,6 +25,14 @@ func (f *fake) StartVacuum(context.Context) (client.Vacuum, error) {
 	return f.started, f.vacuumErr
 }
 
+func (f *fake) DeletePreMigrate(context.Context) error {
+	f.dropped++
+	if f.dropErr == nil {
+		f.storage.PreMigrate = nil // what the server reports afterwards
+	}
+	return f.dropErr
+}
+
 func (f *fake) Diagnostics(context.Context) ([]byte, error) { return f.diag, f.diagErr }
 
 // activityData is two subscriptions with attempts, one of them being fetched now.
@@ -415,6 +423,56 @@ func TestExportDiagnostics(t *testing.T) {
 				t.Fatalf("a cancelled dialog shows a result: %v", tt.Texts())
 			}
 		})
+	}
+}
+
+func TestPreMigrateCopyRow(t *testing.T) {
+	for _, language := range []string{"en", "zh-Hans"} {
+		s, f, tt := setup(t, language, false)
+		f.activity, f.storage = activityData()
+		tt.SetSize(1000, 1800)
+		s.OpenPage("activity")
+		tt.Frame()
+		f.settle(tt)
+		if tt.HasText(s.text.PreMigrate) || tt.HasText(s.text.DeletePreMigrate) {
+			t.Fatalf("%s: a row without a copy: %v", language, tt.Texts())
+		}
+
+		f.storage.PreMigrate = &client.PreMigrate{Bytes: 3 << 20, Version: 17}
+		press(t, tt, s.text.Refresh)
+		f.settle(tt)
+		version := s.fill(s.fill(s.text.PreMigrateVersion, "{size}", "3.0 MB"), "{version}", "17")
+		if !tt.HasText(s.text.PreMigrate) || !tt.HasText(version) || !tt.HasText(s.text.DeletePreMigrate) {
+			t.Fatalf("%s: no row in %v", language, tt.Texts())
+		}
+
+		// Cancelling, and Escape, delete nothing.
+		press(t, tt, s.text.DeletePreMigrateTitle)
+		if !tt.HasText(s.text.DeletePreMigrateBody) {
+			t.Fatalf("%s: no dialog in %v", language, tt.Texts())
+		}
+		tt.Key(0, ui.KeyEscape)
+		if f.dropped != 0 || f.back != 0 || tt.HasText(s.text.DeletePreMigrateBody) {
+			t.Fatalf("%s: dropped %d, back %d", language, f.dropped, f.back)
+		}
+
+		// A failure keeps the row and says so.
+		f.dropErr = errors.New("offline")
+		press(t, tt, s.text.DeletePreMigrateTitle)
+		press(t, tt, s.text.DeletePreMigrateConfirm)
+		f.settle(tt)
+		if f.dropped != 1 || !tt.HasText(s.text.PreMigrateFailed) || !tt.HasText(version) {
+			t.Fatalf("%s: dropped %d, texts %v", language, f.dropped, tt.Texts())
+		}
+
+		f.dropErr = nil
+		tt.Frame()
+		press(t, tt, s.text.DeletePreMigrateTitle)
+		press(t, tt, s.text.DeletePreMigrateConfirm)
+		f.settle(tt)
+		if f.dropped != 2 || !tt.HasText(s.text.PreMigrateDeleted) || tt.HasText(s.text.PreMigrate) || tt.HasText(version) {
+			t.Fatalf("%s: dropped %d, texts %v", language, f.dropped, tt.Texts())
+		}
 	}
 }
 

@@ -137,11 +137,41 @@ func (s *Server) storage(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	premigrate, err := s.preMigrateNow()
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	reply(w, http.StatusOK, map[string]any{
-		"copies": copies, "copyBytes": copyBytes,
+		"premigrate": premigrate, "copies": copies, "copyBytes": copyBytes,
 		"databaseBytes": st.DatabaseBytes, "reclaimableBytes": st.ReclaimableBytes, "entries": st.Entries,
 		"images": images, "imageBytes": imageBytes, "vacuum": s.vacuumNow(),
 	})
+}
+
+// preMigrateJSON is the copy made before the last migration. It carries a size and a schema version, never a location.
+type preMigrateJSON struct {
+	Bytes   int64 `json:"bytes"`
+	Version int   `json:"version"`
+}
+
+// preMigrateNow is the copy beside the database, or nil when there is none.
+func (s *Server) preMigrateNow() (*preMigrateJSON, error) {
+	found, err := s.store.PreMigrateInfo()
+	if err != nil || found == nil {
+		return nil, err
+	}
+	return &preMigrateJSON{Bytes: found.Bytes, Version: found.Version}, nil
+}
+
+// deletePreMigrate answers DELETE /api/storage/premigrate: the copy made before the last migration goes. A copy that
+// is already gone is not an error, so a second device deleting it too does not fail.
+func (s *Server) deletePreMigrate(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.DeletePreMigrate(); err != nil {
+		internal(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) vacuumNow() vacuumState {
