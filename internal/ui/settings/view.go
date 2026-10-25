@@ -36,24 +36,26 @@ import (
 var catalog []byte
 
 type copy struct {
-	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Lead, Fetching, OPML, Devices, RSSHub                                                                                                                                                                                                                                           string
-	RSSHubHelp, RSSHubPlaceholder, Save, Saved, Unsaved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp                                                                                                                                                                                                                  string
-	InvalidBaseAny, TooManyBase                                                                                                                                                                                                                                                                                                             string
-	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp                                                                                                                                                                                                                          string
-	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed                                                                                                                                                                                                                                 string
-	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind                                                                                                                                                                                                                                       string
-	BackupLabel, BackupHelp, BackupButton, RestoreLabel, RestoreHelp, RestoreButton, BackupFiles, BackingUp, BackedUp                                                                                                                                                                                                                       string
-	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge                                                                                                                                                                                                                                   string
-	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                                                                                                                                                                                                                                                   string
-	AutoLabel, AutoHelp, AutoFolder, AutoChoose, AutoNoFolder, AutoFrequency, AutoDaily, AutoWeekly, AutoKeep                                                                                                                                                                                                                               string
-	AutoCopies, AutoNever, AutoLast, AutoFailed, AutoRemote, AutoPlaceholder                                                                                                                                                                                                                                                                string
-	AutoReasonMissing, AutoReasonNotDir, AutoReasonNoWrite, AutoReasonDisk, AutoReasonOther                                                                                                                                                                                                                                                 string
-	AutoNeedFolder, AutoBadFolder, AutoInvalidKeep, AutoSaveFailed                                                                                                                                                                                                                                                                          string
-	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                                                                                                                                                                                                                                      string
-	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry                                                                                                                                                                                                                                              string
-	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset                                                                                                                                                                                                                              string
-	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested                                                                                                                                                                                                                               string
-	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase                                                                                                                                                                                                                                  string
+	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Lead, Fetching, OPML, Devices, RSSHub                          string
+	RSSHubHelp, RSSHubPlaceholder, Save, Saved, Unsaved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp string
+	InvalidBaseAny, TooManyBase                                                                                            string
+	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp         string
+	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed                string
+	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind                      string
+	BackupLabel, BackupHelp, BackupButton, RestoreLabel, RestoreHelp, RestoreButton, BackupFiles, BackingUp, BackedUp      string
+	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge                  string
+	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                                  string
+	AutoLabel, AutoHelp, AutoFolder, AutoChoose, AutoNoFolder, AutoFrequency, AutoDaily, AutoWeekly, AutoKeep              string
+	AutoCopies, AutoNever, AutoLast, AutoFailed, AutoRemote, AutoPlaceholder                                               string
+	AutoReasonMissing, AutoReasonNotDir, AutoReasonNoWrite, AutoReasonDisk, AutoReasonOther                                string
+	AutoNeedFolder, AutoBadFolder, AutoInvalidKeep, AutoSaveFailed                                                         string
+	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                     string
+	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry                             string
+	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset             string
+	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested              string
+	Proxy, ProxyLead, ProxyAddress, ProxyHelp, ProxyPlaceholder, ProxyExample, ProxyAuth, ProxyAuthHelp, ProxyUser,
+	ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyChanged, InvalidProxy, InvalidProxyAuth, ProxySaved, ProxyAuthRemoved,
+	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase string
 	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                                                                                                                                                                                                                                         string
 	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp                                                                                                                                                                                                                            string
 	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                                                                                                                                                                                                                                    string
@@ -309,6 +311,12 @@ type Screen struct {
 	focusAIBase            bool
 	aiStatus               status
 	testing                bool
+	proxy                  string // the proxy address as typed
+	proxyUser, proxyPass   string // the sign-in as typed; the one saved is never sent back
+	proxySaving            bool
+	proxyInvalid           bool // the server refused the address
+	focusProxy             bool
+	proxyStatus            status
 	prompts                [2]string // the summary and translation prompts as typed
 	promptSaving           bool
 	promptStatus           status
@@ -388,6 +396,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.autoSaving, s.autoStatus = false, status{}
 	s.grouping = false
 	s.saving, s.keeping, s.aiSaving, s.testing, s.promptSaving = false, false, false, false, false
+	s.proxySaving = false
 	s.state, s.deviceState, s.restored = loading, loading, nil
 	s.activity, s.storage, s.actState, s.actBusy, s.actOpen = client.Activity{}, client.Storage{}, loading, false, 0
 	s.vacStarting, s.vacError, s.actAt = false, "", time.Time{}
@@ -444,6 +453,7 @@ func (s *Screen) Open() {
 	s.baseStatus, s.keepStatus, s.invalid, s.revoking = status{}, status{}, false, false
 	s.dropCopy = false
 	s.aiStatus, s.promptStatus, s.aiInvalid, s.aiChecks = status{}, status{}, false, nil
+	s.proxyStatus, s.proxyInvalid = status{}, false
 	s.autoStatus = status{}
 	if !s.busy {
 		s.result = result{}
@@ -465,7 +475,7 @@ func (s *Screen) expired(err error) bool {
 	s.dropCopy, s.dropping = false, false
 	s.working, s.confirming, s.backupFile = "", false, ""
 	s.autoSaving = false
-	s.aiSaving, s.testing, s.promptSaving = false, false, false
+	s.aiSaving, s.testing, s.promptSaving, s.proxySaving = false, false, false, false
 	s.actBusy, s.vacStarting = false, false
 	s.health, s.healthShown = client.RSSHubHealth{}, false
 	s.reader = reader{}
@@ -504,6 +514,7 @@ func (s *Screen) loadSettings() {
 			s.base, s.retention = strings.Join(settings.RSSHubBaseURLs, "\n"), settings.RetentionDays
 			s.aiBase, s.aiModel, s.aiKey, s.aiLanguage = settings.AIBaseURL, settings.AIModel, "", settings.AILanguage
 			s.aiLimits = savedLimits(settings)
+			s.proxy, s.proxyUser, s.proxyPass = settings.ProxyURL, "", ""
 			s.prompts = [2]string{settings.PromptSummary, settings.PromptTranslate}
 			s.autoFolder, s.autoKeep = settings.AutoBackupFolder, strconv.Itoa(settings.AutoBackupKeep)
 			s.rules.takeMuted(settings.MuteKeywords)
@@ -679,10 +690,10 @@ func (s *Screen) watch(focused bool) {
 	s.typing = s.typing || focused
 }
 
-// unsaved reports whether any text on the page is not saved: the AI endpoint, the prompts, the RSSHub instances and
-// the muted keywords.
+// unsaved reports whether any text on the page is not saved: the AI endpoint, the prompts, the RSSHub instances, the
+// proxy and the muted keywords.
 func (s *Screen) unsaved() bool {
-	return s.aiDirty() || s.promptsDirty() || s.dirty() || cleanLines(s.rules.muted) != cleanLines(s.settings.MuteKeywords)
+	return s.aiDirty() || s.proxyDirty() || s.promptsDirty() || s.dirty() || cleanLines(s.rules.muted) != cleanLines(s.settings.MuteKeywords)
 }
 
 // escape is Escape on the page. A text field with the focus gives it up, to the back button, and nothing leaves; with
@@ -702,6 +713,64 @@ func (s *Screen) escape() {
 func (s *Screen) aiDirty() bool {
 	return strings.TrimSpace(s.aiBase) != s.settings.AIBaseURL || strings.TrimSpace(s.aiModel) != s.settings.AIModel ||
 		strings.TrimSpace(s.aiKey) != "" || s.aiLanguage != s.settings.AILanguage || s.limitsDirty()
+}
+
+// proxyDirty reports whether the proxy address changed or a user name or password is typed.
+func (s *Screen) proxyDirty() bool {
+	return strings.TrimSpace(s.proxy) != s.settings.ProxyURL || s.proxyUser != "" || s.proxyPass != ""
+}
+
+// saveProxy saves the proxy, or removes its sign-in; only what changed is sent. An address changed without a new
+// sign-in leaves the sign-in out, and the server drops the old one.
+func (s *Screen) saveProxy(removeAuth bool) {
+	if s.proxySaving || s.api == nil || s.state != loaded || !removeAuth && !s.proxyDirty() {
+		return
+	}
+	var patch client.SettingsPatch
+	if removeAuth {
+		patch.ProxyUser, patch.ProxyPassword = new(string), new(string)
+	} else {
+		if address := strings.TrimSpace(s.proxy); address != s.settings.ProxyURL {
+			patch.ProxyURL = &address
+		}
+		if user := s.proxyUser; user != "" {
+			patch.ProxyUser = &user
+		}
+		if pass := s.proxyPass; pass != "" {
+			patch.ProxyPassword = &pass
+		}
+	}
+	s.proxySaving, s.proxyStatus, s.proxyInvalid = true, status{}, false
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		settings, err := api.SetSettings(context.Background(), patch)
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			s.proxySaving = false
+			switch {
+			case err == nil:
+				s.settings.ProxyURL, s.settings.ProxyAuthSet = settings.ProxyURL, settings.ProxyAuthSet
+				s.proxy, s.proxyUser, s.proxyPass = settings.ProxyURL, "", ""
+				if removeAuth {
+					s.proxyStatus = status{ok: true, text: s.text.ProxyAuthRemoved}
+				} else {
+					s.proxyStatus = status{ok: true, text: s.text.ProxySaved}
+				}
+				s.announce = s.proxyStatus.text
+			case code(err) == "invalid_proxy_url":
+				s.proxyInvalid, s.focusProxy = true, true
+				s.announce = s.text.InvalidProxy
+			case code(err) == "invalid_proxy_credentials":
+				s.proxyStatus = status{text: s.text.InvalidProxyAuth}
+				s.announce = s.proxyStatus.text
+			default:
+				s.proxyStatus = status{text: s.text.SaveFailed}
+				s.announce = s.proxyStatus.text
+			}
+		}
+	})
 }
 
 // savedLimits are the limits saved as the fields show them: empty for the default.
@@ -2065,6 +2134,95 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 		labeled(c, s.text.Retention, s.text.RetentionHelp, func() { s.retentionSelect(c) })
 		statusLine(c, s.keepStatus)
 	})
+	s.proxyCard(c)
+}
+
+// proxyCard is the proxy for fetches: its address, its sign-in and a Save of its own.
+func (s *Screen) proxyCard(c *ui.Context) {
+	t := c.Theme()
+	sectionTitle(c, s.text.Proxy, theme.Px(t, 28))
+	ui.Text(c, s.text.ProxyLead).TextColor(t.TextMuted).Wrap().MaxWidth(theme.Px(t, 600)).Margin(0, 0, theme.Px(t, 12), 0)
+	before := [...]string{s.proxy, s.proxyUser, s.proxyPass}
+	submit := func(in ui.Element) {
+		if in.Submitted() {
+			s.saveProxy(false)
+		}
+	}
+	card(c, func() {
+		ui.Text(c, s.text.ProxyAddress).FontWeight(500)
+		coded(c, s.text.ProxyHelp, "{address}", s.text.ProxyExample).Margin(theme.Px(t, 4), 0, 0, 0)
+		ui.Row(c).FillWidth().Margin(theme.Px(t, 12), 0, 0, 0).Children(func() {
+			s.watch(field(c, "proxy", &s.proxy, 0, s.proxyInvalid, func(in ui.Element) {
+				in.Font("monospace").Label(s.text.ProxyAddress).Placeholder(s.text.ProxyPlaceholder).Disabled(s.proxySaving)
+				if s.proxyInvalid {
+					in.Error(s.text.InvalidProxy)
+				}
+				if s.focusProxy {
+					in.Focus()
+					s.focusProxy = false
+				}
+				submit(in)
+			}))
+		})
+		if s.proxyInvalid {
+			statusLine(c, status{text: s.text.InvalidProxy})
+		}
+	}, func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+			ui.Text(c, s.text.ProxyAuth).FontWeight(500).Shrink(1).MinWidth(0)
+			badge, fill, color := s.text.KeyUnset, theme.Track(t), theme.Text2(t)
+			if s.settings.ProxyAuthSet {
+				badge, fill, color = s.text.KeySet, theme.Soft(t, t.Accent), t.Accent
+			}
+			ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 18))).Center().Background(fill).Children(func() {
+				ui.Text(c, badge).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(color).NoWrap()
+			})
+		})
+		ui.Text(c, s.text.ProxyAuthHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 4), 0, 0, 0)
+		placeholder := s.text.ProxyOptional
+		if s.settings.ProxyAuthSet {
+			placeholder = s.text.ProxySet
+		}
+		ui.Row(c).FillWidth().Gap(t.Space(2)).Margin(theme.Px(t, 12), 0, 0, 0).Children(func() {
+			s.watch(field(c, "proxy-user", &s.proxyUser, 0, false, func(in ui.Element) {
+				in.Label(s.text.ProxyUser).Placeholder(placeholder).Disabled(s.proxySaving)
+				submit(in)
+			}))
+			s.watch(field(c, "proxy-pass", &s.proxyPass, 0, false, func(in ui.Element) {
+				in.Password().Label(s.text.ProxyPassword).Placeholder(placeholder).Disabled(s.proxySaving)
+				submit(in)
+			}))
+		})
+		if s.settings.ProxyAuthSet {
+			remove := theme.Button{Style: theme.Secondary, Small: true, Disabled: s.proxySaving, Text: s.text.ProxyRemoveAuth}.Draw(c)
+			if remove.Clicked() {
+				s.saveProxy(true)
+			}
+		}
+		if s.settings.ProxyAuthSet && strings.TrimSpace(s.proxy) != s.settings.ProxyURL && s.proxyUser == "" && s.proxyPass == "" {
+			statusLine(c, status{warn: true, text: s.text.ProxyChanged})
+		}
+	}, func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(theme.Px(t, 6)).Role(ui.RoleStatus).Children(func() {
+				if s.proxyStatus.text != "" {
+					statusText(c, s.proxyStatus)
+				}
+			})
+			dirty := s.proxyDirty()
+			style := theme.Secondary
+			if dirty {
+				style = theme.Primary
+			}
+			save := theme.Button{Style: style, Disabled: !dirty || s.proxySaving, Text: s.text.Save, Busy: s.proxySaving}.Draw(c)
+			if save.Clicked() {
+				s.saveProxy(false)
+			}
+		})
+	})
+	if after := [...]string{s.proxy, s.proxyUser, s.proxyPass}; after != before {
+		s.proxyInvalid, s.proxyStatus = s.proxyInvalid && after[0] == before[0], status{}
+	}
 }
 
 // field draws a text input editing value, width wide or growing for 0, a raised fill with a hairline edge, the

@@ -109,6 +109,17 @@ func (f *fake) UpdateSource(ctx context.Context, id int64, patch client.SourcePa
 			if patch.KeepDays != nil {
 				src.KeepDays = *patch.KeepDays
 			}
+			if patch.Proxy != nil {
+				// The server drops the stored sign-in when the proxy changes.
+				if *patch.Proxy != src.Proxy {
+					src.ProxyAuthSet = false
+				}
+				src.Proxy = *patch.Proxy
+			}
+			if patch.ProxyUser != nil || patch.ProxyPassword != nil {
+				src.ProxyAuthSet = (patch.ProxyUser != nil && *patch.ProxyUser != "") ||
+					(patch.ProxyPassword != nil && *patch.ProxyPassword != "")
+			}
 			return src, nil
 		}
 	}

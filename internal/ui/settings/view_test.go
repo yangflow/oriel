@@ -49,9 +49,10 @@ type fake struct {
 	opml     []byte
 	diag     []byte
 
-	set     []client.SettingsPatch
-	revoked []int64
-	sent    [][]byte
+	set                  []client.SettingsPatch
+	proxyUser, proxyPass string // the sign-in the server keeps; the API only says whether there is one
+	revoked              []int64
+	sent                 [][]byte
 
 	settingsErr, setErr, devicesErr, revokeErr, importErr, exportErr, testErr, diagErr error
 
@@ -130,6 +131,19 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	if patch.RetentionDays != nil {
 		f.settings.RetentionDays = *patch.RetentionDays
 	}
+	if patch.ProxyURL != nil {
+		if *patch.ProxyURL != f.settings.ProxyURL { // as the server does: the sign-in does not follow another proxy
+			f.proxyUser, f.proxyPass = "", ""
+		}
+		f.settings.ProxyURL = *patch.ProxyURL
+	}
+	if patch.ProxyUser != nil {
+		f.proxyUser = *patch.ProxyUser
+	}
+	if patch.ProxyPassword != nil {
+		f.proxyPass = *patch.ProxyPassword
+	}
+	f.settings.ProxyAuthSet = f.proxyUser != "" || f.proxyPass != ""
 	if patch.AIBaseURL != nil {
 		f.settings.AIBaseURL = strings.TrimSuffix(*patch.AIBaseURL, "/")
 	}

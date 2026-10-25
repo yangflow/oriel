@@ -345,7 +345,17 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   that says where it is sent, and a closing muted 12 note: cookies and sign-in are not supported, the headers go only
   to the subscription's own site, and a site that blocks Oriel stays blocked. The placeholder of User-Agent is the one
   Oriel sends (`Oriel/{version}`) and the Referer's is `https://example.com/`, so an empty box reads as the default.
-  There is no "header name" field and no third box. A refusal from the server shows under the field it concerns in
+  There is no "header name" field and no third box. "Proxy" is a third disclosure row, in the same style, for every
+  subscription (a route-only one too: its fetches go through the proxy as well), collapsed while the subscription
+  follows the settings and without help while collapsed. Opened, it has a full-width select "Connection" (the style
+  of the interval) with three choices, "Follow settings" (the default; the help says it uses the proxy from Settings →
+  Fetching, if there is one), "Direct connection" (the help says this subscription goes without a proxy even when
+  Settings has one) and "Custom address". Custom adds a monospace "Proxy address" box with a help line, a "User name"
+  and a "Password" box (the password masked) with a muted note that they are kept on the server and never shown again,
+  and, while a sign-in is stored, a small "Remove sign-in" button; the boxes are empty with the placeholder "Set"
+  while a sign-in is stored, "Optional" otherwise. Changing the address drops a stored sign-in on the server unless new ones
+  are typed. A refused address shows in the error style under the box (`edit-proxy`, `edit-proxy-direct`,
+  `edit-proxy-custom`, `edit-proxy-error`). A refusal from the server shows under the field it concerns in
   the error style, and the box takes the `Danger` outline. A subscription kept as an RSSHub route only has no such
   row. The last group, "Summaries and translations", has two switches that queue new entries, and two monospace
   prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in Settings.
@@ -1149,6 +1159,18 @@ Overlays share focus and Escape behavior; see
   information and must not get in the way of editing the instances). It is read when the group opens and after the
   instances are saved, and never refreshes by itself. Drawn in `design/screens/settings.html`, `health` (three
   instances: healthy, answering about two thirds of the time and slowly, and cooling down) and `health-empty`.
+  Under it the page has a second card, "Proxy" (an 11 section title and a 14 lead line, as the other groups), with its
+  own Save button: a monospace "Proxy address" box with a help line (the schemes, a host name and a port, empty means
+  a direct connection, applies from the next fetch, AI does not use it), then below a hairline a "Sign-in" row with a
+  badge (Configured or Not configured, the badge of the AI key), a help line (kept on the server, never shown again)
+  and two boxes side by side, "User name" and "Password" (the password is masked). The server never returns the user
+  name or the password, so while a sign-in is stored both boxes are empty and their placeholder reads "Set"; with
+  none stored it reads "Optional". A button "Remove sign-in" sits under the boxes while one is stored; it deletes it
+  at once, as a save of its own. Changing the address while a sign-in is stored adds a warning line (14 triangle in
+  `Warning`, 12 `Text`): saving another address also deletes the stored sign-in unless a new one is typed here.
+  Save is quiet until the address or a box changed. A refused address takes the `Danger` outline and a 12 `Danger`
+  line under the field that says what an address looks like; nothing is lost and the focus stays. Drawn in
+  `design/screens/settings.html`, `proxy-empty`, `proxy-set`, `proxy-edited` and `proxy-invalid`.
   A setting is saved
   where it is changed: the RSSHub instances with their Save button, the retention as soon as another is
   chosen; the line under it says it was saved, or why not, and a refused value keeps the focus in its field. OPML

@@ -352,12 +352,16 @@ type Source struct {
 	OpenTarget          string `json:"openTarget"`
 	FetchUserAgent      string `json:"fetchUserAgent"`
 	FetchReferer        string `json:"fetchReferer"`
-	ExtractRewrites     string `json:"extractRewrites"`
-	UnreadCount         int    `json:"unreadCount"`
-	PromptSummary       string `json:"promptSummary"`
-	PromptTranslate     string `json:"promptTranslate"`
-	AutoSummary         bool   `json:"autoSummary"`
-	AutoTranslate       bool   `json:"autoTranslate"`
+	// Proxy is "" to follow the settings, "direct", or a proxy address; ProxyAuthSet says a user name and password
+	// are stored, which are never sent.
+	Proxy           string `json:"proxy"`
+	ProxyAuthSet    bool   `json:"proxyAuthSet"`
+	ExtractRewrites string `json:"extractRewrites"`
+	UnreadCount     int    `json:"unreadCount"`
+	PromptSummary   string `json:"promptSummary"`
+	PromptTranslate string `json:"promptTranslate"`
+	AutoSummary     bool   `json:"autoSummary"`
+	AutoTranslate   bool   `json:"autoTranslate"`
 	// MovedTo is the address the site moved to for good, waiting for the user to accept or dismiss it; empty for none.
 	MovedTo string `json:"movedTo"`
 }
@@ -399,8 +403,13 @@ type SourcePatch struct {
 	// OpenTarget is where a click on the source's entries goes: "follow", "reader" or "browser".
 	OpenTarget *string `json:"openTarget,omitempty"`
 	// FetchUserAgent and FetchReferer are the headers sent to the subscription's own host; an empty string clears one.
-	FetchUserAgent  *string `json:"fetchUserAgent,omitempty"`
-	FetchReferer    *string `json:"fetchReferer,omitempty"`
+	FetchUserAgent *string `json:"fetchUserAgent,omitempty"`
+	FetchReferer   *string `json:"fetchReferer,omitempty"`
+	// Proxy is "" to follow the settings, "direct", or an address. ProxyUser and ProxyPassword are write-only: nil
+	// leaves them, "" deletes, and a new Proxy deletes the stored ones unless the same patch carries new ones.
+	Proxy           *string `json:"proxy,omitempty"`
+	ProxyUser       *string `json:"proxyUser,omitempty"`
+	ProxyPassword   *string `json:"proxyPassword,omitempty"`
 	ExtractRewrites *string `json:"extractRewrites,omitempty"`
 	PromptSummary   *string `json:"promptSummary,omitempty"`
 	PromptTranslate *string `json:"promptTranslate,omitempty"`
@@ -432,6 +441,10 @@ type Settings struct {
 	PromptTranslate        string   `json:"promptTranslate"`
 	DefaultPromptSummary   string   `json:"defaultPromptSummary"`
 	DefaultPromptTranslate string   `json:"defaultPromptTranslate"`
+	// ProxyURL is the fetch proxy ("" for none); ProxyAuthSet says a user name and password are stored, which are
+	// never sent.
+	ProxyURL     string `json:"proxyUrl"`
+	ProxyAuthSet bool   `json:"proxyAuthSet"`
 	// GroupSameLink shows an article once in the timeline when several sources carry it.
 	GroupSameLink bool `json:"groupSameLink"`
 	// Automatic backup: the choices, and the outcome of the last tries in Unix milliseconds (0 for never) with the
@@ -468,6 +481,12 @@ type SettingsPatch struct {
 	PromptSummary   *string   `json:"promptSummary,omitempty"`
 	PromptTranslate *string   `json:"promptTranslate,omitempty"`
 	GroupSameLink   *bool     `json:"groupSameLink,omitempty"`
+
+	// ProxyURL is the fetch proxy; ProxyUser and ProxyPassword are write-only: nil leaves them, "" deletes, and a new
+	// address deletes the stored ones unless the same patch carries new ones.
+	ProxyURL      *string `json:"proxyUrl,omitempty"`
+	ProxyUser     *string `json:"proxyUser,omitempty"`
+	ProxyPassword *string `json:"proxyPassword,omitempty"`
 
 	AutoBackupEnabled   *bool   `json:"autoBackupEnabled,omitempty"`
 	AutoBackupFolder    *string `json:"autoBackupFolder,omitempty"`

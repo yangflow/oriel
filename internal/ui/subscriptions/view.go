@@ -43,24 +43,26 @@ type copy struct {
 	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                                                                string
 	Extract, ExtractHelp, ExtractSelector, ExtractSelectorHelp, ExtractSelectorPlaceholder, ExtractSelectorInvalid                                                                 string
 	ExtractReferer, ExtractRefererHelp, ExtractRefererPlaceholder, ExtractRefererInvalid                                                                                           string
-	Headers, HeaderUa, HeaderUaHelp, HeaderReferer, HeaderRefererHelp, HeadersNote, HeaderUaError, HeaderRefererError                                                              string
-	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                                       string
-	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                                                string
-	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                                                         string
-	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                                                   string
-	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                                string
-	Undo, Dismiss, UndoFailed                                                                                                                                                      string
-	GroupShow, GroupFetch, GroupTimeline, AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                  string
-	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                                                              string
-	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                                             string
-	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                                          string
-	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                                                     string
-	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                                             string
-	ManageTitle, ManageSub, FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN                                 string
-	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, ManageHint, EveryOf, KeepOf, KeepAll, KeepSet, LabelSep, SelectedMark, PausedMark, FailingMark                          string
-	WorkingPause, WorkingResume, WorkingChange, WorkingDelete, WorkingRestore, AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore                      string
-	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed                            string
-	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, NowMixed, NowOne, Apply, DeleteManyTitle, DeleteManyBody                                   string
+	Headers, HeaderUa, HeaderUaHelp, HeaderReferer, HeaderRefererHelp, HeadersNote, HeaderUaError, HeaderRefererError,
+	Proxy, ProxyMode, ProxyFollow, ProxyDirect, ProxyCustom, ProxyFollowHelp, ProxyDirectHelp, ProxyAddress, ProxyAddressHelp,
+	ProxyUser, ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyAuthHelp, ProxyError string
+	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                  string
+	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                           string
+	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                                    string
+	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                              string
+	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                           string
+	Undo, Dismiss, UndoFailed                                                                                                                                 string
+	GroupShow, GroupFetch, GroupTimeline, AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff             string
+	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                                         string
+	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                        string
+	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                     string
+	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                                string
+	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                        string
+	ManageTitle, ManageSub, FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN            string
+	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, ManageHint, EveryOf, KeepOf, KeepAll, KeepSet, LabelSep, SelectedMark, PausedMark, FailingMark     string
+	WorkingPause, WorkingResume, WorkingChange, WorkingDelete, WorkingRestore, AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore string
+	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed       string
+	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, NowMixed, NowOne, Apply, DeleteManyTitle, DeleteManyBody              string
 }
 
 var translations = func() map[string]copy {
@@ -219,8 +221,15 @@ type editing struct {
 	agent     string // the User-Agent and the Referer sent to the subscription's own host
 	fetchRef  string
 	headerErr [2]bool // the server refused the User-Agent, the Referer
-	counted   string  // the keywords the count was asked for
-	hidden    int     // how many entries the keywords hide, once known
+	proxyOpen bool    // the Proxy group is open
+	proxyMode int64   // how the subscription connects: proxyFollow, proxyDirect or proxyCustom
+	proxyURL  string  // the address of its own proxy as typed
+	proxyUser string  // the sign-in as typed; the one saved is never sent back
+	proxyPass string
+	proxyDrop bool   // Remove sign-in was pressed, so saving sends an empty user name and password
+	proxyErr  bool   // the server refused the address
+	counted   string // the keywords the count was asked for
+	hidden    int    // how many entries the keywords hide, once known
 	known     bool
 	auto      [2]bool   // summarize and translate new entries
 	prompts   [2]string // the summary and translation prompts of the subscription, "" for the ones in the settings
@@ -650,6 +659,7 @@ func (s *Screen) Edit(src client.Source) {
 		extract:  src.ExtractSelector != "" || src.ExtractReferer != "" || src.ExtractRewrites != "",
 		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
 		headers: src.FetchUserAgent != "" || src.FetchReferer != "", agent: src.FetchUserAgent, fetchRef: src.FetchReferer,
+		proxyOpen: src.Proxy != "", proxyMode: proxyChoice(src.Proxy), proxyURL: ownProxy(src.Proxy),
 		auto:    [2]bool{src.AutoSummary, src.AutoTranslate},
 		prompts: [2]string{src.PromptSummary, src.PromptTranslate}, focus: true}
 	gen, api, id := s.gen, s.api, src.ID
@@ -723,6 +733,27 @@ func (s *Screen) save() {
 	if referer := strings.TrimSpace(e.fetchRef); referer != e.src.FetchReferer {
 		patch.FetchReferer, changed = &referer, true
 	}
+	proxy := e.proxyValue()
+	if e.proxyMode == proxyCustom && proxy == "" {
+		e.proxyOpen, e.proxyErr = true, true
+		s.announce = s.text.ProxyError
+		return
+	}
+	if proxy != e.src.Proxy {
+		patch.Proxy, changed = &proxy, true
+	}
+	if e.proxyMode == proxyCustom {
+		user, pass := e.proxyUser, e.proxyPass
+		if e.proxyDrop && e.proxyAuthSaved() {
+			patch.ProxyUser, patch.ProxyPassword, changed = new(string), new(string), true
+		}
+		if user != "" {
+			patch.ProxyUser, changed = &user, true
+		}
+		if pass != "" {
+			patch.ProxyPassword, changed = &pass, true
+		}
+	}
 	if auto := e.auto[0]; auto != e.src.AutoSummary {
 		patch.AutoSummary, changed = &auto, true
 	}
@@ -739,7 +770,7 @@ func (s *Screen) save() {
 		e.open = false
 		return
 	}
-	e.busy, e.formErr, e.headerErr = true, "", [2]bool{}
+	e.busy, e.formErr, e.headerErr, e.proxyErr = true, "", [2]bool{}, false
 	gen, api, id := s.gen, s.api, e.src.ID
 	s.deps.Go(func() func() {
 		src, err := api.UpdateSource(context.Background(), id, patch)
@@ -761,12 +792,58 @@ func (s *Screen) save() {
 				if s.edit.headerErr[1] {
 					s.announce = s.text.HeaderRefererError
 				}
+			case code(err) == "invalid_proxy":
+				s.edit.proxyOpen, s.edit.proxyErr = true, true
+				s.announce = s.text.ProxyError
 			default:
 				s.edit.formErr = s.saveProblem(err)
 				s.announce = s.edit.formErr
 			}
 		}
 	})
+}
+
+// The ways a subscription connects, in the order of the select.
+const (
+	proxyFollow int64 = iota // the proxy of the settings, if any
+	proxyDirect              // no proxy
+	proxyCustom              // its own proxy
+)
+
+// proxyChoice is the way a subscription with the proxy value proxy connects.
+func proxyChoice(proxy string) int64 {
+	switch proxy {
+	case "":
+		return proxyFollow
+	case "direct":
+		return proxyDirect
+	}
+	return proxyCustom
+}
+
+// ownProxy is the address of the subscription's own proxy, "" for one that follows the settings or goes direct.
+func ownProxy(proxy string) string {
+	if proxyChoice(proxy) == proxyCustom {
+		return proxy
+	}
+	return ""
+}
+
+// proxyValue is the proxy value of the choice made: "" to follow the settings, "direct", or the address typed.
+func (e *editing) proxyValue() string {
+	switch e.proxyMode {
+	case proxyDirect:
+		return "direct"
+	case proxyCustom:
+		return strings.TrimSpace(e.proxyURL)
+	}
+	return ""
+}
+
+// proxyAuthSaved reports whether the server still holds a sign-in for the address shown: not once the address
+// changed, as the server drops it then.
+func (e *editing) proxyAuthSaved() bool {
+	return e.src.ProxyAuthSet && e.proxyMode == proxyCustom && strings.TrimSpace(e.proxyURL) == e.src.Proxy
 }
 
 // saveProblem says why saving a subscription failed: a rule of the Extraction group the server refuses, or the
@@ -1979,6 +2056,89 @@ func (s *Screen) headersGroup(c *ui.Context) {
 	})
 }
 
+// proxyGroup is the Proxy disclosure: whether the subscription follows the proxy of the settings, connects directly
+// or uses a proxy of its own. It is closed while the subscription follows the settings.
+func (s *Screen) proxyGroup(c *ui.Context) {
+	t := c.Theme()
+	e := &s.edit
+	ui.Column(c.Key("proxy")).FillWidth().Gap(t.Space(1)).Children(func() {
+		head := ui.ButtonBase(c).Key("proxy-head").AlignSelf(ui.Start).Height(theme.Px(t, 28)).AlignItems(ui.Center).Gap(t.Space(1.5)).
+			Radius(t.Radius).Label(s.text.Proxy).Role(ui.RoleDisclosure).Expanded(e.proxyOpen)
+		if head.Hovered() {
+			head.Background(t.SurfaceHover)
+		}
+		theme.Fade(head)
+		head.Children(func() {
+			chevron := icons.ChevronRight
+			if e.proxyOpen {
+				chevron = icons.ChevronDown
+			}
+			ui.Icon(c, chevron).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+			ui.Text(c, s.text.Proxy).FontSize(theme.Px(t, 12)).FontWeight(500)
+		})
+		if head.Clicked() {
+			e.proxyOpen = !e.proxyOpen
+		}
+		if !e.proxyOpen {
+			return
+		}
+		names := map[int64]string{proxyFollow: s.text.ProxyFollow, proxyDirect: s.text.ProxyDirect, proxyCustom: s.text.ProxyCustom}
+		ui.Column(c.Key("proxy-mode")).FillWidth().Gap(t.Space(1)).Children(func() {
+			s.choiceSelect(c, &e.proxyMode, []int64{proxyFollow, proxyDirect, proxyCustom}, s.text.ProxyMode, names[e.proxyMode],
+				func(v int64) string { return names[v] }, e.busy, false)
+			switch e.proxyMode {
+			case proxyFollow:
+				help(c, s.text.ProxyFollowHelp)
+			case proxyDirect:
+				help(c, s.text.ProxyDirectHelp)
+			}
+		})
+		if e.proxyMode != proxyCustom {
+			return
+		}
+		ui.Column(c.Key("proxy-address")).FillWidth().Gap(t.Space(1)).Children(func() {
+			label(c, s.text.ProxyAddress)
+			box(c, "proxy-address-box", nil, e.proxyErr, t.Surface, func() {
+				ui.TextInputBase(c, &e.proxyURL).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.ProxyAddress).
+					Description(s.text.ProxyAddressHelp).Placeholder("socks5://127.0.0.1:1080").Disabled(e.busy)
+			})
+			if e.proxyErr {
+				errorLine(c, s.text.ProxyError, "")
+			}
+			help(c, s.text.ProxyAddressHelp)
+		})
+		stored := e.proxyAuthSaved() && !e.proxyDrop
+		placeholder := s.text.ProxyOptional
+		if stored {
+			placeholder = s.text.ProxySet
+		}
+		s.proxySecret(c, "proxy-user", &e.proxyUser, s.text.ProxyUser, placeholder, false)
+		s.proxySecret(c, "proxy-pass", &e.proxyPass, s.text.ProxyPassword, placeholder, true)
+		help(c, s.text.ProxyAuthHelp)
+		if stored {
+			remove := theme.Button{Style: theme.Secondary, Small: true, Disabled: e.busy, Text: s.text.ProxyRemoveAuth}.Draw(c)
+			if remove.Clicked() {
+				e.proxyDrop = true
+			}
+		}
+	})
+}
+
+// proxySecret is one box of the proxy's sign-in; the password is masked.
+func (s *Screen) proxySecret(c *ui.Context, key string, value *string, labelText, placeholder string, mask bool) {
+	t := c.Theme()
+	ui.Column(c.Key(key)).FillWidth().Gap(t.Space(1)).Children(func() {
+		label(c, labelText)
+		box(c, key, nil, false, t.Surface, func() {
+			in := ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(labelText).Placeholder(placeholder).
+				Disabled(s.edit.busy)
+			if mask {
+				in.Password()
+			}
+		})
+	})
+}
+
 // headerInput is one single-line field of the Request headers group, with its help line, or the reason the server
 // refused it.
 func (s *Screen) headerInput(c *ui.Context, key string, value *string, invalid bool, labelText, placeholder, helpText, errText string) {
@@ -2071,6 +2231,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.intervalSelect(c, &e.interval, e.src.FetchIntervalSec, e.busy)
 		s.extractGroup(c)
 		s.headersGroup(c)
+		s.proxyGroup(c)
 		groupTitle(c, icons.ListFilter, s.text.GroupTimeline)
 		s.switchRow(c, "hide", &e.hide, s.text.HideLabel, s.text.HideHelp)
 		s.openField(c)
