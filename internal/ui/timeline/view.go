@@ -37,7 +37,7 @@ type copy struct {
 
 	FoldMore, FoldLabel, FoldShown                                                                                                                                      string
 	AlsoChip, AlsoName, AlsoHead, Revised                                                                                                                               string
-	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
+	All, Article, Video, Social, Image, Forum, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                         string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
 	MarkUnread, Open, OpenReader, Blocked, BlockedPublic, FeedRemoved, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded    string
 	SyntaxLead, SyntaxFrom, SyntaxPhrase, SyntaxExclude                                                                                                                 string
@@ -48,7 +48,7 @@ type copy struct {
 	AddSource, EditSource, AddFirst, ImportOPML, RestoreBackup, PausedMark, HiddenMark, HiddenName, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu          string
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyOpenOther, KeyStar                                                      string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
-	KeyFind, KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                                            string
+	PanePlaceholder, PaneHint, KeyFind, KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                 string
 	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                        string
 	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkBelow, MarkedBelow, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                 string
 	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                                        string
@@ -99,7 +99,7 @@ const (
 var retryAfter = []time.Duration{3 * time.Second, 5 * time.Second, 10 * time.Second, 30 * time.Second}
 
 // kinds are the tabs of the sidebar, "" for all.
-var kinds = []string{"", "article", "video", "social", "image"}
+var kinds = []string{"", "article", "video", "social", "image", "forum"}
 
 // API is what the screen reads and writes on the server; client.Session is one.
 type API interface {
@@ -353,6 +353,7 @@ type Screen struct {
 	reader    *reader.Screen        // in the place of the list while an article is read
 	reading   int64                 // the entry read, 0 for none
 	immersive bool                  // immersive reading: the reader covers the sidebar and hides its toolbar; never kept
+	paned     bool                  // the last frame drew the Community in three panes: the list beside the reader
 	announce  string
 	toast     string
 	refresh   *refreshing // "refresh all" from the request to the result, nil for none
@@ -900,11 +901,11 @@ func (s *Screen) views() prefs.Preferences {
 }
 
 // viewerSet is the viewers in force, to tell when one changes.
-type viewerSet [4]string
+type viewerSet [5]string
 
 func (s *Screen) viewerSet() viewerSet {
 	v := s.views()
-	return viewerSet{v.ArticleViewer, v.VideoViewer, v.SocialViewer, v.ImageViewer}
+	return viewerSet{v.ArticleViewer, v.VideoViewer, v.SocialViewer, v.ImageViewer, v.ForumViewer}
 }
 
 // layout is how the list is laid out, which the viewers of Videos and Images and the scope decide.
@@ -1889,7 +1890,7 @@ func (s *Screen) inReader(e client.Entry) bool {
 			break
 		}
 	}
-	return e.Kind == "article"
+	return e.Kind == "article" || e.Kind == "forum"
 }
 
 // open opens the entry and marks it read, in the reader or in the browser as its subscription chooses.
@@ -1943,6 +1944,9 @@ func (s *Screen) read(i int) {
 	e := s.entries[i]
 	s.selected, s.reading, s.copyID = i, e.ID, 0
 	s.reader.Open(e)
+	if s.paned {
+		s.list.ScrollIntoView(i)
+	}
 	s.prefetch()
 	s.markOpened(e, true)
 	if i >= len(s.entries)-nearEnd {
@@ -2064,6 +2068,8 @@ func (s *Screen) kindName(kind string) string {
 		return s.text.Social
 	case "image":
 		return s.text.Image
+	case "forum":
+		return s.text.Forum
 	}
 	return s.text.All
 }
@@ -2551,6 +2557,8 @@ func kindIcon(kind string) *ui.SVG {
 		return icons.MessageCircle
 	case "image":
 		return icons.Image
+	case "forum":
+		return icons.MessagesSquare
 	}
 	return icons.Inbox
 }
@@ -2573,7 +2581,16 @@ func (s *Screen) View(c *ui.Context) {
 	if s.reading != 0 && s.index(s.reading) < 0 {
 		s.reading = 0
 	}
-	if s.reading != 0 {
+	width, height := c.Size()
+	compact := width < 760
+	s.height = height
+	if s.reading == 0 {
+		s.immersive = false
+	}
+	// Immersive reading covers the sidebar without touching the preference, which comes back when it ends.
+	hidden := s.views().SidebarHidden || s.immersive
+	s.paned = s.panable(t, mainColumn(t, width, hidden, compact))
+	if s.reading != 0 && !s.paned {
 		s.typing, s.filtering = false, false
 	}
 	if s.seeking && !s.more {
@@ -2609,14 +2626,6 @@ func (s *Screen) View(c *ui.Context) {
 	if !open && !s.typing && !s.filtering {
 		c.OnShortcut(ui.Shift, ui.KeySlash, s.ShowKeys)
 	}
-	width, height := c.Size()
-	compact := width < 760
-	s.height = height
-	if s.reading == 0 {
-		s.immersive = false
-	}
-	// Immersive reading covers the sidebar without touching the preference, which comes back when it ends.
-	hidden := s.views().SidebarHidden || s.immersive
 	if v := s.viewerSet(); v != s.viewed {
 		// A viewer changed in Settings: the list is drawn again in place, at the entry that was first in view.
 		if s.viewed != (viewerSet{}) {
@@ -2636,6 +2645,10 @@ func (s *Screen) View(c *ui.Context) {
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
 		if !hidden {
 			s.sidebar(c, compact)
+		}
+		if s.paned {
+			s.panes(c, now, open, mainColumn(t, width, hidden, compact), hidden)
+			return
 		}
 		if s.reading != 0 {
 			e := s.shownCopy(s.entries[s.index(s.reading)])
@@ -2682,12 +2695,25 @@ func (s *Screen) View(c *ui.Context) {
 // Escape, L and Right go back to the list. Focus a click put on a kind or subscription does not count: the keys of
 // the entries act on the list at once.
 func (s *Screen) listKeys(c *ui.Context, open bool) {
-	if s.typing || s.filtering || open || s.reading != 0 {
+	if s.typing || s.filtering || open || s.reading != 0 && !s.paned {
 		return
 	}
 	c.OnShortcut(0, ui.KeySlash, func() { s.searchBox = true })
-	for i, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5} {
+	for i, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6} {
 		c.OnShortcut(0, k, func() { s.pickKind(i) })
+	}
+	if s.reading != 0 {
+		// A post open beside the list: the reader has the keys of the post, the list keeps the ones that change it.
+		for _, k := range []struct {
+			key ui.Key
+			do  func()
+		}{
+			{ui.KeyU, func() { s.Run(ShowUnread) }}, {ui.KeyA, func() { s.Run(ShowAll) }},
+			{ui.KeyR, func() { s.Run(LoadNew) }}, {ui.KeyT, func() { s.Run(CycleRange) }},
+		} {
+			c.OnShortcut(0, k.key, k.do)
+		}
+		return
 	}
 	if s.inSide {
 		for _, k := range []ui.Key{ui.KeyL, ui.KeyRight, ui.KeyEscape} {
@@ -2700,8 +2726,8 @@ func (s *Screen) listKeys(c *ui.Context, open bool) {
 		do  func()
 	}{
 		{ui.KeyH, s.toSidebar}, {ui.KeyLeft, s.toSidebar},
-		{ui.KeyJ, func() { s.move(1) }}, {ui.KeyDown, func() { s.move(1) }},
-		{ui.KeyK, func() { s.move(-1) }}, {ui.KeyUp, func() { s.move(-1) }},
+		{ui.KeyJ, func() { s.step1(c, 1) }}, {ui.KeyDown, func() { s.move(1) }},
+		{ui.KeyK, func() { s.step1(c, -1) }}, {ui.KeyUp, func() { s.move(-1) }},
 		{ui.KeyO, func() { s.open(c, s.selected) }}, {ui.KeyEnter, func() { s.open(c, s.selected) }},
 		{ui.KeySpace, func() { s.openPictures(s.selected, 0) }},
 		{ui.KeyS, func() { s.toggleStar(s.selected) }}, {ui.KeyM, func() { s.toggleRead(s.selected) }},
@@ -2963,7 +2989,7 @@ func (s *Screen) keySheet(c *ui.Context) {
 		{s.text.KeyStarred, one("*")}, {s.text.KeyLoadNew, one("R")},
 		{s.text.KeyRange, one("T")},
 		{s.text.KeySearch, [][]string{{"/"}, {cmd, "F"}}},
-		{s.text.KeyEscape, one("Esc")}, {s.text.KeyScope, one("1–5")}, {s.text.KeySidebar, one("H", "←")},
+		{s.text.KeyEscape, one("Esc")}, {s.text.KeyScope, one("1–6")}, {s.text.KeySidebar, one("H", "←")},
 		{s.text.KeyBack, one("L", "→", "Esc")}, {s.text.KeyMenu, menu}, {s.text.KeyUndo, [][]string{{cmd, "Z"}}}}
 	reading := []key{{s.text.KeyNextArticle, one("J")}, {s.text.KeyPreviousArticle, one("K")},
 		{s.text.KeyNextUnread, one("N")}, {s.text.KeyStar, one("S")}, {s.text.KeyRead, one("M")},
@@ -3032,6 +3058,56 @@ func (s *Screen) keyGroup(c *ui.Context, name string, rows []key) {
 			})
 		})
 	}
+}
+
+// The Community in three panes: the list is listPane wide, the reader beside it at least readerPane, which asks the
+// main column for panedColumn (listPane, the hairline and readerPane, with room to spare).
+const (
+	listPane    = 320
+	readerPane  = 480
+	panedColumn = 800
+)
+
+// panable tells whether the Community is drawn in three panes: a Community scope, the viewer Panes, reading not
+// immersive and the main column wide enough. Otherwise a post opens in place of the list, as an article does.
+func (s *Screen) panable(t *ui.Theme, column float32) bool {
+	return s.scope.kind == "forum" && s.views().ForumViewer == prefs.ViewPanes && !s.immersive &&
+		column >= theme.Px(t, panedColumn)
+}
+
+// step1 is J and K in the list: they choose the next or previous entry, and in three panes open it, so the reader
+// beside the list follows the choice.
+func (s *Screen) step1(c *ui.Context, by int) {
+	s.move(by)
+	if s.paned {
+		s.openBy(c, s.selected, false)
+	}
+}
+
+// panes draws the list and the reader side by side in the column right of the sidebar. The list keeps its width; the
+// reader takes the rest, or a note to choose a post while none is open.
+func (s *Screen) panes(c *ui.Context, now time.Time, open bool, column float32, hidden bool) {
+	t := c.Theme()
+	ui.Column(c).Width(theme.Px(t, listPane)).Shrink(0).Children(func() {
+		s.hint(c)
+		s.stale(c)
+		s.content(c, now, true)
+		theme.Edge(c, s.edge)
+		s.toolbar(c, true, hidden)
+		s.pill(c)
+	})
+	ui.Box(c).Width(1).Shrink(0).Background(t.Border)
+	if s.reading == 0 {
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			s.empty(c, icons.MessagesSquare, s.text.PanePlaceholder, s.text.PaneHint, false)
+		})
+		return
+	}
+	e := s.shownCopy(s.entries[s.index(s.reading)])
+	s.reader.View(c, reader.Nav{Entry: e, Icon: s.bitmap(s.iconOf(e.SourceID)), Scope: s.scopeName(),
+		Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "",
+		Keys: !open && !s.typing && !s.filtering, Pane: true,
+		Column: column - theme.Px(t, listPane) - 1})
 }
 
 // mainColumn is the width of the column right of the sidebar, the whole window while the sidebar is hidden.
@@ -3744,6 +3820,11 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 	}
 	width, _ := c.Size()
 	column := mainColumn(t, width, hidden, compact)
+	right := t.Space(3) + bar.Right
+	if s.paned {
+		// The list is the left pane: the reader beside it holds the window's right edge.
+		column, right = theme.Px(t, listPane), t.Space(3)
+	}
 	narrow := column < narrowColumn
 	field := column >= fieldColumn
 	gap := theme.Px(t, 10)
@@ -3752,13 +3833,15 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 	}
 	// Keyed, so the search field keeps its focus when the hint above it in the column comes and goes.
 	ui.Row(c).Key("toolbar").Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(gap).
-		Padding(0, t.Space(3)+bar.Right, 0, left).DragWindow().Children(func() {
+		Padding(0, right, 0, left).DragWindow().Children(func() {
 		ui.Row(c).Grow(1).Basis(0).MinWidth(0).AlignItems(ui.Center).Gap(gap).Children(func() {
 			if hidden {
 				s.sidebarButton(c, true)
 			}
-			ui.Text(c, s.scopeName()).FontSize(theme.Px(t, 15)).FontWeight(600).SingleLine().MinWidth(theme.Px(t, 40)).Shrink(1).
-				Role(ui.RoleHeading).Level(1)
+			title := func() {
+				ui.Text(c, s.scopeName()).FontSize(theme.Px(t, 15)).FontWeight(600).SingleLine().MinWidth(theme.Px(t, 40)).Shrink(1).
+					Role(ui.RoleHeading).Level(1)
+			}
 			sub := ""
 			switch {
 			case s.searched != "" && !s.loading && !s.loadErr:
@@ -3771,9 +3854,23 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 					sub = s.format(s.text.UnreadCount, n)
 				}
 			}
-			// In a narrow column the count gives way before the title does.
-			if sub != "" && !narrow {
+			count := func() {
 				ui.Text(c, sub).FontSize(theme.Px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
+			}
+			switch {
+			case s.paned && sub != "":
+				// The list pane has no room for the title and the count side by side beside the filters, the time
+				// range and search; the count sits under the title, so neither gives way.
+				ui.Column(c).MinWidth(0).Shrink(1).Children(func() {
+					title()
+					count()
+				})
+			case sub != "" && !narrow:
+				// In a narrow column the count gives way before the title does.
+				title()
+				count()
+			default:
+				title()
 			}
 			s.editButton(c)
 		})
@@ -3787,10 +3884,16 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 			}
 			// The icon buttons are one group with the same gap between them, whatever the column.
 			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 4)).Shrink(0).Children(func() {
-				s.budgetButton(c, !field)
-				s.rangeButton(c, !field, column < rangeColumn)
+				// The 320 wide list pane has room for the time range and search only; the reading-time budget and
+				// Mark all as read are in the list of the narrow fallback and on the keys.
+				if !s.paned {
+					s.budgetButton(c, !field)
+				}
+				s.rangeButton(c, !field, column < rangeColumn && !s.paned)
 				s.gridButton(c)
-				s.markAllButton(c)
+				if !s.paned {
+					s.markAllButton(c)
+				}
 			})
 			if field {
 				s.searchField(c, false)

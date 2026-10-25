@@ -118,6 +118,9 @@ type Nav struct {
 	Controls       bool
 	Column         float32 // width of the column the reader fills, which decides what the toolbar moves into More; 0 is the window
 	Immersive      bool    // immersive reading is on: the toolbar shows only under the pointer or with the focus in it
+	// Pane: the reader is the right pane of the Community beside its list. Its toolbar is laid out as in a narrow
+	// window and has no Back and no previous and next arrows; Escape, J and K do those.
+	Pane bool
 }
 
 const (
@@ -886,7 +889,7 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	}
 	s.find.was = s.find.open
 	width, _ := c.Size()
-	narrow := width < 760
+	narrow := width < 760 || nav.Pane
 	// The toolbar row floats over the article, which scrolls under it and fades under the scroll edge.
 	// The column keeps its identity when the sidebar beside it comes and goes, so the focus in the article stays.
 	// A reading appearance recolors the article, its toolbar and its scroll edge; the selection card, the toasts and
@@ -965,31 +968,36 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready, narrow bool) {
 
 func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, narrow bool) {
 	t := c.Theme()
-	back := strings.ReplaceAll(s.text.Back, "{scope}", nav.Scope)
-	b := ui.ButtonBase(c).Height(theme.Px(t, 32)).MinWidth(0).Shrink(1).Gap(theme.Px(t, 2)).Padding(0, theme.Px(t, 10), 0, theme.Px(t, 4)).
-		Radius(theme.Px(t, 8)).Label(back)
-	color := theme.Text2(t)
-	switch {
-	case b.Pressed():
-		b.Background(t.SurfacePressed)
-		color = t.Text
-	case b.Hovered():
-		b.Background(t.SurfaceHover)
-		color = t.Text
-	}
-	theme.Fade(b).Children(func() {
-		ui.Icon(c, icons.ChevronLeft).FontSize(theme.IconMedium(t)).TextColor(color)
-		ui.Text(c, nav.Scope).SingleLine().MinWidth(0).Shrink(1).FontWeight(500).TextColor(color)
-	})
-	if b.Clicked() {
-		s.deps.Back()
-	}
-	ui.Box(c).Grow(1)
-	if s.tool(c, icons.ChevronUp, s.text.Previous, "K", theme.ToolState{Disabled: !nav.Previous}).Clicked() {
-		s.deps.Move(-1)
-	}
-	if s.tool(c, icons.ChevronDown, s.text.Next, "J", theme.ToolState{Disabled: !nav.Next}).Clicked() {
-		s.deps.Move(1)
+	if !nav.Pane {
+		back := strings.ReplaceAll(s.text.Back, "{scope}", nav.Scope)
+		b := ui.ButtonBase(c).Height(theme.Px(t, 32)).MinWidth(0).Shrink(1).Gap(theme.Px(t, 2)).Padding(0, theme.Px(t, 10), 0, theme.Px(t, 4)).
+			Radius(theme.Px(t, 8)).Label(back)
+		color := theme.Text2(t)
+		switch {
+		case b.Pressed():
+			b.Background(t.SurfacePressed)
+			color = t.Text
+		case b.Hovered():
+			b.Background(t.SurfaceHover)
+			color = t.Text
+		}
+		theme.Fade(b).Children(func() {
+			ui.Icon(c, icons.ChevronLeft).FontSize(theme.IconMedium(t)).TextColor(color)
+			ui.Text(c, nav.Scope).SingleLine().MinWidth(0).Shrink(1).FontWeight(500).TextColor(color)
+		})
+		if b.Clicked() {
+			s.deps.Back()
+		}
+		ui.Box(c).Grow(1)
+		if s.tool(c, icons.ChevronUp, s.text.Previous, "K", theme.ToolState{Disabled: !nav.Previous}).Clicked() {
+			s.deps.Move(-1)
+		}
+		if s.tool(c, icons.ChevronDown, s.text.Next, "J", theme.ToolState{Disabled: !nav.Next}).Clicked() {
+			s.deps.Move(1)
+		}
+	} else {
+		// Beside the list there is nothing to go back to and J and K step, so the row starts with the actions.
+		ui.Box(c).Grow(1)
 	}
 	// The one capsule of glass holds the two AI toggles, in place of separators.
 	g := ui.Row(c).Height(theme.Px(t, 34)).AlignItems(ui.Center).Gap(1).PaddingX(theme.Px(t, 4)).Radius(theme.Pill(theme.Px(t, 34)))

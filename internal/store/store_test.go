@@ -114,7 +114,7 @@ func TestMigrationsAreRepeatable(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 36 {
+	if version != 37 {
 		t.Fatalf("user_version = %d", version)
 	}
 	var mode string

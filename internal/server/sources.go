@@ -21,7 +21,7 @@ const (
 	maxInterval     = 7 * 24 * time.Hour
 )
 
-var kinds = map[string]bool{"article": true, "video": true, "social": true, "image": true}
+var kinds = map[string]bool{"article": true, "video": true, "social": true, "image": true, "forum": true}
 
 type sourceJSON struct {
 	ID                  int64  `json:"id"`

@@ -1600,13 +1600,14 @@ func pressNext(t *testing.T, tt *ui.Tester, text string) {
 func TestViewAs(t *testing.T) {
 	s, f, tt := openAppearance(t, "en")
 	for _, want := range []string{s.text.ViewAs, s.text.ViewArticles, s.text.ViewVideos, s.text.ViewSocial,
-		s.text.ViewImages, s.text.ViewCover, s.text.ViewWall, s.text.ViewAsHelp} {
+		s.text.ViewImages, s.text.ViewForum, s.text.ViewPanes, s.text.ViewCover, s.text.ViewWall, s.text.ViewAsHelp} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q in %v", want, tt.Texts())
 		}
 	}
 	if f.prefs.ArticleViewer != prefs.ViewList || f.prefs.VideoViewer != prefs.ViewGrid ||
-		f.prefs.SocialViewer != prefs.ViewCard || f.prefs.ImageViewer != prefs.ViewWall {
+		f.prefs.SocialViewer != prefs.ViewCard || f.prefs.ImageViewer != prefs.ViewWall ||
+		f.prefs.ForumViewer != prefs.ViewPanes {
 		t.Fatalf("defaults %+v", f.prefs)
 	}
 	press(t, tt, s.text.ViewCover)
@@ -1633,6 +1634,14 @@ func TestViewAs(t *testing.T) {
 	pressNext(t, tt, s.text.ViewCard)
 	if f.prefs.SocialViewer != prefs.ViewCompact {
 		t.Fatalf("social %q", f.prefs.SocialViewer)
+	}
+	pressNext(t, tt, s.text.ViewPanes)
+	if f.prefs.ForumViewer != prefs.ViewList {
+		t.Fatalf("forum %q", f.prefs.ForumViewer)
+	}
+	press(t, tt, s.text.ViewPanes)
+	if f.prefs.ForumViewer != prefs.ViewPanes {
+		t.Fatalf("forum %q", f.prefs.ForumViewer)
 	}
 	if f.prefs.VideoViewer != prefs.ViewList || f.prefs.ImageViewer != prefs.ViewWall {
 		t.Fatalf("other kinds changed: %+v", f.prefs)

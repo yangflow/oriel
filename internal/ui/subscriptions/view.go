@@ -29,7 +29,7 @@ var catalog []byte
 
 type copy struct {
 	Add, AddShort, AddContinue, Done, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs                                                        string
-	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute                                                                     string
+	Article, Video, Social, Image, Forum, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute                                                              string
 	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo                                                                            string
 	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder, PublicNote, PublicNoInstance, UseMine, Blocked, BlockedPublic, FeedRemoved string
 	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, AddAnyway, Subscribed, FoundSubscribed, Unreachable, Failed, Added                                   string
@@ -57,7 +57,7 @@ type copy struct {
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                                     string
 	Undo, Dismiss, UndoFailed                                                                                                                                                           string
 	GroupShow, GroupFetch, GroupTimeline, AIGroup, AutoSummary, AutoTranslate, AutoHelp, TranslateTitles, TranslateTitlesHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff string
-	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                                                                   string
+	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, SuggestForum, UseKind                                                     string
 	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                                                  string
 	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                                               string
 	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                                                          string
@@ -78,7 +78,7 @@ var translations = func() map[string]copy {
 }()
 
 // kinds are the kinds a subscription shows as, in the order of the picker.
-var kinds = []string{"article", "video", "social", "image"}
+var kinds = []string{"article", "video", "social", "image", "forum"}
 
 // intervals are the fetch intervals offered, in seconds; 0 is Auto, the first and the default.
 var intervals = []int64{0, 15 * 60, 30 * 60, 3600, 3 * 3600, 6 * 3600, 12 * 3600, 24 * 3600}
@@ -1305,6 +1305,8 @@ func kindIcon(kind string) *ui.SVG {
 		return icons.MessageCircle
 	case "image":
 		return icons.Image
+	case "forum":
+		return icons.MessagesSquare
 	}
 	return icons.Newspaper
 }
@@ -1317,6 +1319,8 @@ func (s *Screen) kindName(kind string) string {
 		return s.text.Social
 	case "image":
 		return s.text.Image
+	case "forum":
+		return s.text.Forum
 	}
 	return s.text.Article
 }
@@ -1893,6 +1897,9 @@ func (s *Screen) kindSuggestion(c *ui.Context) {
 	text := s.text.SuggestVideo
 	if e.src.SuggestedKind == "image" {
 		text = s.text.SuggestImage
+	}
+	if e.src.SuggestedKind == "forum" {
+		text = s.text.SuggestForum
 	}
 	t := c.Theme()
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(2), t.Space(3)).Radius(8).

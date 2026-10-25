@@ -69,6 +69,7 @@ var (
 	Mail              = parse("mail")
 	MailOpen          = parse("mail-open")
 	MessageCircle     = parse("message-circle")
+	MessagesSquare    = parse("messages-square")
 	Monitor           = parse("monitor")
 	Newspaper         = parse("newspaper")
 	Palette           = parse("palette")

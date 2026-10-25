@@ -81,6 +81,12 @@ var rules = compile([]rule{
 		out: []output{{route: "/zhihu/question/{}", site: "zhihu", label: "question", kind: "article"}}},
 	{hosts: []string{"x.com", "twitter.com"}, path: []string{`^([A-Za-z0-9_]+)$`},
 		out: []output{{route: "/twitter/user/{}", site: "x", label: "posts", kind: "social"}}},
+	{hosts: []string{"v2ex.com"}, path: []string{`^go$`, anything},
+		out: []output{{url: "https://www.v2ex.com/feed/{}.xml", site: "v2ex", label: "node", kind: "forum"}}},
+	{hosts: []string{"linux.do"}, path: []string{`^(latest|top)$`},
+		out: []output{{url: "https://linux.do/{}.rss", site: "linuxdo", label: "topics", kind: "forum"}}},
+	{hosts: []string{"linux.do"}, path: []string{`^tag$`, anything},
+		out: []output{{url: "https://linux.do/tag/{}.rss", site: "linuxdo", label: "tag", kind: "forum"}}},
 })
 
 // reservedX are the pages of X under the root that are not users.

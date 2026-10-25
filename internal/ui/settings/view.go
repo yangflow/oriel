@@ -69,7 +69,7 @@ type copy struct {
 	Desktop, OpenAtLogin, OpenAtLoginHelp, OpenAtLoginHelpTray, OpenAtLoginNeedsApp, MenuBarIcon, MenuBarIconHelp                                                                                                                                                                                                                           string
 	TrayIcon, TrayIconHelp, DockBadge, DockBadgeHelp, LoginFailed, TrayFailed                                                                                                                                                                                                                                                               string
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                                                                                                                                                       string
-	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                                                    string
+	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewForum, ViewPanes, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                              string
 	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10 string
 	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, Compacting                                                                                                                                                                                                                string
 	PreMigrate, PreMigrateVersion, DeletePreMigrate, DeletePreMigrateTitle, DeletePreMigrateBody                                                                                                                                                                                                                                            string
@@ -2855,6 +2855,13 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
+		labeled(c, s.text.ViewForum, "", func() {
+			if v, changed := s.viewer(c, s.text.ViewForum, p.ForumViewer, prefs.ForumViewers); changed {
+				p.ForumViewer = v
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
 		ui.Text(c, s.text.ViewAsHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
 	})
 	if d := s.deps.Desktop; d != nil {
@@ -2921,6 +2928,8 @@ func (s *Screen) viewer(c *ui.Context, label, current string, viewers []string) 
 	names := make([]string, len(viewers))
 	for i, v := range viewers {
 		switch v {
+		case prefs.ViewPanes:
+			names[i] = s.text.ViewPanes
 		case prefs.ViewList:
 			names[i] = s.text.ViewList
 		case prefs.ViewCompact:

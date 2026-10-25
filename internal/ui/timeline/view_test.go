@@ -858,7 +858,7 @@ func TestSidebarKeys(t *testing.T) {
 		t.Fatalf("scope %v, announcements %v", s.scope, tt.Announcements())
 	}
 	for i, kind := range kinds {
-		tt.Key(0, []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5}[i])
+		tt.Key(0, []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6}[i])
 		f.settle(t, tt)
 		if s.scope.kind != kind {
 			t.Fatalf("key %d chose %q", i+1, s.scope.kind)

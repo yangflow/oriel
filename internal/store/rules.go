@@ -196,7 +196,7 @@ func checkConditions(ctx context.Context, q rowQuerier, r Rule) (Rule, error) {
 		}
 	}
 	switch r.Kind {
-	case "", "article", "video", "social", "image":
+	case "", "article", "video", "social", "image", "forum":
 	default:
 		return Rule{}, ErrRuleKind
 	}

@@ -555,7 +555,7 @@ const copy={
     readingAppearance:'Reading appearance', readingAppearanceHelp:'The paper and ink of the reader. Sepia and Mist follow Light and Dark.', presetTheme:'Follow theme', presetSepia:'Sepia', presetMist:'Mist',
     timeline:'Timeline', density:'List density', densityHelp:'How tight the rows sit. Compact keeps everything and only tightens the spacing.', dComfortable:'Comfortable', dCompact:'Compact', markRead:'Mark as read', markReadHelpOpen:'Opening an entry marks it as read.', markReadHelpDwell:'An entry opened in the reader or the picture viewer is marked once you stay on it for the time below. Anything opened in the browser is marked at once.', markReadHelpScroll:'Entries are marked as they scroll off the top of the list. Opening one does not mark it.', markReadHelpNever:'Nothing is marked unless you do it: the read button, M, V or Mark all as read.', mrOpen:'When opened', mrDwell:'After staying', mrScroll:'After scrolling past', mrNever:'Never automatically', dwell:'Stay time', dwellHelp:'How long an article stays open before it is marked.', sec3:'3 s', sec5:'5 s', sec10:'10 s', group:'Show an article once', groupHelp:'When several subscriptions carry the same article, the timeline shows one row.',
     viewAs:'View as',
-    vArticles:'Articles', vVideos:'Videos', vSocial:'Social', vImages:'Images',
+    vArticles:'Articles', vVideos:'Videos', vSocial:'Social', vImages:'Images', vForum:'Community', vPanes:'Panes',
     vList:'List', vCompact:'Compact', vCover:'Large cover', vGrid:'Grid', vWall:'Wall', vCard:'Card',
     viewAsHelp:'Grid and Wall are used in Videos and Images. Elsewhere those entries appear as rows or cards.',
     cjk:'Chinese typesetting', cjkHelp:'Adds space between Chinese and Latin text and tightens runs of punctuation.',
@@ -673,7 +673,7 @@ const copy={
     readingAppearance:'阅读外观', readingAppearanceHelp:'阅读窗格的纸色和字色。米黄和雾灰随浅色和深色主题变化。', presetTheme:'跟随主题', presetSepia:'米黄', presetMist:'雾灰',
     timeline:'时间线', density:'列表密度', densityHelp:'行与行之间的松紧。紧凑不删任何内容，只收紧间距。', dComfortable:'舒适', dCompact:'紧凑', markRead:'何时标为已读', markReadHelpOpen:'打开条目就标为已读。', markReadHelpDwell:'在阅读器或看图层里打开的条目，停留满下面的时间才标为已读；在浏览器里打开的立即标为已读。', markReadHelpScroll:'条目滚出列表顶部时标为已读，打开它不标。', markReadHelpNever:'不自动标，只有你自己标才算：已读按钮、M、V 或「全部标为已读」。', mrOpen:'打开时', mrDwell:'停留一会儿后', mrScroll:'滚过之后', mrNever:'从不自动', dwell:'停留时间', dwellHelp:'文章打开多久后标为已读。', sec3:'3 秒', sec5:'5 秒', sec10:'10 秒', group:'同一篇文章只显示一次', groupHelp:'几个订阅带同一篇文章时，时间线只显示一行。',
     viewAs:'查看方式',
-    vArticles:'文章', vVideos:'视频', vSocial:'社交', vImages:'图片',
+    vArticles:'文章', vVideos:'视频', vSocial:'社交', vImages:'图片', vForum:'社区', vPanes:'分栏',
     vList:'列表', vCompact:'紧凑', vCover:'大封面', vGrid:'网格', vWall:'瀑布流', vCard:'卡片',
     viewAsHelp:'网格和瀑布流只在“视频”“图片”里使用；其他地方按列表或卡片显示。',
     cjk:'中文排版', cjkHelp:'中西文之间留出间隙，压缩连续标点。',
@@ -838,6 +838,7 @@ ${setting(copy.vArticles,'',seg(copy.vArticles,[['list',copy.vList],['compact',c
 ${setting(copy.vVideos,'',seg(copy.vVideos,[['grid',copy.vGrid],['cover',copy.vCover],['list',copy.vList]],viewed?'list':'grid'))}
 ${setting(copy.vSocial,'',seg(copy.vSocial,[['card',copy.vCard],['compact',copy.vCompact]],'card'))}
 ${setting(copy.vImages,'',seg(copy.vImages,[['wall',copy.vWall],['grid',copy.vGrid],['card',copy.vCard]],viewed?'grid':'wall'))}
+${setting(copy.vForum,'',seg(copy.vForum,[['panes',copy.vPanes],['list',copy.vList]],'panes'))}
 <div class="row"><p class="help">${copy.viewAsHelp}</p></div>
 </div><h2 class="section-title" id="desktop">${copy.desktop}</h2><div class="card">
 ${desktopRows}

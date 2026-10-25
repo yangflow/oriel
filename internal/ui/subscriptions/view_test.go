@@ -1303,6 +1303,35 @@ func TestEditSuggestionChinese(t *testing.T) {
 	}
 }
 
+func TestEditSuggestsTheCommunityKind(t *testing.T) {
+	for lang, want := range map[string][]string{
+		"en":      {"This feed looks like a forum.", "Show as Community"},
+		"zh-Hans": {"这个订阅看起来是论坛。", "显示为社区"},
+	} {
+		s, f, tt := setup(t, lang)
+		src := f.sources[0]
+		src.SuggestedKind = "forum"
+		s.Edit(src)
+		tt.Frame()
+		for _, text := range want {
+			if !tt.HasText(text) {
+				t.Errorf("%s: no %q in %v", lang, text, tt.Texts())
+			}
+		}
+		if err := tt.Click(want[1]); err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.Click(map[string]string{"en": "Save", "zh-Hans": "保存"}[lang]); err != nil {
+			t.Fatal(err)
+		}
+		f.settle(tt)
+		last := f.patches[src.ID]
+		if len(last) != 1 || last[0].Kind == nil || *last[0].Kind != "forum" {
+			t.Errorf("%s: patches %+v", lang, last)
+		}
+	}
+}
+
 // flagged is what the server lists for the health dialog: the first two subscriptions of setup and one more.
 func flagged() client.Health {
 	return client.Health{WindowDays: 30, Sources: []client.SourceHealth{

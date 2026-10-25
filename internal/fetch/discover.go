@@ -60,6 +60,16 @@ func NewDiscoverer(version string) *Discoverer {
 // tried first and cost no request; then the page itself, its declared alternates and the common paths. It returns
 // ErrInvalidAddress, ErrBlockedAddress when the address is not a public one, or ErrPageUnavailable.
 func (d *Discoverer) Discover(ctx context.Context, address string) ([]Candidate, error) {
+	found, err := d.discover(ctx, address)
+	for i := range found {
+		if found[i].Kind == "" && ForumFeed(found[i].URL, found[i].RSSHubPath) {
+			found[i].Kind = "forum"
+		}
+	}
+	return found, err
+}
+
+func (d *Discoverer) discover(ctx context.Context, address string) ([]Candidate, error) {
 	address = strings.TrimSpace(address)
 	u, err := url.Parse(address)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {

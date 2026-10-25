@@ -17,7 +17,7 @@ const MinIndexed = 3
 const MaxTokens = 16
 
 // Kinds are the values kind: understands.
-var Kinds = []string{"article", "video", "social", "image"}
+var Kinds = []string{"article", "video", "social", "image", "forum"}
 
 // Day is a calendar day, with no time zone yet.
 type Day struct {

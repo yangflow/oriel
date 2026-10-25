@@ -772,7 +772,7 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 		}
 	}
 	if src.FirstSuccess {
-		if err := p.store.SuggestKind(ctx, src.ID, SuggestKind(feed.entries, src.Kind)); err != nil {
+		if err := p.store.SuggestKind(ctx, src.ID, SuggestKindFor(src, feed.entries)); err != nil {
 			return 0, err
 		}
 	}
