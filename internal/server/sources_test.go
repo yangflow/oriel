@@ -498,3 +498,29 @@ func TestSourceFetchHeaders(t *testing.T) {
 		t.Errorf("missing source: %d %s", w.Code, w.Body)
 	}
 }
+
+func TestSourceOpenTarget(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	blog := decode(t, do(s, "POST", "/api/sources", `{"url":"https://example.org/feed","kind":"article"}`, bearer(token)))
+	id := strconv.Itoa(int(blog["id"].(float64)))
+	if blog["openTarget"] != "follow" {
+		t.Fatalf("a new source opens %v, want follow", blog["openTarget"])
+	}
+	for _, body := range []string{`{"openTarget":"tab"}`, `{"openTarget":""}`, `{"openTarget":"Reader"}`} {
+		if w := do(s, "PATCH", "/api/sources/"+id, body, bearer(token)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_open_target" {
+			t.Errorf("patch %s: %d %s", body, w.Code, w.Body)
+		}
+	}
+	for _, v := range []string{"reader", "browser", "follow"} {
+		w := do(s, "PATCH", "/api/sources/"+id, `{"openTarget":"`+v+`"}`, bearer(token))
+		if got := decode(t, w); w.Code != http.StatusOK || got["openTarget"] != v {
+			t.Fatalf("patch %s: %d %s", v, w.Code, w.Body)
+		}
+	}
+	// A patch without the field leaves it alone.
+	do(s, "PATCH", "/api/sources/"+id, `{"openTarget":"reader"}`, bearer(token))
+	if got := decode(t, do(s, "PATCH", "/api/sources/"+id, `{"title":"Blog"}`, bearer(token))); got["openTarget"] != "reader" {
+		t.Errorf("an unrelated patch changed the target: %v", got)
+	}
+}

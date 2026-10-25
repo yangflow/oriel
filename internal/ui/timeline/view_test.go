@@ -1757,7 +1757,7 @@ func TestMarkAbove(t *testing.T) {
 	if err := tt.RightClick("Harbor at dawn"); err != nil {
 		t.Fatal(err)
 	}
-	if menu := tt.Menu(); !slices.Equal(menu, []string{"Star", "Mark as read", "Open in browser", "Copy link", "-", "Copy as Markdown", "Save as Markdown…", "-", "Mark above as read", "Mark below as read"}) {
+	if menu := tt.Menu(); !slices.Equal(menu, []string{"Star", "Mark as read", "Open in reader", "Open in browser", "Copy link", "-", "Copy as Markdown", "Save as Markdown…", "-", "Mark above as read", "Mark below as read"}) {
 		t.Fatalf("menu %q", menu)
 	}
 	if err := tt.ChooseMenuItem("Mark above as read"); err != nil {

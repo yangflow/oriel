@@ -82,7 +82,7 @@
      1 week, 1 month as read. They mark the unread entries of the scope whose time, the one the row shows, is before now minus that long, act at once and offer
      Undo in the same toast (marked-older: it says how old and how many); when none is that old a plain toast says so (marked-older-none), without Undo.
      They are off where Mark all as read is.
-     Right click opens a menu. On an entry (menu-entry): Star, Mark as read or unread and Open in browser, as the row's
+     Right click opens a menu. On an entry (menu-entry): Star, Mark as read or unread, Open in reader and Open in browser (each does its own, whatever the subscription's Opens in is), as the row's
      actions have them, then Copy link (puts the entry's original address on the clipboard; toast "Link copied", as in the reader's link-copied; dimmed for an entry with no link), a hairline, Copy as Markdown and Save as Markdown… (the same two as the reader's More menu; Copy puts
      the article on the clipboard and says "Copied", Save asks where to put the .md file), then Mark above as read, which marks the unread entries listed above this one (not this one)
      and is dimmed when there are none (menu-entry-first) or under Starred and search, and Mark below as read right under it, which does the same for the loaded entries listed below this one
@@ -748,7 +748,7 @@ const copy={
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
     unreadCount:'{n} unread', results:'{n} found',
-    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', markAbove:'Mark above as read', markBelow:'Mark below as read', copyLink:'Copy link', copyMd:'Copy as Markdown', saveMd:'Save as Markdown…', markFeed:'Mark subscription as read', markOlder1:'Mark older than 1 day as read', markOlder7:'Mark older than 1 week as read', markOlder30:'Mark older than 1 month as read', refresh:'Refresh', edit:'Edit…', pause:'Pause', remove:'Delete…',
+    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', openReader:'Open in reader', markAbove:'Mark above as read', markBelow:'Mark below as read', copyLink:'Copy link', copyMd:'Copy as Markdown', saveMd:'Save as Markdown…', markFeed:'Mark subscription as read', markOlder1:'Mark older than 1 day as read', markOlder7:'Mark older than 1 week as read', markOlder30:'Mark older than 1 month as read', refresh:'Refresh', edit:'Edit…', pause:'Pause', remove:'Delete…',
     failing:'Last fetch failed', failingName:'{name}, last fetch failed', failingUnread:'{name}, {n} unread, last fetch failed',
     failedOnce:'Last fetch failed: {error}', failedTimes:'Failed {n} times in a row: {error}',
     failingCount:'{n} failing', failingShow:'Show only the {n} failing subscriptions', failingTitle:'Failing', showAll:'Show all',
@@ -770,7 +770,7 @@ const copy={
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
     marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedBelow:'Marked {n} entries below as read', markedVisible:'Marked {n} visible entries as read', markedScrolled:'Marked {n} scrolled-past entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below', fetching:'{name}, fetching', fetchedNew:'Fetched {n} entries from “{name}”', fetchedNone:'“{name}” fetched, but has no entries yet', fetchedFailed:'Couldn’t fetch “{name}”: {error}', refreshingName:'Refreshing, {done} of {n} checked', refreshed:'Checked {n} subscriptions', refreshedFailed:'Checked {n} subscriptions, {failed} failed', refreshedPart:'Checked {done} of {n} subscriptions, the rest will follow', refreshNone:'No subscriptions to refresh', kRefreshAll:'Refresh all subscriptions',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
-    kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
+    kNext:'Next entry', kPrev:'Previous entry', kNextUnread:'Next unread', kOpen:'Open', kOpenOther:'Open the other way', kStar:'Star', kRead:'Read / unread', kOpenBrowser:'Open in browser',
     kSearch:'Search', kEscape:'Clear search', kMarkAll:'Mark all as read', kUndo:'Undo', kNextArticle:'Next article', kPrevArticle:'Previous article',
     kSummarize:'Summarize', kTranslate:'Translate', kBack:'Back to the list', kImmersive:'Immersive reading', kImmersiveExit:'Leave immersive reading', kAdd:'Add subscription', kSettings:'Settings', kKeys:'Keyboard shortcuts',
     kPalette:'Command palette', pGoTo:'Go to…', pActions:'Actions', pSettings:'Settings', pNone:'No matches', pUnreadOnly:'Show unread only', pOpenSettings:'Open settings',
@@ -785,7 +785,7 @@ const copy={
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
     unreadCount:'{n} 条未读', results:'找到 {n} 条',
-    markAllRead:'全部标为已读', markAllIn:'把「{scope}」全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', markAbove:'把上面的标为已读', markBelow:'把下面的标为已读', copyLink:'复制链接', copyMd:'复制为 Markdown', saveMd:'存为 Markdown…', markFeed:'把订阅标为已读', markOlder1:'把 1 天前的标为已读', markOlder7:'把 1 周前的标为已读', markOlder30:'把 1 个月前的标为已读', refresh:'更新', edit:'编辑…', pause:'暂停', remove:'删除…',
+    markAllRead:'全部标为已读', markAllIn:'把「{scope}」全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', openReader:'在阅读栏里打开', markAbove:'把上面的标为已读', markBelow:'把下面的标为已读', copyLink:'复制链接', copyMd:'复制为 Markdown', saveMd:'存为 Markdown…', markFeed:'把订阅标为已读', markOlder1:'把 1 天前的标为已读', markOlder7:'把 1 周前的标为已读', markOlder30:'把 1 个月前的标为已读', refresh:'更新', edit:'编辑…', pause:'暂停', remove:'删除…',
     failing:'上次抓取失败', failingName:'{name}，上次抓取失败', failingUnread:'{name}，{n} 条未读，上次抓取失败',
     failedOnce:'上次抓取失败：{error}', failedTimes:'连续失败 {n} 次：{error}',
     failingCount:'{n} 个失败', failingShow:'只显示 {n} 个抓取失败的订阅', failingTitle:'抓取失败', showAll:'显示全部',
@@ -807,7 +807,7 @@ const copy={
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
     marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedBelow:'已把下面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', markedScrolled:'已把滚过的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了', fetching:'{name}，正在抓取', fetchedNew:'「{name}」抓到 {n} 条', fetchedNone:'「{name}」抓取成功，但还没有条目', fetchedFailed:'「{name}」抓取失败：{error}', refreshingName:'正在更新，已查 {done}/{n}', refreshed:'已查完 {n} 个订阅', refreshedFailed:'已查完 {n} 个订阅，其中 {failed} 个失败', refreshedPart:'已查 {done}/{n} 个订阅，其余会陆续抓', refreshNone:'没有可更新的订阅', kRefreshAll:'全部更新',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
-    kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
+    kNext:'下一条', kPrev:'上一条', kNextUnread:'下一条未读', kOpen:'打开', kOpenOther:'反着打开', kStar:'收藏', kRead:'已读 / 未读', kOpenBrowser:'在浏览器中打开',
     kSearch:'搜索', kEscape:'清空搜索', kMarkAll:'全部标为已读', kUndo:'撤销', kNextArticle:'下一篇', kPrevArticle:'上一篇',
     kSummarize:'摘要', kTranslate:'翻译', kBack:'回到列表', kImmersive:'沉浸阅读', kImmersiveExit:'退出沉浸阅读', kAdd:'添加订阅', kSettings:'设置', kKeys:'键盘快捷键',
     kPalette:'命令面板', pGoTo:'前往…', pActions:'操作', pSettings:'设置', pNone:'没有匹配', pUnreadOnly:'只看未读', pOpenSettings:'打开设置',
@@ -1114,7 +1114,7 @@ const toast=state==='marked-read'?`<div class="toast" role="status">${icon('chec
 const keys=(...k)=>k.map(x=>Array.isArray(x)?x.map(y=>`<kbd>${y}</kbd>`).join(''):`<kbd>${x}</kbd>`).join(`<span class="or">${copy.or}</span>`);
 const keyList=rows=>`<dl>${rows.map(([name,...k])=>`<dt>${copy[name]}</dt><dd>${keys(...k)}</dd>`).join('')}</dl>`;
 const dialog=state==='keys'?`<div class="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="kt"><header><h2 id="kt">${copy.keysTitle}</h2><button class="close" aria-label="${copy.close}">${icon('x')}</button></header><div class="cols"><div>
-  <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kPictures','Space'],['kStar','S'],['kRead','M'],['kMarkVisible','V'],['kMarkAll',[shift,'A']],['kUnread','U'],['kAll','A'],['kStarred','*'],['kRange','T'],['kLoadNew','R'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kScope','1–5'],['kSidebar','H','←'],['kBack','L','→','Esc'],['kMenu',[shift,'F10'],...(mac?[]:['Menu'])],['kUndo',[mod,'Z']]])}</div><div>
+  <h3>${copy.inTimeline}</h3>${keyList([['kNext','J','↓'],['kPrev','K','↑'],['kNextUnread','N'],['kOpen','O','↩'],['kOpenOther',[shift,'O'],[shift,'↩']],['kPictures','Space'],['kStar','S'],['kRead','M'],['kMarkVisible','V'],['kMarkAll',[shift,'A']],['kUnread','U'],['kAll','A'],['kStarred','*'],['kRange','T'],['kLoadNew','R'],['kSearch','/',[mod,'F']],['kEscape','Esc'],['kScope','1–5'],['kSidebar','H','←'],['kBack','L','→','Esc'],['kMenu',[shift,'F10'],...(mac?[]:['Menu'])],['kUndo',[mod,'Z']]])}</div><div>
   <h3>${copy.inReader}</h3>${keyList([['kNextArticle','J'],['kPrevArticle','K'],['kNextUnread','N'],['kStar','S'],['kRead','M'],['kOpenBrowser','O'],['kImmersive','Z'],['kImmersiveExit','Esc'],['kBack','Esc']])}
   <h3>${copy.anywhere}</h3>${keyList([['kPalette',[mod,'K']],['kAdd',[mod,'N']],['kRefreshAll',[mod,'R']],['kToggleSidebar',[mod,'\\']],['kSettings',[mod,',']],['kKeys','?']])}</div></div></div></div>`:'';
 
@@ -1170,7 +1170,7 @@ const place=(html,anchor,dx,dy)=>{const w=document.getElementById('window'),a=an
   m.style.left=Math.min(a.left-b.left+dx,b.width-m.offsetWidth-8)+'px';m.style.top=Math.min(a.top-b.top+dy,b.height-m.offsetHeight-8)+'px'};
 if(state==='menu-entry'||state==='menu-entry-first'||state==='menu-entry-last'){
   const e=entries[state==='menu-entry'?2:state==='menu-entry-last'?entries.length-1:0],first=state==='menu-entry-first',last=state==='menu-entry-last';
-  place(`<div class="menu" role="menu" aria-label="${e.title||e.author}">${menuItem('star',e.starred?copy.unstar:copy.star,{key:'S'})}${menuItem(e.read?'mail':'mailOpen',e.read?copy.markUnread:copy.markRead,{key:'M'})}${menuItem('external',copy.open,{key:'O'})}${menuItem('link',copy.copyLink)}<hr>${menuItem('copy',copy.copyMd)}${menuItem('fileDown',copy.saveMd)}<hr>${menuItem('arrowUpToLine',copy.markAbove,{cls:first||last?'':'hover',off:first})}${menuItem('arrowDownToLine',copy.markBelow,{off:last})}</div>`,document.querySelector('.row.menued'),300,36);
+  place(`<div class="menu" role="menu" aria-label="${e.title||e.author}">${menuItem('star',e.starred?copy.unstar:copy.star,{key:'S'})}${menuItem(e.read?'mail':'mailOpen',e.read?copy.markUnread:copy.markRead,{key:'M'})}${menuItem('article',copy.openReader)+menuItem('external',copy.open,{key:'O'})}${menuItem('link',copy.copyLink)}<hr>${menuItem('copy',copy.copyMd)}${menuItem('fileDown',copy.saveMd)}<hr>${menuItem('arrowUpToLine',copy.markAbove,{cls:first||last?'':'hover',off:first})}${menuItem('arrowDownToLine',copy.markBelow,{off:last})}</div>`,document.querySelector('.row.menued'),300,36);
 }
 if(state==='menu-markall'){
   place(`<div class="menu" role="menu" aria-label="${markAllName}">${menuItem('checkCheck',markAllName,{cls:'hover'})}<hr>${[1,7,30].map(n=>menuItem('calendar',copy['markOlder'+n])).join('')}</div>`,document.querySelector('.toolbar .tool'),-200,36);

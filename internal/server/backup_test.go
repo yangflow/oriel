@@ -38,7 +38,9 @@ func TestBackupAndRestoreThroughTheAPI(t *testing.T) {
 		}
 	}
 	addSource(t, s, "https://example.org/feed")
-	addSource(t, s, "https://example.org/talks")
+	if _, err := s.store.CreateSource(context.Background(), store.NewSource{URL: "https://example.org/talks", Kind: "video", OpenTarget: store.OpenBrowser, FetchInterval: time.Hour}, "", time.UnixMilli(1_700_000_000_000)); err != nil {
+		t.Fatal(err)
+	}
 
 	w := do(s, "GET", "/api/backup", "", bearer(token))
 	disposition := w.Header().Get("Content-Disposition")
@@ -71,6 +73,9 @@ func TestBackupAndRestoreThroughTheAPI(t *testing.T) {
 	got := sourceList(t, other, mine)
 	if !strings.Contains(got, "https://example.org/feed") || strings.Contains(got, "elsewhere") {
 		t.Fatalf("sources after restore: %s", got)
+	}
+	if !strings.Contains(got, `"openTarget":"browser"`) {
+		t.Fatalf("the open target did not come back: %s", got)
 	}
 }
 

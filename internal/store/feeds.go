@@ -55,9 +55,11 @@ type FeedSource struct {
 
 // NewSource describes a subscription to add. Exactly one of URL and RSSHubPath is set.
 type NewSource struct {
-	URL           string
-	RSSHubPath    string
-	Kind          string
+	URL        string
+	RSSHubPath string
+	Kind       string
+	// OpenTarget is one of OpenFollow, OpenReader and OpenBrowser; empty means OpenFollow.
+	OpenTarget    string
 	FetchInterval time.Duration
 	// FetchIntervalAuto makes the fetcher work the interval out from the feed; FetchInterval is used until it can.
 	FetchIntervalAuto bool

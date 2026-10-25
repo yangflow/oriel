@@ -367,3 +367,38 @@ func TestOPMLJobDoesNotStartAfterClose(t *testing.T) {
 		t.Fatalf("a job started: %v", st)
 	}
 }
+
+func TestOPMLCarriesTheOpenTarget(t *testing.T) {
+	s, _ := newServer(t, "")
+	file := `<opml version="2.0"><body>
+    <outline text="A" xmlUrl="https://example.org/a" orielOpenTarget="browser"/>
+    <outline text="B" xmlUrl="https://example.org/b" orielOpenTarget="reader"/>
+    <outline text="C" xmlUrl="https://example.org/c"/>
+    <outline text="D" xmlUrl="https://example.org/d" orielOpenTarget="tab"/>
+  </body></opml>`
+	body := decode(t, do(s, "POST", "/api/opml/import", file, nil))
+	if body["added"] != 3.0 || fmt.Sprint(body["failed"]) != "[map[address:https://example.org/d error:invalid_open_target title:D]]" {
+		t.Fatalf("import: %v", body)
+	}
+	targets := func(s *Server) string {
+		var got []string
+		for _, item := range decode(t, do(s, "GET", "/api/sources", "", nil))["sources"].([]any) {
+			src := item.(map[string]any)
+			got = append(got, fmt.Sprintf("%s=%s", src["title"], src["openTarget"]))
+		}
+		slices.Sort(got)
+		return strings.Join(got, " ")
+	}
+	if got := targets(s); got != "A=browser B=reader C=follow" {
+		t.Fatalf("imported targets: %s", got)
+	}
+	w := do(s, "GET", "/api/opml/export", "", nil)
+	if n := strings.Count(w.Body.String(), "orielOpenTarget"); n != 2 || strings.Contains(w.Body.String(), `orielOpenTarget="follow"`) {
+		t.Fatalf("export writes the target %d times, and not for the default only:\n%s", n, w.Body)
+	}
+	again, _ := newServer(t, "")
+	do(again, "POST", "/api/opml/import", w.Body.String(), nil)
+	if got := targets(again); got != "A=browser B=reader C=follow" {
+		t.Fatalf("round trip: %s", got)
+	}
+}
