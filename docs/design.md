@@ -257,7 +257,10 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   at the right), rows 6 apart under a 12 muted line "Found n feeds. Choose one."; the chosen row has the `Accent` soft fill and its
   check, the others have no fill, a 1 `Border` outline and no check. The first row is chosen, a click chooses another, and a single
   result is the one card as for a recognized link. When nothing was found a 12 muted line says so and Add tries the address
-  as typed. Mockup states `add-searching`, `add-found-list` and `add-none-found`. A name, or a link that has no feed, is
+  as typed. A feed that a subscription already follows is an outlined row with no check, a 12 `TextMuted` tag "Subscribed" at the right,
+  and it is a button: pressing it closes the dialog and shows that subscription; the chosen row is the first one not followed yet. The
+  "already followed" notice under the address has two 12 links, "Show it" and "Add anyway", the latter repeating the attempt with the
+  duplicate allowed and shown only when the address is written differently from the subscription it duplicates (the server refuses an identical spelling anyway). Mockup states `add-searching`, `add-found-list`, `add-found-subscribed`, `add-exists` and `add-none-found`. A name, or a link that has no feed, is
   looked up in the RSSHub instance's route catalog the same way: the line reads "Looking for RSSHub routes…", and every
   matching route is a row like the feeds above (RSS icon, route name, the route template in monospace), at most 10. Under the
   chosen row sit its parameters, one 32 high field each with the name as a 12 medium label ("(optional)" after it for a

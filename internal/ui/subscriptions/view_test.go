@@ -70,7 +70,7 @@ type fake struct {
 
 func (f *fake) AddSource(_ context.Context, src client.NewSource) (client.Source, error) {
 	f.added = append(f.added, src)
-	if f.addErr != nil {
+	if apiErr, ok := f.addErr.(*client.APIError); f.addErr != nil && !(ok && apiErr.Code == "source_exists" && src.AllowDuplicate) {
 		return client.Source{}, f.addErr
 	}
 	return client.Source{ID: 9, URL: src.URL, RSSHubPath: src.RSSHubPath, Kind: src.Kind, Title: src.Title,
@@ -570,6 +570,50 @@ func TestExists(t *testing.T) {
 	f.settle(tt)
 	if !tt.HasText("You already follow this as “Go Blog”.") || !tt.HasText("Show it") {
 		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestAddAnywayNotOfferedForTheSameSpelling(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	open(t, s, f, tt)
+	f.addErr = &client.APIError{Status: 409, Code: "source_exists", SourceID: 1}
+	tt.Type(f.sources[0].URL) // exactly the address of "Go Blog"
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if !tt.HasText("Show it") || tt.HasText("Add anyway") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+func TestAddAnyway(t *testing.T) {
+	for _, more := range []bool{false, true} {
+		s, f, tt := setup(t, "en")
+		open(t, s, f, tt)
+		f.addErr = &client.APIError{Status: 409, Code: "source_exists", SourceID: 1}
+		tt.Type("http://www.go.dev/blog/feed.atom")
+		if more {
+			tt.Key(ui.Cmd, ui.KeyEnter)
+		} else {
+			tt.Key(0, ui.KeyEnter)
+		}
+		f.settle(tt)
+		if !tt.HasText("Add anyway") || !tt.HasText("Show it") || f.added[0].AllowDuplicate {
+			t.Fatalf("texts %v, added %+v", tt.Texts(), f.added)
+		}
+		if err := tt.Click("Add anyway"); err != nil {
+			t.Fatal(err)
+		}
+		f.settle(tt)
+		if len(f.added) != 2 || !f.added[1].AllowDuplicate || f.added[1].URL != "http://www.go.dev/blog/feed.atom" {
+			t.Fatalf("added %+v", f.added)
+		}
+		if tt.HasText("Add anyway") || tt.HasText(s.text.ExistsUnknown) {
+			t.Fatalf("the notice stayed: %v", tt.Texts())
+		}
+		// "Add and continue" keeps the dialog open for the next address; "Add" closes it.
+		if s.Open() != more || (more && s.add.address != "") {
+			t.Fatalf("more %v, open %v, address %q", more, s.Open(), s.add.address)
+		}
 	}
 }
 

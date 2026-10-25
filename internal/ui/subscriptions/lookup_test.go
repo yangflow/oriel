@@ -78,6 +78,60 @@ func TestLookupPicksOneOfMany(t *testing.T) {
 	}
 }
 
+func TestLookupMarksSubscribedFeeds(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	open(t, s, f, tt)
+	f.found = []client.Candidate{
+		{URL: "https://blog.example/rss.xml", Title: "Posts", Origin: "alternate", SubscribedID: 1},
+		{URL: "https://blog.example/comments.xml", Title: "Comments", Origin: "alternate"},
+	}
+	pageAddress(t, f, tt, "https://blog.example/")
+	if !tt.HasText("Subscribed") || s.add.look.chosen != 1 {
+		t.Fatalf("chosen %d, texts %v", s.add.look.chosen, tt.Texts())
+	}
+	if err := tt.Click("Add"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if len(f.added) != 1 || f.added[0].URL != "https://blog.example/comments.xml" {
+		t.Fatalf("added %+v", f.added)
+	}
+
+	open(t, s, f, tt)
+	pageAddress(t, f, tt, "https://blog.example/other")
+	if err := tt.Click("Posts"); err != nil {
+		t.Fatal(err)
+	}
+	if s.Open() || !slices.Equal(f.shown, []int64{1}) {
+		t.Fatalf("open %v, shown %v", s.Open(), f.shown)
+	}
+}
+
+func TestLookupOnlyFeedIsSubscribed(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	open(t, s, f, tt)
+	f.found = []client.Candidate{{URL: "https://blog.example/rss.xml", Title: "Posts", Origin: "alternate", SubscribedID: 1}}
+	pageAddress(t, f, tt, "https://blog.example/")
+	if !tt.HasText(s.text.FoundSubscribed) || !tt.HasText("Subscribed") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	f.addErr = &client.APIError{Status: 409, Code: "source_exists", SourceID: 1}
+	if err := tt.Click("Add"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !tt.HasText("Add anyway") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if err := tt.Click("Add anyway"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if len(f.added) != 2 || !f.added[1].AllowDuplicate || f.added[1].URL != "https://blog.example/rss.xml" || s.Open() {
+		t.Fatalf("added %+v, open %v", f.added, s.Open())
+	}
+}
+
 func TestLookupRuleFillsTheRoute(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	open(t, s, f, tt)

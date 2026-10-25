@@ -221,7 +221,7 @@ func TestTimelineAPI(t *testing.T) {
 				w.Write([]byte(`{"error":"page_unavailable"}`))
 				return
 			}
-			w.Write([]byte(`{"candidates":[{"url":"https://blog.example/rss.xml","rsshubPath":"","title":"Blog","kind":"","origin":"alternate"},
+			w.Write([]byte(`{"candidates":[{"url":"https://blog.example/rss.xml","rsshubPath":"","title":"Blog","kind":"","origin":"alternate","subscribedId":4},
 				{"url":"","rsshubPath":"/bilibili/user/video/1","title":"","kind":"video","origin":"rule","site":"bilibili","label":"videos","subject":"1"}]}`))
 		case "/api/routes":
 			w.Write([]byte(`{"available":true,"instance":"http://rsshub.local","total":12,"routes":[{"path":"/github/issue/:user/:repo",
@@ -314,7 +314,7 @@ func TestTimelineAPI(t *testing.T) {
 		t.Errorf("Image = %q, %v", body, err)
 	}
 	found, err := session.Discover(ctx, "https://blog.example/")
-	if err != nil || len(found) != 2 || found[0] != (Candidate{URL: "https://blog.example/rss.xml", Title: "Blog", Origin: "alternate"}) ||
+	if err != nil || len(found) != 2 || found[0] != (Candidate{URL: "https://blog.example/rss.xml", Title: "Blog", Origin: "alternate", SubscribedID: 4}) ||
 		found[1] != (Candidate{RSSHubPath: "/bilibili/user/video/1", Kind: "video", Origin: "rule", Site: "bilibili", Label: "videos", Subject: "1"}) {
 		t.Errorf("Discover = %+v, %v", found, err)
 	}
@@ -336,7 +336,7 @@ func TestTimelineAPI(t *testing.T) {
 	if _, err := session.PreviewRoute(ctx, "/gone"); !errors.As(err, &apiErr) || apiErr.Code != "route_not_found" {
 		t.Errorf("PreviewRoute gone: %v", err)
 	}
-	if _, err := session.AddSource(ctx, NewSource{RSSHubPath: "/x/y", Kind: "social"}); err != nil {
+	if _, err := session.AddSource(ctx, NewSource{RSSHubPath: "/x/y", Kind: "social", AllowDuplicate: true}); err != nil {
 		t.Errorf("AddSource: %v", err)
 	}
 	title, paused, keep := "New", true, 90
@@ -388,7 +388,7 @@ func TestTimelineAPI(t *testing.T) {
 		"GET /api/routes?q=github+issues&refresh=1 ",
 		"GET /api/routes/preview?path=%2Fgithub%2Fissue%2Frsshub%2Frsshub ",
 		"GET /api/routes/preview?path=%2Fgone ",
-		`POST /api/sources {"rsshubPath":"/x/y","kind":"social"}`,
+		`POST /api/sources {"rsshubPath":"/x/y","kind":"social","allowDuplicate":true}`,
 		`PATCH /api/sources/5 {"title":"New","paused":true,"keepDays":90}`,
 		`POST /api/sources/5/muted-count {"muteKeywords":"ad\nspam"}`,
 		"POST /api/sources/5/refresh ",
