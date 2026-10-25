@@ -168,6 +168,23 @@ func TestDiscoursePostNumber(t *testing.T) {
 	}
 }
 
+func TestDiscoursePostResolvesRelativeLinks(t *testing.T) {
+	const page = `<html><head><meta name="generator" content="Discourse 3.4"></head><body>
+<div id="post_1" class="topic-body crawler-post"><div class="post" itemprop="text">
+<p>See <a href="/t/watering/12">watering</a>, <a href="https://other.example/x">other</a> and <img src="up/1.png"></p>
+<script>alert(1)</script></div></div></body></html>`
+	final, _ := url.Parse("https://forum.example.org/t/topic/42")
+	got := discoursePost(mustHTML(t, page), final)
+	for _, want := range []string{`href="https://forum.example.org/t/watering/12"`, `href="https://other.example/x"`, `src="https://forum.example.org/t/topic/up/1.png"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %q", want, got)
+		}
+	}
+	if strings.Contains(got, "script") {
+		t.Errorf("script kept: %q", got)
+	}
+}
+
 func mustHTML(t *testing.T, page string) *html.Node {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(page))
