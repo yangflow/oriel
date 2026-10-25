@@ -11,7 +11,7 @@ import (
 // focusMute tabs from the title to the mute keywords.
 func focusMute(t *testing.T, tt *ui.Tester) {
 	t.Helper()
-	for range 12 {
+	for range 14 {
 		if tt.Focused("Mute keywords") {
 			return
 		}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,7 +47,7 @@ type opmlDocument struct {
 }
 
 // opmlOutline is a subscription when it has an xmlUrl or an orielRsshubPath, otherwise a group.
-// orielKind, orielRsshubPath, orielOpenTarget, orielHideFromAll and orielTranslateTitles keep what OPML has no place for.
+// orielKind, orielRsshubPath, orielOpenTarget, orielHideFromAll, orielTranslateTitles and orielDailyCap keep what OPML has no place for.
 type opmlOutline struct {
 	Text            string        `xml:"text,attr"`
 	Title           string        `xml:"title,attr,omitempty"`
@@ -58,6 +59,7 @@ type opmlOutline struct {
 	OpenTarget      string        `xml:"orielOpenTarget,attr,omitempty"`
 	HideFromAll     string        `xml:"orielHideFromAll,attr,omitempty"`
 	TranslateTitles string        `xml:"orielTranslateTitles,attr,omitempty"`
+	DailyCap        string        `xml:"orielDailyCap,attr,omitempty"`
 	Outlines        []opmlOutline `xml:"outline"`
 }
 
@@ -66,6 +68,9 @@ type opmlOutline struct {
 func (o opmlOutline) source() (store.NewSource, string) {
 	src := store.NewSource{Kind: o.Kind, OpenTarget: strings.TrimSpace(o.OpenTarget), FetchInterval: defaultInterval, FetchIntervalAuto: true,
 		HideFromAll: strings.TrimSpace(o.HideFromAll) == "1", TranslateTitles: strings.TrimSpace(o.TranslateTitles) == "1"}
+	if n, err := strconv.Atoi(strings.TrimSpace(o.DailyCap)); err == nil && n >= 1 && n <= store.MaxDailyCap {
+		src.DailyCap = n
+	}
 	if src.RSSHubPath = strings.TrimSpace(o.RSSHubPath); src.RSSHubPath == "" {
 		src.URL = strings.TrimSpace(o.XMLURL)
 	}
@@ -208,6 +213,9 @@ func (s *Server) exportOPML(w http.ResponseWriter, r *http.Request) {
 		}
 		if src.TranslateTitles {
 			o.TranslateTitles = "1"
+		}
+		if src.DailyCap > 0 {
+			o.DailyCap = strconv.Itoa(src.DailyCap)
 		}
 		if src.RSSHubPath != "" {
 			o.RSSHubPath = src.RSSHubPath

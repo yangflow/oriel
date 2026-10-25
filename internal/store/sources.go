@@ -63,6 +63,8 @@ type Source struct {
 	Paused              bool
 	KeepDays            int       // 0 follows the global retention, -1 keeps forever, else days
 	PaceSec             int       // how long an unread entry stays in All and Unread, in seconds; 0 is off
+	DailyCap            int       // entries a local day shows in All and Unread before the rest fold into one row; 0 is off
+	NoisyDismissed      int       // entries a day at the time the noisy suggestion was dismissed; 0 when it never was
 	HideFromAll         bool      // keeps the entries out of All and the kind timelines and their counts
 	TranslateTitles     bool      // queues the titles of new entries for translation
 	ExtractSelector     string    // CSS selector of the element that holds the article, empty for automatic extraction
@@ -99,6 +101,7 @@ type SourcePatch struct {
 	KeepDays          *int
 	PaceSec           *int
 	HideFromAll       *bool
+	DailyCap          *int
 	TranslateTitles   *bool
 	ExtractSelector   *string
 	ExtractReferer    *string
@@ -117,7 +120,7 @@ type SourcePatch struct {
 var sourceColumnsHead = `
 	s.id, s.url, s.rsshub_path, s.title, s.site_url, s.icon_url, s.kind, s.fetch_interval_sec, s.fetch_interval_auto, s.suggested_kind, s.next_fetch_at,
 	s.last_fetched_at, s.last_success_at, s.last_error, s.last_error_kind, s.consecutive_failures, s.prompt_summary, s.prompt_translate,
-	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused, s.keep_days, s.pace_sec, s.hide_from_all, s.translate_titles, s.extract_selector, s.extract_referer, s.extract_rewrites, s.fetch_user_agent, s.fetch_referer, s.open_target, s.rsshub_instance,
+	s.auto_summary, s.auto_translate, s.mute_keywords, s.paused, s.keep_days, s.pace_sec, s.daily_cap, s.noisy_dismissed, s.hide_from_all, s.translate_titles, s.extract_selector, s.extract_referer, s.extract_rewrites, s.fetch_user_agent, s.fetch_referer, s.open_target, s.rsshub_instance,
 	s.proxy, s.proxy_user <> '' OR s.proxy_password <> '',
 	s.websub_hub, CASE WHEN s.websub_state = 'active' THEN s.websub_expires_at END,
 	` + movedShown("s.") + `,
@@ -126,7 +129,7 @@ var sourceColumnsHead = `
 const sourceColumnsTail = `, s.created_at, s.updated_at`
 
 // unreadOf counts the unread entries of one source, as it appears in the list; it runs for a single source.
-const unreadOf = `(SELECT count(*) FROM entries e WHERE e.source_id = s.id AND e.is_read = 0 AND ` + shown + ` AND ` + live + `)`
+const unreadOf = `(SELECT count(*) FROM entries e WHERE e.source_id = s.id AND e.is_read = 0 AND e.folded = 0 AND ` + shown + ` AND ` + live + `)`
 
 // unreadShown is shown for the grouped count, with two changes that keep exactly the entries shown keeps: the global
 // keywords come from the one-row table g, read once rather than for every entry, and an entry of a source without
@@ -139,7 +142,7 @@ const unreadShown = "(s.deleted_at IS NULL AND ((s.mute_keywords = '' AND g.v = 
 // entries_source_unread is named so that the rows come grouped by source without a sort; sources without a row count as zero.
 const unreadByID = `(SELECT e.source_id AS source_id, count(*) AS n FROM entries e INDEXED BY entries_source_unread JOIN sources s ON s.id = e.source_id,
 	(SELECT ` + globalMute + ` AS v) g
-	WHERE e.is_read = 0 AND ` + unreadShown + ` AND ` + live + ` GROUP BY e.source_id)`
+	WHERE e.is_read = 0 AND e.folded = 0 AND ` + unreadShown + ` AND ` + live + ` GROUP BY e.source_id)`
 
 // CreateSource adds a subscription with a title, which may be empty, and returns it. The source is due at once
 // unless src.FirstFetchDelay says otherwise.
@@ -172,9 +175,9 @@ func (s *Store) CreateSourceIn(ctx context.Context, idx *DuplicateIndex, src New
 		}
 	}
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO sources (url, rsshub_path, title, kind, open_target, fetch_interval_sec, fetch_interval_auto, hide_from_all, translate_titles, next_fetch_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		src.URL, src.RSSHubPath, title, src.Kind, cmp.Or(src.OpenTarget, OpenFollow), int64(src.FetchInterval/time.Second), src.FetchIntervalAuto, src.HideFromAll, src.TranslateTitles,
+		INSERT INTO sources (url, rsshub_path, title, kind, open_target, fetch_interval_sec, fetch_interval_auto, hide_from_all, translate_titles, daily_cap, next_fetch_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		src.URL, src.RSSHubPath, title, src.Kind, cmp.Or(src.OpenTarget, OpenFollow), int64(src.FetchInterval/time.Second), src.FetchIntervalAuto, src.HideFromAll, src.TranslateTitles, src.DailyCap,
 		now.Add(max(src.FirstFetchDelay, 0)).UnixMilli(), now.UnixMilli(), now.UnixMilli())
 	if err != nil {
 		var sqliteErr *sqlite.Error
@@ -262,6 +265,9 @@ func (s *Store) UpdateSource(ctx context.Context, id int64, patch SourcePatch, n
 	if patch.PaceSec != nil {
 		set("pace_sec", *patch.PaceSec)
 	}
+	if patch.DailyCap != nil {
+		set("daily_cap", *patch.DailyCap)
+	}
 	if patch.HideFromAll != nil {
 		set("hide_from_all", *patch.HideFromAll)
 	}
@@ -312,6 +318,15 @@ func (s *Store) UpdateSource(ctx context.Context, id int64, patch SourcePatch, n
 			return Source{}, err
 		} else if n == 0 {
 			return Source{}, ErrNotFound
+		}
+		// A changed cap folds again from scratch: the entries of every day are ranked against the new number.
+		if patch.DailyCap != nil {
+			if _, err := s.db.ExecContext(ctx, "UPDATE entries SET folded = 0 WHERE source_id = ? AND folded = 1", id); err != nil {
+				return Source{}, err
+			}
+			if err := refold(ctx, s.db, id, 0); err != nil {
+				return Source{}, err
+			}
 		}
 		// Switching the titles off takes the translations and the queue with it.
 		if patch.TranslateTitles != nil && !*patch.TranslateTitles {
@@ -440,7 +455,7 @@ func scanSource(row interface{ Scan(...any) error }) (Source, error) {
 	var fetched, success, websubUntil sql.NullInt64
 	if err := row.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Title, &src.SiteURL, &src.IconURL, &src.Kind, &interval,
 		&src.FetchIntervalAuto, &src.SuggestedKind, &next, &fetched, &success, &src.LastError, &src.LastErrorKind, &src.ConsecutiveFailures, &src.PromptSummary, &src.PromptTranslate,
-		&src.AutoSummary, &src.AutoTranslate, &src.MuteKeywords, &src.Paused, &src.KeepDays, &src.PaceSec, &src.HideFromAll, &src.TranslateTitles, &src.ExtractSelector, &src.ExtractReferer, &src.ExtractRewrites, &src.FetchUserAgent, &src.FetchReferer, &src.OpenTarget, &src.RSSHubInstance, &src.Proxy, &src.ProxyAuthSet, &src.WebSubHub, &websubUntil, &src.MovedTo, &src.UnreadCount, &created, &updated); err != nil {
+		&src.AutoSummary, &src.AutoTranslate, &src.MuteKeywords, &src.Paused, &src.KeepDays, &src.PaceSec, &src.DailyCap, &src.NoisyDismissed, &src.HideFromAll, &src.TranslateTitles, &src.ExtractSelector, &src.ExtractReferer, &src.ExtractRewrites, &src.FetchUserAgent, &src.FetchReferer, &src.OpenTarget, &src.RSSHubInstance, &src.Proxy, &src.ProxyAuthSet, &src.WebSubHub, &websubUntil, &src.MovedTo, &src.UnreadCount, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Source{}, ErrNotFound
 		}

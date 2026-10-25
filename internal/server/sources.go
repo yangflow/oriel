@@ -48,6 +48,7 @@ type sourceJSON struct {
 	Paused              bool   `json:"paused"`
 	KeepDays            int    `json:"keepDays"`
 	PaceSec             int    `json:"paceSec"`
+	DailyCap            int    `json:"dailyCap"`
 	HideFromAll         bool   `json:"hideFromAll"`
 	TranslateTitles     bool   `json:"translateTitles"`
 	ExtractSelector     string `json:"extractSelector"`
@@ -80,7 +81,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError, LastErrorKind: src.LastErrorKind,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, HideFromAll: src.HideFromAll, TranslateTitles: src.TranslateTitles, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, OpenTarget: src.OpenTarget, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, DailyCap: src.DailyCap, HideFromAll: src.HideFromAll, TranslateTitles: src.TranslateTitles, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, OpenTarget: src.OpenTarget, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
 		WebSubActive: src.WebSubUntil.After(time.Now()), MovedTo: src.MovedTo, UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
@@ -168,9 +169,12 @@ type healthJSON struct {
 	Recent              int    `json:"recent"`
 	RecentRead          int    `json:"recentRead"`
 	RecentStarred       int    `json:"recentStarred"`
+	PerDay              int    `json:"perDay"`
+	PaceSec             int    `json:"paceSec"`
+	DailyCap            int    `json:"dailyCap"`
 }
 
-// sourcesHealth lists the sources that are dead, failing, moved or rarely read (docs/product.md, "订阅健康").
+// sourcesHealth lists the sources that are dead, failing, moved, noisy or rarely read (docs/product.md, "订阅健康").
 func (s *Server) sourcesHealth(w http.ResponseWriter, r *http.Request) {
 	list, err := s.store.SourcesHealth(r.Context(), s.now())
 	if err != nil {
@@ -282,6 +286,7 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		Paused            *bool   `json:"paused"`
 		KeepDays          *int    `json:"keepDays"`
 		PaceSec           *int    `json:"paceSec"`
+		DailyCap          *int    `json:"dailyCap"`
 		HideFromAll       *bool   `json:"hideFromAll"`
 		TranslateTitles   *bool   `json:"translateTitles"`
 		ExtractSelector   *string `json:"extractSelector"`
@@ -336,6 +341,13 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		patch.PaceSec = body.PaceSec
+	}
+	if body.DailyCap != nil {
+		if n := *body.DailyCap; n < 0 || n > store.MaxDailyCap {
+			fail(w, http.StatusBadRequest, "invalid_daily_cap")
+			return
+		}
+		patch.DailyCap = body.DailyCap
 	}
 	if body.ExtractSelector != nil {
 		selector, err := fetch.ParseSelector(*body.ExtractSelector)
@@ -532,6 +544,25 @@ func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {
 	switch err := s.store.DeleteSource(r.Context(), id, s.now()); {
 	case errors.Is(err, store.ErrNotFound):
 		fail(w, http.StatusNotFound, "not_found")
+	case err != nil:
+		internal(w, err)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// dismissNoisy answers POST /api/sources/{id}/noisy/dismiss: it keeps the suggestion to quiet the source away until
+// its volume doubles. 409 not_noisy when the source is not named as noisy now.
+func (s *Server) dismissNoisy(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	switch err := s.store.DismissNoisy(r.Context(), id, s.now()); {
+	case errors.Is(err, store.ErrNotFound):
+		fail(w, http.StatusNotFound, "not_found")
+	case errors.Is(err, store.ErrNotNoisy):
+		fail(w, http.StatusConflict, "not_noisy")
 	case err != nil:
 		internal(w, err)
 	default:

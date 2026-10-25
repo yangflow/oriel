@@ -294,6 +294,9 @@ type Entry struct {
 	CreatedAt     int64  `json:"createdAt"`
 	// RemindAt, in Unix milliseconds, is when a reminded entry comes back as unread; 0 when it has no reminder.
 	RemindAt int64 `json:"remindAt,omitempty"`
+	// Folded is set on an entry over its subscription's daily cap in a list of All, a kind or Unread; it is drawn as
+	// part of one row for the day, and it is not counted as unread.
+	Folded bool `json:"folded,omitempty"`
 	// RevisedAt, in Unix milliseconds, is when the update that replaced the entry's earlier version was fetched; 0
 	// when the entry has no earlier version (see Revision).
 	RevisedAt int64 `json:"revisedAt,omitempty"`
@@ -353,6 +356,7 @@ type Source struct {
 	Paused              bool   `json:"paused"`
 	KeepDays            int    `json:"keepDays"`
 	PaceSec             int    `json:"paceSec"`
+	DailyCap            int    `json:"dailyCap"`
 	HideFromAll         bool   `json:"hideFromAll"`
 	TranslateTitles     bool   `json:"translateTitles"`
 	ExtractSelector     string `json:"extractSelector"`
@@ -402,6 +406,8 @@ type SourcePatch struct {
 	KeepDays *int `json:"keepDays,omitempty"`
 	// PaceSec is how long an unread entry stays in All and Unread, in seconds: 0 turns it off, else 3600 to 2592000.
 	PaceSec *int `json:"paceSec,omitempty"`
+	// DailyCap is how many entries a day stay out of the fold: 0 turns it off, else 1 to 1000.
+	DailyCap *int `json:"dailyCap,omitempty"`
 	// HideFromAll keeps the source out of All and the kind timelines and their counts; it stays in its own view,
 	// in search and in Starred.
 	HideFromAll *bool `json:"hideFromAll,omitempty"`
@@ -762,6 +768,7 @@ const (
 	HealthDead        = "dead"
 	HealthFailing     = "failing"
 	HealthMoved       = "moved"
+	HealthNoisy       = "noisy"
 	HealthRarelyRead  = "rarelyRead"
 	HealthCauseSilent = "silent"
 )
@@ -774,7 +781,7 @@ type SourceHealth struct {
 	Title      string `json:"title"`
 	IconURL    string `json:"iconUrl"`
 	Kind       string `json:"kind"`
-	// State is HealthDead, HealthFailing, HealthMoved or HealthRarelyRead; Cause tells a dead one that kept failing ("failing")
+	// State is HealthDead, HealthFailing, HealthMoved, HealthNoisy or HealthRarelyRead; Cause tells a dead one that kept failing ("failing")
 	// from one that fetches fine but has nothing new (HealthCauseSilent).
 	State string `json:"state"`
 	Cause string `json:"cause"`
@@ -788,6 +795,10 @@ type SourceHealth struct {
 	Recent        int `json:"recent"`
 	RecentRead    int `json:"recentRead"`
 	RecentStarred int `json:"recentStarred"`
+	// PerDay is the entries a day of a HealthNoisy subscription; PaceSec and DailyCap are its pace and daily cap now.
+	PerDay   int `json:"perDay"`
+	PaceSec  int `json:"paceSec"`
+	DailyCap int `json:"dailyCap"`
 }
 
 // Health is the list of subscriptions worth a second look, and the length of the window its counts cover.
@@ -1081,6 +1092,12 @@ func (s Session) RestoreSource(ctx context.Context, id int64) (Source, error) {
 	var src Source
 	err := s.call(ctx, http.MethodPost, "/api/sources/"+strconv.FormatInt(id, 10)+"/restore", nil, &src)
 	return src, err
+}
+
+// DismissNoisy keeps the suggestion to quiet a noisy subscription away until its entries a day double. The error code
+// is "not_noisy" when the server no longer names the subscription as noisy.
+func (s Session) DismissNoisy(ctx context.Context, id int64) error {
+	return s.call(ctx, http.MethodPost, "/api/sources/"+strconv.FormatInt(id, 10)+"/noisy/dismiss", nil, nil)
 }
 
 // MoveSource accepts the suggestion to use the address the site moved to: movedTo is the address the user saw, and the

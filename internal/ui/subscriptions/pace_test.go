@@ -28,7 +28,7 @@ func TestEditPace(t *testing.T) {
 
 	// A pace the menu does not list shows as hours or days and can go back to off.
 	src := f.sources[1]
-	src.PaceSec = 5 * 3600
+	src.PaceSec, src.DailyCap = 5*3600, 20 // the cap shows a number, so only the pace menu shows "Off"
 	s.Edit(src)
 	tt.Frame()
 	f.settle(tt)

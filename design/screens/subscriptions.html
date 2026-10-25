@@ -57,6 +57,8 @@
      default, with the period of the global setting after the dot; a help line says starred entries are always kept.
      Pace is a select of the same style right under Keep entries: Off by default, then Breaking (3 h), Daily (2 days)
      and Weekly (7 days); a help line says unread entries fade, then leave All and Unread.
+     At most per day is a select of the same style under Pace: Off by default, then 5, 10, 20 and 50 entries; a help
+     line says the extra entries fold into one row in All and Unread until it is opened (edit-cap shows it set to 20).
      Mute keywords is a box two lines high that grows with its content.
      Extraction is a collapsed, left-aligned row, a chevron and its name, with no help while collapsed: a subscription
      whose pages the automatic full-text extraction gets wrong can name the content element (a CSS selector), a Referer
@@ -81,7 +83,9 @@
      expanded once the subscription is not following the settings.
      Subscription health (health, health-loading, health-error, health-empty) is a dialog the command palette opens
      ("Subscription health…"); the sidebar has no entry for it. It lists unpaused sources that are dead, keep failing,
-     have moved or are rarely read, each with its reason, the last 30 days in numbers and two buttons, Pause and Unsubscribe….
+     have moved, write far more than is read or are rarely read, each with its reason, the last 30 days in numbers and two
+     buttons, Pause and Unsubscribe…. A source that writes a lot and is rarely read (health-noisy) gets Slow down, Pause
+     and Dismiss instead: Slow down sets the pace to Breaking, Dismiss keeps the suggestion away until the numbers double.
      Nothing changes until one is pressed; Unsubscribe… opens the delete confirmation (health-delete).
      Deleting acts at once after the confirmation, which says the delete can be undone for a few seconds. The
      subscription leaves the sidebar and a toast at the bottom (deleted) says "Deleted “The Go Blog”" with Undo and a
@@ -397,7 +401,7 @@ textarea.mute { min-height:56px }
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-public','add-public-no-instance','add-invalid','add-exists','add-searching','add-found-list','add-found-subscribed','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','menu-hidden','edit','edit-failing','edit-blocked','edit-paused','edit-hidden','edit-ai','edit-ai-off','edit-titles','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-proxy','edit-proxy-direct','edit-proxy-custom','edit-proxy-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete','deleted','health','health-loading','health-error','health-empty','health-delete','manage','manage-selected','manage-all','manage-change','manage-change-set','manage-working','manage-partial','manage-delete','manage-deleted','manage-deleted-partial'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-public','add-public-no-instance','add-invalid','add-exists','add-searching','add-found-list','add-found-subscribed','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','menu-hidden','edit','edit-failing','edit-blocked','edit-paused','edit-hidden','edit-ai','edit-ai-off','edit-titles','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-proxy','edit-proxy-direct','edit-proxy-custom','edit-proxy-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','edit-cap','delete','deleted','health','health-loading','health-error','health-empty','health-noisy','health-delete','manage','manage-selected','manage-all','manage-change','manage-change-set','manage-working','manage-partial','manage-delete','manage-deleted','manage-deleted-partial'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -438,6 +442,8 @@ const icons={
   heart:'<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/><path d="M3.22 13H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>',
   checkbig:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
   eyeoff:'<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  volume2:'<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/>',
   eye:'<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
   signpost:'<path d="M12 13v8"/><path d="M12 3v3"/><path d="M18 6a2 2 0 0 1 1.387.56l2.307 2.22a1 1 0 0 1 0 1.44l-2.307 2.22A2 2 0 0 1 18 13H6a2 2 0 0 1-1.387-.56l-2.306-2.22a1 1 0 0 1 0-1.44l2.306-2.22A2 2 0 0 1 6 6z"/>',
   search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
@@ -474,6 +480,8 @@ const copy={
     proxyAuthHelp:'Only if the proxy asks for them. Kept on the server and never shown again.', proxyError:'That is not a proxy address. Use http, https, socks5 or socks5h with a host name and a port, and no path or sign-in in it.',
     extractRewrites:'Link rewrites', extractRewritesHelp:'One per line, from => to: a host or address prefix. Top to bottom.',
     pace:'Pace', paceOff:'Off', paceHelp:'Unread entries fade, then leave All and Unread.',
+    cap:'At most per day', capN:'{n} entries', capHelp:'Extra entries fold into one row in All and Unread until you open it.',
+    healthNoisy:'{n} a day, you read {p}%', noisySlow:'Slow down', noisySlowSource:'Slow down {name}', noisyDismissSource:'Dismiss the suggestion for {name}',
     feed:'Feed', viaRsshub:'RSSHub route',
     found:{bilibili:'Bilibili · videos of user 2267573', feed:'Feed at go.dev', route:'RSSHub route'},
     searchingRoutes:'Looking for RSSHub routes…', foundRoutes:'Found {n} routes. Choose one.', preview:'Preview', previewOf:'Latest from “Issues · rsshub/rsshub”', noCatalog:'Can’t read the route catalog of your RSSHub. Type a route yourself, for example /github/issue/user/repo.',
@@ -538,6 +546,8 @@ const copy={
     proxyAuthHelp:'代理要求时才填。存在服务端，存好后不再显示。', proxyError:'这不是代理地址。请用 http、https、socks5 或 socks5h，带主机名和端口，不要带路径或登录信息。',
     extractRewrites:'链接改写', extractRewritesHelp:'每行一条，from => to：主机或地址前缀，从上到下应用。',
     pace:'节奏', paceOff:'关闭', paceHelp:'未读条目会逐渐变淡，到期后离开全部和未读。',
+    cap:'每天最多', capN:'{n} 条', capHelp:'超出的条目在全部和未读里折成一行，点开才展开。',
+    healthNoisy:'每天 {n} 条，你读了 {p}%', noisySlow:'放慢', noisySlowSource:'放慢 {name}', noisyDismissSource:'忽略 {name} 的提示',
     feed:'订阅地址', viaRsshub:'RSSHub 路由',
     found:{bilibili:'哔哩哔哩 · 用户 2267573 的视频', feed:'go.dev 的订阅', route:'RSSHub 路由'},
     searchingRoutes:'正在找 RSSHub 路由…', foundRoutes:'找到 {n} 条路由，选一条。', preview:'预览', previewOf:'「Issues · rsshub/rsshub」的最新内容', noCatalog:'读不到 RSSHub 的路由目录。直接填路由，比如 /github/issue/用户/仓库。',
@@ -596,7 +606,7 @@ const sources=[
   {kind:'image',name:'NASA APOD',mono:'N',unread:1,fav:favs.nasa},
 ];
 const empty=state==='empty';
-const editing=['menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-hidden','menu-hidden','edit-ai','edit-ai-off','edit-titles','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete'].includes(state);
+const editing=['menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-hidden','menu-hidden','edit-ai','edit-ai-off','edit-titles','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','edit-cap','delete'].includes(state);
 const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
 const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.hidden?`<span class="hidden" role="img" aria-label="${copy.hiddenMark}">${icon('eyeoff')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.filter((s,i)=>!(state==='deleted'&&i===1)).map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
@@ -712,6 +722,7 @@ function editDialog(){
       ${select(copy.openTarget,state==='edit-open'?copy.openBrowser:copy.openFollow).replace('</div></div>',`</div><span class="help" id="oh">${copy.openHelp}</span></div>`)}
       ${select(copy.keep,copy.keepFollow).replace('</div></div>',`</div><span class="help">${copy.keepHelp}</span></div>`)}
       ${select(copy.pace,copy.paceOff).replace('</div></div>',`</div><span class="help">${copy.paceHelp}</span></div>`)}
+      ${select(copy.cap,state==='edit-cap'?fill(copy.capN,{n:20}):copy.paceOff).replace('</div></div>',`</div><span class="help" id="ch">${copy.capHelp}</span></div>`)}
       <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" class="mute" aria-describedby="mh mc">${state==='edit-mute-none'?(lang==='en'?'giveaway':'抽奖'):lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span><span class="help count" id="mc" role="status">${state==='edit-mute-none'?copy.muteNone:copy.muteHidden.replace('{n}','7')}</span></div>
       <h3 class="group-title">${icon('sparkles')}${copy.aiGroup}</h3>
       ${state==='edit-ai-off'?`<div class="health" role="status">${icon('alert')}<span>${copy.aiOff}</span><button class="button small">${copy.openSettings}</button></div>`:''}
@@ -731,6 +742,7 @@ const flagged=[
   {kind:'article',name:'Daily Haiku',mono:'D',state:'dead',reason:fill(copy.healthDead,{n:41}),error:'HTTP 404 Not Found',recent:0,read:0,starred:0},
   {kind:'social',name:'@weatherbot',mono:'W',state:'failing',reason:fill(copy.healthFailing,{n:5}),error:'HTTP 503 Service Unavailable',recent:48,read:6,starred:0},
   {kind:'article',name:'Go Weekly',mono:'G',state:'moved',reason:fill(copy.healthMoved,{to:'https://go.dev/blog/feed.atom'}),recent:6,read:5,starred:0},
+  {kind:'article',name:'Daily Digest',mono:'D',state:'noisy',reason:fill(copy.healthNoisy,{n:23,p:2}),recent:700,read:14,starred:0},
   {kind:'article',name:'News Firehose',mono:'N',state:'rare',reason:fill(copy.healthRare,{read:3,recent:120,days:30}),recent:120,read:3,starred:1},
 ];
 function healthDialog(){
@@ -738,7 +750,7 @@ function healthDialog(){
   if(state==='health-loading')body=`<div class="status" role="status">${icon('loader','spin')}<span>${copy.healthChecking}</span></div>`;
   else if(state==='health-error')body=`<div class="status" role="alert"><span class="error">${icon('alert')}${copy.healthError}</span><button class="button small">${icon('refresh')}${copy.retry}</button></div>`;
   else if(state==='health-empty')body=`<div class="status ok" role="status">${icon('checkbig')}<b>${copy.healthOk}</b></div>`;
-  else body=`<ul style="list-style:none;margin:0;padding:0">${flagged.map(f=>`<li class="hrow"><span class="mono k-${f.kind}">${f.mono}</span><div class="who"><span class="name">${f.name}</span><span class="reason${f.state==='rare'||f.state==='moved'?' quiet':''}">${icon(f.state==='rare'?'eye':f.state==='moved'?'signpost':f.state==='failing'?'triangle':'alert')}<span>${f.reason}${f.error?`: ${f.error}`:''}</span></span><span class="numbers">${fill(copy.healthNumbers,{recent:f.recent,read:f.read,starred:f.starred})}</span></div><div class="actions">${f.state==='moved'?`<button class="button small" aria-label="${fill(copy.movedUpdateSource,{name:f.name})}">${copy.movedUpdate}</button><button class="button small quiet" aria-label="${fill(copy.movedDismissSource,{name:f.name})}">${copy.movedDismiss}</button>`:`<button class="button small" aria-label="${fill(copy.pauseSource,{name:f.name})}">${icon('pause')}${copy.pause}</button><button class="button small quiet" aria-label="${fill(copy.unsubscribeSource,{name:f.name})}">${icon('trash')}${copy.unsubscribe}</button>`}</div></li>`).join('')}</ul>`;
+  else body=`<ul style="list-style:none;margin:0;padding:0">${flagged.filter(f=>state==="health-noisy"||f.state!=="noisy").sort((a,b)=>state==="health-noisy"?(b.state==="noisy")-(a.state==="noisy"):0).map(f=>`<li class="hrow"><span class="mono k-${f.kind}">${f.mono}</span><div class="who"><span class="name">${f.name}</span><span class="reason${f.state==='rare'||f.state==='moved'||f.state==='noisy'?' quiet':''}">${icon(f.state==='rare'?'eye':f.state==='noisy'?'volume2':f.state==='moved'?'signpost':f.state==='failing'?'triangle':'alert')}<span>${f.reason}${f.error?`: ${f.error}`:''}</span></span><span class="numbers">${fill(copy.healthNumbers,{recent:f.recent,read:f.read,starred:f.starred})}</span></div><div class="actions">${f.state==='noisy'?`<button class="button small" aria-label="${fill(copy.noisySlowSource,{name:f.name})}">${icon('clock')}${copy.noisySlow}</button><button class="button small" aria-label="${fill(copy.pauseSource,{name:f.name})}">${icon('pause')}${copy.pause}</button><button class="button small quiet" aria-label="${fill(copy.noisyDismissSource,{name:f.name})}">${copy.movedDismiss}</button>`:f.state==='moved'?`<button class="button small" aria-label="${fill(copy.movedUpdateSource,{name:f.name})}">${copy.movedUpdate}</button><button class="button small quiet" aria-label="${fill(copy.movedDismissSource,{name:f.name})}">${copy.movedDismiss}</button>`:`<button class="button small" aria-label="${fill(copy.pauseSource,{name:f.name})}">${icon('pause')}${copy.pause}</button><button class="button small quiet" aria-label="${fill(copy.unsubscribeSource,{name:f.name})}">${icon('trash')}${copy.unsubscribe}</button>`}</div></li>`).join('')}</ul>`;
   return `<div class="scrim"><div class="dialog wide" role="dialog" aria-labelledby="dt">
     <header><div class="tile" style="width:32px;height:32px;border-radius:8px">${icon('heart')}</div><div class="titles"><h2 id="dt">${copy.healthTitle}</h2><p>${copy.healthSub}</p></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>
     <div class="form">${body}</div>
@@ -825,6 +837,7 @@ if(form){
   const edges=()=>{const d=form.closest('.dialog');d.classList.toggle('scrolled',form.scrollTop>0);d.classList.toggle('more',form.scrollTop+form.clientHeight<form.scrollHeight-1)};
   form.addEventListener('scroll',edges);
   if(state.startsWith('edit-ai')||state==='edit-titles')form.scrollTop=1e4;
+  if(state==='edit-cap')document.getElementById('ch').scrollIntoView({block:'center'});
   if(state==='edit-open')document.getElementById('oh').scrollIntoView({block:'center'});
   if(state==='edit-extract')document.getElementById('xg').scrollIntoView({block:'center'});
   if(state.startsWith('edit-proxy'))document.getElementById('pg').scrollIntoView({block:'center'});

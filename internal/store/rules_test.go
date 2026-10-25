@@ -546,6 +546,11 @@ func TestMigrationMovesTheSourceOfARuleToTheJoinTable(t *testing.T) {
 		"ALTER TABLE entries DROP COLUMN title_tr_status",
 		"ALTER TABLE entries DROP COLUMN title_tr_attempts",
 		"ALTER TABLE entries DROP COLUMN title_tr_at",
+		"DROP TRIGGER entries_unfold",
+		"DROP INDEX entries_folded",
+		"ALTER TABLE entries DROP COLUMN folded",
+		"ALTER TABLE sources DROP COLUMN daily_cap",
+		"ALTER TABLE sources DROP COLUMN noisy_dismissed",
 		"ALTER TABLE sources DROP COLUMN translate_titles",
 		"PRAGMA user_version = 28",
 	} {
