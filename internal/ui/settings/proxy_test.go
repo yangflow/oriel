@@ -136,16 +136,29 @@ func TestProxyAddressChangeClearsSignIn(t *testing.T) {
 	}
 }
 
+// TestRemoveProxySignIn shows Remove sign-in waits for Save: it sends nothing, the badge, the placeholder and the
+// button show the removal is pending, and Save, now primary, sends the empty user name and password.
 func TestRemoveProxySignIn(t *testing.T) {
 	s, f, tt := openProxy(t, "en", client.Settings{ProxyURL: "http://proxy.example:8080", ProxyAuthSet: true})
 	f.set = nil
+	if s.proxyDirty() || !tt.HasText(s.text.KeySet) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
 	press(t, tt, s.text.ProxyRemoveAuth)
+	f.settle(tt)
+	if len(f.set) != 0 || !s.proxyDrop || !s.proxyDirty() || !s.unsaved() {
+		t.Fatalf("sent %+v, drop %v", f.set, s.proxyDrop)
+	}
+	if tt.HasText(s.text.KeySet) || !tt.HasText(s.text.KeyUnset) || tt.HasText(s.text.ProxyRemoveAuth) {
+		t.Fatalf("a pending removal is not shown: %v", tt.Texts())
+	}
+	submitProxy(tt, s)
 	f.settle(tt)
 	if len(f.set) != 1 || f.set[0].ProxyURL != nil || f.set[0].ProxyUser == nil || *f.set[0].ProxyUser != "" ||
 		f.set[0].ProxyPassword == nil || *f.set[0].ProxyPassword != "" {
 		t.Fatalf("patch %+v", f.set)
 	}
-	if s.settings.ProxyAuthSet || s.settings.ProxyURL != "http://proxy.example:8080" || !tt.HasText(s.text.ProxyAuthRemoved) ||
+	if s.settings.ProxyAuthSet || s.proxyDrop || s.settings.ProxyURL != "http://proxy.example:8080" || !tt.HasText(s.text.ProxyAuthRemoved) ||
 		tt.HasText(s.text.ProxyRemoveAuth) || !tt.HasText(s.text.KeyUnset) {
 		t.Fatalf("settings %+v, texts %v", s.settings, tt.Texts())
 	}

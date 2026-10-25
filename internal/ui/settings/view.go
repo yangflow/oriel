@@ -53,7 +53,7 @@ type copy struct {
 	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry                             string
 	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset             string
 	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested              string
-	Proxy, ProxyLead, ProxyAddress, ProxyHelp, ProxyPlaceholder, ProxyExample, ProxyAuth, ProxyAuthHelp, ProxyUser,
+	Proxy, ProxyAddress, ProxyHelp, ProxyPlaceholder, ProxyExample, ProxyAuth, ProxyAuthHelp, ProxyUser,
 	ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyChanged, InvalidProxy, InvalidProxyAuth, ProxySaved, ProxyAuthRemoved,
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase string
 	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                                                                                                                                                                                                                                         string
@@ -314,6 +314,7 @@ type Screen struct {
 	proxy                  string // the proxy address as typed
 	proxyUser, proxyPass   string // the sign-in as typed; the one saved is never sent back
 	proxySaving            bool
+	proxyDrop              bool // Remove sign-in was pressed; saving deletes the stored sign-in
 	proxyInvalid           bool // the server refused the address
 	focusProxy             bool
 	proxyStatus            status
@@ -396,7 +397,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.autoSaving, s.autoStatus = false, status{}
 	s.grouping = false
 	s.saving, s.keeping, s.aiSaving, s.testing, s.promptSaving = false, false, false, false, false
-	s.proxySaving = false
+	s.proxySaving, s.proxyDrop = false, false
 	s.state, s.deviceState, s.restored = loading, loading, nil
 	s.activity, s.storage, s.actState, s.actBusy, s.actOpen = client.Activity{}, client.Storage{}, loading, false, 0
 	s.vacStarting, s.vacError, s.actAt = false, "", time.Time{}
@@ -453,7 +454,7 @@ func (s *Screen) Open() {
 	s.baseStatus, s.keepStatus, s.invalid, s.revoking = status{}, status{}, false, false
 	s.dropCopy = false
 	s.aiStatus, s.promptStatus, s.aiInvalid, s.aiChecks = status{}, status{}, false, nil
-	s.proxyStatus, s.proxyInvalid = status{}, false
+	s.proxyStatus, s.proxyInvalid, s.proxyDrop = status{}, false, false
 	s.autoStatus = status{}
 	if !s.busy {
 		s.result = result{}
@@ -475,7 +476,7 @@ func (s *Screen) expired(err error) bool {
 	s.dropCopy, s.dropping = false, false
 	s.working, s.confirming, s.backupFile = "", false, ""
 	s.autoSaving = false
-	s.aiSaving, s.testing, s.promptSaving, s.proxySaving = false, false, false, false
+	s.aiSaving, s.testing, s.promptSaving, s.proxySaving, s.proxyDrop = false, false, false, false, false
 	s.actBusy, s.vacStarting = false, false
 	s.health, s.healthShown = client.RSSHubHealth{}, false
 	s.reader = reader{}
@@ -715,30 +716,37 @@ func (s *Screen) aiDirty() bool {
 		strings.TrimSpace(s.aiKey) != "" || s.aiLanguage != s.settings.AILanguage || s.limitsDirty()
 }
 
-// proxyDirty reports whether the proxy address changed or a user name or password is typed.
+// proxyDirty reports whether the proxy address changed, a user name or password is typed, or the removal of the
+// stored sign-in is waiting for Save.
 func (s *Screen) proxyDirty() bool {
-	return strings.TrimSpace(s.proxy) != s.settings.ProxyURL || s.proxyUser != "" || s.proxyPass != ""
+	return strings.TrimSpace(s.proxy) != s.settings.ProxyURL || s.proxyUser != "" || s.proxyPass != "" || s.proxyDrop
 }
 
-// saveProxy saves the proxy, or removes its sign-in; only what changed is sent. An address changed without a new
-// sign-in leaves the sign-in out, and the server drops the old one.
-func (s *Screen) saveProxy(removeAuth bool) {
-	if s.proxySaving || s.api == nil || s.state != loaded || !removeAuth && !s.proxyDirty() {
+// proxyAuthKept reports whether the stored sign-in stays after Save as things are now.
+func (s *Screen) proxyAuthKept() bool {
+	return s.settings.ProxyAuthSet && !s.proxyDrop
+}
+
+// saveProxy saves the proxy; only what changed is sent. A pending removal sends an empty user name and password.
+// An address changed without a new sign-in leaves the sign-in out, and the server drops the old one.
+func (s *Screen) saveProxy() {
+	if s.proxySaving || s.api == nil || s.state != loaded || !s.proxyDirty() {
 		return
 	}
 	var patch client.SettingsPatch
-	if removeAuth {
+	address := strings.TrimSpace(s.proxy)
+	removeOnly := s.proxyDrop && address == s.settings.ProxyURL && s.proxyUser == "" && s.proxyPass == ""
+	if address != s.settings.ProxyURL {
+		patch.ProxyURL = &address
+	}
+	if s.proxyDrop {
 		patch.ProxyUser, patch.ProxyPassword = new(string), new(string)
-	} else {
-		if address := strings.TrimSpace(s.proxy); address != s.settings.ProxyURL {
-			patch.ProxyURL = &address
-		}
-		if user := s.proxyUser; user != "" {
-			patch.ProxyUser = &user
-		}
-		if pass := s.proxyPass; pass != "" {
-			patch.ProxyPassword = &pass
-		}
+	}
+	if user := s.proxyUser; user != "" {
+		patch.ProxyUser = &user
+	}
+	if pass := s.proxyPass; pass != "" {
+		patch.ProxyPassword = &pass
 	}
 	s.proxySaving, s.proxyStatus, s.proxyInvalid = true, status{}, false
 	gen, api := s.gen, s.api
@@ -752,8 +760,8 @@ func (s *Screen) saveProxy(removeAuth bool) {
 			switch {
 			case err == nil:
 				s.settings.ProxyURL, s.settings.ProxyAuthSet = settings.ProxyURL, settings.ProxyAuthSet
-				s.proxy, s.proxyUser, s.proxyPass = settings.ProxyURL, "", ""
-				if removeAuth {
+				s.proxy, s.proxyUser, s.proxyPass, s.proxyDrop = settings.ProxyURL, "", "", false
+				if removeOnly {
 					s.proxyStatus = status{ok: true, text: s.text.ProxyAuthRemoved}
 				} else {
 					s.proxyStatus = status{ok: true, text: s.text.ProxySaved}
@@ -2141,11 +2149,10 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 func (s *Screen) proxyCard(c *ui.Context) {
 	t := c.Theme()
 	sectionTitle(c, s.text.Proxy, theme.Px(t, 28))
-	ui.Text(c, s.text.ProxyLead).TextColor(t.TextMuted).Wrap().MaxWidth(theme.Px(t, 600)).Margin(0, 0, theme.Px(t, 12), 0)
 	before := [...]string{s.proxy, s.proxyUser, s.proxyPass}
 	submit := func(in ui.Element) {
 		if in.Submitted() {
-			s.saveProxy(false)
+			s.saveProxy()
 		}
 	}
 	card(c, func() {
@@ -2171,7 +2178,7 @@ func (s *Screen) proxyCard(c *ui.Context) {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
 			ui.Text(c, s.text.ProxyAuth).FontWeight(500).Shrink(1).MinWidth(0)
 			badge, fill, color := s.text.KeyUnset, theme.Track(t), theme.Text2(t)
-			if s.settings.ProxyAuthSet {
+			if s.proxyAuthKept() {
 				badge, fill, color = s.text.KeySet, theme.Soft(t, t.Accent), t.Accent
 			}
 			ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 18))).Center().Background(fill).Children(func() {
@@ -2180,7 +2187,7 @@ func (s *Screen) proxyCard(c *ui.Context) {
 		})
 		ui.Text(c, s.text.ProxyAuthHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 4), 0, 0, 0)
 		placeholder := s.text.ProxyOptional
-		if s.settings.ProxyAuthSet {
+		if s.proxyAuthKept() {
 			placeholder = s.text.ProxySet
 		}
 		ui.Row(c).FillWidth().Gap(t.Space(2)).Margin(theme.Px(t, 12), 0, 0, 0).Children(func() {
@@ -2193,13 +2200,13 @@ func (s *Screen) proxyCard(c *ui.Context) {
 				submit(in)
 			}))
 		})
-		if s.settings.ProxyAuthSet {
+		if s.proxyAuthKept() {
 			remove := theme.Button{Style: theme.Secondary, Small: true, Disabled: s.proxySaving, Text: s.text.ProxyRemoveAuth}.Draw(c)
 			if remove.Clicked() {
-				s.saveProxy(true)
+				s.proxyDrop, s.proxyStatus = true, status{}
 			}
 		}
-		if s.settings.ProxyAuthSet && strings.TrimSpace(s.proxy) != s.settings.ProxyURL && s.proxyUser == "" && s.proxyPass == "" {
+		if s.proxyAuthKept() && strings.TrimSpace(s.proxy) != s.settings.ProxyURL && s.proxyUser == "" && s.proxyPass == "" {
 			statusLine(c, status{warn: true, text: s.text.ProxyChanged})
 		}
 	}, func() {
@@ -2216,7 +2223,7 @@ func (s *Screen) proxyCard(c *ui.Context) {
 			}
 			save := theme.Button{Style: style, Disabled: !dirty || s.proxySaving, Text: s.text.Save, Busy: s.proxySaving}.Draw(c)
 			if save.Clicked() {
-				s.saveProxy(false)
+				s.saveProxy()
 			}
 		})
 	})
