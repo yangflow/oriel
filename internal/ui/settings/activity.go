@@ -186,7 +186,7 @@ func (s *Screen) preMigrateRow(c *ui.Context) {
 	})
 }
 
-// dropCopyDialog asks to delete the copy. Cancel is the default.
+// dropCopyDialog asks to delete the copy. Escape cancels; nothing is deleted until Delete is chosen.
 func (s *Screen) dropCopyDialog(c *ui.Context) {
 	if !s.dropCopy {
 		return
