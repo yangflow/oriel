@@ -201,7 +201,9 @@ func TestProxyErrorsCarryNoProxyDetails(t *testing.T) {
 		t.Fatalf("a refusing proxy: %v", err)
 	}
 
-	// A proxy nobody listens on.
+	// A proxy nobody listens on. The target starts first: started after the dead port closed, it could reuse that port
+	// and answer as the proxy.
+	reachable := target(t).URL
 	dead, _ := net.Listen("tcp", "127.0.0.1:0")
 	address := dead.Addr().String()
 	dead.Close()
@@ -209,7 +211,7 @@ func TestProxyErrorsCarryNoProxyDetails(t *testing.T) {
 	n = NewNetwork(st)
 	n.refuse = func(netip.AddrPort) bool { return false }
 	client, _ = n.Guarded(context.Background(), store.SourceProxy{}, direct)
-	_, err = body(t, client, target(t).URL)
+	_, err = body(t, client, reachable)
 	if err == nil || !strings.Contains(err.Error(), "cannot reach the proxy") {
 		t.Fatalf("a dead proxy: %v", err)
 	}
