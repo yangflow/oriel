@@ -42,7 +42,7 @@ type copy struct {
 	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                        string
 	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint         string
 	SelectionAIOff, ExplanationReady, TranslateDone, LanguageZhHans, LanguageEn                                   string
-	AlsoHead                                                                                                      string
+	AlsoHead, Revised, ShowChanges, HideChanges, Changes, Removed, Added, Unchanged, TitleLabel                   string
 	ExitImmersive, FindLabel                                                                                      string
 	BackToText, Footnote, TableName                                                                               string
 	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles        string
@@ -73,6 +73,7 @@ type API interface {
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
 	RetryExtraction(ctx context.Context, id int64) (client.Article, error)
 	Selection(ctx context.Context, task, text, title string) (answer, model string, err error)
+	Revision(ctx context.Context, id int64) (client.Revision, error)
 }
 
 // Deps is what the reader does outside itself. Go runs work away from the UI thread and then the function it returns
@@ -199,6 +200,7 @@ type Screen struct {
 	nth     int
 	viewTop float32
 
+	rev        revision // the notice of an article that was updated, and what changed
 	jobs       [2]job
 	sel        selection
 	find       find // the find row and its matches
@@ -421,6 +423,7 @@ func (s *Screen) Open(e client.Entry) {
 		s.load(false)
 	}
 	s.loadAI(true)
+	s.loadRevision(e)
 }
 
 // load asks for the article; poll asks again while its text is being got, keeping what shows when that fails.
@@ -1318,6 +1321,7 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 			s.plain(c, &s.titleSet, title, unitTitle, s.han, size, tracking).FontSize(size).FontWeight(600).LineHeight(line).
 				LetterSpacing(tracking).TextColor(t.Text).Wrap().Margin(theme.Px(t, 12), 0, 0, 0).Role(ui.RoleHeading).Level(1)
 			s.alsoLine(c, e)
+			s.revisedLine(c, e)
 			if s.jobs[translation].on {
 				s.translationNote(c)
 			}

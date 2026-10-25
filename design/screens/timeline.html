@@ -168,6 +168,9 @@
      Like the budget it is a view filter that marks nothing and hides the unread count, but Mark all as read stays
      on and then marks only what the list holds. Below 760 (size=min) the chip is the icon with a dot. T cycles it (keys).
      The bar above the window only switches the mockup.
+     revised: an article its feed changed after it was first fetched (docs/product.md, Entry revisions) shows a quiet
+     "Updated" with a pencil icon in the meta line, after the time and before the reading time; a read row keeps its
+     read look and the marker, and is not unread again. The row's accessible name ends with "Updated".
      Reading time: a row's meta line ends with a quiet "6 min read" after the time, for an article or a post whose estimate is
      a minute or more; a video, an image and anything shorter show none. The clock button right of the segments narrows
      the list to what fits the time you have (time-menu: Any length, 5, 10, 15, 30 minutes, the current one checked;
@@ -434,6 +437,8 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding:0 1px; text-decoration:underline; text-decoration-thickness:1.5px; text-underline-offset:2px }
 .read mark { color:var(--text2) }
 .star-mark { color:var(--star) }
+.revised-mark { flex:none; display:inline-flex; align-items:center; gap:3px; white-space:nowrap; color:var(--text2) }
+.revised-mark svg.icon { width:12px; height:12px }
 .star-mark svg.icon { width:14px; height:14px }
 
 .pic { position:relative; flex:none; overflow:hidden; border-radius:8px; background-color:var(--surface); outline:.5px solid rgba(var(--ink),.10); outline-offset:-.5px }
@@ -667,7 +672,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
+const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled','revised'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -775,7 +780,7 @@ const copy={
     unreadDone:'All caught up', unreadDoneHint:'No unread entries here.',
     noStarred:'No starred entries', noStarredHint:'Star an entry to keep it here.',
     empty:'Nothing here yet', emptyHint:'New entries show up after the next fetch.',
-    readMin:'{n} min read', timeTitle:'Reading time', timeAny:'Any length', timeUpTo:'Up to {n} minutes', timeChip:'≤ {n} min',
+    readMin:'{n} min read', revised:'Updated', timeTitle:'Reading time', timeAny:'Any length', timeUpTo:'Up to {n} minutes', timeChip:'≤ {n} min',
     orderNewest:'Newest first', orderOldest:'Oldest first', orderNote:'Oldest first: new entries appear at the end of the list',
     showGrid:'Show as grid', showList:'Show as list', timeName:'Reading time: any length', timeNameUpTo:'Reading time: up to {n} minutes',
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
@@ -812,7 +817,7 @@ const copy={
     unreadDone:'都读完了', unreadDoneHint:'这里没有未读条目。',
     noStarred:'还没有收藏', noStarredHint:'收藏的条目会留在这里。',
     empty:'这里还没有条目', emptyHint:'下次抓取之后，新条目会出现在这里。',
-    readMin:'{n} 分钟阅读', timeTitle:'阅读时长', timeAny:'不限时长', timeUpTo:'{n} 分钟内', timeChip:'≤ {n} 分钟',
+    readMin:'{n} 分钟阅读', revised:'已更新', timeTitle:'阅读时长', timeAny:'不限时长', timeUpTo:'{n} 分钟内', timeChip:'≤ {n} 分钟',
     orderNewest:'最新的在前', orderOldest:'最旧的在前', orderNote:'最旧的在前时，新条目出现在列表末尾',
     showGrid:'以网格显示', showList:'以列表显示', timeName:'阅读时长：不限', timeNameUpTo:'阅读时长：{n} 分钟内',
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
@@ -955,6 +960,14 @@ const feedMenu=state.startsWith('menu-feed');
 const menuSource=byId[state==='menu-feed-none'?3:2];
 const markedScrolledCount=entries.slice(0,4).filter(e=>!e.read).length;
 const markedVisibleCount=entries.slice(0,8).filter(e=>!e.read).length;
+// Revised: the feed changed these two articles after they were first fetched. One is unread; the other was read and
+// stays read, with the marker.
+if(state==='revised'){
+  const articles=entries.filter(e=>e.kind==='article');
+  articles[0].revised=true;
+  const old=articles[articles.length-1];old.revised=true;
+  if(!old.read){old.read=true;byId[old.source].unread--}
+}
 if(state==='marked-visible'){entries.slice(0,8).forEach(e=>{if(!e.read){e.read=true;byId[e.source].unread--}})}
 if(state==='marked-scrolled'){entries.slice(0,4).forEach(e=>{if(!e.read){e.read=true;byId[e.source].unread--}})}
 if(state==='marked-above'){entries.slice(0,2).forEach(e=>{e.read=true;byId[e.source].unread--})}
@@ -1032,7 +1045,8 @@ const pendingMark=e=>remindMark(e)+(e.pending?`<span class="pending-mark" role="
 const alsoOpen=state==='grouped-open';
 const alsoChip=e=>e.also?`<button class="also${e===entries[1]&&state==='grouped'?' hover':''}" aria-expanded="${alsoOpen}" aria-label="${t('alsoName',{n:e.also.length})}">${icon('layers')}<span>${t('alsoChip',{n:e.also.length})}</span></button>`:'';
 const alsoList=e=>e.also&&alsoOpen?`<div class="also-list" role="list" aria-label="${copy.alsoHead}">${e.also.map((a,k)=>`<div class="also-row${k===0?' hover':''}" role="listitem" tabindex="0">${glyph(byId[a.source])}<span class="src">${byId[a.source].name}</span><span class="atitle">${a.title}</span><span class="when">${a.when}</span></div>`).join('')}</div>`:'';
-const meta=(e,prefix='')=>{const s=byId[e.source];return `<div class="meta">${prefix}${glyph(s)}<span class="src">${s.name}</span><span class="sep"></span><span class="when">${e.when}</span>${alsoChip(e)}${readMin(e)?`<span class="sep"></span><span class="read-time">${t('readMin',{n:readMin(e)})}</span>`:''}${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}${pendingMark(e)}</div>`};
+const revisedMark=()=>`<span class="revised-mark">${icon('pencil')}<span>${copy.revised}</span></span>`;
+const meta=(e,prefix='')=>{const s=byId[e.source];return `<div class="meta">${prefix}${glyph(s)}<span class="src">${s.name}</span><span class="sep"></span><span class="when">${e.when}</span>${alsoChip(e)}${e.revised?`<span class="sep"></span>${revisedMark()}`:''}${readMin(e)?`<span class="sep"></span><span class="read-time">${t('readMin',{n:readMin(e)})}</span>`:''}${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}${pendingMark(e)}</div>`};
 const pictures=list=>{
   if(list.length===1)return `<div class="grid n1"><div class="pic ${list[0]}">${failedPic(list[0])}</div></div>`;
   if(list.length===2)return `<div class="grid n2">${list.map(g=>`<div class="pic ${g}">${failedPic(g)}</div>`).join('')}</div>`;

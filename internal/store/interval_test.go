@@ -60,6 +60,7 @@ func TestMigrationMakesDefaultIntervalAuto(t *testing.T) {
 		"ALTER TABLE sources DROP COLUMN fetch_user_agent",
 		"ALTER TABLE sources DROP COLUMN fetch_referer",
 		"ALTER TABLE sources DROP COLUMN open_target",
+		"DROP TABLE entry_revisions",
 		"ALTER TABLE sources DROP COLUMN hide_from_all",
 		"DROP INDEX entries_remind",
 		"ALTER TABLE entries DROP COLUMN remind_at",

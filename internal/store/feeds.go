@@ -266,6 +266,11 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 		return 0, err
 	}
 	defer addAI.Close()
+	revisions, err := newRevisionReader(ctx, tx)
+	if err != nil {
+		return 0, err
+	}
+	defer revisions.close()
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
 		var extracted string // the full text of an entry that already has it
@@ -305,6 +310,11 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 			}
 			created++
 			isNew = true
+		}
+		if !isNew {
+			if err := revisions.keep(ctx, src.ID, e, now); err != nil {
+				return 0, err
+			}
 		}
 		images := e.Images
 		if images == nil {

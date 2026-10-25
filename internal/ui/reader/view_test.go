@@ -56,12 +56,14 @@ type fake struct {
 	setErr error   // what SetEntry answers with
 	saved  []saved // the reading positions stored, in order
 
-	selected  []string // the tasks and texts asked about a selection, as "task: text"
-	selTitles []string // the titles sent with them
-	selReply  string   // the answer to a selection
-	selErr    error
-	saveTo    string   // the path the save dialog gives, "" when it is cancelled
-	dialogs   []string // the file name and filter the save dialog was asked for
+	selected    []string // the tasks and texts asked about a selection, as "task: text"
+	selTitles   []string // the titles sent with them
+	selReply    string   // the answer to a selection
+	selErr      error
+	revision    client.Revision // the earlier version of the entry, and the error asking for it
+	revisionErr error
+	saveTo      string   // the path the save dialog gives, "" when it is cancelled
+	dialogs     []string // the file name and filter the save dialog was asked for
 }
 
 // saved is a reading position the reader stored.
@@ -139,6 +141,11 @@ func (f *fake) RetryExtraction(ctx context.Context, id int64) (client.Article, e
 	}
 	f.article = f.retryTo
 	return f.retryTo, nil
+}
+
+func (f *fake) Revision(ctx context.Context, id int64) (client.Revision, error) {
+	f.record("revision", ctx)
+	return f.revision, f.revisionErr
 }
 
 func (f *fake) deps() Deps {

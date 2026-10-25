@@ -26,6 +26,12 @@
      warm ink glass in both schemes, the article is paper set in the system sans, and Summarize and Translate are the one
      glass capsule; the other controls are bare icons (docs/design.md, Title bar).
      The header line ends with the reading time after the date ("6 min read"), the same label as in the timeline row.
+     revised, revised-open: the article was changed by its feed after it was first fetched (docs/product.md, Entry
+     revisions). A quiet note under the title, "Updated Oct 20, 09:12" with a pencil icon, and a "See changes"
+     disclosure on the right. Open, it lists the changed paragraphs: removed ones on a Danger tint with a minus sign,
+     the word "Removed" and a strike-through; added ones on an Accent tint with a plus sign and the word "Added"; a
+     title change carries "· Title" in its word. Color is never the only cue: a screen reader reads each row as
+     "Removed: text". Unchanged paragraphs fold into one muted line, "5 unchanged paragraphs".
      The bar above the window only switches the mockup.
      Copy link (docs/product.md, Copy link): the toolbar button after Open in browser (link icon, "Copy link"; dimmed with the other
      article buttons) puts the entry's original address on the clipboard and a toast says "Link copied" (link-copied), which
@@ -244,6 +250,20 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .page h1 { margin:12px 0 0; font-size:24px; line-height:1.28; font-weight:600; letter-spacing:-.015em; text-wrap:pretty; color:var(--text) }
 .min .page h1 { font-size:21px }
 :root:lang(zh-Hans) .page h1 { line-height:1.42; letter-spacing:-.005em }
+.revised .note { margin:12px 0 0; align-items:center }
+.revised .note svg.icon { margin-top:0 }
+.revised .textlink { font:inherit; font-size:12px; color:var(--accent); text-decoration:underline; text-underline-offset:3px }
+.changes { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:6px; font-size:13px; line-height:1.55 }
+.change { display:flex; gap:8px; align-items:baseline; padding:8px 12px; border-radius:10px }
+.change.removed { background:var(--danger-soft) }
+.change.added { background:var(--accent-soft) }
+.change .sign { flex:none; width:12px; font-weight:600; text-align:center }
+.change.removed .sign, .change.removed .word { color:var(--danger) }
+.change.added .sign, .change.added .word { color:var(--accent) }
+.change .word { flex:none; font-size:11px; font-weight:600; letter-spacing:.02em }
+.change .text { flex:1; min-width:0; color:var(--text) }
+.change.removed .text { text-decoration:line-through; text-decoration-color:color-mix(in srgb,var(--danger) 55%,transparent) }
+.changes .unchanged { padding:2px 12px; font-size:12px; color:var(--muted) }
 .also-line { display:flex; align-items:center; flex-wrap:wrap; gap:2px 4px; margin:10px 0 0; font-size:12px; color:var(--muted) }
 .also-line .head { flex:none; margin-right:4px; font-weight:500 }
 .also-line button { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 8px; border-radius:8px; font:inherit; font-size:13px; color:var(--text2) }
@@ -450,7 +470,7 @@ mark.hit.now { background:color-mix(in srgb,var(--warning) 40%,transparent); box
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','immersive','immersive-bar','preset-sepia','preset-mist','width-narrow','width-wide','image-failed','image-unsized','image-settled','image-wrong-size','footnotes','footnote-jump','table','table-wide','embeds','embed-only','embed-only-audio'];
+const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','revised','revised-open','immersive','immersive-bar','preset-sepia','preset-mist','width-narrow','width-wide','image-failed','image-unsized','image-settled','image-wrong-size','footnotes','footnote-jump','table','table-wide','embeds','embed-only','embed-only-audio'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off'],preset:['theme','sepia','mist'],width:['narrow','standard','wide']};
@@ -508,6 +528,7 @@ const icons={
   server:'<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
   laptop:'<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
   chevronLeft:'<path d="m15 18-6-6 6-6"/>',
+  pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
   chevronUp:'<path d="m18 15-6-6-6 6"/>',
   chevronDown:'<path d="m6 9 6 6 6-6"/>',
   triangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
@@ -547,7 +568,7 @@ const copy={
     translationFailed:'Couldn’t translate. {reason}',
     aiCap:'Automatic AI work reached its daily cap, so this was not done. Try it yourself, or raise the cap in Settings.', aiTimeout:'The AI endpoint took too long to answer.', aiUnauthorized:'The AI endpoint turned down the API key. Check it in Settings.',
     aiOff:'Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.',
-    alsoHead:'Also in', noMoreUnread:'No unread articles after this one', resumed:'Back where you left off', aiOffTitle:'AI isn’t set up', openSettings:'Open settings', close:'Close',
+    alsoHead:'Also in', revised:'Updated {time}', showChanges:'See changes', hideChanges:'Hide changes', changes:'Changes', removed:'Removed', added:'Added', unchanged:'{n} unchanged paragraphs', titleLabel:'Title', noMoreUnread:'No unread articles after this one', resumed:'Back where you left off', aiOffTitle:'AI isn’t set up', openSettings:'Open settings', close:'Close',
     translateSel:'Translate selection', explainSel:'Explain selection', copyAction:'Copy', selectAll:'Select All', selTranslation:'Translation', selExplanation:'Explanation',
     find:'Find', matches:'{current} of {total}', noMatches:'No matches', prevMatch:'Previous match', nextMatch:'Next match', done:'Done',
     backToText:'Back to the text', footnote:'Footnote {n}', tableName:'Table, {c} columns, {r} rows',
@@ -574,7 +595,7 @@ const copy={
     translationFailed:'没能翻译。{reason}',
     aiCap:'今天的自动 AI 请求已达上限，所以没有处理这篇。可以自己重试，或在设置里调高上限。', aiTimeout:'AI 接口太久没有响应。', aiUnauthorized:'AI 接口不接受这个 API key，去设置里检查一下。',
     aiOff:'摘要和翻译走你自己选的 AI 接口，例如 OpenAI 或本机的模型。先在设置里配好。',
-    alsoHead:'另见', noMoreUnread:'后面没有未读文章了', resumed:'回到上次读到的位置', aiOffTitle:'还没配置 AI', openSettings:'打开设置', close:'关闭',
+    alsoHead:'另见', revised:'已于 {time} 更新', showChanges:'查看改动', hideChanges:'收起改动', changes:'改动', removed:'删除', added:'新增', unchanged:'{n} 段未改动', titleLabel:'标题', noMoreUnread:'后面没有未读文章了', resumed:'回到上次读到的位置', aiOffTitle:'还没配置 AI', openSettings:'打开设置', close:'关闭',
     translateSel:'翻译所选', explainSel:'解释所选', copyAction:'复制', selectAll:'全选', selTranslation:'译文', selExplanation:'解释',
     find:'查找', matches:'第 {current} 项，共 {total} 项', noMatches:'无匹配项', prevMatch:'上一处匹配', nextMatch:'下一处匹配', done:'完成',
     backToText:'回到正文', footnote:'脚注 {n}', tableName:'表格，{c} 列 {r} 行',
@@ -722,7 +743,16 @@ const tableOf=(zh,wide)=>{
 const feed=zh?cjk(`<p>trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。</p><p><a href="#">继续阅读 →</a></p>`):`<p>The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.</p><p><a href="#">Continue reading →</a></p>`;
 const note=(cls,glyph,text)=>`<div class="note ${cls}" role="note">${icon(glyph,glyph==='loader'?'spin':'')}<span>${text} ${cls?`<a class="link" href="#">${copy.openOriginal}</a>`:''}</span>${cls==='warn'?`<a class="textlink" href="#">${copy.tryAgain}</a>`:''}</div>`;
 const switcher=feedOn=>`<div class="switch"><div class="segmented" role="radiogroup" aria-label="${copy.textSwitch}"><button role="radio" aria-checked="${!feedOn}" class="${feedOn?'':'on'}">${copy.fullText}</button><button role="radio" aria-checked="${feedOn}" class="${feedOn?'on':''}">${copy.feedText}</button></div></div>`;
-const article=(extra,html)=>`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1>${state==='also'?alsoLine():''}${extra}<div class="prose">${html}</div></article>`;
+const article=(extra,html)=>`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1>${state==='also'?alsoLine():''}${state.startsWith('revised')?revisedLine():''}${extra}<div class="prose">${html}</div></article>`;
+const revisedLine=()=>{
+  const open=state==='revised-open', when=zh?'10月20日 09:12':'Oct 20, 09:12';
+  const rows=[['removed',zh?'用 SQLite 做全文检索：分词器的取舍':'Full-text search in SQLite: tokenizer trade-offs',true],
+    ['added',zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer',true],
+    ['removed',zh?'基准测试在 2023 年的数据集上运行。':'Benchmarks ran on the 2023 dataset.'],
+    ['added',zh?'基准测试在 2024 年的数据集上运行，结果见下表。':'Benchmarks ran on the 2024 dataset; results are below.']];
+  const list=rows.map(([kind,text,isTitle])=>{const word=copy[kind]+(isTitle?' · '+copy.titleLabel:'');
+    return `<li class="change ${kind}" aria-label="${word}: ${text}"><span class="sign" aria-hidden="true">${kind==='added'?'+':'−'}</span><span class="word" aria-hidden="true">${word}</span><span class="text" aria-hidden="true">${text}</span></li>`}).join('');
+  return `<div class="revised"><div class="note" role="note">${icon('pencil')}<span class="grow">${t('revised',{time:when})}</span><button class="textlink" aria-expanded="${open}">${open?copy.hideChanges:copy.showChanges}</button></div>${open?`<ul class="changes" aria-label="${copy.changes}">${list}<li class="unchanged">${t('unchanged',{n:5})}</li></ul>`:''}</div>`};
 const alsoLine=()=>{const rows=[[zh?'少数派':'Sspai','sspai',zh?'10月18日 15:02':'Oct 18, 15:02'],['Hacker News',null,zh?'10月19日 08:40':'Oct 19, 08:40']];
   return `<nav class="also-line" aria-label="${copy.alsoHead}"><span class="head">${copy.alsoHead}</span>${rows.map(([n,f,w],k)=>`<button${k===0?' class="hover"':''}><span class="mono" aria-hidden="true">${n[0]}</span><span class="src">${n}</span><span class="when">${w}</span></button>`).join('')}</nav>`};
 const empty=(tile,heading,hint,buttons,cls='')=>`<div class="empty" role="status"><div class="tile ${cls}">${icon(tile,tile==='loader'?'spin':'')}</div><h2>${heading}</h2><p>${hint}</p><div class="buttons">${buttons}</div></div>`;
@@ -809,7 +839,7 @@ switch(state){
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
-  case 'full':case 'preset-sepia':case 'preset-mist':case 'width-narrow':case 'width-wide':case 'no-more-unread':case 'resumed':case 'more-menu':case 'more-narrow':case 'copied':case 'link-copied':case 'scrolled':case 'also':page=article('',full);break;
+  case 'full':case 'preset-sepia':case 'preset-mist':case 'width-narrow':case 'width-wide':case 'no-more-unread':case 'resumed':case 'more-menu':case 'more-narrow':case 'copied':case 'link-copied':case 'scrolled':case 'also':case 'revised':case 'revised-open':page=article('',full);break;
   case 'translate-disabled':page=zh?article('',full):original('');break;
   case 'full-switch':page=article(switcher(false),full);break;
   case 'feed-text':page=article(switcher(true),feed);break;

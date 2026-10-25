@@ -712,6 +712,20 @@ values are in [design/tokens.md](../design/tokens.md). See
   (`Text` under the pointer, with the `Hover` fill) and the time of that copy in 12 `TextMuted`; the line wraps when
   the column is narrow, and there is no line for an article that only one source carries. Drawn in
   `design/screens/reader.html`, `also`.
+- **Updated entries.** An article its feed changed after it was fetched (`docs/product.md`, Entry revisions) shows two
+  quiet signs, never an accent and never a dot. In the timeline row's meta line, after the time and before the reading
+  time, a 12 `pencil` icon and "Updated" in 12 `Text2`; a read row keeps its read look and the marker, and its
+  accessible name ends with "Updated". In the reader, a note under the title (the note of the page: `Surface`, radius
+  12, padded 11 and 14) holds the 14 `pencil` icon, "Updated Oct 20, 09:12" in 12 `Text2` and, at the right, a text
+  button "See changes" in 12 `Accent` (`aria-expanded` follows; "Hide changes" when open). Open, the note is followed
+  by the changed paragraphs, 6 apart, each a box padded 8 and 12 with radius 10: a removed paragraph on `DangerSoft`
+  with a minus sign, the word "Removed" in 11 semibold `Danger` and the old text struck through; an added one on
+  `AccentSoft` with a plus sign, the word "Added" in 11 semibold `Accent` and the new text. A title change carries
+  "· Title" after the word. The sign and the word make color redundant, and a screen reader reads each box as
+  "Removed: text" or "Added: text"; the list is named "Changes". The paragraphs that did not change fold into one
+  12 `TextMuted` line, "5 unchanged paragraphs". The comparison runs in the background, so the note shows at once and
+  the button appears when the list is ready. Drawn in `design/screens/timeline.html`, `revised`, and
+  `design/screens/reader.html`, `revised` and `revised-open`.
 - **Hierarchy by lightness.** Within one size, the order is `Text`, `Text2`, `TextMuted`; weight comes second and size
   last. Read rows go quiet in lightness and weight (500), not in size.
 - **Tracking and numerals.** Small labels get letter spacing (+0.04em at 11, +0.02em in Chinese at 12); the title

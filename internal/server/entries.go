@@ -50,6 +50,8 @@ type entryJSON struct {
 	CreatedAt     int64         `json:"createdAt"`
 	// RemindAt is when a reminded entry comes back as unread, in Unix milliseconds; left out without a reminder.
 	RemindAt *int64 `json:"remindAt,omitempty"`
+	// RevisedAt is when the update that replaced the entry's earlier version was fetched; left out when there is none.
+	RevisedAt *int64 `json:"revisedAt,omitempty"`
 	// FadesAt and ExpiresAt are set for an unread entry of a source with a pace, in Unix milliseconds.
 	FadesAt   *int64 `json:"fadesAt,omitempty"`
 	ExpiresAt *int64 `json:"expiresAt,omitempty"`
@@ -110,7 +112,7 @@ func entryToJSON(e store.Entry) entryJSON {
 		Author: e.Author, PublishedAt: millis(e.PublishedAt), Summary: e.Summary, ThumbnailURL: e.ThumbnailURL,
 		DurationSec: duration, Platform: e.Platform, Language: e.Language, ReadingSec: e.ReadingSec, ReadProgress: e.ReadProgress, Images: images, ExtractStatus: e.ExtractStatus,
 		IsRead: e.IsRead, ReadAt: millis(e.ReadAt), Starred: e.Starred, CreatedAt: e.CreatedAt.UnixMilli(),
-		FadesAt: millis(e.FadesAt), ExpiresAt: millis(e.ExpiresAt), RemindAt: millis(e.RemindAt),
+		RevisedAt: millis(e.RevisedAt), FadesAt: millis(e.FadesAt), ExpiresAt: millis(e.ExpiresAt), RemindAt: millis(e.RemindAt),
 	}
 }
 
@@ -443,4 +445,46 @@ func (s *Server) markUnread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, http.StatusOK, map[string]any{"marked": len(marked), "ids": marked})
+}
+
+type revisionVersionJSON struct {
+	Title      string   `json:"title"`
+	Paragraphs []string `json:"paragraphs"`
+}
+
+type revisionJSON struct {
+	// FetchedAt is when the earlier version was fetched, UpdatedAt when the update that replaced it was.
+	FetchedAt int64               `json:"fetchedAt"`
+	UpdatedAt int64               `json:"updatedAt"`
+	Previous  revisionVersionJSON `json:"previous"`
+	Current   revisionVersionJSON `json:"current"`
+}
+
+// getRevision answers GET /api/entries/{id}/revision: the entry's earlier version beside its current one.
+func (s *Server) getRevision(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	rev, err := s.store.Revision(r.Context(), id)
+	if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrNoRevision) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	reply(w, http.StatusOK, revisionJSON{
+		FetchedAt: rev.FetchedAt.UnixMilli(), UpdatedAt: rev.ReplacedAt.UnixMilli(),
+		Previous: revisionVersionJSON{Title: rev.Title, Paragraphs: nonNil(rev.Paragraphs)},
+		Current:  revisionVersionJSON{Title: rev.CurrentTitle, Paragraphs: nonNil(rev.CurrentParagraphs)},
+	})
+}
+
+func nonNil(list []string) []string {
+	if list == nil {
+		return []string{}
+	}
+	return list
 }

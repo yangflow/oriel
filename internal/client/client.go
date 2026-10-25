@@ -292,6 +292,9 @@ type Entry struct {
 	CreatedAt     int64  `json:"createdAt"`
 	// RemindAt, in Unix milliseconds, is when a reminded entry comes back as unread; 0 when it has no reminder.
 	RemindAt int64 `json:"remindAt,omitempty"`
+	// RevisedAt, in Unix milliseconds, is when the update that replaced the entry's earlier version was fetched; 0
+	// when the entry has no earlier version (see Revision).
+	RevisedAt int64 `json:"revisedAt,omitempty"`
 	// FadesAt and ExpiresAt, in Unix milliseconds, are when an unread entry of a source with a pace starts to fade
 	// and leaves All and Unread; 0 when it has none.
 	FadesAt   int64 `json:"fadesAt,omitempty"`
@@ -1263,6 +1266,30 @@ func (s Session) Entry(ctx context.Context, id int64) (Article, error) {
 	var article Article
 	err := s.call(ctx, http.MethodGet, "/api/entries/"+strconv.FormatInt(id, 10), nil, &article)
 	return article, err
+}
+
+// RevisionVersion is one version of an entry, reduced to its title and the paragraphs of its text.
+type RevisionVersion struct {
+	Title      string   `json:"title"`
+	Paragraphs []string `json:"paragraphs"`
+}
+
+// Revision is the version of an entry from before its latest substantive update, next to the version it has now.
+// FetchedAt is when the earlier version was fetched and UpdatedAt when the update that replaced it was, in Unix
+// milliseconds.
+type Revision struct {
+	FetchedAt int64           `json:"fetchedAt"`
+	UpdatedAt int64           `json:"updatedAt"`
+	Previous  RevisionVersion `json:"previous"`
+	Current   RevisionVersion `json:"current"`
+}
+
+// Revision returns what an updated entry looked like before; the error is a 404 "not_found" APIError for an entry
+// that was never updated.
+func (s Session) Revision(ctx context.Context, id int64) (Revision, error) {
+	var revision Revision
+	err := s.call(ctx, http.MethodGet, "/api/entries/"+strconv.FormatInt(id, 10)+"/revision", nil, &revision)
+	return revision, err
 }
 
 // RetryExtraction asks the server to get an entry's full text again, with all the attempts back, and returns the
