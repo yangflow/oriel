@@ -37,17 +37,17 @@ type copy struct {
 	LabelVideos, LabelDynamic, LabelPosts, LabelActivities, LabelAnswers, LabelColumn, LabelTopic, LabelCollection, LabelQuestion                                                  string
 	LabelChannel, LabelPlaylist                                                                                                                                                    string
 	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, NotChecked, NextIn                                                                             string
-	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, PauseHelp, Mute, MuteHelp, DeleteTitle, DeleteBody                                                                      string
+	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, Mute, MuteHelp, DeleteTitle, DeleteBody                                                                                 string
 	ServedBy, ServedByBackup, ServedByBackupHint, MuteHidden, MuteNone                                                                                                             string
 	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                                                                string
 	Extract, ExtractHelp, ExtractSelector, ExtractSelectorHelp, ExtractSelectorPlaceholder, ExtractSelectorInvalid                                                                 string
 	ExtractReferer, ExtractRefererHelp, ExtractRefererPlaceholder, ExtractRefererInvalid                                                                                           string
-	Headers, HeadersHelp, HeaderUa, HeaderUaHelp, HeaderReferer, HeaderRefererHelp, HeadersNote, HeaderUaError, HeaderRefererError                                                 string
+	Headers, HeaderUa, HeaderUaHelp, HeaderReferer, HeaderRefererHelp, HeadersNote, HeaderUaError, HeaderRefererError                                                              string
 	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                                       string
 	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                                                   string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                                string
 	Undo, Dismiss, UndoFailed                                                                                                                                                      string
-	AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                                                        string
+	GroupShow, GroupFetch, GroupTimeline, AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff                                  string
 	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                                                              string
 	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                                             string
 	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                                          string
@@ -1763,7 +1763,7 @@ func (s *Screen) extractGroup(c *ui.Context) {
 	t := c.Theme()
 	e := &s.edit
 	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
-		head := ui.ButtonBase(c).Key("extract").FillWidth().Height(theme.Px(t, 28)).AlignItems(ui.Center).Gap(t.Space(1.5)).
+		head := ui.ButtonBase(c).Key("extract").AlignSelf(ui.Start).Height(theme.Px(t, 28)).AlignItems(ui.Center).Gap(t.Space(1.5)).
 			Radius(t.Radius).Label(s.text.Extract).Role(ui.RoleDisclosure).Expanded(e.extract)
 		if head.Hovered() {
 			head.Background(t.SurfaceHover)
@@ -1781,9 +1781,9 @@ func (s *Screen) extractGroup(c *ui.Context) {
 			e.extract = !e.extract
 		}
 		if !e.extract {
-			help(c, s.text.ExtractHelp)
 			return
 		}
+		help(c, s.text.ExtractHelp)
 		s.extractInput(c, "selector", &e.selector, s.text.ExtractSelector, s.text.ExtractSelectorPlaceholder, s.text.ExtractSelectorHelp)
 		s.extractInput(c, "referer", &e.referer, s.text.ExtractReferer, s.text.ExtractRefererPlaceholder, s.text.ExtractRefererHelp)
 		ui.Column(c.Key("rewrites")).FillWidth().Gap(t.Space(1)).Children(func() {
@@ -1809,7 +1809,7 @@ func (s *Screen) headersGroup(c *ui.Context) {
 		return
 	}
 	ui.Column(c.Key("headers")).FillWidth().Gap(t.Space(1)).Children(func() {
-		head := ui.ButtonBase(c).Key("headers-head").FillWidth().Height(theme.Px(t, 28)).AlignItems(ui.Center).Gap(t.Space(1.5)).
+		head := ui.ButtonBase(c).Key("headers-head").AlignSelf(ui.Start).Height(theme.Px(t, 28)).AlignItems(ui.Center).Gap(t.Space(1.5)).
 			Radius(t.Radius).Label(s.text.Headers).Role(ui.RoleDisclosure).Expanded(e.headers)
 		if head.Hovered() {
 			head.Background(t.SurfaceHover)
@@ -1827,7 +1827,6 @@ func (s *Screen) headersGroup(c *ui.Context) {
 			e.headers = !e.headers
 		}
 		if !e.headers {
-			help(c, s.text.HeadersHelp)
 			return
 		}
 		s.headerInput(c, "agent", &e.agent, e.headerErr[0], s.text.HeaderUa, "Oriel/"+client.Version(),
@@ -1921,18 +1920,18 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.movedCard(c)
 		focus := e.focus
 		e.focus = false
-		s.pair(c, func() {
-			s.titleField(c, &e.title, e.busy, focus, s.save)
-		}, func() {
-			s.intervalSelect(c, &e.interval, e.src.FetchIntervalSec, e.busy)
-		})
+		groupTitle(c, icons.Eye, s.text.GroupShow)
+		s.titleField(c, &e.title, e.busy, focus, s.save)
 		s.kindPicker(c, &e.kind)
 		s.kindSuggestion(c)
-		s.keepField(c)
-		s.paceField(c)
+		groupTitle(c, icons.RefreshCw, s.text.GroupFetch)
+		s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, "")
+		s.intervalSelect(c, &e.interval, e.src.FetchIntervalSec, e.busy)
 		s.extractGroup(c)
 		s.headersGroup(c)
-		s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, s.text.PauseHelp)
+		groupTitle(c, icons.ListFilter, s.text.GroupTimeline)
+		s.keepField(c)
+		s.paceField(c)
 		s.muteField(c)
 		s.aiGroup(c)
 		if e.formErr != "" {
@@ -2084,17 +2083,22 @@ func (s *Screen) switchRow(c *ui.Context, key string, value *bool, text, helpTex
 	})
 }
 
+// groupTitle opens a group of the edit dialog: a small icon and the name, as a level 3 heading.
+func groupTitle(c *ui.Context, icon *ui.SVG, text string) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(1.5)).Margin(t.Space(1.5), 0, 0, 0).Children(func() {
+		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+		ui.Text(c, text).FontSize(theme.Px(t, 12)).FontWeight(500).TextColor(t.TextMuted).
+			Role(ui.RoleHeading).Level(3)
+	})
+}
+
 // aiGroup is the subscription's summaries and translations: switches that queue new entries, and prompts that
 // replace the ones in the settings; while AI is not set up it says so and leads to the settings.
 func (s *Screen) aiGroup(c *ui.Context) {
 	t := c.Theme()
 	e := &s.edit
-	ui.Box(c).FillWidth().Height(1).Margin(t.Space(1.5), 0, 0, 0).Background(t.Border)
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
-		ui.Icon(c, icons.Sparkles).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-		ui.Text(c, s.text.AIGroup).FontSize(theme.Px(t, 12)).FontWeight(600).TextColor(t.TextMuted).
-			Role(ui.RoleHeading).Level(3)
-	})
+	groupTitle(c, icons.Sparkles, s.text.AIGroup)
 	if e.aiOff {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(2), theme.Px(t, 10)).Radius(t.Radius).
 			Background(t.Surface).Children(func() {
@@ -2128,7 +2132,7 @@ func (s *Screen) muteField(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
 		label(c, s.text.Mute)
-		area := ui.TextArea(c, &s.edit.mute).FillWidth().Lines(3, 6).Label(s.text.Mute).Description(s.text.MuteHelp).
+		area := ui.TextArea(c, &s.edit.mute).FillWidth().Lines(2, 6).Label(s.text.Mute).Description(s.text.MuteHelp).
 			Disabled(s.edit.busy)
 		if area.Focused() {
 			area.Background(theme.RaisedFill(t))
