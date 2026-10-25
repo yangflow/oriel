@@ -46,6 +46,7 @@ type copy struct {
 	Headers, HeaderUa, HeaderUaHelp, HeaderReferer, HeaderRefererHelp, HeadersNote, HeaderUaError, HeaderRefererError                                                              string
 	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                                       string
 	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                                                string
+	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                                                         string
 	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                                                   string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                                string
 	Undo, Dismiss, UndoFailed                                                                                                                                                      string
@@ -208,6 +209,7 @@ type editing struct {
 	target    int64 // index in openTargets: where a click on the entries goes
 	pace      int64 // in paces: seconds an unread entry stays in All and Unread, 0 for off
 	paused    bool
+	hide      bool // the subscription is kept out of All and the kind timelines
 	mute      string
 	extract   bool   // the Extraction group is open
 	selector  string // the content selector, the Referer and the link rewrites of the subscription
@@ -644,7 +646,7 @@ func (s *Screen) Edit(src client.Source) {
 		return
 	}
 	s.edit = editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
-		interval: intervalChoice(src), keep: int64(src.KeepDays), target: int64(max(0, slices.Index(openTargets, src.OpenTarget))), pace: int64(src.PaceSec), paused: src.Paused, mute: src.MuteKeywords,
+		interval: intervalChoice(src), keep: int64(src.KeepDays), target: int64(max(0, slices.Index(openTargets, src.OpenTarget))), pace: int64(src.PaceSec), paused: src.Paused, hide: src.HideFromAll, mute: src.MuteKeywords,
 		extract:  src.ExtractSelector != "" || src.ExtractReferer != "" || src.ExtractRewrites != "",
 		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
 		headers: src.FetchUserAgent != "" || src.FetchReferer != "", agent: src.FetchUserAgent, fetchRef: src.FetchReferer,
@@ -699,6 +701,9 @@ func (s *Screen) save() {
 	}
 	if paused := e.paused; paused != e.src.Paused {
 		patch.Paused, changed = &paused, true
+	}
+	if hide := e.hide; hide != e.src.HideFromAll {
+		patch.HideFromAll, changed = &hide, true
 	}
 	if mute := e.mute; mute != e.src.MuteKeywords {
 		patch.MuteKeywords, changed = &mute, true
@@ -859,6 +864,34 @@ func (s *Screen) SetPaused(src client.Source, paused bool) {
 				s.toast = s.fill(s.text.Resumed, Name(changed))
 				if paused {
 					s.toast = s.fill(s.text.PausedNow, Name(changed))
+				}
+			case code(err) == "not_found":
+				s.gone(src.ID)
+			default:
+				s.toast = s.text.ActionFailed
+			}
+		}
+	})
+}
+
+// SetHidden keeps src out of All and the kind timelines, or brings it back.
+func (s *Screen) SetHidden(src client.Source, hide bool) {
+	if s.api == nil {
+		return
+	}
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		changed, err := api.UpdateSource(context.Background(), src.ID, client.SourcePatch{HideFromAll: &hide})
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			switch {
+			case err == nil:
+				s.deps.Changed(changed)
+				s.toast = s.fill(s.text.ShownNow, Name(changed))
+				if hide {
+					s.toast = s.fill(s.text.HiddenNow, Name(changed))
 				}
 			case code(err) == "not_found":
 				s.gone(src.ID)
@@ -1044,6 +1077,13 @@ func (s *Screen) Menu(m *ui.Menu, src client.Source) {
 	}
 	if m.Item(pause).Chosen() {
 		s.SetPaused(src, !src.Paused)
+	}
+	hide := s.text.Hide
+	if src.HideFromAll {
+		hide = s.text.Unhide
+	}
+	if m.Item(hide).Chosen() {
+		s.SetHidden(src, !src.HideFromAll)
 	}
 	m.Separator()
 	if m.Item(s.text.Delete).Chosen() {
@@ -2032,6 +2072,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.extractGroup(c)
 		s.headersGroup(c)
 		groupTitle(c, icons.ListFilter, s.text.GroupTimeline)
+		s.switchRow(c, "hide", &e.hide, s.text.HideLabel, s.text.HideHelp)
 		s.openField(c)
 		s.keepField(c)
 		s.paceField(c)

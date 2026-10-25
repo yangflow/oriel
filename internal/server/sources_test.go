@@ -75,10 +75,10 @@ func TestSourceLifecycle(t *testing.T) {
 	}
 
 	c.t = c.t.Add(time.Minute)
-	w = do(s, "PATCH", "/api/sources/"+id, `{"title":"","kind":"image","muteKeywords":" ad \n\n  sponsor\r\n","paused":true,"keepDays":90,"paceSec":86400}`, bearer(token))
+	w = do(s, "PATCH", "/api/sources/"+id, `{"title":"","kind":"image","muteKeywords":" ad \n\n  sponsor\r\n","paused":true,"keepDays":90,"paceSec":86400,"hideFromAll":true}`, bearer(token))
 	patched := decode(t, w)
 	if w.Code != http.StatusOK || patched["title"] != "" || patched["kind"] != "image" || patched["muteKeywords"] != "ad\nsponsor" ||
-		patched["paused"] != true || patched["keepDays"] != 90.0 || patched["paceSec"] != 86400.0 || patched["updatedAt"] != float64(c.t.UnixMilli()) || patched["fetchIntervalSec"] != 900.0 {
+		patched["paused"] != true || patched["keepDays"] != 90.0 || patched["paceSec"] != 86400.0 || patched["hideFromAll"] != true || patched["updatedAt"] != float64(c.t.UnixMilli()) || patched["fetchIntervalSec"] != 900.0 {
 		t.Fatalf("patch: %d %v", w.Code, patched)
 	}
 	for body, code := range map[string]string{
@@ -89,6 +89,7 @@ func TestSourceLifecycle(t *testing.T) {
 		`{"paceSec":-1}`:                   "invalid_pace",
 		`{"paceSec":60}`:                   "invalid_pace",
 		`{"paceSec":2592001}`:              "invalid_pace",
+		`{"hideFromAll":"yes"}`:            "invalid_body",
 		`{"extractSelector":"div["}`:       "invalid_extract_selector",
 		`{"extractReferer":"example.org"}`: "invalid_extract_referer",
 		`{"extractRewrites":"m.example.com => https://www.example.com/"}`: "invalid_extract_rewrites",

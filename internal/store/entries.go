@@ -119,11 +119,16 @@ const globalMute = "coalesce((SELECT value FROM settings WHERE key = '" + MuteSe
 const live = "(s.pace_sec = 0 OR e.is_read = 1 OR e.starred = 1 OR " +
 	"coalesce(nullif(e.published_at, 0), e.created_at) + s.pace_sec * 1000 > CAST(unixepoch('subsec') * 1000 AS INTEGER))"
 
+// notHidden keeps out the entries of a source that is hidden from All: they show only in the source's own view, in
+// search and in Starred. See docs/product.md "不在全部里出现".
+const notHidden = "s.hide_from_all = 0"
+
 // copyOf rewrites a condition on entries e and sources s to one on entries m and sources ms.
 var copyOf = strings.NewReplacer("e.", "m.", "s.", "ms.").Replace
 
-// visibleCopy keeps the entries m that the timeline can show: not muted, source not deleted, not expired.
-var visibleCopy = copyOf(shown + " AND " + live)
+// visibleCopy keeps the entries m that a grouped timeline can show: not muted, source not deleted, not expired, source
+// not hidden from All. A hidden source's entry is never the copy another row stands for or hides behind.
+var visibleCopy = copyOf(shown + " AND " + live + " AND " + notHidden)
 
 // otherCopies selects the visible entries m (of source ms) that share the link of entry e and are not e.
 const otherCopies = "FROM entries m JOIN sources ms ON ms.id = m.source_id WHERE m.link_key = e.link_key AND m.link_key <> '' AND m.id <> e.id"
@@ -231,6 +236,9 @@ func (f EntryFilter) where() (string, []any) {
 		add("e.source_id = ?", f.SourceID)
 	} else if !searching {
 		add(live)
+		if !f.Starred {
+			add(notHidden)
+		}
 	}
 	// Inside one source the source index already gives the order. The unary plus keeps the kind and unread
 	// conditions from drawing the planner to an index over every source, which reads far more rows.
@@ -247,7 +255,8 @@ func (f EntryFilter) where() (string, []any) {
 	visible := " AND " + visibleCopy
 	if grouped {
 		// Only the earliest visible copy of an article is a row.
-		add("(e.link_key = '' OR NOT EXISTS (SELECT 1 " + otherCopies + " AND (m.created_at, m.id) < (e.created_at, e.id)" + visible + "))")
+		// A hidden source's entry only gets here in Starred, and it is its own row there.
+		add("(s.hide_from_all = 1 OR e.link_key = '' OR NOT EXISTS (SELECT 1 " + otherCopies + " AND (m.created_at, m.id) < (e.created_at, e.id)" + visible + "))")
 	}
 	if f.Unread {
 		add(column("e.is_read") + " = 0")
@@ -421,7 +430,7 @@ func (s *Store) UpdateEntry(ctx context.Context, id int64, patch EntryPatch, now
 				read_at = CASE WHEN ?1 IS NULL THEN read_at WHEN ?1 = 0 THEN NULL ELSE coalesce(read_at, ?2) END,
 				starred = coalesce(?3, starred)
 			WHERE id IN (SELECT e.id FROM entries e JOIN sources s ON s.id = e.source_id WHERE s.deleted_at IS NULL AND
-				(e.id = ?4 OR (?5 AND e.link_key <> '' AND e.link_key = (SELECT link_key FROM entries WHERE id = ?4) AND `+shown+" AND "+live+`)))`,
+				(e.id = ?4 OR (?5 AND e.link_key <> '' AND e.link_key = (SELECT link_key FROM entries WHERE id = ?4) AND `+shown+" AND "+live+" AND "+notHidden+`)))`,
 			nullBool(patch.IsRead), now.UnixMilli(), nullBool(patch.Starred), id, patch.Group)
 		if err != nil {
 			return Entry{}, err

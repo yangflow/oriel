@@ -68,6 +68,8 @@ type NewSource struct {
 	// AllowDuplicate adds the source even when another subscription is the same feed in another form (see
 	// FindDuplicate); the very same address is still refused.
 	AllowDuplicate bool
+	// HideFromAll adds the source hidden from All and the kind timelines.
+	HideFromAll bool
 }
 
 // DueSources lists unpaused sources whose next fetch time has come, the longest waiting first.

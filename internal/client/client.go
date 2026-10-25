@@ -346,6 +346,7 @@ type Source struct {
 	Paused              bool   `json:"paused"`
 	KeepDays            int    `json:"keepDays"`
 	PaceSec             int    `json:"paceSec"`
+	HideFromAll         bool   `json:"hideFromAll"`
 	ExtractSelector     string `json:"extractSelector"`
 	ExtractReferer      string `json:"extractReferer"`
 	OpenTarget          string `json:"openTarget"`
@@ -389,6 +390,9 @@ type SourcePatch struct {
 	KeepDays *int `json:"keepDays,omitempty"`
 	// PaceSec is how long an unread entry stays in All and Unread, in seconds: 0 turns it off, else 3600 to 2592000.
 	PaceSec *int `json:"paceSec,omitempty"`
+	// HideFromAll keeps the source out of All and the kind timelines and their counts; it stays in its own view,
+	// in search and in Starred.
+	HideFromAll *bool `json:"hideFromAll,omitempty"`
 	// ExtractSelector, ExtractReferer and ExtractRewrites are the source's extraction rules; an empty string clears one.
 	ExtractSelector *string `json:"extractSelector,omitempty"`
 	ExtractReferer  *string `json:"extractReferer,omitempty"`

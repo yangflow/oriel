@@ -48,6 +48,7 @@ type sourceJSON struct {
 	Paused              bool   `json:"paused"`
 	KeepDays            int    `json:"keepDays"`
 	PaceSec             int    `json:"paceSec"`
+	HideFromAll         bool   `json:"hideFromAll"`
 	ExtractSelector     string `json:"extractSelector"`
 	ExtractReferer      string `json:"extractReferer"`
 	OpenTarget          string `json:"openTarget"`
@@ -78,7 +79,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError, LastErrorKind: src.LastErrorKind,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, OpenTarget: src.OpenTarget, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, HideFromAll: src.HideFromAll, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, OpenTarget: src.OpenTarget, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
 		WebSubActive: src.WebSubUntil.After(time.Now()), MovedTo: src.MovedTo, UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
@@ -277,6 +278,7 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		Paused            *bool   `json:"paused"`
 		KeepDays          *int    `json:"keepDays"`
 		PaceSec           *int    `json:"paceSec"`
+		HideFromAll       *bool   `json:"hideFromAll"`
 		ExtractSelector   *string `json:"extractSelector"`
 		ExtractReferer    *string `json:"extractReferer"`
 		ExtractRewrites   *string `json:"extractRewrites"`
@@ -292,7 +294,7 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 	}
 	patch := store.SourcePatch{
 		Kind: body.Kind, PromptSummary: body.PromptSummary, PromptTranslate: body.PromptTranslate,
-		AutoSummary: body.AutoSummary, AutoTranslate: body.AutoTranslate, Paused: body.Paused,
+		AutoSummary: body.AutoSummary, AutoTranslate: body.AutoTranslate, Paused: body.Paused, HideFromAll: body.HideFromAll,
 	}
 	if body.Title != nil {
 		title := strings.TrimSpace(*body.Title)
