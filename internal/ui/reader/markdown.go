@@ -36,7 +36,7 @@ func markdown(e client.Entry, blocks []block, at *time.Location) string {
 	if ms := published(e); ms != 0 {
 		lines = append(lines, "- Date: "+time.UnixMilli(ms).In(at).Format("2006-01-02 15:04"))
 	}
-	if v := strings.TrimSpace(tracker.StripLink(strings.TrimSpace(e.URL))); v != "" {
+	if v := tracker.StripLink(strings.TrimSpace(e.URL)); v != "" {
 		lines = append(lines, "- Link: <"+strings.NewReplacer("<", "%3C", ">", "%3E", " ", "%20").Replace(v)+">")
 	}
 	if len(lines) > 0 {
