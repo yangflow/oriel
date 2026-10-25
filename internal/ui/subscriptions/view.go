@@ -46,23 +46,23 @@ type copy struct {
 	Headers, HeaderUa, HeaderUaHelp, HeaderReferer, HeaderRefererHelp, HeadersNote, HeaderUaError, HeaderRefererError,
 	Proxy, ProxyMode, ProxyFollow, ProxyDirect, ProxyCustom, ProxyFollowHelp, ProxyDirectHelp, ProxyAddress, ProxyAddressHelp,
 	ProxyUser, ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyAuthHelp, ProxyError string
-	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                  string
-	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                           string
-	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                                    string
-	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                              string
-	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                           string
-	Undo, Dismiss, UndoFailed                                                                                                                                 string
-	GroupShow, GroupFetch, GroupTimeline, AIGroup, AutoSummary, AutoTranslate, AutoHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff             string
-	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                                         string
-	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                        string
-	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                     string
-	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                                string
-	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                        string
-	ManageTitle, ManageSub, FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN            string
-	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, ManageHint, EveryOf, KeepOf, KeepAll, KeepSet, LabelSep, SelectedMark, PausedMark, FailingMark     string
-	WorkingPause, WorkingResume, WorkingChange, WorkingDelete, WorkingRestore, AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore string
-	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed       string
-	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, NowMixed, NowOne, Apply, DeleteManyTitle, DeleteManyBody              string
+	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                                            string
+	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                                                     string
+	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                                                              string
+	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                                                        string
+	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                                     string
+	Undo, Dismiss, UndoFailed                                                                                                                                                           string
+	GroupShow, GroupFetch, GroupTimeline, AIGroup, AutoSummary, AutoTranslate, AutoHelp, TranslateTitles, TranslateTitlesHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff string
+	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, UseKind                                                                   string
+	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                                                  string
+	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                                               string
+	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                                                          string
+	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                                                  string
+	ManageTitle, ManageSub, FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN                                      string
+	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, ManageHint, EveryOf, KeepOf, KeepAll, KeepSet, LabelSep, SelectedMark, PausedMark, FailingMark                               string
+	WorkingPause, WorkingResume, WorkingChange, WorkingDelete, WorkingRestore, AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore                           string
+	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed                                 string
+	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, NowMixed, NowOne, Apply, DeleteManyTitle, DeleteManyBody                                        string
 }
 
 var translations = func() map[string]copy {
@@ -232,6 +232,7 @@ type editing struct {
 	hidden    int    // how many entries the keywords hide, once known
 	known     bool
 	auto      [2]bool   // summarize and translate new entries
+	titles    bool      // translate the titles of new entries
 	prompts   [2]string // the summary and translation prompts of the subscription, "" for the ones in the settings
 	aiOff     bool      // the settings have no AI endpoint, so the switches do nothing yet
 	primary   string    // the first RSSHub instance of the settings, "" until they are loaded
@@ -660,7 +661,7 @@ func (s *Screen) Edit(src client.Source) {
 		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
 		headers: src.FetchUserAgent != "" || src.FetchReferer != "", agent: src.FetchUserAgent, fetchRef: src.FetchReferer,
 		proxyOpen: src.Proxy != "", proxyMode: proxyChoice(src.Proxy), proxyURL: ownProxy(src.Proxy),
-		auto:    [2]bool{src.AutoSummary, src.AutoTranslate},
+		auto: [2]bool{src.AutoSummary, src.AutoTranslate}, titles: src.TranslateTitles,
 		prompts: [2]string{src.PromptSummary, src.PromptTranslate}, focus: true}
 	gen, api, id := s.gen, s.api, src.ID
 	s.deps.Go(func() func() {
@@ -759,6 +760,10 @@ func (s *Screen) save() {
 	}
 	if auto := e.auto[1]; auto != e.src.AutoTranslate {
 		patch.AutoTranslate, changed = &auto, true
+	}
+	if e.titles != e.src.TranslateTitles {
+		titles := e.titles
+		patch.TranslateTitles, changed = &titles, true
 	}
 	if prompt := strings.TrimSpace(e.prompts[0]); prompt != e.src.PromptSummary {
 		patch.PromptSummary, changed = &prompt, true
@@ -2421,6 +2426,7 @@ func (s *Screen) aiGroup(c *ui.Context) {
 	}
 	s.switchRow(c, "summary", &e.auto[0], s.text.AutoSummary, s.text.AutoHelp)
 	s.switchRow(c, "translate", &e.auto[1], s.text.AutoTranslate, "")
+	s.switchRow(c, "titles", &e.titles, s.text.TranslateTitles, s.text.TranslateTitlesHelp)
 	for i, text := range [2]string{s.text.PromptSummary, s.text.PromptTranslate} {
 		ui.Column(c.Key(text)).FillWidth().Gap(t.Space(1)).Children(func() {
 			label(c, text)

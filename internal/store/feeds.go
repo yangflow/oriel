@@ -39,6 +39,8 @@ type FeedSource struct {
 	WebSubHub, WebSubTopic string
 	// WebSubUntil is when the active push subscription runs out, zero when there is none.
 	WebSubUntil time.Time
+	// TranslateTitles queues the titles of the fetch's new entries for translation (see SaveFeed).
+	TranslateTitles bool
 	// KeepDays is the source's own keep period: 0 follows the global retention, -1 keeps forever, else days.
 	KeepDays int
 	// Proxy is the source's own fetch proxy.
@@ -70,6 +72,8 @@ type NewSource struct {
 	AllowDuplicate bool
 	// HideFromAll adds the source hidden from All and the kind timelines.
 	HideFromAll bool
+	// TranslateTitles adds the source with the title translation on.
+	TranslateTitles bool
 }
 
 // DueSources lists unpaused sources whose next fetch time has come, the longest waiting first.
@@ -78,7 +82,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, fetch_interval_auto, last_success_at IS NULL, consecutive_failures,
 			auto_summary, auto_translate, site_url, icon_url, icon_checked_site, websub_hub, websub_topic,
 			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days, COALESCE(last_success_at, created_at), proxy, proxy_user, proxy_password, moved_url, moved_seen, moved_dismissed,
-			fetch_user_agent, fetch_referer
+			fetch_user_agent, fetch_referer, translate_titles
 		FROM sources WHERE paused = 0 AND deleted_at IS NULL AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
@@ -95,7 +99,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
 			&interval, &src.FetchIntervalAuto, &src.FirstSuccess, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
 			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays, &since, &src.Proxy.URL, &src.Proxy.User, &src.Proxy.Password, &src.MovedURL, &src.MovedSeen, &src.MovedDismissed,
-			&src.UserAgent, &src.Referer); err != nil {
+			&src.UserAgent, &src.Referer, &src.TranslateTitles); err != nil {
 			return nil, err
 		}
 		if until.Valid {
@@ -221,6 +225,8 @@ type FeedEntry struct {
 // Each new entry gets a pending result for every task in src.AITasks, except the translation of an entry
 // already in targetLanguage, the language translations are made in. Only the newest src.AIFetchLimit entries of the
 // fetch get them (no cap when it is 0); the older ones get a failed result with the code AICapReached.
+// With src.TranslateTitles, the title of a new entry, or of one whose title changed, is queued for translation
+// unless it is empty or the entry is already in targetLanguage; the fetch limit above does not apply to titles.
 // It returns how many entries are new.
 func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL string, entries []FeedEntry, targetLanguage string, expired, now time.Time) (int, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -330,6 +336,7 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 			src.ID, e.GUID, e.Title, e.URL, e.Author, nullTime(e.PublishedAt), e.Summary, e.ContentHTML,
 			extract, e.ThumbnailURL, nullInt(e.DurationSec), e.Platform, string(imagesJSON), nullString(e.Language),
 			readingValue(src.Kind, e.DurationSec, extracted, e.ContentHTML, e.Summary), now.UnixMilli(), now.UnixMilli(),
+			src.TranslateTitles && e.Title != "" && (e.Language == "" || e.Language != targetLanguage),
 		).Scan(&id); err != nil && !(errors.Is(err, sql.ErrNoRows) && !isNew) {
 			return 0, err
 		}
@@ -387,15 +394,19 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 // upsertEntrySQL writes one item of a fetch and returns the id of an entry that was added or changed.
 const upsertEntrySQL = `
 	INSERT INTO entries (source_id, guid, title, url, author, published_at, rss_summary, rss_content_html,
-		extract_status, thumbnail_url, duration_sec, platform, images, language, reading_sec, created_at, updated_at, link_key)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, group_key(?4, ?2))
+		extract_status, thumbnail_url, duration_sec, platform, images, language, reading_sec, created_at, updated_at, link_key,
+		title_tr_status)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, group_key(?4, ?2), CASE WHEN ?18 THEN 'pending' ELSE '' END)
 	ON CONFLICT (source_id, guid) DO UPDATE SET
 		title = excluded.title, url = excluded.url, link_key = excluded.link_key, author = excluded.author, published_at = excluded.published_at,
 		rss_summary = excluded.rss_summary, rss_content_html = excluded.rss_content_html,
 		thumbnail_url = excluded.thumbnail_url, duration_sec = excluded.duration_sec,
 		platform = excluded.platform, images = excluded.images,
 		language = coalesce(excluded.language, language), reading_sec = excluded.reading_sec,
-		updated_at = excluded.updated_at
+		updated_at = excluded.updated_at,
+		translated_title = CASE WHEN title IS NOT excluded.title THEN '' ELSE translated_title END,
+		title_tr_attempts = CASE WHEN title IS NOT excluded.title THEN 0 ELSE title_tr_attempts END,
+		title_tr_status = CASE WHEN title IS NOT excluded.title THEN CASE WHEN ?18 THEN 'pending' ELSE '' END ELSE title_tr_status END
 	WHERE title IS NOT excluded.title OR url IS NOT excluded.url OR author IS NOT excluded.author
 		OR published_at IS NOT excluded.published_at OR rss_summary IS NOT excluded.rss_summary
 		OR rss_content_html IS NOT excluded.rss_content_html OR thumbnail_url IS NOT excluded.thumbnail_url

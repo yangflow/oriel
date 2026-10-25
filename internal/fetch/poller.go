@@ -745,13 +745,14 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 		expired = now.Add(-keep)
 	}
 	var target string
-	if len(src.AITasks) > 0 {
+	if len(src.AITasks) > 0 || src.TranslateTitles {
 		cfg, err := ai.Load(ctx, p.store)
 		if err != nil {
 			return 0, err
 		}
 		if !cfg.Configured() {
 			src.AITasks = nil
+			src.TranslateTitles = false
 		}
 		src.AIFetchLimit = cfg.AutoFetchLimit
 		target = cfg.Language

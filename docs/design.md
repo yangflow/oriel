@@ -139,7 +139,12 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `range-24h`, `range-empty`. An entry with a reminder (Remind me later) is read and carries, in its meta line after
   the reading time, a 14 `Accent` clock icon and its time in 12 `Accent` ("Tomorrow 09:00"), named "reminder on
   Tomorrow 09:00" for screen readers; it goes away when the reminder fires or is cancelled. Drawn in
-  `design/screens/timeline.html`, `reminded`. Compact list density (Settings,
+  `design/screens/timeline.html`, `reminded`. An entry of a subscription that translates titles shows the translation
+  as its title; on an article row and a video row the original sits under it as one 12 `TextMuted` line with an
+  ellipsis, and a compact article row, a card and a grid cell show the translation alone. An image row shows the
+  translation alone and a social post has no title; the original is part of the name screen readers read ("translation,
+  original"). Entries without a translation look as before, with no second line. Drawn in `design/screens/timeline.html`,
+  `translated-titles`. Compact list density (Settings,
   Appearance, Timeline) tightens only the spacing of rows, grid cells and wall tiles, by the values in
   `design/tokens.md`; no content is dropped. Drawn in `design/screens/timeline.html`, `dense`. When a background check fails after the list loaded, a quiet 28 high status line sits under the toolbar,
   lined up with the list: a 14 `Warning` wifi-off icon and 12 `TextMuted` text, "Can't reach the server · last updated
@@ -361,8 +366,9 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   unless new ones are typed. A refused address shows in the error style under the box (`edit-proxy`,
   `edit-proxy-direct`, `edit-proxy-custom`, `edit-proxy-error`). A refusal from the server shows under the field it
   concerns in the error style, and the box takes the `Danger` outline. A subscription kept as an RSSHub route only has
-  no Request headers row, but it has the Proxy row. The last group, "Summaries and translations", has two switches
-  that queue new entries, and two monospace prompt boxes, three lines that grow to eight, whose placeholder says the
+  no Request headers row, but it has the Proxy row. The last group, "Summaries and translations", has three switches:
+  the two that queue new entries and "Translate titles", with a one-line 12 `TextMuted` help ("Translate new titles into
+  your language; the original stays under it."); it is drawn in `design/screens/subscriptions.html`, `edit-titles`. Then two monospace prompt boxes, three lines that grow to eight, whose placeholder says the
   empty box uses the prompt in Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small
   "Open settings".
   Under the mute keywords, after their help, a second 12 `TextMuted` line (tabular figures, a status text) says how many
@@ -711,7 +717,10 @@ values are in [design/tokens.md](../design/tokens.md). See
   for each other source, 28 high, radius 8, padded 8, with the source's 15 monogram, its name in 13 medium `Text2`
   (`Text` under the pointer, with the `Hover` fill) and the time of that copy in 12 `TextMuted`; the line wraps when
   the column is narrow, and there is no line for an article that only one source carries. Drawn in
-  `design/screens/reader.html`, `also`.
+  `design/screens/reader.html`, `also`. When the entry has a translated title, the heading is the translation and the
+  original sits under it as one 13 `TextMuted` line (6 above it), above the note of an updated entry; the line is left
+  out while the reader's own translation of the article runs, because the heading is then already in your language.
+  Drawn in `design/screens/reader.html`, `translated-title`.
 - **Updated entries.** An article its feed changed after it was fetched (`docs/product.md`, Entry revisions) shows two
   quiet signs, never an accent and never a dot. In the timeline row's meta line, after the time and before the reading
   time, a 12 `pencil` icon and "Updated" in 12 `Text2`; a read row keeps its read look and the marker, and its

@@ -68,7 +68,7 @@ Working now:
   Ollama, set up in Settings with presets for Ollama and LM Studio and a connection check that says what is wrong
   (address, key, model name, context size); the API key is kept on the server and never shown again. The
   reader summarizes or translates the open article on demand, cancellable, and keeps the result for next time; a
-  subscription can summarize or translate its new entries by itself and use its own prompts.
+  subscription can summarize or translate its new entries by itself and use its own prompts, and one with foreign-language titles can show them translated, the original under each.
 - **OPML import and export.** Import subscriptions from another reader, nested groups included, and see which
   could not be added and why; export them all to a file that keeps each source's kind and RSSHub path.
 - **Back up and restore.** Save everything (subscriptions, entries, read and starred state, AI results, settings) to

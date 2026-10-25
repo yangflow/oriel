@@ -101,6 +101,8 @@
      else, so the reader shows the empty state "Only a video here" with "Open in browser" as the primary button, never "No text to show";
      embed-only-audio: the same with one audio element (the heading and the tile icon follow the kind; a mix or an embedded page says
      "Only embedded content here").
+     Translated title (translated-title): when the subscription translates titles, the heading is the translation and the original sits
+     under it as one muted line, 13 px, Muted; it is not shown while the reader's own translation of the article runs.
      URL parameters: state, scheme=light|dark, lang=en|zh-Hans, size=default|min|wide, textsize, font, cjk, preset, width. -->
 <style>
 :root { color-scheme:light; --stage:#dedad2; --stage-text:#4f4a42; --shadow:28,24,18; --t:140ms ease-out;
@@ -249,6 +251,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .meta span:last-child { font-variant-numeric:tabular-nums }
 .page h1 { margin:12px 0 0; font-size:24px; line-height:1.28; font-weight:600; letter-spacing:-.015em; text-wrap:pretty; color:var(--text) }
 .min .page h1 { font-size:21px }
+.page .orig { margin:6px 0 0; font-size:13px; line-height:1.4; color:var(--muted); text-wrap:pretty }
 :root:lang(zh-Hans) .page h1 { line-height:1.42; letter-spacing:-.005em }
 .revised .note { margin:12px 0 0; align-items:center }
 .revised .note svg.icon { margin-top:0 }
@@ -470,7 +473,7 @@ mark.hit.now { background:color-mix(in srgb,var(--warning) 40%,transparent); box
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','revised','revised-open','immersive','immersive-bar','preset-sepia','preset-mist','width-narrow','width-wide','image-failed','image-unsized','image-settled','image-wrong-size','footnotes','footnote-jump','table','table-wide','embeds','embed-only','embed-only-audio'];
+const states=['find-empty','find','find-none','find-translation','immersive-find','full','full-switch','feed-text','feed','extracting','extracting-empty','failed','loading','error','summarizing','summary','summary-failed','summary-cap','translating','translation','translation-failed','ai-off','no-more-unread','resumed','selection-menu','selection-loading','selection-translate','selection-explain','selection-failed','selection-ai-off','selection-too-long','more-menu','copied','link-copied','more-narrow','translate-disabled','scrolled','also','revised','revised-open','immersive','immersive-bar','preset-sepia','preset-mist','width-narrow','width-wide','image-failed','image-unsized','image-settled','image-wrong-size','footnotes','footnote-jump','table','table-wide','embeds','embed-only','embed-only-audio','translated-title'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],textsize:['small','medium','large','xlarge'],font:['interface','serif'],cjk:['on','off'],preset:['theme','sepia','mist'],width:['narrow','standard','wide']};
@@ -743,7 +746,7 @@ const tableOf=(zh,wide)=>{
 const feed=zh?cjk(`<p>trigram 分词让任意子串都能命中，代价是索引变大、短于三个字的查询无法使用。这篇文章比较了三种方案在中文语料上的表现。</p><p><a href="#">继续阅读 →</a></p>`):`<p>The trigram tokenizer matches any substring, at the cost of a bigger index and no queries shorter than three characters. Here is how three approaches compare on a mixed-language corpus.</p><p><a href="#">Continue reading →</a></p>`;
 const note=(cls,glyph,text)=>`<div class="note ${cls}" role="note">${icon(glyph,glyph==='loader'?'spin':'')}<span>${text} ${cls?`<a class="link" href="#">${copy.openOriginal}</a>`:''}</span>${cls==='warn'?`<a class="textlink" href="#">${copy.tryAgain}</a>`:''}</div>`;
 const switcher=feedOn=>`<div class="switch"><div class="segmented" role="radiogroup" aria-label="${copy.textSwitch}"><button role="radio" aria-checked="${!feedOn}" class="${feedOn?'':'on'}">${copy.fullText}</button><button role="radio" aria-checked="${feedOn}" class="${feedOn?'on':''}">${copy.feedText}</button></div></div>`;
-const article=(extra,html)=>`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1>${state==='also'?alsoLine():''}${state.startsWith('revised')?revisedLine():''}${extra}<div class="prose">${html}</div></article>`;
+const article=(extra,html)=>`<article class="page" aria-labelledby="title">${meta}<h1 id="title">${title}</h1>${state==='translated-title'?`<p class="orig" lang="de">Volltextsuche in SQLite: die Abwägungen des Trigram-Tokenizers</p>`:''}${state==='also'?alsoLine():''}${state.startsWith('revised')?revisedLine():''}${extra}<div class="prose">${html}</div></article>`;
 const revisedLine=()=>{
   const open=state==='revised-open', when=zh?'10月20日 09:12':'Oct 20, 09:12';
   const rows=[['removed',zh?'用 SQLite 做全文检索：分词器的取舍':'Full-text search in SQLite: tokenizer trade-offs',true],
@@ -839,7 +842,7 @@ switch(state){
   case 'translating':page=original(`<div class="note" role="status">${icon('loader','spin')}<span class="grow">${copy.translating}</span><a class="textlink" href="#">${copy.cancel}</a></div>`);break;
   case 'translation':page=article(lens,zh?cjk(plain(full)):plain(full));break;
   case 'translation-failed':page=original(`<div class="note error" role="alert">${icon('alert')}<span class="grow">${t('translationFailed',{reason:copy.aiUnauthorized})}</span><a class="textlink" href="#">${copy.retry}</a></div>`);break;
-  case 'full':case 'preset-sepia':case 'preset-mist':case 'width-narrow':case 'width-wide':case 'no-more-unread':case 'resumed':case 'more-menu':case 'more-narrow':case 'copied':case 'link-copied':case 'scrolled':case 'also':case 'revised':case 'revised-open':page=article('',full);break;
+  case 'full':case 'translated-title':case 'preset-sepia':case 'preset-mist':case 'width-narrow':case 'width-wide':case 'no-more-unread':case 'resumed':case 'more-menu':case 'more-narrow':case 'copied':case 'link-copied':case 'scrolled':case 'also':case 'revised':case 'revised-open':page=article('',full);break;
   case 'translate-disabled':page=zh?article('',full):original('');break;
   case 'full-switch':page=article(switcher(false),full);break;
   case 'feed-text':page=article(switcher(true),feed);break;

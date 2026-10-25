@@ -178,6 +178,8 @@
      carry a label and videos of up to 10 minutes; time-empty: 5 minutes together with Unread leaves nothing and the
      empty state offers Show any length). It is a view filter that marks nothing, hides the unread count and dims
      Mark all as read. Below 760 (size=min) the chip is the icon with a dot.
+     Translated titles (translated-titles): an article or video row of a subscription that translates titles shows the translation as its title and the
+     original under it, 12 px Muted on one line; the image row shows the translation alone.
      URL parameters: state, scope=all|article|video|social|image|source, scheme=light|dark, lang=en|zh-Hans,
      size=default|min|wide. -->
 <style>
@@ -423,6 +425,7 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .meta svg.icon { width:14px; height:14px }
 .title { margin:0; font-size:15px; font-weight:600; line-height:1.35; letter-spacing:-.005em; text-wrap:pretty; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
 :root:lang(zh-Hans) .title { line-height:1.5; letter-spacing:0 }
+.orig { margin:2px 0 0; font-size:12px; line-height:1.4; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .summary { margin:0; font-size:13px; line-height:1.5; color:var(--text2); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
 .text { margin:0; font-size:13px; line-height:1.55; white-space:pre-line; display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden }
 :root:lang(zh-Hans) .summary, :root:lang(zh-Hans) .text { line-height:1.7 }
@@ -672,7 +675,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled','revised'];
+const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled','revised','translated-titles'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -976,6 +979,10 @@ if(state==='marked-feed'){entries.forEach(e=>{if(e.source===2)e.read=true});byId
 if(state==='marked-older'){entries.slice(olderCut).forEach(e=>{if(!e.read&&inScope(byId[e.source])){e.read=true;byId[e.source].unread=Math.max(0,byId[e.source].unread-1)}})}
 if(state==='marked-read'){entries.forEach(e=>{if(inScope(byId[e.source]))e.read=true});sources.filter(inScope).forEach(s=>s.unread=0)}
 if(state==='menu-remind-set'||state==='reminded'){const r=entries[state==='reminded'?1:2];r.read=true;r.remind=zh?'明天 09:00':'Tomorrow 09:00';byId[r.source].unread--}
+if(state==='translated-titles'){
+  const de=[[1,'Volltextsuche in SQLite: die Abwägungen des Trigram-Tokenizers',zh?'用 SQLite 做全文检索：trigram 分词的取舍':'Full-text search in SQLite: the trade-offs of the trigram tokenizer'],[2,'Was ist eigentlich eine Faltung? Von der Wahrscheinlichkeit zur Bildverarbeitung',zh?'卷积到底是什么？从概率到图像处理':'But what is a convolution? From probability to image processing'],[3,'Staubsäulen im Orionnebel',zh?'猎户座大星云的尘埃柱':'Dust pillars of the Orion Nebula']];
+  de.forEach(([i,orig,title])=>{entries[i].orig=orig;entries[i].title=title});
+}
 if(state==='offline-pending'){entries[0].pending=true;entries[0].starred=true;entries[1].pending=true;entries[1].read=true;byId[entries[1].source].unread--}
 total=sources.filter(s=>!s.hidden).reduce((a,s)=>a+s.unread,0);
 const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[focusId].name:copy.all;
@@ -1067,14 +1074,15 @@ const rowDemo=['list','article-compact','social-compact','video-cover','video-li
 const cardsOn=gridOn&&(gridKind==='video'||gridKind==='image'&&viewer.image==='grid');
 const wallOn=gridOn&&gridKind==='image'&&viewer.image!=='grid';
 const stripOf=list=>{const hidden=list.length-4;return `<div class="strip">${list.slice(0,4).map((g,i)=>i===3&&hidden>0?`<div class="pic more ${g}" role="img" aria-label="${t('morePictures',{n:hidden})}"><b aria-hidden="true">+${hidden}</b></div>`:`<div class="pic ${g}">${failedPic(g)}</div>`).join('')}</div>`};
+const origLine=e=>e.orig?`<p class="orig" lang="de">${e.orig}</p>`:'';
 const row=(e,i)=>{
   const cls=`row${e.read?' read':''}${i===1&&rowDemo?' hover':''}${(i===2&&(state==='menu-entry'||state.startsWith('menu-remind')))||(i===0&&state==='menu-entry-first')||(i===entries.length-1&&state==='menu-entry-last')?' menued':''}${(i===2&&(rowDemo||state==='sidebar-focus'))||(i===0&&state==='marked-visible'&&scope==='all')||(i===3&&state==='no-more-unread')?' chosen':''}`;
   const dot=e.read?'':`<span class="unread-dot" role="img" aria-label="${copy.unread}"></span>`;
   switch(e.kind){
     case 'article':if(viewer.article==='compact')return `<article class="${cls} crow">${dot}${glyph(byId[e.source])}<span class="src">${byId[e.source].name}</span><h3 class="ctitle">${highlight(e.title)}</h3>${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}${pendingMark(e)}<span class="when">${e.when}</span>${actions(e)}</article>`;
-      return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3>${e.ai?`<p class="summary ai"><span role="img" aria-label="${copy.aiSummary}" title="${copy.aiSummary}">${icon('sparkles')}</span><span class="clamp">${e.ai}</span></p>`:`<p class="summary">${highlight(e.summary)}</p>`}${alsoList(e)}</div>${e.thumb?`<div class="pic thumb ${e.thumb}">${failedPic(e.thumb)}</div>`:''}${actions(e)}</article>`;
-    case 'video':if(viewer.video==='cover')return `<article class="${cls} vlarge">${dot}<div class="content">${videoCover(e,'video-thumb')}<h3 class="title">${e.title}</h3>${meta(e).replace('</div>',`<span class="sep"></span>${icon('video')}<span>${e.platform}</span></div>`)}</div>${actions(e)}</article>`;
-      return `<article class="${cls}">${dot}${videoCover(e,'video-thumb')}<div class="content">${meta(e)}<h3 class="title">${e.title}</h3><div class="meta">${icon('video')}<span>${e.platform}</span></div></div>${actions(e)}</article>`;
+      return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3>${origLine(e)}${e.ai?`<p class="summary ai"><span role="img" aria-label="${copy.aiSummary}" title="${copy.aiSummary}">${icon('sparkles')}</span><span class="clamp">${e.ai}</span></p>`:`<p class="summary">${highlight(e.summary)}</p>`}${alsoList(e)}</div>${e.thumb?`<div class="pic thumb ${e.thumb}">${failedPic(e.thumb)}</div>`:''}${actions(e)}</article>`;
+    case 'video':if(viewer.video==='cover')return `<article class="${cls} vlarge">${dot}<div class="content">${videoCover(e,'video-thumb')}<h3 class="title">${e.title}</h3>${origLine(e)}${meta(e).replace('</div>',`<span class="sep"></span>${icon('video')}<span>${e.platform}</span></div>`)}</div>${actions(e)}</article>`;
+      return `<article class="${cls}">${dot}${videoCover(e,'video-thumb')}<div class="content">${meta(e)}<h3 class="title">${e.title}</h3>${origLine(e)}<div class="meta">${icon('video')}<span>${e.platform}</span></div></div>${actions(e)}</article>`;
     case 'social':if(viewer.social==='compact'){const one=e.images&&e.images.length===1;
         return `<article class="${cls} scompact">${dot}<div class="content">${meta(e)}<p class="text"><span class="author">${e.author}</span> <span class="handle">${e.handle}</span> ${e.text}</p>${e.images&&!one?stripOf(e.images):''}</div>${one?`<div class="pic thumb-s ${e.images[0]}">${failedPic(e.images[0])}</div>`:''}${actions(e)}</article>`}
       return `<article class="${cls}">${dot}<div class="content">${meta(e)}<p class="text"><span class="author">${e.author}</span> <span class="handle">${e.handle}</span><br>${e.text}</p>${pictures(e.images)}</div>${actions(e)}</article>`;

@@ -51,7 +51,9 @@ type Worker struct {
 
 	mu       sync.Mutex
 	inFlight map[store.AIJob]bool
-	health   health
+	// titlesBusy is set while a batch of titles is in flight; it takes one of the concurrency slots.
+	titlesBusy bool
+	health     health
 }
 
 // health is what the worker knows about the endpoint from its last calls.
@@ -179,9 +181,28 @@ func (w *Worker) dispatch(ctx context.Context, wg *sync.WaitGroup) {
 		} else if n > 0 {
 			slog.Warn("The daily cap of automatic AI work is reached", "stopped", n, "limit", cfg.AutoDailyLimit)
 		}
+		if n, err := w.store.StopTitles(ctx, maxAttempts, w.now()); err != nil {
+			slog.Error("Cannot stop the title translations", "error", err)
+		} else if n > 0 {
+			slog.Warn("The daily cap of automatic AI work is reached", "stoppedTitles", n, "limit", cfg.AutoDailyLimit)
+		}
 	}
 	w.mu.Lock()
 	busy := len(w.inFlight)
+	if w.titlesBusy {
+		busy++
+	}
+	w.mu.Unlock()
+	if busy >= concurrency {
+		return
+	}
+	paused := w.paused(cfg)
+	w.dispatchTitles(ctx, wg, cfg, paused)
+	w.mu.Lock()
+	busy = len(w.inFlight)
+	if w.titlesBusy {
+		busy++
+	}
 	w.mu.Unlock()
 	if busy >= concurrency {
 		return
@@ -194,13 +215,17 @@ func (w *Worker) dispatch(ctx context.Context, wg *sync.WaitGroup) {
 		return
 	}
 	// While the endpoint fails, only what the user asked for goes on, so that they see the reason; it comes first.
-	if w.paused(cfg) {
+	if paused {
 		jobs = slices.DeleteFunc(jobs, func(job store.AIJob) bool { return !job.Requested })
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	for _, job := range jobs {
-		if len(w.inFlight) >= concurrency {
+		taken := len(w.inFlight)
+		if w.titlesBusy {
+			taken++
+		}
+		if taken >= concurrency {
 			break
 		}
 		if w.inFlight[job] {
