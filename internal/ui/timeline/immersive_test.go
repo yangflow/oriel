@@ -173,8 +173,8 @@ func TestImmersiveMenuAndPalette(t *testing.T) {
 			s.SetLanguage(language)
 			tt.Frame()
 			_, items := TimelineMenu(language)
-			if last := items[len(items)-1]; last.Command != Immersive || last.Label != s.text.KeyImmersive {
-				t.Fatalf("the Timeline menu ends with %v", last)
+			if i := slices.IndexFunc(items, func(it MenuItem) bool { return it.Command == Immersive }); i < 0 || items[i].Label != s.text.KeyImmersive {
+				t.Fatalf("the Timeline menu is %v", items)
 			}
 			openPalette(t, s, tt)
 			if !slices.Contains(shownNames(s), s.text.KeyImmersive) {

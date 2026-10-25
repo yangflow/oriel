@@ -83,6 +83,7 @@ type EntryFilter struct {
 	Newer         *Position      // only entries newer than this position
 	From          *Position      // only this position and newer ones
 	OlderThan     int64          // only entries shown as before this time, in Unix milliseconds: published_at, else created_at; 0 does not filter
+	Since         int64          // only entries that arrived (created_at) at this time or later, in Unix milliseconds; 0 does not filter
 	// Group shows entries with the same link once: only the earliest visible one of them matches, and read and starred are
 	// those of the whole group. It has no effect with SourceID or Query set.
 	Group bool
@@ -283,6 +284,9 @@ func (f EntryFilter) where() (string, []any) {
 	}
 	if f.OlderThan > 0 {
 		add(shownAt+" < ?", f.OlderThan)
+	}
+	if f.Since > 0 {
+		add("e.created_at >= ?", f.Since)
 	}
 	return strings.Join(conditions, " AND "), args
 }

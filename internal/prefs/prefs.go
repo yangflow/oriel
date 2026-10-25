@@ -273,12 +273,20 @@ func (g *Grids) UnmarshalJSON(data []byte) error {
 
 // Place is where the timeline was left on one server: the scope the sidebar chose and the filter of the toolbar. Kind
 // is "", "article", "video", "social" or "image"; Source is the subscription chosen, 0 for none, and Kind then its
-// kind; Filter is "" for everything, "unread" or "starred". The zero Place is the whole timeline.
+// kind; Filter is "" for everything, "unread" or "starred"; Range is "" for any time, "today" or "24h". The zero
+// Place is the whole timeline.
 type Place struct {
 	Kind   string `json:"kind,omitempty"`
 	Source int64  `json:"source,omitempty"`
 	Filter string `json:"filter,omitempty"`
+	Range  string `json:"range,omitempty"`
 }
+
+// The time ranges of a Place.
+const (
+	RangeToday = "today"
+	Range24h   = "24h"
+)
 
 // The filters of a Place.
 const (
@@ -292,7 +300,8 @@ func (p Place) valid() bool {
 	default:
 		return false
 	}
-	return p.Source >= 0 && (p.Filter == "" || p.Filter == FilterUnread || p.Filter == FilterStarred)
+	return p.Source >= 0 && (p.Filter == "" || p.Filter == FilterUnread || p.Filter == FilterStarred) &&
+		(p.Range == "" || p.Range == RangeToday || p.Range == Range24h)
 }
 
 // Places remembers the Place of each server, keyed by the address the app shows the server by ("" for this computer).

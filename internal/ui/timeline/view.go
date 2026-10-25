@@ -59,6 +59,7 @@ type copy struct {
 	LastLooked                                                                                                                                                          string
 	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                                            string
 	OrderNewest, OrderOldest, OrderOldestNote, NameJoin                                                                                                                 string
+	RangeAny, RangeToday, Range24, RangeChipToday, RangeChip24, RangeName, RangeNameOf, NothingNewToday, NothingNew24, NothingNewHint, AnyRange, KeyRange, PaletteRange string
 	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                                 string
 	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu                            string
 	Retrying, Pending                                                                                                                                                   string
@@ -176,13 +177,25 @@ const keepLists = 8
 // no loading state at all.
 const skeletonDelay = 300 * time.Millisecond
 
-// listKey is what defines a list: the scope, the filter and the reading-time budget. A search is not kept.
+// listKey is what defines a list: the scope, the filter, the reading-time budget and the time range. A search is not
+// kept.
 type listKey struct {
 	scope  scope
 	filter int
 	budget int
+	span   int
 	oldest bool // oldest first
 }
+
+// The time ranges of the timeline, by the time an entry arrived: any time, since this morning, the last 24 hours.
+const (
+	anyTime = iota
+	today
+	lastDay
+)
+
+// spans are the time ranges in the order the menu and T go through them.
+var spans = []int{anyTime, today, lastDay}
 
 // budgets are the reading-time budgets the menu offers, in minutes; 0 is any length.
 var budgets = []int{5, 10, 15, 30}
@@ -243,6 +256,7 @@ type Screen struct {
 	tab         int  // the tab of scope.kind
 	filter      int  // everything, unread or starred
 	budget      int  // the most minutes an entry may take to read, 0 for any length; not kept between servers
+	span        int  // the time range: anyTime, today or lastDay; kept with the scope and the filter
 	oldest      bool // the list runs oldest first, as the preferences of this device choose
 	restoring   bool // the scope is a subscription kept from the last run, to check when the sources load
 
@@ -425,7 +439,7 @@ func (s *Screen) Use(api API, server string) {
 	s.sources, s.sourcesLoaded = nil, false
 	s.setUnread(0)
 	s.sourcesGen++
-	s.scope, s.tab, s.filter, s.budget = scope{}, 0, everything, 0
+	s.scope, s.tab, s.filter, s.budget, s.span = scope{}, 0, everything, 0, anyTime
 	s.restorePlace()
 	s.oldest = s.views().OldestFirst
 	s.query, s.searched, s.editing = "", "", false
@@ -460,6 +474,12 @@ func (s *Screen) restorePlace() {
 	case prefs.FilterStarred:
 		s.filter = starred
 	}
+	switch p.Range {
+	case prefs.RangeToday:
+		s.span = today
+	case prefs.Range24h:
+		s.span = lastDay
+	}
 }
 
 // remember keeps the scope and filter when show changed them.
@@ -473,6 +493,12 @@ func (s *Screen) remember() {
 		p.Filter = prefs.FilterUnread
 	case starred:
 		p.Filter = prefs.FilterStarred
+	}
+	switch s.span {
+	case today:
+		p.Range = prefs.RangeToday
+	case lastDay:
+		p.Range = prefs.Range24h
 	}
 	s.deps.Remember(s.server, p)
 }
@@ -749,11 +775,31 @@ func (s *Screen) checkRestored() {
 
 func (s *Screen) query1(cursor string) client.Query {
 	q := client.Query{Source: s.scope.source, Unread: s.filter == unread, Starred: s.filter == starred,
-		MaxMinutes: s.budget, Search: s.searched, Limit: pageSize, Cursor: cursor, Oldest: s.oldest}
+		MaxMinutes: s.budget, Since: s.since(), Search: s.searched, Limit: pageSize, Cursor: cursor, Oldest: s.oldest}
 	if s.scope.source == 0 {
 		q.Kind = s.scope.kind
 	}
 	return q
+}
+
+// since is the start of the time range in Unix milliseconds, 0 for any time. Today starts at the midnight of this
+// computer's time zone, which the server knows nothing of, so it is worked out here, again at every load.
+func (s *Screen) since() int64 {
+	now := s.deps.Now()
+	switch s.span {
+	case today:
+		y, m, d := now.Date()
+		return time.Date(y, m, d, 0, 0, 0, 0, now.Location()).UnixMilli()
+	case lastDay:
+		return now.Add(-24 * time.Hour).UnixMilli()
+	}
+	return 0
+}
+
+// scoped limits scope to the time range, so that "mark as read" touches what the list shows.
+func (s *Screen) scoped(scope client.ReadScope) client.ReadScope {
+	scope.Since = s.since()
+	return scope
 }
 
 // reload loads the first page of the scope again, from the top.
@@ -801,7 +847,7 @@ func (s *Screen) retryPictures() {
 	s.pics.ForgetFailed()
 }
 
-func (s *Screen) key() listKey { return listKey{s.scope, s.filter, s.budget, s.oldest} }
+func (s *Screen) key() listKey { return listKey{s.scope, s.filter, s.budget, s.span, s.oldest} }
 
 // views are the viewers of the four kinds, as the preferences of this device choose them: the defaults where the
 // screen has no preferences to read.
@@ -926,9 +972,9 @@ func (s *Screen) show(change func()) {
 	s.also = 0
 	s.leave(s.key())
 	before := s.scope
-	beforeFilter := s.filter
+	beforeFilter, beforeSpan := s.filter, s.span
 	change()
-	if s.scope != before || s.filter != beforeFilter {
+	if s.scope != before || s.filter != beforeFilter || s.span != beforeSpan {
 		s.remember()
 	}
 	if s.searched == "" {
@@ -952,6 +998,10 @@ func (s *Screen) restore(snap snapshot) {
 	s.run++
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
 	s.entries, s.next, s.anchor = snap.entries, snap.next, snap.anchor
+	if since := s.since(); since > 0 {
+		// Past midnight, what the list kept from yesterday is no longer today's.
+		s.entries = slices.DeleteFunc(slices.Clone(s.entries), func(e client.Entry) bool { return e.CreatedAt < since })
+	}
 	s.loading, s.loadErr, s.more, s.moreErr, s.fresh, s.offline, s.checking = false, false, false, false, 0, false, true
 	s.failures = 0
 	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.seeking = s.index(snap.selected), -1, -1, false, 0, false
@@ -1030,7 +1080,7 @@ func markerOf(e client.Entry) prefs.Marker { return prefs.Marker{At: e.CreatedAt
 // Starred, a reading time, a search or oldest first the first entry is not that, so those only read the marker.
 func (s *Screen) movesMarker() bool {
 	return s.api != nil && s.reading == 0 && !s.loading && !s.loadErr && len(s.entries) > 0 && s.searched == "" &&
-		s.scope == (scope{}) && s.filter == everything && s.budget == 0 && !s.oldest
+		s.scope == (scope{}) && s.filter == everything && s.budget == 0 && s.span == anyTime && !s.oldest
 }
 
 // onTop tells whether the first entry was drawn whole in the last frame, or the grid or wall is at its top.
@@ -1905,7 +1955,14 @@ func (s *Screen) kindName(kind string) string {
 }
 
 func (s *Screen) canMarkAll() bool {
-	return s.filter != starred && s.budget == 0 && s.searched == "" && len(s.entries) > 0 && s.unreadIn(s.scope) > 0
+	if s.filter == starred || s.budget != 0 || s.searched != "" || len(s.entries) == 0 {
+		return false
+	}
+	if s.span != anyTime {
+		// The count of the scope is not the count of the range: look at what the range holds.
+		return slices.ContainsFunc(s.entries, func(e client.Entry) bool { return !e.IsRead })
+	}
+	return s.unreadIn(s.scope) > 0
 }
 
 // markAll marks the entries of the scope read, up to the newest loaded, and offers to undo it.
@@ -1917,7 +1974,7 @@ func (s *Screen) markAll() {
 	if s.oldest {
 		upTo = s.entries[len(s.entries)-1].ID
 	}
-	scope := client.ReadScope{SourceID: s.scope.source, UpTo: upTo}
+	scope := s.scoped(client.ReadScope{SourceID: s.scope.source, UpTo: upTo})
 	if s.scope.source == 0 {
 		scope.Kind = s.scope.kind
 	}
@@ -1951,6 +2008,7 @@ func (s *Screen) markAbove(id int64) {
 		// The entries above are the older ones, from the first of the timeline up to the one before id.
 		scope = client.ReadScope{SourceID: s.scope.source, UpTo: s.entries[s.index(id)-1].ID}
 	}
+	scope = s.scoped(scope)
 	if s.scope.source == 0 {
 		scope.Kind = s.scope.kind
 	}
@@ -1983,6 +2041,7 @@ func (s *Screen) markBelow(id int64) {
 		// The entries below are the newer ones, from the one after id up to the last loaded.
 		scope = client.ReadScope{SourceID: s.scope.source, Newer: id, UpTo: last}
 	}
+	scope = s.scoped(scope)
 	if s.scope.source == 0 {
 		scope.Kind = s.scope.kind
 	}
@@ -2029,6 +2088,7 @@ func (s *Screen) markVisible() {
 				scope.Newer = s.entries[first-1].ID
 			}
 		}
+		scope = s.scoped(scope)
 		if s.scope.source == 0 {
 			scope.Kind = s.scope.kind
 		}
@@ -2084,7 +2144,7 @@ func (s *Screen) markAllOlder(days int) {
 	if !s.canMarkAll() || s.api == nil {
 		return
 	}
-	scope := client.ReadScope{SourceID: s.scope.source}
+	scope := s.scoped(client.ReadScope{SourceID: s.scope.source})
 	if s.scope.source == 0 {
 		scope.Kind = s.scope.kind
 	}
@@ -2510,7 +2570,7 @@ func (s *Screen) listKeys(c *ui.Context, open bool) {
 		{ui.KeyS, func() { s.toggleStar(s.selected) }}, {ui.KeyM, func() { s.toggleRead(s.selected) }},
 		{ui.KeyN, s.nextUnread}, {ui.KeyV, s.markVisible},
 		{ui.KeyU, func() { s.Run(ShowUnread) }}, {ui.KeyA, func() { s.Run(ShowAll) }},
-		{ui.KeyR, func() { s.Run(LoadNew) }},
+		{ui.KeyR, func() { s.Run(LoadNew) }}, {ui.KeyT, func() { s.Run(CycleRange) }},
 	} {
 		c.OnShortcut(0, k.key, k.do)
 	}
@@ -2659,6 +2719,7 @@ const (
 	MarkAllRead
 	LoadNew
 	Immersive
+	CycleRange
 )
 
 // Run does the command, as its key or menu item does. Nothing happens while a dialog shows, and the commands that
@@ -2680,6 +2741,8 @@ func (s *Screen) Run(cmd Command) {
 		}
 	case Immersive:
 		s.toggleImmersive()
+	case CycleRange:
+		s.cycleRange()
 	case LoadNew:
 		if s.fresh > 0 && s.reading == 0 {
 			s.renew()
@@ -2701,7 +2764,7 @@ func TimelineMenu(systemLocale string) (name string, items []MenuItem) {
 	text := translations[locale.Language(systemLocale)]
 	return text.TimelineMenu, []MenuItem{{text.KeyUnread, ShowUnread}, {text.KeyAll, ShowAll},
 		{text.KeyStarred, ShowStarred}, {text.KeyMarkAll, MarkAllRead}, {text.KeyLoadNew, LoadNew},
-		{text.KeyImmersive, Immersive}}
+		{text.KeyImmersive, Immersive}, {text.KeyRange, CycleRange}}
 }
 
 // RefreshMenuLabels are the Subscriptions menu, its item that refreshes all of them and its item that manages
@@ -2759,6 +2822,7 @@ func (s *Screen) keySheet(c *ui.Context) {
 		{s.text.KeyRead, one("M")}, {s.text.KeyMarkVisible, one("V")},
 		{s.text.KeyMarkAll, [][]string{{shiftKey(), "A"}}}, {s.text.KeyUnread, one("U")}, {s.text.KeyAll, one("A")},
 		{s.text.KeyStarred, one("*")}, {s.text.KeyLoadNew, one("R")},
+		{s.text.KeyRange, one("T")},
 		{s.text.KeySearch, [][]string{{"/"}, {cmd, "F"}}},
 		{s.text.KeyEscape, one("Esc")}, {s.text.KeyScope, one("1–5")}, {s.text.KeySidebar, one("H", "←")},
 		{s.text.KeyBack, one("L", "→", "Esc")}, {s.text.KeyMenu, menu}, {s.text.KeyUndo, [][]string{{cmd, "Z"}}}}
@@ -3364,9 +3428,11 @@ func (s *Screen) serverBar(c *ui.Context) {
 // narrowColumn is the main column width under which the toolbar spends less: the segments are padded 7, the
 // gap between the items is 4 and the unread count is left out. fieldColumn is the width from which search is a field;
 // under it search is an icon that expands when it is clicked. Both are about the column, not the window, so hiding the
-// sidebar gives the toolbar its room back.
+// sidebar gives the toolbar its room back. rangeColumn is the width from which the time-range button has room beside the
+// others at any text size; under it the button shows only while a range is on.
 const (
 	narrowColumn = 580
+	rangeColumn  = 700
 	fieldColumn  = 736
 )
 
@@ -3405,7 +3471,7 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 				if s.next != "" {
 					sub = s.format(s.text.MoreResults, len(s.entries))
 				}
-			case s.searched == "" && s.budget == 0 && s.sourcesLoaded:
+			case s.searched == "" && s.budget == 0 && s.span == anyTime && s.sourcesLoaded:
 				if n := s.unreadIn(s.scope); n > 0 {
 					sub = s.format(s.text.UnreadCount, n)
 				}
@@ -3427,6 +3493,7 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 			// The icon buttons are one group with the same gap between them, whatever the column.
 			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 4)).Shrink(0).Children(func() {
 				s.budgetButton(c, !field)
+				s.rangeButton(c, !field, column < rangeColumn)
 				s.gridButton(c)
 				s.markAllButton(c)
 			})
@@ -3537,6 +3604,88 @@ func (s *Screen) budgetButton(c *ui.Context, compact bool) {
 		// The menu is native and its rows have no second line, so the note is a disabled row of its own.
 		m.Item(s.text.OrderOldestNote).Disabled(true)
 	})
+}
+
+// rangeText is the name of a time range, as the menu lists it.
+func (s *Screen) rangeText(span int) string {
+	switch span {
+	case today:
+		return s.text.RangeToday
+	case lastDay:
+		return s.text.Range24
+	}
+	return s.text.RangeAny
+}
+
+// rangeName is the name of the time-range button, which states the range.
+func (s *Screen) rangeName() string {
+	if s.span == anyTime {
+		return s.text.RangeName
+	}
+	return strings.ReplaceAll(s.text.RangeNameOf, "{range}", s.rangeText(s.span))
+}
+
+// rangeButton is the time-range button beside the clock: a bare calendar icon, or with a range a pill saying "Today"
+// or "24 h" (only the icon and a dot when narrow). Where the toolbar has no room for it (tight) it is there only while a range is on: T, the
+// palette and the Timeline menu reach it otherwise. Its menu lists the ranges; choosing one reloads the list from the top.
+func (s *Screen) rangeButton(c *ui.Context, compact, tight bool) {
+	if tight && s.span == anyTime {
+		return
+	}
+	t := c.Theme()
+	name := s.rangeName()
+	on := s.span != anyTime
+	b := ui.ButtonBase(c).Key("range").Height(theme.Px(t, 32)).Shrink(0).Radius(theme.Px(t, 8)).Label(name).Tooltip(name)
+	color := toolFill(t, b)
+	if on {
+		color = t.Accent
+		fill := theme.Soft(t, t.Accent)
+		if b.Hovered() || b.Pressed() {
+			fill = fill.Mix(t.Accent, 0.12)
+		}
+		b.Background(fill)
+	}
+	if on && !compact {
+		b.Gap(theme.Px(t, 5)).Padding(0, theme.Px(t, 12), 0, theme.Px(t, 10))
+	} else {
+		b.Width(theme.Px(t, 32))
+	}
+	b.Children(func() {
+		ui.Icon(c, icons.CalendarDays).FontSize(theme.IconMedium(t)).TextColor(color)
+		if on && !compact {
+			chip := s.text.RangeChipToday
+			if s.span == lastDay {
+				chip = s.text.RangeChip24
+			}
+			ui.Text(c, chip).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(t.Accent)
+		}
+		if on && compact {
+			ui.Box(c).Absolute().Top(theme.Px(t, 4)).Right(theme.Px(t, 4)).Size(theme.Px(t, 7), theme.Px(t, 7)).Radius(theme.Pill(theme.Px(t, 7))).
+				Background(t.Accent)
+		}
+	})
+	b.Menu(func(m *ui.Menu) {
+		for _, span := range spans {
+			if m.Item(s.rangeText(span)).Checked(s.span == span).Chosen() {
+				s.setRange(span)
+			}
+		}
+	})
+}
+
+// setRange limits the list to the entries that arrived within the time range and shows it from the top.
+func (s *Screen) setRange(span int) {
+	if span == s.span {
+		return
+	}
+	s.show(func() { s.span = span })
+	s.announce = s.rangeName()
+}
+
+// cycleRange goes on to the next time range: any time, today, the last 24 hours, and round again.
+func (s *Screen) cycleRange() {
+	i := slices.Index(spans, s.span)
+	s.setRange(spans[(i+1)%len(spans)])
 }
 
 // sidebarButton hides the sidebar or shows it: a bare 32 square icon button with the panel icon, named by what it does.
@@ -3912,6 +4061,12 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 			case s.searched != "":
 				s.empty(c, icons.Search, strings.ReplaceAll(s.text.NoResults, "{q}", s.searched), s.text.NoResultsHint,
 					false)
+			case s.span != anyTime:
+				title := s.text.NothingNewToday
+				if s.span == lastDay {
+					title = s.text.NothingNew24
+				}
+				s.empty(c, icons.CalendarDays, title, s.text.NothingNewHint, false)
 			case s.budget != 0:
 				s.empty(c, icons.Clock, s.format(s.text.NothingFits, s.budget),
 					s.text.NothingFitsHint, false)
@@ -4042,6 +4197,19 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed b
 					s.loadSources()
 				}
 				s.reload()
+			}
+		}
+		if s.span != anyTime && !failed && icon == icons.CalendarDays {
+			b := ui.ButtonBase(c).Height(theme.Px(t, 32)).PaddingX(theme.Px(t, 14)).Radius(theme.Px(t, 10)).Background(theme.Track(t))
+			if b.Pressed() {
+				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
+			} else if b.Hovered() {
+				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
+			}
+			theme.Fade(b)
+			b.Children(func() { ui.Text(c, s.text.AnyRange).NoWrap().FontWeight(500) })
+			if b.Clicked() {
+				s.setRange(anyTime)
 			}
 		}
 		if s.budget != 0 && !failed && icon == icons.Clock {

@@ -193,6 +193,14 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 		}
 		filter.MaxReadingSec = n * 60
 	}
+	if raw := query.Get("since"); raw != "" {
+		n, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || n <= 0 {
+			fail(w, http.StatusBadRequest, "invalid_since")
+			return
+		}
+		filter.Since = n
+	}
 	switch query.Get("order") {
 	case "", "desc":
 	case "asc":
@@ -335,6 +343,7 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 		Newer    int64  `json:"newerThan"`
 		From     int64  `json:"from"`
 		Older    *int64 `json:"olderThan"`
+		Since    *int64 `json:"since"`
 	}
 	if r.ContentLength != 0 && !readBody(w, r, &body) {
 		return
@@ -354,6 +363,13 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		filter.OlderThan = *body.Older
+	}
+	if body.Since != nil {
+		if *body.Since <= 0 {
+			fail(w, http.StatusBadRequest, "invalid_since")
+			return
+		}
+		filter.Since = *body.Since
 	}
 	for _, bound := range []struct {
 		id  int64

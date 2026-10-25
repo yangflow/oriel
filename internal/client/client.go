@@ -608,6 +608,8 @@ type Query struct {
 	Search  string
 	// MaxMinutes keeps the entries that take at most this many minutes and have an estimate; 0 does not filter.
 	MaxMinutes int
+	// Since keeps the entries that arrived (created_at) at or after this time in Unix milliseconds; 0 does not filter.
+	Since int64
 	// Oldest lists the oldest entries first; the cursor of a page then leads to newer entries.
 	Oldest bool
 	Limit  int
@@ -639,6 +641,9 @@ type ReadScope struct {
 	// OlderThan is a time in Unix milliseconds; the server compares it with the time a row shows and refuses zero or less
 	// with invalid_older_than.
 	OlderThan int64 `json:"olderThan,omitempty"`
+	// Since is a time in Unix milliseconds; only entries that arrived at or after it are marked (the timeline's time
+	// range). The server refuses zero or less with invalid_since.
+	Since int64 `json:"since,omitempty"`
 }
 
 // maxImage is the largest picture the server relays.
@@ -681,6 +686,9 @@ func (s Session) Entries(ctx context.Context, q Query) (Page, error) {
 	}
 	if q.MaxMinutes != 0 {
 		values.Set("maxMinutes", strconv.Itoa(q.MaxMinutes))
+	}
+	if q.Since != 0 {
+		values.Set("since", strconv.FormatInt(q.Since, 10))
 	}
 	if q.Oldest {
 		values.Set("order", "asc")

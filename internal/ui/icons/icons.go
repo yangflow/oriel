@@ -24,6 +24,7 @@ var (
 	ArrowRight        = parse("arrow-right")
 	ArrowUp           = parse("arrow-up")
 	ArrowUpDown       = parse("arrow-up-down")
+	CalendarDays      = parse("calendar-days")
 	Check             = parse("check")
 	CheckCheck        = parse("check-check")
 	ChevronDown       = parse("chevron-down")
