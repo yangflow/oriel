@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"golang.org/x/net/idna"
+
+	"github.com/yangflow/oriel/internal/tracker"
 )
 
 // ExistsError says which subscription a new one would repeat. It matches ErrExists.
@@ -85,8 +87,7 @@ func normalHost(host string) string {
 }
 
 func isTrackingParam(name string) bool {
-	lower := strings.ToLower(name)
-	return strings.HasPrefix(lower, "utm_") || trackingParams[lower]
+	return tracker.Param(name, "")
 }
 
 // sourceKeys lists the identities of a subscription; two subscriptions are the same feed when they share one.

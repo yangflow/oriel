@@ -21,6 +21,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/prefs"
+	"github.com/yangflow/oriel/internal/tracker"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/pictures"
@@ -766,7 +767,7 @@ func (s *Screen) openOriginal(c *ui.Context) {
 		return
 	}
 	svc := c.Services()
-	c.OpenURLThen(s.article.URL, func(err error) {
+	c.OpenURLThen(tracker.StripLink(s.article.URL), func(err error) {
 		if err != nil {
 			s.toast = s.text.OpenFailed
 			svc.Invalidate()
@@ -1117,7 +1118,7 @@ func (s *Screen) CopyLink(e client.Entry) {
 	if e.URL == "" {
 		return
 	}
-	s.clip, s.clipped, s.announce, s.toast = e.URL, true, s.text.LinkCopied, s.text.LinkCopied
+	s.clip, s.clipped, s.announce, s.toast = tracker.StripLink(e.URL), true, s.text.LinkCopied, s.text.LinkCopied
 }
 
 // Export copies the entry e as Markdown to the clipboard, or with save asks where to save it and writes the file. The
@@ -1534,7 +1535,7 @@ func (s *Screen) note(c *ui.Context, warn bool, text string) {
 		ui.RichText(c).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap().Children(func() {
 			s.pieces(c, &s.noteSet, text+" ", s.han, theme.Px(t, 12), 0)
 			if s.article.URL != "" {
-				ui.Link(c, s.text.OpenOriginal, s.article.URL).TextColor(color).Underline().FontWeight(500)
+				ui.Link(c, s.text.OpenOriginal, tracker.StripLink(s.article.URL)).TextColor(color).Underline().FontWeight(500)
 			}
 		})
 		if warn && s.article.ExtractStatus == "failed" && s.textButton(c, s.text.Retry, color) {

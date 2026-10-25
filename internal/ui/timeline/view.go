@@ -20,6 +20,7 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/search"
+	"github.com/yangflow/oriel/internal/tracker"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/pictures"
@@ -1762,7 +1763,7 @@ func (s *Screen) browse(c *ui.Context, i int) {
 	s.selected = i
 	if e.URL != "" {
 		svc := c.Services()
-		c.OpenURLThen(e.URL, func(err error) {
+		c.OpenURLThen(tracker.StripLink(e.URL), func(err error) {
 			if err != nil {
 				s.toast = s.text.OpenFailed
 				svc.Invalidate()
@@ -4425,7 +4426,7 @@ func (s *Screen) openCopy(c *ui.Context, id int64, m client.GroupMember) {
 	if e.Kind != "article" {
 		if m.URL != "" {
 			svc := c.Services()
-			c.OpenURLThen(m.URL, func(err error) {
+			c.OpenURLThen(tracker.StripLink(m.URL), func(err error) {
 				if err != nil {
 					s.toast = s.text.OpenFailed
 					svc.Invalidate()
