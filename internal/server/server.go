@@ -175,6 +175,7 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("POST /api/muted-count", s.authed(s.mutedCountAll))
 	mux.HandleFunc("GET /api/rules", s.authed(s.listRules))
 	mux.HandleFunc("POST /api/rules", s.authed(s.createRule))
+	mux.HandleFunc("POST /api/rules/match-count", s.authed(s.ruleMatchCount))
 	mux.HandleFunc("PATCH /api/rules/{id}", s.authed(s.updateRule))
 	mux.HandleFunc("DELETE /api/rules/{id}", s.authed(s.deleteRule))
 	mux.HandleFunc("POST /api/sources/refresh", s.authed(s.refreshAll))

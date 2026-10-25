@@ -9,8 +9,6 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 )
 
-func id(n int64) *int64 { return &n }
-
 // openRules opens the Rules group over the given rules and subscriptions.
 func openRules(t *testing.T, language string, rules []client.Rule) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
@@ -24,7 +22,7 @@ func openRules(t *testing.T, language string, rules []client.Rule) (*Screen, *fa
 }
 
 func oneRule() []client.Rule {
-	return []client.Rule{{ID: 1, SourceID: id(5), Keywords: "release\nbeta", Star: true, Enabled: true}}
+	return []client.Rule{{ID: 1, SourceIDs: []int64{5}, Keywords: "release\nbeta", Star: true, Enabled: true}}
 }
 
 func TestRulesList(t *testing.T) {
@@ -80,7 +78,7 @@ func TestRulesDeleteUndo(t *testing.T) {
 	press(t, tt, s.text.Undo)
 	f.settle(tt)
 	if len(f.rules) != 1 || len(s.rules.list) != 1 || s.rules.list[0].Keywords != "release\nbeta" ||
-		!s.rules.list[0].Star || s.rules.list[0].SourceID == nil || *s.rules.list[0].SourceID != 5 {
+		!s.rules.list[0].Star || !reflect.DeepEqual(s.rules.list[0].SourceIDs, []int64{5}) {
 		t.Fatalf("server %v, screen %v", f.rules, s.rules.list)
 	}
 	if tt.HasText(s.text.RuleDeleted) {
@@ -241,7 +239,7 @@ func TestRulesEdit(t *testing.T) {
 	press(t, tt, s.text.ActRead)
 	saveDialog(t, tt, s)
 	f.settle(tt)
-	want := client.NewRule{SourceID: id(5), Keywords: "release\nbeta", Star: true, MarkRead: true, Enabled: true}
+	want := client.NewRule{SourceIDs: []int64{5}, Keywords: "release\nbeta", Star: true, MarkRead: true, Enabled: true}
 	if !reflect.DeepEqual(f.ruleSent, []client.NewRule{want}) || len(s.rules.list) != 1 || !s.rules.list[0].MarkRead ||
 		s.rules.dialog.open {
 		t.Fatalf("sent %+v, list %+v", f.ruleSent, s.rules.list)
@@ -394,7 +392,7 @@ func TestRulesDialogReadingOrder(t *testing.T) {
 		press(t, tt, s.text.AddRule)
 		var ys []float32
 		for _, text := range []string{s.text.RuleWhen, s.text.RuleWhenHelp, s.text.RuleSub, s.text.RuleKind,
-			s.text.RuleKeywords, s.text.RuleKeywordsHelp, s.text.RuleAuthor, s.text.RuleThen, s.text.ActStar,
+			s.text.RuleKeywords, s.text.RuleKeywordsHelp, s.text.RuleExclude, s.text.RuleExcludeHelp, s.text.RuleAuthor, s.text.RuleThen, s.text.ActStar,
 			s.text.ActRead, s.text.RuleNote} {
 			r, ok := tt.Find(text)
 			if !ok {
@@ -407,5 +405,171 @@ func TestRulesDialogReadingOrder(t *testing.T) {
 				t.Errorf("%s: line %d sits at %v, not below %v", lang, i, ys[i], ys[i-1])
 			}
 		}
+	}
+}
+
+// TestRulesSummaryShowsNewConditions has a row name the words it skips and the subscriptions it is limited to.
+func TestRulesSummaryShowsNewConditions(t *testing.T) {
+	_, _, tt := openRules(t, "en", []client.Rule{
+		{ID: 1, SourceIDs: []int64{5, 2}, Keywords: "release", Exclude: "beta\nrc", Star: true, Enabled: true},
+		{ID: 2, SourceIDs: []int64{5, 2, 9}, Exclude: "ad", Author: "Ann", MarkRead: true, Enabled: true},
+	})
+	for _, text := range []string{"Title or summary has “release” · Not “beta”, “rc”", "Go Blog, Harbor", "3 subscriptions",
+		"Not “ad” · By “Ann”"} {
+		if !tt.HasText(text) {
+			t.Errorf("no %q in %v", text, tt.Texts())
+		}
+	}
+	_, _, zt := openRules(t, "zh-Hans", []client.Rule{{ID: 1, Keywords: "周报", Exclude: "广告\n推广", Star: true, Enabled: true}})
+	if text := "标题或摘要含 “周报” · 不含 “广告”、“推广”"; !zt.HasText(text) {
+		t.Errorf("no %q in %v", text, zt.Texts())
+	}
+}
+
+// TestRulesChooseSubscriptions picks several subscriptions in the list, which sends all of them.
+func TestRulesChooseSubscriptions(t *testing.T) {
+	s, f, tt := openRules(t, "en", nil)
+	press(t, tt, s.text.AddRule)
+	press(t, tt, s.text.ActStar)
+	press(t, tt, s.text.AllSubs)
+	if !s.rules.dialog.subsOpen {
+		t.Fatalf("the list is not open: %v", tt.Texts())
+	}
+	press(t, tt, "Harbor")
+	press(t, tt, "Go Blog")
+	if !reflect.DeepEqual(s.rules.dialog.sources, []int64{2, 5}) {
+		t.Fatalf("chosen %v", s.rules.dialog.sources)
+	}
+	if want := "2 subscriptions"; !tt.HasText(want) {
+		t.Errorf("no %q in %v", want, tt.Texts())
+	}
+	press(t, tt, "Harbor")
+	if !reflect.DeepEqual(s.rules.dialog.sources, []int64{5}) {
+		t.Fatalf("after clearing one: %v", s.rules.dialog.sources)
+	}
+	press(t, tt, s.text.AllSubs)
+	if len(s.rules.dialog.sources) != 0 {
+		t.Fatalf("All subscriptions leaves %v", s.rules.dialog.sources)
+	}
+	press(t, tt, "Go Blog")
+	saveDialog(t, tt, s)
+	f.settle(tt)
+	if want := (client.NewRule{SourceIDs: []int64{5}, Star: true, Enabled: true}); !reflect.DeepEqual(f.ruleSent, []client.NewRule{want}) {
+		t.Fatalf("sent %+v", f.ruleSent)
+	}
+}
+
+// TestRulesSubscriptionLimit keeps the list at the number of subscriptions one rule takes.
+func TestRulesSubscriptionLimit(t *testing.T) {
+	s, _, tt := openRules(t, "en", nil)
+	press(t, tt, s.text.AddRule)
+	for i := range maxRuleSources {
+		s.rules.dialog.sources = append(s.rules.dialog.sources, int64(100+i))
+	}
+	tt.Frame()
+	press(t, tt, "50 subscriptions")
+	press(t, tt, "Harbor")
+	if len(s.rules.dialog.sources) != maxRuleSources || !tt.HasText(s.text.ErrSources) {
+		t.Fatalf("%d chosen, texts %v", len(s.rules.dialog.sources), tt.Texts())
+	}
+}
+
+// TestRulesExcludeAlone is no condition, and with a condition it is sent with the rule.
+func TestRulesExcludeAlone(t *testing.T) {
+	s, f, tt := openRules(t, "en", nil)
+	press(t, tt, s.text.AddRule)
+	press(t, tt, s.text.ActStar)
+	s.rules.dialog.exclude = "ad\n sale "
+	tt.Frame()
+	saveDialog(t, tt, s)
+	f.settle(tt)
+	if !tt.HasText(s.text.ErrNoCondition) || len(f.ruleSent) != 0 || len(f.ruleAsked) != 0 {
+		t.Fatalf("sent %v, asked %v, texts %v", f.ruleSent, f.ruleAsked, tt.Texts())
+	}
+	s.rules.dialog.keywords = "release"
+	tt.Frame()
+	saveDialog(t, tt, s)
+	f.settle(tt)
+	want := client.NewRule{Keywords: "release", Exclude: "ad\nsale", Star: true, Enabled: true}
+	if !reflect.DeepEqual(f.ruleSent, []client.NewRule{want}) {
+		t.Fatalf("sent %+v", f.ruleSent)
+	}
+}
+
+// TestRulesMatchCount shows how many existing entries match once the conditions have rested, and drops the answer to
+// conditions that have changed since.
+func TestRulesMatchCount(t *testing.T) {
+	s, f, tt := openRules(t, "en", nil)
+	f.ruleCount = 12
+	press(t, tt, s.text.AddRule)
+	tt.Frame()
+	if len(f.ruleAsked) != 0 {
+		t.Fatalf("asked %v with nothing filled in", f.ruleAsked)
+	}
+	s.rules.dialog.keywords = "release"
+	s.rules.dialog.exclude = "beta"
+	tt.Frame()
+	f.later += mutedWait / 2
+	tt.Advance(mutedWait / 2)
+	f.settle(tt)
+	if len(f.ruleAsked) != 0 {
+		t.Fatalf("asked %v before the wait", f.ruleAsked)
+	}
+	f.later += mutedWait
+	tt.Advance(mutedWait)
+	// The conditions change while the question is out.
+	s.rules.dialog.keywords = "release\nnotes"
+	tt.Frame()
+	f.settle(tt)
+	if len(f.ruleAsked) != 1 || f.ruleAsked[0].Keywords != "release" || f.ruleAsked[0].Exclude != "beta" {
+		t.Fatalf("asked %+v", f.ruleAsked)
+	}
+	if tt.HasText("12 of your existing entries match the conditions as they are now") {
+		t.Fatalf("the answer to old conditions shows: %v", tt.Texts())
+	}
+	f.ruleCount = 1
+	f.later += 2 * mutedWait
+	tt.Advance(2 * mutedWait)
+	f.settle(tt)
+	if want := "1 of your existing entry matches the conditions as they are now"; !tt.HasText(want) {
+		t.Fatalf("no %q in %v", want, tt.Texts())
+	}
+	f.ruleCount = 0
+	s.rules.dialog.author = "Ann"
+	tt.Frame()
+	f.later += 2 * mutedWait
+	tt.Advance(2 * mutedWait)
+	f.settle(tt)
+	if !tt.HasText(s.text.RuleCountNone) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+// TestRulesMatchCountChinese words the count line in Chinese.
+func TestRulesMatchCountChinese(t *testing.T) {
+	s, f, tt := openRules(t, "zh-Hans", nil)
+	f.ruleCount = 3
+	press(t, tt, s.text.AddRule)
+	s.rules.dialog.keywords = "周报"
+	tt.Frame()
+	f.later += 2 * mutedWait
+	tt.Advance(2 * mutedWait)
+	f.settle(tt)
+	if want := "按现在的条件，已有条目里有 3 条会命中"; !tt.HasText(want) {
+		t.Fatalf("no %q in %v", want, tt.Texts())
+	}
+}
+
+// TestRulesTooManySubscriptions words the server's refusal of too many subscriptions.
+func TestRulesTooManySubscriptions(t *testing.T) {
+	s, f, tt := openRules(t, "en", nil)
+	press(t, tt, s.text.AddRule)
+	tt.Type("beta")
+	press(t, tt, s.text.ActRead)
+	f.ruleErr = &client.APIError{Status: 400, Code: "too_many_rule_sources"}
+	saveDialog(t, tt, s)
+	f.settle(tt)
+	if !tt.HasText(s.text.ErrSources) {
+		t.Fatalf("texts %v", tt.Texts())
 	}
 }

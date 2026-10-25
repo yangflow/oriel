@@ -82,11 +82,11 @@ type copy struct {
 	StoppedMany, LostMany, SkippedWhy                                             string
 	DropHelp, ImportedMany, NotOpmlWhy, TooLargeWhy, ReadWhy, FailedWhy, DropBusy string
 
-	Rules, RulesLead, RulesNone, RulesNoneHelp, AddRule, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs     string
-	RwKeywords, RwAuthor, RwOnly, ActStar, ActRead, MenuEdit, MenuDelete, RuleDeleted, RuleAddTitle, RuleEditTitle string
-	RuleWhen, RuleWhenHelp, RuleSub, RuleKind, KindAny, RuleKeywords, RuleKeywordsHelp, RuleAuthor, RuleAuthorHint string
-	RuleThen, RuleNote, ErrNoCondition, ErrNoAction, ErrKeywords, ErrAuthor, ErrSource, ErrTooMany, RuleClose      string
-	MutedTitle, MutedHelp, MutedNone, MutedMany, MutedInvalid, RulesError, RulesErrorHint                          string
+	Rules, RulesLead, RulesNone, RulesNoneHelp, AddRule, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs                                                                                           string
+	RwKeywords, RwExclude, SubsN, RuleExclude, RuleExcludeHelp, RuleCount, RuleCountNone, ErrSources, RwAuthor, RwOnly, ActStar, ActRead, MenuEdit, MenuDelete, RuleDeleted, RuleAddTitle, RuleEditTitle string
+	RuleWhen, RuleWhenHelp, RuleSub, RuleKind, KindAny, RuleKeywords, RuleKeywordsHelp, RuleAuthor, RuleAuthorHint                                                                                       string
+	RuleThen, RuleNote, ErrNoCondition, ErrNoAction, ErrKeywords, ErrAuthor, ErrSource, ErrTooMany, RuleClose                                                                                            string
+	MutedTitle, MutedHelp, MutedNone, MutedMany, MutedInvalid, RulesError, RulesErrorHint                                                                                                                string
 
 	ReaderLabel, ReaderHelp, ReaderButton, ReaderTitle, ReaderService, ReaderAddress, ReaderAddressHint    string
 	ReaderUser, ReaderToken, ReaderPassword, ReaderMemory, ReaderConnect, ReaderClose, ReaderCancel        string
@@ -175,6 +175,7 @@ type API interface {
 	SetRuleEnabled(ctx context.Context, id int64, enabled bool) (client.Rule, error)
 	DeleteRule(ctx context.Context, id int64) error
 	MutedCountAll(ctx context.Context, keywords string) (int, error)
+	RuleMatchCount(ctx context.Context, cond client.RuleConditions) (int, error)
 }
 
 // Deps is what the screen does outside itself. Go runs work away from the UI thread and then the function it

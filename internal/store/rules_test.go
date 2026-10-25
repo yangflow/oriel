@@ -2,8 +2,10 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -50,7 +52,7 @@ func TestRulesActOnNewEntriesOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateRule(ctx, Rule{SourceID: &a.ID, Author: "ALICE", MarkRead: true, Enabled: true}, time.Now()); err != nil {
+	if _, err := s.CreateRule(ctx, Rule{SourceIDs: []int64{a.ID}, Author: "ALICE", MarkRead: true, Enabled: true}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.CreateRule(ctx, Rule{Kind: "video", Keywords: "clip", MarkRead: true, Enabled: true}, time.Now()); err != nil {
@@ -114,7 +116,7 @@ func TestRuleStarQueuesTheLocalCopy(t *testing.T) {
 	ctx := context.Background()
 	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
 	a := newLogSource(t, s, "https://a.example/feed")
-	if _, err := s.CreateRule(ctx, Rule{SourceID: &a.ID, Keywords: "keep", Star: true, Enabled: true}, time.Now()); err != nil {
+	if _, err := s.CreateRule(ctx, Rule{SourceIDs: []int64{a.ID}, Keywords: "keep", Star: true, Enabled: true}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	saveItems(t, s, a, FeedEntry{GUID: "1", Title: "keep this", URL: "https://a.example/1"}, FeedEntry{GUID: "2", Title: "skip"})
@@ -127,7 +129,7 @@ func TestRulesGoWithTheirSource(t *testing.T) {
 	ctx := context.Background()
 	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
 	a := newLogSource(t, s, "https://a.example/feed")
-	if _, err := s.CreateRule(ctx, Rule{SourceID: &a.ID, Star: true, Enabled: true}, time.Now()); err != nil {
+	if _, err := s.CreateRule(ctx, Rule{SourceIDs: []int64{a.ID}, Star: true, Enabled: true}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM sources WHERE id = ?", a.ID); err != nil {
@@ -156,13 +158,13 @@ func TestRuleValidation(t *testing.T) {
 		rule Rule
 		want error
 	}{
-		{"missing source", Rule{SourceID: &missing, Star: true}, ErrRuleSource},
+		{"missing source", Rule{SourceIDs: []int64{missing}, Star: true}, ErrRuleSource},
 		{"kind", Rule{Kind: "podcast", Keywords: "x", Star: true}, ErrRuleKind},
 		{"too many keywords", Rule{Keywords: many, Star: true}, ErrRuleKeywords},
 		{"long keyword", Rule{Keywords: string(long), Star: true}, ErrRuleKeywords},
 		{"long author", Rule{Author: string(long), Star: true}, ErrRuleAuthor},
 		{"no condition", Rule{Keywords: " \n\t\n", Author: "  ", Star: true}, ErrRuleNoCondition},
-		{"no action", Rule{SourceID: &a.ID}, ErrRuleNoAction},
+		{"no action", Rule{SourceIDs: []int64{a.ID}}, ErrRuleNoAction},
 	} {
 		if _, err := s.CreateRule(ctx, c.rule, time.Now()); !errors.Is(err, c.want) {
 			t.Errorf("%s: %v, want %v", c.name, err, c.want)
@@ -185,12 +187,14 @@ func TestRuleValidation(t *testing.T) {
 		t.Errorf("patch to no condition: %v", err)
 	}
 	// A source can be set and cleared again.
-	set, err := s.UpdateRule(ctx, ok.ID, RulePatch{SetSource: true, SourceID: &a.ID})
-	if err != nil || set.SourceID == nil || *set.SourceID != a.ID {
+	one := []int64{a.ID}
+	set, err := s.UpdateRule(ctx, ok.ID, RulePatch{SourceIDs: &one})
+	if err != nil || !slices.Equal(set.SourceIDs, one) {
 		t.Fatalf("%+v %v", set, err)
 	}
-	cleared, err := s.UpdateRule(ctx, ok.ID, RulePatch{SetSource: true})
-	if err != nil || cleared.SourceID != nil {
+	every := []int64{}
+	cleared, err := s.UpdateRule(ctx, ok.ID, RulePatch{SourceIDs: &every})
+	if err != nil || len(cleared.SourceIDs) != 0 {
 		t.Fatalf("%+v %v", cleared, err)
 	}
 	if _, err := s.UpdateRule(ctx, 9999, RulePatch{}); !errors.Is(err, ErrNotFound) {
@@ -198,6 +202,106 @@ func TestRuleValidation(t *testing.T) {
 	}
 	if err := s.DeleteRule(ctx, 9999); !errors.Is(err, ErrNotFound) {
 		t.Errorf("delete of a missing rule: %v", err)
+	}
+}
+
+func TestRuleOfSeveralSourcesAndExcludedWords(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	a := newLogSource(t, s, "https://a.example/feed")
+	b := newLogSource(t, s, "https://b.example/feed")
+	c := newLogSource(t, s, "https://c.example/feed")
+	rule, err := s.CreateRule(ctx, Rule{SourceIDs: []int64{b.ID, a.ID, a.ID}, Keywords: "weekly", Exclude: " ads \n\nSPAM", Star: true, Enabled: true}, time.Now())
+	if err != nil || !slices.Equal(rule.SourceIDs, []int64{a.ID, b.ID}) || rule.Exclude != "ads\nSPAM" {
+		t.Fatalf("%+v %v", rule, err)
+	}
+	// The same rule is read back by the list.
+	if rules, err := s.Rules(ctx); err != nil || len(rules) != 1 || !slices.Equal(rules[0].SourceIDs, rule.SourceIDs) {
+		t.Fatalf("%+v %v", rules, err)
+	}
+	items := []FeedEntry{
+		{GUID: "plain", Title: "Weekly 1"},
+		{GUID: "ads", Title: "Weekly sponsored by ADS"},
+		{GUID: "spam", Summary: "weekly spam"},
+	}
+	saveItems(t, s, a, items...)
+	saveItems(t, s, b, items[:1]...)
+	saveItems(t, s, c, items[:1]...)
+	for _, want := range []struct {
+		src     int64
+		guid    string
+		starred bool
+	}{
+		{a.ID, "plain", true}, {a.ID, "ads", false}, {a.ID, "spam", false}, {b.ID, "plain", true}, {c.ID, "plain", false},
+	} {
+		if e := entryByGUID(t, s, want.src, want.guid); e.Starred != want.starred {
+			t.Errorf("%d %s: starred %v", want.src, want.guid, e.Starred)
+		}
+	}
+
+	// Words to leave out are no condition; too many sources are refused.
+	if _, err := s.CreateRule(ctx, Rule{Exclude: "ads", Star: true}, time.Now()); !errors.Is(err, ErrRuleNoCondition) {
+		t.Errorf("exclude alone: %v", err)
+	}
+	if _, err := s.CreateRule(ctx, Rule{Exclude: many21(), Keywords: "x", Star: true}, time.Now()); !errors.Is(err, ErrRuleKeywords) {
+		t.Errorf("too many excluded words: %v", err)
+	}
+	var ids []int64
+	for i := 0; i <= MaxRuleSources; i++ {
+		ids = append(ids, int64(1000+i))
+	}
+	if _, err := s.CreateRule(ctx, Rule{SourceIDs: ids, Star: true}, time.Now()); !errors.Is(err, ErrRuleSources) {
+		t.Errorf("too many sources: %v", err)
+	}
+
+	// The count looks at the entries there are now: starred, read and the like do not matter.
+	n, err := s.RuleMatchCount(ctx, Rule{SourceIDs: []int64{a.ID, c.ID}, Keywords: "weekly", Exclude: "ads"})
+	if err != nil || n != 3 {
+		t.Fatalf("count %d %v", n, err)
+	}
+	if n, err := s.RuleMatchCount(ctx, Rule{Keywords: "weekly"}); err != nil || n != 5 {
+		t.Fatalf("every source: %d %v", n, err)
+	}
+	if n, err := s.RuleMatchCount(ctx, Rule{Exclude: "ads"}); err != nil || n != 0 {
+		t.Fatalf("exclude alone: %d %v", n, err)
+	}
+	if _, err := s.RuleMatchCount(ctx, Rule{Kind: "podcast"}); !errors.Is(err, ErrRuleKind) {
+		t.Fatalf("kind: %v", err)
+	}
+	if err := s.DeleteSource(ctx, c.ID, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.RuleMatchCount(ctx, Rule{Keywords: "weekly"}); err != nil || n != 4 {
+		t.Fatalf("a deleted source is not counted: %d %v", n, err)
+	}
+}
+
+func many21() string {
+	var many string
+	for i := 0; i < 21; i++ {
+		many += "k" + strconv.Itoa(i) + "\n"
+	}
+	return many
+}
+
+func TestRuleKeepsItsOtherSourcesWhenOneIsPurged(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	a := newLogSource(t, s, "https://a.example/feed")
+	b := newLogSource(t, s, "https://b.example/feed")
+	both, err := s.CreateRule(ctx, Rule{SourceIDs: []int64{a.ID, b.ID}, Star: true, Enabled: true}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateRule(ctx, Rule{SourceIDs: []int64{a.ID}, Star: true, Enabled: true}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM sources WHERE id = ?", a.ID); err != nil {
+		t.Fatal(err)
+	}
+	rules, err := s.Rules(ctx)
+	if err != nil || len(rules) != 1 || rules[0].ID != both.ID || !slices.Equal(rules[0].SourceIDs, []int64{b.ID}) {
+		t.Fatalf("%+v %v", rules, err)
 	}
 }
 
@@ -296,7 +400,7 @@ func TestRuleOfASourceInItsUndoWindow(t *testing.T) {
 	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
 	src := newLogSource(t, s, "https://a.example/feed")
 	now := time.Now()
-	rule, err := s.CreateRule(ctx, Rule{SourceID: &src.ID, Star: true, Enabled: true}, now)
+	rule, err := s.CreateRule(ctx, Rule{SourceIDs: []int64{src.ID}, Star: true, Enabled: true}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +415,7 @@ func TestRuleOfASourceInItsUndoWindow(t *testing.T) {
 	if err := s.DeleteRule(ctx, rule.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateRule(ctx, Rule{ID: rule.ID, SourceID: &src.ID, Star: true, Enabled: true}, now); err != nil {
+	if _, err := s.CreateRule(ctx, Rule{ID: rule.ID, SourceIDs: []int64{src.ID}, Star: true, Enabled: true}, now); err != nil {
 		t.Fatalf("re-create in the window: %v", err)
 	}
 	// Purged for good, the source is invalid again and its rule is gone.
@@ -321,7 +425,7 @@ func TestRuleOfASourceInItsUndoWindow(t *testing.T) {
 	if list, _ := s.Rules(ctx); len(list) != 0 {
 		t.Fatalf("rules after the purge: %+v", list)
 	}
-	if _, err := s.CreateRule(ctx, Rule{SourceID: &src.ID, Star: true}, now); !errors.Is(err, ErrRuleSource) {
+	if _, err := s.CreateRule(ctx, Rule{SourceIDs: []int64{src.ID}, Star: true}, now); !errors.Is(err, ErrRuleSource) {
 		t.Fatalf("rule of a purged source: %v", err)
 	}
 }
@@ -407,5 +511,51 @@ func TestRestoredRuleKeepsItsPlace(t *testing.T) {
 	again, err := s.CreateRule(ctx, Rule{ID: made[0].ID, Keywords: "d", Star: true}, made[0].CreatedAt.Add(time.Millisecond))
 	if err != nil || again.ID == made[0].ID {
 		t.Fatalf("taken ID: %+v, %v", again, err)
+	}
+}
+
+func TestMigrationMovesTheSourceOfARuleToTheJoinTable(t *testing.T) {
+	ctx := context.Background()
+	file := filepath.Join(t.TempDir(), "oriel.sqlite")
+	s := open(t, file)
+	a := newLogSource(t, s, "https://a.example/feed")
+	s.Close()
+
+	// Put the database back to version 28: the rules table with its one source_id.
+	db, err := sql.Open("sqlite", file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{
+		"DROP TRIGGER rules_lose_last_source", "DROP TABLE rule_sources", "DROP TABLE rules",
+		`CREATE TABLE rules (id INTEGER PRIMARY KEY, source_id INTEGER REFERENCES sources (id) ON DELETE CASCADE,
+			kind TEXT NOT NULL DEFAULT '', keywords TEXT NOT NULL DEFAULT '', author TEXT NOT NULL DEFAULT '',
+			star INTEGER NOT NULL DEFAULT 0, mark_read INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
+			created_at INTEGER NOT NULL)`,
+		"CREATE INDEX rules_source ON rules (source_id)",
+		"INSERT INTO rules (id, source_id, keywords, star, created_at) VALUES (7, " + strconv.FormatInt(a.ID, 10) + ", 'go', 1, 5)",
+		"INSERT INTO rules (id, kind, author, mark_read, enabled, created_at) VALUES (8, 'video', 'bob', 1, 0, 6)",
+		"PRAGMA user_version = 28",
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+
+	s, err = Open(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	rules, err := s.Rules(ctx)
+	if err != nil || len(rules) != 2 {
+		t.Fatalf("%+v %v", rules, err)
+	}
+	if r := rules[0]; r.ID != 7 || !slices.Equal(r.SourceIDs, []int64{a.ID}) || r.Keywords != "go" || !r.Star || !r.Enabled || r.CreatedAt.UnixMilli() != 5 {
+		t.Errorf("%+v", r)
+	}
+	if r := rules[1]; r.ID != 8 || len(r.SourceIDs) != 0 || r.Kind != "video" || r.Author != "bob" || !r.MarkRead || r.Enabled {
+		t.Errorf("%+v", r)
 	}
 }
