@@ -601,8 +601,12 @@ func (s *Screen) addSource(more, allow bool) {
 				var apiErr *client.APIError
 				errors.As(err, &apiErr)
 				for _, known := range s.deps.Sources() {
-					if (apiErr != nil && apiErr.SourceID != 0 && known.ID == apiErr.SourceID) || (known.URL == src.URL && known.RSSHubPath == src.RSSHubPath) {
+					same := known.URL == src.URL && known.RSSHubPath == src.RSSHubPath
+					if (apiErr != nil && apiErr.SourceID != 0 && known.ID == apiErr.SourceID) || same {
 						a.addressErr, a.exists = s.fill(s.text.Exists, Name(known)), known.ID
+					}
+					if same {
+						a.dupe = false // the server refuses an identical spelling even when duplicates are allowed
 					}
 				}
 				a.focus, s.announce = addressField, a.addressErr

@@ -573,12 +573,24 @@ func TestExists(t *testing.T) {
 	}
 }
 
+func TestAddAnywayNotOfferedForTheSameSpelling(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	open(t, s, f, tt)
+	f.addErr = &client.APIError{Status: 409, Code: "source_exists", SourceID: 1}
+	tt.Type(f.sources[0].URL) // exactly the address of "Go Blog"
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if !tt.HasText("Show it") || tt.HasText("Add anyway") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
 func TestAddAnyway(t *testing.T) {
 	for _, more := range []bool{false, true} {
 		s, f, tt := setup(t, "en")
 		open(t, s, f, tt)
 		f.addErr = &client.APIError{Status: 409, Code: "source_exists", SourceID: 1}
-		tt.Type("https://go.dev/blog/feed.atom")
+		tt.Type("http://www.go.dev/blog/feed.atom")
 		if more {
 			tt.Key(ui.Cmd, ui.KeyEnter)
 		} else {
@@ -592,7 +604,7 @@ func TestAddAnyway(t *testing.T) {
 			t.Fatal(err)
 		}
 		f.settle(tt)
-		if len(f.added) != 2 || !f.added[1].AllowDuplicate || f.added[1].URL != "https://go.dev/blog/feed.atom" {
+		if len(f.added) != 2 || !f.added[1].AllowDuplicate || f.added[1].URL != "http://www.go.dev/blog/feed.atom" {
 			t.Fatalf("added %+v", f.added)
 		}
 		if tt.HasText("Add anyway") || tt.HasText(s.text.ExistsUnknown) {
