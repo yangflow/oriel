@@ -66,6 +66,8 @@ type fake struct {
 	healthErr   error
 	healthReads int // how many times the RSSHub health was read
 	vacuums     int // how many times a compaction was started
+	dropped     int // how many times the copy before the update was deleted
+	dropErr     error
 
 	model string        // the model that answers a test
 	check client.AITest // what else the test finds; its Model is model

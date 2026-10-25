@@ -849,6 +849,20 @@ type Storage struct {
 	Copies           int    `json:"copies"`
 	CopyBytes        int64  `json:"copyBytes"`
 	Vacuum           Vacuum `json:"vacuum"`
+	// PreMigrate is the copy of the database made before the last migration; nil when there is none.
+	PreMigrate *PreMigrate `json:"premigrate"`
+}
+
+// PreMigrate is the copy of the database the server keeps from before its last migration: its size and the schema
+// version it was made from (0 when unknown).
+type PreMigrate struct {
+	Bytes   int64 `json:"bytes"`
+	Version int   `json:"version"`
+}
+
+// DeletePreMigrate deletes the copy made before the last migration. One that is already gone is not an error.
+func (s Session) DeletePreMigrate(ctx context.Context) error {
+	return s.call(ctx, http.MethodDelete, "/api/storage/premigrate", nil, nil)
 }
 
 // Storage asks the server how big its database and image cache are.

@@ -70,6 +70,8 @@ type copy struct {
 	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                                                    string
 	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10 string
 	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, Compacting                                                                                                                                                                                                                string
+	PreMigrate, PreMigrateVersion, DeletePreMigrate, DeletePreMigrateTitle, DeletePreMigrateBody                                                                                                                                                                                                                                            string
+	DeletePreMigrateConfirm, PreMigrateDeleted, PreMigrateFailed                                                                                                                                                                                                                                                                            string
 	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                                                                                                                                                                                                                                        string
 	Health, HealthHelp, HealthEmpty, MainBadge, NoData, NoAnswer, LastN, Cooling, CoolingSoon                                                                                                                                                                                                                                               string
 	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                                                                                                                                                          string
@@ -152,6 +154,7 @@ type API interface {
 	RSSHubHealth(ctx context.Context) (client.RSSHubHealth, error)
 	Storage(ctx context.Context) (client.Storage, error)
 	StartVacuum(ctx context.Context) (client.Vacuum, error)
+	DeletePreMigrate(ctx context.Context) error
 	RevokeDevice(ctx context.Context, id int64) error
 	StartOPMLImport(ctx context.Context, opml []byte) (client.OPMLImport, error)
 	OPMLImportStatus(ctx context.Context) (client.OPMLImport, error)
@@ -325,8 +328,10 @@ type Screen struct {
 
 	revoking bool
 	doomed   client.Device
-	announce string
-	toast    string
+	// dropCopy is the dialog that asks to delete the copy made before the update; dropping is the request running.
+	dropCopy, dropping bool
+	announce           string
+	toast              string
 
 	restored *restoration // the last "Restore default" of a prompt, until its toast closes
 
@@ -377,6 +382,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.api, s.server, s.signedIn = api, server, signedIn
 	s.gen++
 	s.group, s.busy, s.run, s.result, s.revoking = fetching, false, nil, result{}, false
+	s.dropCopy, s.dropping = false, false
 	s.working, s.confirming, s.backupFile = "", false, ""
 	s.autoSaving, s.autoStatus = false, status{}
 	s.grouping = false
@@ -435,6 +441,7 @@ func (s *Screen) TrayFailed() { s.trayFailed = true }
 // Open loads the settings and the devices again, as the screen is shown.
 func (s *Screen) Open() {
 	s.baseStatus, s.keepStatus, s.invalid, s.revoking = status{}, status{}, false, false
+	s.dropCopy = false
 	s.aiStatus, s.promptStatus, s.aiInvalid, s.aiChecks = status{}, status{}, false, nil
 	s.autoStatus = status{}
 	if !s.busy {
@@ -454,6 +461,7 @@ func (s *Screen) expired(err error) bool {
 	s.gen++
 	s.api = nil
 	s.busy, s.run, s.saving, s.keeping, s.revoking = false, nil, false, false, false
+	s.dropCopy, s.dropping = false, false
 	s.working, s.confirming, s.backupFile = "", false, ""
 	s.autoSaving = false
 	s.aiSaving, s.testing, s.promptSaving = false, false, false
@@ -1188,7 +1196,7 @@ var (
 // busyDrop reports whether files dropped now are turned away, because an import, backup or restore is running or a
 // dialog is open; it says so with a toast.
 func (s *Screen) busyDrop() bool {
-	if s.busy || s.confirming || s.revoking || s.reader.open || s.rules.dialog.open {
+	if s.busy || s.confirming || s.revoking || s.dropCopy || s.reader.open || s.rules.dialog.open {
 		s.toast = s.text.DropBusy
 		return true
 	}
@@ -1617,7 +1625,7 @@ func (s *Screen) keep(days int) string {
 func (s *Screen) View(c *ui.Context) {
 	t := c.Theme()
 	s.typing = false
-	if !s.revoking && !s.reader.open && !s.rules.dialog.open && !s.uiFont.open && !s.rdFont.open {
+	if !s.revoking && !s.dropCopy && !s.reader.open && !s.rules.dialog.open && !s.uiFont.open && !s.rdFont.open {
 		c.OnShortcut(0, ui.KeyEscape, s.escape)
 	}
 	width, _ := c.Size()
@@ -1644,6 +1652,7 @@ func (s *Screen) View(c *ui.Context) {
 			s.revoke()
 		}
 	}
+	s.dropCopyDialog(c)
 	s.readerDialog(c)
 	s.ruleDialog(c)
 	s.restoreDialog(c)

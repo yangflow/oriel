@@ -40,6 +40,8 @@
      activity-open (one source expanded to its attempts, a failed one with its reason), activity-empty (nothing fetching,
      no attempts yet), vacuum-running (Compact database pressed: busy, cannot be pressed again), vacuum-done (finished,
      how much was freed), vacuum-failed (the reason, the button usable again),
+     premigrate (a copy from before the last update is on disk: its size and schema version, Delete…), premigrate-confirm
+     (the confirmation), premigrate-deleted (the row is gone, a toast says so),
      diagnostics-exported (Export diagnostics… finished, the file name), diagnostics-failed (the export did not work);
      ai (not set up), ai-configured (saved, the key only shown as set), ai-edited (changed, not saved; testing waits
      for the save), ai-invalid (the server refused the address), ai-preset (Ollama picked from the Preset row: address filled in, unsaved,
@@ -305,6 +307,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .badge.off { background:var(--track); color:var(--text2) }
 .kv { display:flex; align-items:baseline; justify-content:space-between; gap:16px }
 .kv .value { font-variant-numeric:tabular-nums; color:var(--text2) }
+.kv .end { display:flex; align-items:center; gap:12px }
 .lead-row { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin:0 0 20px }
 .lead-row .lead { margin:0 }
 .compact { display:flex; align-items:flex-start; gap:16px }
@@ -428,7 +431,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','reading-appearance','reading-width-wide','density','mark-read','mark-read-scroll','desktop','desktop-on','desktop-error','desktop-login-error','desktop-tray-menu','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','reading-appearance','reading-width-wide','density','mark-read','mark-read-scroll','desktop','desktop-on','desktop-error','desktop-login-error','desktop-tray-menu','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','premigrate','premigrate-confirm','premigrate-deleted','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],os:['mac','win','linux']};
@@ -518,6 +521,7 @@ const copy={
     activityLead:'What is being fetched, how the recent fetches went, and the space the database uses.', refresh:'Refresh',
     storage:'Storage', dbSize:'Database size', entries:'Entries', images:'Cached images', imagesValue:'{n} images, {size}',
     copies:'Starred copies', copiesValue:'{n} images, {size}',
+    preMigrate:'Copy before update', preMigrateValue:'{size}, database version {version}', preMigrateDelete:'Delete…', preMigrateTitle:'Delete the copy made before the update?', preMigrateBody:'It is a full copy of the database as it was before the last update, with sessions and API keys. Without it you cannot go back to the older version.', preMigrateConfirm:'Delete', preMigrateDeleted:'The copy is deleted.',
     diagnostics:'Diagnostics', diagnosticsHelp:'Saves the version, the system, the recent errors, the end of the log and the host name and failures of each subscription as a text file. It has no password, keys, full addresses or article text, and it stays on this computer. The log itself is in the logs folder of the data directory, on the computer that runs the server.', exportDiagnostics:'Export diagnostics…', diagnosticsExported:'Exported to {file}.', diagnosticsFailed:'Couldn’t export. Check the connection and try again.',
     compact:'Compact database', compacting:'Compacting…', compacted:'Compacted. Freed {size}', compactFailed:'Could not compact: {reason}',
     compactHelp:'Rewrites the database file to give back unused space. It can take a while and runs in the background; Oriel stays usable, and new fetches wait until it is done. About {size} can be freed.',
@@ -627,6 +631,7 @@ const copy={
     activityLead:'现在在抓什么、最近抓得怎么样，以及数据库占用的空间。', refresh:'刷新',
     storage:'存储', dbSize:'数据库大小', entries:'条目', images:'图片缓存', imagesValue:'{n} 张，{size}',
     copies:'收藏的副本', copiesValue:'{n} 张，{size}',
+    preMigrate:'更新前的副本', preMigrateValue:'{size}，数据库版本 {version}', preMigrateDelete:'删除…', preMigrateTitle:'删除更新前的副本？', preMigrateBody:'它是上次更新前数据库的完整副本，里面有会话和 API key。删除后就不能用它退回旧版本了。', preMigrateConfirm:'删除', preMigrateDeleted:'副本已删除。',
     diagnostics:'诊断', diagnosticsHelp:'把版本、系统、最近的错误、日志的最后一段，以及每个订阅的主机名和失败情况存成一个文本文件。里面没有口令、密钥、完整网址和文章内容，只存在这台电脑上。日志文件本身在运行服务端的那台电脑的数据目录的 logs 文件夹里。', exportDiagnostics:'导出诊断文件…', diagnosticsExported:'已导出到 {file}。', diagnosticsFailed:'没能导出。检查一下连接再试。',
     compact:'压缩数据库', compacting:'正在压缩…', compacted:'已压缩，腾出 {size}', compactFailed:'没能压缩：{reason}',
     compactHelp:'重写数据库文件，把空闲的空间还给系统。可能要一会儿，在后台进行，Oriel 照常可用；压缩期间不开始新的抓取。大约能腾出 {size}。',
@@ -722,7 +727,7 @@ const t=(key,args={})=>copy[key].replace(/\{(\w+)\}/g,(_,k)=>args[k]);
 const zh=lang==='zh-Hans';
 const host='reader.example.net';
 const remote=state!=='devices-local';
-const group=state.startsWith('rule')||state.startsWith('muted-')?'rules':state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'||state.startsWith('mark-read')||state.startsWith('desktop')?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('diagnostics')?'activity':'fetching';
+const group=state.startsWith('rule')||state.startsWith('muted-')?'rules':state==='appearance'||state.startsWith('font-')||state.startsWith('reading-')||state==='viewers'||state==='density'||state.startsWith('mark-read')||state.startsWith('desktop')?'appearance':state.startsWith('ai')||state==='prompt-restored'?'ai':(['opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote'].includes(state)||state.startsWith('reader'))?'opml':['devices','devices-local','revoke'].includes(state)?'devices':state.startsWith('activity')||state.startsWith('vacuum')||state.startsWith('premigrate')||state.startsWith('diagnostics')?'activity':'fetching';
 
 const groups=[['appearance','palette'],['fetching','rss'],['rules','listFilter'],['opml','arrowUpDown'],['ai','sparkles'],['devices','laptop'],['activity','database']];
 const sidebar=`<aside><div class="top"><button class="back" aria-label="${copy.backTimeline}" title="${copy.backTimeline} (Esc)">${icon('chevronLeft')}<span>${copy.backTimeline}</span></button></div>
@@ -962,6 +967,7 @@ const activity=`<div class="lead-row"><p class="lead">${copy.activityLead}</p><b
 <div class="row kv"><span>${copy.entries}</span><span class="value">48,213</span></div>
 <div class="row kv"><span>${copy.images}</span><span class="value">${t('imagesValue',{n:'1,284',size:'212.3 MB'})}</span></div>
 <div class="row kv"><span>${copy.copies}</span><span class="value">${t('copiesValue',{n:'86',size:'31.4 MB'})}</span></div>
+${state==='premigrate'||state==='premigrate-confirm'?`<div class="row kv"><span>${copy.preMigrate}</span><span class="end"><span class="value">${t('preMigrateValue',{size:'118.2 MB',version:'17'})}</span><button class="button small danger" aria-label="${copy.preMigrateTitle.replace(/[?？]$/,'')}">${copy.preMigrateDelete}</button></span></div>`:''}
 <div class="row"><div class="compact"><p class="help">${t('compactHelp',{size:free})}</p><button class="button"${vac==='running'?' disabled':''}>${vac==='running'?icon('loader','spin'):icon('database')}${vac==='running'?copy.compacting:copy.compact}</button></div>${vacStatus}</div>
 </div>
 <h2 class="section-title" style="margin-top:28px">${copy.diagnostics}</h2><div class="card">
@@ -1022,6 +1028,7 @@ ${bad?`<div class="status error" role="alert">${icon('alert')}${copy.errNoAction
 if(trayMenu)overlay=trayMenu;
 if(state==='rule-menu')overlay=`<div class="menu" id="menu" role="menu"><button role="menuitem">${icon('pencil')}${copy.menuEdit}</button><button role="menuitem" class="danger">${icon('trash')}${copy.menuDelete}</button></div>`;
 if(state==='restore-confirm')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${copy.restoreTitle}</h2><p id="ab">${t('restoreBody',{file:bfile})}</p><div class="buttons"><button class="button default">${copy.cancel}</button><button class="button danger">${copy.restoreConfirm}</button></div></div></div>`;
+if(state==='premigrate-confirm')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${copy.preMigrateTitle}</h2><p id="ab">${copy.preMigrateBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.preMigrateConfirm}</button></div></div></div>`;
 if(state==='revoke')overlay=`<div class="backdrop"><div class="alert" role="alertdialog" aria-labelledby="at" aria-describedby="ab"><h2 id="at">${t('revokeTitle',{name:'Safari · iPhone'})}</h2><p id="ab">${copy.revokeBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button default">${copy.revokeConfirm}</button></div></div></div>`;
 if(state.startsWith('reader')){
   const field=(label,id,value,opts={})=>`<div class="fieldset"><label class="label" for="${id}">${label}</label><div class="field${opts.focused?' focused':''}${opts.invalid?' invalid':''}" id="${id}">${value?`<span>${value}</span>`:`<span class="placeholder">${opts.hint||''}</span>`}</div>${opts.error?`<div class="status error" role="alert">${icon('alert')}${opts.error}</div>`:''}${opts.help?`<p class="help">${opts.help}</p>`:''}</div>`;
@@ -1056,7 +1063,7 @@ if(state.startsWith('reader')){
       `<button class="button">${copy.readerClose}</button><button class="button primary">${copy.readerTryAgain}</button>`);
   }
 }
-const toast=state==='rule-deleted'?`<div class="toast" role="status">${icon('trash')}<span class="msg">${copy.ruleDeleted}</span><button class="act">${copy.undo}</button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`:state==='prompt-restored'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${t('promptRestored',{name:copy.promptSummary})}</span><button class="act">${copy.undo}</button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`:'';
+const toast=state==='premigrate-deleted'?`<div class="toast" role="status">${icon('trash')}<span class="msg">${copy.preMigrateDeleted}</span></div>`:state==='rule-deleted'?`<div class="toast" role="status">${icon('trash')}<span class="msg">${copy.ruleDeleted}</span><button class="act">${copy.undo}</button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`:state==='prompt-restored'?`<div class="toast" role="status">${icon('rotateCcw')}<span class="msg">${t('promptRestored',{name:copy.promptSummary})}</span><button class="act">${copy.undo}</button><button class="x" aria-label="${copy.dismiss}">${icon('x')}</button></div>`:'';
 document.getElementById('app').innerHTML=`${sidebar}<section class="main"><div class="toolbar"><h1>${copy[group]}</h1></div><div class="scroll">${page}</div>${toast}</section>${overlay}`;
 if(fontOpen||readingOpen){
   // Anchor under the control, right edges aligned; use the larger side when 360 does not fit.

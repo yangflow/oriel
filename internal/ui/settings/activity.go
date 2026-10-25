@@ -142,6 +142,7 @@ func (s *Screen) storageCard(c *ui.Context) {
 			s.keyValue(c, s.text.Entries, strconv.FormatInt(st.Entries, 10))
 			s.keyValue(c, s.text.Images, s.fill(locale.Count(s.text.ImagesValue, "n", st.Images), "{size}", s.bytes(st.ImageBytes)))
 			s.keyValue(c, s.text.Copies, s.fill(locale.Count(s.text.CopiesValue, "n", st.Copies), "{size}", s.bytes(st.CopyBytes)))
+			s.preMigrateRow(c)
 		})
 	}, func() {
 		busy := s.compacting()
@@ -159,6 +160,69 @@ func (s *Screen) storageCard(c *ui.Context) {
 				TextColor(t.TextMuted).Wrap().Grow(1).Shrink(1).MinWidth(0)
 		})
 		statusLine(c, s.vacuumStatus())
+	})
+}
+
+// preMigrateRow shows the copy of the database made before the last update with its size and the version it was made
+// from, and the button that deletes it. There is no row without a copy.
+func (s *Screen) preMigrateRow(c *ui.Context) {
+	copyInfo := s.storage.PreMigrate
+	if copyInfo == nil {
+		return
+	}
+	t := c.Theme()
+	value := s.bytes(copyInfo.Bytes)
+	if copyInfo.Version > 0 {
+		value = s.fill(s.fill(s.text.PreMigrateVersion, "{size}", value), "{version}", strconv.Itoa(copyInfo.Version))
+	}
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
+		ui.Text(c, s.text.PreMigrate).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+		ui.Text(c, value).SingleLine().FontWeight(500)
+		drop := theme.Button{Style: theme.Danger, Small: true, Disabled: s.dropping, Text: s.text.DeletePreMigrate,
+			Label: s.text.DeletePreMigrateTitle}.Draw(c)
+		if drop.Clicked() {
+			s.dropCopy = true
+		}
+	})
+}
+
+// dropCopyDialog asks to delete the copy. Escape cancels; nothing is deleted until Delete is chosen.
+func (s *Screen) dropCopyDialog(c *ui.Context) {
+	if !s.dropCopy {
+		return
+	}
+	if ui.AlertDialog(c, &s.dropCopy, s.text.DeletePreMigrateTitle, s.text.DeletePreMigrateBody, s.text.Cancel,
+		s.text.DeletePreMigrateConfirm) == 1 {
+		s.deletePreMigrate()
+	}
+}
+
+// deletePreMigrate has the server delete the copy; the row goes once it has.
+func (s *Screen) deletePreMigrate() {
+	if s.api == nil || s.dropping {
+		return
+	}
+	s.dropping = true
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		err := api.DeletePreMigrate(context.Background())
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			s.dropping = false
+			if s.expired(err) {
+				return
+			}
+			if err != nil {
+				s.toast = s.text.PreMigrateFailed
+				return
+			}
+			s.storage.PreMigrate = nil
+			s.actLoads++ // a read that began before the delete would bring the row back
+			s.actBusy, s.actAt = false, s.deps.Now()
+			s.toast = s.text.PreMigrateDeleted
+		}
 	})
 }
 

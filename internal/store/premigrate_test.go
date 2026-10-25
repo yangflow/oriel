@@ -177,3 +177,50 @@ func TestOpenDoesNotMigrateWhenTheCopyFails(t *testing.T) {
 		t.Fatalf("version = %d, %v", version, err)
 	}
 }
+
+func TestPreMigrateInfoAndDelete(t *testing.T) {
+	ctx := context.Background()
+	file := filepath.Join(t.TempDir(), "oriel.sqlite")
+	s, err := Open(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.PreMigrateInfo(); got != nil || err != nil {
+		t.Fatalf("new database: %v, %v", got, err)
+	}
+	s.Close()
+
+	old := writeOld(t, file, "x")
+	if s, err = Open(ctx, file); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	info, err := s.PreMigrateInfo()
+	stat, statErr := os.Stat(file + PreMigrateSuffix)
+	if err != nil || statErr != nil || info == nil || info.Version != old || info.Bytes != stat.Size() {
+		t.Fatalf("info = %+v, %v (version %d)", info, err, old)
+	}
+	if err := s.DeletePreMigrate(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.PreMigrateInfo(); got != nil || err != nil {
+		t.Fatalf("after delete: %v, %v", got, err)
+	}
+	if err := s.DeletePreMigrate(); err != nil {
+		t.Fatalf("second delete: %v", err)
+	}
+
+	// A directory of that name is not a copy: not reported, not removed.
+	if err := os.Mkdir(file+PreMigrateSuffix, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.PreMigrateInfo(); got != nil || err != nil {
+		t.Fatalf("directory: %v, %v", got, err)
+	}
+	if err := s.DeletePreMigrate(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(file + PreMigrateSuffix); err != nil {
+		t.Fatalf("directory removed: %v", err)
+	}
+}
