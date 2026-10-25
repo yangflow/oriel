@@ -376,18 +376,20 @@ func (f *fake) settle(tt *ui.Tester) {
 
 // newTester is ui.NewTester with the animations off. The Tester's clock stands still, so a hover fade or a color
 // transition never comes to rest and every input would build 20 frames; a test that looks at motion uses ui.NewTester.
-var animated bool
-
 func newTester(view func(c *ui.Context), width, height int) *ui.Tester {
 	return ui.NewTester(func(c *ui.Context) {
-		if !animated {
-			c.DisableAnimations()
-		}
+		c.DisableAnimations()
 		view(c)
 	}, width, height)
 }
 
 func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	return setupWith(t, language, signedIn, newTester)
+}
+
+// setupWith is setup with the Tester made by newTester, so a test that needs the motion can pass ui.NewTester.
+func setupWith(t *testing.T, language string, signedIn bool, newTester func(func(c *ui.Context), int, int) *ui.Tester) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
 	f := &fake{
 		settings: client.Settings{RSSHubBaseURLs: []string{"https://rsshub.example.com"}, RetentionDays: 30, AILanguage: "zh-Hans",
@@ -1487,7 +1489,12 @@ func TestAIExpired(t *testing.T) {
 // openAppearance shows the appearance group with the default preferences.
 func openAppearance(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
-	s, f, tt := setup(t, language, true)
+	return openAppearanceWith(t, language, newTester)
+}
+
+func openAppearanceWith(t *testing.T, language string, newTester func(func(c *ui.Context), int, int) *ui.Tester) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	s, f, tt := setupWith(t, language, true, newTester)
 	tt.SetSize(900, 1000)
 	f.prefs = prefs.Default()
 	s.OpenAppearance()
@@ -1968,10 +1975,8 @@ func TestFontPickerAnnounces(t *testing.T) {
 
 func TestFontPickerSize(t *testing.T) {
 	// The list is as tall as the popup has opened, so the count of built rows depends on the opening motion.
-	animated = true
-	t.Cleanup(func() { animated = false })
 	for _, scale := range []float32{1, 2} {
-		s, _, tt := openAppearance(t, "en")
+		s, _, tt := openAppearanceWith(t, "en", ui.NewTester)
 		tt.SetScale(scale)
 		many := make([]string, 400)
 		for i := range many {
