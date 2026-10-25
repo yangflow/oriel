@@ -85,3 +85,17 @@ func (p *Poller) maintain(ctx context.Context, removed int64) {
 		slog.Error("Cannot shrink the database after removing entries", "error", err)
 	}
 }
+
+// remind brings back the entries whose reminder is due: they become unread at the top of the timeline.
+func (p *Poller) remind(ctx context.Context) {
+	n, err := p.store.FireReminders(ctx, p.now())
+	if err != nil {
+		if ctx.Err() == nil {
+			slog.Error("Cannot bring back reminded entries", "error", err)
+		}
+		return
+	}
+	if n > 0 {
+		slog.Info("Reminded entries are unread again", "count", n)
+	}
+}

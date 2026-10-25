@@ -537,6 +537,8 @@ func TestMigrationMovesTheSourceOfARuleToTheJoinTable(t *testing.T) {
 		"INSERT INTO rules (id, kind, author, mark_read, enabled, created_at) VALUES (8, 'video', 'bob', 1, 0, 6)",
 		"ALTER TABLE sources DROP COLUMN open_target",
 		"ALTER TABLE sources DROP COLUMN hide_from_all",
+		"DROP INDEX entries_remind",
+		"ALTER TABLE entries DROP COLUMN remind_at",
 		"PRAGMA user_version = 28",
 	} {
 		if _, err := db.Exec(stmt); err != nil {

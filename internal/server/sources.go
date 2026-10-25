@@ -126,6 +126,9 @@ func muteLines(text string) string {
 }
 
 func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
+	if !s.fireReminders(w, r) {
+		return
+	}
 	list, err := s.store.Sources(r.Context())
 	if err != nil {
 		internal(w, err)

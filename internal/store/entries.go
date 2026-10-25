@@ -39,6 +39,7 @@ type Entry struct {
 	ExtractStatus string
 	IsRead        bool
 	ReadAt        time.Time
+	RemindAt      time.Time // when a reminded entry comes back as unread; zero when there is no reminder
 	Starred       bool
 	CreatedAt     time.Time
 	// FadesAt and ExpiresAt are when an unread entry of a source with a pace starts to fade and leaves All and Unread;
@@ -94,13 +95,16 @@ type EntryPatch struct {
 	IsRead       *bool
 	Starred      *bool
 	ReadProgress *float64 // 0 to 1; the caller checks the range
-	Group        bool     // IsRead and Starred apply to every visible entry with the same link, not only this one
+	// RemindAt sets a reminder at this time in Unix milliseconds, which also marks the entry read; 0 clears it. The
+	// caller checks the time. Marking the entry unread clears a reminder as well.
+	RemindAt *int64
+	Group    bool // IsRead and Starred apply to every visible entry with the same link, not only this one
 }
 
 const entryColumns = `
 	e.id, e.source_id, CASE WHEN s.title <> '' THEN s.title WHEN s.url <> '' THEN s.url ELSE s.rsshub_path END, s.kind,
 	e.title, e.url, e.author, e.published_at, e.rss_summary, e.thumbnail_url, e.duration_sec, e.platform, e.images,
-	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec, e.read_progress,
+	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec, e.read_progress, e.remind_at,
 	s.pace_sec, coalesce(nullif(e.published_at, 0), e.created_at)`
 
 // shown keeps the entries of s that none of its mute keywords and none of the global ones hides, and drops those of a deleted source. Starred
@@ -423,15 +427,20 @@ func (s *Store) Entry(ctx context.Context, id int64) (Entry, error) {
 // UpdateEntry changes the reading state and the reading position and returns the entry. Marking a read entry read keeps its read_at.
 // Reading state does not change the entry's updated_at, which follows the feed content only.
 func (s *Store) UpdateEntry(ctx context.Context, id int64, patch EntryPatch, now time.Time) (Entry, error) {
-	if patch.IsRead != nil || patch.Starred != nil {
+	if patch.RemindAt != nil && *patch.RemindAt > 0 {
+		read := true
+		patch.IsRead = &read
+	}
+	if patch.IsRead != nil || patch.Starred != nil || patch.RemindAt != nil {
 		result, err := s.db.ExecContext(ctx, `
 			UPDATE entries SET
 				is_read = coalesce(?1, is_read),
 				read_at = CASE WHEN ?1 IS NULL THEN read_at WHEN ?1 = 0 THEN NULL ELSE coalesce(read_at, ?2) END,
-				starred = coalesce(?3, starred)
+				starred = coalesce(?3, starred),
+				remind_at = CASE WHEN ?6 IS NOT NULL THEN nullif(?6, 0) WHEN ?1 = 0 THEN NULL ELSE remind_at END
 			WHERE id IN (SELECT e.id FROM entries e JOIN sources s ON s.id = e.source_id WHERE s.deleted_at IS NULL AND
 				(e.id = ?4 OR (?5 AND e.link_key <> '' AND e.link_key = (SELECT link_key FROM entries WHERE id = ?4) AND `+shown+" AND "+live+" AND "+notHidden+`)))`,
-			nullBool(patch.IsRead), now.UnixMilli(), nullBool(patch.Starred), id, patch.Group)
+			nullBool(patch.IsRead), now.UnixMilli(), nullBool(patch.Starred), id, patch.Group, nullInt64(patch.RemindAt))
 		if err != nil {
 			return Entry{}, err
 		}
@@ -453,6 +462,20 @@ func (s *Store) UpdateEntry(ctx context.Context, id int64, patch EntryPatch, now
 		}
 	}
 	return s.Entry(ctx, id)
+}
+
+// FireReminders brings back the entries whose reminder is due at now: they become unread, the reminder is cleared and
+// created_at moves up to the reminder time (never back), which puts them at the top of the timeline, where they count
+// as having arrived at that time. It returns how many entries came back.
+func (s *Store) FireReminders(ctx context.Context, now time.Time) (int, error) {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE entries SET is_read = 0, read_at = NULL, created_at = max(created_at, remind_at), remind_at = NULL
+		WHERE remind_at IS NOT NULL AND remind_at <= ?`, now.UnixMilli())
+	if err != nil {
+		return 0, err
+	}
+	n, err := result.RowsAffected()
+	return int(n), err
 }
 
 // WithGroup returns the entry with its group attached (AttachGroups).
@@ -500,7 +523,7 @@ func (s *Store) MarkUnread(ctx context.Context, ids []int64, readAt int64) ([]in
 		return nil, err
 	}
 	defer tx.Rollback()
-	statement, err := tx.PrepareContext(ctx, "UPDATE entries SET is_read = 0, read_at = NULL WHERE id = ? AND is_read = 1 AND (? = 0 OR read_at = ?)")
+	statement, err := tx.PrepareContext(ctx, "UPDATE entries SET is_read = 0, read_at = NULL, remind_at = NULL WHERE id = ? AND is_read = 1 AND (? = 0 OR read_at = ?)")
 	if err != nil {
 		return nil, err
 	}
@@ -532,6 +555,13 @@ func (s *Store) EntryPosition(ctx context.Context, id int64) (Position, error) {
 	return position, err
 }
 
+func nullInt64(n *int64) any {
+	if n == nil {
+		return nil
+	}
+	return *n
+}
+
 func nullBool(b *bool) any {
 	if b == nil {
 		return nil
@@ -541,7 +571,7 @@ func nullBool(b *bool) any {
 
 func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error) {
 	var entry Entry
-	var published, readAt, duration sql.NullInt64
+	var published, readAt, duration, remind sql.NullInt64
 	var images string
 	var language sql.NullString
 	var reading sql.NullInt64
@@ -549,7 +579,7 @@ func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error)
 	var created, paceSec, base int64
 	dest := append([]any{&entry.ID, &entry.SourceID, &entry.SourceTitle, &entry.Kind, &entry.Title, &entry.URL,
 		&entry.Author, &published, &entry.Summary, &entry.ThumbnailURL, &duration, &entry.Platform, &images,
-		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading, &progress, &paceSec, &base}, extra...)
+		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading, &progress, &remind, &paceSec, &base}, extra...)
 	if err := row.Scan(dest...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Entry{}, ErrNotFound
@@ -564,6 +594,9 @@ func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error)
 	}
 	if readAt.Valid {
 		entry.ReadAt = time.UnixMilli(readAt.Int64)
+	}
+	if remind.Valid {
+		entry.RemindAt = time.UnixMilli(remind.Int64)
 	}
 	entry.Language = language.String
 	if reading.Valid {

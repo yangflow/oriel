@@ -37,6 +37,10 @@
      Toolbar icon buttons are one spec, 32 square, 8 radius, 4 apart; a row's actions are smaller, 28 by 24 (docs/design.md, Toolbar buttons).
      Mark all as read names its scope in its tooltip, acts at once and offers Undo in a toast (marked-read), never a confirmation. N goes to the next
      unread entry; no-more-unread is what it says when there is none below. ? opens the keyboard shortcuts (keys).
+     Remind me later is a submenu of the entry menu, right under Mark as read (menu-remind: In 1 hour, This evening,
+     Tomorrow morning, Next week). A reminded entry is read and shows a clock in the accent color before its time, with
+     the time in the screen-reader text (reminded; also the entry of menu-remind-set); its menu has Cancel reminder under a hairline (menu-remind-set). The same
+     choices are in the command palette as "Remind me later: This evening" and so on, for the chosen entry.
      Cmd/Ctrl+K opens the command palette: palette (empty query: Actions, Kinds, then every subscription, the first
      row highlighted), palette-query (typing, ranked: prefix, word start, substring, scattered letters) and
      palette-none. 60% of the window high at most, anchored 15% from the top; Up and Down wrap.
@@ -367,6 +371,10 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .stale .retry:disabled:hover { background:none }
 .pending-mark { flex:none; display:grid; color:var(--muted) }
 .pending-mark svg.icon { width:14px; height:14px }
+.remind-mark { flex:none; display:inline-flex; align-items:center; gap:4px; color:var(--accent); font-size:12px }
+.remind-mark svg.icon { width:14px; height:14px }
+.menu button .chev { margin-left:auto; padding-left:16px; display:grid }
+.menu button .chev svg.icon { width:14px; height:14px }
 /* Several sources carry the same article: one row, with a quiet chip after the time that names how many other sources
    have it. It is a text button in the meta band (muted, hover fill), never a badge; open, it unfolds the list of the other
    sources under the row, indented behind a hairline. */
@@ -659,7 +667,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
+const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -755,7 +763,7 @@ const copy={
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
     unreadCount:'{n} unread', results:'{n} found',
-    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', openReader:'Open in reader', markAbove:'Mark above as read', markBelow:'Mark below as read', copyLink:'Copy link', copyMd:'Copy as Markdown', saveMd:'Save as Markdown…', markFeed:'Mark subscription as read', markOlder1:'Mark older than 1 day as read', markOlder7:'Mark older than 1 week as read', markOlder30:'Mark older than 1 month as read', refresh:'Refresh', edit:'Edit…', pause:'Pause', hide:'Hide from All', unhide:'Show in All', hiddenMark:'Hidden from All', hiddenName:'{name}, hidden from All', remove:'Delete…',
+    markAllRead:'Mark all as read', markAllIn:'Mark all in “{scope}” as read', star:'Star', unstar:'Remove star', markRead:'Mark as read', markUnread:'Mark as unread', open:'Open in browser', openReader:'Open in reader', remindLater:'Remind me later', remindHour:'In 1 hour', remindEvening:'This evening', remindTomorrow:'Tomorrow morning', remindNextWeek:'Next week', remindCancel:'Cancel reminder', remindAt:'reminder on {time}', markAbove:'Mark above as read', markBelow:'Mark below as read', copyLink:'Copy link', copyMd:'Copy as Markdown', saveMd:'Save as Markdown…', markFeed:'Mark subscription as read', markOlder1:'Mark older than 1 day as read', markOlder7:'Mark older than 1 week as read', markOlder30:'Mark older than 1 month as read', refresh:'Refresh', edit:'Edit…', pause:'Pause', hide:'Hide from All', unhide:'Show in All', hiddenMark:'Hidden from All', hiddenName:'{name}, hidden from All', remove:'Delete…',
     failing:'Last fetch failed', failingName:'{name}, last fetch failed', failingUnread:'{name}, {n} unread, last fetch failed',
     failedOnce:'Last fetch failed: {error}', failedTimes:'Failed {n} times in a row: {error}',
     failingCount:'{n} failing', failingShow:'Show only the {n} failing subscriptions', failingTitle:'Failing', showAll:'Show all',
@@ -792,7 +800,7 @@ const copy={
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
     unreadCount:'{n} 条未读', results:'找到 {n} 条',
-    markAllRead:'全部标为已读', markAllIn:'把「{scope}」全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', openReader:'在阅读栏里打开', markAbove:'把上面的标为已读', markBelow:'把下面的标为已读', copyLink:'复制链接', copyMd:'复制为 Markdown', saveMd:'存为 Markdown…', markFeed:'把订阅标为已读', markOlder1:'把 1 天前的标为已读', markOlder7:'把 1 周前的标为已读', markOlder30:'把 1 个月前的标为已读', refresh:'更新', edit:'编辑…', pause:'暂停', hide:'不在全部里显示', unhide:'在全部里显示', hiddenMark:'不在全部里显示', hiddenName:'{name}，不在全部里显示', remove:'删除…',
+    markAllRead:'全部标为已读', markAllIn:'把「{scope}」全部标为已读', star:'收藏', unstar:'取消收藏', markRead:'标为已读', markUnread:'标为未读', open:'在浏览器中打开', openReader:'在阅读栏里打开', remindLater:'稍后提醒我', remindHour:'1 小时后', remindEvening:'今晚', remindTomorrow:'明天上午', remindNextWeek:'下周', remindCancel:'取消提醒', remindAt:'{time} 提醒', markAbove:'把上面的标为已读', markBelow:'把下面的标为已读', copyLink:'复制链接', copyMd:'复制为 Markdown', saveMd:'存为 Markdown…', markFeed:'把订阅标为已读', markOlder1:'把 1 天前的标为已读', markOlder7:'把 1 周前的标为已读', markOlder30:'把 1 个月前的标为已读', refresh:'更新', edit:'编辑…', pause:'暂停', hide:'不在全部里显示', unhide:'在全部里显示', hiddenMark:'不在全部里显示', hiddenName:'{name}，不在全部里显示', remove:'删除…',
     failing:'上次抓取失败', failingName:'{name}，上次抓取失败', failingUnread:'{name}，{n} 条未读，上次抓取失败',
     failedOnce:'上次抓取失败：{error}', failedTimes:'连续失败 {n} 次：{error}',
     failingCount:'{n} 个失败', failingShow:'只显示 {n} 个抓取失败的订阅', failingTitle:'抓取失败', showAll:'显示全部',
@@ -954,6 +962,7 @@ if(state==='marked-below'){entries.slice(-2).forEach(e=>{e.read=true;byId[e.sour
 if(state==='marked-feed'){entries.forEach(e=>{if(e.source===2)e.read=true});byId[2].unread=0}
 if(state==='marked-older'){entries.slice(olderCut).forEach(e=>{if(!e.read&&inScope(byId[e.source])){e.read=true;byId[e.source].unread=Math.max(0,byId[e.source].unread-1)}})}
 if(state==='marked-read'){entries.forEach(e=>{if(inScope(byId[e.source]))e.read=true});sources.filter(inScope).forEach(s=>s.unread=0)}
+if(state==='menu-remind-set'||state==='reminded'){const r=entries[state==='reminded'?1:2];r.read=true;r.remind=zh?'明天 09:00':'Tomorrow 09:00';byId[r.source].unread--}
 if(state==='offline-pending'){entries[0].pending=true;entries[0].starred=true;entries[1].pending=true;entries[1].read=true;byId[entries[1].source].unread--}
 total=sources.filter(s=>!s.hidden).reduce((a,s)=>a+s.unread,0);
 const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[focusId].name:copy.all;
@@ -1018,7 +1027,8 @@ const actionButtons=(e,cls='')=>`<button class="${cls}${e.starred?' starred':''}
 const actions=e=>`<div class="actions">${actionButtons(e)}</div>`;
 const unreadDot=e=>e.read?'':`<span class="dot-inline" role="img" aria-label="${copy.unread}"></span>`;
 const readMin=e=>e.sec>=60&&(e.kind==='article'||e.kind==='social')?Math.round(e.sec/60):0;
-const pendingMark=e=>e.pending?`<span class="pending-mark" role="img" aria-label="${copy.pending}" title="${copy.pending}">${icon('upload')}</span>`:'';
+const remindMark=e=>e.remind?`<span class="remind-mark" role="img" aria-label="${t('remindAt',{time:e.remind})}" title="${t('remindAt',{time:e.remind})}">${icon('clock')}<span>${e.remind}</span></span>`:'';
+const pendingMark=e=>remindMark(e)+(e.pending?`<span class="pending-mark" role="img" aria-label="${copy.pending}" title="${copy.pending}">${icon('upload')}</span>`:'');
 const alsoOpen=state==='grouped-open';
 const alsoChip=e=>e.also?`<button class="also${e===entries[1]&&state==='grouped'?' hover':''}" aria-expanded="${alsoOpen}" aria-label="${t('alsoName',{n:e.also.length})}">${icon('layers')}<span>${t('alsoChip',{n:e.also.length})}</span></button>`:'';
 const alsoList=e=>e.also&&alsoOpen?`<div class="also-list" role="list" aria-label="${copy.alsoHead}">${e.also.map((a,k)=>`<div class="also-row${k===0?' hover':''}" role="listitem" tabindex="0">${glyph(byId[a.source])}<span class="src">${byId[a.source].name}</span><span class="atitle">${a.title}</span><span class="when">${a.when}</span></div>`).join('')}</div>`:'';
@@ -1044,7 +1054,7 @@ const cardsOn=gridOn&&(gridKind==='video'||gridKind==='image'&&viewer.image==='g
 const wallOn=gridOn&&gridKind==='image'&&viewer.image!=='grid';
 const stripOf=list=>{const hidden=list.length-4;return `<div class="strip">${list.slice(0,4).map((g,i)=>i===3&&hidden>0?`<div class="pic more ${g}" role="img" aria-label="${t('morePictures',{n:hidden})}"><b aria-hidden="true">+${hidden}</b></div>`:`<div class="pic ${g}">${failedPic(g)}</div>`).join('')}</div>`};
 const row=(e,i)=>{
-  const cls=`row${e.read?' read':''}${i===1&&rowDemo?' hover':''}${(i===2&&state==='menu-entry')||(i===0&&state==='menu-entry-first')||(i===entries.length-1&&state==='menu-entry-last')?' menued':''}${(i===2&&(rowDemo||state==='sidebar-focus'))||(i===0&&state==='marked-visible'&&scope==='all')||(i===3&&state==='no-more-unread')?' chosen':''}`;
+  const cls=`row${e.read?' read':''}${i===1&&rowDemo?' hover':''}${(i===2&&(state==='menu-entry'||state.startsWith('menu-remind')))||(i===0&&state==='menu-entry-first')||(i===entries.length-1&&state==='menu-entry-last')?' menued':''}${(i===2&&(rowDemo||state==='sidebar-focus'))||(i===0&&state==='marked-visible'&&scope==='all')||(i===3&&state==='no-more-unread')?' chosen':''}`;
   const dot=e.read?'':`<span class="unread-dot" role="img" aria-label="${copy.unread}"></span>`;
   switch(e.kind){
     case 'article':if(viewer.article==='compact')return `<article class="${cls} crow">${dot}${glyph(byId[e.source])}<span class="src">${byId[e.source].name}</span><h3 class="ctitle">${highlight(e.title)}</h3>${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}${pendingMark(e)}<span class="when">${e.when}</span>${actions(e)}</article>`;
@@ -1176,9 +1186,13 @@ const menuItem=(g,label,{key='',cls='',off=false}={})=>`<button role="menuitem"$
 const place=(html,anchor,dx,dy)=>{const w=document.getElementById('window'),a=anchor.getBoundingClientRect(),b=w.getBoundingClientRect();
   w.insertAdjacentHTML('beforeend',html);const m=w.lastElementChild;
   m.style.left=Math.min(a.left-b.left+dx,b.width-m.offsetWidth-8)+'px';m.style.top=Math.min(a.top-b.top+dy,b.height-m.offsetHeight-8)+'px'};
-if(state==='menu-entry'||state==='menu-entry-first'||state==='menu-entry-last'){
-  const e=entries[state==='menu-entry'?2:state==='menu-entry-last'?entries.length-1:0],first=state==='menu-entry-first',last=state==='menu-entry-last';
-  place(`<div class="menu" role="menu" aria-label="${e.title||e.author}">${menuItem('star',e.starred?copy.unstar:copy.star,{key:'S'})}${menuItem(e.read?'mail':'mailOpen',e.read?copy.markUnread:copy.markRead,{key:'M'})}${menuItem('article',copy.openReader)+menuItem('external',copy.open,{key:'O'})}${menuItem('link',copy.copyLink)}<hr>${menuItem('copy',copy.copyMd)}${menuItem('fileDown',copy.saveMd)}<hr>${menuItem('arrowUpToLine',copy.markAbove,{cls:first||last?'':'hover',off:first})}${menuItem('arrowDownToLine',copy.markBelow,{off:last})}</div>`,document.querySelector('.row.menued'),300,36);
+if(state==='menu-entry'||state==='menu-entry-first'||state==='menu-entry-last'||state.startsWith('menu-remind')){
+  const e=entries[state==='menu-entry'||state.startsWith('menu-remind')?2:state==='menu-entry-last'?entries.length-1:0],first=state==='menu-entry-first',last=state==='menu-entry-last';
+  place(`<div class="menu" role="menu" aria-label="${e.title||e.author}">${menuItem('star',e.starred?copy.unstar:copy.star,{key:'S'})}${menuItem(e.read?'mail':'mailOpen',e.read?copy.markUnread:copy.markRead,{key:'M'})}${`<button role="menuitem" aria-haspopup="menu" aria-expanded="${state.startsWith('menu-remind')}"${state.startsWith('menu-remind')?' class="hover remind"':' class="remind"'}>${copy.remindLater}<span class="chev">${icon('chevronRight')}</span></button>`}${menuItem('article',copy.openReader)+menuItem('external',copy.open,{key:'O'})}${menuItem('link',copy.copyLink)}<hr>${menuItem('copy',copy.copyMd)}${menuItem('fileDown',copy.saveMd)}<hr>${menuItem('arrowUpToLine',copy.markAbove,{cls:first||last||state.startsWith('menu-remind')?'':'hover',off:first})}${menuItem('arrowDownToLine',copy.markBelow,{off:last})}</div>`,document.querySelector('.row.menued'),state.startsWith('menu-remind')?150:300,36);
+  if(state.startsWith('menu-remind')){
+    const sub=state==='menu-remind-set'?`<hr>${menuItem('x',copy.remindCancel)}`:'';
+    place(`<div class="menu" role="menu" aria-label="${copy.remindLater}">${[['remindHour','clock'],['remindEvening','clock'],['remindTomorrow','clock'],['remindNextWeek','clock']].map(([k],i)=>menuItem('clock',copy[k],{cls:i===1&&state==='menu-remind'?'hover':''})).join('')}${sub}</div>`,document.querySelector('.menu .remind'),200,-4);
+  }
 }
 if(state==='menu-markall'){
   place(`<div class="menu" role="menu" aria-label="${markAllName}">${menuItem('checkCheck',markAllName,{cls:'hover'})}<hr>${[1,7,30].map(n=>menuItem('calendar',copy['markOlder'+n])).join('')}</div>`,document.querySelector('.toolbar .tool'),-200,36);

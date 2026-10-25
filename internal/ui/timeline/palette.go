@@ -83,6 +83,15 @@ func (s *Screen) paletteItems() []paletteItem {
 		}
 		add(paletteItem{group: groupActions, name: name, icon: icon, keys: []string{"Z"}, run: s.toggleImmersive})
 	}
+	if e, ok := s.remindTarget(); ok {
+		for _, choice := range s.remindChoices(s.deps.Now()) {
+			add(paletteItem{group: groupActions, name: strings.ReplaceAll(s.text.RemindPalette, "{when}", choice.name),
+				icon: icons.Clock, run: func() { s.remind(e.ID, choice.at) }})
+		}
+		if e.RemindAt > 0 {
+			add(paletteItem{group: groupActions, name: s.text.RemindCancel, icon: icons.Clock, run: func() { s.unremind(e.ID) }})
+		}
+	}
 	add(paletteItem{group: groupActions, name: s.text.AddSource, icon: icons.Plus, keys: []string{cmd, "N"}, run: s.subs.Add})
 	add(paletteItem{group: groupActions, name: s.text.RefreshAll, icon: icons.RefreshCw, keys: []string{cmd, "R"}, run: s.RefreshAll})
 	add(paletteItem{group: groupActions, name: s.text.PaletteHealth, icon: icons.HeartPulse, run: s.subs.Health})
