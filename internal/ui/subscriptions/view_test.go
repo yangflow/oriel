@@ -816,7 +816,7 @@ func TestEditAI(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	f.settings.AIBaseURL, f.settings.AIModel = "https://api.example.com/v1", "small"
 	f.sources[0].PromptTranslate, f.sources[0].AutoTranslate = "Translate plainly.", true
-	tt.SetSize(1000, 1100)
+	tt.SetSize(1000, 1600)
 	s.Edit(f.sources[0])
 	tt.Frame()
 	f.settle(tt)
