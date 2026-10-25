@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/xml"
 	"errors"
@@ -98,6 +99,7 @@ type importFailure struct {
 type opmlResult struct {
 	Added    int             `json:"added"`
 	Existing int             `json:"existing"`
+	Folders  int             `json:"folders"` // folders the import created
 	Failed   []importFailure `json:"failed"`
 }
 
@@ -135,8 +137,9 @@ func (s *Server) addSources(ctx context.Context, doc opmlDocument, progress func
 	}
 	done := 0
 	spread := min(importSpreadMax, time.Duration(countOutlines(doc.Body))*importSpreadEach)
-	var walk func([]opmlOutline) error
-	walk = func(outlines []opmlOutline) error {
+	// folder is the name of the outermost group the outlines are in: folders have one level.
+	var walk func([]opmlOutline, string) error
+	walk = func(outlines []opmlOutline, folder string) error {
 		for _, o := range outlines {
 			if o.XMLURL != "" || o.RSSHubPath != "" {
 				src, title := o.source()
@@ -145,8 +148,27 @@ func (s *Server) addSources(ctx context.Context, doc opmlDocument, progress func
 					res.Failed = append(res.Failed, importFailure{Title: title, Address: src.URL + src.RSSHubPath, Error: code})
 				default:
 					src.FirstFetchDelay = time.Duration(rand.Int64N(int64(max(spread, 1))))
+					if folder != "" {
+						id, created, err := s.store.EnsureFolder(ctx, folder, s.now())
+						if err != nil && !errors.Is(err, store.ErrInvalidFolderName) {
+							return err
+						}
+						src.FolderID = id
+						if created {
+							res.Folders++
+						}
+					}
 					_, err := s.store.CreateSourceIn(ctx, idx, src, title, s.now())
+					var exists *store.ExistsError
 					switch {
+					case errors.As(err, &exists):
+						res.Existing++
+						// One that was there already is filed only when it was in no folder.
+						if src.FolderID != 0 {
+							if _, err := s.store.FileSource(ctx, exists.ID, src.FolderID); err != nil {
+								return err
+							}
+						}
 					case errors.Is(err, store.ErrExists):
 						res.Existing++
 					case err != nil:
@@ -158,13 +180,17 @@ func (s *Server) addSources(ctx context.Context, doc opmlDocument, progress func
 				done++
 				progress(done)
 			}
-			if err := walk(o.Outlines); err != nil {
+			inner := folder
+			if inner == "" && o.XMLURL == "" && o.RSSHubPath == "" {
+				inner = strings.TrimSpace(cmp.Or(o.Title, o.Text))
+			}
+			if err := walk(o.Outlines, inner); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	return res, walk(doc.Body)
+	return res, walk(doc.Body, "")
 }
 
 // importOPML adds the subscriptions of the file and answers when it is done. It takes the same one-at-a-time lock as
@@ -202,8 +228,18 @@ func (s *Server) exportOPML(w http.ResponseWriter, r *http.Request) {
 	if instances := fetch.Instances(raw); len(instances) > 0 {
 		root = instances[0]
 	}
-	doc := opmlDocument{Version: "2.0", Title: "Oriel", Body: make([]opmlOutline, len(list))}
-	for i, src := range list {
+	folders, err := s.store.Folders(r.Context())
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	doc := opmlDocument{Version: "2.0", Title: "Oriel"}
+	groups := map[int64]*opmlOutline{}
+	for _, f := range folders {
+		groups[f.ID] = &opmlOutline{Text: f.Name, Title: f.Name}
+	}
+	var unfiled []opmlOutline
+	for _, src := range list {
 		o := opmlOutline{Text: src.Title, Title: src.Title, Type: "rss", XMLURL: src.URL, HTMLURL: src.SiteURL, Kind: src.Kind}
 		if src.OpenTarget != store.OpenFollow {
 			o.OpenTarget = src.OpenTarget
@@ -227,8 +263,19 @@ func (s *Server) exportOPML(w http.ResponseWriter, r *http.Request) {
 		if o.Text == "" {
 			o.Text = src.URL + src.RSSHubPath
 		}
-		doc.Body[i] = o
+		if group, ok := groups[src.FolderID]; ok {
+			group.Outlines = append(group.Outlines, o)
+		} else {
+			unfiled = append(unfiled, o)
+		}
 	}
+	// One group per folder that has subscriptions, then the subscriptions in no folder.
+	for _, f := range folders {
+		if group := groups[f.ID]; len(group.Outlines) > 0 {
+			doc.Body = append(doc.Body, *group)
+		}
+	}
+	doc.Body = append(doc.Body, unfiled...)
 	data, err := xml.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		internal(w, err)

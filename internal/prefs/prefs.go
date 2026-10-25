@@ -141,6 +141,8 @@ type Preferences struct {
 	SidebarHidden bool `json:"sidebarHidden,omitempty"`
 	// Places are the scope and filter the timeline was left in, per server; see Places.
 	Places Places `json:"places,omitempty"`
+	// FoldedFolders are the folders the sidebar shows collapsed, per server; see Folded.
+	FoldedFolders Folded `json:"foldedFolders,omitempty"`
 	// LastLooked is where the reader last looked in the timeline on this device; see Marker.
 	LastLooked Marker `json:"lastLooked,omitzero"`
 }
@@ -273,11 +275,13 @@ func (g *Grids) UnmarshalJSON(data []byte) error {
 
 // Place is where the timeline was left on one server: the scope the sidebar chose and the filter of the toolbar. Kind
 // is "", "article", "video", "social" or "image"; Source is the subscription chosen, 0 for none, and Kind then its
-// kind; Filter is "" for everything, "unread" or "starred"; Range is "" for any time, "today" or "24h". The zero
-// Place is the whole timeline.
+// kind; Folder is the folder chosen, 0 for none, never together with a Source (Kind is the kind it is read under);
+// Filter is "" for everything, "unread" or "starred"; Range is "" for any time, "today" or "24h". The zero Place is
+// the whole timeline.
 type Place struct {
 	Kind   string `json:"kind,omitempty"`
 	Source int64  `json:"source,omitempty"`
+	Folder int64  `json:"folder,omitempty"`
 	Filter string `json:"filter,omitempty"`
 	Range  string `json:"range,omitempty"`
 }
@@ -300,7 +304,7 @@ func (p Place) valid() bool {
 	default:
 		return false
 	}
-	return p.Source >= 0 && (p.Filter == "" || p.Filter == FilterUnread || p.Filter == FilterStarred) &&
+	return p.Source >= 0 && p.Folder >= 0 && (p.Source == 0 || p.Folder == 0) && (p.Filter == "" || p.Filter == FilterUnread || p.Filter == FilterStarred) &&
 		(p.Range == "" || p.Range == RangeToday || p.Range == Range24h)
 }
 
@@ -363,6 +367,74 @@ func (g *Places) UnmarshalJSON(data []byte) error {
 
 func (g Places) normalized() Places { return encodePlaces(g.entries()) }
 
+// Folded remembers which folders of each server the sidebar shows collapsed, keyed like Places and held on this device
+// only. It is a string inside, so that Preferences stays comparable, and a JSON object outside: {"":[3,8]}.
+type Folded string
+
+func (g Folded) entries() map[string][]int64 {
+	var m map[string][]int64
+	if json.Unmarshal([]byte(g), &m) != nil {
+		return map[string][]int64{}
+	}
+	for k, ids := range m {
+		ids = slices.DeleteFunc(ids, func(id int64) bool { return id <= 0 })
+		slices.Sort(ids)
+		ids = slices.Compact(ids)
+		if len(ids) == 0 {
+			delete(m, k)
+			continue
+		}
+		m[k] = ids
+	}
+	return m
+}
+
+func encodeFolded(m map[string][]int64) Folded {
+	if len(m) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		return ""
+	}
+	return Folded(data)
+}
+
+// Has tells whether the folder of the server is collapsed.
+func (g Folded) Has(server string, folder int64) bool {
+	return slices.Contains(g.entries()[server], folder)
+}
+
+// Set returns g with the folder of the server collapsed or open; a folder that is not an ID changes nothing.
+func (g Folded) Set(server string, folder int64, collapsed bool) Folded {
+	if folder <= 0 {
+		return g
+	}
+	m := g.entries()
+	ids := slices.DeleteFunc(slices.Clone(m[server]), func(id int64) bool { return id == folder })
+	if collapsed {
+		ids = append(ids, folder)
+	}
+	if len(ids) == 0 {
+		delete(m, server)
+	} else {
+		m[server] = ids
+	}
+	return encodeFolded(m)
+}
+
+// MarshalJSON writes the collapsed folders as an object.
+func (g Folded) MarshalJSON() ([]byte, error) { return json.Marshal(g.entries()) }
+
+// UnmarshalJSON reads the object and keeps what it knows; anything else reads as none, so a bad value never costs the
+// other preferences.
+func (g *Folded) UnmarshalJSON(data []byte) error {
+	*g = Folded(data).normalized()
+	return nil
+}
+
+func (g Folded) normalized() Folded { return encodeFolded(g.entries()) }
+
 // Default has every preference at its default.
 func Default() Preferences {
 	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ReadingWidth: WidthStandard, ChineseTypesetting: true,
@@ -415,6 +487,9 @@ func (p Preferences) Normalize() Preferences {
 	}
 	if p.Places != "" {
 		p.Places = p.Places.normalized()
+	}
+	if p.FoldedFolders != "" {
+		p.FoldedFolders = p.FoldedFolders.normalized()
 	}
 	if p.LastLooked.At <= 0 || p.LastLooked.ID < 0 {
 		p.LastLooked = Marker{}

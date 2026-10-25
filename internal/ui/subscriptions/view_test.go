@@ -20,11 +20,14 @@ var now = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 
 // fake stands in for the server, the timeline and the background: work waits in a queue until step runs it.
 type fake struct {
-	queue     []func() func()
-	updateCtx []context.Context // the context of each update of a subscription
-	sources   []client.Source
-	settings  client.Settings
-	health    client.Health
+	queue       []func() func()
+	updateCtx   []context.Context // the context of each update of a subscription
+	sources     []client.Source
+	settings    client.Settings
+	health      client.Health
+	folders     []client.Folder
+	folderCalls []string // the folder requests as "create name", "rename id name" and "delete id"
+	refiled     int      // the times the timeline was told to load the folders again
 
 	added       []client.NewSource
 	patches     map[int64][]client.SourcePatch
@@ -80,6 +83,35 @@ func (f *fake) AddSource(_ context.Context, src client.NewSource) (client.Source
 		FetchIntervalSec: src.FetchIntervalSec}, nil
 }
 
+func (f *fake) CreateFolder(_ context.Context, name string) (client.Folder, error) {
+	f.folderCalls = append(f.folderCalls, "create "+name)
+	for _, old := range f.folders {
+		if old.Name == name {
+			return client.Folder{}, &client.APIError{Status: 409, Code: "folder_exists"}
+		}
+	}
+	made := client.Folder{ID: int64(100 + len(f.folders)), Name: name}
+	f.folders = append(f.folders, made)
+	return made, nil
+}
+
+func (f *fake) RenameFolder(_ context.Context, id int64, name string) (client.Folder, error) {
+	f.folderCalls = append(f.folderCalls, fmt.Sprintf("rename %d %s", id, name))
+	for i := range f.folders {
+		if f.folders[i].ID == id {
+			f.folders[i].Name = name
+			return f.folders[i], nil
+		}
+	}
+	return client.Folder{}, &client.APIError{Status: 404, Code: "not_found"}
+}
+
+func (f *fake) DeleteFolder(_ context.Context, id int64) error {
+	f.folderCalls = append(f.folderCalls, fmt.Sprintf("delete %d", id))
+	f.folders = slices.DeleteFunc(f.folders, func(x client.Folder) bool { return x.ID == id })
+	return nil
+}
+
 func (f *fake) UpdateSource(ctx context.Context, id int64, patch client.SourcePatch) (client.Source, error) {
 	f.updateCtx = append(f.updateCtx, ctx)
 	f.patches[id] = append(f.patches[id], patch)
@@ -99,6 +131,9 @@ func (f *fake) UpdateSource(ctx context.Context, id int64, patch client.SourcePa
 			}
 			if patch.HideFromAll != nil {
 				src.HideFromAll = *patch.HideFromAll
+			}
+			if patch.FolderID != nil {
+				src.FolderID = *patch.FolderID
 			}
 			if patch.Kind != nil {
 				src.Kind = *patch.Kind
@@ -227,6 +262,8 @@ func (f *fake) deps() Deps {
 		Go:      func(work func() func()) { f.queue = append(f.queue, work) },
 		Now:     func() time.Time { return now.Add(f.lateBy) },
 		Sources: func() []client.Source { return f.sources },
+		Folders: func() []client.Folder { return f.folders },
+		Refiled: func() { f.refiled++ },
 		Added:   func(src client.Source) { f.sources = append(f.sources, src) },
 		Changed: func(src client.Source) {
 			f.changed = append(f.changed, src)
@@ -976,7 +1013,7 @@ func TestMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	if menu := tt.Menu(); !slices.Equal(menu, []string{"Refresh", "Mark subscription as read", "Mark older than 1 day as read",
-		"Mark older than 1 week as read", "Mark older than 1 month as read", "Edit…", "Pause", "Hide from All", "-", "Delete…"}) {
+		"Mark older than 1 week as read", "Mark older than 1 month as read", "Edit…", "Pause", "Hide from All", "Move to folder", "-", "Delete…"}) {
 		t.Fatalf("menu %q", menu)
 	}
 	// Nothing unread: the older-than items are dimmed with "Mark subscription as read".

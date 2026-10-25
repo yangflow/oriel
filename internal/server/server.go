@@ -174,6 +174,11 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("POST /api/sources/{id}/dismiss-move", s.authed(s.dismissMove))
 	mux.HandleFunc("POST /api/sources/{id}/muted-count", s.authed(s.mutedCount))
 	mux.HandleFunc("POST /api/muted-count", s.authed(s.mutedCountAll))
+	mux.HandleFunc("GET /api/folders", s.authed(s.listFolders))
+	mux.HandleFunc("POST /api/folders", s.authed(s.createFolder))
+	mux.HandleFunc("PATCH /api/folders/{id}", s.authed(s.renameFolder))
+	mux.HandleFunc("DELETE /api/folders/{id}", s.authed(s.deleteFolder))
+
 	mux.HandleFunc("GET /api/rules", s.authed(s.listRules))
 	mux.HandleFunc("POST /api/rules", s.authed(s.createRule))
 	mux.HandleFunc("POST /api/rules/match-count", s.authed(s.ruleMatchCount))

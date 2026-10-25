@@ -615,10 +615,11 @@ const copy={
     readerConnect:'Connect', readerClose:'Close', readerCancel:'Cancel', readerImport:'Import', readerDone:'Done', readerTryAgain:'Try again',
     readerStageSubscriptions:'Reading subscriptions…', readerStageStarred:'Reading starred entries…', readerStageRead:'Reading read state…', readerStageWriting:'Importing…',
     readerProgress:'{done} of {total}', readerProgressOpen:'{done} so far',
-    readerFound:'Found in {service}. Nothing has been added yet.', readerSources:'Subscriptions', readerStarred:'Starred entries', readerRead:'Read entries', readerFolders:'Folders and tags',
-    readerFoldersNote:'Oriel has no folders yet, so these are not imported.',
+    readerFound:'Found in {service}. Nothing has been added yet.', readerSources:'Subscriptions', readerStarred:'Starred entries', readerRead:'Read entries', readerFolders:'Folders',
+    readerFoldersNote:'Each becomes a folder. A subscription with several labels goes into the first.',
     readerResultSources:'{added} subscriptions added, {existing} already subscribed', readerResultStarred:'{added} starred entries added, {existing} already here',
-    readerResultRead:'{n} entries marked as read', readerResultUnmatched:'{n} read entries are not in Oriel and were left out', readerResultFolders:'{n} folders and tags were not imported',
+    readerResultRead:'{n} entries marked as read', readerResultUnmatched:'{n} read entries are not in Oriel and were left out', readerResultFolders:'{n} folders were created', readerResultDropped:'{n} subscriptions have more than one label; only the first was used',
+    readerDropped:'Labels not used', readerDroppedRow:'Filed under {kept}. Not used: {dropped}',
     readerSkipped:'Not imported', readerMore:'and {n} more', readerUnknownSource:'Its subscription is not in Oriel', readerInvalidLink:'The link is not usable',
     readerErrAddress:'Not an http or https address.', readerErrUnauthorized:'The server turned the credential down. Check the token, or the user name and password.',
     readerErrUnreachable:'Couldn’t reach the server. Check the address.', readerErrRate:'The server asked Oriel to slow down. Try again later.',
@@ -732,10 +733,11 @@ const copy={
     readerConnect:'连接', readerClose:'关闭', readerCancel:'取消', readerImport:'导入', readerDone:'完成', readerTryAgain:'再试一次',
     readerStageSubscriptions:'正在读取订阅…', readerStageStarred:'正在读取加星标的条目…', readerStageRead:'正在读取已读状态…', readerStageWriting:'正在导入…',
     readerProgress:'{done} / {total}', readerProgressOpen:'已读取 {done}',
-    readerFound:'在 {service} 里找到了这些，还没有添加任何内容。', readerSources:'订阅', readerStarred:'加星标的条目', readerRead:'已读的条目', readerFolders:'分组和标签',
-    readerFoldersNote:'Oriel 还没有分组，这些不会导入。',
+    readerFound:'在 {service} 里找到了这些，还没有添加任何内容。', readerSources:'订阅', readerStarred:'加星标的条目', readerRead:'已读的条目', readerFolders:'文件夹',
+    readerFoldersNote:'每个都会成为一个文件夹。订阅有多个标签时，放进第一个。',
     readerResultSources:'新增 {added} 个订阅，{existing} 个已经订阅', readerResultStarred:'新增 {added} 条加星标的条目，{existing} 条已经有了',
-    readerResultRead:'{n} 条标为已读', readerResultUnmatched:'{n} 条已读的条目不在 Oriel 里，没有导入', readerResultFolders:'{n} 个分组和标签没有导入',
+    readerResultRead:'{n} 条标为已读', readerResultUnmatched:'{n} 条已读的条目不在 Oriel 里，没有导入', readerResultFolders:'新建了 {n} 个文件夹', readerResultDropped:'{n} 个订阅有多个标签，只用了第一个',
+    readerDropped:'没有用到的标签', readerDroppedRow:'放进了「{kept}」。没有用到：{dropped}',
     readerSkipped:'没有导入的', readerMore:'还有 {n} 条', readerUnknownSource:'它的订阅不在 Oriel 里', readerInvalidLink:'链接不可用',
     readerErrAddress:'不是 http 或 https 地址。', readerErrUnauthorized:'服务器不认这个凭据。检查令牌，或者用户名和密码。',
     readerErrUnreachable:'连不上服务器。检查地址。', readerErrRate:'服务器要求慢一点。请稍后再试。',
@@ -1101,8 +1103,9 @@ if(state.startsWith('reader')){
       `<button class="button">${copy.readerCancel}</button><button class="button primary">${copy.readerImport}</button>`);
   }
   if(state==='reader-done'){
-    const lines=[t('readerResultSources',{added:332,existing:6}),t('readerResultStarred',{added:51,existing:7}),t('readerResultRead',{n:1840}),t('readerResultUnmatched',{n:470}),t('readerResultFolders',{n:12})];
+    const lines=[t('readerResultSources',{added:332,existing:6}),t('readerResultStarred',{added:51,existing:7}),t('readerResultRead',{n:1840}),t('readerResultUnmatched',{n:470}),t('readerResultFolders',{n:12}),t('readerResultDropped',{n:2})];
     overlay=dlg(`<div class="result warn" role="status" style="margin:0 0 12px"><div class="head">${icon('triangle')}<span class="grow">${lines.join('<br>')}</span></div></div>
+<h3 class="label" style="margin:0 0 6px;font-size:12px">${copy.readerDropped}</h3><div class="result" style="margin:0 0 12px"><ul style="margin:0;padding:0"><li><span class="what">Ann's Notes · <span class="mono-text">https://ann.example/feed</span></span><span class="why">${t('readerDroppedRow',{kept:'Tech',dropped:'Fun, Daily'})}</span></li></ul></div>
 <h3 class="label" style="margin:0 0 6px;font-size:12px">${copy.readerSkipped}</h3><div class="result" style="margin:0 0 12px"><ul style="margin:0;padding:0"><li><span class="what">Gopher Weekly · <span class="mono-text">ftp://example.org/feed</span></span><span class="why">${copy.invalidUrl}</span></li>
 <li><span class="what">${zh?'某个已删除的订阅':'A deleted feed'} · <span class="mono-text">https://example.com/old.xml</span></span><span class="why">${copy.invalidUrl}</span></li></ul></div>`,
       `<button class="button primary">${copy.readerDone}</button>`);

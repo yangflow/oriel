@@ -50,6 +50,7 @@ type sourceJSON struct {
 	PaceSec             int    `json:"paceSec"`
 	DailyCap            int    `json:"dailyCap"`
 	HideFromAll         bool   `json:"hideFromAll"`
+	FolderID            *int64 `json:"folderId"`
 	TranslateTitles     bool   `json:"translateTitles"`
 	ExtractSelector     string `json:"extractSelector"`
 	ExtractReferer      string `json:"extractReferer"`
@@ -81,7 +82,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError, LastErrorKind: src.LastErrorKind,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, DailyCap: src.DailyCap, HideFromAll: src.HideFromAll, TranslateTitles: src.TranslateTitles, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, OpenTarget: src.OpenTarget, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, DailyCap: src.DailyCap, HideFromAll: src.HideFromAll, FolderID: folderRef(src.FolderID), TranslateTitles: src.TranslateTitles, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, OpenTarget: src.OpenTarget, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
 		WebSubActive: src.WebSubUntil.After(time.Now()), MovedTo: src.MovedTo, UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
@@ -288,6 +289,7 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		PaceSec           *int    `json:"paceSec"`
 		DailyCap          *int    `json:"dailyCap"`
 		HideFromAll       *bool   `json:"hideFromAll"`
+		FolderID          *int64  `json:"folderId"`
 		TranslateTitles   *bool   `json:"translateTitles"`
 		ExtractSelector   *string `json:"extractSelector"`
 		ExtractReferer    *string `json:"extractReferer"`
@@ -341,6 +343,12 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		patch.PaceSec = body.PaceSec
+	}
+	if body.FolderID != nil {
+		if *body.FolderID != 0 && !s.checkFolder(w, r, *body.FolderID) {
+			return
+		}
+		patch.FolderID = body.FolderID
 	}
 	if body.DailyCap != nil {
 		if n := *body.DailyCap; n < 0 || n > store.MaxDailyCap {
@@ -437,6 +445,10 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		patch.MuteKeywords = &keywords
 	}
 	src, err := s.store.UpdateSource(r.Context(), id, patch, s.now())
+	if errors.Is(err, store.ErrNoFolder) { // the folder was deleted after the check
+		fail(w, http.StatusBadRequest, "invalid_folder")
+		return
+	}
 	replySource(w, src, err)
 }
 

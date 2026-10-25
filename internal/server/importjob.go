@@ -47,15 +47,33 @@ type importSkipped struct {
 }
 
 type importResult struct {
-	AddedSources    int             `json:"addedSources"`
-	ExistingSources int             `json:"existingSources"`
-	StarredAdded    int             `json:"starredAdded"`
-	StarredExisting int             `json:"starredExisting"`
-	ReadMarked      int             `json:"readMarked"`
-	UnmatchedRead   int             `json:"unmatchedRead"`
-	FoldersSkipped  int             `json:"foldersSkipped"`
-	Skipped         []importSkipped `json:"skipped"`
-	SkippedTotal    int             `json:"skippedTotal"`
+	AddedSources    int `json:"addedSources"`
+	ExistingSources int `json:"existingSources"`
+	StarredAdded    int `json:"starredAdded"`
+	StarredExisting int `json:"starredExisting"`
+	ReadMarked      int `json:"readMarked"`
+	UnmatchedRead   int `json:"unmatchedRead"`
+	FoldersCreated  int `json:"foldersCreated"`
+	// DroppedLabels lists the subscriptions that had more than one label in the other reader: only the first became a
+	// folder.
+	DroppedLabels      []importDropped `json:"droppedLabels"`
+	DroppedLabelsTotal int             `json:"droppedLabelsTotal"`
+	Skipped            []importSkipped `json:"skipped"`
+	SkippedTotal       int             `json:"skippedTotal"`
+}
+
+type importDropped struct {
+	Title   string   `json:"title"`
+	Address string   `json:"address"`
+	Kept    string   `json:"kept"`
+	Dropped []string `json:"dropped"`
+}
+
+func (r *importResult) drop(item importDropped) {
+	r.DroppedLabelsTotal++
+	if len(r.DroppedLabels) < maxImportSkipped {
+		r.DroppedLabels = append(r.DroppedLabels, item)
+	}
 }
 
 func (r *importResult) skip(item importSkipped) {
@@ -256,7 +274,7 @@ func (s *Server) setImportProgress(job *importJob, done int) {
 }
 
 func (s *Server) writeSnapshot(ctx context.Context, job *importJob, snap *importer.Snapshot) (*importResult, error) {
-	res := &importResult{Skipped: []importSkipped{}, FoldersSkipped: len(snap.Folders)}
+	res := &importResult{Skipped: []importSkipped{}, DroppedLabels: []importDropped{}}
 	spread := min(importSpreadMax, time.Duration(len(snap.Feeds))*importSpreadEach)
 	ids := map[string]int64{}
 	idx, err := s.store.DuplicateIndex(ctx)
@@ -277,6 +295,19 @@ func (s *Server) writeSnapshot(ctx context.Context, job *importJob, snap *import
 			continue
 		}
 		src.FirstFetchDelay = time.Duration(rand.Int64N(int64(max(spread, 1))))
+		kept := ""
+		if len(f.Folders) > 0 {
+			var created bool
+			if src.FolderID, created, err = s.store.EnsureFolder(ctx, f.Folders[0], s.now()); err != nil && !errors.Is(err, store.ErrInvalidFolderName) {
+				return nil, err
+			}
+			if err == nil {
+				kept = f.Folders[0]
+				if created {
+					res.FoldersCreated++
+				}
+			}
+		}
 		created, err := s.store.CreateSourceIn(ctx, idx, src, title, s.now())
 		var exists *store.ExistsError
 		switch {
@@ -293,6 +324,15 @@ func (s *Server) writeSnapshot(ctx context.Context, job *importJob, snap *import
 		default:
 			res.AddedSources++
 			ids[f.URL] = created.ID
+		}
+		// A subscription that was there already is filed only when it was in no folder; a new one is in its folder.
+		if id, found := ids[f.URL]; found && src.FolderID != 0 {
+			if _, err := s.store.FileSource(ctx, id, src.FolderID); err != nil {
+				return nil, err
+			}
+		}
+		if len(f.DroppedLabels) > 0 {
+			res.drop(importDropped{Title: title, Address: src.URL, Kept: kept, Dropped: f.DroppedLabels})
 		}
 		s.setImportProgress(job, i+1)
 	}

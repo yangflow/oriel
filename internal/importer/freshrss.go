@@ -14,7 +14,6 @@ type freshRSS struct{}
 
 const (
 	freshPage      = 100
-	labelPrefix    = "user/-/label/"
 	readStateTag   = "user/-/state/com.google/read"
 	starredStream  = "user/-/state/com.google/starred"
 	readStream     = "user/-/state/com.google/read"
@@ -89,32 +88,21 @@ func (freshRSS) Fetch(ctx context.Context, c *Client, req Request, progress Prog
 		}
 		urls[s.ID] = s.URL
 		feed := Feed{URL: s.URL, Title: s.Title, SiteURL: s.HTMLURL}
+		// A subscription is in at most one folder here: the first label stays, the others are listed as dropped.
 		for _, cat := range s.Categories {
-			if name := strings.TrimSpace(cat.Label); name != "" {
+			name := strings.TrimSpace(cat.Label)
+			switch {
+			case name == "":
+			case len(feed.Folders) == 0:
 				feed.Folders = append(feed.Folders, name)
 				addFolder(seen, &snap.Folders, name)
+			default:
+				feed.DroppedLabels = append(feed.DroppedLabels, name)
 			}
 		}
 		snap.Feeds = append(snap.Feeds, feed)
 	}
 
-	data, err = c.Do(ctx, "GET", reader+"tag/list?output=json", header, nil)
-	if err != nil {
-		return nil, err
-	}
-	var tags struct {
-		Tags []struct {
-			ID string `json:"id"`
-		} `json:"tags"`
-	}
-	if err := json.Unmarshal(data, &tags); err != nil {
-		return nil, &Error{Code: ErrBadResponse}
-	}
-	for _, t := range tags.Tags {
-		if name, ok := strings.CutPrefix(t.ID, labelPrefix); ok {
-			addFolder(seen, &snap.Folders, name)
-		}
-	}
 	progress(StageSubscriptions, len(snap.Feeds), len(snap.Feeds))
 
 	// The read state comes from the contents of the read stream rather than from the ids of its items, because the ids

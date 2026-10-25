@@ -358,12 +358,14 @@ type Source struct {
 	PaceSec             int    `json:"paceSec"`
 	DailyCap            int    `json:"dailyCap"`
 	HideFromAll         bool   `json:"hideFromAll"`
-	TranslateTitles     bool   `json:"translateTitles"`
-	ExtractSelector     string `json:"extractSelector"`
-	ExtractReferer      string `json:"extractReferer"`
-	OpenTarget          string `json:"openTarget"`
-	FetchUserAgent      string `json:"fetchUserAgent"`
-	FetchReferer        string `json:"fetchReferer"`
+	// FolderID is the folder the subscription is in, 0 for none.
+	FolderID        int64  `json:"folderId"`
+	TranslateTitles bool   `json:"translateTitles"`
+	ExtractSelector string `json:"extractSelector"`
+	ExtractReferer  string `json:"extractReferer"`
+	OpenTarget      string `json:"openTarget"`
+	FetchUserAgent  string `json:"fetchUserAgent"`
+	FetchReferer    string `json:"fetchReferer"`
 	// Proxy is "" to follow the settings, "direct", or a proxy address; ProxyAuthSet says a user name and password
 	// are stored, which are never sent.
 	Proxy           string `json:"proxy"`
@@ -411,6 +413,8 @@ type SourcePatch struct {
 	// HideFromAll keeps the source out of All and the kind timelines and their counts; it stays in its own view,
 	// in search and in Starred.
 	HideFromAll *bool `json:"hideFromAll,omitempty"`
+	// FolderID moves the source into a folder; a pointer to 0 takes it out.
+	FolderID *int64 `json:"folderId,omitempty"`
 	// TranslateTitles queues the titles of new entries for translation into the AI language.
 	TranslateTitles *bool `json:"translateTitles,omitempty"`
 	// ExtractSelector, ExtractReferer and ExtractRewrites are the source's extraction rules; an empty string clears one.
@@ -542,6 +546,7 @@ type Device struct {
 type Imported struct {
 	Added    int          `json:"added"`
 	Existing int          `json:"existing"`
+	Folders  int          `json:"folders"` // folders the import created
 	Failed   []ImportFail `json:"failed"`
 }
 
@@ -619,15 +624,18 @@ type ImportSkip struct {
 
 // ImportResult is what an import wrote. Skipped lists at most 100 of the SkippedTotal items left out.
 type ImportResult struct {
-	AddedSources    int          `json:"addedSources"`
-	ExistingSources int          `json:"existingSources"`
-	StarredAdded    int          `json:"starredAdded"`
-	StarredExisting int          `json:"starredExisting"`
-	ReadMarked      int          `json:"readMarked"`
-	UnmatchedRead   int          `json:"unmatchedRead"`
-	FoldersSkipped  int          `json:"foldersSkipped"`
-	Skipped         []ImportSkip `json:"skipped"`
-	SkippedTotal    int          `json:"skippedTotal"`
+	AddedSources    int `json:"addedSources"`
+	ExistingSources int `json:"existingSources"`
+	StarredAdded    int `json:"starredAdded"`
+	StarredExisting int `json:"starredExisting"`
+	ReadMarked      int `json:"readMarked"`
+	UnmatchedRead   int `json:"unmatchedRead"`
+	FoldersCreated  int `json:"foldersCreated"`
+	// DroppedLabels lists at most 100 of the DroppedLabelsTotal subscriptions that had more labels than the first.
+	DroppedLabels      []DroppedLabel `json:"droppedLabels"`
+	DroppedLabelsTotal int            `json:"droppedLabelsTotal"`
+	Skipped            []ImportSkip   `json:"skipped"`
+	SkippedTotal       int            `json:"skippedTotal"`
 }
 
 // ImportStatus is the import job. Phase is "idle", "fetching", "ready" (the preview waits to be confirmed),
@@ -643,8 +651,10 @@ type ImportStatus struct {
 
 // Query selects a page of the timeline; the zero value is the first page of everything.
 type Query struct {
-	Source  int64
-	Kind    string
+	Source int64
+	Kind   string
+	// Folder keeps the entries of the sources in this folder; 0 does not filter.
+	Folder  int64
 	Unread  bool
 	Starred bool
 	Search  string
@@ -680,6 +690,7 @@ type EntryPatch struct {
 type ReadScope struct {
 	SourceID int64  `json:"sourceId,omitempty"`
 	Kind     string `json:"kind,omitempty"`
+	Folder   int64  `json:"folder,omitempty"`
 	UpTo     int64  `json:"upTo,omitempty"`
 	Newer    int64  `json:"newerThan,omitempty"`
 	From     int64  `json:"from,omitempty"`
@@ -712,6 +723,9 @@ func (s Session) Entries(ctx context.Context, q Query) (Page, error) {
 	values := url.Values{}
 	if q.Source != 0 {
 		values.Set("source", strconv.FormatInt(q.Source, 10))
+	}
+	if q.Folder != 0 {
+		values.Set("folder", strconv.FormatInt(q.Folder, 10))
 	}
 	if q.Kind != "" {
 		values.Set("kind", q.Kind)
@@ -1084,6 +1098,55 @@ func (s Session) DeleteRule(ctx context.Context, id int64) error {
 // while; after that the server removes it for good.
 func (s Session) DeleteSource(ctx context.Context, id int64) error {
 	return s.call(ctx, http.MethodDelete, "/api/sources/"+strconv.FormatInt(id, 10), nil, nil)
+}
+
+// DroppedLabel is a subscription that had several labels in FreshRSS: Kept became its folder, Dropped are the rest.
+type DroppedLabel struct {
+	Title   string   `json:"title"`
+	Address string   `json:"address"`
+	Kept    string   `json:"kept"`
+	Dropped []string `json:"dropped"`
+}
+
+// Folder groups subscriptions. A subscription is in at most one; folders do not nest.
+type Folder struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	SourceCount int    `json:"sourceCount"`
+}
+
+// Folders lists the folders by name.
+func (s Session) Folders(ctx context.Context) ([]Folder, error) {
+	var reply struct {
+		Folders []Folder `json:"folders"`
+	}
+	err := s.call(ctx, http.MethodGet, "/api/folders", nil, &reply)
+	return reply.Folders, err
+}
+
+// folderName is the body that creates or renames a folder.
+type folderName struct {
+	Name string `json:"name"`
+}
+
+// CreateFolder adds a folder. A name of 1 to 60 characters is valid ("invalid_name" otherwise); a name taken, in any
+// letter case, is an *APIError with the code "folder_exists".
+func (s Session) CreateFolder(ctx context.Context, name string) (Folder, error) {
+	var created Folder
+	err := s.call(ctx, http.MethodPost, "/api/folders", folderName{name}, &created)
+	return created, err
+}
+
+// RenameFolder renames a folder; it fails like CreateFolder, and with "not_found" when the folder is gone.
+func (s Session) RenameFolder(ctx context.Context, id int64, name string) (Folder, error) {
+	var changed Folder
+	err := s.call(ctx, http.MethodPatch, "/api/folders/"+strconv.FormatInt(id, 10), folderName{name}, &changed)
+	return changed, err
+}
+
+// DeleteFolder removes a folder and keeps its subscriptions, which are then in no folder.
+func (s Session) DeleteFolder(ctx context.Context, id int64) error {
+	return s.call(ctx, http.MethodDelete, "/api/folders/"+strconv.FormatInt(id, 10), nil, nil)
 }
 
 // RestoreSource undoes DeleteSource within the server's undo window and returns the subscription. After the window

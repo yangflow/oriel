@@ -38,6 +38,7 @@ var (
 	Database          = parse("database")
 	Download          = parse("download")
 	Folder            = parse("folder")
+	FolderPlus        = parse("folder-plus")
 	Ellipsis          = parse("ellipsis")
 	ExternalLink      = parse("external-link")
 	Eye               = parse("eye")

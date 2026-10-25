@@ -56,6 +56,7 @@ type copy struct {
 	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, PageActivity, HideSidebar, ShowSidebar, KeyToggleSidebar string
 	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                                      string
 	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                                          string
+	NewFolder, Collapse, Expand                                                                                                                                         string
 	CopyLink, CopyMarkdown, SaveMarkdown                                                                                                                                string
 	LastLooked                                                                                                                                                          string
 	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                                            string
@@ -106,6 +107,7 @@ type API interface {
 	reader.API
 	Entries(ctx context.Context, q client.Query) (client.Page, error)
 	Sources(ctx context.Context) (client.SourceList, error)
+	Folders(ctx context.Context) ([]client.Folder, error)
 	SetEntry(ctx context.Context, id int64, patch client.EntryPatch) (client.Entry, error)
 	MarkRead(ctx context.Context, scope client.ReadScope) (client.Marked, error)
 	MarkUnread(ctx context.Context, m client.Marked) ([]int64, error)
@@ -150,10 +152,12 @@ type Deps struct {
 	Unread func(n int)
 }
 
-// scope is what the sidebar chose: a kind, "" for all, or one source, with kind its kind for the tabs.
+// scope is what the sidebar chose: a kind, "" for all, a folder read under that kind, or one source, with kind its kind
+// for the tabs. A folder and a source are never set together.
 type scope struct {
 	kind   string
 	source int64
+	folder int64
 }
 
 const (
@@ -249,7 +253,8 @@ type Screen struct {
 	gen    int    // counts servers used, so the results of the one before are dropped
 
 	sources       []client.Source
-	sourcesGen    uint64 // counts the changes to sources, to tell when side is out of date
+	folders       []client.Folder // the folders of the server by name; the sidebar groups the subscriptions by them
+	sourcesGen    uint64          // counts the changes to sources, to tell when side is out of date
 	side          sideCache
 	failingOnly   bool // the sidebar lists only the subscriptions whose last fetch failed
 	sourcesLoaded bool
@@ -382,6 +387,8 @@ func New(systemLocale string, deps Deps) *Screen {
 		Go:           deps.Go,
 		Now:          deps.Now,
 		Sources:      func() []client.Source { return s.sources },
+		Folders:      func() []client.Folder { return s.folders },
+		Refiled:      s.loadSources,
 		Icon:         s.bitmap,
 		Added:        s.added,
 		Refreshed:    func(src client.Source) { s.watch(src, false) },
@@ -470,9 +477,9 @@ func (s *Screen) restorePlace() {
 		return
 	}
 	p := s.deps.Reading().Normalize().Places.Get(s.server)
-	s.scope = scope{kind: p.Kind, source: p.Source}
+	s.scope = scope{kind: p.Kind, source: p.Source, folder: p.Folder}
 	s.tab = max(0, indexOf(kinds, p.Kind))
-	s.restoring = p.Source != 0
+	s.restoring = p.Source != 0 || p.Folder != 0
 	switch p.Filter {
 	case prefs.FilterUnread:
 		s.filter = unread
@@ -492,7 +499,7 @@ func (s *Screen) remember() {
 	if s.deps.Remember == nil {
 		return
 	}
-	p := prefs.Place{Kind: s.scope.kind, Source: s.scope.source}
+	p := prefs.Place{Kind: s.scope.kind, Source: s.scope.source, Folder: s.scope.folder}
 	switch s.filter {
 	case unread:
 		p.Filter = prefs.FilterUnread
@@ -660,7 +667,8 @@ func (s *Screen) changed(src client.Source) {
 		s.scope.kind = src.Kind
 		s.tab = max(0, indexOf(kinds, src.Kind))
 	}
-	if src.Title != old.Title || src.Kind != old.Kind || src.MuteKeywords != old.MuteKeywords || src.HideFromAll != old.HideFromAll {
+	if src.Title != old.Title || src.Kind != old.Kind || src.MuteKeywords != old.MuteKeywords || src.HideFromAll != old.HideFromAll ||
+		s.scope.folder != 0 && src.FolderID != old.FolderID {
 		s.lists = nil
 		s.reload()
 	}
@@ -735,6 +743,17 @@ func (s *Screen) setSources(list client.SourceList) {
 	s.sourcesGen++
 }
 
+// setFolders takes the folders of the server. A folder read as the scope that is gone (deleted here or elsewhere) ends
+// at the kind it was read under, whose timeline holds its subscriptions now.
+func (s *Screen) setFolders(list []client.Folder) {
+	s.folders = list
+	s.sourcesGen++
+	if s.scope.folder != 0 && !s.restoring && !slices.ContainsFunc(list, func(f client.Folder) bool { return f.ID == s.scope.folder }) {
+		s.lists = nil
+		s.choose(scope{kind: s.scope.kind})
+	}
+}
+
 // setUnread takes the unread count of All and tells Deps.Unread when it changed.
 func (s *Screen) setUnread(n int) {
 	if n == s.unreadTotal {
@@ -753,11 +772,19 @@ func (s *Screen) loadSources() {
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		sources, err := api.Sources(context.Background())
+		var folders []client.Folder
+		var foldersErr error
+		if err == nil {
+			folders, foldersErr = api.Folders(context.Background())
+		}
 		return func() {
-			if gen != s.gen || s.expired(err) || err != nil {
+			if gen != s.gen || s.expired(err) || s.expired(foldersErr) || err != nil {
 				return
 			}
 			s.setSources(sources)
+			if foldersErr == nil {
+				s.setFolders(folders)
+			}
 			if s.restoring {
 				s.restoring = false
 				s.checkRestored()
@@ -766,9 +793,17 @@ func (s *Screen) loadSources() {
 	})
 }
 
-// checkRestored goes to everything when the subscription kept from the last run is gone, and takes the kind it has now
-// otherwise.
+// checkRestored goes to everything when the subscription or folder kept from the last run is gone, and takes the kind
+// the subscription has now otherwise. A folder keeps the kind it was read under.
 func (s *Screen) checkRestored() {
+	if s.scope.folder != 0 {
+		if slices.ContainsFunc(s.folders, func(f client.Folder) bool { return f.ID == s.scope.folder }) {
+			return
+		}
+		s.entries, s.folds = nil, nil
+		s.show(func() { s.scope, s.tab = scope{}, 0 })
+		return
+	}
 	if kind := s.kindOf(s.scope.source); kind != "" {
 		s.scope.kind = kind
 		s.tab = max(0, indexOf(kinds, kind))
@@ -783,6 +818,7 @@ func (s *Screen) query1(cursor string) client.Query {
 		MaxMinutes: s.budget, Since: s.since(), Search: s.searched, Limit: pageSize, Cursor: cursor, Oldest: s.oldest}
 	if s.scope.source == 0 {
 		q.Kind = s.scope.kind
+		q.Folder = s.scope.folder
 	}
 	return q
 }
@@ -1989,12 +2025,13 @@ func countText(n int) string {
 // unreadIn returns the unread entries of the scope, as the sources count them; All is the server's total, which
 // counts an article several sources carry once. A kind leaves out the sources kept out of All, as its timeline does.
 func (s *Screen) unreadIn(sc scope) int {
-	if sc.source == 0 && sc.kind == "" {
+	if sc.source == 0 && sc.kind == "" && sc.folder == 0 {
 		return s.unreadTotal
 	}
 	n := 0
 	for _, src := range s.sources {
-		if sc.source == src.ID || sc.source == 0 && !src.HideFromAll && (sc.kind == "" || sc.kind == src.Kind) {
+		if sc.source == src.ID || sc.source == 0 && !src.HideFromAll && (sc.kind == "" || sc.kind == src.Kind) &&
+			(sc.folder == 0 || sc.folder == src.FolderID) {
 			n += src.UnreadCount
 		}
 	}
@@ -2007,6 +2044,11 @@ func (s *Screen) scopeName() string {
 			if src.ID == s.scope.source {
 				return subscriptions.Name(src)
 			}
+		}
+	}
+	for _, f := range s.folders {
+		if f.ID == s.scope.folder {
+			return f.Name
 		}
 	}
 	return s.kindName(s.scope.kind)
@@ -2048,7 +2090,7 @@ func (s *Screen) markAll() {
 	}
 	scope := s.scoped(client.ReadScope{SourceID: s.scope.source, UpTo: upTo})
 	if s.scope.source == 0 {
-		scope.Kind = s.scope.kind
+		scope.Kind, scope.Folder = s.scope.kind, s.scope.folder
 	}
 	s.markScope(scope, s.text.Marked, s.scopeName())
 }
@@ -2082,7 +2124,7 @@ func (s *Screen) markAbove(id int64) {
 	}
 	scope = s.scoped(scope)
 	if s.scope.source == 0 {
-		scope.Kind = s.scope.kind
+		scope.Kind, scope.Folder = s.scope.kind, s.scope.folder
 	}
 	s.markScope(scope, s.text.MarkedAbove, "")
 }
@@ -2115,7 +2157,7 @@ func (s *Screen) markBelow(id int64) {
 	}
 	scope = s.scoped(scope)
 	if s.scope.source == 0 {
-		scope.Kind = s.scope.kind
+		scope.Kind, scope.Folder = s.scope.kind, s.scope.folder
 	}
 	s.markScope(scope, s.text.MarkedBelow, "")
 }
@@ -2162,7 +2204,7 @@ func (s *Screen) markVisible() {
 		}
 		scope = s.scoped(scope)
 		if s.scope.source == 0 {
-			scope.Kind = s.scope.kind
+			scope.Kind, scope.Folder = s.scope.kind, s.scope.folder
 		}
 		s.markScope(scope, s.text.MarkedVisible, "")
 	}
@@ -2218,7 +2260,7 @@ func (s *Screen) markAllOlder(days int) {
 	}
 	scope := s.scoped(client.ReadScope{SourceID: s.scope.source})
 	if s.scope.source == 0 {
-		scope.Kind = s.scope.kind
+		scope.Kind, scope.Folder = s.scope.kind, s.scope.folder
 	}
 	s.markOlder(scope, days, s.scopeName())
 }
@@ -3039,8 +3081,12 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 						})
 				}
 				ui.Column(c).FillWidth().FocusGroup(ui.Vertical).Children(func() {
-					for i, src := range list {
-						s.sourceItem(c, src, i == 0 && s.firstFocus)
+					for i, row := range list {
+						if row.folder.ID != 0 {
+							s.folderItem(c, row, i == 0 && s.firstFocus)
+							continue
+						}
+						s.sourceItem(c, row.src, i == 0 && s.firstFocus, row.inside)
 					}
 					s.firstFocus = false
 				})
@@ -3155,25 +3201,41 @@ func (s *Screen) section(c *ui.Context, failing int) {
 					s.failingOnly = true
 				}
 			}
-			b := ui.ButtonBase(c).Shrink(0).Label(s.text.AddSource).Tooltip(s.text.AddSource)
-			color := t.TextMuted
-			var fill ui.Color
-			if b.Hovered() {
-				fill = t.SurfaceHover
-				color = t.Text
-			}
-			mx, my := theme.Hit{W: theme.Px(t, 22), H: theme.Px(t, 22), Radius: theme.Px(t, 8), Fill: fill}.Apply(c, b, func() {
-				ui.Icon(c, icons.Plus).FontSize(theme.IconSmall(t)).TextColor(color)
-			})
-			b.Margin(my, mx, my, mx)
-			if b.Clicked() {
-				s.subs.Add()
-			}
+			s.sectionButton(c, icons.FolderPlus, s.text.NewFolder, s.subs.NewFolder)
+			s.sectionButton(c, icons.Plus, s.text.AddSource, s.subs.Add)
 		})
 }
 
-// sideCache is the subscriptions the sidebar lists, kept while what they come from stays the same: drawing a frame
-// must not copy and sort them again when nothing changed.
+// sectionButton is a 22 square icon button at the end of the section header.
+func (s *Screen) sectionButton(c *ui.Context, icon *ui.SVG, label string, click func()) {
+	t := c.Theme()
+	b := ui.ButtonBase(c).Key(label).Shrink(0).Label(label).Tooltip(label)
+	color := t.TextMuted
+	var fill ui.Color
+	if b.Hovered() {
+		fill = t.SurfaceHover
+		color = t.Text
+	}
+	mx, my := theme.Hit{W: theme.Px(t, 22), H: theme.Px(t, 22), Radius: theme.Px(t, 8), Fill: fill}.Apply(c, b, func() {
+		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
+	})
+	b.Margin(my, mx, my, mx)
+	if b.Clicked() {
+		click()
+	}
+}
+
+// sideRow is one row of the subscription list in the sidebar: a folder (folder.ID is not 0) or a subscription.
+type sideRow struct {
+	folder client.Folder
+	src    client.Source
+	unread int  // folder: the unread entries of its subscriptions in the open kind
+	folded bool // folder: its subscriptions are left out
+	inside bool // subscription: it is listed under a folder
+}
+
+// sideCache is the rows the sidebar lists, kept while what they come from stays the same: drawing a frame must not
+// copy and sort them again when nothing changed.
 type sideCache struct {
 	valid       bool
 	gen         uint64
@@ -3182,25 +3244,31 @@ type sideCache struct {
 	kind        string
 	source      int64
 	failingOnly bool
+	folded      prefs.Folded
 
-	list     []client.Source
+	list     []sideRow
 	failing  int  // subscriptions of the kind that failed, before the list narrows to them
 	onSource bool // the open subscription is in the list, whatever its kind
 	runs     int  // how many times it was built
 }
 
-// sidebarList is the subscriptions to list in the sidebar: those of the open kind, narrowed to the failing ones when
-// asked, to the ones the filter matches, and ordered by unread count with Unread first on. It is built again only
-// when the subscriptions, the filter, the order, the kind, the open subscription or the failing narrowing change.
+// sidebarList is the rows to list in the sidebar: the subscriptions of the open kind, narrowed to the failing ones when
+// asked, to the ones the filter matches, and ordered by unread count with Unread first on. They are grouped under
+// their folders, which come first by name; a kind lists only the folders that hold a subscription of it, All lists
+// every folder, and a folder is shown collapsed unless a filter is on. It is built again only when the subscriptions,
+// the folders, the filter, the order, the kind, the open subscription, the failing narrowing or the collapsed folders
+// change.
 func (s *Screen) sidebarList() *sideCache {
 	c := &s.side
-	unreadFirst := s.views().SourceSort == prefs.SortUnread
+	views := s.views()
+	unreadFirst := views.SourceSort == prefs.SortUnread
 	if c.valid && c.gen == s.sourcesGen && c.query == s.sideQuery && c.unreadFirst == unreadFirst &&
-		c.kind == s.scope.kind && c.source == s.scope.source && c.failingOnly == s.failingOnly {
+		c.kind == s.scope.kind && c.source == s.scope.source && c.failingOnly == s.failingOnly &&
+		c.folded == views.FoldedFolders {
 		return c
 	}
 	*c = sideCache{valid: true, gen: s.sourcesGen, query: s.sideQuery, unreadFirst: unreadFirst, kind: s.scope.kind,
-		source: s.scope.source, failingOnly: s.failingOnly, runs: c.runs + 1}
+		source: s.scope.source, failingOnly: s.failingOnly, folded: views.FoldedFolders, runs: c.runs + 1}
 	q := strings.ToLower(strings.TrimSpace(s.sideQuery))
 	type row struct {
 		src  client.Source
@@ -3242,9 +3310,34 @@ func (s *Screen) sidebarList() *sideCache {
 		s.failingOnly = false
 		return s.sidebarList()
 	}
-	c.list = make([]client.Source, len(rows))
-	for i, r := range rows {
-		c.list[i] = r.src
+	narrowed := q != "" || s.failingOnly
+	known := make(map[int64]bool, len(s.folders))
+	for _, f := range s.folders {
+		known[f.ID] = true
+	}
+	for _, f := range s.folders {
+		var members []client.Source
+		for _, r := range rows {
+			if r.src.FolderID == f.ID {
+				members = append(members, r.src)
+			}
+		}
+		if len(members) == 0 && (narrowed || s.scope.kind != "") {
+			continue
+		}
+		folded := !narrowed && views.FoldedFolders.Has(s.server, f.ID)
+		c.list = append(c.list, sideRow{folder: f, folded: folded,
+			unread: s.unreadIn(scope{kind: s.scope.kind, folder: f.ID})})
+		for _, src := range members {
+			if !folded || src.ID == s.scope.source {
+				c.list = append(c.list, sideRow{src: src, inside: true})
+			}
+		}
+	}
+	for _, r := range rows {
+		if !known[r.src.FolderID] {
+			c.list = append(c.list, sideRow{src: r.src})
+		}
 	}
 	return c
 }
@@ -3379,7 +3472,7 @@ func (s *Screen) progressLink(c *ui.Context) {
 		})
 }
 
-func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
+func (s *Screen) sourceItem(c *ui.Context, src client.Source, first, inside bool) {
 	t := c.Theme()
 	chosen := s.scope.source == src.ID
 	name := subscriptions.Name(src)
@@ -3394,7 +3487,13 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 	if src.HideFromAll {
 		label = strings.ReplaceAll(s.text.HiddenName, "{name}", label)
 	}
-	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(theme.Px(t, 30)).Gap(theme.Px(t, 10)).PaddingX(theme.Px(t, 10)).
+	// A subscription under a folder sits 12 in from the folder's row, so its icon is under the folder's name.
+	left := theme.Px(t, 10)
+	if inside {
+		left = theme.Px(t, 22)
+	}
+	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(theme.Px(t, 30)).Gap(theme.Px(t, 10)).
+		Padding(0, theme.Px(t, 10), 0, left).
 		Radius(theme.Px(t, 8)).Label(label).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
 	if src.UnreadCount > 0 && !src.Paused {
 		item.Description(s.format(s.text.UnreadCount, src.UnreadCount))
@@ -3460,6 +3559,97 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 		s.sideKeyed = item.FocusVisible()
 		s.choose(scope{kind: src.Kind, source: src.ID})
 	}
+}
+
+// folderItem is the row of a folder: a chevron button that collapses or opens it, then the folder's icon, name and the
+// unread count of its subscriptions in the open kind. The name is the row that reads the folder as a timeline.
+func (s *Screen) folderItem(c *ui.Context, row sideRow, first bool) {
+	t := c.Theme()
+	f := row.folder
+	chosen := s.scope.folder == f.ID && s.scope.source == 0
+	ui.Row(c).Key(folderKey(f.ID)).FillWidth().AlignItems(ui.Center).Children(func() {
+		chevron, verb := icons.ChevronDown, s.text.Collapse
+		if row.folded {
+			chevron, verb = icons.ChevronRight, s.text.Expand
+		}
+		fold := ui.ButtonBase(c).Shrink(0).Size(theme.Px(t, 22), theme.Px(t, 30)).Radius(theme.Px(t, 8)).
+			Label(strings.ReplaceAll(verb, "{name}", f.Name)).Tooltip(strings.ReplaceAll(verb, "{name}", f.Name))
+		color := t.TextMuted
+		if fold.Hovered() {
+			fold.Background(t.SurfaceHover)
+			color = t.Text
+		}
+		theme.Fade(fold)
+		fold.Children(func() { ui.Icon(c, chevron).FontSize(theme.IconSmall(t)).TextColor(color) })
+		s.sideKeyed = s.sideKeyed || fold.FocusVisible()
+		if fold.Clicked() {
+			s.sideKeyed = fold.FocusVisible()
+			s.fold(f.ID, !row.folded)
+		}
+		item := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(theme.Px(t, 30)).Gap(theme.Px(t, 8)).
+			Padding(0, theme.Px(t, 10), 0, theme.Px(t, 4)).Radius(theme.Px(t, 8)).Label(f.Name).
+			ContextMenu(func(m *ui.Menu) { s.subs.FolderMenu(m, f) })
+		if row.unread > 0 {
+			item.Description(s.format(s.text.UnreadCount, row.unread))
+		}
+		count := t.TextMuted
+		switch {
+		case chosen:
+			item.Background(theme.Chosen(t))
+			count = theme.Text2(t)
+		case item.Pressed():
+			item.Background(t.SurfacePressed)
+			count = theme.Text2(t)
+		case item.Hovered():
+			item.Background(t.SurfaceHover)
+			count = theme.Text2(t)
+		}
+		theme.Fade(item)
+		if (chosen && s.sideFocus) || first {
+			item.Focus()
+			s.sideKeyed = s.sideKeyed || first
+		}
+		s.sideKeyed = s.sideKeyed || item.FocusVisible()
+		cut := false
+		item.Children(func() {
+			icon := t.TextMuted
+			if chosen {
+				icon = t.Accent
+			}
+			ui.Icon(c, icons.Folder).FontSize(theme.IconMedium(t)).TextColor(icon)
+			title := ui.Text(c, f.Name).Grow(1).MinWidth(0).SingleLine().TextColor(theme.Text2(t))
+			weight := 0
+			if chosen {
+				title.TextColor(t.Text).FontWeight(500)
+				weight = 500
+			}
+			cut = theme.Cut(c, title, f.Name, 0, weight, 1)
+			if row.unread > 0 {
+				ui.Text(c, countText(row.unread)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
+					TextColor(count)
+			}
+		})
+		if cut {
+			theme.Tip(c, item, f.Name)
+		}
+		if item.Clicked() {
+			s.sideKeyed = item.FocusVisible()
+			s.choose(scope{kind: s.scope.kind, folder: f.ID})
+		}
+	})
+}
+
+// folderKey keys the row of a folder apart from the rows of subscriptions, whose key is their ID.
+type folderKey int64
+
+// fold collapses the folder in the sidebar or opens it; the choice is kept on this device.
+func (s *Screen) fold(id int64, collapsed bool) {
+	if s.deps.Change == nil {
+		return
+	}
+	p := s.views()
+	p.FoldedFolders = p.FoldedFolders.Set(s.server, id, collapsed)
+	s.deps.Change(p)
 }
 
 // glyph is a subscription's site icon, or its monogram while the icon is not decoded and when it has none: a square

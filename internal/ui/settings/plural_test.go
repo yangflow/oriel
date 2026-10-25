@@ -24,7 +24,8 @@ func TestSingularCounts(t *testing.T) {
 		{"RecentKeep", s.text.RecentKeep, [3]string{"Each subscription keeps its last 0 attempts.", "Each subscription keeps its last 1 attempt.", "Each subscription keeps its last 2 attempts."}},
 		{"ReaderResultRead", s.text.ReaderResultRead, [3]string{"0 entries marked as read", "1 entry marked as read", "2 entries marked as read"}},
 		{"ReaderResultUnmatched", s.text.ReaderResultUnmatched, [3]string{"0 read entries are not in Oriel and were left out", "1 read entry is not in Oriel and was left out", "2 read entries are not in Oriel and were left out"}},
-		{"ReaderResultFolders", s.text.ReaderResultFolders, [3]string{"0 folders and tags were not imported", "1 folder or tag was not imported", "2 folders and tags were not imported"}},
+		{"ReaderResultFolders", s.text.ReaderResultFolders, [3]string{"0 folders were created", "1 folder was created", "2 folders were created"}},
+		{"ReaderResultDropped", s.text.ReaderResultDropped, [3]string{"0 subscriptions have more than one label; only the first was used", "1 subscription has more than one label; only the first was used", "2 subscriptions have more than one label; only the first was used"}},
 		{"MutedMany", s.text.MutedMany, [3]string{"Hides 0 entries right now", "Hides 1 entry right now", "Hides 2 entries right now"}},
 	} {
 		for n, want := range tc.want {

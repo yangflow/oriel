@@ -38,6 +38,8 @@ type fake struct {
 	entries     []client.Entry // newest first
 	sources     []client.Source
 	health      client.Health
+	folders     []client.Folder
+	folderCalls []string // the folder requests as "create name", "rename id name" and "delete id"
 	queries     []client.Query
 	setReply    client.Entry // what the server answers to a change
 	patches     map[int64][]client.EntryPatch
@@ -77,6 +79,9 @@ func (f *fake) Entries(_ context.Context, q client.Query) (client.Page, error) {
 	}
 	var found []client.Entry
 	for _, e := range f.entries {
+		if q.Folder != 0 && f.folderOf(e.SourceID) != q.Folder {
+			continue
+		}
 		if q.Kind != "" && e.Kind != q.Kind || q.Source != 0 && e.SourceID != q.Source || q.Unread && e.IsRead ||
 			q.Starred && !e.Starred || q.Since > 0 && e.CreatedAt < q.Since || q.MaxMinutes > 0 && (e.ReadingSec == 0 || e.ReadingSec > q.MaxMinutes*60) || q.Search != "" && !strings.Contains(strings.ToLower(e.Title), q.Search) {
 			continue
@@ -93,6 +98,63 @@ func (f *fake) Entries(_ context.Context, q client.Query) (client.Page, error) {
 		page.Next = strconv.Itoa(end)
 	}
 	return page, nil
+}
+
+// folderOf is the folder a subscription is in.
+func (f *fake) folderOf(id int64) int64 {
+	for _, src := range f.sources {
+		if src.ID == id {
+			return src.FolderID
+		}
+	}
+	return 0
+}
+
+func (f *fake) Folders(context.Context) ([]client.Folder, error) {
+	out := slices.Clone(f.folders)
+	for i := range out {
+		out[i].SourceCount = 0
+		for _, src := range f.sources {
+			if src.FolderID == out[i].ID {
+				out[i].SourceCount++
+			}
+		}
+	}
+	return out, nil
+}
+
+func (f *fake) CreateFolder(_ context.Context, name string) (client.Folder, error) {
+	f.folderCalls = append(f.folderCalls, "create "+name)
+	for _, old := range f.folders {
+		if old.Name == name {
+			return client.Folder{}, &client.APIError{Status: 409, Code: "folder_exists"}
+		}
+	}
+	made := client.Folder{ID: int64(100 + len(f.folders)), Name: name}
+	f.folders = append(f.folders, made)
+	return made, nil
+}
+
+func (f *fake) RenameFolder(_ context.Context, id int64, name string) (client.Folder, error) {
+	f.folderCalls = append(f.folderCalls, fmt.Sprintf("rename %d %s", id, name))
+	for i := range f.folders {
+		if f.folders[i].ID == id {
+			f.folders[i].Name = name
+			return f.folders[i], nil
+		}
+	}
+	return client.Folder{}, &client.APIError{Status: 404, Code: "not_found"}
+}
+
+func (f *fake) DeleteFolder(_ context.Context, id int64) error {
+	f.folderCalls = append(f.folderCalls, fmt.Sprintf("delete %d", id))
+	f.folders = slices.DeleteFunc(f.folders, func(x client.Folder) bool { return x.ID == id })
+	for i := range f.sources {
+		if f.sources[i].FolderID == id {
+			f.sources[i].FolderID = 0
+		}
+	}
+	return nil
 }
 
 func (f *fake) Sources(context.Context) (client.SourceList, error) {
@@ -249,6 +311,9 @@ func (f *fake) UpdateSource(_ context.Context, id int64, patch client.SourcePatc
 			}
 			if patch.Kind != nil {
 				f.sources[i].Kind = *patch.Kind
+			}
+			if patch.FolderID != nil {
+				f.sources[i].FolderID = *patch.FolderID
 			}
 			return f.sources[i], nil
 		}

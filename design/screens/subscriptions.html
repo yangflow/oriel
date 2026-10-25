@@ -51,6 +51,13 @@
      show it. The sidebar row of such a subscription gets a small eye-off mark with the accessible name "Hidden from
      All" (the row reads "name, hidden from All"), and the context menu offers Hide from All or Show in All
      (menu-hidden) beside Pause.
+     Folders. A subscription is in one folder at most. The Timeline group has a Folder select after Hide from All (edit-folder),
+     with No folder first and the folders by name, and a one-line help; it is left out while there are no folders and the
+     subscription is in none. The context menu has Move to folder under Hide from All (menu-move): a submenu with No folder, each
+     folder with a check by the current one, and New folder..., which asks for a name and puts the subscription in the new folder.
+     The folder dialog (folder-new, folder-new-error, folder-rename) is the small dialog of Add subscription with one Name field:
+     1 to 60 characters, not one that another folder has; the primary button says Create or Save. Deleting a folder (folder-delete)
+     asks first and says its subscriptions stay and become unfiled.
      Opens in is a select of the same style, second in the group: "Follow the kind" by default, "In the reader" and
      "In the browser"; a help line says where a click on this subscription's entries goes; edit-open shows it set to "In the browser", scrolled into view.
      Keep entries is a select in the style of the check interval, full width. It reads "Follow settings · 1 month" by
@@ -206,6 +213,7 @@ aside { width:216px; flex:none; margin:8px 0 8px 8px; padding-top:40px; display:
 .spacer { flex:1 }
 .tool { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
 .tool:hover, .tool.hover { background:var(--hover); color:var(--text) }
+.icon.none { visibility:hidden }
 .ghost { height:28px; width:280px; border-radius:14px; background:var(--surface) }
 .min .ghost { width:150px }
 .column { max-width:680px; margin:0 auto; padding:64px 20px 18px; display:flex; flex-direction:column; gap:26px; width:100% }
@@ -401,7 +409,7 @@ textarea.mute { min-height:56px }
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-public','add-public-no-instance','add-invalid','add-exists','add-searching','add-found-list','add-found-subscribed','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','menu-hidden','edit','edit-failing','edit-blocked','edit-paused','edit-hidden','edit-ai','edit-ai-off','edit-titles','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-proxy','edit-proxy-direct','edit-proxy-custom','edit-proxy-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','edit-cap','delete','deleted','health','health-loading','health-error','health-empty','health-noisy','health-delete','manage','manage-selected','manage-all','manage-change','manage-change-set','manage-working','manage-partial','manage-delete','manage-deleted','manage-deleted-partial'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-public','add-public-no-instance','add-invalid','add-exists','add-searching','add-found-list','add-found-subscribed','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','menu-hidden','menu-move','edit-folder','folder-new','folder-new-error','folder-rename','folder-delete','edit','edit-failing','edit-blocked','edit-paused','edit-hidden','edit-ai','edit-ai-off','edit-titles','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-proxy','edit-proxy-direct','edit-proxy-custom','edit-proxy-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','edit-cap','delete','deleted','health','health-loading','health-error','health-empty','health-noisy','health-delete','manage','manage-selected','manage-all','manage-change','manage-change-set','manage-working','manage-partial','manage-delete','manage-deleted','manage-deleted-partial'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -433,6 +441,9 @@ const icons={
   refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
   link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
   chevron:'<path d="m6 9 6 6 6-6"/>',
+  chevronRight:'<path d="m9 18 6-6-6-6"/>',
+  folder:'<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  folderPlus:'<path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
   x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   alert:'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
   triangle:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
@@ -495,7 +506,7 @@ const copy={
     exists:'You already follow this as “The Go Blog”.', show:'Show it', anyway:'Add anyway', subscribed:'Subscribed', pickOne:'Found 1 feed. You already follow it.',
     addHere:'Add your first subscription', noSubscriptions:'No subscriptions yet',
     noSubscriptionsHint:'Entries from your subscriptions show up here, newest first.',
-    refresh:'Refresh', retry:'Try again', edit:'Edit…', pause:'Pause', resume:'Resume', hide:'Hide from All', unhide:'Show in All', hideLabel:'Hide from All', hideHelp:'Only seen when you open this subscription. Search and Starred still show it.', hiddenMark:'Hidden from All', remove:'Delete…', editTitle:'Edit subscription',
+    refresh:'Refresh', retry:'Try again', edit:'Edit…', pause:'Pause', resume:'Resume', hide:'Hide from All', unhide:'Show in All', hideLabel:'Hide from All', folder:'Folder', folderHelp:'A subscription is in one folder at most. The sidebar groups subscriptions by folder.', folderNone:'No folder', moveToFolder:'Move to folder', newFolderItem:'New folder…', folderNewTitle:'New folder', folderRenameTitle:'Rename folder', folderName:'Name', folderPlaceholder:'For example, Tech news', folderCreate:'Create', folderNameError:'A folder name takes 1 to 60 characters.', folderExists:'There is already a folder with this name.', folderDeleteTitle:'Delete the folder “Reading”?', folderDeleteBody:'Its subscriptions stay and become unfiled.', hideHelp:'Only seen when you open this subscription. Search and Starred still show it.', hiddenMark:'Hidden from All', remove:'Delete…', editTitle:'Edit subscription',
     checked:'Checked 5 min ago · next in 10 min', failing:'Failed 3 times in a row: There is no feed at this address.', failingRaw:'Original: status 404', failingBlocked:'Failed 3 times in a row: The public rsshub.app blocks automated requests. Use your own or another RSSHub instance in Settings → RSSHub.',
     paused:'Paused. Nothing is fetched until you resume.',
     moved:'This subscription has moved to', movedUpdate:'Update address', movedDismiss:'Dismiss', movedExists:'That address is already subscribed as “The Go Blog (new)”. Unsubscribe from one of them.', healthMoved:'Moved to {to}', movedUpdateSource:'Update the address of {name}', movedDismissSource:'Dismiss the move of {name}',
@@ -561,7 +572,7 @@ const copy={
     exists:'已经订阅过了，叫「The Go Blog」。', show:'去看看', anyway:'仍然添加', subscribed:'已订阅', pickOne:'找到 1 个订阅，你已经订阅了它。',
     addHere:'添加第一个订阅', noSubscriptions:'还没有订阅',
     noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。',
-    refresh:'更新', retry:'重试', edit:'编辑…', pause:'暂停', resume:'恢复', hide:'不在全部里显示', unhide:'在全部里显示', hideLabel:'不在全部里显示', hideHelp:'只在点进这个订阅时看到；检索和收藏里还在。', hiddenMark:'不在全部里显示', remove:'删除…', editTitle:'编辑订阅',
+    refresh:'更新', retry:'重试', edit:'编辑…', pause:'暂停', resume:'恢复', hide:'不在全部里显示', unhide:'在全部里显示', hideLabel:'不在全部里显示', folder:'文件夹', folderHelp:'一个订阅最多放进一个文件夹，侧栏按文件夹分组。', folderNone:'不放进文件夹', moveToFolder:'移到文件夹', newFolderItem:'新建文件夹…', folderNewTitle:'新建文件夹', folderRenameTitle:'重命名文件夹', folderName:'名称', folderPlaceholder:'例如：科技资讯', folderCreate:'创建', folderNameError:'文件夹名称需要 1 到 60 个字符。', folderExists:'已经有同名的文件夹了。', folderDeleteTitle:'删除文件夹「阅读」？', folderDeleteBody:'里面的订阅会保留，变成没有文件夹。', hideHelp:'只在点进这个订阅时看到；检索和收藏里还在。', hiddenMark:'不在全部里显示', remove:'删除…', editTitle:'编辑订阅',
     checked:'5 分钟前检查过 · 10 分钟后再查', failing:'连续失败 3 次：这个地址上没有订阅内容（找不到页面）。', failingRaw:'原文：status 404', failingBlocked:'连续失败 3 次：公共的 rsshub.app 拦下了自动请求。到设置 → RSSHub 用你自己的或别的 RSSHub 实例。',
     paused:'已暂停，恢复之前不抓取。',
     moved:'这个订阅已搬到', movedUpdate:'更新地址', movedDismiss:'忽略', movedExists:'那个地址已经订阅过了，叫“The Go Blog（新）”。请退订其中一个。', healthMoved:'已搬到 {to}', movedUpdateSource:'更新{name}的地址', movedDismissSource:'忽略{name}的搬家提示',
@@ -606,7 +617,7 @@ const sources=[
   {kind:'image',name:'NASA APOD',mono:'N',unread:1,fav:favs.nasa},
 ];
 const empty=state==='empty';
-const editing=['menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-hidden','menu-hidden','edit-ai','edit-ai-off','edit-titles','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','edit-cap','delete'].includes(state);
+const editing=['menu','menu-move','edit-folder','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-hidden','menu-hidden','edit-ai','edit-ai-off','edit-titles','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','edit-cap','delete'].includes(state);
 const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
 const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.hidden?`<span class="hidden" role="img" aria-label="${copy.hiddenMark}">${icon('eyeoff')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.filter((s,i)=>!(state==='deleted'&&i===1)).map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
@@ -719,6 +730,7 @@ function editDialog(){
       ${proxyGroup}
       <h3 class="group-title">${icon('listfilter')}${copy.groupTimeline}</h3>
       <div class="switch-row"><div class="text"><span class="label">${copy.hideLabel}</span><span class="help">${copy.hideHelp}</span></div><span class="switch${state==='edit-hidden'?' on':''}" role="switch" aria-checked="${state==='edit-hidden'}" aria-label="${copy.hideLabel}"></span></div>
+      ${state==='edit-folder'?select(copy.folder,lang==='en'?'Reading':'阅读').replace('</div></div>',`</div><span class="help">${copy.folderHelp}</span></div>`):''}
       ${select(copy.openTarget,state==='edit-open'?copy.openBrowser:copy.openFollow).replace('</div></div>',`</div><span class="help" id="oh">${copy.openHelp}</span></div>`)}
       ${select(copy.keep,copy.keepFollow).replace('</div></div>',`</div><span class="help">${copy.keepHelp}</span></div>`)}
       ${select(copy.pace,copy.paceOff).replace('</div></div>',`</div><span class="help">${copy.paceHelp}</span></div>`)}
@@ -822,7 +834,21 @@ let overlay='';
 if(state.startsWith('add')||state==='adding')overlay=addDialog();
 if(state.startsWith('edit'))overlay=editDialog();
 if(state.startsWith('health')&&state!=='health-delete')overlay=healthDialog();
-if(state.startsWith('menu'))overlay=`<div class="menu" role="menu" style="left:150px;top:168px"><button role="menuitem"${state==='menu-failing'?' class="hover"':''}>${icon('refresh')}${state==='menu-failing'?copy.retry:copy.refresh}</button><button role="menuitem"${state==='menu'?' class="hover"':''}>${icon('pencil')}${copy.edit}</button><button role="menuitem">${icon('pause')}${copy.pause}</button><button role="menuitem"${state==='menu-hidden'?' class="hover"':''}>${icon('eyeoff')}${state==='menu-hidden'?copy.unhide:copy.hide}</button><hr><button role="menuitem" class="danger">${icon('trash')}${copy.remove}</button></div>`;
+if(state.startsWith('menu'))overlay=`<div class="menu" role="menu" style="left:150px;top:168px"><button role="menuitem"${state==='menu-failing'?' class="hover"':''}>${icon('refresh')}${state==='menu-failing'?copy.retry:copy.refresh}</button><button role="menuitem"${state==='menu'?' class="hover"':''}>${icon('pencil')}${copy.edit}</button><button role="menuitem">${icon('pause')}${copy.pause}</button><button role="menuitem"${state==='menu-hidden'?' class="hover"':''}>${icon('eyeoff')}${state==='menu-hidden'?copy.unhide:copy.hide}</button><button role="menuitem" aria-haspopup="menu" aria-expanded="${state==='menu-move'}"${state==='menu-move'?' class="hover"':''}>${icon('folder')}<span>${copy.moveToFolder}</span>${icon('chevronRight')}</button><hr><button role="menuitem" class="danger">${icon('trash')}${copy.remove}</button></div>`;
+if(state==='menu-move'){
+  const radio=(label,on)=>`<button role="menuitemradio" aria-checked="${on}">${icon('check',on?'':'none')}<span>${label}</span></button>`;
+  const names=lang==='en'?['Reading','Tech']:['阅读','科技'];
+  overlay+=`<div class="menu" role="menu" aria-label="${copy.moveToFolder}" style="left:336px;top:276px">${radio(copy.folderNone,false)}${names.map((n,i)=>radio(n,i===0)).join('')}<hr><button role="menuitem">${icon('folderPlus')}<span>${copy.newFolderItem}</span></button></div>`;
+}
+if(state.startsWith('folder-')&&state!=='folder-delete'){
+  const renaming=state==='folder-rename',bad=state==='folder-new-error';
+  overlay=`<div class="scrim"><div class="dialog" role="dialog" aria-labelledby="dt" style="width:400px">
+    <header><div class="tile" style="width:32px;height:32px;border-radius:8px">${icon('folderPlus')}</div><div class="titles"><h2 id="dt">${renaming?copy.folderRenameTitle:copy.folderNewTitle}</h2></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>
+    <div class="form"><div class="field"><label for="fn">${copy.folderName}</label><div class="box focused${bad?' invalid':''}"><input id="fn" value="${renaming?(lang==='en'?'Reading':'阅读'):bad?(lang==='en'?'Reading':'阅读'):''}" placeholder="${copy.folderPlaceholder}"${bad?' aria-invalid="true" aria-describedby="fe"':''}></div>${bad?`<span class="error" id="fe">${icon('alert')}${copy.folderExists}</span>`:''}</div></div>
+    <footer><span class="spacer"></span><button class="button">${copy.cancel}</button><button class="button primary">${renaming?copy.save:copy.folderCreate}</button></footer>
+  </div></div>`;
+}
+if(state==='folder-delete')overlay=`<div class="scrim"><div class="alert" role="alertdialog" aria-labelledby="ct" aria-describedby="cb"><div class="tile danger">${icon('folder')}</div><h2 id="ct">${copy.folderDeleteTitle}</h2><p id="cb">${copy.folderDeleteBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button danger">${copy.confirmDelete}</button></div></div></div>`;
 if(state==='delete'||state==='health-delete')overlay=`<div class="scrim"><div class="alert" role="alertdialog" aria-labelledby="ct" aria-describedby="cb"><div class="tile danger">${icon('trash')}</div><h2 id="ct">${state==='health-delete'?copy.deleteTitle.replace('The Go Blog','Old Gadget Review'):copy.deleteTitle}</h2><p id="cb">${copy.deleteBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button danger">${copy.confirmDelete}</button></div></div></div>`;
 
 if(state.startsWith('manage')){
@@ -838,6 +864,7 @@ if(form){
   form.addEventListener('scroll',edges);
   if(state.startsWith('edit-ai')||state==='edit-titles')form.scrollTop=1e4;
   if(state==='edit-cap')document.getElementById('ch').scrollIntoView({block:'center'});
+  if(state==='edit-folder')[...document.querySelectorAll('.help')].find(h=>h.textContent===copy.folderHelp).scrollIntoView({block:'center'});
   if(state==='edit-open')document.getElementById('oh').scrollIntoView({block:'center'});
   if(state==='edit-extract')document.getElementById('xg').scrollIntoView({block:'center'});
   if(state.startsWith('edit-proxy'))document.getElementById('pg').scrollIntoView({block:'center'});
