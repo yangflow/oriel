@@ -22,7 +22,7 @@ func (k *kept) deps(f *fake) Deps {
 func (k *kept) open(t *testing.T, f *fake, server string) (*Screen, *ui.Tester) {
 	t.Helper()
 	s := New("en", k.deps(f))
-	tt := ui.NewTester(s.View, 1100, 800)
+	tt := newTester(s.View, 1100, 800)
 	s.Use(f, server)
 	tt.Frame()
 	f.settle(t, tt)

@@ -374,7 +374,22 @@ func (f *fake) settle(tt *ui.Tester) {
 	}
 }
 
+// newTester is ui.NewTester with the animations off. The Tester's clock stands still, so a hover fade or a color
+// transition never comes to rest and every input would build 20 frames; a test that looks at motion uses ui.NewTester.
+func newTester(view func(c *ui.Context), width, height int) *ui.Tester {
+	return ui.NewTester(func(c *ui.Context) {
+		c.DisableAnimations()
+		view(c)
+	}, width, height)
+}
+
 func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	return setupWith(t, language, signedIn, newTester)
+}
+
+// setupWith is setup with the Tester made by newTester, so a test that needs the motion can pass ui.NewTester.
+func setupWith(t *testing.T, language string, signedIn bool, newTester func(func(c *ui.Context), int, int) *ui.Tester) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
 	f := &fake{
 		settings: client.Settings{RSSHubBaseURLs: []string{"https://rsshub.example.com"}, RetentionDays: 30, AILanguage: "zh-Hans",
@@ -396,7 +411,7 @@ func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Te
 	s := New(language, f.deps())
 	s.Use(f, "reader.example.com", signedIn)
 	s.Open()
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 760)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 760)
 	tt.Frame()
 	f.settle(tt)
 	return s, f, tt
@@ -444,7 +459,7 @@ func TestLoadFails(t *testing.T) {
 	s := New("en", f.deps())
 	s.Use(f, "", false)
 	s.Open()
-	tt := ui.NewTester(s.View, 1000, 760)
+	tt := newTester(s.View, 1000, 760)
 	tt.Frame()
 	if !tt.HasText(s.text.Loading) {
 		t.Fatalf("no skeleton in %v", tt.Texts())
@@ -1474,7 +1489,12 @@ func TestAIExpired(t *testing.T) {
 // openAppearance shows the appearance group with the default preferences.
 func openAppearance(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
-	s, f, tt := setup(t, language, true)
+	return openAppearanceWith(t, language, newTester)
+}
+
+func openAppearanceWith(t *testing.T, language string, newTester func(func(c *ui.Context), int, int) *ui.Tester) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	s, f, tt := setupWith(t, language, true, newTester)
 	tt.SetSize(900, 1000)
 	f.prefs = prefs.Default()
 	s.OpenAppearance()
@@ -1954,8 +1974,9 @@ func TestFontPickerAnnounces(t *testing.T) {
 }
 
 func TestFontPickerSize(t *testing.T) {
+	// The list is as tall as the popup has opened, so the count of built rows depends on the opening motion.
 	for _, scale := range []float32{1, 2} {
-		s, _, tt := openAppearance(t, "en")
+		s, _, tt := openAppearanceWith(t, "en", ui.NewTester)
 		tt.SetScale(scale)
 		many := make([]string, 400)
 		for i := range many {
@@ -2016,7 +2037,7 @@ func TestPalettes(t *testing.T) {
 				p.Theme = prefs.ThemeDark
 			}
 			f.prefs = p
-			tt := ui.NewTester(func(c *ui.Context) {
+			tt := newTester(func(c *ui.Context) {
 				theme.Apply(c, f.prefs)
 				s.View(c)
 			}, 1000, 760)
@@ -2251,7 +2272,7 @@ func openDesktop(t *testing.T, d *Desktop) (*Screen, *fake, *ui.Tester) {
 	s, f, _ := openAppearance(t, "en")
 	s.deps.Desktop = d
 	// Tall, so the card at the end of the page is in view.
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 2400)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 2400)
 	tt.Frame()
 	return s, f, tt
 }

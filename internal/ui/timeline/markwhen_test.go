@@ -40,7 +40,7 @@ func whenMarked(t *testing.T, when string, n, height int) (*Screen, *fake, *ui.T
 	d.Reading = func() prefs.Preferences { return m.p }
 	d.Active = func() bool { return m.active }
 	s := New("en", d)
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, height)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, height)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
