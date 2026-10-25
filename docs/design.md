@@ -1191,12 +1191,17 @@ Overlays share focus and Escape behavior; see
   primary while the text is edited and disabled otherwise. A refused list keeps the focus in its field, takes the
   `Danger` outline and says "At most 200 lines, up to 100 characters each." under it. Add and Edit open a 440 wide dialog
   (the sheet of the Reader import dialog: radius 16, 20 padding, title with a 28 close button, buttons in the footer, the
-  form scrolling when the window is low): a medium line "When a new entry matches" and under it a 12 `TextMuted` line "Everything you fill in has to match.
-  Fill in at least one.", then Subscription and Kind (full width menus, "All subscriptions" and "Any kind" first), Keywords
-  (a 64 high multi-line input, one per line, any of them matches) and Author (a single line, a part of the name), then
-  "Then" with two Checkboxes (Star, Mark as read; 16 box, radius 5, `Accent` fill with a check when on, 30 high rows) and
-  a 12 `TextMuted` note: only entries that arrive from now on are affected. Save is always enabled; pressing it with no
-  condition or no action names the problem under the Author field ("Fill in at least one condition.") and under the
+  form scrolling when the window is low): a medium line "New entries that match" and under it a 12 `TextMuted` line
+  "Everything you fill in has to match; several keywords match if any one does. Fill in at least one.", then
+  Subscription and Shown as (the same name as the subscription edit dialog; "Any" first, then Articles, Videos, Social,
+  Images), Keywords (a 12 `TextMuted` hint "One per line. In the title or summary." right under its label, then a
+  multi-line input that starts two lines high and grows with the text up to 6) and Author (a single line, a part of the
+  name). Every control is as wide as the form, none is half width. Then a medium line "Automatically" with two
+  Checkboxes (Star, Mark as read; 16 box, radius 5, `Accent` fill with a check when on, 30 high rows) and, right under
+  them in the normal size and `Text2`, the note that only entries that arrive from now on are affected and the ones you
+  already have stay as they are. The two titles read as one sentence: "New entries that match … Automatically …". Save is
+  always enabled; pressing it with no condition or no action names the problem under the Author field ("Fill in at
+  least one condition.") and under the
   checkboxes ("Pick at least one action."), with `Danger` outlines on the empty inputs and the boxes, and the focus
   stays. A server refusal (more than 50 rules, a subscription that is gone) is one `Danger` line above the buttons.
   Deleting acts at once and shows a toast "Rule deleted" with Undo, which puts the rule back; the rows below move up.

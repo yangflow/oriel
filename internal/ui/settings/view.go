@@ -2820,6 +2820,11 @@ type choice struct{ value, name, family string }
 // pick is a drop-down of options, the first the default; it returns the value chosen and whether the user just chose
 // it. A current value that is not among the options shows as the first.
 func (s *Screen) pick(c *ui.Context, current, label string, options []choice) (string, bool) {
+	return s.pickIn(c, current, label, options, false)
+}
+
+// pickIn is pick; full makes the trigger as wide as the room it sits in, for a form where every control lines up.
+func (s *Screen) pickIn(c *ui.Context, current, label string, options []choice, full bool) (string, bool) {
 	t := c.Theme()
 	shown := options[0]
 	for _, o := range options {
@@ -2829,8 +2834,13 @@ func (s *Screen) pick(c *ui.Context, current, label string, options []choice) (s
 	}
 	value := shown.value
 	sel := ui.SelectBase(c, &value)
-	sel.Trigger.MinWidth(theme.Px(t, 72)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).Gap(t.Space(2)).
+	sel.Trigger.MinWidth(theme.Px(t, 72)).Height(theme.Px(t, 32)).Gap(t.Space(2)).
 		Padding(0, t.Space(2), 0, theme.Px(t, 10)).Radius(t.Radius).Label(label)
+	if full {
+		sel.Trigger.FillWidth()
+	} else {
+		sel.Trigger.MaxWidth(theme.Px(t, 240))
+	}
 	trigger(c, sel.Trigger)
 	sel.Trigger.Children(func() {
 		name := ui.Text(c, shown.name).Grow(1).MinWidth(0).SingleLine()
