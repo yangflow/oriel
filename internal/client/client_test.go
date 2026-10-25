@@ -206,6 +206,9 @@ func TestTimelineAPI(t *testing.T) {
 				{"id":3,"title":"Busy","state":"rarelyRead","recent":120,"recentRead":3,"recentStarred":1}]}`))
 		case "/api/entries/7":
 			w.Write([]byte(`{"id":7,"starred":true,"readProgress":0.5,"extractStatus":"ok","contentHtml":"<p>x</p>","extractedHtml":"<p>y</p>"}`))
+		case "/api/entries/7/revision":
+			w.Write([]byte(`{"fetchedAt":1700000000000,"updatedAt":1700000100000,"previous":{"title":"Old","paragraphs":["a","b"]},
+				"current":{"title":"New","paragraphs":["a","c"]}}`))
 		case "/api/entries/7/extract":
 			w.WriteHeader(http.StatusAccepted)
 			w.Write([]byte(`{"id":7,"extractStatus":"pending","contentHtml":"<p>x</p>"}`))
@@ -276,6 +279,10 @@ func TestTimelineAPI(t *testing.T) {
 	}
 	if article, err := session.RetryExtraction(ctx, 7); err != nil || article.ID != 7 || article.ExtractStatus != "pending" {
 		t.Errorf("RetryExtraction = %+v, %v", article, err)
+	}
+	if r, err := session.Revision(ctx, 7); err != nil || r.UpdatedAt != 1700000100000 || r.Previous.Title != "Old" ||
+		len(r.Previous.Paragraphs) != 2 || r.Current.Paragraphs[1] != "c" {
+		t.Errorf("Revision = %+v, %v", r, err)
 	}
 	list, err := session.Sources(ctx)
 	sources := list.Sources
@@ -377,6 +384,7 @@ func TestTimelineAPI(t *testing.T) {
 		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&order=asc&q=go+fmt&since=1700000000000&tz=Asia%2FShanghai&unread=1 ",
 		"GET /api/entries?cursor=bad ",
 		"POST /api/entries/7/extract ",
+		"GET /api/entries/7/revision ",
 		"GET /api/sources ",
 		"GET /api/sources/health ",
 		"GET /api/entries/7 ",

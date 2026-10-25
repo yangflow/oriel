@@ -314,6 +314,10 @@ func (f *fake) RetryExtraction(context.Context, int64) (client.Article, error) {
 	return client.Article{}, nil
 }
 
+func (f *fake) Revision(context.Context, int64) (client.Revision, error) {
+	return client.Revision{}, &client.APIError{Status: 404, Code: "not_found"}
+}
+
 func (f *fake) Selection(context.Context, string, string, string) (string, string, error) {
 	return "", "", nil
 }
@@ -5953,5 +5957,31 @@ func TestBulkDropsTheDeletedAndReturnsToEverything(t *testing.T) {
 	}
 	if s.scope.source != 0 {
 		t.Fatalf("scope %+v", s.scope)
+	}
+}
+
+func TestRevisedMark(t *testing.T) {
+	for language, mark := range map[string]string{"en": "Updated", "zh-Hans": "已更新"} {
+		t.Run(language, func(t *testing.T) {
+			sources, entries := sample()
+			entries[0].RevisedAt = ago(time.Hour)
+			entries[4].RevisedAt = ago(time.Hour)
+			entries[4].IsRead = true // an updated entry that was read stays read and keeps the mark
+			f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+			s := New(language, f.deps())
+			tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 1600)
+			s.Use(f, "")
+			tt.Frame()
+			f.settle(t, tt)
+			if !tt.HasText(mark) {
+				t.Fatalf("no %q in %v", mark, tt.Texts())
+			}
+			if got := s.label(s.entries[0], now); !strings.Contains(got, s.text.Separator+mark+s.text.Separator) {
+				t.Fatalf("accessibility label %q lacks the mark", got)
+			}
+			if got := s.label(s.entries[1], now); strings.Contains(got, mark) {
+				t.Fatalf("an entry never updated is labelled %q", got)
+			}
+		})
 	}
 }

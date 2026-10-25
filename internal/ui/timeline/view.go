@@ -35,7 +35,7 @@ var catalog []byte
 type copy struct {
 	DropTitle, DropHint, DropBusy string
 
-	AlsoChip, AlsoName, AlsoHead                                                                                                                                        string
+	AlsoChip, AlsoName, AlsoHead, Revised                                                                                                                               string
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
 	MarkUnread, Open, OpenReader, Blocked, BlockedPublic, FeedRemoved, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded    string
@@ -2378,6 +2378,9 @@ func (s *Screen) label(e client.Entry, now time.Time) string {
 	if reading := s.readLabel(e); reading != "" {
 		parts = append(parts, reading)
 	}
+	if e.RevisedAt != 0 {
+		parts = append(parts, s.text.Revised)
+	}
 	if e.IsRead {
 		parts = append(parts, s.text.Read)
 	} else {
@@ -4534,6 +4537,9 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 			if !lead {
 				s.alsoChip(c, e, muted)
 			}
+			if e.RevisedAt != 0 {
+				s.revisedMark(c, muted)
+			}
 			if reading := s.readLabel(e); reading != "" {
 				ui.Text(c, "·").FontSize(theme.Px(t, 12)).TextColor(muted).Opacity(0.7)
 				ui.Text(c, reading).FontSize(theme.Px(t, 12)).FontFeatures("tnum").TextColor(muted).NoWrap()
@@ -4553,6 +4559,16 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 				ui.Text(c, e.Platform).FontSize(theme.Px(t, 12)).SingleLine().MinWidth(0).Shrink(1).TextColor(muted)
 			}
 		})
+}
+
+// revisedMark is the small "Updated" tag after the time of a row whose article was changed after it was first got:
+// an icon and the word, in the quiet color, so that it does not rely on color. Read rows have it too.
+func (s *Screen) revisedMark(c *ui.Context, muted ui.Color) {
+	t := c.Theme()
+	ui.Row(c).Key("revised").AlignItems(ui.Center).Gap(theme.Px(t, 3)).Children(func() {
+		ui.Icon(c, icons.Pencil).FontSize(theme.IconSmall(t)).TextColor(muted)
+		ui.Text(c, s.text.Revised).FontSize(theme.Px(t, 12)).NoWrap().TextColor(muted)
+	})
 }
 
 // grouped tells whether e shows the other sources that carry its article: the server sends them only where articles
