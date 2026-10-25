@@ -14,7 +14,7 @@ func TestEditRequestHeaders(t *testing.T) {
 	s.Edit(f.sources[0])
 	tt.Frame()
 	f.settle(tt)
-	if !tt.HasText("Request headers") || !tt.HasText(s.text.HeadersHelp) || tt.HasText("User-Agent") {
+	if !tt.HasText("Request headers") || tt.HasText("User-Agent") {
 		t.Fatalf("closed group: %v", tt.Texts())
 	}
 	if err := tt.Click("Request headers"); err != nil {

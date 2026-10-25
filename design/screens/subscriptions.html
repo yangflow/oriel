@@ -41,21 +41,26 @@
      interval out from how often the feed publishes, between 15 minutes and a day, and the edit dialog shows what it
      is now (Auto · 6 h). After the first fetch a feed that looks like another kind gets a line under the kind
      picker (edit-suggest) with a button; nothing changes until it is pressed and the dialog saved.
-     Keep entries is a select in the style of the check interval, full width, under the kind picker and its
-     suggestion and above the pause switch. It reads "Follow settings · 1 month" by default, with the period of the
-     global setting after the dot; a help line says that older entries are removed and starred ones are kept.
+     The form below the status lines has four groups, each opened by the same small title (icon and name):
+     Display (title on its own row, kind picker, kind suggestion), Fetching (Pause fetching first, then the check
+     interval, Extraction, Request headers), Timeline (Keep entries, Pace, Mute keywords) and Summaries and
+     translations. One row style: fields and selects have the label above and at most a one-line help; switches have the
+     label at the left and the switch at the right. Pause fetching has no help line.
+     Keep entries is a select in the style of the check interval, full width. It reads "Follow settings · 1 month" by
+     default, with the period of the global setting after the dot; a help line says starred entries are always kept.
      Pace is a select of the same style right under Keep entries: Off by default, then Breaking (3 h), Daily (2 days)
-     and Weekly (7 days); a help line says unread entries fade and leave All and Unread when the time is up.
-     Extraction is a collapsed row under Pace, a chevron and its name with a help line: a subscription whose pages
-     the automatic full-text extraction gets wrong can name the content element (a CSS selector), a Referer to send
-     and link rewrites, one "from => to" per line in a monospace field. Collapsed by default, and expanded
-     (edit-extract) once any of the three is set; the help lines say what an empty field does.
+     and Weekly (7 days); a help line says unread entries fade, then leave All and Unread.
+     Mute keywords is a box two lines high that grows with its content.
+     Extraction is a collapsed, left-aligned row, a chevron and its name, with no help while collapsed: a subscription
+     whose pages the automatic full-text extraction gets wrong can name the content element (a CSS selector), a Referer
+     to send and link rewrites, one "from => to" per line in a monospace field. Collapsed by default, and expanded
+     (edit-extract) once any of the three is set; the first line when open says what an empty field does.
      A subscription whose address the site moved for good (301 or 308, three fetches in a row to the same new address)
      gets a card in the edit dialog right under the fetch status line (edit-moved): the sentence, the new address in
      monospace and two small buttons, Update address and Dismiss. Nothing changes until one is pressed. When the new
      address is already another subscription, pressing Update address shows the refusal in the card (edit-moved-exists).
      The same sources are rows in Subscription health with those two buttons in place of Pause and Unsubscribe….
-     Request headers is a second collapsed row right under Extraction, same style, with two boxes, User-Agent and
+     Request headers is a second collapsed row right under Extraction, same style and again without help while collapsed, with two boxes, User-Agent and
      Referer, and a closing muted note that says cookies and sign-in are not supported and that the headers stay with
      the subscription's own site. Expanded once either is set. edit-headers-empty shows it opened with both empty
      (the placeholders show what is sent then), edit-headers filled, edit-headers-error the server's refusal under
@@ -261,7 +266,8 @@ textarea.prompt { min-height:58px; font:12px/1.5 ui-monospace,Menlo,Consolas,mon
 .min .kinds button span { display:none }
 .pair { display:grid; grid-template-columns:1fr 1fr; gap:12px }
 .switch-row { display:flex; align-items:center; gap:12px }
-.switch-row .text { flex:1; display:flex; flex-direction:column }
+.switch-row .text { flex:1; display:flex; flex-direction:column; gap:6px }
+textarea.mute { min-height:56px }
 .switch { width:34px; height:20px; border-radius:10px; background:rgba(var(--ink),.16); position:relative; flex:none; transition:background-color var(--t) }
 .switch::after { content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2) }
 .switch.on { background:var(--accent) }
@@ -420,6 +426,7 @@ const icons={
   signpost:'<path d="M12 13v8"/><path d="M12 3v3"/><path d="M18 6a2 2 0 0 1 1.387.56l2.307 2.22a1 1 0 0 1 0 1.44l-2.307 2.22A2 2 0 0 1 18 13H6a2 2 0 0 1-1.387-.56l-2.306-2.22a1 1 0 0 1 0-1.44l2.306-2.22A2 2 0 0 1 6 6z"/>',
   search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
   minus:'<path d="M5 12h14"/>',
+  listfilter:'<path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/>',
   listchecks:'<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
   sliders:'<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>',
   play:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
@@ -434,17 +441,17 @@ const copy={
     address:'Address', addressPlaceholder:'Feed URL, page link or RSSHub route',
     addressHelp:'Links to YouTube, Bilibili, X, GitHub, Telegram and Weibo are turned into feeds.',
     showAs:'Show as', title:'Title', titlePlaceholder:'From the feed', every:'Check every', auto:'Auto', autoEvery:'Auto · {every}', every6h:'6 h', suggest:'Most entries in this feed are videos.', suggestUse:'Show as Videos',
-    keep:'Keep entries', keepFollow:'Follow settings · 1 month', keepHelp:'Older entries are removed. Starred entries are always kept.',
-    extract:'Extraction', extractHelp:'For feeds whose full text comes out wrong. Empty fields use automatic extraction.',
-    extractSelector:'Content selector', extractSelectorHelp:'A CSS selector for the element that holds the article. If it matches nothing, automatic extraction is used.',
-    extractReferer:'Referer', extractRefererHelp:'Sent with the request for the entry page. Nothing else is added.',
-    headers:'Request headers', headersHelp:'For sites that only answer a certain browser or page. Empty fields send Oriel’s own.',
-    headerUa:'User-Agent', headerUaHelp:'Sent when this subscription is fetched, and when its entry pages are. Empty sends Oriel/{version}.',
-    headerReferer:'Referer', headerRefererHelp:'Sent when this subscription is fetched. Entry pages use the Referer under Extraction.',
+    keep:'Keep entries', keepFollow:'Follow settings · 1 month', keepHelp:'Starred entries are always kept.',
+    extract:'Extraction', extractHelp:'Empty fields use automatic extraction.',
+    extractSelector:'Content selector', extractSelectorHelp:'CSS selector of the article element; no match uses automatic.',
+    extractReferer:'Referer', extractRefererHelp:'Sent when the entry page is fetched.',
+    headers:'Request headers',
+    headerUa:'User-Agent', headerUaHelp:'Also used for its entry pages. Empty sends Oriel/{version}.',
+    headerReferer:'Referer', headerRefererHelp:'Sent when this subscription is fetched.',
     headersNote:'Cookies and sign-in are not supported. The headers go only to this subscription’s own site, never to a place it redirects to. A site that blocks Oriel stays blocked.',
     headerUaError:'Use one line of plain characters, up to 500. A header such as Cookie can’t go here.', headerRefererError:'Enter a full address that starts with http:// or https://.',
-    extractRewrites:'Link rewrites', extractRewritesHelp:'One per line, from => to: a host (www.example.com => m.example.com) or an address prefix (https://example.com/a/ => https://example.com/b/). Top to bottom; the entry link is rewritten before it is fetched.',
-    pace:'Pace', paceOff:'Off', paceHelp:'Unread entries fade and leave All and Unread when their time is up. Search, Starred and the source still show them.',
+    extractRewrites:'Link rewrites', extractRewritesHelp:'One per line, from => to: a host or address prefix. Top to bottom.',
+    pace:'Pace', paceOff:'Off', paceHelp:'Unread entries fade, then leave All and Unread.',
     feed:'Feed', viaRsshub:'RSSHub route',
     found:{bilibili:'Bilibili · videos of user 2267573', feed:'Feed at go.dev', route:'RSSHub route'},
     searchingRoutes:'Looking for RSSHub routes…', foundRoutes:'Found {n} routes. Choose one.', preview:'Preview', previewOf:'Latest from “Issues · rsshub/rsshub”', noCatalog:'Can’t read the route catalog of your RSSHub. Type a route yourself, for example /github/issue/user/repo.',
@@ -463,11 +470,11 @@ const copy={
     paused:'Paused. Nothing is fetched until you resume.',
     moved:'This subscription has moved to', movedUpdate:'Update address', movedDismiss:'Dismiss', movedExists:'That address is already subscribed as “The Go Blog (new)”. Unsubscribe from one of them.', healthMoved:'Moved to {to}', movedUpdateSource:'Update the address of {name}', movedDismissSource:'Dismiss the move of {name}',
     servedBy:'Served by {host}', servedByBackup:'Served by fallback address {host}', servedByBackupHint:'The first address in Settings → RSSHub did not answer, so the next one was used.',
-    pauseLabel:'Pause fetching', pauseHelp:'Entries already fetched stay.',
-    mute:'Mute keywords', muteHelp:'One per line. Entries whose title or summary contains one are hidden; starred ones stay.',
+    pauseLabel:'Pause fetching',
+    mute:'Mute keywords', muteHelp:'One per line; starred entries stay visible.',
     muteHidden:'{n} hidden now.', muteNone:'Nothing hidden now.',
     deleteTitle:'Delete “The Go Blog”?', deleteBody:'All its entries go too, starred ones included. You can undo this for a few seconds.', confirmDelete:'Delete', deleted:'Deleted “The Go Blog”', undo:'Undo', dismiss:'Dismiss',
-    aiGroup:'Summaries and translations', autoSummary:'Summarize new entries', autoTranslate:'Translate new entries',
+    groupShow:'Display', groupFetch:'Fetching', groupTimeline:'Timeline', aiGroup:'Summaries and translations', autoSummary:'Summarize new entries', autoTranslate:'Translate new entries',
     autoHelp:'Only entries that arrive after you turn it on.', promptSummary:'Summary prompt', promptTranslate:'Translation prompt',
     promptPlaceholder:'Empty uses the prompt in Settings', aiOff:'AI isn’t set up, so nothing is summarized or translated yet.', openSettings:'Open settings',
     healthTitle:'Subscription health', healthSub:'Sources that need a decision. Nothing changes until you choose.',
@@ -491,17 +498,17 @@ const copy={
     address:'地址', addressPlaceholder:'订阅地址、主页链接或 RSSHub 路由',
     addressHelp:'YouTube、哔哩哔哩、X、GitHub、Telegram 和微博的链接会自动转成订阅。',
     showAs:'显示为', title:'标题', titlePlaceholder:'用订阅里的标题', every:'检查间隔', auto:'自动', autoEvery:'自动 · {every}', every6h:'6 小时', suggest:'这个订阅的条目大多是视频。', suggestUse:'显示为视频',
-    keep:'保留条目', keepFollow:'跟随设置 · 1 个月', keepHelp:'更早的条目会被清理，收藏的条目一直保留。',
-    extract:'正文抽取', extractHelp:'抽取出的正文不对时使用。留空则用自动抽取。',
-    extractSelector:'正文选择器', extractSelectorHelp:'用 CSS 选择器指出装着文章的元素；匹配不到时改用自动抽取。',
-    extractReferer:'Referer', extractRefererHelp:'抓取条目页面时带上，不会再添加别的请求头。',
-    headers:'请求头', headersHelp:'有些站点只认特定的浏览器或来源页时使用。留空则发 Oriel 自己的。',
-    headerUa:'User-Agent', headerUaHelp:'抓取这个订阅和它的条目页面时带上。留空则发 Oriel/{version}。',
-    headerReferer:'Referer', headerRefererHelp:'抓取这个订阅时带上；条目页面用「正文抽取」里的 Referer。',
+    keep:'保留条目', keepFollow:'跟随设置 · 1 个月', keepHelp:'收藏的条目一直保留。',
+    extract:'正文抽取', extractHelp:'留空则用自动抽取。',
+    extractSelector:'正文选择器', extractSelectorHelp:'装着文章的元素的 CSS 选择器；匹配不到则自动抽取。',
+    extractReferer:'Referer', extractRefererHelp:'抓取条目页面时带上。',
+    headers:'请求头',
+    headerUa:'User-Agent', headerUaHelp:'条目页面也用它。留空则发 Oriel/{version}。',
+    headerReferer:'Referer', headerRefererHelp:'抓取这个订阅时带上。',
     headersNote:'不支持 cookie 和登录。这些请求头只发给这个订阅自己的站点，被重定向到别处时不带。被站点拦截的订阅仍然是被拦截。',
     headerUaError:'请填一行普通字符，最多 500 个；Cookie 之类的请求头不能写在这里。', headerRefererError:'请填完整的地址，以 http:// 或 https:// 开头。',
-    extractRewrites:'链接改写', extractRewritesHelp:'每行一条，from => to：可以改写主机（www.example.com => m.example.com），也可以改写地址前缀（https://example.com/a/ => https://example.com/b/）。从上到下依次应用，改写后才抓取条目链接。',
-    pace:'节奏', paceOff:'关闭', paceHelp:'未读条目到期前会逐渐变淡，到期后离开全部和未读；搜索、收藏和该订阅源里仍能看到。',
+    extractRewrites:'链接改写', extractRewritesHelp:'每行一条，from => to：主机或地址前缀，从上到下应用。',
+    pace:'节奏', paceOff:'关闭', paceHelp:'未读条目会逐渐变淡，到期后离开全部和未读。',
     feed:'订阅地址', viaRsshub:'RSSHub 路由',
     found:{bilibili:'哔哩哔哩 · 用户 2267573 的视频', feed:'go.dev 的订阅', route:'RSSHub 路由'},
     searchingRoutes:'正在找 RSSHub 路由…', foundRoutes:'找到 {n} 条路由，选一条。', preview:'预览', previewOf:'「Issues · rsshub/rsshub」的最新内容', noCatalog:'读不到 RSSHub 的路由目录。直接填路由，比如 /github/issue/用户/仓库。',
@@ -520,11 +527,11 @@ const copy={
     paused:'已暂停，恢复之前不抓取。',
     moved:'这个订阅已搬到', movedUpdate:'更新地址', movedDismiss:'忽略', movedExists:'那个地址已经订阅过了，叫“The Go Blog（新）”。请退订其中一个。', healthMoved:'已搬到 {to}', movedUpdateSource:'更新{name}的地址', movedDismissSource:'忽略{name}的搬家提示',
     servedBy:'由 {host} 提供', servedByBackup:'由备用地址 {host} 提供', servedByBackupHint:'设置 → RSSHub 里的第一个地址没有响应，所以换用了后面的地址。',
-    pauseLabel:'暂停抓取', pauseHelp:'已经抓到的条目保留。',
-    mute:'屏蔽词', muteHelp:'每行一个。标题或摘要里有的条目会隐藏，收藏的除外。',
+    pauseLabel:'暂停抓取',
+    mute:'屏蔽词', muteHelp:'每行一个；收藏的条目不会隐藏。',
     muteHidden:'现在隐藏了 {n} 条。', muteNone:'现在没有隐藏的条目。',
     deleteTitle:'删除「The Go Blog」？', deleteBody:'它的条目会一起删掉，收藏的也是。删除后几秒内可以撤销。', confirmDelete:'删除', deleted:'已删除「The Go Blog」', undo:'撤销', dismiss:'关闭',
-    aiGroup:'摘要和翻译', autoSummary:'新条目自动摘要', autoTranslate:'新条目自动翻译',
+    groupShow:'显示', groupFetch:'抓取', groupTimeline:'时间线', aiGroup:'摘要和翻译', autoSummary:'新条目自动摘要', autoTranslate:'新条目自动翻译',
     autoHelp:'只管打开之后新到的条目。', promptSummary:'摘要 prompt', promptTranslate:'翻译 prompt',
     promptPlaceholder:'留空就用设置里的 prompt', aiOff:'还没配置 AI，暂时不会摘要或翻译。', openSettings:'打开设置',
     healthTitle:'订阅健康', healthSub:'这些订阅需要你来决定。你不选，什么都不会变。',
@@ -625,16 +632,16 @@ function editDialog(){
     :paused?`<div class="health" role="status">${icon('pause')}<span>${copy.paused}</span></div>`
     :`<div class="health" role="status">${icon('check')}<span>${copy.checked}</span><button class="button small">${icon('refresh')}${copy.refresh}</button></div>`;
   const open=state==='edit-extract';
-  const extractGroup=`<div class="field"><button class="disclosure" aria-expanded="${open}" aria-controls="xg">${icon('chevron')}${copy.extract}</button><span class="help">${copy.extractHelp}</span></div>`
-    +(open?`<div id="xg" class="field" style="gap:12px">
+  const extractGroup=`<div class="field"><button class="disclosure" aria-expanded="${open}" aria-controls="xg">${icon('chevron')}${copy.extract}</button></div>`
+    +(open?`<div id="xg" class="field" style="gap:12px;margin-top:-8px"><span class="help">${copy.extractHelp}</span>
       <div class="field"><label for="xs">${copy.extractSelector}</label><div class="box"><input id="xs" value="article .post-body" placeholder="article"></div><span class="help">${copy.extractSelectorHelp}</span></div>
       <div class="field"><label for="xr">${copy.extractReferer}</label><div class="box"><input id="xr" value="https://go.dev/" placeholder="https://example.com/"></div><span class="help">${copy.extractRefererHelp}</span></div>
       <div class="field"><label for="xw">${copy.extractRewrites}</label><textarea id="xw" class="prompt">www.go.dev => go.dev\nhttps://go.dev/blog/amp/ => https://go.dev/blog/</textarea><span class="help">${copy.extractRewritesHelp}</span></div>
     </div>`:'');
   const hOpen=state.startsWith('edit-headers'), hFilled=state==='edit-headers'||state==='edit-headers-error', hErr=state==='edit-headers-error';
   const ua=hFilled?(hErr?'Cookie: session=abc':'Mozilla/5.0 (compatible; MyReader/1.0)'):'', ref=hFilled?(hErr?'go.dev/blog':'https://go.dev/'):'';
-  const headersGroup=`<div class="field"><button class="disclosure" aria-expanded="${hOpen}" aria-controls="hg">${icon('chevron')}${copy.headers}</button><span class="help">${copy.headersHelp}</span></div>`
-    +(hOpen?`<div id="hg" class="field" style="gap:12px">
+  const headersGroup=`<div class="field"><button class="disclosure" aria-expanded="${hOpen}" aria-controls="hg">${icon('chevron')}${copy.headers}</button></div>`
+    +(hOpen?`<div id="hg" class="field" style="gap:12px;margin-top:-8px">
       <div class="field"><label for="hu">${copy.headerUa}</label><div class="box${hErr?' invalid':''}"><input id="hu" value="${ua}" placeholder="Oriel/0.9.0"${hErr?' aria-invalid="true" aria-describedby="hue"':''}></div>${hErr?`<span class="error" id="hue">${icon('alert')}${copy.headerUaError}</span>`:''}<span class="help">${copy.headerUaHelp.replace('{version}','0.9.0')}</span></div>
       <div class="field"><label for="hr">${copy.headerReferer}</label><div class="box${hErr?' invalid':''}"><input id="hr" value="${ref}" placeholder="https://example.com/"${hErr?' aria-invalid="true" aria-describedby="hre"':''}></div>${hErr?`<span class="error" id="hre">${icon('alert')}${copy.headerRefererError}</span>`:''}<span class="help">${copy.headerRefererHelp}</span></div>
       <span class="help">${copy.headersNote}</span>
@@ -646,15 +653,19 @@ function editDialog(){
     <div class="form">
       ${health}${served}
       ${moved}
-      <div class="pair"><div class="field"><label>${copy.title}</label><div class="box focused"><input value="The Go Blog" placeholder="${copy.titlePlaceholder}"></div></div>${select(copy.every,copy.autoEvery.replace('{every}',copy.every6h))}</div>
+      <h3 class="group-title">${icon('eye')}${copy.groupShow}</h3>
+      <div class="field"><label>${copy.title}</label><div class="box focused"><input value="The Go Blog" placeholder="${copy.titlePlaceholder}"></div></div>
       ${kindPicker('article')}
       ${state==='edit-suggest'?`<div class="health" role="status">${icon('video')}<span>${copy.suggest}</span><button class="button small">${copy.suggestUse}</button></div>`:''}
-      ${select(copy.keep,copy.keepFollow).replace('</div></div>',`</div><span class="help">${copy.keepHelp}</span></div>`)}
-      ${select(copy.pace,copy.paceOff).replace('</div></div>',`</div><span class="help">${copy.paceHelp}</span></div>`)}
+      <h3 class="group-title">${icon('refresh')}${copy.groupFetch}</h3>
+      <div class="switch-row"><div class="text"><span class="label">${copy.pauseLabel}</span></div><span class="switch${paused?' on':''}" role="switch" aria-checked="${paused}" aria-label="${copy.pauseLabel}"></span></div>
+      ${select(copy.every,copy.autoEvery.replace('{every}',copy.every6h))}
       ${extractGroup}
       ${headersGroup}
-      <div class="switch-row"><div class="text"><span class="label">${copy.pauseLabel}</span><span class="help">${copy.pauseHelp}</span></div><span class="switch${paused?' on':''}" role="switch" aria-checked="${paused}" aria-label="${copy.pauseLabel}"></span></div>
-      <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" aria-describedby="mh mc">${state==='edit-mute-none'?(lang==='en'?'giveaway':'抽奖'):lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span><span class="help count" id="mc" role="status">${state==='edit-mute-none'?copy.muteNone:copy.muteHidden.replace('{n}','7')}</span></div>
+      <h3 class="group-title">${icon('listfilter')}${copy.groupTimeline}</h3>
+      ${select(copy.keep,copy.keepFollow).replace('</div></div>',`</div><span class="help">${copy.keepHelp}</span></div>`)}
+      ${select(copy.pace,copy.paceOff).replace('</div></div>',`</div><span class="help">${copy.paceHelp}</span></div>`)}
+      <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" class="mute" aria-describedby="mh mc">${state==='edit-mute-none'?(lang==='en'?'giveaway':'抽奖'):lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span><span class="help count" id="mc" role="status">${state==='edit-mute-none'?copy.muteNone:copy.muteHidden.replace('{n}','7')}</span></div>
       <h3 class="group-title">${icon('sparkles')}${copy.aiGroup}</h3>
       ${state==='edit-ai-off'?`<div class="health" role="status">${icon('alert')}<span>${copy.aiOff}</span><button class="button small">${copy.openSettings}</button></div>`:''}
       <div class="switch-row"><div class="text"><span class="label">${copy.autoSummary}</span><span class="help">${copy.autoHelp}</span></div><span class="switch${ai?' on':''}" role="switch" aria-checked="${ai}" aria-label="${copy.autoSummary}"></span></div>

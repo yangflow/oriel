@@ -25,14 +25,14 @@ func TestEditExtraction(t *testing.T) {
 	s.Edit(f.sources[0])
 	tt.Frame()
 	f.settle(tt)
-	if !tt.HasText("Extraction") || !tt.HasText(s.text.ExtractHelp) || tt.HasText("Content selector") {
+	if !tt.HasText("Extraction") || tt.HasText(s.text.ExtractHelp) || tt.HasText("Content selector") {
 		t.Fatalf("closed group: %v", tt.Texts())
 	}
 	if err := tt.Click("Extraction"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	for _, text := range []string{"Content selector", "Referer", "Link rewrites", s.text.ExtractSelectorHelp, s.text.ExtractRefererHelp, s.text.ExtractRewritesHelp} {
+	for _, text := range []string{s.text.ExtractHelp, "Content selector", "Referer", "Link rewrites", s.text.ExtractSelectorHelp, s.text.ExtractRefererHelp, s.text.ExtractRewritesHelp} {
 		if !tt.HasText(text) {
 			t.Fatalf("no %q in %v", text, tt.Texts())
 		}

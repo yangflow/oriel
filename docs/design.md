@@ -249,8 +249,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   tile or monogram, the title 15 semibold, a 28 square bare close button), a form that scrolls when the window is too low while the header and the buttons stay (a `Border` line appears under
   the header once the form is scrolled and above the buttons while more is below),
   with `Space(3.5)` between fields and 20 to the sides, and a footer with the buttons at the right; in the edit
-  dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; title and interval share a
-  row. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` soft fill) or what
+  dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; in the add dialog title and interval share a
+  row, in the edit dialog each has its own. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` soft fill) or what
   the address was recognized as (`Accent` soft fill, the address in monospace). An address that is a web page is looked up
   half a second after typing stops: the line reads "Looking for feeds…" with a spinning loader at 14 and Add is held. Every feed
   found is a row of the same recognized-as style (RSS icon, title or site and what it carries, the address in monospace, a check
@@ -285,28 +285,44 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `design/screens/subscriptions.html`, `edit-moved` and `edit-moved-exists`. The interval offers Auto
   first, and an automatic subscription reads "Auto · 6 h" with the interval in use. When the first fetch found the feed to look like
   another kind, a line in the style of the health line sits under the kind picker with the kind's icon, one sentence and a small
-  button "Show as Videos"; it only chooses the kind in the dialog. "Keep entries" follows, a full-width select in the
-  style of the interval, above the pause switch: "Follow settings · 1 month" (the global period after the dot) is
-  the default, then 1 week to 1 year and Forever, and an "N d" row when the stored number is none of those; a muted
-  12 help line under it says starred entries are always kept. "Pace" follows in the same style: Off is the
-  default, then Breaking (3 h), Daily (2 days) and Weekly (7 days), and an "N h" or "N d" row when the stored number is
-  none of those; a muted 12 help line says unread entries fade and leave All and Unread when the time is up, and
-  stay in search, Starred and the source. "Extraction" follows, a disclosure row (12 medium, a chevron that turns
-  from right to down) with a muted 12 help line, collapsed unless one of its three fields is set (`edit-extract`
-  in the mockup). Opened, it holds a "Content selector" box, a "Referer" box and a "Link rewrites" box (monospace,
-  three lines that grow to eight, one `from => to` per line), each with a muted 12 help line that says what an empty
-  field does. Saving checks the three on the server, and a refusal shows under the field it concerns, in the
-  field's error style. "Request headers" follows in the same disclosure style (`edit-headers-empty`, `edit-headers`,
-  `edit-headers-error`), collapsed unless one of its two fields is set, with a muted 12 help line: a "User-Agent" box
-  and a "Referer" box, each with a muted 12 help line that says where it is sent, and a closing muted 12 note: cookies
-  and sign-in are not supported, the headers go only to the subscription's own site, and a site that blocks Oriel
-  stays blocked. The placeholder of User-Agent is the one Oriel sends (`Oriel/{version}`) and the Referer's is
-  `https://example.com/`, so an empty box reads as the default. There is no "header name" field and no third box.
-  A refusal from the server shows under the field it concerns in the error style, and the box takes the `Danger`
-  outline. A subscription kept as an RSSHub route only has no such row. The dialog ends with "Summaries and
-  translations", a 12 medium muted group title with the sparkles icon: two switches that queue new entries, and two
-  monospace prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in
-  Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open settings".
+  button "Show as Videos"; it only chooses the kind in the dialog.
+  Below the status lines the form has four groups, each opened by the same group title: an icon at 14 and the name in 12
+  medium `TextMuted` (a heading, level 3), with a fixed `Space(2)` extra above it, so a group reads as one block. The
+  groups follow what the user is doing, not the order the settings were added: "Display" (eye icon) holds the title,
+  on a row of its own, and "Show as" with the kind suggestion; "Fetching" (refresh icon) holds "Pause fetching" first, so
+  the switch sits next to the status line it changes, then the check interval, then "Extraction" and "Request headers";
+  "Timeline" (list-filter icon) holds "Keep entries", "Pace" and "Mute keywords"; "Summaries and translations" (sparkles
+  icon) closes the dialog. One row style: a field, a select or a text box has its 12 medium label above the control
+  with `Space(1)` between, and a muted 12 help line of at most one line under it, only where the label does not say
+  it already; a switch is the app-wide switch row, the label at the left and the switch at the right, the label in the
+  same 12 medium, with its help line under the label when it has one. The choice is deliberate: a switch has two
+  states and no room for a label above it, and the settings screen reads the same way, so both kinds of row keep their
+  familiar shape and only the type, the gaps and the help lines are shared. The disclosures are not a third style: they
+  are a label that opens more fields, left-aligned with the other labels (never centered or full width), and the
+  help of what is inside shows only when it is open. "Pause fetching" has no help line, the label says it.
+  The interval offers Auto first, and an automatic subscription reads "Auto · 6 h" with the interval in use.
+  "Keep entries" is a full-width select in the style of the interval: "Follow settings · 1 month" (the global period
+  after the dot) is the default, then 1 week to 1 year and Forever, and an "N d" row when the stored number is none of
+  those; the help line says starred entries are always kept. "Pace" follows in the same style: Off is the default, then
+  Breaking (3 h), Daily (2 days) and Weekly (7 days), and an "N h" or "N d" row when the stored number is none of
+  those; the help line says unread entries fade, then leave All and Unread. "Mute keywords" is a box two lines high
+  that grows with its content up to six, with a help line (one per line, starred entries stay visible) and, under it,
+  the count line below. "Extraction" is a disclosure row (12 medium, a chevron that turns from right to down), aligned
+  to the left with the labels, collapsed unless one of its three fields is set and with no help line while collapsed
+  (`edit-extract` in the mockup). Opened, it starts with a muted 12 line saying that an empty field uses automatic
+  extraction, then a "Content selector" box, a "Referer" box and a "Link rewrites" box (monospace, three lines that
+  grow to eight, one `from => to` per line), each with a one-line help. Saving checks the three on the server, and a
+  refusal shows under the field it concerns, in the field's error style. "Request headers" follows in the same
+  disclosure style (`edit-headers-empty`, `edit-headers`, `edit-headers-error`), collapsed unless one of its two
+  fields is set and without help while collapsed: a "User-Agent" box and a "Referer" box, each with a one-line help
+  that says where it is sent, and a closing muted 12 note: cookies and sign-in are not supported, the headers go only
+  to the subscription's own site, and a site that blocks Oriel stays blocked. The placeholder of User-Agent is the one
+  Oriel sends (`Oriel/{version}`) and the Referer's is `https://example.com/`, so an empty box reads as the default.
+  There is no "header name" field and no third box. A refusal from the server shows under the field it concerns in
+  the error style, and the box takes the `Danger` outline. A subscription kept as an RSSHub route only has no such
+  row. The last group, "Summaries and translations", has two switches that queue new entries, and two monospace
+  prompt boxes, three lines that grow to eight, whose placeholder says the empty box uses the prompt in Settings.
+  While AI is not set up a line on `Surface` in `TextMuted` says so, with a small "Open settings".
   Under the mute keywords, after their help, a second 12 `TextMuted` line (tabular figures, a status text) says how many
   entries the keywords hide now: "{n} hidden now." (「现在隐藏了 {n} 条。」) or "Nothing hidden now." (「现在没有隐藏的条目。」).
   It follows the box as keywords are typed, after a short pause; until the new number arrives the old one stays, with
