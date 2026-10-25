@@ -409,6 +409,11 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .looked { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:28px; margin:0; padding:0; border:0; background:transparent; font:inherit }
 .looked::before { content:""; position:absolute; left:0; right:0; top:50%; border-top:1px solid var(--border) }
 .looked span { position:relative; padding:0 10px; background:var(--background); color:var(--accent); font-size:12px; font-weight:500; font-variant-numeric:tabular-nums }
+.fold { position:relative; display:flex; align-items:center; gap:8px; width:100%; height:36px; margin:0 -16px; padding:0 16px 0 28px; border:0; border-radius:12px; background:transparent; color:var(--muted); font:inherit; font-size:12px; text-align:left; transition:background-color var(--t) }
+.fold .label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.fold svg { flex:none; width:16px; height:16px }
+.fold:hover { background:var(--hover); color:var(--text2) }
+.fold.focus { outline:2px solid var(--focus); outline-offset:1px }
 .looked:hover span { color:var(--accent-hover) }
 .row + .row::before { content:""; position:absolute; top:0; left:28px; right:16px; border-top:1px solid var(--border) }
 .row:hover, .row.hover { background:var(--hover) }
@@ -675,7 +680,7 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled','revised','translated-titles'];
+const states=['list','folded','folded-focus','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled','revised','translated-titles'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
@@ -767,6 +772,7 @@ const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hid
 const copy={
   en:{
     all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
+    foldMore:'{n} more from {name}', foldLabel:'{n} more from {name}, show',
     leaving:'leaving the timeline soon', alsoChip:'{n} more sources', alsoName:'Also in {n} other sources, show them', alsoHead:'Also in',
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
@@ -804,6 +810,7 @@ const copy={
   },
   'zh-Hans':{
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
+    foldMore:'还有 {n} 条来自 {name}', foldLabel:'还有 {n} 条来自 {name}，展开',
     leaving:'即将离开时间线', alsoChip:'另 {n} 个来源', alsoName:'另见 {n} 个来源，展开', alsoHead:'另见',
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
@@ -1097,6 +1104,7 @@ const squareCard=(e,i)=>{const n=e.images.length;
 const masonryTile=(e,i)=>`<figure class="mtile${e.read?' read':''}${cellHover(i)}"><div class="pic ${e.images[0]}" style="aspect-ratio:${e.r}" role="img" aria-label="${e.title}">${failedPic(e.images[0])}</div><figcaption>${e.title}</figcaption>${meta(e,unreadDot(e))}${actions(e)}</figure>`;
 const skeleton=()=>Array.from({length:4},(_,i)=>`<div class="row skeleton" aria-hidden="true"><div class="content" style="gap:8px"><div class="bar m"></div><div class="bar t"></div><div class="bar s"></div></div>${i%2?'':'<div class="pic thumb"></div>'}</div>`).join('');
 const empty=(tile,title,hint,button='',cls='')=>`<div class="empty" role="status"><div class="tile ${cls}">${icon(tile)}</div><h2>${title}</h2><p>${hint}</p>${button}</div>`;
+const foldRow=()=>{const s=byId[entries[0].source];return `<button class="fold${state==='folded-focus'?' focus':''}" aria-label="${t('foldLabel',{n:2,name:s.name})}">${glyph(s)}<span class="label" aria-hidden="true">${t('foldMore',{n:2,name:s.name})}</span>${icon('chevronDown')}</button>`};
 const more=state==='more'?`<div class="footer" role="status">${icon('loader','spin')}${copy.loadingMore}</div>`:'';
 
 let list;
@@ -1112,7 +1120,7 @@ else if(state==='time-empty')list=empty('clock',t('timeEmpty',{n:budget}),copy.t
 else if(state==='search-none')list=empty('search',t('noResults',{q}),copy.noResultsHint);
 else if(cardsOn)list=`<div class="vgrid${gridKind==='image'?' sq':''}" role="feed" aria-label="${scopeName}">${shown.map(gridKind==='image'?squareCard:videoCard).join('')}</div>${more}`;
 else if(wallOn)list=`<div class="masonry" role="feed" aria-label="${scopeName}">${shown.map(masonryTile).join('')}</div>${more}`;
-else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map((e,i)=>(state==='last-looked'&&i===3?`<button class="looked" aria-label="${t('lastLooked',{n:3})}"><span aria-hidden="true">${t('lastLooked',{n:3})}</span></button>`:'')+(state==='expiring'&&!e.read?row(e,i).replace('<article class="',`<article style="opacity:${[1,.82,.7,.6,.55][Math.min(i,4)]}" aria-label="${(e.title||e.author)}, ${copy.leaving}" class="`):row(e,i))).join('')}${more}</div>`;
+else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map((e,i)=>(state==='last-looked'&&i===3?`<button class="looked" aria-label="${t('lastLooked',{n:3})}"><span aria-hidden="true">${t('lastLooked',{n:3})}</span></button>`:'')+(state==='expiring'&&!e.read?row(e,i).replace('<article class="',`<article style="opacity:${[1,.82,.7,.6,.55][Math.min(i,4)]}" aria-label="${(e.title||e.author)}, ${copy.leaving}" class="`):row(e,i))+((state==='folded'||state==='folded-focus')&&i===0?foldRow():'')).join('')}${more}</div>`;
 
 const unreadInScope=kinds.includes(scope)?kindUnread(scope):scope==='source'?byId[focusId].unread:total;
 const sub=noSubs||state==='error'?'':state==='search'||state==='search-operators'?t('results',{n:1}):state==='unread-done'||state==='starred-none'||state==='empty'||state==='marked-read'||budget||rangeOn?'':t('unreadCount',{n:unreadInScope});

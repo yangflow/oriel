@@ -74,6 +74,8 @@ type NewSource struct {
 	HideFromAll bool
 	// TranslateTitles adds the source with the title translation on.
 	TranslateTitles bool
+	// DailyCap adds the source with a daily cap (0 for none).
+	DailyCap int
 }
 
 // DueSources lists unpaused sources whose next fetch time has come, the longest waiting first.
@@ -387,6 +389,11 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 			site_url = CASE WHEN site_url = '' THEN ?2 ELSE site_url END
 		WHERE id = ?3`, title, siteURL, src.ID); err != nil {
 		return 0, err
+	}
+	if created > 0 {
+		if err := refold(ctx, tx, src.ID, dayBefore(now)); err != nil {
+			return 0, err
+		}
 	}
 	return created, tx.Commit()
 }

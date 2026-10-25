@@ -48,6 +48,9 @@ type fake struct {
 	moved, dismissed []string // the addresses MoveSource and DismissMove were given
 	moveErr          error
 
+	noisyDismissed []int64 // the subscriptions DismissNoisy was given
+	noisyErr       error
+
 	failOn map[int64]error // why a request about one subscription fails, for the bulk actions
 	trash  map[int64]client.Source
 
@@ -179,6 +182,11 @@ func (f *fake) DismissMove(_ context.Context, id int64, movedTo string) (client.
 		return client.Source{}, f.moveErr
 	}
 	return client.Source{ID: id, Title: "Go Blog", URL: "http://blog.golang.org/feed.atom", Kind: "article", FetchIntervalSec: 900}, nil
+}
+
+func (f *fake) DismissNoisy(_ context.Context, id int64) error {
+	f.noisyDismissed = append(f.noisyDismissed, id)
+	return f.noisyErr
 }
 
 func (f *fake) MutedCount(_ context.Context, _ int64, keywords string) (int, error) {

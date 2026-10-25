@@ -273,6 +273,7 @@ func (f *fake) MoveSource(context.Context, int64, string) (client.Source, error)
 func (f *fake) DismissMove(context.Context, int64, string) (client.Source, error) {
 	return client.Source{}, nil
 }
+func (f *fake) DismissNoisy(context.Context, int64) error { return nil }
 
 func (f *fake) RefreshAll(context.Context) (client.RefreshResult, error) {
 	f.refreshes++

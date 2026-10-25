@@ -54,6 +54,8 @@ type entryJSON struct {
 	RemindAt *int64 `json:"remindAt,omitempty"`
 	// RevisedAt is when the update that replaced the entry's earlier version was fetched; left out when there is none.
 	RevisedAt *int64 `json:"revisedAt,omitempty"`
+	// Folded is set on an entry over the daily cap of its source in the All, kind and Unread lists; left out otherwise.
+	Folded bool `json:"folded,omitempty"`
 	// FadesAt and ExpiresAt are set for an unread entry of a source with a pace, in Unix milliseconds.
 	FadesAt   *int64 `json:"fadesAt,omitempty"`
 	ExpiresAt *int64 `json:"expiresAt,omitempty"`
@@ -114,7 +116,7 @@ func entryToJSON(e store.Entry) entryJSON {
 		Author: e.Author, PublishedAt: millis(e.PublishedAt), Summary: e.Summary, ThumbnailURL: e.ThumbnailURL,
 		DurationSec: duration, Platform: e.Platform, Language: e.Language, ReadingSec: e.ReadingSec, ReadProgress: e.ReadProgress, Images: images, ExtractStatus: e.ExtractStatus,
 		IsRead: e.IsRead, ReadAt: millis(e.ReadAt), Starred: e.Starred, CreatedAt: e.CreatedAt.UnixMilli(),
-		RevisedAt: millis(e.RevisedAt), FadesAt: millis(e.FadesAt), ExpiresAt: millis(e.ExpiresAt), RemindAt: millis(e.RemindAt),
+		RevisedAt: millis(e.RevisedAt), FadesAt: millis(e.FadesAt), ExpiresAt: millis(e.ExpiresAt), RemindAt: millis(e.RemindAt), Folded: e.Folded,
 	}
 }
 
@@ -251,6 +253,7 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filter.Group = group
+	filter.WithFolded = true
 	filter.Location = zone(query.Get("tz"))
 	limited := search.Parse(filter.Query).Short()
 	if limited {

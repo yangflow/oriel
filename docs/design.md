@@ -323,7 +323,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   on a row of its own, and "Show as" with the kind suggestion; "Fetching" (refresh icon) holds "Pause fetching" first, so
   the switch sits next to the status line it changes, then the check interval, then "Extraction" and "Request headers";
   "Timeline" (list-filter icon) holds "Hide from All" first, a switch row with the help "Only seen when you open this
-  subscription. Search and Starred still show it.", then "Opens in", "Keep entries", "Pace" and "Mute keywords";
+  subscription. Search and Starred still show it.", then "Opens in", "Keep entries", "Pace", "At most per day" and
+  "Mute keywords";
   "Summaries and translations" (sparkles icon) closes the dialog. One row style: a field, a select or a text box has its
   12 medium label above the control with `Space(1)` between, and a muted 12 help line of at most one line under it, only
   where the label does not say it already; a switch is the app-wide switch row, the label at the left and the switch at
@@ -340,7 +341,10 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   after the dot) is the default, then 1 week to 1 year and Forever, and an "N d" row when the stored number is none of
   those; the help line says starred entries are always kept. "Pace" follows in the same style: Off is the default, then
   Breaking (3 h), Daily (2 days) and Weekly (7 days), and an "N h" or "N d" row when the stored number is none of
-  those; the help line says unread entries fade, then leave All and Unread. "Mute keywords" is a box two lines high
+  those; the help line says unread entries fade, then leave All and Unread. "At most per day" is a select in the same
+  style: Off is the default, then 5, 10, 20 and 50 entries, and an "N entries" row when the stored number is none of
+  those; the help line says the extra entries fold into one row in All and Unread until it is opened (`edit-cap` in the
+  mockup). "Mute keywords" is a box two lines high
   that grows with its content up to six, with a help line (one per line, starred entries stay visible) and, under it,
   the count line below. "Extraction" is a disclosure row (12 medium, a chevron that turns from right to down), aligned
   to the left with the labels, collapsed unless one of its three fields is set and with no help line while collapsed
@@ -382,16 +386,25 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   with a spinning `loader-circle`, "Checking…"; an error is an `errorLine` with a small "Try again"; empty is a centered
   `circle-check-big` in `Success` over "All your subscriptions look healthy"; otherwise the list, scrolling inside the
   dialog. A row has the source's glyph (16, as in the sidebar) and name (13 medium, one line) at the left, under it the reason in 12 on
-  `Warning` (`dead` and `failing`) or `TextMuted` (`rarelyRead` and `moved`) with a 14 icon (`circle-alert`, `triangle-alert`,
-  `eye`, and `signpost` in `TextMuted` for a moved source), and a second muted 12 tabular line with the last 30 days' numbers; at the right two small buttons, "Pause"
+  `Warning` (`dead` and `failing`) or `TextMuted` (`noisy`, `rarelyRead` and `moved`) with a 14 icon (`circle-alert`, `triangle-alert`,
+  `eye`, `volume-2` for a noisy source, and `signpost` in `TextMuted` for a moved source), and a second muted 12 tabular line with the last 30 days' numbers; at the right two small buttons, "Pause"
   (`pause`, quiet) and "Unsubscribe…" (`trash2`, `Danger` text, no fill). Rows are separated by a hairline, 12 high
   paddings, no card around them. A moved row's reason reads "Moved to {address}" (one line, truncated) and its buttons are
-  "Update address" and "Dismiss" in place of Pause and Unsubscribe… (`health`, the fourth row). A failing reason shows the last error on a second line, one line truncated. A row
+  "Update address" and "Dismiss" in place of Pause and Unsubscribe… (`health`, the fourth row). A noisy row's reason reads "{n} a day, you read {p}%" and its buttons are "Slow down" (`clock`, sets the pace to
+  Breaking, hidden when the pace is already that fast or faster), "Pause" and "Dismiss" in place of Unsubscribe…
+  (`health-noisy`). A failing reason shows the last error on a second line, one line truncated. A row
   leaves the list as soon as its action succeeds; the footer has one "Close" button. Unsubscribe opens the same
   confirmation as Delete. Drawn in `design/screens/subscriptions.html`, `health`, `health-loading`, `health-error`,
   `health-empty`. Accessibility: the dialog is labeled by its title, each row is a list item named by the source and
   its reason, the buttons carry the source's name ("Pause {name}", "Unsubscribe {name}"), and the loaded count is
   announced with `Announce`.
+- **Fold row.** In All and Unread, the entries over a subscription's daily cap are drawn as one row where the first of
+  them would have been: 36 high, the list's side padding, the source's glyph (16), "{n} more from {name}" in 12
+  `TextMuted` and a `chevron-down` at the right, on no fill; hover and focus use the quiet button fill and the focus
+  ring. It is a button: Enter, Space or a click opens it, the entries take their places in the list and the row goes
+  away, with the announcement "Showed {n} entries". It is not part of j and k, "next unread" or "mark visible"; Tab
+  reaches it. Its accessible name is "{n} more from {name}, show". Drawn in `design/screens/timeline.html`, `folded`
+  and `folded-focus`; the grid and wall layouts do not fold.
 - **Manage subscriptions.** A dialog 640 wide, opened from the command palette action "Manage subscriptions…" and the
   menu item "Subscriptions > Manage subscriptions…"; the sidebar gets no checkboxes. Header: the `list-checks` icon, the
   title and a muted line, "Select several to change them together." Under it a filter field (the settings search field),

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -16,6 +17,13 @@ const (
 	HealthWindowDays     = 30 // the window of the reading numbers, and the minimum age for "rarely read"
 	healthMinRecent      = 10 // entries that arrived in the window before reading is judged
 	healthReadPercentMax = 10 // a read share below this many percent is rarely read
+
+	healthNoisyMinDays   = 7  // a subscription this old (whole days) can be noisy
+	healthNoisyPerDay    = 20 // entries a day, on average, that make a source noisy
+	healthNoisyReadMax   = 5  // a read share of at most this many percent, with that volume, is noisy
+	healthNoisyRearmFold = 2  // a dismissed source is named again when its entries a day reach this many times the dismissed number
+	// NoisyPaceSec is the pace the "slow down" action sets: Breaking, see docs/product.md "节奏".
+	NoisyPaceSec = 3 * 60 * 60
 )
 
 // Health states and causes.
@@ -23,6 +31,7 @@ const (
 	HealthDead       = "dead"
 	HealthFailing    = "failing"
 	HealthMoved      = "moved"
+	HealthNoisy      = "noisy"
 	HealthRarelyRead = "rarelyRead"
 
 	HealthCauseFailing = "failing"
@@ -37,7 +46,7 @@ type SourceHealth struct {
 	Title               string
 	IconURL             string
 	Kind                string
-	State               string // HealthDead, HealthFailing, HealthMoved or HealthRarelyRead
+	State               string // HealthDead, HealthFailing, HealthMoved, HealthNoisy or HealthRarelyRead
 	Cause               string // for HealthDead, HealthCauseFailing or HealthCauseSilent; empty otherwise
 	Days                int    // how many whole days the reason has held
 	ConsecutiveFailures int
@@ -46,7 +55,13 @@ type SourceHealth struct {
 	Recent              int    // entries that arrived in the last HealthWindowDays, muted ones left out
 	RecentRead          int
 	RecentStarred       int
+	PerDay              int // for HealthNoisy, entries a day over the days the source has existed (at most HealthWindowDays), rounded
+	PaceSec             int // the source's pace, so a client knows whether "slow down" would change anything
+	DailyCap            int
 }
+
+// ErrNotNoisy means the source is not named as noisy now.
+var ErrNotNoisy = errors.New("store: source is not noisy")
 
 const day = 24 * time.Hour
 
@@ -56,7 +71,7 @@ const day = 24 * time.Hour
 func (s *Store) SourcesHealth(ctx context.Context, now time.Time) ([]SourceHealth, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, url, rsshub_path, title, icon_url, kind, created_at, last_success_at, consecutive_failures, last_error,
-			CASE WHEN moved_seen >= ?1 THEN moved_url ELSE '' END
+			CASE WHEN moved_seen >= ?1 THEN moved_url ELSE '' END, daily_cap, pace_sec, noisy_dismissed
 		FROM sources WHERE paused = 0 AND deleted_at IS NULL`, MovedSeenNeeded)
 	if err != nil {
 		return nil, err
@@ -65,6 +80,7 @@ func (s *Store) SourcesHealth(ctx context.Context, now time.Time) ([]SourceHealt
 	type candidate struct {
 		SourceHealth
 		created, success time.Time
+		dismissed        int
 	}
 	var sources []candidate
 	for rows.Next() {
@@ -72,7 +88,7 @@ func (s *Store) SourcesHealth(ctx context.Context, now time.Time) ([]SourceHealt
 		var created int64
 		var success sql.NullInt64
 		if err := rows.Scan(&c.ID, &c.URL, &c.RSSHubPath, &c.Title, &c.IconURL, &c.Kind, &created, &success,
-			&c.ConsecutiveFailures, &c.LastError, &c.MovedTo); err != nil {
+			&c.ConsecutiveFailures, &c.LastError, &c.MovedTo, &c.DailyCap, &c.PaceSec, &c.dismissed); err != nil {
 			return nil, err
 		}
 		c.created = time.UnixMilli(created)
@@ -146,6 +162,15 @@ func (s *Store) SourcesHealth(ctx context.Context, now time.Time) ([]SourceHealt
 			lastEntry = c.created
 		}
 		failing := h.ConsecutiveFailures >= healthMinFailures
+		// A noisy source is judged over the days it has existed, at most the window; a dismissal holds until the volume
+		// doubles.
+		noisyDays := min(HealthWindowDays, wholeDays(c.created))
+		var noisy, held bool
+		if noisyDays >= healthNoisyMinDays {
+			h.PerDay = (h.Recent + noisyDays/2) / noisyDays
+			held = c.dismissed > 0 && h.PerDay < healthNoisyRearmFold*c.dismissed
+			noisy = !held && h.DailyCap == 0 && h.Recent >= healthNoisyPerDay*noisyDays && h.RecentRead*100 <= h.Recent*healthNoisyReadMax
+		}
 		switch {
 		case failing && wholeDays(failingSince) >= healthFailingDays:
 			h.State, h.Cause, h.Days = HealthDead, HealthCauseFailing, wholeDays(failingSince)
@@ -155,7 +180,9 @@ func (s *Store) SourcesHealth(ctx context.Context, now time.Time) ([]SourceHealt
 			h.State = HealthFailing
 		case h.MovedTo != "":
 			h.State = HealthMoved
-		case wholeDays(c.created) >= HealthWindowDays && h.Recent >= healthMinRecent && h.RecentRead*100 < h.Recent*healthReadPercentMax:
+		case noisy:
+			h.State, h.Days = HealthNoisy, noisyDays
+		case !held && wholeDays(c.created) >= HealthWindowDays && h.Recent >= healthMinRecent && h.RecentRead*100 < h.Recent*healthReadPercentMax:
 			h.State, h.Days = HealthRarelyRead, HealthWindowDays
 		default:
 			continue
@@ -163,10 +190,13 @@ func (s *Store) SourcesHealth(ctx context.Context, now time.Time) ([]SourceHealt
 		if h.State != HealthMoved {
 			h.MovedTo = ""
 		}
+		if h.State != HealthNoisy {
+			h.PerDay = 0
+		}
 		flagged = append(flagged, h)
 	}
 
-	rank := map[string]int{HealthDead: 0, HealthFailing: 1, HealthMoved: 2, HealthRarelyRead: 3}
+	rank := map[string]int{HealthDead: 0, HealthFailing: 1, HealthMoved: 2, HealthNoisy: 3, HealthRarelyRead: 4}
 	name := func(h SourceHealth) string {
 		switch {
 		case h.Title != "":

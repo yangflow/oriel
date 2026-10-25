@@ -40,9 +40,12 @@ type Entry struct {
 	ExtractStatus   string
 	IsRead          bool
 	ReadAt          time.Time
-	RemindAt        time.Time // when a reminded entry comes back as unread; zero when there is no reminder
-	Starred         bool
-	CreatedAt       time.Time
+	// Folded is set in a timeline list that asked for folded entries (EntryFilter.WithFolded): the entry is over its
+	// source's daily cap and stands for a fold row, not for a row of its own. See docs/product.md "每日上限".
+	Folded    bool
+	RemindAt  time.Time // when a reminded entry comes back as unread; zero when there is no reminder
+	Starred   bool
+	CreatedAt time.Time
 	// RevisedAt is when the update that replaced the earlier version of the entry was fetched; zero when the entry has
 	// no earlier version (see Revision).
 	RevisedAt time.Time
@@ -92,6 +95,10 @@ type EntryFilter struct {
 	// Group shows entries with the same link once: only the earliest visible one of them matches, and read and starred are
 	// those of the whole group. It has no effect with SourceID or Query set.
 	Group bool
+	// WithFolded keeps the entries over a source's daily cap in a list of All, a kind or Unread, flagged by
+	// Entry.Folded; without it they are left out, as they are from the counts and the mark-as-read scopes. It has no
+	// effect with SourceID or Query set, which always include them.
+	WithFolded bool
 }
 
 // EntryPatch holds the reading state a user may change; nil leaves it as it is.
@@ -110,7 +117,7 @@ const entryColumns = `
 	e.title, e.url, e.author, e.published_at, e.rss_summary, e.thumbnail_url, e.duration_sec, e.platform, e.images,
 	e.language, e.extract_status, e.is_read, e.read_at, e.starred, e.created_at, e.reading_sec, e.read_progress, e.remind_at,
 	e.translated_title, s.pace_sec, coalesce(nullif(e.published_at, 0), e.created_at),
-	(SELECT r.replaced_at FROM entry_revisions r WHERE r.entry_id = e.id)`
+	(SELECT r.replaced_at FROM entry_revisions r WHERE r.entry_id = e.id), e.folded`
 
 // shown keeps the entries of s that none of its mute keywords and none of the global ones hides, and drops those of a deleted source. Starred
 // entries are never hidden by keywords. A source without keywords is decided in SQL, so the Go function runs only for
@@ -251,6 +258,9 @@ func (f EntryFilter) where() (string, []any) {
 		if !f.Starred {
 			add(notHidden)
 		}
+		if !f.WithFolded {
+			add("e.folded = 0")
+		}
 	}
 	// Inside one source the source index already gives the order. The unary plus keeps the kind and unread
 	// conditions from drawing the planner to an index over every source, which reads far more rows.
@@ -346,6 +356,7 @@ func (s *Store) Entries(ctx context.Context, filter EntryFilter, limit int) ([]E
 			return nil, err
 		}
 		entry.AISummary = ai
+		entry.Folded = entry.Folded && filter.SourceID == 0 && !filter.searching()
 		entries = append(entries, entry)
 	}
 	if err := rows.Err(); err != nil {
@@ -429,6 +440,7 @@ func (s *Store) Entry(ctx context.Context, id int64) (Entry, error) {
 	entry, err := scanEntry(s.db.QueryRowContext(ctx, "SELECT"+entryColumns+`, e.rss_content_html, e.extracted_html
 		FROM entries e JOIN sources s ON s.id = e.source_id WHERE e.id = ? AND s.deleted_at IS NULL`, id), &content, &extracted)
 	entry.ContentHTML, entry.ExtractedHTML = content, extracted
+	entry.Folded = false
 	return entry, err
 }
 
@@ -588,7 +600,7 @@ func scanEntry(row interface{ Scan(...any) error }, extra ...any) (Entry, error)
 	var revised sql.NullInt64
 	dest := append([]any{&entry.ID, &entry.SourceID, &entry.SourceTitle, &entry.Kind, &entry.Title, &entry.URL,
 		&entry.Author, &published, &entry.Summary, &entry.ThumbnailURL, &duration, &entry.Platform, &images,
-		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading, &progress, &remind, &entry.TranslatedTitle, &paceSec, &base, &revised}, extra...)
+		&language, &entry.ExtractStatus, &entry.IsRead, &readAt, &entry.Starred, &created, &reading, &progress, &remind, &entry.TranslatedTitle, &paceSec, &base, &revised, &entry.Folded}, extra...)
 	if err := row.Scan(dest...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Entry{}, ErrNotFound

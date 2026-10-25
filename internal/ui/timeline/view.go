@@ -35,6 +35,7 @@ var catalog []byte
 type copy struct {
 	DropTitle, DropHint, DropBusy string
 
+	FoldMore, FoldLabel, FoldShown                                                                                                                                      string
 	AlsoChip, AlsoName, AlsoHead, Revised                                                                                                                               string
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
@@ -205,6 +206,7 @@ var budgets = []int{5, 10, 15, 30}
 type snapshot struct {
 	key      listKey
 	entries  []client.Entry
+	folds    []client.Entry // the entries over their daily cap, kept out of sight
 	next     string
 	anchor   int64   // the first entry in view, 0 for none
 	wallY    float32 // how far the Images wall was scrolled
@@ -277,25 +279,27 @@ type Screen struct {
 	filtering  bool   // the sidebar's filter field has the focus
 	firstFocus bool   // give the first matching subscription the focus in the next frame
 
-	entries  []client.Entry
-	next     string    // the cursor of the next page, "" at the end
-	loading  bool      // the first page
-	loadedAt time.Time // when the first page was asked for; the skeleton waits skeletonDelay after it
-	loadErr  bool
-	more     bool // the next page
-	moreErr  bool
-	wantMore bool       // a row near the end was drawn in this frame
-	run      int        // counts first pages, so a result the user moved on from is dropped
-	checking bool       // a list drawn from memory is being checked against the server
-	lists    []snapshot // the lists left, the least recent first
-	polledAt time.Time
-	polling  bool
-	offline  bool      // a background check failed after the list loaded
-	failures int       // checks that failed in a row; picks the wait before the next one
-	queue    []waiting // star and read changes the server did not get, kept in memory and sent when it is back
-	sending  bool      // the queue is being sent
-	updated  time.Time // the last load or check that succeeded
-	fresh    int       // entries newer than the top one, found by polling
+	entries   []client.Entry
+	folds     []client.Entry // the entries over their subscription's daily cap, kept out of sight (see fold.go)
+	unfolding *foldGroup     // the fold row clicked in this frame
+	next      string         // the cursor of the next page, "" at the end
+	loading   bool           // the first page
+	loadedAt  time.Time      // when the first page was asked for; the skeleton waits skeletonDelay after it
+	loadErr   bool
+	more      bool // the next page
+	moreErr   bool
+	wantMore  bool       // a row near the end was drawn in this frame
+	run       int        // counts first pages, so a result the user moved on from is dropped
+	checking  bool       // a list drawn from memory is being checked against the server
+	lists     []snapshot // the lists left, the least recent first
+	polledAt  time.Time
+	polling   bool
+	offline   bool      // a background check failed after the list loaded
+	failures  int       // checks that failed in a row; picks the wait before the next one
+	queue     []waiting // star and read changes the server did not get, kept in memory and sent when it is back
+	sending   bool      // the queue is being sent
+	updated   time.Time // the last load or check that succeeded
+	fresh     int       // entries newer than the top one, found by polling
 
 	lb        lightbox        // the pictures of a social or image entry, over the window
 	stay      stay            // how long the entry on show has stayed, for "After a short stay"
@@ -669,7 +673,7 @@ func (s *Screen) removed(id int64) {
 	s.loadSources()
 	s.lists = nil
 	if s.scope.source == id {
-		s.entries = nil
+		s.entries, s.folds = nil, nil
 		s.choose(scope{})
 		return
 	}
@@ -716,7 +720,7 @@ func (s *Screen) bulk(changed []client.Source, removed []int64, restored []clien
 	s.loadSources()
 	switch {
 	case scopeGone:
-		s.lists, s.entries = nil, nil
+		s.lists, s.entries, s.folds = nil, nil, nil
 		s.choose(scope{})
 	case again:
 		s.lists = nil
@@ -770,7 +774,7 @@ func (s *Screen) checkRestored() {
 		s.tab = max(0, indexOf(kinds, kind))
 		return
 	}
-	s.entries = nil
+	s.entries, s.folds = nil, nil
 	s.show(func() { s.scope, s.tab = scope{}, 0 })
 }
 
@@ -814,7 +818,7 @@ func (s *Screen) reload() {
 	s.also = 0
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
 	s.loadedAt = s.deps.Now()
-	s.entries, s.next, s.loading, s.loadErr, s.more, s.moreErr, s.fresh = nil, "", true, false, false, false, 0
+	s.entries, s.folds, s.next, s.loading, s.loadErr, s.more, s.moreErr, s.fresh = nil, nil, "", true, false, false, false, 0
 	s.offline, s.failures = false, 0
 	s.selected, s.focusRow, s.hovered, s.toTop, s.reading, s.copyID, s.seeking = -1, -1, -1, true, 0, 0, false
 	s.checking = false
@@ -835,7 +839,7 @@ func (s *Screen) reload() {
 				s.loadErr, s.announce = true, s.text.Error
 				return
 			}
-			s.entries, s.next, s.polledAt = page.Entries, page.Next, s.deps.Now()
+			s.entries, s.next, s.polledAt = s.take(page.Entries), page.Next, s.deps.Now()
 			s.updated = s.polledAt
 			s.overlay()
 			s.flush()
@@ -956,7 +960,7 @@ func (s *Screen) leave(old listKey) {
 	if s.searched != "" || s.loading || s.loadErr || len(s.entries) == 0 {
 		return
 	}
-	snap := snapshot{key: old, entries: s.entries, next: s.next, anchor: s.anchor, wallY: s.wall.Y}
+	snap := snapshot{key: old, entries: s.entries, folds: s.folds, next: s.next, anchor: s.anchor, wallY: s.wall.Y}
 	if s.selected >= 0 && s.selected < len(s.entries) {
 		snap.selected = s.entries[s.selected].ID
 	}
@@ -998,10 +1002,12 @@ func (s *Screen) restore(snap snapshot) {
 	s.pass.rebase()
 	s.run++
 	run, gen, api, q := s.run, s.gen, s.api, s.query1("")
-	s.entries, s.next, s.anchor = snap.entries, snap.next, snap.anchor
+	s.entries, s.folds, s.next, s.anchor = snap.entries, snap.folds, snap.next, snap.anchor
 	if since := s.since(); since > 0 {
 		// Past midnight, what the list kept from yesterday is no longer today's.
-		s.entries = slices.DeleteFunc(slices.Clone(s.entries), func(e client.Entry) bool { return e.CreatedAt < since })
+		stale := func(e client.Entry) bool { return e.CreatedAt < since }
+		s.entries = slices.DeleteFunc(slices.Clone(s.entries), stale)
+		s.folds = slices.DeleteFunc(slices.Clone(s.folds), stale)
 	}
 	s.loading, s.loadErr, s.more, s.moreErr, s.fresh, s.offline, s.checking = false, false, false, false, 0, false, true
 	s.failures = 0
@@ -1190,7 +1196,9 @@ func (s *Screen) merge(page client.Page) {
 	if s.reading != 0 {
 		return
 	}
-	cached, fresh := s.entries, page.Entries
+	cached, kept := s.entries, s.folds
+	s.folds = nil
+	fresh := s.take(page.Entries)
 	if len(cached) > 0 && s.holdsTop() {
 		n := 0
 		fresh = slices.DeleteFunc(slices.Clone(fresh), func(e client.Entry) bool {
@@ -1214,9 +1222,14 @@ func (s *Screen) merge(page client.Page) {
 	}
 	merged, next := fresh, page.Next
 	if page.Next != "" {
-		have := make(map[int64]bool, len(fresh))
-		for _, e := range fresh {
+		have := make(map[int64]bool, len(page.Entries))
+		for _, e := range page.Entries {
 			have[e.ID] = true
+		}
+		for _, e := range kept {
+			if !have[e.ID] && (len(page.Entries) == 0 || s.after(e, page.Entries[len(page.Entries)-1])) {
+				s.folds = append(s.folds, e)
+			}
 		}
 		merged = slices.Clone(fresh)
 		for _, e := range cached {
@@ -1240,8 +1253,14 @@ func (s *Screen) patchLists(ids []int64, patch client.EntryPatch) {
 	for _, id := range ids {
 		set[id] = true
 	}
+	if patch.IsRead != nil && *patch.IsRead {
+		s.dropFolds(ids)
+	}
 	for i := range s.lists {
 		l := &s.lists[i]
+		l.folds = slices.DeleteFunc(l.folds, func(e client.Entry) bool {
+			return set[e.ID] && patch.IsRead != nil && *patch.IsRead
+		})
 		l.entries = slices.DeleteFunc(l.entries, func(e client.Entry) bool {
 			if !set[e.ID] {
 				return false
@@ -1288,7 +1307,7 @@ func (s *Screen) loadMore() {
 				s.moreErr, s.announce = true, s.text.LoadMoreFailed
 				return
 			}
-			s.entries, s.next = append(s.entries, page.Entries...), page.Next
+			s.entries, s.next = append(s.entries, s.take(page.Entries)...), page.Next
 			s.also = 0
 			s.overlay()
 			if s.next == "" {
@@ -1474,7 +1493,8 @@ func (s *Screen) poll(c *ui.Context) {
 			}
 			s.found()
 			if len(s.entries) == 0 {
-				s.entries, s.next = page.Entries, page.Next
+				s.folds = nil
+				s.entries, s.next = s.take(page.Entries), page.Next
 				s.overlay()
 				return
 			}
@@ -1484,6 +1504,9 @@ func (s *Screen) poll(c *ui.Context) {
 			}
 			top, n := s.entries[0], 0
 			for _, e := range page.Entries {
+				if s.folded(e) {
+					continue
+				}
 				if e.CreatedAt > top.CreatedAt || e.CreatedAt == top.CreatedAt && e.ID > top.ID {
 					n++
 				}
@@ -4820,6 +4843,8 @@ func (s *Screen) marked(c *ui.Context, text string, color ui.Color) []ui.Span {
 // rows is one column of entries, each drawn by its kind: All, Articles, Social, a source, and any search.
 func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 	t := c.Theme()
+	folds := s.foldRows()
+	tail := len(folds[len(s.entries)]) > 0
 	s.list.Key = func(i int) any {
 		if i >= len(s.entries) {
 			return "footer"
@@ -4828,6 +4853,9 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 	}
 	s.list.Label = func(i int) string {
 		if i >= len(s.entries) {
+			if !s.hasFooter() {
+				return s.text.Show
+			}
 			return s.text.LoadingMore
 		}
 		return s.label(s.entries[i], now)
@@ -4842,15 +4870,20 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 		maxWidth = theme.Px(t, 720)
 	}
 	n := len(s.entries)
-	if s.hasFooter() {
+	if s.hasFooter() || tail {
 		n++
 	}
 	s.divider = s.dividerAt()
 	ui.List(c, &s.list, n, func(i int) {
 		// The row is 16 wider than the column on each side, so its text lines up with the toolbar's.
 		ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto).PaddingX(theme.Px(t, 8)).Children(func() {
+			for _, g := range folds[min(i, len(s.entries))] {
+				s.foldRow(c, g)
+			}
 			if i >= len(s.entries) {
-				s.footer(c)
+				if s.hasFooter() {
+					s.footer(c)
+				}
 				return
 			}
 			if i == s.divider {
@@ -4861,6 +4894,7 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 	}).TrackScroll(&s.scrolls[0]).Grow(1).FillWidth().Padding(s.top()+t.Space(1), 0, t.Space(6), 0).
 		ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName())
 	s.edge = s.scrolls[0].Y > 0
+	s.unfoldClicked()
 }
 
 // divide is the divider above the first entry at or older than the marker of what the reader last looked at: a hairline

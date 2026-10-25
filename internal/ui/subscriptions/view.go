@@ -49,6 +49,7 @@ type copy struct {
 	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                                            string
 	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                                                     string
 	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                                                              string
+	Cap, CapOff, CapN, CapHelp, HealthNoisy, NoisySlow, NoisySlowSource, NoisyDismissSource, NoisySlowed, NoisyDismissed                                                                string
 	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                                                        string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                                     string
 	Undo, Dismiss, UndoFailed                                                                                                                                                           string
@@ -86,6 +87,9 @@ var keeps = []int64{0, 7, 30, 90, 180, 365, -1}
 // paces are the paces offered, in seconds: 0 is off, the first and the default, then 3 hours, 2 days and 7 days.
 var paces = []int64{0, 3 * 3600, 2 * 24 * 3600, 7 * 24 * 3600}
 
+// caps are the daily caps offered, in entries: 0 is off, the first and the default.
+var caps = []int64{0, 5, 10, 20, 50}
+
 // openTargets are the values of a source's openTarget in the order the select offers them: the default first.
 var openTargets = []string{"follow", "reader", "browser"}
 
@@ -99,6 +103,7 @@ type API interface {
 	SourcesHealth(ctx context.Context) (client.Health, error)
 	MoveSource(ctx context.Context, id int64, movedTo string) (client.Source, error)
 	DismissMove(ctx context.Context, id int64, movedTo string) (client.Source, error)
+	DismissNoisy(ctx context.Context, id int64) error
 	MutedCount(ctx context.Context, id int64, keywords string) (int, error)
 	Settings(ctx context.Context) (client.Settings, error)
 	SetSettings(ctx context.Context, patch client.SettingsPatch) (client.Settings, error)
@@ -210,6 +215,7 @@ type editing struct {
 	global    int   // the keep period of the settings in days, 0 for forever
 	target    int64 // index in openTargets: where a click on the entries goes
 	pace      int64 // in paces: seconds an unread entry stays in All and Unread, 0 for off
+	dailyCap  int64 // entries a day that stay out of the fold in All and Unread, 0 for off
 	paused    bool
 	hide      bool // the subscription is kept out of All and the kind timelines
 	mute      string
@@ -656,7 +662,7 @@ func (s *Screen) Edit(src client.Source) {
 		return
 	}
 	s.edit = editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
-		interval: intervalChoice(src), keep: int64(src.KeepDays), target: int64(max(0, slices.Index(openTargets, src.OpenTarget))), pace: int64(src.PaceSec), paused: src.Paused, hide: src.HideFromAll, mute: src.MuteKeywords,
+		interval: intervalChoice(src), keep: int64(src.KeepDays), target: int64(max(0, slices.Index(openTargets, src.OpenTarget))), pace: int64(src.PaceSec), dailyCap: int64(src.DailyCap), paused: src.Paused, hide: src.HideFromAll, mute: src.MuteKeywords,
 		extract:  src.ExtractSelector != "" || src.ExtractReferer != "" || src.ExtractRewrites != "",
 		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
 		headers: src.FetchUserAgent != "" || src.FetchReferer != "", agent: src.FetchUserAgent, fetchRef: src.FetchReferer,
@@ -709,6 +715,9 @@ func (s *Screen) save() {
 	}
 	if pace := int(e.pace); pace != e.src.PaceSec {
 		patch.PaceSec, changed = &pace, true
+	}
+	if dailyCap := int(e.dailyCap); dailyCap != e.src.DailyCap {
+		patch.DailyCap, changed = &dailyCap, true
 	}
 	if paused := e.paused; paused != e.src.Paused {
 		patch.Paused, changed = &paused, true
@@ -947,6 +956,60 @@ func (s *Screen) SetPaused(src client.Source, paused bool) {
 				if paused {
 					s.toast = s.fill(s.text.PausedNow, Name(changed))
 				}
+			case code(err) == "not_found":
+				s.gone(src.ID)
+			default:
+				s.toast = s.text.ActionFailed
+			}
+		}
+	})
+}
+
+// slowDown sets the pace of a noisy src to Breaking, so its unread entries leave All after a few hours.
+func (s *Screen) slowDown(src client.Source) {
+	if s.api == nil {
+		return
+	}
+	gen, api := s.gen, s.api
+	sec := int(paces[1])
+	s.deps.Go(func() func() {
+		changed, err := api.UpdateSource(context.Background(), src.ID, client.SourcePatch{PaceSec: &sec})
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			switch {
+			case err == nil:
+				s.deps.Changed(changed)
+				s.dropHealth(src.ID)
+				s.toast = s.fill(s.text.NoisySlowed, Name(changed))
+			case code(err) == "not_found":
+				s.gone(src.ID)
+			default:
+				s.toast = s.text.ActionFailed
+			}
+		}
+	})
+}
+
+// dismissNoisy keeps the suggestion to quiet src away until its entries a day double.
+func (s *Screen) dismissNoisy(src client.Source) {
+	if s.api == nil {
+		return
+	}
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		err := api.DismissNoisy(context.Background(), src.ID)
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			switch {
+			case err == nil:
+				s.dropHealth(src.ID)
+				s.toast = s.text.NoisyDismissed
+			case code(err) == "not_noisy":
+				s.dropHealth(src.ID) // the server no longer names it
 			case code(err) == "not_found":
 				s.gone(src.ID)
 			default:
@@ -1981,6 +2044,29 @@ func (s *Screen) paceField(c *ui.Context) {
 	})
 }
 
+// capName names a daily cap in entries: 0 is off.
+func (s *Screen) capName(n int64) string {
+	if n == 0 {
+		return s.text.CapOff
+	}
+	return s.count(s.text.CapN, int(n))
+}
+
+// capField is how many entries a day of the subscription stay out of the fold, with the line that says what it does.
+func (s *Screen) capField(c *ui.Context) {
+	t := c.Theme()
+	e := &s.edit
+	options := caps
+	if !slices.Contains(options, e.dailyCap) {
+		options = append(slices.Clone(options), e.dailyCap)
+		slices.Sort(options[1:])
+	}
+	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+		s.choiceSelect(c, &e.dailyCap, options, s.text.Cap, s.capName(e.dailyCap), s.capName, e.busy, false)
+		help(c, s.text.CapHelp)
+	})
+}
+
 // extractGroup is the Extraction disclosure: the content selector, the Referer and the link rewrites that steer the
 // full text of the subscription. It is closed unless a rule is set, and an empty field leaves the automatic behavior.
 func (s *Screen) extractGroup(c *ui.Context) {
@@ -2242,6 +2328,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.openField(c)
 		s.keepField(c)
 		s.paceField(c)
+		s.capField(c)
 		s.muteField(c)
 		s.aiGroup(c)
 		if e.formErr != "" {
@@ -2536,6 +2623,9 @@ func (s *Screen) healthReason(h client.SourceHealth) string {
 	switch {
 	case h.State == client.HealthMoved:
 		return strings.ReplaceAll(s.text.HealthMoved, "{to}", h.MovedTo)
+	case h.State == client.HealthNoisy:
+		text := s.count(s.text.HealthNoisy, h.PerDay)
+		return strings.ReplaceAll(text, "{p}", strconv.Itoa(h.RecentRead*100/max(1, h.Recent)))
 	case h.State == client.HealthRarelyRead:
 		text := locale.Count(s.count(s.text.HealthRare, h.Recent), "days", s.report.days)
 		return strings.ReplaceAll(text, "{read}", strconv.Itoa(h.RecentRead))
@@ -2615,6 +2705,8 @@ func (s *Screen) healthRow(c *ui.Context, h client.SourceHealth) {
 		icon, color = icons.Eye, t.TextMuted
 	case client.HealthMoved:
 		icon, color = icons.Signpost, t.TextMuted
+	case client.HealthNoisy:
+		icon, color = icons.Volume2, t.TextMuted
 	case client.HealthFailing:
 		icon = icons.TriangleAlert
 	}
@@ -2643,6 +2735,24 @@ func (s *Screen) healthRow(c *ui.Context, h client.SourceHealth) {
 					Label: s.fill(s.text.MovedDismissSource, name)}.Draw(c)
 				if dismiss.Clicked() {
 					s.dismissMove(src, h.MovedTo)
+				}
+				return
+			}
+			if h.State == client.HealthNoisy {
+				if h.PaceSec == 0 || int64(h.PaceSec) > paces[1] {
+					slow := theme.Button{Small: true, Icon: icons.Clock, Text: s.text.NoisySlow, Label: s.fill(s.text.NoisySlowSource, name)}.Draw(c)
+					if slow.Clicked() {
+						s.slowDown(src)
+					}
+				}
+				pause := theme.Button{Small: true, Icon: icons.Pause, Text: s.text.Pause, Label: s.fill(s.text.PauseSource, name)}.Draw(c)
+				if pause.Clicked() {
+					s.SetPaused(src, true)
+				}
+				dismiss := theme.Button{Style: theme.Plain, Small: true, Text: s.text.MovedDismiss,
+					Label: s.fill(s.text.NoisyDismissSource, name)}.Draw(c)
+				if dismiss.Clicked() {
+					s.dismissNoisy(src)
 				}
 				return
 			}
