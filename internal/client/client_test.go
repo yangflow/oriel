@@ -261,7 +261,7 @@ func TestTimelineAPI(t *testing.T) {
 	local := zoneName
 	zoneName = func() string { return "Asia/Shanghai" }
 	defer func() { zoneName = local }()
-	page, err := session.Entries(ctx, Query{Kind: "video", Unread: true, Search: "go fmt", MaxMinutes: 10, Oldest: true, Limit: 50, Cursor: "1.2"})
+	page, err := session.Entries(ctx, Query{Kind: "video", Unread: true, Search: "go fmt", MaxMinutes: 10, Since: 1700000000000, Oldest: true, Limit: 50, Cursor: "1.2"})
 	if err != nil || len(page.Entries) != 1 || page.Next != "" {
 		t.Fatalf("Entries = %+v, %v", page, err)
 	}
@@ -306,6 +306,9 @@ func TestTimelineAPI(t *testing.T) {
 	}
 	if read, err := session.MarkRead(ctx, ReadScope{SourceID: 5, OlderThan: 1700000000000}); err != nil || len(read.IDs) != 2 {
 		t.Errorf("MarkRead older = %v, %v", read, err)
+	}
+	if read, err := session.MarkRead(ctx, ReadScope{Kind: "video", Since: 1700000000000}); err != nil || len(read.IDs) != 2 {
+		t.Errorf("MarkRead since = %v, %v", read, err)
 	}
 	if marked, err := session.MarkUnread(ctx, read); err != nil || len(marked) != 2 {
 		t.Errorf("MarkUnread = %v, %v", marked, err)
@@ -371,7 +374,7 @@ func TestTimelineAPI(t *testing.T) {
 		t.Errorf("SetSettings = %+v, %v", settings, err)
 	}
 	want := []string{
-		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&order=asc&q=go+fmt&tz=Asia%2FShanghai&unread=1 ",
+		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&order=asc&q=go+fmt&since=1700000000000&tz=Asia%2FShanghai&unread=1 ",
 		"GET /api/entries?cursor=bad ",
 		"POST /api/entries/7/extract ",
 		"GET /api/sources ",
@@ -381,6 +384,7 @@ func TestTimelineAPI(t *testing.T) {
 		`PATCH /api/entries/7 {"readProgress":0.5}`,
 		`POST /api/entries/read {"kind":"video","upTo":7}`,
 		`POST /api/entries/read {"sourceId":5,"olderThan":1700000000000}`,
+		`POST /api/entries/read {"kind":"video","since":1700000000000}`,
 		`POST /api/entries/unread {"ids":[7,8],"readAt":1700000000500}`,
 		"GET /api/image?url=https%3A%2F%2Fi%2F1.jpg%3Fw%3D2%26h%3D1 ",
 		"GET /api/discover?url=https%3A%2F%2Fblog.example%2F ",

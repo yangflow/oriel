@@ -94,6 +94,7 @@ func (s *Screen) paletteItems() []paletteItem {
 	} else {
 		add(paletteItem{group: groupActions, name: s.text.PaletteUnreadOnly, icon: icons.CircleDot, keys: []string{"U"}, run: func() { s.setFilter(unread) }})
 	}
+	add(paletteItem{group: groupActions, name: s.text.PaletteRange, icon: icons.CalendarDays, keys: []string{"T"}, run: s.cycleRange})
 	add(paletteItem{group: groupActions, name: s.text.PaletteOpenSettings, icon: icons.Settings, keys: []string{cmd, ","},
 		run: func() {
 			if s.deps.OpenSettings != nil {

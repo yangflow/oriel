@@ -78,7 +78,7 @@ func (f *fake) Entries(_ context.Context, q client.Query) (client.Page, error) {
 	var found []client.Entry
 	for _, e := range f.entries {
 		if q.Kind != "" && e.Kind != q.Kind || q.Source != 0 && e.SourceID != q.Source || q.Unread && e.IsRead ||
-			q.Starred && !e.Starred || q.MaxMinutes > 0 && (e.ReadingSec == 0 || e.ReadingSec > q.MaxMinutes*60) || q.Search != "" && !strings.Contains(strings.ToLower(e.Title), q.Search) {
+			q.Starred && !e.Starred || q.Since > 0 && e.CreatedAt < q.Since || q.MaxMinutes > 0 && (e.ReadingSec == 0 || e.ReadingSec > q.MaxMinutes*60) || q.Search != "" && !strings.Contains(strings.ToLower(e.Title), q.Search) {
 			continue
 		}
 		found = append(found, e)
@@ -3518,6 +3518,116 @@ func TestReadingTimeBudget(t *testing.T) {
 	}
 }
 
+// The time-range button limits the list to what arrived since this morning or in the last day, keeps the other
+// filters, hides the unread count and marks only what the range holds.
+func TestTimeRange(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	// One entry from yesterday evening, 18 hours ago: in the last 24 hours, not in today.
+	evening := client.Entry{ID: 20, SourceID: 1, SourceTitle: "Go Blog", Kind: "article", Title: "Last evening",
+		CreatedAt: ago(18 * time.Hour)}
+	f.entries = append(f.entries[:2], append([]client.Entry{evening}, f.entries[2:]...)...)
+	s.reload()
+	f.settle(t, tt)
+	if !tt.HasText("5 unread") {
+		t.Fatalf("no unread count: %v", tt.Texts())
+	}
+	if err := tt.Click("Time range: any time"); err != nil {
+		t.Fatal(err)
+	}
+	if menu := tt.Menu(); !slices.Equal(menu, []string{"Any time", "Today", "Last 24 hours"}) {
+		t.Fatalf("menu %q", menu)
+	}
+	if err := tt.ChooseMenuItem("Today"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	midnight := time.Date(2026, 10, 18, 0, 0, 0, 0, time.UTC).UnixMilli()
+	if q := f.queries[len(f.queries)-1]; q.Since != midnight {
+		t.Fatalf("query %+v, want since %d", q, midnight)
+	}
+	if len(s.entries) != 2 {
+		t.Fatalf("today holds %v", s.entries)
+	}
+	if _, ok := tt.Find("Time range: Today"); !ok || !tt.HasText("Today") {
+		t.Fatalf("no chip: %v", tt.Texts())
+	}
+	if tt.HasText("5 unread") {
+		t.Fatalf("the unread count shows with a range: %v", tt.Texts())
+	}
+	// Mark all as read stays and marks only the range.
+	if !s.canMarkAll() {
+		t.Fatal("mark all is not offered with a range")
+	}
+	s.markAll()
+	f.settle(t, tt)
+	if len(f.marked) != 1 || f.marked[0].Since != midnight {
+		t.Fatalf("marked %v", f.marked)
+	}
+	// T goes on to the last 24 hours, then to any time.
+	tt.Key(0, ui.KeyT)
+	f.settle(t, tt)
+	if s.span != lastDay || len(s.entries) != 3 || f.queries[len(f.queries)-1].Since != now.Add(-24*time.Hour).UnixMilli() {
+		t.Fatalf("span %d, %d entries, query %+v", s.span, len(s.entries), f.queries[len(f.queries)-1])
+	}
+	if !tt.HasText("24 h") {
+		t.Fatalf("no chip: %v", tt.Texts())
+	}
+	// The range combines with the filter.
+	if err := tt.Click("Unread"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if q := f.queries[len(f.queries)-1]; !q.Unread || q.Since == 0 {
+		t.Fatalf("query %+v", q)
+	}
+	tt.Key(0, ui.KeyT)
+	f.settle(t, tt)
+	if s.span != anyTime || f.queries[len(f.queries)-1].Since != 0 {
+		t.Fatalf("span %d", s.span)
+	}
+}
+
+func TestTimeRangeEmpty(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	f.now = now.Add(60 * 24 * time.Hour)
+	s.show(func() { s.span = today })
+	f.settle(t, tt)
+	for _, text := range []string{"Nothing new today", "Entries count from when they arrived in Oriel, not from when they were published."} {
+		if !tt.HasText(text) {
+			t.Fatalf("no %q: %v", text, tt.Texts())
+		}
+	}
+	if err := tt.Click("Show any time"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if s.span != anyTime || len(s.entries) != 6 {
+		t.Fatalf("span %d, %d entries", s.span, len(s.entries))
+	}
+	s.show(func() { s.span = lastDay })
+	f.settle(t, tt)
+	if !tt.HasText("Nothing new in the last 24 hours") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+// Coming back to a list after midnight drops the entries of the day before from the one kept.
+func TestTimeRangeRestoreDropsOld(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.show(func() { s.span = today })
+	f.settle(t, tt)
+	if len(s.entries) != 2 {
+		t.Fatalf("today holds %v", s.entries)
+	}
+	s.show(func() { s.span = anyTime })
+	f.settle(t, tt)
+	f.now = now.Add(24 * time.Hour)
+	s.show(func() { s.span = today })
+	if len(s.entries) != 0 {
+		t.Fatalf("a day later today holds %v", s.entries)
+	}
+}
+
 func TestReadingTimeEmpty(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	s.show(func() { s.budget = 5 })
@@ -4840,7 +4950,7 @@ func TestRunCommands(t *testing.T) {
 		t.Fatalf("marked %v", f.marked)
 	}
 	name, items := TimelineMenu("en")
-	if name != "Timeline" || len(items) != 6 || items[3].Label != "Mark all as read" {
+	if name != "Timeline" || len(items) != 7 || items[3].Label != "Mark all as read" {
 		t.Fatalf("menu %q %v", name, items)
 	}
 	if name, _ := TimelineMenu("zh-Hans"); name != "时间线" {

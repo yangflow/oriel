@@ -540,6 +540,58 @@ func TestMarkReadOlderThan(t *testing.T) {
 	}
 }
 
+func TestEntriesSince(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	sources, entries := timelineFixture(t, s)
+	// The cut falls between two created_at values; an entry created exactly at it is included.
+	const since = 999_950
+	want := func(keep func(timelineEntry) bool) (ids []int64) {
+		for _, e := range entries {
+			if e.created >= since && !e.muted && keep(e) {
+				ids = append(ids, e.id)
+			}
+		}
+		return ids
+	}
+	all := func(timelineEntry) bool { return true }
+	if n := len(want(all)); n == 0 || n == len(entries) {
+		t.Fatalf("fixture puts %d entries in range", n)
+	}
+	for _, c := range []struct {
+		name   string
+		filter EntryFilter
+		keep   func(timelineEntry) bool
+	}{
+		{"since", EntryFilter{Since: since}, all},
+		{"unread", EntryFilter{Since: since, Unread: true}, func(e timelineEntry) bool { return e.unread }},
+		{"kind", EntryFilter{Since: since, Kind: "image"}, func(e timelineEntry) bool { return e.kind == "image" }},
+		{"source", EntryFilter{Since: since, SourceID: sources["article"].ID}, func(e timelineEntry) bool { return e.kind == "article" }},
+	} {
+		got := pages(t, s, c.filter, 7)
+		if w := want(c.keep); !slices.Equal(got, w) {
+			t.Errorf("%s: got %v, want %v", c.name, got, w)
+		}
+	}
+	if got := pages(t, s, EntryFilter{Since: 1_000_001}, 7); len(got) != 0 {
+		t.Errorf("a cut after every entry still returned %d", len(got))
+	}
+	// Mark as read follows the same bound and leaves older entries unread.
+	marked, err := s.MarkRead(ctx, EntryFilter{Since: since, Unread: true}, time.UnixMilli(2_000_000))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := want(func(e timelineEntry) bool { return e.unread }); len(marked) != len(w) {
+		t.Fatalf("marked %d, want %d", len(marked), len(w))
+	}
+	if left := pages(t, s, EntryFilter{Unread: true}, 50); len(left) == 0 {
+		t.Fatal("entries older than the cut were marked too")
+	}
+	if left := pages(t, s, EntryFilter{Unread: true, Since: since}, 50); len(left) != 0 {
+		t.Fatalf("%d unread left in range", len(left))
+	}
+}
+
 func TestMuted(t *testing.T) {
 	for _, c := range []struct {
 		keywords, title, summary string
@@ -888,6 +940,11 @@ func TestTimelineQueriesUseIndexes(t *testing.T) {
 		{"unread kind, later page", EntryFilter{Kind: "image", Unread: true, After: after}, "entries_kind_unread_timeline"},
 		{"source", EntryFilter{SourceID: 1}, "entries_source_timeline"},
 		{"source unread", EntryFilter{SourceID: 1, Unread: true}, "entries_source_timeline"},
+		{"since", EntryFilter{Since: 900_000}, "entries_timeline"},
+		{"since, later page", EntryFilter{Since: 900_000, After: after}, "entries_timeline"},
+		{"since unread", EntryFilter{Since: 900_000, Unread: true}, "entries_unread_timeline"},
+		{"since kind", EntryFilter{Since: 900_000, Kind: "image"}, "entries_kind_timeline"},
+		{"since source", EntryFilter{Since: 900_000, SourceID: 1}, "entries_source_timeline"},
 	} {
 		query, args := c.filter.timelineQuery()
 		rows, err := s.db.QueryContext(ctx, "EXPLAIN QUERY PLAN "+query, append(args, 50)...)

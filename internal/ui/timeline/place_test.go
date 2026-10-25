@@ -108,3 +108,28 @@ func TestRestoreOtherServer(t *testing.T) {
 		t.Fatalf("scope %+v", s.scope)
 	}
 }
+
+func TestRestoreRange(t *testing.T) {
+	f := newPlaceFake()
+	k := newKept()
+	_, tt := k.open(t, f, "home.lan:7470")
+	tt.Key(0, ui.KeyT)
+	f.settle(t, tt)
+	if got, want := k.p.Places.Get("home.lan:7470"), (prefs.Place{Range: prefs.RangeToday}); got != want {
+		t.Fatalf("kept %+v, want %+v", got, want)
+	}
+	again, _ := k.open(t, f, "home.lan:7470")
+	if again.span != today {
+		t.Fatalf("restored span %d", again.span)
+	}
+	if last := f.queries[len(f.queries)-1]; last.Since == 0 {
+		t.Fatalf("first page asked with %+v", last)
+	}
+	tt.Key(0, ui.KeyT)
+	f.settle(t, tt)
+	tt.Key(0, ui.KeyT)
+	f.settle(t, tt)
+	if got := k.p.Places.Get("home.lan:7470"); got != (prefs.Place{}) {
+		t.Fatalf("kept %+v after any time", got)
+	}
+}

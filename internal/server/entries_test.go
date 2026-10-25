@@ -58,6 +58,10 @@ func TestEntryQueryValidation(t *testing.T) {
 		"maxMinutes=1441": "invalid_max_minutes",
 		"maxMinutes=x":    "invalid_max_minutes",
 		"maxMinutes=2.5":  "invalid_max_minutes",
+		"since=0":         "invalid_since",
+		"since=-5":        "invalid_since",
+		"since=x":         "invalid_since",
+		"since=1.5":       "invalid_since",
 	} {
 		w := do(s, "GET", "/api/entries?"+query, "", nil)
 		if w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
@@ -633,6 +637,61 @@ func TestMarkReadOlderThan(t *testing.T) {
 		}
 	}
 	if w := do(s, "POST", "/api/entries/read", `{"olderThan":0}`, bearer(token)); decode(t, w)["error"] != "invalid_older_than" {
+		t.Errorf("error code: %s", w.Body)
+	}
+}
+
+func TestTimeRange(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	seed(t, s, "article", 3, c.t)
+	video := seed(t, s, "video", 2, c.t.Add(time.Hour))
+	since := func(d time.Duration) string { return strconv.FormatInt(c.t.Add(d).UnixMilli(), 10) }
+	list := func(query string) []string {
+		t.Helper()
+		w := do(s, "GET", "/api/entries?"+query, "", bearer(token))
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", query, w.Code, w.Body)
+		}
+		return titles(t, decode(t, w))
+	}
+	// The bound is inclusive: an entry that arrived exactly at it is in the range.
+	if got := list("since=" + since(0)); len(got) != 5 {
+		t.Fatalf("since the first arrival: %v", got)
+	}
+	if got := list("since=" + since(30*time.Minute)); fmt.Sprint(got) != "[video 1 video 0]" {
+		t.Fatalf("since: %v", got)
+	}
+	if got := list("since=" + since(30*time.Minute) + "&kind=article"); len(got) != 0 {
+		t.Fatalf("since and kind: %v", got)
+	}
+	if got := list("since=" + since(2*time.Hour)); len(got) != 0 {
+		t.Fatalf("empty range: %v", got)
+	}
+
+	mark := func(body string) map[string]any {
+		t.Helper()
+		w := do(s, "POST", "/api/entries/read", body, bearer(token))
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", body, w.Code, w.Body)
+		}
+		return decode(t, w)
+	}
+	if got := mark(`{"since":` + since(30*time.Minute) + `}`); got["marked"] != 2.0 {
+		t.Fatalf("mark since: %v", got)
+	}
+	if got := list("unread=1"); len(got) != 3 {
+		t.Fatalf("older entries stay unread: %v", got)
+	}
+	if got := mark(fmt.Sprintf(`{"since":%s,"sourceId":%d}`, since(0), video)); got["marked"] != 0.0 {
+		t.Fatalf("mark since and source: %v", got)
+	}
+	for _, bad := range []string{`{"since":0}`, `{"since":-5}`, `{"since":"today"}`, `{"since":1.5}`} {
+		if w := do(s, "POST", "/api/entries/read", bad, bearer(token)); w.Code != http.StatusBadRequest {
+			t.Errorf("%s: %d", bad, w.Code)
+		}
+	}
+	if w := do(s, "POST", "/api/entries/read", `{"since":0}`, bearer(token)); decode(t, w)["error"] != "invalid_since" {
 		t.Errorf("error code: %s", w.Body)
 	}
 }
