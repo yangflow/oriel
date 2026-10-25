@@ -47,7 +47,7 @@ func TestLoadUnknownValues(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	os.WriteFile(path, []byte(`{"theme":"sepia","language":"fr","font":"Gone Sans","readingSize":"huge","lineSpacing":"relaxed","readingFont":"Gone Serif"}`), 0o600)
 	want := Preferences{Font: "Gone Sans", ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingWidth: WidthStandard, ReadingFont: "Gone Serif", ChineseTypesetting: true, Density: DensityComfortable,
-		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle, MarkReadWhen: MarkOnOpen, MarkReadDwellSec: 5}
+		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, ForumViewer: ViewPanes, SourceSort: SortTitle, MarkReadWhen: MarkOnOpen, MarkReadDwellSec: 5}
 	if got := Load(path); got != want {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
@@ -57,7 +57,7 @@ func TestLoadUnknownValues(t *testing.T) {
 // the kind does not offer reads as the default.
 func TestViewers(t *testing.T) {
 	d := Default()
-	if d.ArticleViewer != "list" || d.VideoViewer != "grid" || d.SocialViewer != "card" || d.ImageViewer != "wall" {
+	if d.ArticleViewer != "list" || d.VideoViewer != "grid" || d.SocialViewer != "card" || d.ImageViewer != "wall" || d.ForumViewer != "panes" {
 		t.Errorf("defaults: %+v", d)
 	}
 	path := filepath.Join(t.TempDir(), File)
@@ -72,6 +72,14 @@ func TestViewers(t *testing.T) {
 	os.WriteFile(path, []byte(`{"articleViewer":"compact","videoViewer":"list","socialViewer":"compact","imageViewer":"card"}`), 0o600)
 	if got := Load(path); got.ArticleViewer != ViewCompact || got.VideoViewer != ViewList || got.SocialViewer != ViewCompact || got.ImageViewer != ViewCard {
 		t.Errorf("known values: %+v", got)
+	}
+	os.WriteFile(path, []byte(`{"forumViewer":"list"}`), 0o600)
+	if got := Load(path); got.ForumViewer != ViewList {
+		t.Errorf("forum list: %+v", got)
+	}
+	os.WriteFile(path, []byte(`{"forumViewer":"grid"}`), 0o600)
+	if got := Load(path); got.ForumViewer != ViewPanes {
+		t.Errorf("forum unknown value: %+v", got)
 	}
 }
 
@@ -127,7 +135,7 @@ func TestMarkReadWhen(t *testing.T) {
 func TestSaveLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	p := Preferences{Theme: ThemeDark, Language: LanguageChinese, Font: "Georgia", ReadingSize: SizeXLarge, LineSpacing: SpacingCompact, ReadingWidth: WidthWide, ReadingPreset: PresetSepia, ReadingFont: ReadingSerif, ChineseTypesetting: false,
-		ArticleViewer: ViewCompact, VideoViewer: ViewCover, SocialViewer: ViewCompact, ImageViewer: ViewGrid, SourceSort: SortUnread,
+		ArticleViewer: ViewCompact, VideoViewer: ViewCover, SocialViewer: ViewCompact, ImageViewer: ViewGrid, ForumViewer: ViewList, SourceSort: SortUnread,
 		Density: DensityCompact, OldestFirst: true, MarkReadWhen: MarkOnScroll, MarkReadDwellSec: 10}
 	if err := Save(path, p); err != nil {
 		t.Fatal(err)

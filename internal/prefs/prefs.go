@@ -59,6 +59,7 @@ const (
 	ViewCover   = "cover"   // a video as a large cover
 	ViewCard    = "card"    // a social post's card; an image's card
 	ViewWall    = "wall"    // the masonry wall of Images
+	ViewPanes   = "panes"   // the three panes of Community: sidebar, list and reader side by side
 
 	// When the timeline marks an entry as read; the first is the default. MarkOnOpen marks it when it opens,
 	// MarkAfterStay once the reader has stayed on it for MarkReadDwellSec seconds, MarkOnScroll when it has scrolled
@@ -91,6 +92,7 @@ var (
 	VideoViewers   = []string{ViewGrid, ViewCover, ViewList}
 	SocialViewers  = []string{ViewCard, ViewCompact}
 	ImageViewers   = []string{ViewWall, ViewGrid, ViewCard}
+	ForumViewers   = []string{ViewPanes, ViewList}
 )
 
 // Preferences are the choices of this device. Use Normalize before relying on the reading choices.
@@ -110,12 +112,13 @@ type Preferences struct {
 	// reads as on, because Load starts from Default.
 	ChineseTypesetting bool `json:"chineseTypesetting"`
 
-	// How the timeline draws each kind of entry: one of ArticleViewers, VideoViewers, SocialViewers and ImageViewers.
-	// Use Normalize before relying on them.
+	// How the timeline draws each kind of entry: one of ArticleViewers, VideoViewers, SocialViewers, ImageViewers and
+	// ForumViewers. Use Normalize before relying on them.
 	ArticleViewer string `json:"articleViewer"`
 	VideoViewer   string `json:"videoViewer"`
 	SocialViewer  string `json:"socialViewer"`
 	ImageViewer   string `json:"imageViewer"`
+	ForumViewer   string `json:"forumViewer"`
 
 	// SourceSort is the order of the subscriptions in the sidebar: SortTitle or SortUnread.
 	SourceSort string `json:"sourceSort"`
@@ -274,7 +277,7 @@ func (g *Grids) UnmarshalJSON(data []byte) error {
 }
 
 // Place is where the timeline was left on one server: the scope the sidebar chose and the filter of the toolbar. Kind
-// is "", "article", "video", "social" or "image"; Source is the subscription chosen, 0 for none, and Kind then its
+// is "", "article", "video", "social", "image" or "forum"; Source is the subscription chosen, 0 for none, and Kind then its
 // kind; Folder is the folder chosen, 0 for none, never together with a Source (Kind is the kind it is read under);
 // Filter is "" for everything, "unread" or "starred"; Range is "" for any time, "today" or "24h". The zero Place is
 // the whole timeline.
@@ -300,7 +303,7 @@ const (
 
 func (p Place) valid() bool {
 	switch p.Kind {
-	case "", "article", "video", "social", "image":
+	case "", "article", "video", "social", "image", "forum":
 	default:
 		return false
 	}
@@ -438,7 +441,7 @@ func (g Folded) normalized() Folded { return encodeFolded(g.entries()) }
 // Default has every preference at its default.
 func Default() Preferences {
 	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ReadingWidth: WidthStandard, ChineseTypesetting: true,
-		Density: DensityComfortable, ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, SourceSort: SortTitle,
+		Density: DensityComfortable, ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, ForumViewer: ViewPanes, SourceSort: SortTitle,
 		MarkReadWhen: MarkOnOpen, MarkReadDwellSec: DefaultDwellSec}
 }
 
@@ -478,6 +481,9 @@ func (p Preferences) Normalize() Preferences {
 	}
 	if !slices.Contains(ImageViewers, p.ImageViewer) {
 		p.ImageViewer = ViewWall
+	}
+	if !slices.Contains(ForumViewers, p.ForumViewer) {
+		p.ForumViewer = ViewPanes
 	}
 	if p.SourceSort != SortTitle && p.SourceSort != SortUnread {
 		p.SourceSort = SortTitle

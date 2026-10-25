@@ -36,6 +36,7 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | segment | 26 high, radius 13 | 26 | a segment inside the capsule, 3 from its edge, 2 apart |
 | pane-inset | `t.Space(2)` | 8 | the ink pane's distance from the window's edges |
 | pane-width | 216 (184 below a 760 wide window) | 216 / 184 | the ink pane |
+| forum-panes | list pane 320, reader pane at least 480, hairline between; three panes need a main column of 800 (window 1024 with the sidebar) | 320 / 480 / 800 | the Community kind in the Panes viewer; below 800 it is List, open, back |
 | pane-radius | 14 | 14 | corners of the ink pane |
 | pane-item | 30 high, radius 8, 10 padding, 10 gap | 30 | a kind, a subscription or a settings group in the pane |
 | pane-line | 25 from the pane's right edge | center line | the centers of the pane's trailing icon buttons: hide sidebar (32), add (22), Unread first (28) and the settings gear (28). With the lists' 8 side padding, the insets are 9, 6, 3 and 11 from the pane's edge or the row's edge, and the add button's 14 icon (24 hit area, so 5 in from its edge) ends where the row counts do (10 in from the row highlight) |

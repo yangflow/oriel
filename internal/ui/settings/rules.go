@@ -28,7 +28,7 @@ const maxRuleSources = 50
 const mutedWait = 400 * time.Millisecond
 
 // ruleKinds are the kinds a rule can be limited to, "" for any.
-var ruleKinds = []string{"", "article", "video", "social", "image"}
+var ruleKinds = []string{"", "article", "video", "social", "image", "forum"}
 
 // ruleForm is the dialog that adds a rule or edits one.
 type ruleForm struct {
@@ -178,6 +178,8 @@ func (s *Screen) kindName(kind string) string {
 		return s.text.ViewSocial
 	case "image":
 		return s.text.ViewImages
+	case "forum":
+		return s.text.ViewForum
 	}
 	return s.text.KindAny
 }

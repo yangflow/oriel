@@ -118,6 +118,7 @@ type Nav struct {
 	Controls       bool
 	Column         float32 // width of the column the reader fills, which decides what the toolbar moves into More; 0 is the window
 	Immersive      bool    // immersive reading is on: the toolbar shows only under the pointer or with the focus in it
+	Pane           bool    // the reader is the right pane of the Community beside its list: its toolbar is laid out as in a narrow window
 }
 
 const (
@@ -886,7 +887,7 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	}
 	s.find.was = s.find.open
 	width, _ := c.Size()
-	narrow := width < 760
+	narrow := width < 760 || nav.Pane
 	// The toolbar row floats over the article, which scrolls under it and fades under the scroll edge.
 	// The column keeps its identity when the sidebar beside it comes and goes, so the focus in the article stays.
 	// A reading appearance recolors the article, its toolbar and its scroll edge; the selection card, the toasts and

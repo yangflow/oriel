@@ -163,6 +163,12 @@ func TestDiscoverRules(t *testing.T) {
 		{"https://www.zhihu.com/question/19550225", []Candidate{rule("/zhihu/question/19550225", "zhihu", "question", "article", "19550225")}},
 		{"https://x.com/golang", []Candidate{rule("/twitter/user/golang", "x", "posts", "social", "golang")}},
 		{"https://twitter.com/golang/status/1", []Candidate{rule("/twitter/user/golang", "x", "posts", "social", "golang")}},
+		{"https://www.v2ex.com/go/programmer", []Candidate{{URL: "https://www.v2ex.com/feed/programmer.xml",
+			Kind: "forum", Origin: "rule", Site: "v2ex", Label: "node", Subject: "programmer"}}},
+		{"https://linux.do/latest", []Candidate{{URL: "https://linux.do/latest.rss",
+			Kind: "forum", Origin: "rule", Site: "linuxdo", Label: "topics", Subject: "latest"}}},
+		{"https://linux.do/tag/go", []Candidate{{URL: "https://linux.do/tag/go.rss",
+			Kind: "forum", Origin: "rule", Site: "linuxdo", Label: "tag", Subject: "go"}}},
 	} {
 		u, _ := url.Parse(c.page)
 		if got := matchRules(u); !reflect.DeepEqual(got, c.want) {
@@ -175,6 +181,24 @@ func TestDiscoverRules(t *testing.T) {
 		if got := matchRules(u); got != nil {
 			t.Errorf("%s: got %+v, want none", page, got)
 		}
+	}
+}
+
+func TestDiscoverTagsForumAlternates(t *testing.T) {
+	srv, _ := pages(t, map[string]string{"/": `<html><head>
+		<link rel="alternate" type="application/rss+xml" title="Latest" href="/latest.rss">
+		<link rel="alternate" type="application/rss+xml" title="Blog" href="/blog.xml">
+		</head></html>`})
+	got, err := discoverer().Discover(context.Background(), srv.URL+"/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Candidate{
+		{URL: srv.URL + "/latest.rss", Title: "Latest", Kind: "forum", Origin: "alternate"},
+		{URL: srv.URL + "/blog.xml", Title: "Blog", Origin: "alternate"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
 	}
 }
 

@@ -30,7 +30,7 @@ state can be seen.
 | Screen | Design file | Code |
 |---|---|---|
 | Connect | `screens/connect.html` (`?state=…&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/connect/` |
-| Timeline | `screens/timeline.html` (`?state=…&scope=all|article|video|social|image|source&scheme=light|dark&lang=en|zh-Hans&size=default|min|wide`) | `internal/ui/timeline/` |
+| Timeline | `screens/timeline.html` (`?state=…&scope=all|article|video|social|image|forum|source&scheme=light|dark&lang=en|zh-Hans&size=default|min|wide`) | `internal/ui/timeline/` |
 | Subscriptions | `screens/subscriptions.html` (`?state=…&scheme=light|dark&lang=en|zh-Hans&size=default|min`) | `internal/ui/subscriptions/` |
 | Reader | `screens/reader.html` (`?state=full|feed|extracting|extracting-empty|failed|loading|error|summarizing|summary|summary-failed|translating|translation|translation-failed|ai-off|no-more-unread|more-menu|copied&scheme=light|dark&lang=en|zh-Hans&size=default|min|wide`) | `internal/ui/reader/` |
 | Settings | `screens/settings.html` (`?state=appearance|fetching|edited|invalid|saved|opml|opml-drop|importing|importing-several|imported-ok|imported|imported-several|import-stopped|import-lost|import-error|exported|devices|devices-local|revoke|ai|ai-configured|ai-edited|ai-invalid|ai-preset|ai-testing|ai-tested|ai-tested-small|ai-test-failed|ai-model-missing|ai-unreachable|loading|error&scheme=light|dark&lang=en|zh-Hans&size=default|min|wide`) | `internal/ui/settings/` |

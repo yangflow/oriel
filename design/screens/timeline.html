@@ -24,6 +24,9 @@
      A social post's pictures stay low: one keeps its own ratio up to 240 high, two sit side by side, three or more
      are one row of three squares, the third covered with +N for the rest. Over a column, the toolbar lines its title
      and controls up with the column's edges, so a wide window keeps them together (size=wide).
+     The Community (forum) kind draws its posts as rows of a title and a line of who and when. Its default viewer,
+     Panes (forum-panes, forum-panes-empty), puts a 320 wide list beside the open post when the main column is at
+     least 800 wide; below that, or with the viewer List, it falls back to list, open, back (forum-narrow).
      The window has no title bar: the window buttons sit over the sidebar's top, the sidebar is a floating pane of
      warm ink glass in both schemes, the content is warm paper, and the one capsule of glass in the toolbar is the
      segmented control; search is a flat fill and the tools are bare icons (docs/design.md, Title bar).
@@ -423,6 +426,19 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .scroll { flex:1; overflow-y:auto; padding-top:52px }
 .column { max-width:680px; margin:0 auto; padding:6px 24px 40px }
 .column.wide { max-width:720px }
+/* Community panes: a 320 list, a hairline and the post (min 480). The list drops the centered column. */
+.main.split { flex-direction:row }
+.listpane { position:relative; flex:none; width:320px; display:flex; flex-direction:column }
+.listpane .toolbar { padding:0 8px 0 12px }
+.listpane .toolbar .sub, .listpane .toolbar h1, .listpane .toolbar .search, .listpane .toolbar .timebtn, .listpane .toolbar .search-icon { display:none }
+.listpane .segmented button { font-size:0; padding:0 9px }
+.listpane .column { max-width:none; margin:0; padding:6px 12px 40px }
+.hair { flex:none; width:1px; background:var(--border) }
+.readpane { flex:1; min-width:480px; overflow-y:auto; padding-top:52px }
+.readpane .post { max-width:640px; margin:0 auto; padding:40px 32px; display:flex; flex-direction:column; gap:12px }
+.readpane .post h2 { margin:0; font-size:22px; line-height:30px; font-weight:700; letter-spacing:-.01em }
+.readpane .post p { margin:0; font-size:15px; line-height:26px; color:var(--text) }
+.readpane .post .meta { margin-bottom:8px }
 .row { position:relative; display:flex; gap:14px; padding:16px 16px 16px 28px; margin:0 -16px; border-radius:12px; transition:background-color var(--t) }
 .looked { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:28px; margin:0; padding:0; border:0; background:transparent; font:inherit }
 .looked::before { content:""; position:absolute; left:0; right:0; top:50%; border-top:1px solid var(--border) }
@@ -698,15 +714,15 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','folded','folded-focus','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled','revised','translated-titles','folders','folders-kind','folders-collapsed','folder-timeline','menu-folder','menu-feed-move'];
+const states=['list','folded','folded-focus','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled','revised','translated-titles','forum-panes','forum-panes-empty','forum-narrow'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
-const kinds=['article','video','social','image'];
+const kinds=['article','video','social','image','forum'];
 const options={state:states,scope:['all',...kinds,'source','folder'],scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
 const state=pick('state',states,'list');
 const noSubs=state==='no-subscriptions'||state==='no-subscriptions-drop';
 // Each viewer state is drawn in the scope that shows it best; the scope menu still switches it.
-const stateScope={'article-compact':'article','social-compact':'social','video-cover':'video','video-list':'video','image-grid':'image','image-card':'image','image-switch':'image','source-grid':'source','folders-kind':'article','folder-timeline':'folder','lightbox':'social','lightbox-failed':'social'};
+const stateScope={'article-compact':'article','social-compact':'social','video-cover':'video','video-list':'video','image-grid':'image','image-card':'image','image-switch':'image','source-grid':'source','lightbox':'social','lightbox-failed':'social','forum-panes':'forum','forum-panes-empty':'forum','forum-narrow':'forum'};
 const scope=pick('scope',options.scope,stateScope[state]||'all');
 // The viewers, as Settings > Appearance > View as keeps them. The first value of each kind is the default.
 const viewer={article:'list',video:'grid',social:'card',image:'wall',...{
@@ -717,7 +733,9 @@ const viewer={article:'list',video:'grid',social:'card',image:'wall',...{
 const hidden=state==='sidebar-hidden';
 const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
-const size=pick('size',options.size,'default');
+const forumState=state.startsWith('forum-');
+// Panes need a main column of 800: the 960 window has 736 beside the sidebar, so the panes are drawn in the wide window.
+const size=pick('size',options.size,state==='forum-panes'||state==='forum-panes-empty'?'wide':'default');
 document.documentElement.dataset.scheme=scheme;
 document.documentElement.lang=lang;
 document.getElementById('window').classList.toggle('min',size==='min');
@@ -739,6 +757,7 @@ const icons={
   article:'<path d="M15 18h-5"/><path d="M18 14h-8"/><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="10" y="6" rx="1"/>',
   video:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
   social:'<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
+  forum:'<path d="M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1"/>',
   sparkles:'<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
   imageOff:'<line x1="2" x2="22" y1="2" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" x2="6" y1="13.5" y2="21"/><line x1="18" x2="21" y1="12" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/>',
   image:'<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
@@ -791,8 +810,9 @@ const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hid
 
 const copy={
   en:{
-    all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', kinds:'Kinds', sources:'Subscriptions',
     foldMore:'{n} more from {name}', foldLabel:'{n} more from {name}, show',
+    all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', forum:'Community', kinds:'Kinds',
+    panePlaceholder:'Choose a post to read', paneHint:'Use J and K, or click a row.', sources:'Subscriptions',
     leaving:'leaving the timeline soon', alsoChip:'{n} more sources', alsoName:'Also in {n} other sources, show them', alsoHead:'Also in',
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
@@ -829,8 +849,9 @@ const copy={
     ago:{m:'{n} min ago',h:'{n} h ago',d:'Yesterday',days:'{n} days ago'},
   },
   'zh-Hans':{
-    all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', kinds:'形态', sources:'订阅',
     foldMore:'还有 {n} 条来自 {name}', foldLabel:'还有 {n} 条来自 {name}，展开',
+    all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', forum:'社区', kinds:'形态',
+    panePlaceholder:'选一个帖子来读', paneHint:'用 J、K 或点一行。', sources:'订阅',
     leaving:'即将离开时间线', alsoChip:'另 {n} 个来源', alsoName:'另见 {n} 个来源，展开', alsoHead:'另见',
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
@@ -897,6 +918,7 @@ const sources=[
   {id:6,kind:'social',name:'@rauchg',mono:'R',unread:9},
   {id:7,kind:'social',name:zh?'微博 · 中国国家地理':'Weibo · China National Geography',mono:zh?'地':'C',unread:3},
   {id:8,kind:'image',name:'NASA APOD',mono:'N',unread:1},
+  {id:10,kind:'forum',name:zh?'Go 语言中文论坛':'Go Forum',mono:'G',unread:3},
   {id:9,kind:'image',name:'Unsplash Editorial',mono:'U',unread:4,failing:1,error:zh?'被 Cloudflare 拦截，换一个 RSSHub 实例试试':'Blocked by Cloudflare; try another RSSHub instance'},
 ];
 // Edge cases. Names and titles come from the feeds, so they stay as written; the Chinese ones have no spaces to break at.
@@ -949,6 +971,15 @@ const entries=[
   {source:1,kind:'article',when:ago('days',6),sec:720,title:zh?'为什么我不再把代码覆盖率当目标':'Why I stopped treating code coverage as a goal',summary:zh?'覆盖率告诉你哪些代码没被测过，却不告诉你测得好不好。':'Coverage tells you which code was never tested, not whether it was tested well.',read:true},
   {source:2,kind:'article',when:ago('days',6),sec:120,title:zh?'一个关于时区的小提醒':'A short reminder about time zones',summary:zh?'存 UTC，显示时再转换，别在中间做任何聪明的事。':'Store UTC, convert when you show it, and do nothing clever in between.',read:true},
   {source:6,kind:'social',sec:20,when:ago('days',6),author:'Guillermo Rauch',handle:'@rauchg',text:zh?'上周的延迟面板。左边是迁移之前，右边是迁移之后，尾部那条长尾终于不见了。':'Last week’s latency dashboard. Before the move on the left, after it on the right; the long tail is finally gone.',images:['g8'],read:true},
+];
+// The Community posts: a board's recent threads, shown only in the Community scope.
+const forumEntries=[
+  {source:10,kind:'forum',when:ago('m',18),title:zh?'泛型约束里的 comparable 到底比较了什么？':'What exactly does comparable compare in a generic constraint?',author:zh?'小林':'mira',
+    body:zh?['我在写一个泛型的去重函数，约束用了 comparable，却发现接口值在运行时会 panic。','官方文档说 comparable 允许 == 和 !=，但没有说明接口里装着不可比较类型时会发生什么。有人遇到过吗？']:['I am writing a generic dedupe helper constrained by comparable, and an interface value panics at run time.','The spec says comparable allows == and !=, but not what happens when the interface holds a type that cannot be compared. Has anyone hit this?']},
+  {source:10,kind:'forum',when:ago('h',2),title:zh?'分享：用 sync.Pool 把分配次数降了 70%':'Show-and-tell: cutting allocations by 70% with sync.Pool',author:'dlee',
+    body:zh?['热路径上每次请求都会新建缓冲区。换成 sync.Pool 以后，分配次数从每秒 40 万降到 12 万。']:['Every request on the hot path built a fresh buffer. With sync.Pool the allocations fell from 400k to 120k a second.']},
+  {source:10,kind:'forum',when:ago('h',9),title:zh?'新手提问：什么时候该用指针接收者？':'Beginner question: when should a method take a pointer receiver?',author:'noor',read:true,
+    body:zh?['我总是搞不清楚。方法要修改字段的时候用指针，那只读的时候呢？']:['I can never tell. Pointer when the method changes a field, but what about when it only reads?']},
 ];
 // Edge cases: feed content stays as written whatever the interface language is, so a long English title and a long
 // Chinese one without spaces both show in either language.
@@ -1016,7 +1047,7 @@ if(state==='translated-titles'){
 if(state==='offline-pending'){entries[0].pending=true;entries[0].starred=true;entries[1].pending=true;entries[1].read=true;byId[entries[1].source].unread--}
 total=sources.filter(s=>!s.hidden).reduce((a,s)=>a+s.unread,0);
 const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[focusId].name:scope==='folder'?folders[0].name:copy.all;
-const pool=edge||entries;
+const pool=edge||(scope==='forum'?forumEntries:entries);
 const visible=kinds.includes(scope)?pool.filter(e=>e.kind===scope):scope==='source'?pool.filter(e=>e.source===focusId):scope==='folder'?pool.filter(e=>byId[e.source].folder===1):edge?edge:state==='marked-visible'?entries.slice(8,15):state==='marked-scrolled'?entries.slice(4,11):entries.slice(0,7);
 const filter=state==='unread-done'||state==='time-empty'||state==='range-empty'?1:state==='starred-none'?2:0;
 const q=state==='search'?'sqlite':state==='search-operators'?'from:simon kind:article sqlite -rust after:2026-01-01':state==='search-none'?'kubernetes':state==='search-short'?'go':'';
@@ -1115,7 +1146,7 @@ const wallOn=gridOn&&gridKind==='image'&&viewer.image!=='grid';
 const stripOf=list=>{const hidden=list.length-4;return `<div class="strip">${list.slice(0,4).map((g,i)=>i===3&&hidden>0?`<div class="pic more ${g}" role="img" aria-label="${t('morePictures',{n:hidden})}"><b aria-hidden="true">+${hidden}</b></div>`:`<div class="pic ${g}">${failedPic(g)}</div>`).join('')}</div>`};
 const origLine=e=>e.orig?`<p class="orig" lang="de">${e.orig}</p>`:'';
 const row=(e,i)=>{
-  const cls=`row${e.read?' read':''}${i===1&&rowDemo?' hover':''}${(i===2&&(state==='menu-entry'||state.startsWith('menu-remind')))||(i===0&&state==='menu-entry-first')||(i===entries.length-1&&state==='menu-entry-last')?' menued':''}${(i===2&&(rowDemo||state==='sidebar-focus'))||(i===0&&state==='marked-visible'&&scope==='all')||(i===3&&state==='no-more-unread')?' chosen':''}`;
+  const cls=`row${e.read?' read':''}${i===1&&rowDemo?' hover':''}${(i===2&&(state==='menu-entry'||state.startsWith('menu-remind')))||(i===0&&state==='menu-entry-first')||(i===entries.length-1&&state==='menu-entry-last')?' menued':''}${(i===2&&(rowDemo||state==='sidebar-focus'))||(i===0&&state==='marked-visible'&&scope==='all')||(i===3&&state==='no-more-unread')||(i===0&&state==='forum-panes')?' chosen':''}`;
   const dot=e.read?'':`<span class="unread-dot" role="img" aria-label="${copy.unread}"></span>`;
   switch(e.kind){
     case 'article':if(viewer.article==='compact')return `<article class="${cls} crow">${dot}${glyph(byId[e.source])}<span class="src">${byId[e.source].name}</span><h3 class="ctitle">${highlight(e.title)}</h3>${e.starred?`<span class="star-mark" role="img" aria-label="${copy.starred}">${icon('star','filled')}</span>`:''}${pendingMark(e)}<span class="when">${e.when}</span>${actions(e)}</article>`;
@@ -1125,6 +1156,7 @@ const row=(e,i)=>{
     case 'social':if(viewer.social==='compact'){const one=e.images&&e.images.length===1;
         return `<article class="${cls} scompact">${dot}<div class="content">${meta(e)}<p class="text"><span class="author">${e.author}</span> <span class="handle">${e.handle}</span> ${e.text}</p>${e.images&&!one?stripOf(e.images):''}</div>${one?`<div class="pic thumb-s ${e.images[0]}">${failedPic(e.images[0])}</div>`:''}${actions(e)}</article>`}
       return `<article class="${cls}">${dot}<div class="content">${meta(e)}<p class="text"><span class="author">${e.author}</span> <span class="handle">${e.handle}</span><br>${e.text}</p>${pictures(e.images)}</div>${actions(e)}</article>`;
+    case 'forum':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${highlight(e.title)}</h3></div>${actions(e)}</article>`;
     case 'image':return `<article class="${cls}">${dot}<div class="content">${meta(e)}<h3 class="title">${e.title}</h3><div class="pic single ${e.images[0]}">${failedPic(e.images[0])}</div></div>${actions(e)}</article>`;
   }
 };
@@ -1238,7 +1270,14 @@ const lightbox=lightboxOn?`<div class="lightbox" role="dialog" aria-modal="true"
   <button class="lb-nav prev" aria-label="${copy.lbPrev}" title="${copy.lbPrev} (←)">${icon('chevronLeft')}</button>
   <button class="lb-nav next${state==='lightbox'?' hover':''}" aria-label="${copy.lbNext}" title="${copy.lbNext} (→)">${icon('chevronRight')}</button>
   <div class="lb-caption"><b>${lbEntry.author}</b><span>${lbEntry.handle}</span></div></div>`:'';
-document.getElementById('app').innerHTML=`${hidden?'':sidebar()}<section class="main">${toolbar}${hint}${stale}${pill}<div class="scroll">${list}</div>${toast}</section>${paletteOn?paletteDialog():dialog}${lightbox}`;
+// Panes: the list keeps its 320 and the open post fills the rest; with no post open the pane holds a note.
+const paned=state==='forum-panes'||state==='forum-panes-empty';
+const openPost=forumEntries[0];
+const readPane=state==='forum-panes-empty'?empty('forum',copy.panePlaceholder,copy.paneHint)
+  :`<article class="post"><header><h2>${openPost.title}</h2><div class="meta">${glyph(byId[openPost.source])}<span class="src">${byId[openPost.source].name}</span><span class="sep"></span><span class="when">${openPost.author}</span><span class="sep"></span><span class="when">${openPost.when}</span></div></header>${openPost.body.map(p=>`<p>${p}</p>`).join('')}</article>`;
+const mainHtml=paned?`<section class="main split"><div class="listpane">${toolbar}${stale}<div class="scroll">${list}</div>${pill}</div><div class="hair"></div><div class="readpane" role="region" aria-label="${copy.panePlaceholder}">${readPane}</div></section>`
+  :`<section class="main">${toolbar}${hint}${stale}${pill}<div class="scroll">${list}</div>${toast}</section>`;
+document.getElementById('app').innerHTML=`${hidden?'':sidebar()}${mainHtml}${paletteOn?paletteDialog():dialog}${lightbox}`;
 // Fit the picture to the stage: as large as fits, never above its natural size (1600 x 1067), centered.
 const lbPic=document.querySelector('.lb-pic');
 if(lbPic){const r=lbPic.parentElement.getBoundingClientRect(),failed=lbPic.classList.contains('failed'),ratio=failed?4/3:3/2;
