@@ -134,6 +134,22 @@ func TestParseDuration(t *testing.T) {
 	}
 }
 
+func TestTextJoinsInlineNodesWithoutSpaces(t *testing.T) {
+	for fragment, want := range map[string]string{
+		`because of the <a href="/moon">moon</a>.`: "because of the moon.",
+		`<em>Hello</em>, <strong>world</strong>!`:  "Hello, world!",
+		`one<br>two`:                                "one two",
+		`<p>first</p><p>second</p>`:                 "first second",
+		`<ul><li>a</li><li>b</li></ul>`:             "a b",
+		`a<script>x()</script> b<style>p{}</style>`: "a b",
+		`  spaced   <b>out</b>  `:                   "spaced out",
+	} {
+		if got := text(fragment); got != want {
+			t.Errorf("%q: %q, want %q", fragment, got, want)
+		}
+	}
+}
+
 func TestPlatform(t *testing.T) {
 	for link, want := range map[string]string{
 		"https://www.youtube.com/watch?v=1": "youtube", "https://youtu.be/1": "youtube",

@@ -393,19 +393,52 @@ func removeQuotes(n *html.Node) {
 	}
 }
 
-// text is the visible text of an HTML fragment on one line.
+// text is the visible text of an HTML fragment on one line. Text nodes join as they are written, so a link or an
+// inline tag followed by a full stop gives no space; only whitespace in the markup and the edges of block elements
+// and line breaks separate words.
 func text(fragment string) string {
 	if !strings.ContainsAny(fragment, "<&") {
 		return strings.Join(strings.Fields(fragment), " ")
 	}
+	nodes, err := html.ParseFragment(strings.NewReader(fragment), &html.Node{Type: html.ElementNode, DataAtom: atom.Div, Data: "div"})
+	if err != nil {
+		return ""
+	}
 	var b strings.Builder
-	walk(fragment, func(n *html.Node) {
-		if n.Type == html.TextNode && (n.Parent == nil || (n.Parent.DataAtom != atom.Script && n.Parent.DataAtom != atom.Style)) {
-			b.WriteString(n.Data)
-			b.WriteByte(' ')
+	var visit func(*html.Node)
+	visit = func(n *html.Node) {
+		switch n.Type {
+		case html.TextNode:
+			if n.Parent == nil || (n.Parent.DataAtom != atom.Script && n.Parent.DataAtom != atom.Style) {
+				b.WriteString(n.Data)
+			}
+			return
+		case html.ElementNode:
+			if breaksText(n.DataAtom) {
+				b.WriteByte(' ')
+				defer b.WriteByte(' ')
+			}
 		}
-	})
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			visit(child)
+		}
+	}
+	for _, n := range nodes {
+		visit(n)
+	}
 	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+// breaksText reports whether an element starts a new line of text: a block element, a list or table part, or a break.
+func breaksText(a atom.Atom) bool {
+	switch a {
+	case atom.Address, atom.Article, atom.Aside, atom.Blockquote, atom.Br, atom.Dd, atom.Details, atom.Div, atom.Dl,
+		atom.Dt, atom.Fieldset, atom.Figcaption, atom.Figure, atom.Footer, atom.Form, atom.H1, atom.H2, atom.H3,
+		atom.H4, atom.H5, atom.H6, atom.Header, atom.Hr, atom.Li, atom.Main, atom.Nav, atom.Ol, atom.P, atom.Pre,
+		atom.Section, atom.Summary, atom.Table, atom.Tbody, atom.Td, atom.Tfoot, atom.Th, atom.Thead, atom.Tr, atom.Ul:
+		return true
+	}
+	return false
 }
 
 func walk(fragment string, visit func(*html.Node)) {
