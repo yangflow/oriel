@@ -75,7 +75,7 @@ func (s *Screen) fontPick(c *ui.Context, p *fontPicker, label, current string, p
 	}
 
 	trig := ui.ButtonBase(c)
-	trig.MinWidth(theme.Px(t, 160)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).AlignItems(ui.Center).Gap(t.Space(2)).
+	trig.MinWidth(theme.Px(t, 72)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).AlignItems(ui.Center).Gap(t.Space(2)).
 		Padding(0, t.Space(2), 0, theme.Px(t, 10)).Radius(t.Radius).Label(label).Value(shown.name).Expanded(p.open).
 		Role(ui.RolePopUpButton)
 	trigger(c, trig)

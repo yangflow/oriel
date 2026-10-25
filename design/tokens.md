@@ -23,6 +23,7 @@ Mockups show the 4 DIP unit and 13 px text. Sizes taken from a mockup are writte
 | space-6 | `t.Space(6)` | 24 | outer window padding, gap between the parts of a sheet, side padding of the timeline column |
 | space-8 | `t.Space(8)` | 32 | the largest step: between the parts of a page |
 | control | `t.Space(8)` | 32 | height of fields and buttons drawn by a screen |
+| select-trigger | `t.Space(8)` high, min 72, max 240 (`theme.Px`) | 32 | popup-menu button in Settings: hugs label + 8 gap + chevron; the menu it opens is at least 160 wide |
 | sheet | `t.Space(80)` | 320 | widest a centered sheet (the connect screen) grows |
 | symbol-button | `t.Space(11)` | 44 | width of square symbol buttons |
 | radius | `Theme.Radius` | 8 | corners of controls |
