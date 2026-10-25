@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -101,10 +102,9 @@ func TestHealthEmpty(t *testing.T) {
 		if !tt.HasText(s.text.Health) || !tt.HasText(s.text.HealthEmpty) {
 			t.Errorf("%s: texts %v", language, tt.Texts())
 		}
-		for _, text := range []string{"rsshub.example.net", s.text.MainBadge} {
-			if tt.HasText(text) {
-				t.Errorf("%s: shows %q with no data: %v", language, text, tt.Texts())
-			}
+		// The badge is matched as a whole text: the help above the field names the main instance too.
+		if tt.HasText("rsshub.example.net") || slices.Contains(tt.Texts(), s.text.MainBadge) {
+			t.Errorf("%s: shows an instance or the main badge with no data: %v", language, tt.Texts())
 		}
 	}
 }
