@@ -379,12 +379,21 @@ func sample() ([]client.Source, []client.Entry) {
 	return sources, entries
 }
 
+// newTester is ui.NewTester with the animations off. The Tester's clock stands still, so a hover fade or a color
+// transition never comes to rest and every input would build 20 frames; a test that looks at motion uses ui.NewTester.
+func newTester(view func(c *ui.Context), width, height int) *ui.Tester {
+	return ui.NewTester(func(c *ui.Context) {
+		c.DisableAnimations()
+		view(c)
+	}, width, height)
+}
+
 func setup(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
 	sources, entries := sample()
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New(language, f.deps())
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -399,7 +408,7 @@ func setupAI(t *testing.T, language string) (*fake, *ui.Tester) {
 	entries[4].Summary = "Feed text of the old post."
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New(language, f.deps())
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -1470,7 +1479,7 @@ func TestLanguageKeepsPlace(t *testing.T) {
 	f := &fake{now: now, sources: []client.Source{{ID: 1, Title: "Go Blog", Kind: "article"}}, entries: entries,
 		patches: map[int64][]client.EntryPatch{}}
 	s := New("en", f.deps())
-	tt := ui.NewTester(s.View, 1100, 800)
+	tt := newTester(s.View, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -1506,7 +1515,7 @@ func TestLoadMore(t *testing.T) {
 	f := &fake{now: now, sources: []client.Source{{ID: 1, Title: "Go Blog", Kind: "article"}}, entries: entries,
 		patches: map[int64][]client.EntryPatch{}}
 	s := New("en", f.deps())
-	tt := ui.NewTester(s.View, 1100, 800)
+	tt := newTester(s.View, 1100, 800)
 	s.Use(f, "home.lan:7470")
 	tt.Frame()
 	f.settle(t, tt)
@@ -1574,7 +1583,7 @@ func TestUnreadReported(t *testing.T) {
 	deps := f.deps()
 	deps.Unread = func(n int) { told = append(told, n) }
 	s := New("en", deps)
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -1940,7 +1949,7 @@ func crowd(t *testing.T, n int, height int) (*Screen, *fake, *ui.Tester) {
 			CreatedAt: ago(time.Duration(n-i+1) * time.Minute)})
 	}
 	s := New("en", f.deps())
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, height)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, height)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -2402,7 +2411,7 @@ func TestNextUnreadLoadsMore(t *testing.T) {
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	f.count()
 	s := New("en", f.deps())
-	tt := ui.NewTester(s.View, 1100, 800)
+	tt := newTester(s.View, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -2651,7 +2660,7 @@ func TestNoSubscriptionsImport(t *testing.T) {
 	_, f, tt := setup(t, "en")
 	f.sources, f.entries = nil, nil
 	s := New("en", f.deps())
-	tt = ui.NewTester(s.View, 1100, 800)
+	tt = newTester(s.View, 1100, 800)
 	s.Use(f, "")
 	f.settle(t, tt)
 	for _, text := range []string{"No subscriptions yet", "Add your first subscription", "Import OPML…", "Restore from backup…",
@@ -2679,7 +2688,7 @@ func TestSiteIcons(t *testing.T) {
 	sources[0].IconURL = "https://go.dev/favicon.ico"
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New("en", f.deps())
-	tt := ui.NewTester(s.View, 1100, 800)
+	tt := newTester(s.View, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -2718,7 +2727,7 @@ func inkSetup(t *testing.T, dark bool, scale float32) (*Screen, *fake, *ui.Teste
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New("en", f.deps())
 	var main *ui.Theme
-	tt := ui.NewTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); main = c.Theme(); s.View(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); main = c.Theme(); s.View(c) }, 1100, 800)
 	tt.SetDark(dark)
 	tt.SetPreferences(ui.Preferences{TextScale: scale})
 	s.Use(f, "")
@@ -2890,7 +2899,7 @@ func TestLongTitles(t *testing.T) {
 			entries[5].Title = tc.longer
 			f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 			s := New("en", f.deps())
-			tt := ui.NewTester(s.View, 1100, 2400)
+			tt := newTester(s.View, 1100, 2400)
 			s.Use(f, "")
 			tt.Frame()
 			f.settle(t, tt)
@@ -2948,7 +2957,7 @@ func TestTooltips(t *testing.T) {
 	sources[1].Title = name
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New("en", f.deps())
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1400, 900)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1400, 900)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -2980,7 +2989,7 @@ func TestKindTooltipOnlyWhenCut(t *testing.T) {
 	s := New("en", f.deps())
 	long := "Videos, talks, lectures, conference recordings and every other long form moving picture"
 	s.text.Video = long
-	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 900, 800)
+	tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 900, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -2997,7 +3006,7 @@ func TestFilterTooltipsNarrow(t *testing.T) {
 	sources, entries := sample()
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New("en", f.deps())
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 900, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 900, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -3012,7 +3021,7 @@ func TestLightboxTooltips(t *testing.T) {
 	for _, width := range []int{1400, 700} {
 		p := prefs.Default()
 		s, f, _ := viewing(t, &p)
-		tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, width, 900)
+		tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, width, 900)
 		tt.Frame()
 		f.settle(t, tt)
 		s.openPictures(2, 2)
@@ -3036,7 +3045,7 @@ func TestBrokenImages(t *testing.T) {
 		imageErr: errors.New("broken")}
 	s := New("en", f.deps())
 	var main *ui.Theme
-	tt := ui.NewTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); main = c.Theme(); s.View(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); main = c.Theme(); s.View(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -3082,7 +3091,7 @@ func TestPicturesCancelledByServer(t *testing.T) {
 	sources, entries := sample()
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New("en", f.deps())
-	tt := ui.NewTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); s.View(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); s.View(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	for s.pics.Active() == 0 {
@@ -3117,7 +3126,7 @@ func TestPictureRetried(t *testing.T) {
 		sources, entries := sample()
 		f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}, imageFails: fails}
 		s := New("en", f.deps())
-		tt := ui.NewTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); s.View(c) }, 1100, 800)
+		tt := newTester(func(c *ui.Context) { theme.Apply(c, prefs.Default()); s.View(c) }, 1100, 800)
 		s.Use(f, "")
 		tt.Frame()
 		f.settle(t, tt)
@@ -3173,7 +3182,7 @@ func twin(t *testing.T) (*Screen, *fake, *ui.Tester) {
 			Kind: "article", Title: fmt.Sprintf("%s post %d", name, i/2), CreatedAt: ago(time.Duration(i) * time.Minute)})
 	}
 	s := New("en", f.deps())
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -3357,7 +3366,7 @@ func TestKeptListsAreBounded(t *testing.T) {
 			CreatedAt: ago(time.Duration(id) * time.Minute)})
 	}
 	s := New("en", f.deps())
-	tt := ui.NewTester(s.View, 1100, 800)
+	tt := newTester(s.View, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -3577,7 +3586,7 @@ func viewing(t *testing.T, p *prefs.Preferences) (*Screen, *fake, *ui.Tester) {
 	d.Reading = func() prefs.Preferences { return *p }
 	d.Change = func(n prefs.Preferences) { *p = n }
 	s := New("en", d)
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -3598,7 +3607,7 @@ func TestOrderNameJoin(t *testing.T) {
 			d := f.deps()
 			d.Reading = func() prefs.Preferences { return p }
 			s := New(language, d)
-			tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+			tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 			s.Use(f, "")
 			tt.Frame()
 			f.settle(t, tt)
@@ -3988,7 +3997,7 @@ func TestToolbarMinimumWidth(t *testing.T) {
 		p := prefs.Default()
 		p.SidebarHidden = hidden
 		s, f, _ := viewing(t, &p)
-		tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 640, 540)
+		tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 640, 540)
 		tt.Frame()
 		f.settle(t, tt)
 		tt.Frame()
@@ -4146,7 +4155,7 @@ func TestToolbarLayout(t *testing.T) {
 		p := prefs.Default()
 		p.SidebarHidden = hidden
 		s, f, _ := viewing(t, &p)
-		tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 1280, 800)
+		tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 1280, 800)
 		tt.Frame()
 		f.settle(t, tt)
 		tt.Frame()
@@ -4198,7 +4207,7 @@ func TestToolbarLayout(t *testing.T) {
 func TestSearchIconOpens(t *testing.T) {
 	p := prefs.Default()
 	s, f, _ := viewing(t, &p)
-	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 700, 700)
+	tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 700, 700)
 	tt.Frame()
 	f.settle(t, tt)
 	tt.Frame()
@@ -4268,7 +4277,7 @@ func crowded(t *testing.T, language string, p *prefs.Preferences) (*Screen, *fak
 	d.Reading = func() prefs.Preferences { return *p }
 	d.Change = func(n prefs.Preferences) { *p = n }
 	s := New(language, d)
-	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -4582,7 +4591,7 @@ func TestLightboxFailedPicture(t *testing.T) {
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{},
 		imageErr: errors.New("broken")}
 	s := New("en", f.deps())
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -4647,7 +4656,7 @@ func TestLightboxChinese(t *testing.T) {
 func TestLightboxMinimumWidth(t *testing.T) {
 	p := prefs.Default()
 	s, f, _ := viewing(t, &p)
-	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 640, 540)
+	tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 640, 540)
 	tt.Frame()
 	f.settle(t, tt)
 	s.openPictures(2, 2)
@@ -4701,7 +4710,7 @@ func TestSidebarAddAlignsWithRows(t *testing.T) {
 		t.Fatalf("no count: %v", tt.Texts())
 	}
 	var th *ui.Theme
-	ui.NewTester(func(c *ui.Context) { th = c.Theme() }, 10, 10).Frame()
+	newTester(func(c *ui.Context) { th = c.Theme() }, 10, 10).Frame()
 	// The 22-point box sits centred in the wider hit area, and the 14-point icon centred in the box.
 	inset := (add.W-theme.Px(th, 22))/2 + (theme.Px(th, 22)-theme.Px(th, 14))/2
 	// The width of the count's text depends on the fonts of the platform, so allow less than half a pixel.
@@ -5373,7 +5382,7 @@ func setupGrouped(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 	}}
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New(language, f.deps())
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -5484,7 +5493,7 @@ func TestAlsoItemOfAVideoOpensTheBrowser(t *testing.T) {
 			CreatedAt: ago(time.Hour)}}}
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New("en", f.deps())
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -5591,7 +5600,7 @@ func TestSidebarTrailingButtonsShareALine(t *testing.T) {
 		f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 		s := New("en", f.deps())
 		var edge float32
-		tt := ui.NewTester(func(c *ui.Context) {
+		tt := newTester(func(c *ui.Context) {
 			c.Theme().FontSize = tc.font
 			edge = 8 + sideWidth(c.Theme(), tc.compact) - theme.Px(c.Theme(), paneLine)
 			s.View(c)
@@ -5676,7 +5685,7 @@ func TestUnreadCountCap(t *testing.T) {
 			f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 			s := New("en", f.deps())
 			var th *ui.Theme
-			tt := ui.NewTester(func(c *ui.Context) { th = c.Theme(); s.View(c); theme.Toasts(c) }, 1100, 800)
+			tt := newTester(func(c *ui.Context) { th = c.Theme(); s.View(c); theme.Toasts(c) }, 1100, 800)
 			s.Use(f, "")
 			tt.Frame()
 			f.settle(t, tt)
@@ -5770,7 +5779,7 @@ func TestLimitedWithOperators(t *testing.T) {
 func TestDropBusy(t *testing.T) {
 	_, f, tt := setup(t, "en")
 	s := New("en", f.deps())
-	tt = ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt = newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
 	s.Use(f, "")
 	f.settle(t, tt)
 	if s.DropBusy() {

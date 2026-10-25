@@ -374,6 +374,19 @@ func (f *fake) settle(tt *ui.Tester) {
 	}
 }
 
+// newTester is ui.NewTester with the animations off. The Tester's clock stands still, so a hover fade or a color
+// transition never comes to rest and every input would build 20 frames; a test that looks at motion uses ui.NewTester.
+var animated bool
+
+func newTester(view func(c *ui.Context), width, height int) *ui.Tester {
+	return ui.NewTester(func(c *ui.Context) {
+		if !animated {
+			c.DisableAnimations()
+		}
+		view(c)
+	}, width, height)
+}
+
 func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
 	f := &fake{
@@ -396,7 +409,7 @@ func setup(t *testing.T, language string, signedIn bool) (*Screen, *fake, *ui.Te
 	s := New(language, f.deps())
 	s.Use(f, "reader.example.com", signedIn)
 	s.Open()
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 760)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 760)
 	tt.Frame()
 	f.settle(tt)
 	return s, f, tt
@@ -444,7 +457,7 @@ func TestLoadFails(t *testing.T) {
 	s := New("en", f.deps())
 	s.Use(f, "", false)
 	s.Open()
-	tt := ui.NewTester(s.View, 1000, 760)
+	tt := newTester(s.View, 1000, 760)
 	tt.Frame()
 	if !tt.HasText(s.text.Loading) {
 		t.Fatalf("no skeleton in %v", tt.Texts())
@@ -1954,6 +1967,9 @@ func TestFontPickerAnnounces(t *testing.T) {
 }
 
 func TestFontPickerSize(t *testing.T) {
+	// The list is as tall as the popup has opened, so the count of built rows depends on the opening motion.
+	animated = true
+	t.Cleanup(func() { animated = false })
 	for _, scale := range []float32{1, 2} {
 		s, _, tt := openAppearance(t, "en")
 		tt.SetScale(scale)
@@ -2016,7 +2032,7 @@ func TestPalettes(t *testing.T) {
 				p.Theme = prefs.ThemeDark
 			}
 			f.prefs = p
-			tt := ui.NewTester(func(c *ui.Context) {
+			tt := newTester(func(c *ui.Context) {
 				theme.Apply(c, f.prefs)
 				s.View(c)
 			}, 1000, 760)
@@ -2251,7 +2267,7 @@ func openDesktop(t *testing.T, d *Desktop) (*Screen, *fake, *ui.Tester) {
 	s, f, _ := openAppearance(t, "en")
 	s.deps.Desktop = d
 	// Tall, so the card at the end of the page is in view.
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 2400)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 2400)
 	tt.Frame()
 	return s, f, tt
 }

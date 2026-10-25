@@ -39,7 +39,7 @@ func looking(t *testing.T, language string, n int, at int64, active bool) (*Scre
 	d.Active = func() bool { return g.active }
 	d.Look = func(m prefs.Marker) { g.p.LastLooked = m; g.kept = append(g.kept, m) }
 	s := New(language, d)
-	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -104,7 +104,7 @@ func TestLastLookedKind(t *testing.T) {
 	d.Look = func(m prefs.Marker) { g.p.LastLooked = m; g.kept = append(g.kept, m) }
 	d.Active = func() bool { return g.active }
 	s := New("en", d)
-	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
@@ -226,7 +226,7 @@ func TestLastLookedOldest(t *testing.T) {
 	d.Active = func() bool { return g.active }
 	d.Look = func(m prefs.Marker) { g.p.LastLooked = m; g.kept = append(g.kept, m) }
 	s := New("en", d)
-	tt := ui.NewTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c) }, 1100, 800)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)

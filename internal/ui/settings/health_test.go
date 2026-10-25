@@ -27,7 +27,7 @@ func openHealth(t *testing.T, language string, health client.RSSHubHealth) (*Scr
 	s := New(language, f.deps())
 	s.Use(f, "reader.example.com", true)
 	s.Open()
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c) }, 1000, 1200)
+	tt := newTester(func(c *ui.Context) { s.View(c) }, 1000, 1200)
 	tt.Frame()
 	f.settle(tt)
 	return s, f, tt
@@ -120,7 +120,7 @@ func TestHealthHiddenWithoutInstancesOrOnError(t *testing.T) {
 	s = New("en", f.deps())
 	s.Use(f, "reader.example.com", true)
 	s.Open()
-	tt = ui.NewTester(func(c *ui.Context) { s.View(c) }, 1000, 1200)
+	tt = newTester(func(c *ui.Context) { s.View(c) }, 1000, 1200)
 	tt.Frame()
 	f.settle(tt)
 	tt.Frame()
