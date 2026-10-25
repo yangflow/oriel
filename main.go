@@ -242,19 +242,6 @@ func desktop() {
 				window.Update(apply)
 			}()
 		}
-		// The files asked for are OPML, the diagnostics text or a backup (the settings) or Markdown (the reader), told by
-		// the name offered.
-		filters := func(name, label string) []mygo.FileFilter {
-			switch filepath.Ext(name) {
-			case ".md":
-				return []mygo.FileFilter{{Name: label, Extensions: []string{"md"}}}
-			case ".txt":
-				return []mygo.FileFilter{{Name: label, Extensions: []string{"txt"}}}
-			case ".oriel-backup":
-				return []mygo.FileFilter{{Name: label, Extensions: []string{"oriel-backup"}}}
-			}
-			return []mygo.FileFilter{{Name: label, Extensions: []string{"opml", "xml"}}}
-		}
 		opened := func(name string, extensions []string) []mygo.FileFilter {
 			if len(extensions) == 0 {
 				extensions = []string{"opml", "xml"}
@@ -283,12 +270,14 @@ func desktop() {
 				return paths[0], nil
 			},
 			Save: func(name, filter string) (string, error) {
-				path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: window, DefaultPath: name,
-					Filters: filters(name, filter), CreateDirectories: true})
+				types := saveTypes(name)
+				path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: window,
+					DefaultPath: saveName(name, runtime.GOOS), Filters: []mygo.FileFilter{{Name: filter, Extensions: types}},
+					CreateDirectories: true})
 				if err != nil {
 					slog.Error("Cannot show the save dialog", "error", err)
 				}
-				return path, err
+				return savePath(path, types), err
 			},
 		}
 		files.Desktop = &settings.Desktop{OS: runtime.GOOS, Bundled: mygo.App.IsPackaged()}
