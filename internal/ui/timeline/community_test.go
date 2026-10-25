@@ -10,11 +10,17 @@ import (
 	"github.com/yangflow/oriel/internal/prefs"
 )
 
-// communing is viewing with a Community subscription of three posts on a 1100 by 800 window, whose main column is 876
-// wide, enough for three panes; it shows the Community.
+// communeWidth is a window wide enough for three panes on every platform. The panes ask for panedColumn in units of
+// the theme, whose text size is 13 on macOS and 14 elsewhere, so a 1100 window leaves a main column of 876 against
+// 800 on macOS but 859 against 862 on Linux and Windows; 1200 clears both.
+const communeWidth = 1200
+
+// communing is viewing with a Community subscription of three posts on a communeWidth by 800 window; it shows the
+// Community.
 func communing(t *testing.T, p *prefs.Preferences) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
 	s, f, tt := viewing(t, p)
+	tt.SetSize(communeWidth, 800)
 	f.sources = append(f.sources, client.Source{ID: 5, Title: "Board", Kind: "forum", UnreadCount: 3})
 	for i, title := range []string{"Third thread", "Second thread", "First thread"} {
 		f.entries = append(f.entries, client.Entry{ID: int64(20 - i), SourceID: 5, SourceTitle: "Board", Kind: "forum",
@@ -96,7 +102,7 @@ func TestCommunityFallsBack(t *testing.T) {
 		t.Fatalf("reading %d, the list shows: %v", s.reading, tt.Texts())
 	}
 	// Widening the window while the post is open draws the panes around it.
-	tt.SetSize(1100, 800)
+	tt.SetSize(communeWidth, 800)
 	tt.Frame()
 	if !s.paned || s.reading != 20 || !tt.HasText("Second thread") || !tt.HasText("The text of Third thread.") {
 		t.Fatalf("paned %v, reading %d, texts %v", s.paned, s.reading, tt.Texts())
@@ -112,7 +118,7 @@ func TestCommunityFallsBack(t *testing.T) {
 		t.Fatalf("reading %d, texts %v", s.reading, tt.Texts())
 	}
 
-	tt.SetSize(1100, 800)
+	tt.SetSize(communeWidth, 800)
 	p.ForumViewer = prefs.ViewList
 	tt.Frame()
 	tt.Frame()
@@ -179,7 +185,7 @@ func TestCommunityPanesScope(t *testing.T) {
 		t.Fatal("panes in the Articles")
 	}
 	pick(t, f, tt, "Community")
-	tt.SetSize(1000, 800) // a main column of 776
+	tt.SetSize(1000, 800) // a main column of 776, or 759 at the text size of Linux: short of panedColumn on both
 	tt.Frame()
 	if s.paned {
 		t.Fatal("panes in a main column of 776")
