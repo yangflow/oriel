@@ -430,7 +430,7 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
    - 源只在每个实例都失败时才记失败（`consecutive_failures` 加一），`last_error` 按实例写出各自的原因，用 `; ` 隔开，例如 `rsshub.example: status 500; backup.example: status 429`，下一次不早于最早结束冷却的实例。有的实例在冷却或主机忙而没试到、其余的又都没答上来时，这次抓取不记失败也不写 `last_error`，源保持到期，等实例恢复或主机有位置再抓。
    - 抓取成功时 `rsshub_instance` 记下是哪个实例答的；源详情（订阅的编辑对话框）显示它，看得出现在走的是主实例还是备用。
    - 每个实例的成功率、延迟和是否在冷却，设置里看得到，算法见「RSSHub 实例健康」。
-4. 先把响应体转成 UTF-8：响应头 `Content-Type` 带 `charset` 时按它转（它比 XML 声明优先，转完把声明里的 `encoding` 改成 `utf-8`，免得转两遍），没有就按 XML 声明里的 `encoding`（GBK、ISO-8859-1 等）和字节顺序标记转；`charset` 不认识时当作没有。响应头只在和字节对得上时才算数：响应头写 `utf-8`（或 `us-ascii`）而响应体不是合法的 UTF-8 时，忽略响应头，按 XML 声明转；响应头写的是别的字符集，而响应体是合法的 UTF-8、含非 ASCII 字符、XML 声明写 `utf-8`（或带 UTF-8 字节顺序标记）时，信声明，不再转。UTF-16 的字节顺序标记比响应头优先；没有标记而响应头写 `utf-16`、`utf-16le` 或 `utf-16be` 时按它转（`utf-16` 当小端）；没有标记也没有响应头的 UTF-16 不识别，解析失败按抓取失败记。再解析 RSS、Atom 和 JSON Feed，按 `(source_id, guid)` 写入，guid 换了而链接没变的按「条目」一节的规则认作原来那条。相对链接按订阅地址补全，只留 http 和 https 地址。
+4. 先把响应体转成 UTF-8：响应头 `Content-Type` 带 `charset` 时按它转（它比 XML 声明优先，转完把声明里的 `encoding` 改成 `utf-8`，免得转两遍），没有就按 XML 声明里的 `encoding`（GBK、ISO-8859-1 等）和字节顺序标记转；`charset` 不认识时当作没有。响应头只在和字节对得上时才算数：响应头写 `utf-8`（或 `us-ascii`）而响应体不是合法的 UTF-8 时，忽略响应头，按 XML 声明转；响应头写的是别的字符集，而响应体是合法的 UTF-8、含非 ASCII 字符、XML 声明写 `utf-8`（或带 UTF-8 字节顺序标记）时，信声明，不再转。UTF-16 的字节顺序标记比响应头优先；没有标记而响应头写 `utf-16`、`utf-16le` 或 `utf-16be` 时按它转（`utf-16` 当小端）；没有标记也没有响应头的 UTF-16 不识别，解析失败按抓取失败记。再解析 RSS、Atom 和 JSON Feed，按 `(source_id, guid)` 写入，guid 换了而链接没变的按「条目」一节的规则认作原来那条。相对链接按订阅地址补全，只留 http 和 https 地址。条目没有自己的作者时，Atom 用订阅级的 `<author>`，JSON Feed 用顶层的 `authors`（1.0 是 `author`）里第一个有名字的；RSS 不做这个回退。
 5. 同一次抓到的条目从最后一条往前写，`created_at` 相同时新的条目 `id` 大，在时间线上排前面。
 6. 已有的条目只在内容变了时更新，`updated_at` 也只在这时改；已读和收藏不动。
 7. 文章形态的新条目 `extract_status` 为 `pending`，其他形态为 `skipped`。
