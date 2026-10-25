@@ -150,6 +150,27 @@ func TestTextJoinsInlineNodesWithoutSpaces(t *testing.T) {
 	}
 }
 
+func TestParseFallsBackToTheFeedAuthor(t *testing.T) {
+	base, _ := url.Parse("https://example.org/feed")
+	for name, tc := range map[string]struct{ body, want string }{
+		"json 1.1": {`{"version":"https://jsonfeed.org/version/1.1","title":"t","authors":[{"name":"Feed Person"}],
+			"items":[{"id":"1","content_text":"a"},{"id":"2","content_text":"b","authors":[{"name":"Own"}]}]}`, "Feed Person Own"},
+		"json 1.0": {`{"version":"https://jsonfeed.org/version/1","title":"t","author":{"name":"Feed Person"},
+			"items":[{"id":"1","content_text":"a"},{"id":"2","content_text":"b","author":{"name":"Own"}}]}`, "Feed Person Own"},
+		"atom": {`<feed xmlns="http://www.w3.org/2005/Atom"><title>t</title><author><name>Feed Person</name></author>
+			<entry><id>1</id><title>a</title></entry>
+			<entry><id>2</id><title>b</title><author><name>Own</name></author></entry></feed>`, "Feed Person Own"},
+	} {
+		feed, err := parse([]byte(tc.body), "", base)
+		if err != nil || len(feed.entries) != 2 {
+			t.Fatalf("%s: %v, %d entries", name, err, len(feed.entries))
+		}
+		if got := feed.entries[0].Author + " " + feed.entries[1].Author; got != tc.want {
+			t.Errorf("%s: authors %q, want %q", name, got, tc.want)
+		}
+	}
+}
+
 func TestPlatform(t *testing.T) {
 	for link, want := range map[string]string{
 		"https://www.youtube.com/watch?v=1": "youtube", "https://youtu.be/1": "youtube",

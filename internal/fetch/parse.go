@@ -129,6 +129,10 @@ func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
 		}
 	}
 	jsonFeed, _ := feed.OriginalFeed().(*jsonfeed.Feed)
+	feedAuthor := ""
+	if feed.FeedType == "atom" || feed.FeedType == "json" {
+		feedAuthor = firstPerson(feed.Authors) // the feed's author stands in for entries that name none
+	}
 	for i, item := range feed.Items {
 		link := absolute(base, item.Link)
 		guid := strings.TrimSpace(item.GUID)
@@ -159,7 +163,7 @@ func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
 			GUID:         guid,
 			Title:        text(item.Title),
 			URL:          link,
-			Author:       author(item),
+			Author:       author(item, feedAuthor),
 			Summary:      summary,
 			ContentHTML:  content,
 			ThumbnailURL: thumbnail(item, base),
@@ -206,11 +210,20 @@ func normalizeLink(link string) string {
 	return u.String()
 }
 
-func author(item *gofeed.Item) string {
+// author is the entry's own author, else fallback, the feed-level author of Atom and JSON Feed.
+func author(item *gofeed.Item, fallback string) string {
 	if item.DublinCoreExt != nil && len(item.DublinCoreExt.Creator) > 0 {
 		return strings.TrimSpace(item.DublinCoreExt.Creator[0])
 	}
-	for _, person := range item.Authors {
+	if name := firstPerson(item.Authors); name != "" {
+		return name
+	}
+	return fallback
+}
+
+// firstPerson is the first non-empty name in people.
+func firstPerson(people []*gofeed.Person) string {
+	for _, person := range people {
 		if person != nil && strings.TrimSpace(person.Name) != "" {
 			return strings.TrimSpace(person.Name)
 		}
