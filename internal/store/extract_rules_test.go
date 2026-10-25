@@ -80,3 +80,28 @@ func TestFetchHeadersRoundTripAndReachTheFetch(t *testing.T) {
 		t.Errorf("clearing only the User-Agent: %+v, %v", got, err)
 	}
 }
+
+func TestSourceOpenTarget(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	at := time.UnixMilli(1_000_000)
+	plain, err := s.CreateSource(ctx, NewSource{URL: "https://example.org/a", Kind: "article", FetchInterval: time.Hour}, "", at)
+	if err != nil || plain.OpenTarget != OpenFollow {
+		t.Fatalf("a new source opens %q, %v; want follow", plain.OpenTarget, err)
+	}
+	set, err := s.CreateSource(ctx, NewSource{URL: "https://example.org/b", Kind: "video", OpenTarget: OpenBrowser, FetchInterval: time.Hour}, "", at)
+	if err != nil || set.OpenTarget != OpenBrowser {
+		t.Fatalf("a source created with a target: %q, %v", set.OpenTarget, err)
+	}
+	for _, v := range []string{OpenReader, OpenBrowser, OpenFollow} {
+		got, err := s.UpdateSource(ctx, plain.ID, SourcePatch{OpenTarget: &v}, at)
+		if err != nil || got.OpenTarget != v {
+			t.Fatalf("UpdateSource(%q) = %q, %v", v, got.OpenTarget, err)
+		}
+	}
+	for v, want := range map[string]bool{"": false, "Reader": false, "tab": false, OpenFollow: true, OpenReader: true, OpenBrowser: true} {
+		if ValidOpenTarget(v) != want {
+			t.Errorf("ValidOpenTarget(%q) = %v", v, !want)
+		}
+	}
+}

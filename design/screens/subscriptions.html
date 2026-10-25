@@ -43,9 +43,11 @@
      picker (edit-suggest) with a button; nothing changes until it is pressed and the dialog saved.
      The form below the status lines has four groups, each opened by the same small title (icon and name):
      Display (title on its own row, kind picker, kind suggestion), Fetching (Pause fetching first, then the check
-     interval, Extraction, Request headers), Timeline (Keep entries, Pace, Mute keywords) and Summaries and
+     interval, Extraction, Request headers), Timeline (Opens in, Keep entries, Pace, Mute keywords) and Summaries and
      translations. One row style: fields and selects have the label above and at most a one-line help; switches have the
      label at the left and the switch at the right. Pause fetching has no help line.
+     Opens in is a select of the same style, first in the group: "Follow the kind" by default, "In the reader" and
+     "In the browser"; a help line says where a click on this subscription's entries goes; edit-open shows it set to "In the browser", scrolled into view.
      Keep entries is a select in the style of the check interval, full width. It reads "Follow settings · 1 month" by
      default, with the period of the global setting after the dot; a help line says starred entries are always kept.
      Pace is a select of the same style right under Keep entries: Off by default, then Breaking (3 h), Daily (2 days)
@@ -384,7 +386,7 @@ textarea.mute { min-height:56px }
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-public','add-public-no-instance','add-invalid','add-exists','add-searching','add-found-list','add-found-subscribed','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-ai','edit-ai-off','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete','deleted','health','health-loading','health-error','health-empty','health-delete','manage','manage-selected','manage-all','manage-change','manage-change-set','manage-working','manage-partial','manage-delete','manage-deleted','manage-deleted-partial'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-public','add-public-no-instance','add-invalid','add-exists','add-searching','add-found-list','add-found-subscribed','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-ai','edit-ai-off','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete','deleted','health','health-loading','health-error','health-empty','health-delete','manage','manage-selected','manage-all','manage-change','manage-change-set','manage-working','manage-partial','manage-delete','manage-deleted','manage-deleted-partial'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -443,6 +445,7 @@ const copy={
     address:'Address', addressPlaceholder:'Feed URL, page link or RSSHub route',
     addressHelp:'Links to YouTube, Bilibili, X, GitHub, Telegram and Weibo are turned into feeds.',
     showAs:'Show as', title:'Title', titlePlaceholder:'From the feed', every:'Check every', auto:'Auto', autoEvery:'Auto · {every}', every6h:'6 h', suggest:'Most entries in this feed are videos.', suggestUse:'Show as Videos',
+    openTarget:'Opens in', openFollow:'Follow the kind', openBrowser:'In the browser', openHelp:'Where a click on this subscription’s entries goes.',
     keep:'Keep entries', keepFollow:'Follow settings · 1 month', keepHelp:'Starred entries are always kept.',
     extract:'Extraction', extractHelp:'Empty fields use automatic extraction.',
     extractSelector:'Content selector', extractSelectorHelp:'CSS selector of the article element; no match uses automatic.',
@@ -500,6 +503,7 @@ const copy={
     address:'地址', addressPlaceholder:'订阅地址、主页链接或 RSSHub 路由',
     addressHelp:'YouTube、哔哩哔哩、X、GitHub、Telegram 和微博的链接会自动转成订阅。',
     showAs:'显示为', title:'标题', titlePlaceholder:'用订阅里的标题', every:'检查间隔', auto:'自动', autoEvery:'自动 · {every}', every6h:'6 小时', suggest:'这个订阅的条目大多是视频。', suggestUse:'显示为视频',
+    openTarget:'点开时', openFollow:'跟随形态', openBrowser:'用浏览器打开', openHelp:'点这个订阅的条目时看哪里。',
     keep:'保留条目', keepFollow:'跟随设置 · 1 个月', keepHelp:'收藏的条目一直保留。',
     extract:'正文抽取', extractHelp:'留空则用自动抽取。',
     extractSelector:'正文选择器', extractSelectorHelp:'装着文章的元素的 CSS 选择器；匹配不到则自动抽取。',
@@ -568,7 +572,7 @@ const sources=[
   {kind:'image',name:'NASA APOD',mono:'N',unread:1,fav:favs.nasa},
 ];
 const empty=state==='empty';
-const editing=['menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-ai','edit-ai-off','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete'].includes(state);
+const editing=['menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-ai','edit-ai-off','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete'].includes(state);
 const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
 const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.filter((s,i)=>!(state==='deleted'&&i===1)).map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
@@ -669,6 +673,7 @@ function editDialog(){
       ${extractGroup}
       ${headersGroup}
       <h3 class="group-title">${icon('listfilter')}${copy.groupTimeline}</h3>
+      ${select(copy.openTarget,state==='edit-open'?copy.openBrowser:copy.openFollow).replace('</div></div>',`</div><span class="help" id="oh">${copy.openHelp}</span></div>`)}
       ${select(copy.keep,copy.keepFollow).replace('</div></div>',`</div><span class="help">${copy.keepHelp}</span></div>`)}
       ${select(copy.pace,copy.paceOff).replace('</div></div>',`</div><span class="help">${copy.paceHelp}</span></div>`)}
       <div class="field"><label for="mute">${copy.mute}</label><textarea id="mute" class="mute" aria-describedby="mh mc">${state==='edit-mute-none'?(lang==='en'?'giveaway':'抽奖'):lang==='en'?'sponsored\nhiring':'广告\n招聘'}</textarea><span class="help" id="mh">${copy.muteHelp}</span><span class="help count" id="mc" role="status">${state==='edit-mute-none'?copy.muteNone:copy.muteHidden.replace('{n}','7')}</span></div>
@@ -783,6 +788,7 @@ if(form){
   const edges=()=>{const d=form.closest('.dialog');d.classList.toggle('scrolled',form.scrollTop>0);d.classList.toggle('more',form.scrollTop+form.clientHeight<form.scrollHeight-1)};
   form.addEventListener('scroll',edges);
   if(state.startsWith('edit-ai'))form.scrollTop=1e4;
+  if(state==='edit-open')document.getElementById('oh').scrollIntoView({block:'center'});
   if(state==='edit-extract')document.getElementById('xg').scrollIntoView({block:'center'});
   if(state.startsWith('edit-headers'))document.getElementById('hg').scrollIntoView({block:'center'});
   edges();

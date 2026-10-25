@@ -38,14 +38,14 @@ type copy struct {
 	AlsoChip, AlsoName, AlsoHead                                                                                                                                        string
 	All, Article, Video, Social, Image, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                string
 	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
-	MarkUnread, Open, Blocked, BlockedPublic, FeedRemoved, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded                string
+	MarkUnread, Open, OpenReader, Blocked, BlockedPublic, FeedRemoved, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded    string
 	SyntaxLead, SyntaxFrom, SyntaxPhrase, SyntaxExclude                                                                                                                 string
 	Limited, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                                             string
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                                             string
 	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                            string
 	MorePictures, Pictures, AISummary, Separator                                                                                                                        string
 	AddSource, EditSource, AddFirst, ImportOPML, RestoreBackup, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                  string
-	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyStar                                                                    string
+	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyOpenOther, KeyStar                                                      string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
 	KeyFind, KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                                            string
 	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                        string
@@ -1792,12 +1792,34 @@ func (s *Screen) toggleRead(i int) {
 	}
 }
 
-// open opens the entry and marks it read: an article in the reader, the other kinds in the browser.
+// inReader tells that a click on the entry opens it in the reader: its subscription says so, or follows the kind and
+// the entry is an article. A subscription not loaded yet follows the kind.
+func (s *Screen) inReader(e client.Entry) bool {
+	for _, src := range s.sources {
+		if src.ID == e.SourceID {
+			switch src.OpenTarget {
+			case "reader":
+				return true
+			case "browser":
+				return false
+			}
+			break
+		}
+	}
+	return e.Kind == "article"
+}
+
+// open opens the entry and marks it read, in the reader or in the browser as its subscription chooses.
 func (s *Screen) open(c *ui.Context, i int) {
+	s.openBy(c, i, false)
+}
+
+// openBy opens the entry like open, or the other way when flip is set (Shift+Enter, Shift+O), for this once.
+func (s *Screen) openBy(c *ui.Context, i int, flip bool) {
 	if i < 0 || i >= len(s.entries) {
 		return
 	}
-	if s.entries[i].Kind == "article" {
+	if s.inReader(s.entries[i]) != flip {
 		s.read(i)
 		return
 	}
@@ -1856,7 +1878,7 @@ func (s *Screen) prefetch() {
 // article returns the article by entries from the one read, -1 when there is none loaded.
 func (s *Screen) article(by int) int {
 	for i := s.index(s.reading) + by; i >= 0 && i < len(s.entries); i += by {
-		if s.entries[i].Kind == "article" {
+		if s.inReader(s.entries[i]) {
 			return i
 		}
 	}
@@ -2232,7 +2254,7 @@ func (s *Screen) setRead(ids []int64, read bool) {
 // unreadBelow returns the first unread entry after i, only articles when articles, -1 when none is loaded.
 func (s *Screen) unreadBelow(i int, articles bool) int {
 	for i++; i < len(s.entries); i++ {
-		if e := s.entries[i]; !e.IsRead && (!articles || e.Kind == "article") {
+		if e := s.entries[i]; !e.IsRead && (!articles || s.inReader(e)) {
 			return i
 		}
 	}
@@ -2576,6 +2598,8 @@ func (s *Screen) listKeys(c *ui.Context, open bool) {
 	}
 	c.OnShortcut(ui.Shift, ui.Key8, func() { s.Run(ShowStarred) })
 	c.OnShortcut(ui.Shift, ui.KeyA, func() { s.Run(MarkAllRead) })
+	c.OnShortcut(ui.Shift, ui.KeyO, func() { s.openBy(c, s.selected, true) })
+	c.OnShortcut(ui.Shift, ui.KeyEnter, func() { s.openBy(c, s.selected, true) })
 }
 
 // pickKind shows the kind at index i of the sidebar and says which and how many unread entries it has.
@@ -2817,7 +2841,7 @@ func (s *Screen) keySheet(c *ui.Context) {
 		menu = [][]string{{"⇧", "F10"}}
 	}
 	timeline := []key{{s.text.KeyNext, one("J", "↓")}, {s.text.KeyPrevious, one("K", "↑")},
-		{s.text.KeyNextUnread, one("N")}, {s.text.KeyOpen, one("O", "↩")}, {s.text.KeyPictures, one("Space")},
+		{s.text.KeyNextUnread, one("N")}, {s.text.KeyOpen, one("O", "↩")}, {s.text.KeyOpenOther, [][]string{{shiftKey(), "O"}, {shiftKey(), "↩"}}}, {s.text.KeyPictures, one("Space")},
 		{s.text.KeyStar, one("S")},
 		{s.text.KeyRead, one("M")}, {s.text.KeyMarkVisible, one("V")},
 		{s.text.KeyMarkAll, [][]string{{shiftKey(), "A"}}}, {s.text.KeyUnread, one("U")}, {s.text.KeyAll, one("A")},
@@ -4355,6 +4379,9 @@ func (s *Screen) entryMenu(c *ui.Context, m *ui.Menu, id int64) {
 	if m.Item(read).Chosen() {
 		s.toggleRead(s.index(id))
 	}
+	if m.Item(s.text.OpenReader).Chosen() {
+		s.read(s.index(id))
+	}
 	if m.Item(s.text.Open).Chosen() {
 		s.browse(c, s.index(id))
 	}
@@ -4591,7 +4618,7 @@ func (s *Screen) openCopy(c *ui.Context, id int64, m client.GroupMember) {
 		return
 	}
 	e := s.entries[i]
-	if e.Kind != "article" {
+	if !s.inReader(e) {
 		if m.URL != "" {
 			svc := c.Services()
 			c.OpenURLThen(tracker.StripLink(m.URL), func(err error) {

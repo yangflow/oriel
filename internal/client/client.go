@@ -348,6 +348,7 @@ type Source struct {
 	PaceSec             int    `json:"paceSec"`
 	ExtractSelector     string `json:"extractSelector"`
 	ExtractReferer      string `json:"extractReferer"`
+	OpenTarget          string `json:"openTarget"`
 	FetchUserAgent      string `json:"fetchUserAgent"`
 	FetchReferer        string `json:"fetchReferer"`
 	ExtractRewrites     string `json:"extractRewrites"`
@@ -391,6 +392,8 @@ type SourcePatch struct {
 	// ExtractSelector, ExtractReferer and ExtractRewrites are the source's extraction rules; an empty string clears one.
 	ExtractSelector *string `json:"extractSelector,omitempty"`
 	ExtractReferer  *string `json:"extractReferer,omitempty"`
+	// OpenTarget is where a click on the source's entries goes: "follow", "reader" or "browser".
+	OpenTarget *string `json:"openTarget,omitempty"`
 	// FetchUserAgent and FetchReferer are the headers sent to the subscription's own host; an empty string clears one.
 	FetchUserAgent  *string `json:"fetchUserAgent,omitempty"`
 	FetchReferer    *string `json:"fetchReferer,omitempty"`

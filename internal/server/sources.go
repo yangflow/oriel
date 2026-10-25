@@ -50,6 +50,7 @@ type sourceJSON struct {
 	PaceSec             int    `json:"paceSec"`
 	ExtractSelector     string `json:"extractSelector"`
 	ExtractReferer      string `json:"extractReferer"`
+	OpenTarget          string `json:"openTarget"`
 	FetchUserAgent      string `json:"fetchUserAgent"`
 	FetchReferer        string `json:"fetchReferer"`
 	ExtractRewrites     string `json:"extractRewrites"`
@@ -77,7 +78,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError, LastErrorKind: src.LastErrorKind,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, OpenTarget: src.OpenTarget, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
 		WebSubActive: src.WebSubUntil.After(time.Now()), MovedTo: src.MovedTo, UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
@@ -237,6 +238,8 @@ func checkSource(src store.NewSource) string {
 		return "invalid_rsshub_path"
 	case !kinds[src.Kind]:
 		return "invalid_kind"
+	case src.OpenTarget != "" && !store.ValidOpenTarget(src.OpenTarget):
+		return "invalid_open_target"
 	}
 	return ""
 }
@@ -279,6 +282,7 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		ExtractRewrites   *string `json:"extractRewrites"`
 		FetchUserAgent    *string `json:"fetchUserAgent"`
 		FetchReferer      *string `json:"fetchReferer"`
+		OpenTarget        *string `json:"openTarget"`
 		Proxy             *string `json:"proxy"`
 		ProxyUser         *string `json:"proxyUser"`
 		ProxyPassword     *string `json:"proxyPassword"`
@@ -348,6 +352,13 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		patch.ExtractRewrites = &rewrites
+	}
+	if body.OpenTarget != nil {
+		if !store.ValidOpenTarget(*body.OpenTarget) {
+			fail(w, http.StatusBadRequest, "invalid_open_target")
+			return
+		}
+		patch.OpenTarget = body.OpenTarget
 	}
 	if body.FetchUserAgent != nil {
 		agent, err := fetch.ParseUserAgent(*body.FetchUserAgent)

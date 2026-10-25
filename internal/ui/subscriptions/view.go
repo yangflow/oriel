@@ -3,6 +3,7 @@
 package subscriptions
 
 import (
+	"cmp"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -44,6 +45,7 @@ type copy struct {
 	ExtractReferer, ExtractRefererHelp, ExtractRefererPlaceholder, ExtractRefererInvalid                                                                                           string
 	Headers, HeaderUa, HeaderUaHelp, HeaderReferer, HeaderRefererHelp, HeadersNote, HeaderUaError, HeaderRefererError                                                              string
 	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                                       string
+	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                                                string
 	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                                                   string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                                string
 	Undo, Dismiss, UndoFailed                                                                                                                                                      string
@@ -80,6 +82,9 @@ var keeps = []int64{0, 7, 30, 90, 180, 365, -1}
 
 // paces are the paces offered, in seconds: 0 is off, the first and the default, then 3 hours, 2 days and 7 days.
 var paces = []int64{0, 3 * 3600, 2 * 24 * 3600, 7 * 24 * 3600}
+
+// openTargets are the values of a source's openTarget in the order the select offers them: the default first.
+var openTargets = []string{"follow", "reader", "browser"}
 
 // API is what the dialogs read and write on the server; client.Session is one.
 type API interface {
@@ -200,6 +205,7 @@ type editing struct {
 	interval  int64
 	keep      int64 // in keeps: days, 0 to follow the settings, -1 for forever
 	global    int   // the keep period of the settings in days, 0 for forever
+	target    int64 // index in openTargets: where a click on the entries goes
 	pace      int64 // in paces: seconds an unread entry stays in All and Unread, 0 for off
 	paused    bool
 	mute      string
@@ -638,7 +644,7 @@ func (s *Screen) Edit(src client.Source) {
 		return
 	}
 	s.edit = editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
-		interval: intervalChoice(src), keep: int64(src.KeepDays), pace: int64(src.PaceSec), paused: src.Paused, mute: src.MuteKeywords,
+		interval: intervalChoice(src), keep: int64(src.KeepDays), target: int64(max(0, slices.Index(openTargets, src.OpenTarget))), pace: int64(src.PaceSec), paused: src.Paused, mute: src.MuteKeywords,
 		extract:  src.ExtractSelector != "" || src.ExtractReferer != "" || src.ExtractRewrites != "",
 		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
 		headers: src.FetchUserAgent != "" || src.FetchReferer != "", agent: src.FetchUserAgent, fetchRef: src.FetchReferer,
@@ -684,6 +690,9 @@ func (s *Screen) save() {
 	}
 	if keep := int(e.keep); keep != e.src.KeepDays {
 		patch.KeepDays, changed = &keep, true
+	}
+	if target := openTargets[e.target]; target != cmp.Or(e.src.OpenTarget, openTargets[0]) {
+		patch.OpenTarget, changed = &target, true
 	}
 	if pace := int(e.pace); pace != e.src.PaceSec {
 		patch.PaceSec, changed = &pace, true
@@ -1799,6 +1808,27 @@ func (s *Screen) keepField(c *ui.Context) {
 	})
 }
 
+// openName names a choice of openTargets.
+func (s *Screen) openName(i int64) string {
+	switch openTargets[i] {
+	case "reader":
+		return s.text.OpenReader
+	case "browser":
+		return s.text.OpenBrowser
+	}
+	return s.text.OpenFollow
+}
+
+// openField is where a click on the subscription's entries goes, with the line that says so.
+func (s *Screen) openField(c *ui.Context) {
+	t := c.Theme()
+	e := &s.edit
+	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+		s.choiceSelect(c, &e.target, []int64{0, 1, 2}, s.text.OpenTarget, s.openName(e.target), s.openName, e.busy, false)
+		help(c, s.text.OpenTargetHelp)
+	})
+}
+
 // paceName names a pace in seconds: 0 is off, the presets by name and any other number as hours or days.
 func (s *Screen) paceName(sec int64) string {
 	switch sec {
@@ -2002,6 +2032,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.extractGroup(c)
 		s.headersGroup(c)
 		groupTitle(c, icons.ListFilter, s.text.GroupTimeline)
+		s.openField(c)
 		s.keepField(c)
 		s.paceField(c)
 		s.muteField(c)

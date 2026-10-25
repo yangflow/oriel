@@ -311,16 +311,19 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   groups follow what the user is doing, not the order the settings were added: "Display" (eye icon) holds the title,
   on a row of its own, and "Show as" with the kind suggestion; "Fetching" (refresh icon) holds "Pause fetching" first, so
   the switch sits next to the status line it changes, then the check interval, then "Extraction" and "Request headers";
-  "Timeline" (list-filter icon) holds "Keep entries", "Pace" and "Mute keywords"; "Summaries and translations" (sparkles
-  icon) closes the dialog. One row style: a field, a select or a text box has its 12 medium label above the control
-  with `Space(1)` between, and a muted 12 help line of at most one line under it, only where the label does not say
-  it already; a switch is the app-wide switch row, the label at the left and the switch at the right, the label in the
-  same 12 medium, with its help line under the label when it has one. The choice is deliberate: a switch has two
-  states and no room for a label above it, and the settings screen reads the same way, so both kinds of row keep their
-  familiar shape and only the type, the gaps and the help lines are shared. The disclosures are not a third style: they
-  are a label that opens more fields, left-aligned with the other labels (never centered or full width), and the
-  help of what is inside shows only when it is open. "Pause fetching" has no help line, the label says it.
+  "Timeline" (list-filter icon) holds "Opens in", "Keep entries", "Pace" and "Mute keywords"; "Summaries and
+  translations" (sparkles icon) closes the dialog. One row style: a field, a select or a text box has its 12 medium
+  label above the control with `Space(1)` between, and a muted 12 help line of at most one line under it, only where
+  the label does not say it already; a switch is the app-wide switch row, the label at the left and the switch at the
+  right, the label in the same 12 medium, with its help line under the label when it has one. The choice is
+  deliberate: a switch has two states and no room for a label above it, and the settings screen reads the same way, so
+  both kinds of row keep their familiar shape and only the type, the gaps and the help lines are shared. The
+  disclosures are not a third style: they are a label that opens more fields, left-aligned with the other labels
+  (never centered or full width), and the help of what is inside shows only when it is open. "Pause fetching" has no
+  help line, the label says it.
   The interval offers Auto first, and an automatic subscription reads "Auto · 6 h" with the interval in use.
+  "Opens in" is the first select of the group, in the same style: "Follow the kind" is the default, then "In the reader"
+  and "In the browser"; the help line says where a click on the entries goes.
   "Keep entries" is a full-width select in the style of the interval: "Follow settings · 1 month" (the global period
   after the dot) is the default, then 1 week to 1 year and Forever, and an "N d" row when the stored number is none of
   those; the help line says starred entries are always kept. "Pace" follows in the same style: Off is the default, then
