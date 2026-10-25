@@ -277,7 +277,7 @@ func desktop() {
 				if err != nil {
 					slog.Error("Cannot show the save dialog", "error", err)
 				}
-				return savePath(path, types), err
+				return path, err
 			},
 		}
 		files.Desktop = &settings.Desktop{OS: runtime.GOOS, Bundled: mygo.App.IsPackaged()}

@@ -22,26 +22,10 @@ func saveTypes(name string) []string {
 // saveName is the name the save dialog is pre-filled with. macOS adds the first allowed extension to a name by itself,
 // and for an extension it does not know (opml, oriel-backup) it does so even when the name already ends with it
 // (Oriel.opml.opml), so there the extension is left off and the panel adds it once. Windows adds the extension of the
-// chosen file type too, but Linux (GTK) adds nothing, so everywhere else the name keeps its extension.
+// chosen file type too, but Linux (GTK) adds nothing, so everywhere else the name keeps its extension and the file gets it unless the user deletes it.
 func saveName(name, goos string) string {
 	if goos != "darwin" {
 		return name
 	}
 	return strings.TrimSuffix(name, filepath.Ext(name))
-}
-
-// savePath makes sure the file the user picked ends in one of the accepted extensions, which a dialog that adds
-// nothing (GTK) or a name the user cleared does not guarantee; a path with another extension keeps it and gets the
-// first accepted one after it, so Notes.v2 becomes Notes.v2.opml.
-func savePath(path string, types []string) string {
-	if path == "" {
-		return path
-	}
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	for _, t := range types {
-		if ext == t {
-			return path
-		}
-	}
-	return path + "." + types[0]
 }

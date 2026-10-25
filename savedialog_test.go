@@ -28,23 +28,3 @@ func TestSaveName(t *testing.T) {
 		}
 	}
 }
-
-func TestSavePath(t *testing.T) {
-	opml := []string{"opml", "xml"}
-	for _, c := range []struct {
-		path  string
-		types []string
-		want  string
-	}{
-		{"", opml, ""},
-		{"/x/Oriel.opml", opml, "/x/Oriel.opml"},
-		{"/x/Feeds.XML", opml, "/x/Feeds.XML"},
-		{"/x/Oriel", opml, "/x/Oriel.opml"},
-		{"/x/Notes.v2", opml, "/x/Notes.v2.opml"},
-		{"/x/Oriel-1", []string{"oriel-backup"}, "/x/Oriel-1.oriel-backup"},
-	} {
-		if got := savePath(c.path, c.types); got != c.want {
-			t.Errorf("savePath(%q) = %q, want %q", c.path, got, c.want)
-		}
-	}
-}
