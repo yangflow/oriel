@@ -21,6 +21,8 @@ func communing(t *testing.T, p *prefs.Preferences) (*Screen, *fake, *ui.Tester) 
 			Title: title, URL: "https://board.example/" + title, CreatedAt: ago(time.Duration(i+1) * time.Minute)})
 	}
 	slices.SortFunc(f.entries, func(a, b client.Entry) int { return int(b.CreatedAt - a.CreatedAt) })
+	s.loadSources()
+	f.settle(t, tt)
 	pick(t, f, tt, "Community")
 	return s, f, tt
 }
@@ -116,6 +118,55 @@ func TestCommunityFallsBack(t *testing.T) {
 	tt.Frame()
 	if s.paned || tt.HasText("Choose a post to read") {
 		t.Fatalf("paned with the viewer List: %v", tt.Texts())
+	}
+}
+
+// The toolbars of the two panes: the list's keeps the title with the unread count, the filters, the time range and
+// search; the reader's has its actions, which work from the pane, but no Back and no previous and next arrows.
+func TestCommunityPaneToolbars(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := communing(t, &p)
+	for _, text := range []string{"Community", "3 unread"} {
+		if !tt.HasText(text) {
+			t.Fatalf("no %q in the list pane: %v", text, tt.Texts())
+		}
+	}
+	for _, label := range []string{"Time range: any time", "Search", "Show"} {
+		if _, ok := tt.Find(label); !ok {
+			t.Errorf("no %q in the list pane", label)
+		}
+	}
+	tt.Key(0, ui.KeyJ)
+	f.settle(t, tt)
+	if s.reading != 20 {
+		t.Fatalf("reading %d", s.reading)
+	}
+	for _, label := range []string{"Summarize", "Translate", "Star", "Open in browser", "Copy link", "More"} {
+		if _, ok := tt.Find(label); !ok {
+			t.Errorf("no %q in the reader pane: %v", label, tt.Texts())
+		}
+	}
+	for _, label := range []string{"Previous", "Next"} {
+		if _, ok := tt.Find(label); ok {
+			t.Errorf("%q in the reader pane", label)
+		}
+	}
+	if err := tt.Click("Star"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if !s.entries[s.index(20)].Starred {
+		t.Fatalf("the pane's Star did not star the post: %v", f.patches[20])
+	}
+	if err := tt.Click("Open in browser"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if got := tt.OpenedURLs(); !slices.Equal(got, []string{"https://board.example/Third thread"}) {
+		t.Fatalf("opened %v", got)
+	}
+	if s.reading != 20 {
+		t.Fatalf("the pane closed the post: reading %d", s.reading)
 	}
 }
 

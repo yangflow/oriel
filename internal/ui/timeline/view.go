@@ -3838,8 +3838,10 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 			if hidden {
 				s.sidebarButton(c, true)
 			}
-			ui.Text(c, s.scopeName()).FontSize(theme.Px(t, 15)).FontWeight(600).SingleLine().MinWidth(theme.Px(t, 40)).Shrink(1).
-				Role(ui.RoleHeading).Level(1)
+			title := func() {
+				ui.Text(c, s.scopeName()).FontSize(theme.Px(t, 15)).FontWeight(600).SingleLine().MinWidth(theme.Px(t, 40)).Shrink(1).
+					Role(ui.RoleHeading).Level(1)
+			}
 			sub := ""
 			switch {
 			case s.searched != "" && !s.loading && !s.loadErr:
@@ -3852,9 +3854,23 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 					sub = s.format(s.text.UnreadCount, n)
 				}
 			}
-			// In a narrow column the count gives way before the title does.
-			if sub != "" && !narrow {
+			count := func() {
 				ui.Text(c, sub).FontSize(theme.Px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
+			}
+			switch {
+			case s.paned && sub != "":
+				// The list pane has no room for the title and the count side by side beside the filters, the time
+				// range and search; the count sits under the title, so neither gives way.
+				ui.Column(c).MinWidth(0).Shrink(1).Children(func() {
+					title()
+					count()
+				})
+			case sub != "" && !narrow:
+				// In a narrow column the count gives way before the title does.
+				title()
+				count()
+			default:
+				title()
 			}
 			s.editButton(c)
 		})
@@ -3868,10 +3884,16 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 			}
 			// The icon buttons are one group with the same gap between them, whatever the column.
 			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 4)).Shrink(0).Children(func() {
-				s.budgetButton(c, !field)
-				s.rangeButton(c, !field, column < rangeColumn)
+				// The 320 wide list pane has room for the time range and search only; the reading-time budget and
+				// Mark all as read are in the list of the narrow fallback and on the keys.
+				if !s.paned {
+					s.budgetButton(c, !field)
+				}
+				s.rangeButton(c, !field, column < rangeColumn && !s.paned)
 				s.gridButton(c)
-				s.markAllButton(c)
+				if !s.paned {
+					s.markAllButton(c)
+				}
 			})
 			if field {
 				s.searchField(c, false)

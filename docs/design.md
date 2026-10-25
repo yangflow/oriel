@@ -256,12 +256,17 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   the row's first line (on the Large cover, with the top of the cover).
   **Community, Panes.** In the Community scope (or one community subscription) with a main column at least 800 wide,
   three panes sit side by side: the ink sidebar, a list pane 320 wide and the reader pane filling the rest (at least
-  480). The list pane draws Article rows; the toolbar floats over it only. The reader pane is the reader itself, without
-  its own sidebar; until a post is open it shows a centered `TextMuted` 15 "Choose a post to read" over a 13 hint
-  "Use J and K, or click a row.". A hairline separates the panes. The chosen row keeps its chosen fill while its post is
-  open, so the list shows where you are. Below 800 (or with the Community viewer set to List) the kind falls back to
-  List, open, back, like Articles. Drawn in `design/screens/timeline.html` as `forum-panes`, `forum-panes-empty` and
-  `forum-narrow`.
+  480). The list pane draws Article rows. Its toolbar floats over it and keeps the scope title with the unread count
+  (title above the count, so both fit 320 in either language), the filter as icons only (the segments keep their names for
+  the screen reader), the time range and search; the reading-time clock and Mark all as read are not drawn there, they stay
+  on their keys and in the List fallback. The reader pane is the reader itself, without its own sidebar: its toolbar is the
+  reader's (Summarize and Translate in the glass capsule, then Star, mark read or unread, Open in browser, Copy link and
+  More), without Back and without the previous and next arrows, since J and K step and the list is beside it; the
+  actions work from the pane. Until a post is open the pane has no toolbar and shows a centered `TextMuted` 15 "Choose a
+  post to read" over a 13 hint "Use J and K, or click a row.". A hairline separates the panes. The chosen row keeps its
+  chosen fill while its post is open, so the list shows where you are; opening marks it read, so it carries no unread
+  dot. Below 800 (or with the Community viewer set to List) the kind falls back to List, open, back, like Articles. Drawn
+  in `design/screens/timeline.html` as `forum-panes`, `forum-panes-empty` and `forum-narrow`.
   **Where each applies.** Grid, Wall and the square Grid by default only in the Videos or Images scope with no search; in All,
   Articles, Social, a single subscription and a search the kind draws its row or card, so a subscription starts as
   a column. The grid switch (below) can turn the grid on for one video or image subscription. Compact and Large cover apply wherever the kind appears, so a Compact

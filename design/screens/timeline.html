@@ -430,7 +430,15 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .main.split { flex-direction:row }
 .listpane { position:relative; flex:none; width:320px; display:flex; flex-direction:column }
 .listpane .toolbar { padding:0 8px 0 12px }
-.listpane .toolbar .sub, .listpane .toolbar h1, .listpane .toolbar .search, .listpane .toolbar .timebtn, .listpane .toolbar .search-icon { display:none }
+/* The list's toolbar keeps the title with the count, the filter (icons only, named for the screen reader), the time range and
+   search; the clock and Mark all stay on their keys. The search field opens over the tools as it does anywhere. */
+.listpane .toolbar { gap:6px; padding:0 4px 0 12px }
+.listpane .toolbar .lead { flex:1 1 auto; gap:6px }
+.listpane .toolbar .trail { flex:none; gap:0 }
+.listpane .toolbar .stack { min-width:0; display:flex; flex-direction:column; gap:1px }
+.listpane .toolbar .stack h1 { line-height:19px }
+.listpane .toolbar .stack .sub { line-height:15px; overflow:hidden; text-overflow:ellipsis }
+.listpane .toolbar .search { display:none }
 .listpane .segmented button { font-size:0; padding:0 9px }
 .listpane .column { max-width:none; margin:0; padding:6px 12px 40px }
 .hair { flex:none; width:1px; background:var(--border) }
@@ -439,6 +447,19 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .readpane .post h2 { margin:0; font-size:22px; line-height:30px; font-weight:700; letter-spacing:-.01em }
 .readpane .post p { margin:0; font-size:15px; line-height:26px; color:var(--text) }
 .readpane .post .meta { margin-bottom:8px }
+/* The reader's own toolbar over the post, without Back and the arrows (J and K step): the glass capsule of Summarize and
+   Translate, then the bare tools (docs/design.md, Reader). */
+.readpane { position:relative; padding-top:0; display:flex; flex-direction:column }
+.readpane .rbar { position:relative; z-index:2; flex:none; height:52px; display:flex; align-items:center; gap:4px; padding:0 16px 0 12px }
+.readpane .rbar .spacer { flex:1 }
+.readpane .rbar .bare { display:flex; align-items:center; gap:4px; flex:none }
+.readpane .rbar .tool { width:32px; height:32px; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
+.readpane .rbar .tool:hover { background:var(--hover); color:var(--text) }
+.readpane .rbar .tool.on { color:var(--star) }
+.readpane .rbar .group { flex:none; display:flex; align-items:center; gap:1px; height:34px; padding:0 4px; border-radius:17px; background:var(--glass); box-shadow:var(--glass-rim); -webkit-backdrop-filter:blur(22px) saturate(1.5); backdrop-filter:blur(22px) saturate(1.5) }
+.readpane .rbar .group .tool { height:28px; width:30px; border-radius:14px }
+.readpane .rbar .group .tool.labeled { width:auto; display:flex; gap:6px; padding:0 11px 0 9px; font-size:12px; font-weight:500; letter-spacing:.01em }
+.readpane .body { flex:1; overflow-y:auto }
 .row { position:relative; display:flex; gap:14px; padding:16px 16px 16px 28px; margin:0 -16px; border-radius:12px; transition:background-color var(--t) }
 .looked { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:28px; margin:0; padding:0; border:0; background:transparent; font:inherit }
 .looked::before { content:""; position:absolute; left:0; right:0; top:50%; border-top:1px solid var(--border) }
@@ -735,6 +756,7 @@ const scheme=pick('scheme',options.scheme,'light');
 const lang=pick('lang',options.lang,'en');
 const forumState=state.startsWith('forum-');
 // Panes need a main column of 800: the 960 window has 736 beside the sidebar, so the panes are drawn in the wide window.
+const paned=state==='forum-panes'||state==='forum-panes-empty';
 const size=pick('size',options.size,state==='forum-panes'||state==='forum-panes-empty'?'wide':'default');
 document.documentElement.dataset.scheme=scheme;
 document.documentElement.lang=lang;
@@ -757,6 +779,9 @@ const icons={
   article:'<path d="M15 18h-5"/><path d="M18 14h-8"/><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="10" y="6" rx="1"/>',
   video:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
   social:'<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
+  languages:'<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
+  link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  ellipsis:'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
   forum:'<path d="M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1"/>',
   sparkles:'<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
   imageOff:'<line x1="2" x2="22" y1="2" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" x2="6" y1="13.5" y2="21"/><line x1="18" x2="21" y1="12" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/>',
@@ -812,7 +837,7 @@ const copy={
   en:{
     foldMore:'{n} more from {name}', foldLabel:'{n} more from {name}, show',
     all:'All', article:'Articles', video:'Videos', social:'Social', image:'Images', forum:'Community', kinds:'Kinds',
-    panePlaceholder:'Choose a post to read', paneHint:'Use J and K, or click a row.', sources:'Subscriptions',
+    panePlaceholder:'Choose a post to read', summarize:'Summarize', translate:'Translate', more:'More', paneHint:'Use J and K, or click a row.', sources:'Subscriptions',
     leaving:'leaving the timeline soon', alsoChip:'{n} more sources', alsoName:'Also in {n} other sources, show them', alsoHead:'Also in',
     everything:'Everything', unread:'Unread', starred:'Starred', show:'Show',
     search:'Search', searchLabel:'Search entries', clear:'Clear search',
@@ -851,7 +876,7 @@ const copy={
   'zh-Hans':{
     foldMore:'还有 {n} 条来自 {name}', foldLabel:'还有 {n} 条来自 {name}，展开',
     all:'全部', article:'文章', video:'视频', social:'社交', image:'图片', forum:'社区', kinds:'形态',
-    panePlaceholder:'选一个帖子来读', paneHint:'用 J、K 或点一行。', sources:'订阅',
+    panePlaceholder:'选一个帖子来读', summarize:'摘要', translate:'翻译', more:'更多', paneHint:'用 J、K 或点一行。', sources:'订阅',
     leaving:'即将离开时间线', alsoChip:'另 {n} 个来源', alsoName:'另见 {n} 个来源，展开', alsoHead:'另见',
     everything:'全部', unread:'未读', starred:'收藏', show:'显示',
     search:'搜索', searchLabel:'搜索条目', clear:'清空搜索',
@@ -1045,6 +1070,7 @@ if(state==='translated-titles'){
   de.forEach(([i,orig,title])=>{entries[i].orig=orig;entries[i].title=title});
 }
 if(state==='offline-pending'){entries[0].pending=true;entries[0].starred=true;entries[1].pending=true;entries[1].read=true;byId[entries[1].source].unread--}
+if(state==='forum-panes'){forumEntries[0].read=true;byId[forumEntries[0].source].unread--}
 total=sources.filter(s=>!s.hidden).reduce((a,s)=>a+s.unread,0);
 const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[focusId].name:scope==='folder'?folders[0].name:copy.all;
 const pool=edge||(scope==='forum'?forumEntries:entries);
@@ -1202,7 +1228,7 @@ const switchBtn=switchable?`<button class="timebtn" aria-label="${switchName}" t
 const columned=!(cardsOn||wallOn);
 const sbtn=(cls='')=>`<button class="sbtn${cls}" aria-label="${hidden?copy.showSidebar:copy.hideSidebar}" title="${hidden?copy.showSidebar:copy.hideSidebar}">${icon('panelLeft')}</button>`;
 const searchIcon=`<button class="tool search-icon" aria-label="${copy.search}" title="${copy.search}">${icon('search')}</button>`;
-const toolbar=`<div class="toolbar${switchable?' switch':''}${columned?' aligned':''}${scope==='social'?' wide':''}${hidden?' nopane':''}"><div class="lead">${hidden?sbtn():''}<h1>${scopeName}</h1><span class="sub">${sub}</span></div><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div><div class="trail${searching||state==='search-open'?' opened':''}"><div class="tools">${timeBtn}${rangeBtn}${switchBtn}${markAll}</div>${searchIcon}${searchField}</div></div>`;
+const toolbar=`<div class="toolbar${switchable?' switch':''}${columned?' aligned':''}${scope==='social'?' wide':''}${hidden?' nopane':''}"><div class="lead">${hidden?sbtn():''}${paned&&sub?`<div class="stack"><h1>${scopeName}</h1><span class="sub">${sub}</span></div>`:`<h1>${scopeName}</h1><span class="sub">${sub}</span>`}</div><div class="segmented" role="radiogroup" aria-label="${copy.show}">${segments}</div><div class="trail${searching||state==='search-open'?' opened':''}"><div class="tools">${paned?'':timeBtn}${rangeBtn}${switchBtn}${paned?'':markAll}</div>${searchIcon}${searchField}</div></div>`;
 const hint=state==='search-short'?`<div class="hint" id="hint" role="status">${icon('alert')}${copy.limited}</div>`:state==='search-syntax'?`<div class="hint syntax" id="syntax">${icon('info')}<span>${copy.syntaxLead}</span><span><b>from:</b>${copy.syntaxFrom}</span><span><b>kind:</b>video</span><span><b>after:</b>2026-01-01</span><span><b>"</b>${copy.syntaxPhrase}<b>"</b></span><span><b>-</b>${copy.syntaxExclude}</span></div>`:'';
 const stale=state.startsWith('offline')?`<div class="stale${columned?' aligned':''}${scope==='social'?' wide':''}" role="status">${icon('wifiOff')}<span>${t('offline',{time:'10:42'})}</span><button class="retry"${state==='offline-retrying'?' disabled':''}>${state==='offline-retrying'?copy.retrying:copy.retry}</button></div>`:'';
 const pill=state==='new'?`<button class="pill">${icon('arrowUp')}${t('newEntries',{n:3})}</button>`:'';
@@ -1271,10 +1297,11 @@ const lightbox=lightboxOn?`<div class="lightbox" role="dialog" aria-modal="true"
   <button class="lb-nav next${state==='lightbox'?' hover':''}" aria-label="${copy.lbNext}" title="${copy.lbNext} (→)">${icon('chevronRight')}</button>
   <div class="lb-caption"><b>${lbEntry.author}</b><span>${lbEntry.handle}</span></div></div>`:'';
 // Panes: the list keeps its 320 and the open post fills the rest; with no post open the pane holds a note.
-const paned=state==='forum-panes'||state==='forum-panes-empty';
 const openPost=forumEntries[0];
-const readPane=state==='forum-panes-empty'?empty('forum',copy.panePlaceholder,copy.paneHint)
-  :`<article class="post"><header><h2>${openPost.title}</h2><div class="meta">${glyph(byId[openPost.source])}<span class="src">${byId[openPost.source].name}</span><span class="sep"></span><span class="when">${openPost.author}</span><span class="sep"></span><span class="when">${openPost.when}</span></div></header>${openPost.body.map(p=>`<p>${p}</p>`).join('')}</article>`;
+const rbtn=(name,ic,key,cls='')=>`<button class="tool${cls}" aria-label="${name}" title="${name}${key?` (${key})`:''}">${icon(ic)}</button>`;
+const rbar=`<div class="rbar"><span class="spacer"></span><div class="group"><button class="tool labeled" aria-pressed="false" aria-label="${copy.summarize}" title="${copy.summarize}">${icon('sparkles')}<span>${copy.summarize}</span></button><button class="tool labeled" aria-pressed="false" aria-label="${copy.translate}" title="${copy.translate}">${icon('languages')}<span>${copy.translate}</span></button></div><div class="bare">${rbtn(copy.star,'star','S')}${rbtn(copy.markUnread,'mail','M')}${rbtn(copy.open,'external','O')}${rbtn(copy.copyLink,'link')}${rbtn(copy.more,'ellipsis')}</div></div>`;
+const readPane=state==='forum-panes-empty'?`<div class="body">${empty('forum',copy.panePlaceholder,copy.paneHint)}</div>`
+  :`${rbar}<div class="body"><article class="post"><header><h2>${openPost.title}</h2><div class="meta">${glyph(byId[openPost.source])}<span class="src">${byId[openPost.source].name}</span><span class="sep"></span><span class="when">${openPost.author}</span><span class="sep"></span><span class="when">${openPost.when}</span></div></header>${openPost.body.map(p=>`<p>${p}</p>`).join('')}</article></div>`;
 const mainHtml=paned?`<section class="main split"><div class="listpane">${toolbar}${stale}<div class="scroll">${list}</div>${pill}</div><div class="hair"></div><div class="readpane" role="region" aria-label="${copy.panePlaceholder}">${readPane}</div></section>`
   :`<section class="main">${toolbar}${hint}${stale}${pill}<div class="scroll">${list}</div>${toast}</section>`;
 document.getElementById('app').innerHTML=`${hidden?'':sidebar()}${mainHtml}${paletteOn?paletteDialog():dialog}${lightbox}`;
