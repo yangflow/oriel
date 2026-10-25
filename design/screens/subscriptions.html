@@ -246,6 +246,8 @@ textarea.prompt { min-height:58px; font:12px/1.5 ui-monospace,Menlo,Consolas,mon
 .found.pick.on { background:var(--accent-soft); box-shadow:none }
 .found.pick > svg.icon:last-child { visibility:hidden }
 .found.pick.on > svg.icon:last-child { visibility:visible }
+.found.pick.subscribed { width:100%; border:0; font:inherit; color:inherit; text-align:left }
+.found.pick.subscribed .tag { font-size:12px; color:var(--muted) }
 .picks { display:flex; flex-direction:column; gap:6px }
 .picks .head { font-size:12px; color:var(--muted) }
 .params { display:flex; flex-direction:column; gap:10px }
@@ -382,7 +384,7 @@ textarea.mute { min-height:56px }
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-public','add-public-no-instance','add-invalid','add-exists','add-searching','add-found-list','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-ai','edit-ai-off','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete','deleted','health','health-loading','health-error','health-empty','health-delete','manage','manage-selected','manage-all','manage-change','manage-change-set','manage-working','manage-partial','manage-delete','manage-deleted','manage-deleted-partial'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-public','add-public-no-instance','add-invalid','add-exists','add-searching','add-found-list','add-found-subscribed','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-ai','edit-ai-off','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete','deleted','health','health-loading','health-error','health-empty','health-delete','manage','manage-selected','manage-all','manage-change','manage-change-set','manage-working','manage-partial','manage-delete','manage-deleted','manage-deleted-partial'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -462,7 +464,7 @@ const copy={
     needsBase:'RSSHub routes need an RSSHub instance. Enter its address; it is saved in Settings.',
     rsshubAddress:'RSSHub address', rsshubPlaceholder:'https://rsshub.example.com',
     invalidUrl:'Enter a full address starting with http:// or https://, or a route starting with /.',
-    exists:'You already follow this as “The Go Blog”.', show:'Show it',
+    exists:'You already follow this as “The Go Blog”.', show:'Show it', anyway:'Add anyway', subscribed:'Subscribed', pickOne:'Found 1 feed. You already follow it.',
     addHere:'Add your first subscription', noSubscriptions:'No subscriptions yet',
     noSubscriptionsHint:'Entries from your subscriptions show up here, newest first.',
     refresh:'Refresh', retry:'Try again', edit:'Edit…', pause:'Pause', resume:'Resume', remove:'Delete…', editTitle:'Edit subscription',
@@ -519,7 +521,7 @@ const copy={
     needsBase:'RSSHub 路由要先有一个 RSSHub 实例。填上它的地址，会存进设置。',
     rsshubAddress:'RSSHub 地址', rsshubPlaceholder:'https://rsshub.example.com',
     invalidUrl:'填完整地址（以 http:// 或 https:// 开头），或以 / 开头的路由。',
-    exists:'已经订阅过了，叫「The Go Blog」。', show:'去看看',
+    exists:'已经订阅过了，叫「The Go Blog」。', show:'去看看', anyway:'仍然添加', subscribed:'已订阅', pickOne:'找到 1 个订阅，你已经订阅了它。',
     addHere:'添加第一个订阅', noSubscriptions:'还没有订阅',
     noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。',
     refresh:'更新', retry:'重试', edit:'编辑…', pause:'暂停', resume:'恢复', remove:'删除…', editTitle:'编辑订阅',
@@ -581,7 +583,7 @@ const select=(label,value)=>`<div class="field"><label>${label}</label><div clas
 const foundCard=(kind,what,code)=>`<div class="found" role="status">${icon(kind==='feed'?'rss':kind)}<div class="what"><b>${what}</b><code>${code}</code></div>${icon('check')}</div>`;
 
 function addDialog(){
-  const value={add:'','add-link':'https://space.bilibili.com/2267573','add-feed':'https://go.dev/blog/feed.atom','add-route':'/github/trending/daily','add-route-no-base':'/github/trending/daily','add-public':'https://rsshub.app/github/trending/daily','add-public-no-instance':'https://rsshub.app/github/trending/daily','add-more':'','add-invalid':'go.dev/blog','add-exists':'https://go.dev/blog/feed.atom',adding:'https://space.bilibili.com/2267573','add-searching':'https://go.dev/blog','add-found-list':'https://go.dev/blog','add-none-found':'https://example.org/about','add-routes':'github','add-route-params':'https://github.com/rsshub/rsshub','add-route-preview':'https://github.com/rsshub/rsshub','add-no-catalog':'github'}[state];
+  const value={add:'','add-link':'https://space.bilibili.com/2267573','add-feed':'https://go.dev/blog/feed.atom','add-route':'/github/trending/daily','add-route-no-base':'/github/trending/daily','add-public':'https://rsshub.app/github/trending/daily','add-public-no-instance':'https://rsshub.app/github/trending/daily','add-more':'','add-invalid':'go.dev/blog','add-exists':'https://go.dev/blog/feed.atom',adding:'https://space.bilibili.com/2267573','add-searching':'https://go.dev/blog','add-found-list':'https://go.dev/blog','add-found-subscribed':'https://go.dev/blog','add-none-found':'https://example.org/about','add-routes':'github','add-route-params':'https://github.com/rsshub/rsshub','add-route-preview':'https://github.com/rsshub/rsshub','add-no-catalog':'github'}[state];
   const kind=['add-link','adding'].includes(state)?'video':'article';
   const invalid=state==='add-invalid'||state==='add-exists';
   let below=`<span class="help" id="ah">${copy.addressHelp}</span>`;
@@ -593,6 +595,10 @@ function addDialog(){
   if(state==='add-public-no-instance')below=`<div class="needs" role="status"><div class="head">${icon('triangle')}<span>${copy.publicNoInstance}</span></div><button class="button small" style="align-self:flex-start">${copy.openSettings}</button></div>`;
   if(state==='add-searching')below=`<span class="help" role="status">${icon('loader','spin')} ${copy.searching}</span>`;
   if(state==='add-found-list')below=`<div class="picks" role="radiogroup" aria-label="${copy.foundMany.replace('{n}',3)}"><span class="head" role="status">${copy.foundMany.replace('{n}',3)}</span>${[['pickGo','pickGoCode',1],['pickAll','pickAllCode',0],['pickCom','pickComCode',0]].map(([a,b,on])=>`<div class="found pick${on?' on':''}" role="radio" aria-checked="${!!on}">${icon('rss')}<div class="what"><b>${copy[a]}</b><code>${copy[b]}</code></div>${icon('check')}</div>`).join('')}</div>`;
+  if(state==='add-found-subscribed'){
+    const head=copy.foundMany.replace('{n}',2);
+    below=`<div class="picks" role="radiogroup" aria-label="${head}"><span class="head" role="status">${head}</span><button class="found pick subscribed" aria-label="${copy.pickGo}, ${copy.pickGoCode}, ${copy.subscribed}">${icon('rss')}<div class="what"><b>${copy.pickGo}</b><code>${copy.pickGoCode}</code></div><span class="tag">${copy.subscribed}</span></button><div class="found pick on" role="radio" aria-checked="true">${icon('rss')}<div class="what"><b>${copy.pickAll}</b><code>${copy.pickAllCode}</code></div>${icon('check')}</div></div>`;
+  }
   if(state==='add-none-found')below=`<span class="help" role="status">${copy.noneFound}</span>`;
   const routes=[['routeA','/github/issue/:user/:repo',1],['routeB','/github/trending/:since/:language?',0],['routeC','/github/user/followers/:user',0]];
   const field=(name,help,val,focus)=>`<div class="field"><label>${name}</label><div class="box${focus?' focused':''}"><input value="${val}" placeholder="${help}" aria-label="${name}"></div></div>`;
@@ -610,7 +616,7 @@ function addDialog(){
   }
   if(state==='add-no-catalog')below=`<span class="help" role="status">${copy.noCatalog}</span>`;
   if(state==='add-invalid')below=`<span class="error" id="ae">${icon('alert')}${copy.invalidUrl}</span>`;
-  if(state==='add-exists')below=`<span class="error" id="ae">${icon('alert')}<span>${copy.exists} <a href="#" style="color:inherit;font-weight:500">${copy.show}</a></span></span>`;
+  if(state==='add-exists')below=`<span class="error" id="ae">${icon('alert')}<span>${copy.exists} <a href="#" style="color:inherit;font-weight:500">${copy.show}</a> <a href="#" style="color:inherit;font-weight:500;margin-left:6px">${copy.anyway}</a></span></span>`;
   const busy=state==='adding';
   return `<div class="scrim"><div class="dialog" role="dialog" aria-labelledby="dt">
     <header><div class="tile" style="width:32px;height:32px;border-radius:8px">${icon('rss')}</div><div class="titles"><h2 id="dt">${copy.add}</h2></div><button class="close" aria-label="${copy.close}">${icon('x')}</button></header>

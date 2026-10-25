@@ -368,6 +368,9 @@ type NewSource struct {
 	Kind             string `json:"kind"`
 	Title            string `json:"title,omitempty"`
 	FetchIntervalSec int64  `json:"fetchIntervalSec,omitempty"`
+	// AllowDuplicate adds the subscription although another one follows the same feed; the server then skips the
+	// comparison of the addresses (an identical spelling is still refused).
+	AllowDuplicate bool `json:"allowDuplicate,omitempty"`
 }
 
 // SourcePatch changes the fields of a subscription that are not nil; its address cannot change.
@@ -1316,6 +1319,8 @@ type Candidate struct {
 	Site       string `json:"site"`
 	Label      string `json:"label"`
 	Subject    string `json:"subject"`
+	// SubscribedID is the subscription that already follows this feed, 0 when none does.
+	SubscribedID int64 `json:"subscribedId"`
 }
 
 // Discover asks the server which feeds a web address leads to. An empty list means it found none.

@@ -31,7 +31,7 @@ type copy struct {
 	Article, Video, Social, Image, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute                                                                     string
 	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo                                                                            string
 	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder, PublicNote, PublicNoInstance, UseMine, Blocked, BlockedPublic, FeedRemoved string
-	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, Unreachable, Failed, Added                                                                           string
+	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, AddAnyway, Subscribed, FoundSubscribed, Unreachable, Failed, Added                                   string
 	AddedSoFar, SearchingFeeds, FoundMany, NoneFound, SiteYouTube, SiteBilibili, SiteWeibo, SiteZhihu, SiteX                                                                       string
 	SearchingRoutes, FoundRoutes, Preview, PreviewOf, PreviewEmpty, PreviewNotFound, NoCatalog, NoRoutes                                                                           string
 	LabelVideos, LabelDynamic, LabelPosts, LabelActivities, LabelAnswers, LabelColumn, LabelTopic, LabelCollection, LabelQuestion                                                  string
@@ -178,6 +178,8 @@ type adding struct {
 	root       string // the RSSHub instances of the settings, one per line
 	addressErr string
 	exists     int64 // the subscription the address is already followed as, for "Show it"
+	dupe       bool  // the address error is the "already followed" notice, which offers "Add anyway"
+	dupeMore   bool  // the refused attempt was "Add and continue", which "Add anyway" repeats
 	baseErr    string
 	formErr    string
 	busy       bool
@@ -472,9 +474,24 @@ func (s *Screen) search() {
 				l.state = lookFailed
 				return
 			}
-			l.state, l.found, l.chosen = lookDone, found, 0
+			l.state, l.found, l.chosen = lookDone, found, firstOpen(found)
 		}
 	})
+}
+
+// firstOpen is the index of the first feed that no subscription follows yet, 0 when every one is followed.
+func firstOpen(found []client.Candidate) int {
+	if i := slices.IndexFunc(found, func(cand client.Candidate) bool { return cand.SubscribedID == 0 }); i > 0 {
+		return i
+	}
+	return 0
+}
+
+// listed says the feeds found are shown as a list: there are several, or the only one is already followed, which a
+// card could not tell.
+func (s *Screen) listed() bool {
+	l := s.add.look
+	return l.state == lookDone && (len(l.found) > 1 || len(l.found) == 1 && l.found[0].SubscribedID != 0)
 }
 
 // picked is the feed the lookup found that Add subscribes to.
@@ -487,7 +504,21 @@ func (s *Screen) picked() (client.Candidate, bool) {
 }
 
 // submit adds the address. With more it keeps the dialog open and clears the address for the next one.
-func (s *Screen) submit(more bool) {
+func (s *Screen) submit(more bool) { s.addSource(more, false) }
+
+// addAnyway repeats the attempt the "already followed" notice refused, now asking the server to allow the duplicate.
+func (s *Screen) addAnyway() {
+	a := &s.add
+	if !a.dupe || a.busy {
+		return
+	}
+	more := a.dupeMore
+	a.addressErr, a.exists, a.dupe = "", 0, false
+	s.addSource(more, true)
+}
+
+// addSource adds the address; allow lets it duplicate a subscription that already follows the same feed.
+func (s *Screen) addSource(more, allow bool) {
 	a := &s.add
 	s.watch()
 	if !s.canAdd() {
@@ -517,7 +548,7 @@ func (s *Screen) submit(more bool) {
 	}
 	a.busy, a.baseErr, a.formErr = true, "", ""
 	src := client.NewSource{URL: t.URL, RSSHubPath: t.Route, Kind: kinds[a.kind], Title: strings.TrimSpace(a.title),
-		FetchIntervalSec: a.interval} // 0 is Auto
+		FetchIntervalSec: a.interval, AllowDuplicate: allow} // 0 is Auto
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		ctx := context.Background()
@@ -563,10 +594,10 @@ func (s *Screen) submit(more bool) {
 				a.count++
 				a.last = Name(added)
 				a.address, a.title, a.kind, a.suggested = "", "", 0, 0
-				a.addressErr, a.exists, a.formErr, a.focus = "", 0, "", addressField
+				a.addressErr, a.exists, a.dupe, a.formErr, a.focus = "", 0, false, "", addressField
 				s.announce = s.addedLine()
 			case code(err) == "source_exists":
-				a.addressErr, a.exists = s.text.ExistsUnknown, 0
+				a.addressErr, a.exists, a.dupe, a.dupeMore = s.text.ExistsUnknown, 0, true, more
 				var apiErr *client.APIError
 				errors.As(err, &apiErr)
 				for _, known := range s.deps.Sources() {
@@ -1174,14 +1205,17 @@ func box(c *ui.Context, key string, lead *ui.SVG, invalid bool, fill ui.Color, i
 	})
 }
 
-func errorLine(c *ui.Context, text string, link string) bool {
+// errorLine draws text as an error with the links after it, and returns the index of the link pressed, -1 for none.
+func errorLine(c *ui.Context, text string, links ...string) int {
 	t := c.Theme()
-	clicked := false
+	clicked := -1
 	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(1.5)).Children(func() {
 		ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Danger).Margin(1, 0, 0, 0)
 		ui.Text(c, text).FontSize(theme.Px(t, 12)).TextColor(t.Danger).Shrink(1).Wrap()
-		if link != "" {
-			clicked = ui.Link(c, link, "").FontSize(theme.Px(t, 12)).FontWeight(500).Clicked()
+		for i, link := range links {
+			if link != "" && ui.Link(c, link, "").FontSize(theme.Px(t, 12)).FontWeight(500).Clicked() {
+				clicked = i
+			}
 		}
 	})
 	return clicked
@@ -1328,17 +1362,23 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 			}
 		})
 		if a.address != before {
-			a.addressErr, a.exists, a.formErr = "", 0, ""
+			a.addressErr, a.exists, a.dupe, a.formErr = "", 0, false, ""
 		}
 		switch {
 		case a.addressErr != "":
-			show := ""
+			show, anyway := "", ""
 			if a.exists != 0 {
 				show = s.text.ShowIt
 			}
-			if errorLine(c, a.addressErr, show) {
+			if a.dupe {
+				anyway = s.text.AddAnyway
+			}
+			switch errorLine(c, a.addressErr, show, anyway) {
+			case 0:
 				a.open = false
 				s.deps.Show(a.exists)
+			case 1:
+				s.addAnyway()
 			}
 		case shown == routeSearching:
 			s.searching(c, s.text.SearchingRoutes)
@@ -1356,7 +1396,7 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 			s.searching(c, s.text.SearchingFeeds)
 		case a.look.state == lookDone && !hasCand:
 			help(c, s.text.NoneFound)
-		case a.look.state == lookDone && len(a.look.found) > 1:
+		case s.listed():
 			s.pickList(c)
 		default:
 			s.found(c, t, what, where)
@@ -1402,11 +1442,18 @@ func (s *Screen) pickList(c *ui.Context) {
 	th := c.Theme()
 	a := &s.add
 	head := s.count(s.text.FoundMany, len(a.look.found))
+	if len(a.look.found) == 1 {
+		head = s.text.FoundSubscribed
+	}
 	ui.Column(c).FillWidth().Gap(theme.Px(th, 6)).Children(func() {
 		help(c, head)
 		ui.RadioGroup(c, func() {
 			for i, cand := range a.look.found {
 				what, where := s.describeCandidate(cand)
+				if cand.SubscribedID != 0 {
+					s.subscribedRow(c, cand, what, where)
+					continue
+				}
 				on := a.look.chosen == i
 				row := ui.RadioBase(c, &a.look.chosen, i).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).
 					Padding(th.Space(2), theme.Px(th, 10)).Radius(th.Radius).Label(what + s.text.Separator + where).Disabled(a.busy)
@@ -1428,6 +1475,27 @@ func (s *Screen) pickList(c *ui.Context) {
 			}
 		}).FillWidth().Gap(theme.Px(th, 6)).Label(head)
 	})
+}
+
+// subscribedRow is a feed some subscription already follows: it is not one to choose, so instead of the check it
+// says "Subscribed", and pressing it closes the dialog and shows that subscription.
+func (s *Screen) subscribedRow(c *ui.Context, cand client.Candidate, what, where string) {
+	th := c.Theme()
+	row := ui.ButtonBase(c).Key("subscribed-"+strconv.FormatInt(cand.SubscribedID, 10)+cand.URL+cand.RSSHubPath).
+		FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).Padding(th.Space(2), theme.Px(th, 10)).Radius(th.Radius).
+		Border(1, th.Border).Label(what + s.text.Separator + where + s.text.Separator + s.text.Subscribed).Disabled(s.add.busy)
+	row.Children(func() {
+		ui.Icon(c, s.candidateIcon(cand)).FontSize(theme.IconMedium(th)).TextColor(th.TextMuted)
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			ui.Text(c, what).FontWeight(600).SingleLine()
+			ui.Text(c, where).Font("monospace").FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).SingleLine()
+		})
+		ui.Text(c, s.text.Subscribed).FontSize(theme.Px(th, 12)).TextColor(th.TextMuted)
+	})
+	if row.Clicked() {
+		s.add.open = false
+		s.deps.Show(cand.SubscribedID)
+	}
 }
 
 func (s *Screen) candidateIcon(cand client.Candidate) *ui.SVG {
@@ -2265,7 +2333,7 @@ func (s *Screen) healthDialog(c *ui.Context) {
 			})
 		case r.state == healthFailed:
 			ui.Column(c).FillWidth().Padding(t.Space(6), 0).Children(func() {
-				if errorLine(c, r.err, s.text.Retry) {
+				if errorLine(c, r.err, s.text.Retry) == 0 {
 					s.loadHealth()
 				}
 			})
