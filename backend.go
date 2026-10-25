@@ -123,30 +123,22 @@ func (g *background) pause(context.Context) (func(), error) {
 	return g.run, nil
 }
 
-// cancel tells the work to stop without waiting for it, and keeps it from starting again.
-func (g *background) cancel() {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.closed = true
-	if g.stop != nil {
-		g.stop()
-		g.stop = nil
-	}
-}
-
-// shutdown stops the work for good and waits until it has, or until ctx ends, in which case the rest is given up.
-func (g *background) shutdown(ctx context.Context) {
-	g.cancel()
+// stopForGood starts stopping the work for good and returns a channel that closes once it has stopped. It does not
+// block, even while a restore holds the work in halt, so the caller can bound the wait.
+func (g *background) stopForGood() <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
+		defer close(done)
+		g.mu.Lock()
+		g.closed = true
+		if g.stop != nil {
+			g.stop()
+			g.stop = nil
+		}
+		g.mu.Unlock()
 		g.group.Wait()
-		close(done)
 	}()
-	select {
-	case <-done:
-	case <-ctx.Done():
-		slog.Warn("Background work still running at shutdown, giving it up")
-	}
+	return done
 }
 
 // start opens the database in dataDir and serves the API until close. Mode is diag.ModeDesktop or diag.ModeHeadless. Port 0 picks a free port.
@@ -207,7 +199,7 @@ func start(ctx context.Context, dataDir, password, mode string, port int, proxie
 // so that no handler runs against the closing database or enqueues more work. Work that does not stop by the
 // deadline is given up, and the database is closed anyway.
 func (b *backend) close(ctx context.Context) error {
-	b.background.cancel()
+	stopped := b.background.stopForGood()
 	if b.images != nil {
 		b.images.Close()
 	}
@@ -228,7 +220,11 @@ func (b *backend) close(ctx context.Context) error {
 			slog.Warn("An import is still running at shutdown, giving it up")
 		}
 	}
-	b.background.shutdown(ctx)
+	select {
+	case <-stopped:
+	case <-ctx.Done():
+		slog.Warn("Background work still running at shutdown, giving it up")
+	}
 	return errors.Join(err, b.store.CloseContext(ctx))
 }
 

@@ -209,3 +209,24 @@ func TestCloseGivesUpOnHungBackgroundWork(t *testing.T) {
 		t.Fatal("the store is still open")
 	}
 }
+
+// A restore holding the background work in halt does not hold the shutdown past the deadline either.
+func TestCloseGivesUpWhileTheBackgroundIsBeingHalted(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	work := &background{store: st}
+	work.mu.Lock()
+	defer work.mu.Unlock()
+	b := &backend{store: st, background: work, http: &http.Server{}}
+
+	deadline, stop := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer stop()
+	begin := time.Now()
+	b.close(deadline)
+	if took := time.Since(begin); took > 2*time.Second {
+		t.Fatalf("close took %v while halt was in progress", took)
+	}
+}
