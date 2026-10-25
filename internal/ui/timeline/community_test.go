@@ -191,3 +191,38 @@ func TestCommunityPanesScope(t *testing.T) {
 		t.Fatal("no panes with the sidebar hidden in a window of 1000")
 	}
 }
+
+// A folder read under the Community keeps the three panes, and its unread count and sidebar row cover the forum
+// subscriptions in it.
+func TestCommunityFolder(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := communing(t, &p)
+	f.folders = []client.Folder{{ID: 7, Name: "Boards"}}
+	for i := range f.sources {
+		if f.sources[i].Kind == "forum" {
+			f.sources[i].FolderID = 7
+		}
+	}
+	s.loadSources()
+	f.settle(t, tt)
+	if err := tt.Click("Boards"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	f.settle(t, tt)
+	tt.Frame()
+	if s.scope.folder != 7 || s.scope.kind != "forum" || !s.paned {
+		t.Fatalf("scope %+v, paned %v", s.scope, s.paned)
+	}
+	if q := f.queries[len(f.queries)-1]; q.Folder != 7 || q.Kind != "forum" {
+		t.Fatalf("query %+v", q)
+	}
+	if got := s.unreadIn(s.scope); got != 3 {
+		t.Fatalf("unread in the folder %d", got)
+	}
+	tt.Key(0, ui.KeyJ)
+	f.settle(t, tt)
+	if s.reading != 20 || !tt.HasText("The text of Third thread.") || !tt.HasText("Second thread") {
+		t.Fatalf("reading %d, texts %v", s.reading, tt.Texts())
+	}
+}
