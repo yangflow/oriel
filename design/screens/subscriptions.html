@@ -43,10 +43,15 @@
      picker (edit-suggest) with a button; nothing changes until it is pressed and the dialog saved.
      The form below the status lines has four groups, each opened by the same small title (icon and name):
      Display (title on its own row, kind picker, kind suggestion), Fetching (Pause fetching first, then the check
-     interval, Extraction, Request headers), Timeline (Opens in, Keep entries, Pace, Mute keywords) and Summaries and
+     interval, Extraction, Request headers), Timeline (Hide from All, Opens in, Keep entries, Pace, Mute keywords) and Summaries and
      translations. One row style: fields and selects have the label above and at most a one-line help; switches have the
      label at the left and the switch at the right. Pause fetching has no help line.
-     Opens in is a select of the same style, first in the group: "Follow the kind" by default, "In the reader" and
+     Hide from All (edit-hidden) is a switch at the start of the Timeline group with a one-line help: the subscription
+     is left out of All, Unread and the kind timelines and only shows when it is opened; search and Starred still
+     show it. The sidebar row of such a subscription gets a small eye-off mark with the accessible name "Hidden from
+     All" (the row reads "name, hidden from All"), and the context menu offers Hide from All or Show in All
+     (menu-hidden) beside Pause.
+     Opens in is a select of the same style, second in the group: "Follow the kind" by default, "In the reader" and
      "In the browser"; a help line says where a click on this subscription's entries goes; edit-open shows it set to "In the browser", scrolled into view.
      Keep entries is a select in the style of the check interval, full width. It reads "Follow settings · 1 month" by
      default, with the period of the global setting after the dot; a help line says starred entries are always kept.
@@ -170,9 +175,9 @@ aside { width:216px; flex:none; margin:8px 0 8px 8px; padding-top:40px; display:
 .item.menued { box-shadow:0 0 0 2px var(--focus) }
 .item .count { font-size:11px; font-weight:500; font-variant-numeric:tabular-nums; color:var(--muted) }
 .item:hover .count, .item.chosen .count { color:var(--chrome-text2) }
-.item .warn, .item .paused { display:flex; color:var(--warning) }
-.item .paused { color:var(--muted) }
-.item .warn svg.icon, .item .paused svg.icon { width:14px; height:14px; color:inherit }
+.item .warn, .item .paused, .item .hidden { display:flex; color:var(--warning) }
+.item .paused, .item .hidden { color:var(--muted) }
+.item .warn svg.icon, .item .paused svg.icon, .item .hidden svg.icon { width:14px; height:14px; color:inherit }
 .item.is-paused .name { color:var(--muted) }
 .mono { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:4px; font-size:9px; font-weight:600; background:var(--pressed); color:var(--text) }
 .mono.big { width:32px; height:32px; border-radius:8px; font-size:15px; background:var(--track); color:var(--text2) }
@@ -386,7 +391,7 @@ textarea.mute { min-height:56px }
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-public','add-public-no-instance','add-invalid','add-exists','add-searching','add-found-list','add-found-subscribed','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-ai','edit-ai-off','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete','deleted','health','health-loading','health-error','health-empty','health-delete','manage','manage-selected','manage-all','manage-change','manage-change-set','manage-working','manage-partial','manage-delete','manage-deleted','manage-deleted-partial'];
+const states=['add','add-more','add-link','add-feed','add-route','add-route-no-base','add-public','add-public-no-instance','add-invalid','add-exists','add-searching','add-found-list','add-found-subscribed','add-none-found','add-routes','add-route-params','add-route-preview','add-no-catalog','adding','empty','menu','menu-failing','menu-hidden','edit','edit-failing','edit-blocked','edit-paused','edit-hidden','edit-ai','edit-ai-off','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete','deleted','health','health-loading','health-error','health-empty','health-delete','manage','manage-selected','manage-all','manage-change','manage-change-set','manage-working','manage-partial','manage-delete','manage-deleted','manage-deleted-partial'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min']};
@@ -426,6 +431,7 @@ const icons={
   sparkles:'<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
   heart:'<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/><path d="M3.22 13H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>',
   checkbig:'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
+  eyeoff:'<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>',
   eye:'<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
   signpost:'<path d="M12 13v8"/><path d="M12 3v3"/><path d="M18 6a2 2 0 0 1 1.387.56l2.307 2.22a1 1 0 0 1 0 1.44l-2.307 2.22A2 2 0 0 1 18 13H6a2 2 0 0 1-1.387-.56l-2.306-2.22a1 1 0 0 1 0-1.44l2.306-2.22A2 2 0 0 1 6 6z"/>',
   search:'<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
@@ -470,7 +476,7 @@ const copy={
     exists:'You already follow this as “The Go Blog”.', show:'Show it', anyway:'Add anyway', subscribed:'Subscribed', pickOne:'Found 1 feed. You already follow it.',
     addHere:'Add your first subscription', noSubscriptions:'No subscriptions yet',
     noSubscriptionsHint:'Entries from your subscriptions show up here, newest first.',
-    refresh:'Refresh', retry:'Try again', edit:'Edit…', pause:'Pause', resume:'Resume', remove:'Delete…', editTitle:'Edit subscription',
+    refresh:'Refresh', retry:'Try again', edit:'Edit…', pause:'Pause', resume:'Resume', hide:'Hide from All', unhide:'Show in All', hideLabel:'Hide from All', hideHelp:'Only seen when you open this subscription. Search and Starred still show it.', hiddenMark:'Hidden from All', remove:'Delete…', editTitle:'Edit subscription',
     checked:'Checked 5 min ago · next in 10 min', failing:'Failed 3 times in a row: There is no feed at this address.', failingRaw:'Original: status 404', failingBlocked:'Failed 3 times in a row: The public rsshub.app blocks automated requests. Use your own or another RSSHub instance in Settings → RSSHub.',
     paused:'Paused. Nothing is fetched until you resume.',
     moved:'This subscription has moved to', movedUpdate:'Update address', movedDismiss:'Dismiss', movedExists:'That address is already subscribed as “The Go Blog (new)”. Unsubscribe from one of them.', healthMoved:'Moved to {to}', movedUpdateSource:'Update the address of {name}', movedDismissSource:'Dismiss the move of {name}',
@@ -528,7 +534,7 @@ const copy={
     exists:'已经订阅过了，叫「The Go Blog」。', show:'去看看', anyway:'仍然添加', subscribed:'已订阅', pickOne:'找到 1 个订阅，你已经订阅了它。',
     addHere:'添加第一个订阅', noSubscriptions:'还没有订阅',
     noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。',
-    refresh:'更新', retry:'重试', edit:'编辑…', pause:'暂停', resume:'恢复', remove:'删除…', editTitle:'编辑订阅',
+    refresh:'更新', retry:'重试', edit:'编辑…', pause:'暂停', resume:'恢复', hide:'不在全部里显示', unhide:'在全部里显示', hideLabel:'不在全部里显示', hideHelp:'只在点进这个订阅时看到；检索和收藏里还在。', hiddenMark:'不在全部里显示', remove:'删除…', editTitle:'编辑订阅',
     checked:'5 分钟前检查过 · 10 分钟后再查', failing:'连续失败 3 次：这个地址上没有订阅内容（找不到页面）。', failingRaw:'原文：status 404', failingBlocked:'连续失败 3 次：公共的 rsshub.app 拦下了自动请求。到设置 → RSSHub 用你自己的或别的 RSSHub 实例。',
     paused:'已暂停，恢复之前不抓取。',
     moved:'这个订阅已搬到', movedUpdate:'更新地址', movedDismiss:'忽略', movedExists:'那个地址已经订阅过了，叫“The Go Blog（新）”。请退订其中一个。', healthMoved:'已搬到 {to}', movedUpdateSource:'更新{name}的地址', movedDismissSource:'忽略{name}的搬家提示',
@@ -566,15 +572,15 @@ const favs={
 };
 const sources=[
   {kind:'article',name:'Simon Willison',mono:'S',unread:4,fav:favs.simon},
-  {kind:'article',name:'The Go Blog',mono:'G',unread:14,failing:state==='edit-failing'||state==='edit-blocked'||state==='menu-failing',paused:state==='edit-paused'},
+  {kind:'article',name:'The Go Blog',mono:'G',unread:14,failing:state==='edit-failing'||state==='edit-blocked'||state==='menu-failing',paused:state==='edit-paused',hidden:state==='edit-hidden'||state==='menu-hidden'},
   {kind:'video',name:'3Blue1Brown',mono:'3',unread:2,fav:favs.b3},
   {kind:'social',name:'@rauchg',mono:'R',unread:9,fav:favs.rauchg},
   {kind:'image',name:'NASA APOD',mono:'N',unread:1,fav:favs.nasa},
 ];
 const empty=state==='empty';
-const editing=['menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-ai','edit-ai-off','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete'].includes(state);
+const editing=['menu','menu-failing','edit','edit-failing','edit-blocked','edit-paused','edit-hidden','menu-hidden','edit-ai','edit-ai-off','edit-open','edit-extract','edit-headers','edit-headers-empty','edit-headers-error','edit-suggest','edit-moved','edit-moved-exists','edit-backup','edit-mute-none','delete'].includes(state);
 const tabs=`<nav class="kind-list" aria-label="${copy.kinds}">${[['all','inbox'],['article','article'],['video','video'],['social','social'],['image','image']].map(([k,g],i)=>`<button class="item${i===0?' chosen':''}" aria-current="${i===0}">${icon(g)}<span class="name">${copy[k]}</span>${empty?'':`<span class="count">${[30,18,2,9,1][i]}</span>`}</button>`).join('')}</nav>`;
-const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
+const item=(s,i)=>`<button class="item${editing&&i===1?' chosen':''}${state.startsWith('menu')&&i===1?' menued':''}${s.paused?' is-paused':''}">${s.fav?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${s.fav}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`}<span class="name">${s.name}</span>${s.failing?`<span class="warn" role="img" aria-label="${copy.failingMark}">${icon('alert')}</span>`:''}${s.hidden?`<span class="hidden" role="img" aria-label="${copy.hiddenMark}">${icon('eyeoff')}</span>`:''}${s.paused?`<span class="paused" role="img" aria-label="${copy.pausedMark}">${icon('pause')}</span>`:''}<span class="count">${s.paused?'':s.unread}</span></button>`;
 const sidebar=`<aside>${tabs}<nav class="nav" aria-label="${copy.sources}"><div class="section"><span>${copy.sources}</span><button class="${state==='add'?'hover':''}" aria-label="${copy.add}" title="${copy.add} (⌘N)">${icon('plus')}</button></div>${empty?'':sources.filter((s,i)=>!(state==='deleted'&&i===1)).map(item).join('')}</nav><div class="server">${icon('laptop')}<span class="name">${copy.thisComputer}</span><span class="dot"></span></div></aside>`;
 const rows=Array.from({length:5},(_,i)=>`<div class="bars"><div class="bar" style="width:${30+i%3*6}%"></div><div class="bar" style="width:${74-i*5}%;height:14px"></div><div class="bar" style="width:${90-i*3}%"></div></div>`).join('');
 const toolbar=`<div class="toolbar"><h1>${editing?'The Go Blog':copy.all}</h1><span class="sub">${empty?'':copy.unread}</span>${editing?`<button class="tool${state==='edit'?' hover':''}" aria-label="${copy.editSource}" title="${copy.editSource}">${icon('pencil')}</button>`:''}<span class="spacer"></span><div class="ghost"></div></div>`;
@@ -673,6 +679,7 @@ function editDialog(){
       ${extractGroup}
       ${headersGroup}
       <h3 class="group-title">${icon('listfilter')}${copy.groupTimeline}</h3>
+      <div class="switch-row"><div class="text"><span class="label">${copy.hideLabel}</span><span class="help">${copy.hideHelp}</span></div><span class="switch${state==='edit-hidden'?' on':''}" role="switch" aria-checked="${state==='edit-hidden'}" aria-label="${copy.hideLabel}"></span></div>
       ${select(copy.openTarget,state==='edit-open'?copy.openBrowser:copy.openFollow).replace('</div></div>',`</div><span class="help" id="oh">${copy.openHelp}</span></div>`)}
       ${select(copy.keep,copy.keepFollow).replace('</div></div>',`</div><span class="help">${copy.keepHelp}</span></div>`)}
       ${select(copy.pace,copy.paceOff).replace('</div></div>',`</div><span class="help">${copy.paceHelp}</span></div>`)}
@@ -773,7 +780,7 @@ let overlay='';
 if(state.startsWith('add')||state==='adding')overlay=addDialog();
 if(state.startsWith('edit'))overlay=editDialog();
 if(state.startsWith('health')&&state!=='health-delete')overlay=healthDialog();
-if(state.startsWith('menu'))overlay=`<div class="menu" role="menu" style="left:150px;top:168px"><button role="menuitem"${state==='menu-failing'?' class="hover"':''}>${icon('refresh')}${state==='menu-failing'?copy.retry:copy.refresh}</button><button role="menuitem"${state==='menu'?' class="hover"':''}>${icon('pencil')}${copy.edit}</button><button role="menuitem">${icon('pause')}${copy.pause}</button><hr><button role="menuitem" class="danger">${icon('trash')}${copy.remove}</button></div>`;
+if(state.startsWith('menu'))overlay=`<div class="menu" role="menu" style="left:150px;top:168px"><button role="menuitem"${state==='menu-failing'?' class="hover"':''}>${icon('refresh')}${state==='menu-failing'?copy.retry:copy.refresh}</button><button role="menuitem"${state==='menu'?' class="hover"':''}>${icon('pencil')}${copy.edit}</button><button role="menuitem">${icon('pause')}${copy.pause}</button><button role="menuitem"${state==='menu-hidden'?' class="hover"':''}>${icon('eyeoff')}${state==='menu-hidden'?copy.unhide:copy.hide}</button><hr><button role="menuitem" class="danger">${icon('trash')}${copy.remove}</button></div>`;
 if(state==='delete'||state==='health-delete')overlay=`<div class="scrim"><div class="alert" role="alertdialog" aria-labelledby="ct" aria-describedby="cb"><div class="tile danger">${icon('trash')}</div><h2 id="ct">${state==='health-delete'?copy.deleteTitle.replace('The Go Blog','Old Gadget Review'):copy.deleteTitle}</h2><p id="cb">${copy.deleteBody}</p><div class="buttons"><button class="button">${copy.cancel}</button><button class="button danger">${copy.confirmDelete}</button></div></div></div>`;
 
 if(state.startsWith('manage')){

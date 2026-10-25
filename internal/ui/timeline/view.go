@@ -44,7 +44,7 @@ type copy struct {
 	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                                             string
 	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                            string
 	MorePictures, Pictures, AISummary, Separator                                                                                                                        string
-	AddSource, EditSource, AddFirst, ImportOPML, RestoreBackup, PausedMark, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu                                  string
+	AddSource, EditSource, AddFirst, ImportOPML, RestoreBackup, PausedMark, HiddenMark, HiddenName, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu          string
 	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyOpenOther, KeyStar                                                      string
 	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
 	KeyFind, KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                                            string
@@ -655,7 +655,7 @@ func (s *Screen) changed(src client.Source) {
 		s.scope.kind = src.Kind
 		s.tab = max(0, indexOf(kinds, src.Kind))
 	}
-	if src.Title != old.Title || src.Kind != old.Kind || src.MuteKeywords != old.MuteKeywords {
+	if src.Title != old.Title || src.Kind != old.Kind || src.MuteKeywords != old.MuteKeywords || src.HideFromAll != old.HideFromAll {
 		s.lists = nil
 		s.reload()
 	}
@@ -1727,7 +1727,10 @@ func (s *Screen) setRow(i int, patch client.EntryPatch) {
 			delta = -1
 		}
 		s.count(*e, delta)
-		s.setUnread(max(0, s.unreadTotal+delta))
+		// The total of All does not count a source kept out of it.
+		if !slices.ContainsFunc(s.sources, func(src client.Source) bool { return src.ID == e.SourceID && src.HideFromAll }) {
+			s.setUnread(max(0, s.unreadTotal+delta))
+		}
 	}
 	if patch.Starred != nil {
 		e.Starred = *patch.Starred
@@ -1937,14 +1940,14 @@ func countText(n int) string {
 }
 
 // unreadIn returns the unread entries of the scope, as the sources count them; All is the server's total, which
-// counts an article several sources carry once.
+// counts an article several sources carry once. A kind leaves out the sources kept out of All, as its timeline does.
 func (s *Screen) unreadIn(sc scope) int {
 	if sc.source == 0 && sc.kind == "" {
 		return s.unreadTotal
 	}
 	n := 0
 	for _, src := range s.sources {
-		if sc.source == src.ID || sc.source == 0 && (sc.kind == "" || sc.kind == src.Kind) {
+		if sc.source == src.ID || sc.source == 0 && !src.HideFromAll && (sc.kind == "" || sc.kind == src.Kind) {
 			n += src.UnreadCount
 		}
 	}
@@ -3318,6 +3321,9 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 	if fetching {
 		label = strings.ReplaceAll(s.text.Fetching, "{name}", name)
 	}
+	if src.HideFromAll {
+		label = strings.ReplaceAll(s.text.HiddenName, "{name}", label)
+	}
 	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(theme.Px(t, 30)).Gap(theme.Px(t, 10)).PaddingX(theme.Px(t, 10)).
 		Radius(theme.Px(t, 8)).Label(label).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
 	if src.UnreadCount > 0 && !src.Paused {
@@ -3355,6 +3361,11 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first bool) {
 			weight = 500
 		}
 		cut = theme.Cut(c, title, name, 0, weight, 1)
+		if src.HideFromAll {
+			ui.Box(c).Label(s.text.HiddenMark).Tooltip(s.text.HiddenMark).Role(ui.RoleImage).Children(func() {
+				ui.Icon(c, icons.EyeOff).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+			})
+		}
 		if fetching && !src.Paused {
 			ui.Spinner(c).FontSize(theme.Px(t, 13)).Label(label)
 		} else if src.Paused {

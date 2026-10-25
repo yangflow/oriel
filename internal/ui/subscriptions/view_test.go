@@ -94,6 +94,9 @@ func (f *fake) UpdateSource(ctx context.Context, id int64, patch client.SourcePa
 			if patch.Paused != nil {
 				src.Paused = *patch.Paused
 			}
+			if patch.HideFromAll != nil {
+				src.HideFromAll = *patch.HideFromAll
+			}
 			if patch.Kind != nil {
 				src.Kind = *patch.Kind
 			}
@@ -954,7 +957,7 @@ func TestMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	if menu := tt.Menu(); !slices.Equal(menu, []string{"Refresh", "Mark subscription as read", "Mark older than 1 day as read",
-		"Mark older than 1 week as read", "Mark older than 1 month as read", "Edit…", "Pause", "-", "Delete…"}) {
+		"Mark older than 1 week as read", "Mark older than 1 month as read", "Edit…", "Pause", "Hide from All", "-", "Delete…"}) {
 		t.Fatalf("menu %q", menu)
 	}
 	// Nothing unread: the older-than items are dimmed with "Mark subscription as read".

@@ -244,6 +244,9 @@ func (f *fake) UpdateSource(_ context.Context, id int64, patch client.SourcePatc
 			if patch.Paused != nil {
 				f.sources[i].Paused = *patch.Paused
 			}
+			if patch.HideFromAll != nil {
+				f.sources[i].HideFromAll = *patch.HideFromAll
+			}
 			if patch.Kind != nil {
 				f.sources[i].Kind = *patch.Kind
 			}
