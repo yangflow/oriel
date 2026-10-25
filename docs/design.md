@@ -323,8 +323,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   on a row of its own, and "Show as" with the kind suggestion; "Fetching" (refresh icon) holds "Pause fetching" first, so
   the switch sits next to the status line it changes, then the check interval, then "Extraction" and "Request headers";
   "Timeline" (list-filter icon) holds "Hide from All" first, a switch row with the help "Only seen when you open this
-  subscription. Search and Starred still show it.", then "Folder" (a select, only when folders exist), then "Opens in", "Keep entries", "Pace", "At most per day" and
-  "Mute keywords";
+  subscription. Search and Starred still show it.", then "Folder" (a select, only when folders exist), then "Opens in",
+  "Keep entries", "Pace", "At most per day" and "Mute keywords";
   "Summaries and translations" (sparkles icon) closes the dialog. One row style: a field, a select or a text box has its
   12 medium label above the control with `Space(1)` between, and a muted 12 help line of at most one line under it, only
   where the label does not say it already; a switch is the app-wide switch row, the label at the left and the switch at
@@ -1252,11 +1252,11 @@ Overlays share focus and Escape behavior; see
   row with a 12 `TextMuted` note that each becomes a folder and a subscription with several labels goes into the
   first, and says nothing has been added; Import is the
   primary button. The result is a warning-toned box when anything was left out, else plain, with one line per figure
-  (added, already there, marked read, read entries not in Oriel, folders created, and for FreshRSS how many subscriptions
-  had more than one label), a list "Labels not used" (title, address, and the folder it went into with the labels
-  left out) and the list of what was not imported with the reason, as for OPML. A failure is a `Danger` box with a reason one can act on (the server turned
-  the credential down, cannot be reached, asked to slow down, ...), with Try again. The credential is never shown
-  again after Connect. Closing the dialog while it works cancels. Drawn in `design/screens/settings.html`, states
+  (added, already there, marked read, read entries not in Oriel, folders created, and for FreshRSS how many
+  subscriptions had more than one label), a list "Labels not used" (title, address, and the folder it went into with
+  the labels left out) and the list of what was not imported with the reason, as for OPML. A failure is a `Danger`
+  box with a reason one can act on (the server turned the credential down, cannot be reached, asked to slow down,
+  ...), with Try again. The credential is never shown again after Connect. Closing the dialog while it works cancels. Drawn in `design/screens/settings.html`, states
   `reader` to `reader-failed`. Last on the page are two rows like the OPML ones, "Back up" and "Restore": a label, a 12 `TextMuted` help line (what a backup holds, and that sessions and the AI API key are left out; that restoring replaces what is here), and a secondary button, "Back up…" (database icon) and "Restore from backup…" (counter-clockwise arrow). Both use the system's file dialogs, filtered to `.oriel-backup`, and work
   in the background; while one runs the buttons are disabled and a polite status with a turning 14 loader reads
   "Backing up…" or "Restoring…". The result stays under the buttons until dismissed: a plain box for "Backed up to …"
