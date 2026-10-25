@@ -183,3 +183,29 @@ func TestTrackLogsAPanicAndCutsTheConnection(t *testing.T) {
 		t.Errorf("%d requests still counted", b.running.Load())
 	}
 }
+
+// A background task that ignores its cancellation does not hold the shutdown past the deadline, and the database is
+// closed anyway.
+func TestCloseGivesUpOnHungBackgroundWork(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "oriel.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	defer close(release)
+	work := &background{store: st}
+	work.group.Go(func() { <-release })
+	b := &backend{store: st, background: work, http: &http.Server{}}
+
+	deadline, stop := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer stop()
+	begin := time.Now()
+	b.close(deadline)
+	if took := time.Since(begin); took > 2*time.Second {
+		t.Fatalf("close took %v with a hung task", took)
+	}
+	if _, err := st.Setting(ctx, "any"); err == nil {
+		t.Fatal("the store is still open")
+	}
+}

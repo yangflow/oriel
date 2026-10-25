@@ -105,11 +105,14 @@ func dsn(file string) string {
 
 // Close refreshes the query statistics and empties the write-ahead log into the database file, both best effort, then
 // closes the database and releases the lock.
-func (s *Store) Close() error {
+func (s *Store) Close() error { return s.CloseContext(context.Background()) }
+
+// CloseContext is Close with the maintenance cut short when ctx ends; the database is closed either way.
+func (s *Store) CloseContext(ctx context.Context) error {
 	if !s.closed.CompareAndSwap(false, true) {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), closeMaintenance)
+	ctx, cancel := context.WithTimeout(ctx, closeMaintenance)
 	defer cancel()
 	s.optimize(ctx)
 	s.db.ExecContext(ctx, checkpoint)

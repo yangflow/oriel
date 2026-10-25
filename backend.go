@@ -42,12 +42,13 @@ type backend struct {
 	addr       string
 	background *background
 	api        *server.Server
+	images     *fetch.Images
 	// running counts the requests being handled; close waits for them to return before it closes the store.
 	running atomic.Int64
 }
 
 // requestGrace is how long close waits for handlers to return once their connections are cut off.
-const requestGrace = 5 * time.Second
+const requestGrace = 500 * time.Millisecond
 
 // track counts the requests in flight in handler. A handler that panics is logged with its stack, and its connection
 // is cut off the way net/http does, so the server goes on.
@@ -122,12 +123,30 @@ func (g *background) pause(context.Context) (func(), error) {
 	return g.run, nil
 }
 
-// shutdown halts the work for good.
-func (g *background) shutdown() {
+// cancel tells the work to stop without waiting for it, and keeps it from starting again.
+func (g *background) cancel() {
 	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.closed = true
-	g.mu.Unlock()
-	g.halt()
+	if g.stop != nil {
+		g.stop()
+		g.stop = nil
+	}
+}
+
+// shutdown stops the work for good and waits until it has, or until ctx ends, in which case the rest is given up.
+func (g *background) shutdown(ctx context.Context) {
+	g.cancel()
+	done := make(chan struct{})
+	go func() {
+		g.group.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		slog.Warn("Background work still running at shutdown, giving it up")
+	}
 }
 
 // start opens the database in dataDir and serves the API until close. Mode is diag.ModeDesktop or diag.ModeHeadless. Port 0 picks a free port.
@@ -171,6 +190,7 @@ func start(ctx context.Context, dataDir, password, mode string, port int, proxie
 	}
 	b.http.Handler = b.track(api)
 	b.api = api
+	b.images = images
 	go func() {
 		defer diag.Recover("server")
 		if err := b.http.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
@@ -181,20 +201,35 @@ func start(ctx context.Context, dataDir, password, mode string, port int, proxie
 	return b, nil
 }
 
-// close waits for requests in flight, up to the context deadline, stops the poller and the AI worker, then
-// closes the database. A request that outlives the deadline is cut off, its context cancelled, and close waits a
-// few seconds for its handler to return, so that no handler runs against the closing database or enqueues more work.
+// close ends everything within ctx, the one deadline for the whole shutdown. It first cancels the background work and
+// the picture downloads, so requests waiting on them return, then waits for the requests in flight. A request that
+// outlives the deadline is cut off, its context cancelled, and close waits a short grace for its handler to return,
+// so that no handler runs against the closing database or enqueues more work. Work that does not stop by the
+// deadline is given up, and the database is closed anyway.
 func (b *backend) close(ctx context.Context) error {
+	b.background.cancel()
+	if b.images != nil {
+		b.images.Close()
+	}
 	err := b.http.Shutdown(ctx)
 	if err != nil {
 		err = errors.Join(err, b.http.Close())
 		b.waitForHandlers(requestGrace)
 	}
 	if b.api != nil {
-		b.api.Close() // stops an import in progress, which writes to the store
+		closed := make(chan struct{})
+		go func() { // stops an import in progress, which writes to the store
+			b.api.Close()
+			close(closed)
+		}()
+		select {
+		case <-closed:
+		case <-ctx.Done():
+			slog.Warn("An import is still running at shutdown, giving it up")
+		}
 	}
-	b.background.shutdown()
-	return errors.Join(err, b.store.Close())
+	b.background.shutdown(ctx)
+	return errors.Join(err, b.store.CloseContext(ctx))
 }
 
 // waitForHandlers waits until no handler is running, at most grace.

@@ -185,6 +185,9 @@ func serve(args []string) int {
 	return 0
 }
 
+// quitDeadline is the one deadline for the whole shutdown when the desktop app quits.
+const quitDeadline = 2 * time.Second
+
 // windowStateKey names the main window's remembered position, size and maximized state (window-state.json in the
 // user data directory). MyGo captures it after the window settles, in memory, and writes it when the window closes.
 const windowStateKey = "oriel-main"
@@ -423,7 +426,7 @@ func desktop() {
 		if b == nil {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), quitDeadline)
 		defer cancel()
 		if err := b.close(ctx); err != nil {
 			slog.Error("Shutdown failed", "error", err)

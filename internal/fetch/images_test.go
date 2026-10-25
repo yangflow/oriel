@@ -339,3 +339,29 @@ func TestImagesRefuseRedirectInside(t *testing.T) {
 		}
 	}
 }
+
+func TestImagesCloseCancelsDownloadsUnderWay(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-release
+	}))
+	defer srv.Close()
+	defer close(release)
+	im := newTestImages(t)
+	got := make(chan error, 1)
+	go func() {
+		_, _, err := im.Get(context.Background(), srv.URL+"/pic")
+		got <- err
+	}()
+	<-started
+	im.Close()
+	select {
+	case err := <-got:
+		if err == nil {
+			t.Fatal("the download succeeded")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the request still waits for a download that Close should have cancelled")
+	}
+}
