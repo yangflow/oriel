@@ -45,6 +45,8 @@ type Images struct {
 	userAgent string
 	cache     *imageCache
 
+	root    context.Context // every download runs under it; Close cancels it
+	stop    context.CancelFunc
 	slots   chan struct{} // one token per download in flight
 	mu      sync.Mutex
 	flights map[string]*imageFlight
@@ -61,6 +63,9 @@ type imageFlight struct {
 	err     error
 }
 
+// Close cancels every download under way, so the requests waiting for them return at once. It is for shutdown.
+func (im *Images) Close() { im.stop() }
+
 // UseNetwork makes downloads go through the global proxy n reads. Images belong to no source, so a per-source
 // proxy does not apply.
 func (im *Images) UseNetwork(n *Network) { im.network = n }
@@ -74,6 +79,7 @@ func NewImages(version, cacheDir string) *Images {
 		slots:     make(chan struct{}, maxImageDownloads),
 		flights:   make(map[string]*imageFlight),
 	}
+	im.root, im.stop = context.WithCancel(context.Background())
 	if cacheDir != "" {
 		im.cache = newImageCache(cacheDir)
 	}
@@ -106,7 +112,7 @@ func (im *Images) fetchShared(ctx context.Context, address string) (string, []by
 	if f == nil {
 		var flightCtx context.Context
 		f = &imageFlight{done: make(chan struct{})}
-		flightCtx, f.cancel = context.WithCancel(context.Background())
+		flightCtx, f.cancel = context.WithCancel(im.root)
 		im.flights[address] = f
 		go im.runFlight(flightCtx, address, f)
 	}
