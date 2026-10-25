@@ -9,12 +9,14 @@ import (
 	"strings"
 
 	"modernc.org/sqlite"
+
+	"github.com/yangflow/oriel/internal/tracker"
 )
 
 // linkKey is how two entry links of one source are compared: lowercase scheme and host, no fragment, no trailing
-// slash. It is empty for a link that is empty or does not parse.
+// slash, no tracking parameters (tracker.StripLink). It is empty for a link that is empty or does not parse.
 func linkKey(link string) string {
-	u, err := url.Parse(strings.TrimSpace(link))
+	u, err := url.Parse(tracker.StripLink(strings.TrimSpace(link)))
 	if err != nil || u.Host == "" {
 		return ""
 	}
@@ -33,12 +35,6 @@ func init() {
 		guid, _ := args[1].(string)
 		return groupKey(link, guid), nil
 	})
-}
-
-// trackingParams are the query parameters that only say where a click came from; they never name another page.
-var trackingParams = map[string]bool{
-	"fbclid": true, "gclid": true, "dclid": true, "msclkid": true, "yclid": true, "mc_cid": true, "mc_eid": true,
-	"igshid": true, "_hsenc": true, "_hsmi": true,
 }
 
 // groupKey is how entries of any sources are compared to show one article once (docs/product.md "同一篇文章只显示一次").
@@ -71,10 +67,11 @@ func groupKey(link, guid string) string {
 	path := strings.TrimRight(u.Path, "/")
 	query := url.Values{}
 	for name, values := range u.Query() {
-		if lower := strings.ToLower(name); strings.HasPrefix(lower, "utm_") || trackingParams[lower] {
-			continue
+		for _, value := range values {
+			if !tracker.Param(name, value) {
+				query[name] = append(query[name], value)
+			}
 		}
-		query[name] = values
 	}
 	if path == "" && len(query) == 0 {
 		return ""

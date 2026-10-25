@@ -216,6 +216,31 @@ func TestCopyLink(t *testing.T) {
 	}
 }
 
+// A tracked link is cleaned where it is used: in the Markdown, on the clipboard and when opened. The stored address
+// stays as it is (docs/product.md "链接里的跟踪参数").
+func TestTrackingParamsLeaveLinks(t *testing.T) {
+	tracked := full()
+	tracked.URL = "https://go.dev/blog/go1.27?utm_source=rss&id=7&fbclid=x#notes"
+	const clean = "https://go.dev/blog/go1.27?id=7#notes"
+	if got := markdownOf(tracked); !strings.Contains(got, "- Link: <"+clean+">\n") {
+		t.Errorf("markdown %q", got)
+	}
+	_, f, tt := setup(t, "en", tracked)
+	f.settle(tt)
+	if err := tt.Click("Copy link"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.Clipboard() != clean {
+		t.Errorf("clipboard %q", tt.Clipboard())
+	}
+	if err := tt.Click("Open in browser"); err != nil {
+		t.Fatal(err)
+	}
+	if opened := tt.OpenedURLs(); !slices.Equal(opened, []string{clean}) {
+		t.Errorf("opened %v", opened)
+	}
+}
+
 func TestCopyLinkWithoutLink(t *testing.T) {
 	a := full()
 	a.URL = ""

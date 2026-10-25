@@ -22,6 +22,12 @@ func TestGroupKey(t *testing.T) {
 			t.Errorf("groupKey(%q) = %q, want none", link, k)
 		}
 	}
+	if groupKey("https://example.org/a?mkt_tok=1&ref=rss&id=1", "") != groupKey("https://example.org/a?id=1", "") {
+		t.Error("mkt_tok and a feed-reader ref must not matter")
+	}
+	if groupKey("https://example.org/a?ref=main", "") == groupKey("https://example.org/a", "") {
+		t.Error("another ref tells articles apart")
+	}
 	if groupKey("https://example.org/A", "") == groupKey("https://example.org/a", "") {
 		t.Error("the path is case sensitive")
 	}
@@ -233,5 +239,20 @@ func TestGroupSameLinkSetting(t *testing.T) {
 	}
 	if on, _ := s.GroupSameLink(ctx); on {
 		t.Fatal("still on")
+	}
+}
+
+func TestLinkKeyIgnoresTrackingParams(t *testing.T) {
+	for _, tc := range []struct{ a, b string }{
+		{"https://example.org/a?utm_source=x&id=1", "https://example.org/a?id=1"},
+		{"https://Example.org/a/?fbclid=1", "https://example.org/a"},
+		{"https://example.org/a?ref=rss#top", "https://example.org/a"},
+	} {
+		if linkKey(tc.a) == "" || linkKey(tc.a) != linkKey(tc.b) {
+			t.Errorf("linkKey(%q) = %q, linkKey(%q) = %q, want the same", tc.a, linkKey(tc.a), tc.b, linkKey(tc.b))
+		}
+	}
+	if linkKey("https://example.org/a?ref=main") == linkKey("https://example.org/a") {
+		t.Error("another ref tells entries apart")
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/tracker"
 )
 
 // What an article becomes as Markdown, see docs/product.md "阅读器", Export as Markdown. It is made from the same
@@ -35,7 +36,7 @@ func markdown(e client.Entry, blocks []block, at *time.Location) string {
 	if ms := published(e); ms != 0 {
 		lines = append(lines, "- Date: "+time.UnixMilli(ms).In(at).Format("2006-01-02 15:04"))
 	}
-	if v := strings.TrimSpace(e.URL); v != "" {
+	if v := strings.TrimSpace(tracker.StripLink(strings.TrimSpace(e.URL))); v != "" {
 		lines = append(lines, "- Link: <"+strings.NewReplacer("<", "%3C", ">", "%3E", " ", "%20").Replace(v)+">")
 	}
 	if len(lines) > 0 {

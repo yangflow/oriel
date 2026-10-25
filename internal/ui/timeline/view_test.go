@@ -372,7 +372,7 @@ func sample() ([]client.Source, []client.Entry) {
 			URL: "https://photos.example/5", Images: []client.Image{{URL: "https://photos.example/5.jpg", Width: 1200,
 				Height: 800}}, CreatedAt: ago(3 * 24 * time.Hour)},
 		{ID: 4, SourceID: 1, SourceTitle: "Go Blog", Kind: "article", Title: "Range over func",
-			URL: "https://go.dev/blog/range", IsRead: true, Starred: true, CreatedAt: ago(40 * 24 * time.Hour)},
+			URL: "https://go.dev/blog/range?utm_source=rss&ref=feedly", IsRead: true, Starred: true, CreatedAt: ago(40 * 24 * time.Hour)},
 		{ID: 3, SourceID: 1, SourceTitle: "Go Blog", Kind: "article", Title: "Go turns 16", URL: "https://go.dev/16",
 			CreatedAt: ago(400 * 24 * time.Hour)},
 	}
