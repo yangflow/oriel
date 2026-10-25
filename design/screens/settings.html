@@ -97,7 +97,8 @@
      arrive later; muted keywords hide at any time.
      Rules states: rules (two cards), rules-empty (no rules yet), rule-menu (the row menu open), rule-add (the dialog,
      nothing filled in), rule-invalid (Save pressed with nothing filled in: both lines name the problem), rule-edit (the
-     dialog on an existing rule), rule-deleted (the row is gone, a toast with Undo), muted-edited (the global list
+     dialog on an existing rule), rule-multi (three subscriptions, an exclude list and the count of existing matches),
+     rule-subs (the subscription list open, to pick several), rule-deleted (the row is gone, a toast with Undo), muted-edited (the global list
      changed, not saved, the count follows the typing), muted-invalid (the server refused: too many lines), rules-error
      (the page did not load).
 -->
@@ -420,6 +421,12 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .check .box { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:5px; background:var(--raised); box-shadow:inset 0 0 0 1px var(--edge-line); color:var(--accent-text) }
 .check .box svg.icon { width:12px; height:12px; stroke-width:2.4 }
 .check.on .box { background:var(--accent); box-shadow:none }
+.subs { position:relative }
+.subs .select.open { background:var(--chosen) }
+.subs .menu { left:0; right:0; top:36px; max-height:216px; overflow:auto }
+.subs .menu .check { height:32px; padding:0 10px; border-radius:6px }
+.subs .menu .check:hover { background:var(--hover) }
+.subs .menu hr { border:0; height:1px; margin:4px 6px; background:var(--edge-line) }
 .check.bad .box { box-shadow:inset 0 0 0 1.5px var(--danger) }
 </style>
 <div class="switcher" aria-hidden="true">
@@ -431,7 +438,7 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','reading-appearance','reading-width-wide','density','mark-read','mark-read-scroll','desktop','desktop-on','desktop-error','desktop-login-error','desktop-tray-menu','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','premigrate','premigrate-confirm','premigrate-deleted','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
+const states=['appearance','font-open','font-filtered','font-empty','font-loading','reading-font','reading-font-open','reading-cjk-off','reading-appearance','reading-width-wide','density','mark-read','mark-read-scroll','desktop','desktop-on','desktop-error','desktop-login-error','desktop-tray-menu','viewers','ai','ai-configured','ai-edited','ai-invalid','ai-preset','ai-local','ai-cap-reached','ai-testing','ai-tested','ai-tested-small','ai-test-failed','ai-model-missing','ai-unreachable','prompt-restored','fetching','several','health','health-empty','edited','invalid','saved','opml','opml-drop','importing','importing-several','imported-ok','imported','imported-several','import-stopped','import-lost','import-error','exported','backup','restore-confirm','restoring','restored','restore-failed','auto-off','auto-on','auto-failed','auto-remote','reader','reader-freshrss','reader-invalid','reader-fetching','reader-preview','reader-writing','reader-done','reader-failed','devices','devices-local','revoke','activity','activity-open','activity-empty','vacuum-running','vacuum-done','vacuum-failed','premigrate','premigrate-confirm','premigrate-deleted','diagnostics-exported','diagnostics-failed','rules','rules-empty','rule-menu','rule-add','rule-invalid','rule-edit','rule-multi','rule-subs','rule-deleted','muted-edited','muted-invalid','rules-error','loading','error'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const options={state:states,scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide'],os:['mac','win','linux']};
@@ -508,10 +515,10 @@ const copy={
     rules:'Rules', rulesLead:'A rule stars or marks as read the entries that arrive after you set it. It runs once, when an entry first arrives, and never changes the entries you already have. Muted keywords work on every entry, at any time.',
     rulesNone:'No rules yet.', rulesNoneHelp:'For example: star the new entries of one subscription whose title has \u201cweekly\u201d in it.',
     addRule:'Add rule\u2026', ruleMore:'More for this rule', ruleSwitch:'Rule on', ruleOffBadge:'Off', allSubs:'All subscriptions',
-    rwKeywords:'Title or summary has {words}', rwAuthor:'By \u201c{name}\u201d', rwOnly:'Every new entry', actStar:'Star', actRead:'Mark as read',
+    rwKeywords:'Title or summary has {words}', rwExclude:'Not {words}', subsN:'{n} subscriptions', rwAuthor:'By \u201c{name}\u201d', rwOnly:'Every new entry', actStar:'Star', actRead:'Mark as read',
     menuEdit:'Edit\u2026', menuDelete:'Delete', ruleDeleted:'Rule deleted',
     ruleAddTitle:'Add rule', ruleEditTitle:'Edit rule', ruleWhen:'New entries that match', ruleWhenHelp:'Everything you fill in has to match; several keywords match if any one does. Fill in at least one.',
-    ruleSub:'Subscription', ruleKind:'Shown as', kindAny:'Any', ruleKeywords:'Keywords', ruleKeywordsHelp:'One per line. In the title or summary.',
+    ruleSub:'Subscription', ruleKind:'Shown as', kindAny:'Any', ruleKeywords:'Keywords', ruleKeywordsHelp:'One per line. In the title or summary.', ruleExclude:'Not containing', ruleExcludeHelp:'One per line. Skipped when the title or summary has any of these. Not enough on its own.', ruleCount:'{n} of your existing entries match the conditions as they are now', ruleCountNone:'None of your existing entries match the conditions as they are now',
     ruleAuthor:'Author', ruleAuthorHint:'The author has this text in the name', ruleThen:'Automatically', ruleNote:'Only entries that arrive from now on are affected. The entries you already have stay as they are.',
     errNoCondition:'Fill in at least one condition.', errNoAction:'Pick at least one action.', ruleClose:'Close',
     mutedTitle:'Muted keywords', mutedHelp:'One per line. Entries whose title or summary has any of these are hidden from the timeline and the unread counts; starred entries stay. They work together with each subscription\u2019s own muted keywords.',
@@ -618,10 +625,10 @@ const copy={
     rules:'规则', rulesLead:'规则让设置之后到来的条目自动加星标或标为已读。它只在条目第一次到来时执行一次，不会改已有的条目。屏蔽词则对所有条目随时生效。',
     rulesNone:'还没有规则。', rulesNoneHelp:'例如：把某个订阅里标题含\u201c周报\u201d的新条目自动加星标。',
     addRule:'添加规则\u2026', ruleMore:'这条规则的更多操作', ruleSwitch:'启用规则', ruleOffBadge:'已关闭', allSubs:'所有订阅',
-    rwKeywords:'标题或摘要含 {words}', rwAuthor:'作者含\u201c{name}\u201d', rwOnly:'每个新条目', actStar:'加星标', actRead:'标为已读',
+    rwKeywords:'标题或摘要含 {words}', rwExclude:'不含 {words}', subsN:'{n} 个订阅', rwAuthor:'作者含\u201c{name}\u201d', rwOnly:'每个新条目', actStar:'加星标', actRead:'标为已读',
     menuEdit:'编辑\u2026', menuDelete:'删除', ruleDeleted:'规则已删除',
     ruleAddTitle:'添加规则', ruleEditTitle:'编辑规则', ruleWhen:'满足以下条件的新条目', ruleWhenHelp:'填了的条件都要满足；关键词写多个时，命中任何一个即可。至少填一个。',
-    ruleSub:'订阅', ruleKind:'显示为', kindAny:'不限', ruleKeywords:'关键词', ruleKeywordsHelp:'一行一个，在标题或摘要里找。',
+    ruleSub:'订阅', ruleKind:'显示为', kindAny:'不限', ruleKeywords:'关键词', ruleKeywordsHelp:'一行一个，在标题或摘要里找。', ruleExclude:'不含', ruleExcludeHelp:'一行一个。标题或摘要里有其中任何一个就跳过。只填这一项不算条件。', ruleCount:'按现在的条件，已有条目里有 {n} 条会命中', ruleCountNone:'按现在的条件，已有条目里没有会命中的',
     ruleAuthor:'作者', ruleAuthorHint:'作者名里含这段文字', ruleThen:'自动', ruleNote:'只对之后到来的新条目生效，已有的条目不变。',
     errNoCondition:'至少填一个条件。', errNoAction:'至少选一个动作。', ruleClose:'关闭',
     mutedTitle:'屏蔽词', mutedHelp:'一行一个。标题或摘要里有这些词的条目会从时间线和未读数里隐藏；收藏的不隐藏。和各订阅自己的屏蔽词一起生效。',
@@ -927,12 +934,14 @@ const sources=[
 const ruleData=[
   {kw:zh?['周报','招聘']:['sponsored','giveaway'],act:['read'],on:true},
   {src:'Julia Evans',kw:[],act:['star'],on:true},
+  {src:zh?'阮一峰的网络日志、Julia Evans、少数派':'Lobsters, Julia Evans, Hacker News',kw:zh?['周刊']:['weekly'],ex:zh?['广告']:['sponsored'],act:['star'],on:true},
   {kind:'vVideos',author:'Fireship',kw:[],act:['star'],on:false},
   {src:zh?'阮一峰的网络日志':'Lobsters',kw:zh?['周刊']:['weekly'],act:['star'],on:true}];
 const actText=a=>a.map(k=>k==='star'?copy.actStar:copy.actRead).join(' + ');
 const ruleRow=(r,i)=>{
   const bits=[], q=x=>'\u201c'+x+'\u201d', menuOpen=state==='rule-menu'&&i===0;
   if(r.kw.length)bits.push(t('rwKeywords',{words:r.kw.map(q).join(zh?'、':', ')}));
+  if(r.ex)bits.push(t('rwExclude',{words:r.ex.map(q).join(zh?'、':', ')}));
   if(r.author)bits.push(t('rwAuthor',{name:r.author}));
   const scope=[r.src||copy.allSubs].concat(r.kind?[copy[r.kind]]:[]).join(' \u00b7 ');
   return `<div class="row"><div class="device rule${r.on?'':' off'}"><div class="text"><div class="when">${bits.length?bits.join(' \u00b7 '):copy.rwOnly}</div><div class="then"><span>${scope}</span>${icon('arrowRight')}${icon(r.act[0]==='star'?'star':'checkCheck')}<span>${actText(r.act)}</span>${r.on?'':`<span class="badge off">${copy.ruleOffBadge}</span>`}</div></div>
@@ -1009,17 +1018,22 @@ if(readingOpen){
   const families=['Arial','Baskerville','Big Caslon','Charter','Didot','Futura','Georgia','Gill Sans','Helvetica Neue','Hiragino Mincho ProN','Hiragino Sans GB','Hoefler Text','Iowan Old Style','Menlo','Noto Serif','Noto Serif SC','Optima','Palatino','PingFang SC','Songti SC','Times New Roman','Verdana'];
   overlay=picker([[copy.followInterface,'inherit'],[copy.serif,serifFace]],copy.serif,families,'',false,'Charter');
 }
-if(state==='rule-add'||state==='rule-invalid'||state==='rule-edit'){
-  const edit=state==='rule-edit', bad=state==='rule-invalid';
-  const kws=edit?(zh?['周刊']:['weekly']):[];
+if(state==='rule-add'||state==='rule-invalid'||state==='rule-edit'||state==='rule-multi'||state==='rule-subs'){
+  const multi=state==='rule-multi'||state==='rule-subs', edit=state==='rule-edit'||multi, bad=state==='rule-invalid';
+  const kws=edit?(zh?['周刊']:['weekly']):[], exs=multi?(zh?['广告','赞助']:['sponsored','giveaway']):[];
   const box=(label,on)=>`<div class="check${on?' on':''}${bad?' bad':''}" role="checkbox" aria-checked="${on}"><span class="box">${on?icon('check'):''}</span><span>${label}</span></div>`;
+  const subNames=zh?['阮一峰的网络日志','Julia Evans','少数派','Hacker News']:['Lobsters','Julia Evans','Hacker News','Daring Fireball'], picked=multi?[0,1,2]:edit?[0]:[];
+  const subLabel=!picked.length?copy.allSubs:picked.length===1?subNames[picked[0]]:t('subsN',{n:picked.length});
+  const subList=state==='rule-subs'?`<div class="menu" role="listbox" aria-multiselectable="true" aria-label="${copy.ruleSub}">${box(copy.allSubs,!picked.length)}<hr>${subNames.map((n,i)=>box(n,picked.includes(i))).join('')}</div>`:'';
+  const lines=(l,label)=>`<div class="textarea" role="textbox" aria-multiline="true" aria-label="${label}">${l.length?l.map(x=>`<span class="line">${x}</span>`).join(''):'<span class="line"></span><span class="line"></span>'}</div>`;
   overlay=`<div class="backdrop"><div class="alert dialog" role="dialog" aria-labelledby="rt"><div class="head"><h2 id="rt">${edit?copy.ruleEditTitle:copy.ruleAddTitle}</h2><button class="dlg-x" aria-label="${copy.ruleClose}">${icon('x')}</button></div><div class="form">
 <span class="group-label" style="margin-top:0">${copy.ruleWhen}</span><p class="help" style="margin:0 0 12px">${copy.ruleWhenHelp}</p>
-<div class="fieldset"><span class="label">${copy.ruleSub}</span>${menu(copy.ruleSub,edit?(zh?'阮一峰的网络日志':'Lobsters'):copy.allSubs)}</div>
+<div class="fieldset"><span class="label">${copy.ruleSub}</span><div class="subs">${menu(copy.ruleSub,subLabel,'',state==='rule-subs')}${subList}</div></div>
 <div class="fieldset"><span class="label">${copy.ruleKind}</span>${menu(copy.ruleKind,copy.kindAny)}</div>
 <div class="fieldset"><span class="label">${copy.ruleKeywords}</span><p class="help" style="margin:-4px 0 6px">${copy.ruleKeywordsHelp}</p><div class="textarea${bad?' invalid':''}" role="textbox" aria-multiline="true" aria-label="${copy.ruleKeywords}">${kws.length?kws.map(l=>`<span class="line">${l}</span>`).join(''):'<span class="line"></span><span class="line"></span>'}</div></div>
+<div class="fieldset"><span class="label">${copy.ruleExclude}</span><p class="help" style="margin:-4px 0 6px">${copy.ruleExcludeHelp}</p>${lines(exs,copy.ruleExclude)}</div>
 <div class="fieldset"><span class="label">${copy.ruleAuthor}</span><div class="field${bad?' invalid':''}" role="textbox" aria-label="${copy.ruleAuthor}"><span class="placeholder">${copy.ruleAuthorHint}</span></div>
-${bad?`<div class="status error" role="alert">${icon('alert')}${copy.errNoCondition}</div>`:''}</div>
+${bad?`<div class="status error" role="alert">${icon('alert')}${copy.errNoCondition}</div>`:''}${edit?`<div class="count" role="status">${t('ruleCount',{n:multi?12:3})}</div>`:''}</div>
 <span class="group-label">${copy.ruleThen}</span>${box(copy.actStar,edit)}${box(copy.actRead,false)}
 ${bad?`<div class="status error" role="alert">${icon('alert')}${copy.errNoAction}</div>`:''}
 <p class="note" style="margin:10px 0 4px">${copy.ruleNote}</p></div>

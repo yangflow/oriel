@@ -931,29 +931,51 @@ func (s Session) MutedCountAll(ctx context.Context, keywords string) (int, error
 	return reply.Count, err
 }
 
-// Rule acts on the new entries that match its conditions: all of the filled ones. SourceID nil is every
-// subscription, Kind "" any kind. It stars them, marks them read, or both.
+// Rule acts on the new entries that match its conditions: all of the filled ones. No SourceIDs is every
+// subscription, Kind "" any kind; Exclude is words (one per line) that keep an entry from matching. It stars them,
+// marks them read, or both.
 type Rule struct {
-	ID        int64  `json:"id"`
-	SourceID  *int64 `json:"sourceId"`
-	Kind      string `json:"kind"`
-	Keywords  string `json:"keywords"`
-	Author    string `json:"author"`
-	Star      bool   `json:"star"`
-	MarkRead  bool   `json:"markRead"`
-	Enabled   bool   `json:"enabled"`
-	CreatedAt int64  `json:"createdAt"`
+	ID        int64   `json:"id"`
+	SourceIDs []int64 `json:"sourceIds"`
+	Kind      string  `json:"kind"`
+	Keywords  string  `json:"keywords"`
+	Exclude   string  `json:"excludeKeywords"`
+	Author    string  `json:"author"`
+	Star      bool    `json:"star"`
+	MarkRead  bool    `json:"markRead"`
+	Enabled   bool    `json:"enabled"`
+	CreatedAt int64   `json:"createdAt"`
 }
 
 // NewRule is a rule to add, or the whole of a rule to replace one with: the ID and creation time are the server's.
 type NewRule struct {
-	SourceID *int64 `json:"sourceId"`
-	Kind     string `json:"kind"`
-	Keywords string `json:"keywords"`
-	Author   string `json:"author"`
-	Star     bool   `json:"star"`
-	MarkRead bool   `json:"markRead"`
-	Enabled  bool   `json:"enabled"`
+	SourceIDs []int64 `json:"sourceIds"`
+	Kind      string  `json:"kind"`
+	Keywords  string  `json:"keywords"`
+	Exclude   string  `json:"excludeKeywords"`
+	Author    string  `json:"author"`
+	Star      bool    `json:"star"`
+	MarkRead  bool    `json:"markRead"`
+	Enabled   bool    `json:"enabled"`
+}
+
+// RuleConditions are the conditions of a rule that has not been saved, for RuleMatchCount.
+type RuleConditions struct {
+	SourceIDs []int64 `json:"sourceIds"`
+	Kind      string  `json:"kind"`
+	Keywords  string  `json:"keywords"`
+	Exclude   string  `json:"excludeKeywords"`
+	Author    string  `json:"author"`
+}
+
+// RuleMatchCount is how many entries you already have that the conditions match now; nothing is saved or changed.
+// Without a condition it is 0.
+func (s Session) RuleMatchCount(ctx context.Context, conditions RuleConditions) (int, error) {
+	var reply struct {
+		Count int `json:"count"`
+	}
+	err := s.call(ctx, http.MethodPost, "/api/rules/match-count", conditions, &reply)
+	return reply.Count, err
 }
 
 // Rules lists the rules, the oldest first.
@@ -979,8 +1001,8 @@ func (s Session) RestoreRule(ctx context.Context, rule Rule) (Rule, error) {
 		ID        int64 `json:"id"`
 		CreatedAt int64 `json:"createdAt"`
 		NewRule
-	}{rule.ID, rule.CreatedAt, NewRule{SourceID: rule.SourceID, Kind: rule.Kind, Keywords: rule.Keywords,
-		Author: rule.Author, Star: rule.Star, MarkRead: rule.MarkRead, Enabled: rule.Enabled}}
+	}{rule.ID, rule.CreatedAt, NewRule{SourceIDs: rule.SourceIDs, Kind: rule.Kind, Keywords: rule.Keywords,
+		Exclude: rule.Exclude, Author: rule.Author, Star: rule.Star, MarkRead: rule.MarkRead, Enabled: rule.Enabled}}
 	var created Rule
 	err := s.call(ctx, http.MethodPost, "/api/rules", body, &created)
 	return created, err

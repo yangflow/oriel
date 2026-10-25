@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -176,10 +177,29 @@ func TestBackupFileWorksWhileTheStoreIsOpen(t *testing.T) {
 func TestRestoreRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	s, _ := seeded(t)
+	var ids []int64
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM sources ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if _, err := s.CreateRule(ctx, Rule{SourceIDs: ids, Keywords: "go", Exclude: "ads", Star: true, Enabled: true}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
 	data := backupOf(t, s)
 
 	other := open(t, filepath.Join(t.TempDir(), "oriel.sqlite"))
 	c := newLogSource(t, other, "https://c.example/feed")
+	if _, err := other.CreateRule(ctx, Rule{SourceIDs: []int64{c.ID}, Keywords: "old", Star: true}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := other.SaveFeed(ctx, FeedSource{ID: c.ID, Kind: "article"}, "C", "", []FeedEntry{{GUID: "x", Title: "Elsewhere", URL: "https://c.example/x"}}, "", time.Time{}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -204,6 +224,9 @@ func TestRestoreRoundTrip(t *testing.T) {
 	}
 	if count(t, other, "SELECT count(*) FROM sources WHERE url = 'https://c.example/feed'") != 0 {
 		t.Fatal("the old subscription survived")
+	}
+	if rules, err := other.Rules(ctx); err != nil || len(rules) != 1 || !slices.Equal(rules[0].SourceIDs, ids) || rules[0].Exclude != "ads" || rules[0].Keywords != "go" {
+		t.Fatalf("the rule did not come back as it was: %+v %v", rules, err)
 	}
 	if count(t, other, "SELECT count(*) FROM entries WHERE is_read = 1") != 1 || count(t, other, "SELECT count(*) FROM entries WHERE starred = 1") != 1 {
 		t.Fatal("read or starred state lost")
@@ -364,7 +387,7 @@ func TestRestoreMigratesAnOlderBackup(t *testing.T) {
 	}
 	// Make it look like version 20, before the link key that groups an article carried by several sources, the rules and the extraction and AI queue indexes.
 	for _, stmt := range []string{
-		"DROP TABLE rules", "DROP INDEX entry_ai_open", "CREATE INDEX entry_ai_status ON entry_ai (status)", "DROP INDEX entries_extract_open", "DROP INDEX entries_link_key", "ALTER TABLE entries DROP COLUMN link_key", "ALTER TABLE sources DROP COLUMN proxy", "ALTER TABLE sources DROP COLUMN proxy_user", "ALTER TABLE sources DROP COLUMN proxy_password", "ALTER TABLE sources DROP COLUMN moved_url", "ALTER TABLE sources DROP COLUMN moved_seen", "ALTER TABLE sources DROP COLUMN moved_dismissed", "ALTER TABLE sources DROP COLUMN feed_title", "ALTER TABLE sources DROP COLUMN fetch_user_agent", "ALTER TABLE sources DROP COLUMN fetch_referer", "PRAGMA user_version = 20",
+		"DROP TRIGGER rules_lose_last_source", "DROP TABLE rule_sources", "DROP TABLE rules", "DROP INDEX entry_ai_open", "CREATE INDEX entry_ai_status ON entry_ai (status)", "DROP INDEX entries_extract_open", "DROP INDEX entries_link_key", "ALTER TABLE entries DROP COLUMN link_key", "ALTER TABLE sources DROP COLUMN proxy", "ALTER TABLE sources DROP COLUMN proxy_user", "ALTER TABLE sources DROP COLUMN proxy_password", "ALTER TABLE sources DROP COLUMN moved_url", "ALTER TABLE sources DROP COLUMN moved_seen", "ALTER TABLE sources DROP COLUMN moved_dismissed", "ALTER TABLE sources DROP COLUMN feed_title", "ALTER TABLE sources DROP COLUMN fetch_user_agent", "ALTER TABLE sources DROP COLUMN fetch_referer", "PRAGMA user_version = 20",
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)

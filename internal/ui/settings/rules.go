@@ -21,6 +21,9 @@ const deletedToast = "settings.rule-deleted"
 // maxRules is how many rules the server keeps; the button to add one is off at that many.
 const maxRules = 50
 
+// maxRuleSources is how many subscriptions one rule can be limited to.
+const maxRuleSources = 50
+
 // mutedWait is how long the muted keywords rest before the entries they would hide are counted.
 const mutedWait = 400 * time.Millisecond
 
@@ -30,11 +33,13 @@ var ruleKinds = []string{"", "article", "video", "social", "image"}
 // ruleForm is the dialog that adds a rule or edits one.
 type ruleForm struct {
 	open     bool
-	id       int64 // the rule being edited, 0 for a new one
-	enabled  bool  // kept as it was when editing
-	source   string
+	id       int64   // the rule being edited, 0 for a new one
+	enabled  bool    // kept as it was when editing
+	sources  []int64 // the subscriptions chosen, none for every one
+	subsOpen bool    // the list of subscriptions is open
 	kind     string
 	keywords string
+	exclude  string
 	author   string
 	star     bool
 	read     bool
@@ -44,6 +49,13 @@ type ruleForm struct {
 	scroll   ui.ScrollState
 
 	condErr, actErr, keysErr, authErr, formErr string
+
+	seen     string    // the conditions the last frame saw, to tell when they change
+	seenAt   time.Time // when they changed
+	asked    string    // the conditions whose count was asked for last
+	count    int
+	counted  bool // count is the count of asked
+	countRun int  // counts the questions, so the answer of an old one is dropped
 }
 
 // deletion is a rule just deleted, which the toast offers to put back.
@@ -125,16 +137,35 @@ func (s *Screen) loadRules() {
 	})
 }
 
-func (s *Screen) sourceTitle(id *int64) string {
-	if id == nil {
+// sourceNames is the subscriptions a rule is limited to: every one, the name of one, the names of two, or the number
+// of more.
+func (s *Screen) sourceNames(ids []int64) string {
+	switch {
+	case len(ids) == 0:
 		return s.text.AllSubs
+	case len(ids) > 2:
+		return locale.Count(s.text.SubsN, "n", len(ids))
 	}
+	var names []string
 	for _, src := range s.rules.sources {
-		if src.ID == *id {
-			return src.Title
+		if slices.Contains(ids, src.ID) {
+			names = append(names, src.Title)
 		}
 	}
-	return ""
+	return strings.Join(names, ", ")
+}
+
+// words is the lines of text as a list of quoted words.
+func (s *Screen) words(text string) string {
+	lines := strings.Split(cleanLines(text), "\n")
+	for i, w := range lines {
+		lines[i] = "“" + w + "”"
+	}
+	sep := ", "
+	if s.lang == "zh-Hans" {
+		sep = "、"
+	}
+	return strings.Join(lines, sep)
 }
 
 func (s *Screen) kindName(kind string) string {
@@ -154,16 +185,11 @@ func (s *Screen) kindName(kind string) string {
 // summary is the condition of a rule as a sentence.
 func (s *Screen) summary(r client.Rule) string {
 	var parts []string
-	if words := strings.Split(cleanLines(r.Keywords), "\n"); words[0] != "" {
-		quoted := make([]string, len(words))
-		for i, w := range words {
-			quoted[i] = "“" + w + "”"
-		}
-		sep := ", "
-		if s.lang == "zh-Hans" {
-			sep = "、"
-		}
-		parts = append(parts, s.fill(s.text.RwKeywords, "{words}", strings.Join(quoted, sep)))
+	if cleanLines(r.Keywords) != "" {
+		parts = append(parts, s.fill(s.text.RwKeywords, "{words}", s.words(r.Keywords)))
+	}
+	if cleanLines(r.Exclude) != "" {
+		parts = append(parts, s.fill(s.text.RwExclude, "{words}", s.words(r.Exclude)))
 	}
 	if r.Author != "" {
 		parts = append(parts, s.fill(s.text.RwAuthor, "{name}", r.Author))
@@ -177,8 +203,8 @@ func (s *Screen) summary(r client.Rule) string {
 // scope is the subscription and the kind a rule is limited to.
 func (s *Screen) scope(r client.Rule) string {
 	var parts []string
-	if title := s.sourceTitle(r.SourceID); title != "" {
-		parts = append(parts, title)
+	if names := s.sourceNames(r.SourceIDs); names != "" {
+		parts = append(parts, names)
 	}
 	if r.Kind != "" {
 		parts = append(parts, s.kindName(r.Kind))
@@ -334,10 +360,8 @@ func (s *Screen) openRule(r *client.Rule) {
 	d := ruleForm{open: true, enabled: true, focus: true}
 	if r != nil {
 		d.id, d.enabled, d.kind = r.ID, r.Enabled, r.Kind
-		d.keywords, d.author, d.star, d.read = r.Keywords, r.Author, r.Star, r.MarkRead
-		if r.SourceID != nil {
-			d.source = strconv.FormatInt(*r.SourceID, 10)
-		}
+		d.keywords, d.exclude, d.author, d.star, d.read = r.Keywords, r.Exclude, r.Author, r.Star, r.MarkRead
+		d.sources = slices.Clone(r.SourceIDs)
 	}
 	s.rules.dialog = d
 }
@@ -361,6 +385,8 @@ func (s *Screen) ruleError(d *ruleForm, err error) {
 		d.authErr = s.text.ErrAuthor
 	case "invalid_rule_source":
 		d.formErr = s.text.ErrSource
+	case "too_many_rule_sources":
+		d.formErr = s.text.ErrSources
 	case "too_many_rules":
 		d.formErr = s.text.ErrTooMany
 	default:
@@ -375,12 +401,9 @@ func (s *Screen) saveRule() {
 		return
 	}
 	d.condErr, d.actErr, d.keysErr, d.authErr, d.formErr = "", "", "", "", ""
-	rule := client.NewRule{Kind: d.kind, Keywords: cleanLines(d.keywords), Author: strings.TrimSpace(d.author),
-		Star: d.star, MarkRead: d.read, Enabled: d.enabled}
-	if id, err := strconv.ParseInt(d.source, 10, 64); err == nil {
-		rule.SourceID = &id
-	}
-	if rule.SourceID == nil && rule.Kind == "" && rule.Keywords == "" && rule.Author == "" {
+	rule := client.NewRule{SourceIDs: slices.Clone(d.sources), Kind: d.kind, Keywords: cleanLines(d.keywords),
+		Exclude: cleanLines(d.exclude), Author: strings.TrimSpace(d.author), Star: d.star, MarkRead: d.read, Enabled: d.enabled}
+	if len(rule.SourceIDs) == 0 && rule.Kind == "" && rule.Keywords == "" && rule.Author == "" {
 		d.condErr = s.text.ErrNoCondition
 	}
 	if !rule.Star && !rule.MarkRead {
@@ -515,15 +538,7 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 	group(s.text.RuleWhen)
 	help(s.text.RuleWhenHelp)
 
-	options := []choice{{value: "", name: s.text.AllSubs}}
-	for _, src := range s.rules.sources {
-		options = append(options, choice{value: strconv.FormatInt(src.ID, 10), name: src.Title})
-	}
-	set(s.text.RuleSub, "", func() {
-		if v, changed := s.pickIn(c, d.source, s.text.RuleSub, options, true); changed {
-			d.source, d.condErr, d.formErr = v, "", ""
-		}
-	})
+	set(s.text.RuleSub, "", func() { s.subsPicker(c, d) })
 	kinds := make([]choice, len(ruleKinds))
 	for i, k := range ruleKinds {
 		kinds[i] = choice{value: k, name: s.kindName(k)}
@@ -533,14 +548,14 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 			d.kind, d.condErr = v, ""
 		}
 	})
-	set(s.text.RuleKeywords, s.text.RuleKeywordsHelp, func() {
-		before := d.keywords
-		area := ui.TextArea(c.Key("rulekeys"), &d.keywords).FillWidth().Lines(2, 6).Font("monospace").
-			FontSize(theme.Px(t, 12)).Label(s.text.RuleKeywords).Disabled(d.saving)
+	lines := func(key, label string, text *string, bad, focus bool) bool {
+		before := *text
+		area := ui.TextArea(c.Key(key), text).FillWidth().Lines(2, 6).Font("monospace").
+			FontSize(theme.Px(t, 12)).Label(label).Disabled(d.saving)
 		area.Background(theme.RaisedFill(t)).Radius(t.Radius)
 		edge(c, area)
 		switch {
-		case d.keysErr != "" || d.condErr != "":
+		case bad:
 			area.Border(1.5, t.Danger)
 			if area.Focused() {
 				area.Shadow(0, 0, 0, 2, theme.Soft(t, t.Danger))
@@ -548,18 +563,24 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 		case area.Focused():
 			area.Shadow(0, 0, 0, 2, t.Focus)
 		}
-		if d.keysErr != "" {
+		if bad && d.keysErr != "" {
 			area.Error(d.keysErr)
 		}
-		if d.focus {
+		if focus {
 			area.Focus()
-			d.focus = false
 		}
-		if d.keywords != before {
+		return *text != before
+	}
+	set(s.text.RuleKeywords, s.text.RuleKeywordsHelp, func() {
+		if lines("rulekeys", s.text.RuleKeywords, &d.keywords, d.keysErr != "" || d.condErr != "", d.focus) {
 			d.keysErr, d.condErr = "", ""
 		}
-		if d.keysErr != "" {
-			statusLine(c, status{text: d.keysErr})
+		d.focus = false
+		statusLine(c, status{text: d.keysErr})
+	})
+	set(s.text.RuleExclude, s.text.RuleExcludeHelp, func() {
+		if lines("ruleexclude", s.text.RuleExclude, &d.exclude, d.keysErr != "", false) {
+			d.keysErr = ""
 		}
 	})
 	set(s.text.RuleAuthor, "", func() {
@@ -573,6 +594,14 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 		statusLine(c, status{text: d.authErr})
 		statusLine(c, status{text: d.condErr})
 	})
+	s.watchRuleCount(c, d)
+	if _, key := ruleConditions(d); d.counted && d.asked == key && key != "" {
+		line := s.text.RuleCountNone
+		if d.count > 0 {
+			line = locale.Count(s.text.RuleCount, "n", d.count)
+		}
+		ui.Text(c, line).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().FontFeatures("tnum").Role(ui.RoleStatus)
+	}
 
 	group(s.text.RuleThen)
 	ui.Column(c).FillWidth().Gap(theme.Px(t, 8)).Children(func() {
@@ -779,5 +808,106 @@ func (s *Screen) saveMuted() {
 				s.deps.Imported()
 			}
 		}
+	})
+}
+
+// ruleConditions is what the dialog asks about: the conditions as the server would see them, and a key that is the
+// same for the same conditions. The key is empty when nothing but the exclude list is filled in, which is no condition.
+func ruleConditions(d *ruleForm) (client.RuleConditions, string) {
+	cond := client.RuleConditions{SourceIDs: slices.Clone(d.sources), Kind: d.kind, Keywords: cleanLines(d.keywords),
+		Exclude: cleanLines(d.exclude), Author: strings.TrimSpace(d.author)}
+	if len(cond.SourceIDs) == 0 && cond.Kind == "" && cond.Keywords == "" && cond.Author == "" {
+		return cond, ""
+	}
+	slices.Sort(cond.SourceIDs)
+	ids := make([]string, len(cond.SourceIDs))
+	for i, id := range cond.SourceIDs {
+		ids[i] = strconv.FormatInt(id, 10)
+	}
+	return cond, strings.Join([]string{strings.Join(ids, ","), cond.Kind, cond.Keywords, cond.Exclude, cond.Author}, "\x00")
+}
+
+// watchRuleCount counts the existing entries the conditions in the dialog match once they have rested for a moment.
+func (s *Screen) watchRuleCount(c *ui.Context, d *ruleForm) {
+	if s.api == nil {
+		return
+	}
+	cond, key := ruleConditions(d)
+	if key != d.seen {
+		d.seen, d.seenAt = key, s.deps.Now()
+	}
+	if key == "" || key == d.asked {
+		return
+	}
+	if wait := mutedWait - s.deps.Now().Sub(d.seenAt); wait > 0 {
+		c.After(wait)
+		return
+	}
+	d.asked, d.counted = key, false
+	d.countRun++
+	gen, run, api, dialog := s.gen, d.countRun, s.api, d.run
+	s.deps.Go(func() func() {
+		n, err := api.RuleMatchCount(context.Background(), cond)
+		return func() {
+			p := &s.rules.dialog
+			if gen != s.gen || dialog != p.run || run != p.countRun || s.expired(err) {
+				return
+			}
+			if err == nil {
+				p.count, p.counted = n, true
+			}
+		}
+	})
+}
+
+// subsPicker is the button that lists the subscriptions a rule can be limited to, with a check box for each.
+func (s *Screen) subsPicker(c *ui.Context, d *ruleForm) {
+	t := c.Theme()
+	label := s.sourceNames(d.sources)
+	if len(d.sources) > 1 {
+		label = locale.Count(s.text.SubsN, "n", len(d.sources))
+	}
+	wasOpen := d.subsOpen
+	btn := ui.ButtonBase(c.Key("rulesubs")).FillWidth().Height(theme.Px(t, 32)).Gap(t.Space(2)).
+		Padding(0, t.Space(2), 0, theme.Px(t, 10)).Radius(t.Radius).AlignItems(ui.Center).Label(s.text.RuleSub + ": " + label)
+	trigger(c, btn)
+	btn.Disabled(d.saving)
+	btn.Children(func() {
+		ui.Text(c, label).Grow(1).MinWidth(0).SingleLine()
+		ui.Icon(c, icons.ChevronDown).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+	})
+	if btn.Clicked() {
+		d.subsOpen = !wasOpen
+	}
+	ui.PopoverBase(c, btn, &d.subsOpen, func(panel ui.Element) {
+		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 240))
+		theme.Sheet(c, panel, theme.Popup)
+		ui.Scroll(c).MaxHeight(theme.Px(t, 320)).Children(func() {
+			ui.Column(c).FillWidth().Children(func() {
+				all := len(d.sources) == 0
+				if ui.Checkbox(c.Key("rulesub-all"), &all, s.text.AllSubs).FillWidth().Height(theme.Px(t, 28)).PaddingX(t.Space(2)).
+					Changed() {
+					d.sources, d.condErr, d.formErr = nil, "", ""
+				}
+				ui.Box(c).Key("rulesub-line").FillWidth().Height(1).Margin(theme.Px(t, 4), 0).Background(t.Border)
+				for _, src := range s.rules.sources {
+					on := slices.Contains(d.sources, src.ID)
+					row := ui.Checkbox(c.Key("rulesub"+strconv.FormatInt(src.ID, 10)), &on, src.Title).FillWidth().
+						Height(theme.Px(t, 28)).PaddingX(t.Space(2))
+					if !row.Changed() {
+						continue
+					}
+					d.condErr, d.formErr = "", ""
+					switch {
+					case !on:
+						d.sources = slices.DeleteFunc(slices.Clone(d.sources), func(id int64) bool { return id == src.ID })
+					case len(d.sources) >= maxRuleSources:
+						d.formErr = s.text.ErrSources
+					default:
+						d.sources = append(slices.Clone(d.sources), src.ID)
+					}
+				}
+			})
+		})
 	})
 }

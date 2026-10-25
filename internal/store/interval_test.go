@@ -64,6 +64,8 @@ func TestMigrationMakesDefaultIntervalAuto(t *testing.T) {
 		"INSERT INTO sources (url, kind, fetch_interval_sec, next_fetch_at, created_at, updated_at) VALUES ('https://a.org/c', 'article', 901, 0, 0, 0)",
 		"DROP TABLE entry_ai_chunks",
 		"DROP TABLE ai_usage",
+		"DROP TRIGGER rules_lose_last_source",
+		"DROP TABLE rule_sources",
 		"DROP TABLE rules",
 		"DROP INDEX entries_extract_open",
 		"DROP INDEX entry_ai_open",

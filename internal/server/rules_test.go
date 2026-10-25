@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,7 +21,7 @@ func TestRulesAPI(t *testing.T) {
 	}
 	sid := strconv.FormatInt(src.ID, 10)
 
-	for _, r := range []struct{ method, target string }{{"GET", "/api/rules"}, {"POST", "/api/rules"}, {"PATCH", "/api/rules/1"}, {"DELETE", "/api/rules/1"}, {"POST", "/api/muted-count"}} {
+	for _, r := range []struct{ method, target string }{{"GET", "/api/rules"}, {"POST", "/api/rules"}, {"PATCH", "/api/rules/1"}, {"DELETE", "/api/rules/1"}, {"POST", "/api/muted-count"}, {"POST", "/api/rules/match-count"}} {
 		if w := do(s, r.method, r.target, "{}", nil); w.Code != http.StatusUnauthorized {
 			t.Fatalf("%s %s without a session: %d", r.method, r.target, w.Code)
 		}
@@ -37,19 +38,19 @@ func TestRulesAPI(t *testing.T) {
 	}
 	rule := decode(t, w)
 	if rule["keywords"] != "go\nrust" || rule["author"] != "Ann" || rule["enabled"] != true || rule["markRead"] != false ||
-		rule["star"] != true || rule["sourceId"] != float64(src.ID) || rule["createdAt"] != float64(c.t.UnixMilli()) {
+		rule["star"] != true || fmt.Sprint(rule["sourceIds"]) != fmt.Sprint([]any{float64(src.ID)}) || rule["createdAt"] != float64(c.t.UnixMilli()) {
 		t.Fatalf("created rule: %v", rule)
 	}
 	id := strconv.Itoa(int(rule["id"].(float64)))
 
 	w = do(s, "PATCH", "/api/rules/"+id, `{"enabled":false,"markRead":true}`, bearer(token))
 	got := decode(t, w)
-	if w.Code != http.StatusOK || got["enabled"] != false || got["markRead"] != true || got["keywords"] != "go\nrust" || got["sourceId"] != float64(src.ID) {
+	if w.Code != http.StatusOK || got["enabled"] != false || got["markRead"] != true || got["keywords"] != "go\nrust" || fmt.Sprint(got["sourceIds"]) != fmt.Sprint([]any{float64(src.ID)}) {
 		t.Fatalf("patch: %d %v", w.Code, got)
 	}
 	w = do(s, "PATCH", "/api/rules/"+id, `{"sourceId":null}`, bearer(token))
-	if got := decode(t, w); w.Code != http.StatusOK || got["sourceId"] != nil {
-		t.Fatalf("clear the source: %d %v", w.Code, got)
+	if got := decode(t, w); w.Code != http.StatusOK || fmt.Sprint(got["sourceIds"]) != "[]" {
+		t.Fatalf("clear the source the old way: %d %v", w.Code, got)
 	}
 
 	list := decode(t, do(s, "GET", "/api/rules", "", bearer(token)))["rules"].([]any)
@@ -70,6 +71,13 @@ func TestRulesAPI(t *testing.T) {
 		{"POST", "/api/rules", `{"keywords":"x"}`, 400, "rule_no_action"},
 		{"POST", "/api/rules", `{"keywords":"x","star":true,"extra":1}`, 400, "invalid_body"},
 		{"PATCH", "/api/rules/" + id, `{"sourceId":"x"}`, 400, "invalid_body"},
+		{"PATCH", "/api/rules/" + id, `{"sourceIds":"x"}`, 400, "invalid_body"},
+		{"POST", "/api/rules", `{"sourceIds":[9999],"star":true}`, 400, "invalid_rule_source"},
+		{"POST", "/api/rules", `{"excludeKeywords":"x","star":true}`, 400, "rule_no_condition"},
+		{"POST", "/api/rules", `{"keywords":"x","excludeKeywords":"` + strings.Repeat("x", 101) + `","star":true}`, 400, "invalid_rule_keywords"},
+		{"POST", "/api/rules", `{"sourceIds":` + idList(store.MaxRuleSources+1) + `,"star":true}`, 400, "too_many_rule_sources"},
+		{"POST", "/api/rules/match-count", `{"kind":"podcast"}`, 400, "invalid_rule_kind"},
+		{"POST", "/api/rules/match-count", `{"sourceIds":[9999]}`, 400, "invalid_rule_source"},
 		{"PATCH", "/api/rules/" + id, `{"star":false,"markRead":false}`, 400, "rule_no_action"},
 		{"PATCH", "/api/rules/" + id, `{"keywords":"","author":"","kind":""}`, 400, "rule_no_condition"},
 		{"PATCH", "/api/rules/9999", `{"star":true}`, 404, "not_found"},
@@ -191,4 +199,63 @@ func TestRulesRestoreAndSourceUndoWindow(t *testing.T) {
 	if w := do(s, "POST", "/api/rules", `{"id":`+ids[2]+`,"sourceId":`+sid+`,"keywords":"c","star":true}`, bearer(token)); w.Code != http.StatusCreated {
 		t.Fatalf("undo in the undo window: %d %s", w.Code, w.Body)
 	}
+}
+
+func TestRuleSeveralSourcesExcludeAndCount(t *testing.T) {
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	var ids []int64
+	for _, name := range []string{"a", "b", "c"} {
+		src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/" + name, Kind: "article", FetchInterval: time.Hour}, "", c.t)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries := []store.FeedEntry{
+			{GUID: "1", Title: "Go weekly", URL: "https://example.org/" + name + "/1", PublishedAt: c.t},
+			{GUID: "2", Title: "Go weekly sponsored", URL: "https://example.org/" + name + "/2", PublishedAt: c.t},
+		}
+		if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: src.Kind}, "", "", entries, "", time.Time{}, c.t); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, src.ID)
+	}
+	two := fmt.Sprintf("[%d,%d]", ids[0], ids[1])
+
+	w := do(s, "POST", "/api/rules", `{"sourceIds":`+two+`,"keywords":"go","excludeKeywords":" sponsored ","star":true}`, bearer(token))
+	rule := decode(t, w)
+	if w.Code != http.StatusCreated || fmt.Sprint(rule["sourceIds"]) != fmt.Sprint([]any{float64(ids[0]), float64(ids[1])}) || rule["excludeKeywords"] != "sponsored" {
+		t.Fatalf("create: %d %v", w.Code, rule)
+	}
+	id := strconv.Itoa(int(rule["id"].(float64)))
+	if w := do(s, "PATCH", "/api/rules/"+id, `{"excludeKeywords":"","sourceIds":[]}`, bearer(token)); w.Code != http.StatusOK ||
+		decode(t, w)["excludeKeywords"] != "" {
+		t.Fatalf("patch: %d %s", w.Code, w.Body)
+	}
+
+	for _, c := range []struct{ body, want string }{
+		{`{"keywords":"go"}`, `{"count":6}`},
+		{`{"keywords":"go","excludeKeywords":"sponsored"}`, `{"count":3}`},
+		{`{"sourceIds":` + two + `,"keywords":"go","excludeKeywords":"sponsored"}`, `{"count":2}`},
+		{`{"sourceIds":` + two + `}`, `{"count":4}`},
+		{`{"excludeKeywords":"sponsored"}`, `{"count":0}`},
+		{`{}`, `{"count":0}`},
+	} {
+		w := do(s, "POST", "/api/rules/match-count", c.body, bearer(token))
+		if w.Code != http.StatusOK || strings.TrimSpace(w.Body.String()) != c.want {
+			t.Errorf("match-count %s: %d %s, want %s", c.body, w.Code, w.Body, c.want)
+		}
+	}
+	if list := decode(t, do(s, "GET", "/api/rules", "", bearer(token)))["rules"].([]any); len(list) != 1 {
+		t.Fatalf("counting saved something: %v", list)
+	}
+}
+
+// idList is a JSON array of the numbers 1 to n.
+func idList(n int) string {
+	parts := make([]string, n)
+	for i := range parts {
+		parts[i] = strconv.Itoa(i + 1)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
 }

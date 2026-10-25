@@ -105,6 +105,10 @@ type fake struct {
 	counted    []string // the keywords a count was asked for
 	mutedCount int
 	mutedErr   error
+
+	ruleAsked    []client.RuleConditions // the conditions a count of existing entries was asked for
+	ruleCount    int
+	ruleCountErr error
 }
 
 func (f *fake) Settings(context.Context) (client.Settings, error) { return f.settings, f.settingsErr }
@@ -276,8 +280,8 @@ func (f *fake) CreateRule(_ context.Context, rule client.NewRule) (client.Rule, 
 		return client.Rule{}, f.ruleErr
 	}
 	f.nextRule++
-	r := client.Rule{ID: 100 + f.nextRule, SourceID: rule.SourceID, Kind: rule.Kind, Keywords: rule.Keywords,
-		Author: rule.Author, Star: rule.Star, MarkRead: rule.MarkRead, Enabled: rule.Enabled}
+	r := client.Rule{ID: 100 + f.nextRule, SourceIDs: rule.SourceIDs, Kind: rule.Kind, Keywords: rule.Keywords,
+		Exclude: rule.Exclude, Author: rule.Author, Star: rule.Star, MarkRead: rule.MarkRead, Enabled: rule.Enabled}
 	f.rules = append(f.rules, r)
 	return r, nil
 }
@@ -301,8 +305,8 @@ func (f *fake) UpdateRule(_ context.Context, id int64, rule client.NewRule) (cli
 	}
 	for i, r := range f.rules {
 		if r.ID == id {
-			f.rules[i] = client.Rule{ID: id, SourceID: rule.SourceID, Kind: rule.Kind, Keywords: rule.Keywords,
-				Author: rule.Author, Star: rule.Star, MarkRead: rule.MarkRead, Enabled: rule.Enabled}
+			f.rules[i] = client.Rule{ID: id, SourceIDs: rule.SourceIDs, Kind: rule.Kind, Keywords: rule.Keywords,
+				Exclude: rule.Exclude, Author: rule.Author, Star: rule.Star, MarkRead: rule.MarkRead, Enabled: rule.Enabled}
 			return f.rules[i], nil
 		}
 	}
@@ -329,6 +333,11 @@ func (f *fake) DeleteRule(_ context.Context, id int64) error {
 	f.deletedIDs = append(f.deletedIDs, id)
 	f.rules = slices.DeleteFunc(f.rules, func(r client.Rule) bool { return r.ID == id })
 	return nil
+}
+
+func (f *fake) RuleMatchCount(_ context.Context, cond client.RuleConditions) (int, error) {
+	f.ruleAsked = append(f.ruleAsked, cond)
+	return f.ruleCount, f.ruleCountErr
 }
 
 func (f *fake) MutedCountAll(_ context.Context, keywords string) (int, error) {
