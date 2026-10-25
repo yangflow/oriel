@@ -23,6 +23,44 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.11.0](https://github.com/yangflow/oriel/compare/v0.10.0...v0.11.0) (2026-10-25)
+
+
+### Added
+
+* **reader:** show what changed when an article is updated ([#510](https://github.com/yangflow/oriel/issues/510)) ([264d4fb](https://github.com/yangflow/oriel/commit/264d4fb038a768f9c6111af0468cfcc1660d4dce))
+* **rules:** exclude words, several subscriptions per rule and a live match count ([#505](https://github.com/yangflow/oriel/issues/505)) ([fc241c0](https://github.com/yangflow/oriel/commit/fc241c02bed77590fe21fdb76bf95ed32591fd80))
+* **settings:** set the fetch proxy and per-subscription overrides in the app ([#508](https://github.com/yangflow/oriel/issues/508)) ([ab9a88e](https://github.com/yangflow/oriel/commit/ab9a88ebea605d5e1f0b86a7c0d936f23bf81ccb))
+* **settings:** show the copy made before an update and let it be deleted ([#503](https://github.com/yangflow/oriel/issues/503)) ([6123e0e](https://github.com/yangflow/oriel/commit/6123e0effc40706356a409a8bca6a48f64cb4937))
+* **sources:** choose per subscription whether entries open in the reader or the browser ([#506](https://github.com/yangflow/oriel/issues/506)) ([c0c77d5](https://github.com/yangflow/oriel/commit/c0c77d5551226e33cfec51fbf04e8c00001d1bbc))
+* **sources:** keep a subscription out of All and the kind timelines ([#507](https://github.com/yangflow/oriel/issues/507)) ([3c5258f](https://github.com/yangflow/oriel/commit/3c5258fc15392b609896a1d2bce97344d9684cb4))
+* strip utm_ and other tracking parameters when opening, copying and comparing entry links ([#496](https://github.com/yangflow/oriel/issues/496)) ([1604e79](https://github.com/yangflow/oriel/commit/1604e79c2c404650f41294fed7f9cbd9376fed1e))
+* **subscriptions:** mark followed feeds as subscribed and offer Add anyway ([#502](https://github.com/yangflow/oriel/issues/502)) ([794569a](https://github.com/yangflow/oriel/commit/794569a8985ccc021948c6336aa290120a3b442d))
+* **subscriptions:** organize subscriptions in folders ([#516](https://github.com/yangflow/oriel/issues/516)) ([221e8f8](https://github.com/yangflow/oriel/commit/221e8f88bead9abb6649c02166ce32a60d503b89))
+* **subscriptions:** suggest quieting noisy feeds and cap entries per day ([#514](https://github.com/yangflow/oriel/issues/514)) ([d027630](https://github.com/yangflow/oriel/commit/d02763094925cc64d0a31df1fa32cadd6348e757))
+* **timeline:** add a Community kind with a three-pane layout ([#515](https://github.com/yangflow/oriel/issues/515)) ([6a124ba](https://github.com/yangflow/oriel/commit/6a124ba4492e1b6f1c4e93490210770cb913a2e5))
+* **timeline:** filter the timeline by time range ([#504](https://github.com/yangflow/oriel/issues/504)) ([ff416d1](https://github.com/yangflow/oriel/commit/ff416d1c22299090b9aaab4d03e246a1771750a9))
+* **timeline:** remind me about an entry later ([#509](https://github.com/yangflow/oriel/issues/509)) ([a57e308](https://github.com/yangflow/oriel/commit/a57e3086f843af7a30cffa3eb786366c201413c0))
+* **timeline:** show translated titles for foreign-language feeds ([#512](https://github.com/yangflow/oriel/issues/512)) ([bd1879c](https://github.com/yangflow/oriel/commit/bd1879cc3248a665ccb8d5f5aa5bbfce05de08de))
+
+
+### Fixed
+
+* **fetch:** make relative links absolute in extracted Discourse posts ([#495](https://github.com/yangflow/oriel/issues/495)) ([1be329c](https://github.com/yangflow/oriel/commit/1be329c7843825599b2e870c71b8b2b9ba26516f))
+* **fetch:** no extra space before punctuation after a link in feed summaries ([#491](https://github.com/yangflow/oriel/issues/491)) ([a0778bc](https://github.com/yangflow/oriel/commit/a0778bc1d694c1bf82a736c36f98deccd164806c))
+* **fetch:** preserve JSON Feed podcast durations ([#478](https://github.com/yangflow/oriel/issues/478)) ([8876a8b](https://github.com/yangflow/oriel/commit/8876a8b7ce61b61cf0067b0e42e2653c0b3c6cd8))
+* **fetch:** use media:description as the summary of YouTube entries ([#494](https://github.com/yangflow/oriel/issues/494)) ([d732e49](https://github.com/yangflow/oriel/commit/d732e4959c47adaf1da54b012027210a13589b19))
+* **fetch:** use the feed's author for entries that name none ([#492](https://github.com/yangflow/oriel/issues/492)) ([a751744](https://github.com/yangflow/oriel/commit/a7517446d9a4ee688118f3283e1dcfb9689d695a))
+* ignore late answers from a server the app has left ([#484](https://github.com/yangflow/oriel/issues/484)) ([eddc21e](https://github.com/yangflow/oriel/commit/eddc21e07d7401ce821ecb91ac2e63f7629e1790))
+* quit within about two seconds even while work is running ([#493](https://github.com/yangflow/oriel/issues/493)) ([937ebef](https://github.com/yangflow/oriel/commit/937ebefdf848bb1eefa168d3591730e9f67e92fc))
+* **settings:** explain which subscriptions use the RSSHub instances and when they fail over ([#490](https://github.com/yangflow/oriel/issues/490)) ([f14dba0](https://github.com/yangflow/oriel/commit/f14dba034e86b18d926dd020967ebe5379a461ec))
+* **settings:** keep focus on a switch when a failure note appears above it ([#486](https://github.com/yangflow/oriel/issues/486)) ([6227cf5](https://github.com/yangflow/oriel/commit/6227cf57f83e2f500abf77925382ae9be7dcb8dd))
+* **settings:** make popup-menu buttons fit their label ([#499](https://github.com/yangflow/oriel/issues/499)) ([d5ea484](https://github.com/yangflow/oriel/commit/d5ea484445da708a2fe9fb844236080fbadd75ea))
+* **settings:** make the rule dialog read as one sentence ([#500](https://github.com/yangflow/oriel/issues/500)) ([b6061b8](https://github.com/yangflow/oriel/commit/b6061b8aef9f3fc2262649086e3fe02daec1153a))
+* show the file extension once in the save panel on macOS ([#498](https://github.com/yangflow/oriel/issues/498)) ([8dc48a4](https://github.com/yangflow/oriel/commit/8dc48a412603e6487122a85fa7f7a7ecacc8c9a3))
+* **subscriptions:** group the edit dialog and tidy its settings ([#501](https://github.com/yangflow/oriel/issues/501)) ([d05acba](https://github.com/yangflow/oriel/commit/d05acba2b6776e3bc3703a728dbe86eb4d4f499b))
+* **timeline:** keep checking for new entries after switching servers ([#483](https://github.com/yangflow/oriel/issues/483)) ([faa1841](https://github.com/yangflow/oriel/commit/faa18412fd81691474e31b41a9a0eb3ca04b3eed))
+
 ## [0.10.0](https://github.com/yangflow/oriel/compare/v0.9.0...v0.10.0) (2026-10-24)
 
 
