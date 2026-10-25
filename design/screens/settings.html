@@ -410,7 +410,8 @@ aside .top { height:36px; flex:none; display:flex; align-items:center; padding:0
 .menu button.danger { color:var(--danger) }
 .menu svg.icon { width:14px; height:14px }
 .alert.dialog .fieldset .select { width:100% }
-.alert.dialog .fieldset .textarea { margin-top:0; min-height:64px }
+.alert.dialog .fieldset .textarea { margin-top:0; min-height:52px }
+.alert.dialog .note { color:var(--text2,var(--muted)) }
 .alert.dialog .group-label { display:block; margin:12px 0 4px; font-weight:500 }
 .check { display:flex; align-items:center; gap:10px; height:30px }
 .check .box { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:5px; background:var(--raised); box-shadow:inset 0 0 0 1px var(--edge-line); color:var(--accent-text) }
@@ -506,9 +507,9 @@ const copy={
     addRule:'Add rule\u2026', ruleMore:'More for this rule', ruleSwitch:'Rule on', ruleOffBadge:'Off', allSubs:'All subscriptions',
     rwKeywords:'Title or summary has {words}', rwAuthor:'By \u201c{name}\u201d', rwOnly:'Every new entry', actStar:'Star', actRead:'Mark as read',
     menuEdit:'Edit\u2026', menuDelete:'Delete', ruleDeleted:'Rule deleted',
-    ruleAddTitle:'Add rule', ruleEditTitle:'Edit rule', ruleWhen:'When a new entry matches', ruleWhenHelp:'Everything you fill in has to match. Fill in at least one.',
-    ruleSub:'Subscription', ruleKind:'Kind', kindAny:'Any kind', ruleKeywords:'Keywords', ruleKeywordsHelp:'One per line. The title or the summary has any of them.',
-    ruleAuthor:'Author', ruleAuthorHint:'The author has this text in the name', ruleThen:'Then', ruleNote:'Only entries that arrive from now on are affected. The entries you already have stay as they are.',
+    ruleAddTitle:'Add rule', ruleEditTitle:'Edit rule', ruleWhen:'New entries that match', ruleWhenHelp:'Everything you fill in has to match; several keywords match if any one does. Fill in at least one.',
+    ruleSub:'Subscription', ruleKind:'Shown as', kindAny:'Any', ruleKeywords:'Keywords', ruleKeywordsHelp:'One per line. In the title or summary.',
+    ruleAuthor:'Author', ruleAuthorHint:'The author has this text in the name', ruleThen:'Automatically', ruleNote:'Only entries that arrive from now on are affected. The entries you already have stay as they are.',
     errNoCondition:'Fill in at least one condition.', errNoAction:'Pick at least one action.', ruleClose:'Close',
     mutedTitle:'Muted keywords', mutedHelp:'One per line. Entries whose title or summary has any of these are hidden from the timeline and the unread counts; starred entries stay. They work together with each subscription\u2019s own muted keywords.',
     mutedNone:'Hides no entries right now', mutedMany:'Hides {n} entries right now',
@@ -615,9 +616,9 @@ const copy={
     addRule:'添加规则\u2026', ruleMore:'这条规则的更多操作', ruleSwitch:'启用规则', ruleOffBadge:'已关闭', allSubs:'所有订阅',
     rwKeywords:'标题或摘要含 {words}', rwAuthor:'作者含\u201c{name}\u201d', rwOnly:'每个新条目', actStar:'加星标', actRead:'标为已读',
     menuEdit:'编辑\u2026', menuDelete:'删除', ruleDeleted:'规则已删除',
-    ruleAddTitle:'添加规则', ruleEditTitle:'编辑规则', ruleWhen:'当新条目满足', ruleWhenHelp:'填了的条件要同时满足，至少填一个。',
-    ruleSub:'订阅', ruleKind:'形态', kindAny:'不限形态', ruleKeywords:'关键词', ruleKeywordsHelp:'一行一个。标题或摘要里含其中任何一个。',
-    ruleAuthor:'作者', ruleAuthorHint:'作者名里含这段文字', ruleThen:'就', ruleNote:'只对之后到来的新条目生效，已有的条目不变。',
+    ruleAddTitle:'添加规则', ruleEditTitle:'编辑规则', ruleWhen:'满足以下条件的新条目', ruleWhenHelp:'填了的条件都要满足；关键词写多个时，命中任何一个即可。至少填一个。',
+    ruleSub:'订阅', ruleKind:'显示为', kindAny:'不限', ruleKeywords:'关键词', ruleKeywordsHelp:'一行一个，在标题或摘要里找。',
+    ruleAuthor:'作者', ruleAuthorHint:'作者名里含这段文字', ruleThen:'自动', ruleNote:'只对之后到来的新条目生效，已有的条目不变。',
     errNoCondition:'至少填一个条件。', errNoAction:'至少选一个动作。', ruleClose:'关闭',
     mutedTitle:'屏蔽词', mutedHelp:'一行一个。标题或摘要里有这些词的条目会从时间线和未读数里隐藏；收藏的不隐藏。和各订阅自己的屏蔽词一起生效。',
     mutedNone:'现在不隐藏任何条目', mutedMany:'现在隐藏 {n} 条',
@@ -1010,12 +1011,12 @@ if(state==='rule-add'||state==='rule-invalid'||state==='rule-edit'){
 <span class="group-label" style="margin-top:0">${copy.ruleWhen}</span><p class="help" style="margin:0 0 12px">${copy.ruleWhenHelp}</p>
 <div class="fieldset"><span class="label">${copy.ruleSub}</span>${menu(copy.ruleSub,edit?(zh?'阮一峰的网络日志':'Lobsters'):copy.allSubs)}</div>
 <div class="fieldset"><span class="label">${copy.ruleKind}</span>${menu(copy.ruleKind,copy.kindAny)}</div>
-<div class="fieldset"><span class="label">${copy.ruleKeywords}</span><div class="textarea${bad?' invalid':''}" role="textbox" aria-multiline="true" aria-label="${copy.ruleKeywords}">${kws.length?kws.map(l=>`<span class="line">${l}</span>`).join(''):'<span class="line"></span>'}</div><p class="help">${copy.ruleKeywordsHelp}</p></div>
+<div class="fieldset"><span class="label">${copy.ruleKeywords}</span><p class="help" style="margin:-4px 0 6px">${copy.ruleKeywordsHelp}</p><div class="textarea${bad?' invalid':''}" role="textbox" aria-multiline="true" aria-label="${copy.ruleKeywords}">${kws.length?kws.map(l=>`<span class="line">${l}</span>`).join(''):'<span class="line"></span><span class="line"></span>'}</div></div>
 <div class="fieldset"><span class="label">${copy.ruleAuthor}</span><div class="field${bad?' invalid':''}" role="textbox" aria-label="${copy.ruleAuthor}"><span class="placeholder">${copy.ruleAuthorHint}</span></div>
 ${bad?`<div class="status error" role="alert">${icon('alert')}${copy.errNoCondition}</div>`:''}</div>
 <span class="group-label">${copy.ruleThen}</span>${box(copy.actStar,edit)}${box(copy.actRead,false)}
 ${bad?`<div class="status error" role="alert">${icon('alert')}${copy.errNoAction}</div>`:''}
-<p class="help" style="margin:12px 0 4px">${copy.ruleNote}</p></div>
+<p class="note" style="margin:10px 0 4px">${copy.ruleNote}</p></div>
 <div class="buttons"><button class="button">${copy.cancel}</button><button class="button primary">${copy.save}</button></div></div></div>`;
 }
 if(trayMenu)overlay=trayMenu;

@@ -503,9 +503,12 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 	help := func(text string) {
 		ui.Text(c, text).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
 	}
-	set := func(name string, control func()) {
+	set := func(name, hint string, control func()) {
 		ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
 			ui.Text(c, name).TextColor(theme.Text2(t))
+			if hint != "" {
+				help(hint)
+			}
 			control()
 		})
 	}
@@ -516,8 +519,8 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 	for _, src := range s.rules.sources {
 		options = append(options, choice{value: strconv.FormatInt(src.ID, 10), name: src.Title})
 	}
-	set(s.text.RuleSub, func() {
-		if v, changed := s.pick(c, d.source, s.text.RuleSub, options); changed {
+	set(s.text.RuleSub, "", func() {
+		if v, changed := s.pickIn(c, d.source, s.text.RuleSub, options, true); changed {
 			d.source, d.condErr, d.formErr = v, "", ""
 		}
 	})
@@ -525,14 +528,14 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 	for i, k := range ruleKinds {
 		kinds[i] = choice{value: k, name: s.kindName(k)}
 	}
-	set(s.text.RuleKind, func() {
-		if v, changed := s.pick(c, d.kind, s.text.RuleKind, kinds); changed {
+	set(s.text.RuleKind, "", func() {
+		if v, changed := s.pickIn(c, d.kind, s.text.RuleKind, kinds, true); changed {
 			d.kind, d.condErr = v, ""
 		}
 	})
-	set(s.text.RuleKeywords, func() {
+	set(s.text.RuleKeywords, s.text.RuleKeywordsHelp, func() {
 		before := d.keywords
-		area := ui.TextArea(c.Key("rulekeys"), &d.keywords).FillWidth().Lines(3, 6).Font("monospace").
+		area := ui.TextArea(c.Key("rulekeys"), &d.keywords).FillWidth().Lines(2, 6).Font("monospace").
 			FontSize(theme.Px(t, 12)).Label(s.text.RuleKeywords).Disabled(d.saving)
 		area.Background(theme.RaisedFill(t)).Radius(t.Radius)
 		edge(c, area)
@@ -555,12 +558,11 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 		if d.keywords != before {
 			d.keysErr, d.condErr = "", ""
 		}
-		help(s.text.RuleKeywordsHelp)
 		if d.keysErr != "" {
 			statusLine(c, status{text: d.keysErr})
 		}
 	})
-	set(s.text.RuleAuthor, func() {
+	set(s.text.RuleAuthor, "", func() {
 		before := d.author
 		field(c, "ruleauthor", &d.author, 0, d.authErr != "" || d.condErr != "", func(in ui.Element) {
 			in.Label(s.text.RuleAuthor).Placeholder(s.text.RuleAuthorHint).Disabled(d.saving)
@@ -582,7 +584,7 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 		}
 		statusLine(c, status{text: d.actErr})
 	})
-	help(s.text.RuleNote)
+	ui.Text(c, s.text.RuleNote).TextColor(theme.Text2(t)).Wrap()
 	if d.formErr != "" {
 		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, 6)).Role(ui.RoleStatus).
 			Children(func() { statusText(c, status{text: d.formErr}) })

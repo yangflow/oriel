@@ -385,3 +385,27 @@ func TestRulesSavedAfterClose(t *testing.T) {
 		t.Fatalf("server %v, screen %v, open %v", f.rules, s.rules.list, s.rules.dialog.open)
 	}
 }
+
+// The dialog reads top to bottom as one sentence: the conditions, then what happens, with the note right under the
+// actions and the keyword hint right under its label.
+func TestRulesDialogReadingOrder(t *testing.T) {
+	for _, lang := range []string{"en", "zh-Hans"} {
+		s, _, tt := openRules(t, lang, nil)
+		press(t, tt, s.text.AddRule)
+		var ys []float32
+		for _, text := range []string{s.text.RuleWhen, s.text.RuleWhenHelp, s.text.RuleSub, s.text.RuleKind,
+			s.text.RuleKeywords, s.text.RuleKeywordsHelp, s.text.RuleAuthor, s.text.RuleThen, s.text.ActStar,
+			s.text.ActRead, s.text.RuleNote} {
+			r, ok := tt.Find(text)
+			if !ok {
+				t.Fatalf("%s: %q is not in the dialog: %v", lang, text, tt.Texts())
+			}
+			ys = append(ys, r.Y)
+		}
+		for i := 1; i < len(ys); i++ {
+			if ys[i] <= ys[i-1] {
+				t.Errorf("%s: line %d sits at %v, not below %v", lang, i, ys[i], ys[i-1])
+			}
+		}
+	}
+}
