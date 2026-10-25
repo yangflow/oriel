@@ -72,6 +72,8 @@ type NewSource struct {
 	AllowDuplicate bool
 	// HideFromAll adds the source hidden from All and the kind timelines.
 	HideFromAll bool
+	// FolderID adds the source into a folder (0 for none).
+	FolderID int64
 	// TranslateTitles adds the source with the title translation on.
 	TranslateTitles bool
 	// DailyCap adds the source with a daily cap (0 for none).

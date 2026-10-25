@@ -135,7 +135,8 @@ func TestReaderImports(t *testing.T) {
 			t.Fatalf("no writing: %v", tt.Texts())
 		}
 		f.statusAns = client.ImportStatus{Phase: "done", Result: &client.ImportResult{AddedSources: 2, ExistingSources: 1,
-			StarredAdded: 3, StarredExisting: 1, ReadMarked: 4, UnmatchedRead: 2, FoldersSkipped: 3, SkippedTotal: 3,
+			StarredAdded: 3, StarredExisting: 1, ReadMarked: 4, UnmatchedRead: 2, FoldersCreated: 3, DroppedLabelsTotal: 2, SkippedTotal: 3,
+			DroppedLabels: []client.DroppedLabel{{Title: "Ann", Address: "https://ann.example/feed", Kept: "Tech", Dropped: []string{"Fun", "Daily"}}},
 			Skipped: []client.ImportSkip{
 				{Kind: "source", Title: "Broken", Address: "ftp://x.example/feed", Error: "invalid_url"},
 				{Kind: "entry", Address: "https://c.example/s/3", Error: "unknown_source"},
@@ -149,6 +150,8 @@ func TestReaderImports(t *testing.T) {
 			locale.Count(s.text.ReaderResultRead, "n", 4),
 			locale.Count(s.text.ReaderResultUnmatched, "n", 2),
 			locale.Count(s.text.ReaderResultFolders, "n", 3),
+			locale.Count(s.text.ReaderResultDropped, "n", 2), s.text.ReaderDropped, "https://ann.example/feed",
+			s.fill(s.text.ReaderDroppedRow, "{kept}", "Tech", "{dropped}", "Fun, Daily"),
 			s.text.ReaderSkipped, "https://c.example/s/3", s.text.ReaderUnknownSource, s.text.InvalidURL,
 			s.fill(s.text.ReaderMore, "{n}", "1"), s.text.ReaderDone,
 		} {

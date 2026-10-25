@@ -258,7 +258,7 @@ func TestOPMLJobReportsProgress(t *testing.T) {
 
 	st := waitOPML(t, s, header)
 	if st["id"] != id || st["phase"] != "done" || fmt.Sprint(st["progress"]) != "map[done:5 total:5]" || st["error"] != nil ||
-		fmt.Sprint(st["result"]) != "map[added:4 existing:0 failed:[map[address:ftp://example.org/feed error:invalid_url title:s1]]]" {
+		fmt.Sprint(st["result"]) != "map[added:4 existing:0 failed:[map[address:ftp://example.org/feed error:invalid_url title:s1]] folders:1]" {
 		t.Fatalf("done: %v", st)
 	}
 	// The result stays until the next job, and a second job gets another id, with every subscription already there.
@@ -270,7 +270,7 @@ func TestOPMLJobReportsProgress(t *testing.T) {
 	if next["id"] == id {
 		t.Fatalf("the same id twice: %v", next)
 	}
-	if st := waitOPML(t, s, header); st["id"] != next["id"] || fmt.Sprint(st["result"]) != "map[added:0 existing:4 failed:[map[address:ftp://example.org/feed error:invalid_url title:s1]]]" {
+	if st := waitOPML(t, s, header); st["id"] != next["id"] || fmt.Sprint(st["result"]) != "map[added:0 existing:4 failed:[map[address:ftp://example.org/feed error:invalid_url title:s1]] folders:0]" {
 		t.Fatalf("second job: %v", st)
 	}
 	// The synchronous route works again once the job is over.
@@ -336,7 +336,7 @@ func TestOPMLJobFailsWithTheCountsSoFar(t *testing.T) {
 	}
 	do(s, "POST", "/api/opml/import/start", opmlFile(5, false), nil)
 	st := waitOPML(t, s, nil)
-	if st["phase"] != "failed" || st["error"] != "import_failed" || fmt.Sprint(st["result"]) != "map[added:2 existing:0 failed:[]]" {
+	if st["phase"] != "failed" || st["error"] != "import_failed" || fmt.Sprint(st["result"]) != "map[added:2 existing:0 failed:[] folders:1]" {
 		t.Fatalf("failed: %v", st)
 	}
 	if got := subscriptions(t, s, nil); len(got) != 2 {

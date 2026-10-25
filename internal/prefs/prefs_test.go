@@ -409,6 +409,47 @@ func TestPlaces(t *testing.T) {
 	}
 }
 
+// TestFolderPlaceAndFolded shows a folder is a place of its own (never with a subscription), and that the collapsed
+// folders of each server survive a save and a load, drop out when open again, and never cost the other preferences.
+func TestFolderPlaceAndFolded(t *testing.T) {
+	p := Default()
+	p.Places = p.Places.Set("", Place{Kind: "video", Folder: 4})
+	if got := p.Places.Get(""); got != (Place{Kind: "video", Folder: 4}) {
+		t.Errorf("folder place: %+v", got)
+	}
+	if q := p.Places.Set("x", Place{Source: 2, Folder: 4}).Set("x", Place{Folder: -1}); q != p.Places {
+		t.Errorf("a folder with a subscription, or a negative folder, was kept: %s", q)
+	}
+
+	path := filepath.Join(t.TempDir(), File)
+	p.FoldedFolders = p.FoldedFolders.Set("", 8, true).Set("", 3, true).Set("", 3, true).Set("home.lan:7470", 5, true).Set("", 0, true)
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	got := Load(path)
+	if got != p {
+		t.Errorf("round trip: %+v, want %+v", got, p)
+	}
+	if !got.FoldedFolders.Has("", 3) || !got.FoldedFolders.Has("", 8) || got.FoldedFolders.Has("", 5) ||
+		!got.FoldedFolders.Has("home.lan:7470", 5) {
+		t.Errorf("folded %s", got.FoldedFolders)
+	}
+	if data, _ := os.ReadFile(path); !strings.Contains(string(data), `"foldedFolders":{"":[3,8],"home.lan:7470":[5]}`) {
+		t.Errorf("file %s", data)
+	}
+	p.FoldedFolders = p.FoldedFolders.Set("", 3, false).Set("", 8, false).Set("home.lan:7470", 5, false)
+	Save(path, p)
+	if data, _ := os.ReadFile(path); strings.Contains(string(data), "foldedFolders") || Load(path).FoldedFolders != "" {
+		t.Errorf("empty folded written: %s", data)
+	}
+	for _, bad := range []string{`"x"`, `[]`, `7`, `null`, `{"a":"x"}`, `{"a":[-1,0]}`} {
+		os.WriteFile(path, []byte(`{"theme":"dark","foldedFolders":`+bad+`}`), 0o600)
+		if got := Load(path); got.FoldedFolders != "" || got.Theme != ThemeDark {
+			t.Errorf("%s: %+v", bad, got)
+		}
+	}
+}
+
 func TestDesktop(t *testing.T) {
 	if d := Default(); d.OpenAtLogin || d.TrayIcon || d.DockBadge {
 		t.Fatalf("the desktop switches are not all off by default: %+v", d)

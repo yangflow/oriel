@@ -529,7 +529,6 @@ func (s *Screen) readerPreview(c *ui.Context) {
 
 // readerResult is what was added and what was left out.
 func (s *Screen) readerResult(c *ui.Context) {
-	t := c.Theme()
 	res := s.reader.status.Result
 	if res == nil {
 		return
@@ -542,17 +541,28 @@ func (s *Screen) readerResult(c *ui.Context) {
 	if res.UnmatchedRead > 0 {
 		lines = append(lines, locale.Count(s.text.ReaderResultUnmatched, "n", res.UnmatchedRead))
 	}
-	if res.FoldersSkipped > 0 {
-		lines = append(lines, locale.Count(s.text.ReaderResultFolders, "n", res.FoldersSkipped))
+	if res.FoldersCreated > 0 {
+		lines = append(lines, locale.Count(s.text.ReaderResultFolders, "n", res.FoldersCreated))
+	}
+	if res.DroppedLabelsTotal > 0 {
+		lines = append(lines, locale.Count(s.text.ReaderResultDropped, "n", res.DroppedLabelsTotal))
 	}
 	tone := done
-	if res.SkippedTotal > 0 || res.UnmatchedRead > 0 || res.FoldersSkipped > 0 {
+	if res.SkippedTotal > 0 || res.UnmatchedRead > 0 || res.DroppedLabelsTotal > 0 {
 		tone = partly
 	}
 	s.noteBox(c, tone, lines)
-	if len(res.Skipped) == 0 {
-		return
+	if len(res.Skipped) > 0 {
+		s.skippedList(c, res)
 	}
+	if len(res.DroppedLabels) > 0 {
+		s.droppedList(c, res)
+	}
+}
+
+// skippedList is what the import left out, with the reason of each.
+func (s *Screen) skippedList(c *ui.Context, res *client.ImportResult) {
+	t := c.Theme()
 	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
 		ui.Text(c, s.text.ReaderSkipped).FontSize(theme.Px(t, 12)).FontWeight(500).Role(ui.RoleHeading).Level(3)
 		ui.Column(c).FillWidth().Label(s.text.ReaderSkipped).Role(ui.RoleList).Children(func() {
@@ -561,6 +571,31 @@ func (s *Screen) readerResult(c *ui.Context) {
 			}
 		})
 		if more := res.SkippedTotal - len(res.Skipped); more > 0 {
+			ui.Text(c, s.fill(s.text.ReaderMore, "{n}", strconv.Itoa(more))).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+		}
+	})
+}
+
+// droppedList is the subscriptions that had several labels: the one they were filed under and the ones not used.
+func (s *Screen) droppedList(c *ui.Context, res *client.ImportResult) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
+		ui.Text(c, s.text.ReaderDropped).FontSize(theme.Px(t, 12)).FontWeight(500).Role(ui.RoleHeading).Level(3)
+		ui.Column(c).FillWidth().Label(s.text.ReaderDropped).Role(ui.RoleList).Children(func() {
+			for i, item := range res.DroppedLabels {
+				ui.Column(c).Key(i).FillWidth().Padding(theme.Px(t, 3), 0).Role(ui.RoleListItem).Children(func() {
+					spans := []ui.Span{}
+					if title := strings.TrimSpace(item.Title); title != "" {
+						spans = append(spans, ui.Span{Text: title + " · "})
+					}
+					spans = append(spans, ui.Span{Text: item.Address, Font: "monospace", Size: theme.Px(t, 12)})
+					ui.RichText(c, spans...).FillWidth().FontSize(theme.Px(t, 12)).SingleLine()
+					ui.Text(c, s.fill(s.text.ReaderDroppedRow, "{kept}", item.Kept, "{dropped}", strings.Join(item.Dropped, ", "))).
+						FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
+				})
+			}
+		})
+		if more := res.DroppedLabelsTotal - len(res.DroppedLabels); more > 0 {
 			ui.Text(c, s.fill(s.text.ReaderMore, "{n}", strconv.Itoa(more))).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
 		}
 	})

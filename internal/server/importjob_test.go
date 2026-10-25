@@ -162,7 +162,7 @@ func TestImportFromReader(t *testing.T) {
 	}
 	done := waitPhase(t, s, token, "done", "failed")
 	result, _ := done["result"].(map[string]any)
-	want := map[string]float64{"addedSources": 0, "existingSources": 1, "starredAdded": 1, "starredExisting": 1, "readMarked": 1, "unmatchedRead": 1, "foldersSkipped": 2, "skippedTotal": 2}
+	want := map[string]float64{"addedSources": 0, "existingSources": 1, "starredAdded": 1, "starredExisting": 1, "readMarked": 1, "unmatchedRead": 1, "foldersCreated": 1, "droppedLabelsTotal": 0, "skippedTotal": 2}
 	for k, v := range want {
 		if result[k] != v {
 			t.Fatalf("%s = %v, want %v (%v)", k, result[k], v, done)

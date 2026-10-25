@@ -44,7 +44,9 @@ type Feed struct {
 	URL     string
 	Title   string
 	SiteURL string
-	Folders []string // the folders or tags it is in there
+	Folders []string // the folder or tag it is in there; at most one, because Oriel files a subscription in one folder
+	// DroppedLabels are the other labels the subscription has there, which no folder is made of.
+	DroppedLabels []string
 }
 
 // Entry is an entry of a subscription, with its state in the other reader. Entries are merged by feed and link, so
@@ -69,7 +71,7 @@ type Note struct {
 // Snapshot is everything read from a service.
 type Snapshot struct {
 	Feeds   []Feed
-	Folders []string // the distinct folder or tag names
+	Folders []string // the distinct folder or tag names of the feeds
 	Entries []Entry
 	Notes   []Note
 }

@@ -51,6 +51,9 @@ type copy struct {
 	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                                                              string
 	Cap, CapOff, CapN, CapHelp, HealthNoisy, NoisySlow, NoisySlowSource, NoisyDismissSource, NoisySlowed, NoisyDismissed                                                                string
 	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                                                        string
+	MoveToFolder, NoFolder, NewFolderItem, Folder, FolderHelp, FolderNewTitle, FolderRenameTitle, FolderName, FolderNamePlaceholder, FolderCreate                                       string
+	FolderRename, FolderDelete, FolderDeleteTitle, FolderDeleteBody, FolderNameError, FolderExists, FolderGone                                                                          string
+	FolderCreated, FolderMoved, FolderUnfiled, FolderRenamed, FolderDeleted                                                                                                             string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                                     string
 	Undo, Dismiss, UndoFailed                                                                                                                                                           string
 	GroupShow, GroupFetch, GroupTimeline, AIGroup, AutoSummary, AutoTranslate, AutoHelp, TranslateTitles, TranslateTitlesHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff string
@@ -110,6 +113,9 @@ type API interface {
 	Discover(ctx context.Context, address string) ([]client.Candidate, error)
 	FindRoutes(ctx context.Context, query string, refresh bool) (client.Routes, error)
 	PreviewRoute(ctx context.Context, path string) (client.RoutePreview, error)
+	CreateFolder(ctx context.Context, name string) (client.Folder, error)
+	RenameFolder(ctx context.Context, id int64, name string) (client.Folder, error)
+	DeleteFolder(ctx context.Context, id int64) error
 }
 
 // Deps is what the dialogs do outside themselves. Go runs work away from the UI thread and then the function it
@@ -137,7 +143,10 @@ type Deps struct {
 	OpenSettings func()
 	// OpenRSSHub opens the settings on the group of the RSSHub instances.
 	OpenRSSHub func()
-	Expired    func()
+	// Folders are the folders the timeline has; Refiled tells it to load them and the subscriptions again.
+	Folders func() []client.Folder
+	Refiled func()
+	Expired func()
 }
 
 // The settings of the add dialog, which say whether a route needs an RSSHub instance first.
@@ -217,7 +226,8 @@ type editing struct {
 	pace      int64 // in paces: seconds an unread entry stays in All and Unread, 0 for off
 	dailyCap  int64 // entries a day that stay out of the fold in All and Unread, 0 for off
 	paused    bool
-	hide      bool // the subscription is kept out of All and the kind timelines
+	hide      bool  // the subscription is kept out of All and the kind timelines
+	folder    int64 // the folder the subscription is in, 0 for none
 	mute      string
 	extract   bool   // the Extraction group is open
 	selector  string // the content selector, the Referer and the link rewrites of the subscription
@@ -267,25 +277,28 @@ type reporting struct {
 
 // Screen keeps the dialogs and the work they started.
 type Screen struct {
-	lang      string // the language of the screen
-	deps      Deps
-	text      copy
-	api       API
-	gen       int // counts servers used, so the results of the one before are dropped
-	add       adding
-	edit      editing
-	report    reporting
-	deleting  bool
-	muteSeq   atomic.Int64  // counts the questions about the mute keywords, so the work of an older one gives up
-	muteWait  time.Duration // the pause after typing before the count is asked for
-	doomed    client.Source // the subscription being deleted
-	announce  string
-	toast     string
-	deleted   []*deletion // the toasts that offer to undo a delete
-	manage    managing    // the dialog that changes several subscriptions at once
-	undo      *bulkUndo   // the toast that offers to undo the last bulk delete
-	pending   *bulkUndo   // an Undo pressed while a bulk run was going, started when the run is done
-	closeBulk bool        // the toast of the bulk delete is closed at the next frame
+	lang           string // the language of the screen
+	deps           Deps
+	text           copy
+	api            API
+	gen            int // counts servers used, so the results of the one before are dropped
+	add            adding
+	edit           editing
+	report         reporting
+	deleting       bool
+	folderDlg      foldering
+	deletingFolder bool
+	doomedFolder   client.Folder
+	muteSeq        atomic.Int64  // counts the questions about the mute keywords, so the work of an older one gives up
+	muteWait       time.Duration // the pause after typing before the count is asked for
+	doomed         client.Source // the subscription being deleted
+	announce       string
+	toast          string
+	deleted        []*deletion // the toasts that offer to undo a delete
+	manage         managing    // the dialog that changes several subscriptions at once
+	undo           *bulkUndo   // the toast that offers to undo the last bulk delete
+	pending        *bulkUndo   // an Undo pressed while a bulk run was going, started when the run is done
+	closeBulk      bool        // the toast of the bulk delete is closed at the next frame
 }
 
 // New selects the best available translation, falling back to English.
@@ -308,6 +321,7 @@ func (s *Screen) Use(api API) {
 	s.gen++
 	s.stopRun()
 	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
+	s.folderDlg, s.deletingFolder = foldering{}, false
 	s.manage, s.undo, s.pending = managing{}, nil, nil
 }
 
@@ -320,7 +334,7 @@ func (s *Screen) stopRun() {
 
 // Open reports whether a dialog shows, which takes the keys from the timeline.
 func (s *Screen) Open() bool {
-	return s.add.open || s.edit.open || s.report.open || s.deleting || s.manage.open
+	return s.add.open || s.edit.open || s.report.open || s.deleting || s.manage.open || s.folderDlg.open || s.deletingFolder
 }
 
 // Name is what names a subscription: its title, which is empty until the first fetch, else the host of its address,
@@ -376,6 +390,7 @@ func (s *Screen) expired(err error) bool {
 	s.stopRun()
 	s.api = nil
 	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
+	s.folderDlg, s.deletingFolder = foldering{}, false
 	s.manage, s.undo, s.pending = managing{}, nil, nil
 	s.deps.Expired()
 	return true
@@ -662,7 +677,7 @@ func (s *Screen) Edit(src client.Source) {
 		return
 	}
 	s.edit = editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
-		interval: intervalChoice(src), keep: int64(src.KeepDays), target: int64(max(0, slices.Index(openTargets, src.OpenTarget))), pace: int64(src.PaceSec), dailyCap: int64(src.DailyCap), paused: src.Paused, hide: src.HideFromAll, mute: src.MuteKeywords,
+		interval: intervalChoice(src), keep: int64(src.KeepDays), target: int64(max(0, slices.Index(openTargets, src.OpenTarget))), pace: int64(src.PaceSec), dailyCap: int64(src.DailyCap), paused: src.Paused, hide: src.HideFromAll, folder: src.FolderID, mute: src.MuteKeywords,
 		extract:  src.ExtractSelector != "" || src.ExtractReferer != "" || src.ExtractRewrites != "",
 		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
 		headers: src.FetchUserAgent != "" || src.FetchReferer != "", agent: src.FetchUserAgent, fetchRef: src.FetchReferer,
@@ -724,6 +739,9 @@ func (s *Screen) save() {
 	}
 	if hide := e.hide; hide != e.src.HideFromAll {
 		patch.HideFromAll, changed = &hide, true
+	}
+	if folder := e.folder; folder != e.src.FolderID {
+		patch.FolderID, changed = &folder, true
 	}
 	if mute := e.mute; mute != e.src.MuteKeywords {
 		patch.MuteKeywords, changed = &mute, true
@@ -1230,6 +1248,7 @@ func (s *Screen) Menu(m *ui.Menu, src client.Source) {
 	if m.Item(hide).Chosen() {
 		s.SetHidden(src, !src.HideFromAll)
 	}
+	s.moveMenu(m, src)
 	m.Separator()
 	if m.Item(s.text.Delete).Chosen() {
 		s.AskDelete(src)
@@ -1249,6 +1268,15 @@ func (s *Screen) View(c *ui.Context) {
 	}
 	if s.manage.open {
 		s.manageDialog(c)
+	}
+	if s.folderDlg.open {
+		s.folderDialog(c)
+	}
+	if s.deletingFolder {
+		if ui.AlertDialog(c, &s.deletingFolder, s.fill(s.text.FolderDeleteTitle, s.doomedFolder.Name), s.text.FolderDeleteBody,
+			s.text.Cancel, s.text.ConfirmDelete) == 1 {
+			s.removeFolder()
+		}
 	}
 	if s.deleting {
 		name := Name(s.doomed)
@@ -2325,6 +2353,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.proxyGroup(c)
 		groupTitle(c, icons.ListFilter, s.text.GroupTimeline)
 		s.switchRow(c, "hide", &e.hide, s.text.HideLabel, s.text.HideHelp)
+		s.folderField(c)
 		s.openField(c)
 		s.keepField(c)
 		s.paceField(c)

@@ -207,6 +207,16 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_kind")
 		return
 	}
+	if raw := query.Get("folder"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			id = 0
+		}
+		if !s.checkFolder(w, r, id) {
+			return
+		}
+		filter.FolderID = id
+	}
 	if raw := query.Get("maxMinutes"); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 1 || n > maxBudgetMinutes {
@@ -370,6 +380,7 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		SourceID int64  `json:"sourceId"`
 		Kind     string `json:"kind"`
+		Folder   int64  `json:"folder"`
 		UpTo     int64  `json:"upTo"`
 		Newer    int64  `json:"newerThan"`
 		From     int64  `json:"from"`
@@ -383,11 +394,14 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_kind")
 		return
 	}
+	if body.Folder != 0 && !s.checkFolder(w, r, body.Folder) {
+		return
+	}
 	group, ok := s.grouping(w, r)
 	if !ok {
 		return
 	}
-	filter := store.EntryFilter{SourceID: body.SourceID, Kind: body.Kind, Group: group}
+	filter := store.EntryFilter{SourceID: body.SourceID, Kind: body.Kind, FolderID: body.Folder, Group: group}
 	if body.Older != nil {
 		if *body.Older <= 0 {
 			fail(w, http.StatusBadRequest, "invalid_older_than")

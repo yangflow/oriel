@@ -96,6 +96,7 @@ type copy struct {
 	ReaderStageSubscriptions, ReaderStageStarred, ReaderStageRead, ReaderStageWriting                      string
 	ReaderSources, ReaderStarred, ReaderRead, ReaderFolders, ReaderFoldersNote                             string
 	ReaderResultSources, ReaderResultStarred, ReaderResultRead, ReaderResultUnmatched, ReaderResultFolders string
+	ReaderResultDropped, ReaderDropped, ReaderDroppedRow                                                   string
 	ReaderSkipped, ReaderMore, ReaderUnknownSource, ReaderInvalidLink                                      string
 	ReaderErrAddress, ReaderErrUnauthorized, ReaderErrUnreachable, ReaderErrRate, ReaderErrBad             string
 	ReaderErrLarge, ReaderErrRedirect, ReaderErrBusy, ReaderErrOther                                       string

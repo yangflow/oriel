@@ -222,9 +222,8 @@ func freshServer(t *testing.T, starredPages int) *httptest.Server {
 		switch r.URL.Path {
 		case base + "/reader/api/0/subscription/list":
 			fmt.Fprint(w, `{"subscriptions":[{"id":"feed/1","title":"A","url":"https://a.example/feed.xml","htmlUrl":"https://a.example",
-				"categories":[{"id":"user/-/label/Tech","label":"Tech"}],"iconUrl":"x"}]}`)
-		case base + "/reader/api/0/tag/list":
-			fmt.Fprint(w, `{"tags":[{"id":"user/-/state/com.google/starred"},{"id":"user/-/label/Tech","type":"folder"},{"id":"user/-/label/Empty","type":"folder"}]}`)
+				"categories":[{"id":"user/-/label/Tech","label":"Tech"},{"id":"user/-/label/Later","label":" Later "},
+				{"id":"user/-/label/Blank","label":" "}],"iconUrl":"x"}]}`)
 		case base + "/reader/api/0/stream/contents/user/-/state/com.google/starred":
 			c := r.URL.Query().Get("c")
 			n := 0
@@ -255,8 +254,13 @@ func TestFreshRSS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := snap.Counts(); got != (Counts{Sources: 1, Folders: 2, Starred: 3, Read: 4}) {
+	if got := snap.Counts(); got != (Counts{Sources: 1, Folders: 1, Starred: 3, Read: 4}) {
 		t.Fatalf("counts = %+v (%+v)", got, snap.Entries)
+	}
+	// Only the first label is a folder; the other is reported as dropped.
+	feed := snap.Feeds[0]
+	if len(feed.Folders) != 1 || feed.Folders[0] != "Tech" || len(feed.DroppedLabels) != 1 || feed.DroppedLabels[0] != "Later" {
+		t.Fatalf("folders = %v, dropped = %v", feed.Folders, feed.DroppedLabels)
 	}
 	if len(snap.Entries) != 4 || snap.Entries[0].Published.Unix() != 1714557600 || snap.Entries[0].ContentHTML == "" {
 		t.Fatalf("entries = %+v", snap.Entries)

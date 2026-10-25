@@ -98,6 +98,15 @@
      named "Hidden from All" for a screen reader, which reads the row as "name, hidden from All". Its unread count stays on the
      row and leaves out the kind and All counts. Its menu (menu-feed-hidden) offers Show in All where other subscriptions
      offer Hide from All, under Pause.
+     Folders (folders, folders-kind, folders-collapsed, folder-timeline, menu-folder, menu-feed-move). A subscription is in one
+     folder at most and folders do not nest. Under a kind the sidebar lists that kind's subscriptions by folder and hides a folder
+     with none of them (folders-kind); under All it lists every folder, an empty one too (folders), and the unfiled subscriptions
+     after the folders. A folder row is a 22 px chevron button (Collapse / Expand name) and a row with the folder icon, the name and
+     the unread count of the scope; the subscriptions inside are indented by the chevron's width. A collapsed folder shows only its
+     row (folders-collapsed), except for the open subscription; the state is kept on this computer. A click on a folder row reads it
+     as one timeline, narrowed by the kind above it (folder-timeline); a click on a kind leaves the folder. The section header has
+     New folder before Add subscription. The folder's menu (menu-folder) has Rename... and Delete folder...; a subscription's menu has
+     Move to folder, whose submenu lists No folder, the folders with a check by the current one, and New folder... (menu-feed-move).
      With Mark as read set to After scrolling past (Settings, Timeline), the rows that scroll off the top mark themselves, in one batch
      when the scrolling pauses (marked-scrolled, drawn after the batch: the first four entries have gone off the top and the list is
      scrolled to the fifth; all four were unread, so the toast says 4). The toast is the shared one, with Undo; the rows keep
@@ -240,10 +249,19 @@ aside { width:216px; flex:none; display:flex; flex-direction:column; margin:8px 
 .nav::-webkit-scrollbar-thumb { border:3px solid transparent; border-radius:5px; background:rgba(var(--ink),.28) padding-box }
 .section { margin:14px 10px 4px; font-size:11px; font-weight:500; letter-spacing:.04em; color:var(--muted) }
 .section { display:flex; align-items:center; gap:6px; height:22px; margin-right:6px }
-.section span { flex:1; min-width:0 }
+.section span { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.section .link { flex:none }
 .section .add { width:22px; height:22px; flex:none; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
 .section .add:hover { background:var(--hover); color:var(--text) }
 .section .add svg.icon { width:14px; height:14px }
+.folder { display:flex; align-items:center }
+.folder .item { flex:1; min-width:0 }
+.folder.menued .item { background:var(--sel) }
+.folder .item svg.icon { color:var(--muted) }
+.fold-toggle { width:22px; height:30px; flex:none; display:grid; place-items:center; border-radius:8px; color:var(--muted) }
+.fold-toggle:hover { background:var(--hover); color:var(--text) }
+.fold-toggle svg.icon { width:14px; height:14px }
+.in-folder { padding-left:22px }
 .section .link { display:flex; align-items:center; gap:4px; height:20px; padding:0 6px; border-radius:6px; font:inherit; letter-spacing:inherit; color:var(--warning) }
 .section .link.plain { color:var(--text2) }
 .section .link.progress { cursor:default; font-variant-numeric:tabular-nums }
@@ -680,15 +698,15 @@ mark { background:var(--warning-soft); color:inherit; border-radius:4px; padding
 </div>
 <div class="window" id="window"><div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="body" id="app"></div></div>
 <script>
-const states=['list','folded','folded-focus','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled','revised','translated-titles'];
+const states=['list','folded','folded-focus','grouped','grouped-open','sidebar-hidden','offline','offline-retrying','offline-pending','failing','failing-only','loading','more','new','last-looked','search','search-operators','search-syntax','search-none','search-short','unread-done','starred-none','empty','no-subscriptions','no-subscriptions-drop','error','marked-read','marked-above','marked-below','marked-visible','marked-scrolled','marked-feed','menu-markall','marked-older','marked-older-none','fetching','fetched','fetched-long','fetched-failed','time-menu','time-10','time-empty','range-menu','range-today','range-24h','range-empty','menu-entry','menu-entry-first','menu-entry-last','menu-remind','menu-remind-set','reminded','menu-feed','menu-feed-none','menu-feed-hidden','hidden-source','no-more-unread','refreshing','refreshed','refreshed-failed','refreshed-part','refresh-none','sidebar-focus','keys','palette','palette-query','palette-none','long-titles','many-feeds','side-filter','side-filter-none','side-unread-first','broken-images','article-compact','social-compact','video-cover','video-list','image-grid','image-card','mixed-viewers','image-switch','source-grid','order-oldest','expiring','dense','scrolled','revised','translated-titles','folders','folders-kind','folders-collapsed','folder-timeline','menu-folder','menu-feed-move'];
 const query=new URLSearchParams(location.search);
 const pick=(name,list,fallback)=>list.includes(query.get(name))?query.get(name):fallback;
 const kinds=['article','video','social','image'];
-const options={state:states,scope:['all',...kinds,'source'],scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
+const options={state:states,scope:['all',...kinds,'source','folder'],scheme:['light','dark'],lang:['en','zh-Hans'],size:['default','min','wide']};
 const state=pick('state',states,'list');
 const noSubs=state==='no-subscriptions'||state==='no-subscriptions-drop';
 // Each viewer state is drawn in the scope that shows it best; the scope menu still switches it.
-const stateScope={'article-compact':'article','social-compact':'social','video-cover':'video','video-list':'video','image-grid':'image','image-card':'image','image-switch':'image','source-grid':'source','lightbox':'social','lightbox-failed':'social'};
+const stateScope={'article-compact':'article','social-compact':'social','video-cover':'video','video-list':'video','image-grid':'image','image-card':'image','image-switch':'image','source-grid':'source','folders-kind':'article','folder-timeline':'folder','lightbox':'social','lightbox-failed':'social'};
 const scope=pick('scope',options.scope,stateScope[state]||'all');
 // The viewers, as Settings > Appearance > View as keeps them. The first value of each kind is the default.
 const viewer={article:'list',video:'grid',social:'card',image:'wall',...{
@@ -750,6 +768,8 @@ const icons={
   sort:'<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
   chevronLeft:'<path d="m15 18-6-6 6-6"/>',
   chevronRight:'<path d="m9 18 6-6-6-6"/>',
+  folder:'<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  folderPlus:'<path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
   chevronDown:'<path d="m6 9 6 6 6-6"/>',
   layers:'<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
   x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
@@ -795,7 +815,7 @@ const copy={
     timeEmpty:'Nothing fits in {n} minutes', timeEmptyHint:'Entries with no estimate, like pictures, are left out.', timeClear:'Show any length',
     rangeTitle:'Time range', rangeAny:'Any time', rangeToday:'Today', range24:'Last 24 hours', rangeChipToday:'Today', rangeChip24:'24 h', rangeName:'Time range: any time', rangeNameOf:'Time range: {range}',
     rangeEmptyToday:'Nothing new today', rangeEmpty24:'Nothing new in the last 24 hours', rangeEmptyHint:'Entries count from when they arrived in Oriel, not from when they were published.', rangeClear:'Show any time', kRange:'Time range: any, today, last 24 hours',
-    dropTitle:'Drop to import', dropHint:'Release an OPML file to add its subscriptions.', noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', importOpml:'Import OPML…', restoreBackup:'Restore from backup…',
+    dropTitle:'Drop to import', dropHint:'Release an OPML file to add its subscriptions.', noSubscriptions:'No subscriptions yet', noSubscriptionsHint:'Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram.', addFirst:'Add your first subscription', addSource:'Add subscription', newFolder:'New folder', collapse:'Collapse {name}', expand:'Expand {name}', moveToFolder:'Move to folder', noFolder:'No folder', newFolderItem:'New folder…', renameFolder:'Rename…', deleteFolder:'Delete folder…', importOpml:'Import OPML…', restoreBackup:'Restore from backup…',
     error:'Can’t load the timeline', errorHint:'The server didn’t answer. Check the connection and try again.', retry:'Try again',
     marked:'Marked {n} entries in “{scope}” as read', markedOlder:'Marked {n} entries in “{scope}” older than {age} as read', noneOlder:'No unread entries older than {age}', age7:'1 week', markedAbove:'Marked {n} entries above as read', markedBelow:'Marked {n} entries below as read', markedVisible:'Marked {n} visible entries as read', markedScrolled:'Marked {n} scrolled-past entries as read', undo:'Undo', dismiss:'Dismiss', noMoreUnread:'No unread entries below', fetching:'{name}, fetching', fetchedNew:'Fetched {n} entries from “{name}”', fetchedNone:'“{name}” fetched, but has no entries yet', fetchedFailed:'Couldn’t fetch “{name}”: {error}', refreshingName:'Refreshing, {done} of {n} checked', refreshed:'Checked {n} subscriptions', refreshedFailed:'Checked {n} subscriptions, {failed} failed', refreshedPart:'Checked {done} of {n} subscriptions, the rest will follow', refreshNone:'No subscriptions to refresh', kRefreshAll:'Refresh all subscriptions',
     keysTitle:'Keyboard shortcuts', close:'Close', or:'or', inTimeline:'Timeline', inReader:'Reader', anywhere:'Anywhere',
@@ -833,7 +853,7 @@ const copy={
     timeEmpty:'{n} 分钟内读得完的没有了', timeEmptyHint:'没有时长估计的条目（例如图片）不在其中。', timeClear:'不限时长',
     rangeTitle:'时间范围', rangeAny:'不限', rangeToday:'今天', range24:'最近 24 小时', rangeChipToday:'今天', rangeChip24:'24 小时', rangeName:'时间范围：不限', rangeNameOf:'时间范围：{range}',
     rangeEmptyToday:'今天还没有新内容', rangeEmpty24:'最近 24 小时没有新内容', rangeEmptyHint:'按条目进入 Oriel 的时间算，不是发布时间。', rangeClear:'不限时间', kRange:'时间范围：不限、今天、最近 24 小时',
-    dropTitle:'松手即可导入', dropHint:'松开鼠标，添加 OPML 文件里的订阅。', noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', importOpml:'导入 OPML…', restoreBackup:'从备份恢复…',
+    dropTitle:'松手即可导入', dropHint:'松开鼠标，添加 OPML 文件里的订阅。', noSubscriptions:'还没有订阅', noSubscriptionsHint:'订阅的内容会按时间从新到旧显示在这里。可以填 RSS 地址，也可以直接贴 YouTube、X、GitHub、哔哩哔哩、微博和 Telegram 的链接。', addFirst:'添加第一个订阅', addSource:'添加订阅', newFolder:'新建文件夹', collapse:'折叠 {name}', expand:'展开 {name}', moveToFolder:'移到文件夹', noFolder:'不放进文件夹', newFolderItem:'新建文件夹…', renameFolder:'重命名…', deleteFolder:'删除文件夹…', importOpml:'导入 OPML…', restoreBackup:'从备份恢复…',
     error:'时间线加载不出来', errorHint:'服务端没有响应。检查一下连接再试。', retry:'重试',
     marked:'已把「{scope}」里的 {n} 条标为已读', markedOlder:'已把「{scope}」里 {age}前的 {n} 条标为已读', noneOlder:'没有 {age}前的未读条目', age7:'1 周', markedAbove:'已把上面的 {n} 条标为已读', markedBelow:'已把下面的 {n} 条标为已读', markedVisible:'已把可见的 {n} 条标为已读', markedScrolled:'已把滚过的 {n} 条标为已读', undo:'撤销', dismiss:'关闭', noMoreUnread:'下面没有未读了', fetching:'{name}，正在抓取', fetchedNew:'「{name}」抓到 {n} 条', fetchedNone:'「{name}」抓取成功，但还没有条目', fetchedFailed:'「{name}」抓取失败：{error}', refreshingName:'正在更新，已查 {done}/{n}', refreshed:'已查完 {n} 个订阅', refreshedFailed:'已查完 {n} 个订阅，其中 {failed} 个失败', refreshedPart:'已查 {done}/{n} 个订阅，其余会陆续抓', refreshNone:'没有可更新的订阅', kRefreshAll:'全部更新',
     keysTitle:'键盘快捷键', close:'关闭', or:'或', inTimeline:'时间线', inReader:'阅读器', anywhere:'任何时候',
@@ -866,6 +886,8 @@ const favs={
 };
 const failedPic=g=>g==='failed'?icon('image'):'';
 const glyph=s=>favs[s.id]?`<span class="fav" aria-hidden="true"><svg viewBox="0 0 16 16">${favs[s.id]}</svg></span>`:`<span class="mono k-${s.kind}">${s.mono}</span>`;
+const foldered=['folders','folders-kind','folders-collapsed','folder-timeline','menu-folder','menu-feed-move'].includes(state);
+const folders=foldered?[{id:1,name:zh?'阅读':'Reading'},{id:2,name:zh?'影音':'Watching'},{id:3,name:zh?'备用':'Spare'}]:[];
 const sources=[
   {id:1,kind:'article',name:'Simon Willison',mono:'S',unread:4},
   {id:2,kind:'article',name:zh?'少数派':'Sspai',mono:zh?'少':'S',unread:12,hidden:state==='hidden-source'||state==='menu-feed-hidden'},
@@ -900,6 +922,7 @@ if(state==='many-feeds'){
 if(state==='long-titles'||state==='fetched-long')sources.find(s=>s.id===2).name=zh?'少数派 sspai：高效工作，快乐生活，关注数字生活、效率工具与软件使用技巧的社区':'Ars Technica » Technology Lab: Tech Policy, Gadgets, Science and Culture, Plus Long Reads and Reviews';
 if(state==='broken-images')[1,2,4,6,8].forEach(i=>delete favs[i]);
 const byId=Object.fromEntries(sources.map(s=>[s.id,s]));
+if(foldered)Object.entries({1:1,2:1,3:1,4:2,5:2}).forEach(([id,f])=>byId[id].folder=f);
 const kindUnread=k=>sources.filter(s=>s.kind===k&&!s.hidden).reduce((a,s)=>a+s.unread,0);
 let total;
 
@@ -961,7 +984,7 @@ const lightboxOn=state==='lightbox'||state==='lightbox-failed';
 const lbImages=['g6','g2','g5','g8','g3','g7','g4','g9','g1','g6','g2','g5'];
 if(lightboxOn)entries[0].images=lbImages;
 const edge=state==='long-titles'?longEntries:state==='broken-images'?brokenEntries:null;
-const inScope=s=>scope==='all'||s.kind===scope||(scope==='source'&&s.id===focusId);
+const inScope=s=>scope==='all'||s.kind===scope||(scope==='source'&&s.id===focusId)||(scope==='folder'&&s.folder===1);
 const markedCount=sources.filter(inScope).reduce((a,s)=>a+s.unread,0);
 const markedFeedCount=12;
 const olderCut=3;
@@ -992,9 +1015,9 @@ if(state==='translated-titles'){
 }
 if(state==='offline-pending'){entries[0].pending=true;entries[0].starred=true;entries[1].pending=true;entries[1].read=true;byId[entries[1].source].unread--}
 total=sources.filter(s=>!s.hidden).reduce((a,s)=>a+s.unread,0);
-const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[focusId].name:copy.all;
+const scopeName=kinds.includes(scope)?copy[scope]:scope==='source'?byId[focusId].name:scope==='folder'?folders[0].name:copy.all;
 const pool=edge||entries;
-const visible=kinds.includes(scope)?pool.filter(e=>e.kind===scope):scope==='source'?pool.filter(e=>e.source===focusId):edge?edge:state==='marked-visible'?entries.slice(8,15):state==='marked-scrolled'?entries.slice(4,11):entries.slice(0,7);
+const visible=kinds.includes(scope)?pool.filter(e=>e.kind===scope):scope==='source'?pool.filter(e=>e.source===focusId):scope==='folder'?pool.filter(e=>byId[e.source].folder===1):edge?edge:state==='marked-visible'?entries.slice(8,15):state==='marked-scrolled'?entries.slice(4,11):entries.slice(0,7);
 const filter=state==='unread-done'||state==='time-empty'||state==='range-empty'?1:state==='starred-none'?2:0;
 const q=state==='search'?'sqlite':state==='search-operators'?'from:simon kind:article sqlite -rust after:2026-01-01':state==='search-none'?'kubernetes':state==='search-short'?'go':'';
 // The words the query asks for, which the rows highlight: not the operators, not the excluded words.
@@ -1003,7 +1026,7 @@ const searching=q!=='';
 const searchOn=searching||state==='search-syntax';
 const budget=state==='time-10'?10:state==='time-empty'?5:0;
 const fits=e=>e.sec!=null&&e.sec<=budget*60;
-const scoped=kinds.includes(scope)?pool.filter(e=>e.kind===scope):scope==='source'?pool.filter(e=>e.source===focusId):pool;
+const scoped=kinds.includes(scope)?pool.filter(e=>e.kind===scope):scope==='source'?pool.filter(e=>e.source===focusId):scope==='folder'?pool.filter(e=>byId[e.source].folder===1):pool;
 const rangeOn=state==='range-today'?'today':state==='range-24h'?'24h':state==='range-empty'?'today':'';
 // The mockup's "now" is a little after 08:30: Today holds what arrived in the last 7 hours and a few minutes, the last 24 hours also late yesterday.
 const rangeCut=rangeOn==='today'?6:rangeOn==='24h'?7:null;
@@ -1020,7 +1043,7 @@ const failingName=s=>s.unread?t('failingUnread',{name:s.name,n:s.unread}):t('fai
 const fetchingNow=s=>state==='fetching'&&s.id===2;
 const sourceItem=s=>navItem(glyph(s),s.name,s.unread,scope==='source'&&s.id===focusId,(fetchingNow(s)?`<span class="busy" role="progressbar" aria-label="${t('fetching',{name:s.name})}">${icon('loader','spin')}</span>`:s.failing?`<span class="warn" role="img" aria-label="${failedText(s)}" title="${failedText(s)}"${state==='failing'&&s.id===3?' id="tipped"':''}>${icon('alert')}</span>`:'')+hiddenMark(s),fetchingNow(s)?t('fetching',{name:s.name}):s.failing?failingName(s):s.hidden?t('hiddenName',{name:s.name}):'');
 const failingSources=sources.filter(s=>s.failing);
-const tabKind=scope==='source'?byId[focusId].kind:scope;
+const tabKind=scope==='source'?byId[focusId].kind:scope==='folder'?'all':scope;
 const kindList=[['all','inbox'],...kinds.map(k=>[k,k])];
 const kindCount=(k,counts)=>counts?(k==='all'?total:kindUnread(k)):0;
 const tabs=counts=>`<nav class="kind-list" aria-label="${copy.kinds}">${kindList.map(([k,g])=>navItem(icon(g),k==='all'?copy.all:copy[k],kindCount(k,counts),k===tabKind)).join('')}</nav>`;
@@ -1033,9 +1056,18 @@ function sidebar(){
   let list=base.filter(s=>s.name.toLowerCase().includes(word));
   if(unreadFirst)list=[...list].sort((a,b)=>b.unread-a.unread||(a.name.toLowerCase()<b.name.toLowerCase()?-1:1));
   const tools=`<div class="side-tools"><div class="side-filter${word?' focused':''}">${icon('search')}<input aria-label="${copy.filterSources}" placeholder="${copy.filterSources}" value="${word}">${word?`<button class="clear" aria-label="${copy.clearFilter}">${icon('x')}</button>`:''}</div><button class="sort" aria-pressed="${unreadFirst}" aria-label="${copy.unreadFirst}" title="${copy.unreadFirst}">${icon('sort')}</button></div>`;
-  const body=list.length?list.map(sourceItem).join(''):`<div class="side-none" role="status">${copy.noMatchingSources}</div>`;
+  // Folders: the subscriptions of the scope by folder, then the unfiled ones. Under a kind a folder with none of that kind is left out.
+  const folderItem=f=>{
+    const members=list.filter(s=>s.folder===f.id);
+    if(!members.length&&(tabKind!=='all'||word||only))return '';
+    const shut=state==='folders-collapsed'&&f.id===1,on=scope==='folder'&&f.id===1;
+    const label=t(shut?'expand':'collapse',{name:f.name});
+    const shown=shut?members.filter(s=>scope==='source'&&s.id===focusId):members;
+    return `<div class="folder${state==='menu-folder'&&f.id===1?' menued':''}"><button class="fold-toggle" aria-expanded="${!shut}" aria-label="${label}" title="${label}">${icon(shut?'chevronRight':'chevronDown')}</button>${navItem(icon('folder'),f.name,members.reduce((a,s)=>a+s.unread,0),on)}</div>${shown.length?`<div class="in-folder">${shown.map(sourceItem).join('')}</div>`:''}`;
+  };
+  const body=list.length?(foldered?folders.map(folderItem).join('')+list.filter(s=>!s.folder).map(sourceItem).join(''):list.map(sourceItem).join('')):`<div class="side-none" role="status">${copy.noMatchingSources}</div>`;
   const n=failingSources.length;
-  const addSource=`<button class="add" aria-label="${copy.addSource}" title="${copy.addSource}">${icon('plus')}</button>`;
+  const addSource=`<button class="add" aria-label="${copy.newFolder}" title="${copy.newFolder}">${icon('folderPlus')}</button><button class="add" aria-label="${copy.addSource}" title="${copy.addSource}">${icon('plus')}</button>`;
   const refreshing=state==='refreshing';
   const progress=`<span class="link plain progress" role="status" aria-label="${t('refreshingName',{done:3,n:12})}" title="${t('refreshingName',{done:3,n:12})}">${icon('loader','spin')}3/12</span>`;
   const heading=only?`<div class="section"><span>${copy.failingTitle}</span><button class="link plain">${copy.showAll}</button>${addSource}</div>`
@@ -1122,7 +1154,7 @@ else if(cardsOn)list=`<div class="vgrid${gridKind==='image'?' sq':''}" role="fee
 else if(wallOn)list=`<div class="masonry" role="feed" aria-label="${scopeName}">${shown.map(masonryTile).join('')}</div>${more}`;
 else list=`<div class="column${scope==='social'?' wide':''}" role="feed" aria-label="${scopeName}">${shown.map((e,i)=>(state==='last-looked'&&i===3?`<button class="looked" aria-label="${t('lastLooked',{n:3})}"><span aria-hidden="true">${t('lastLooked',{n:3})}</span></button>`:'')+(state==='expiring'&&!e.read?row(e,i).replace('<article class="',`<article style="opacity:${[1,.82,.7,.6,.55][Math.min(i,4)]}" aria-label="${(e.title||e.author)}, ${copy.leaving}" class="`):row(e,i))+((state==='folded'||state==='folded-focus')&&i===0?foldRow():'')).join('')}${more}</div>`;
 
-const unreadInScope=kinds.includes(scope)?kindUnread(scope):scope==='source'?byId[focusId].unread:total;
+const unreadInScope=kinds.includes(scope)?kindUnread(scope):scope==='source'?byId[focusId].unread:scope==='folder'?sources.filter(s=>s.folder===1).reduce((a,s)=>a+s.unread,0):total;
 const sub=noSubs||state==='error'?'':state==='search'||state==='search-operators'?t('results',{n:1}):state==='unread-done'||state==='starred-none'||state==='empty'||state==='marked-read'||budget||rangeOn?'':t('unreadCount',{n:unreadInScope});
 const segments=[['inbox','everything'],['dot','unread'],['star','starred']].map(([g,k],i)=>`<button role="radio" aria-checked="${i===filter}" class="${i===filter?'on':''}" aria-label="${copy[k]}" title="${copy[k]}">${icon(g)}<span>${copy[k]}</span></button>`).join('');
 const searchField=`<div class="search${searchOn||state==='search-open'?' open':''}${searchOn?' focused':''}">${icon('search')}<input aria-label="${copy.searchLabel}" placeholder="${copy.search}" value="${q.replace(/"/g,'&quot;')}" ${state==='search-short'?'aria-describedby="hint"':state==='search-syntax'?'aria-describedby="syntax"':''}>${searching?`<button class="clear" aria-label="${copy.clear}">${icon('x')}</button>`:''}</div>`;
@@ -1240,7 +1272,15 @@ if(feedMenu){
   const s=menuSource,none=s.unread===0;
   const anchor=[...document.querySelectorAll('.nav .item')].find(i=>i.querySelector('.name').textContent===s.name);
   anchor.classList.add('menued');
-  place(`<div class="menu" role="menu" aria-label="${s.name}">${menuItem('refresh',s.failing?copy.retry:copy.refresh)}${menuItem('checkCheck',copy.markFeed,{cls:none?'':'hover',off:none})}${[1,7,30].map(n=>menuItem('calendar',copy['markOlder'+n],{off:none})).join('')}${menuItem('pencil',copy.edit)}${menuItem('pause',copy.pause)}${menuItem('eyeoff',s.hidden?copy.unhide:copy.hide)}<hr>${menuItem('trash',copy.remove,{cls:'danger'})}</div>`,anchor,150,24);
+  place(`<div class="menu" role="menu" aria-label="${s.name}">${menuItem('refresh',s.failing?copy.retry:copy.refresh)}${menuItem('checkCheck',copy.markFeed,{cls:none?'':'hover',off:none})}${[1,7,30].map(n=>menuItem('calendar',copy['markOlder'+n],{off:none})).join('')}${menuItem('pencil',copy.edit)}${menuItem('pause',copy.pause)}${menuItem('eyeoff',s.hidden?copy.unhide:copy.hide)}<button role="menuitem" aria-haspopup="menu" aria-expanded="${state==='menu-feed-move'}" class="move${state==='menu-feed-move'?' hover':''}">${icon('folder')}<span>${copy.moveToFolder}</span><span class="chev">${icon('chevronRight')}</span></button><hr>${menuItem('trash',copy.remove,{cls:'danger'})}</div>`,anchor,150,24);
+  if(state==='menu-feed-move'){
+    const radio=(label,on)=>`<button role="menuitemradio" aria-checked="${on}">${icon('check',on?'tick':'tick none')}<span>${label}</span></button>`;
+    place(`<div class="menu" role="menu" aria-label="${copy.moveToFolder}">${radio(copy.noFolder,false)}${folders.map(f=>radio(f.name,f.id===s.folder)).join('')}<hr>${menuItem('folderPlus',copy.newFolderItem)}</div>`,document.querySelector('.menu .move'),200,-4);
+  }
+}
+if(state==='menu-folder'){
+  const anchor=document.querySelector('.folder.menued .item');
+  place(`<div class="menu" role="menu" aria-label="${folders[0].name}">${menuItem('pencil',copy.renameFolder,{cls:'hover'})}<hr>${menuItem('trash',copy.deleteFolder,{cls:'danger'})}</div>`,anchor,150,24);
 }
 if(state==='sidebar-focus')document.querySelector(scope==='source'?'.nav .item.chosen':'.kind-list .item.chosen').classList.add('kfocus');
 if(state==='no-more-unread')document.querySelector('.row.chosen').scrollIntoView({block:'center'});

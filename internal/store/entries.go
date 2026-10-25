@@ -80,6 +80,7 @@ type Position struct {
 type EntryFilter struct {
 	SourceID      int64
 	Kind          string
+	FolderID      int64 // only subscriptions in this folder; 0 does not filter
 	Unread        bool
 	Starred       bool
 	MaxReadingSec int            // only entries that take at most this many seconds; unknown ones never match; 0 does not filter
@@ -272,6 +273,9 @@ func (f EntryFilter) where() (string, []any) {
 	}
 	if f.Kind != "" {
 		add(column("e.kind")+" = ?", f.Kind)
+	}
+	if f.FolderID != 0 {
+		add("s.folder_id = ?", f.FolderID)
 	}
 	grouped := f.Group && f.SourceID == 0 && !searching
 	visible := " AND " + visibleCopy
