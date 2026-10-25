@@ -171,6 +171,26 @@ func TestParseFallsBackToTheFeedAuthor(t *testing.T) {
 	}
 }
 
+func TestParseUsesMediaDescriptionWhenThereIsNoSummary(t *testing.T) {
+	const feed = `<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+<title>t</title>
+<entry><id>1</id><title>plain</title><media:group><media:description>Line one.
+  Line   two &amp; more.</media:description></media:group></entry>
+<entry><id>2</id><title>html</title><media:group><media:description type="html">&lt;p&gt;Hello &lt;a href="/x"&gt;there&lt;/a&gt;&lt;/p&gt;</media:description></media:group></entry>
+<entry><id>3</id><title>own</title><summary>Own summary</summary><media:group><media:description>Ignored</media:description></media:group></entry>
+<entry><id>4</id><title>none</title></entry>
+</feed>`
+	parsedFeed, err := parse([]byte(feed), "", nil)
+	if err != nil || len(parsedFeed.entries) != 4 {
+		t.Fatalf("%v, %d entries", err, len(parsedFeed.entries))
+	}
+	for i, want := range []string{"Line one. Line two & more.", "Hello there", "Own summary", ""} {
+		if got := parsedFeed.entries[i].Summary; got != want {
+			t.Errorf("entry %d: summary %q, want %q", i+1, got, want)
+		}
+	}
+}
+
 func TestPlatform(t *testing.T) {
 	for link, want := range map[string]string{
 		"https://www.youtube.com/watch?v=1": "youtube", "https://youtu.be/1": "youtube",

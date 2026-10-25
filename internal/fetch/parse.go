@@ -151,6 +151,9 @@ func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
 		if summary == "" {
 			summary = text(description)
 		}
+		if summary == "" {
+			summary = mediaDescription(item)
+		}
 		published := item.PublishedParsed
 		if published == nil {
 			published = item.UpdatedParsed
@@ -254,6 +257,23 @@ func media(item *gofeed.Item, name string) []ext.Extension {
 		found = append(found, group.Children[name]...)
 	}
 	return found
+}
+
+// mediaDescription is the plain text of the first non-empty media:description, which YouTube feeds use for the
+// video's description instead of a summary or content. Its type attribute says "html" for markup, else it is plain.
+func mediaDescription(item *gofeed.Item) string {
+	for _, d := range media(item, "description") {
+		var summary string
+		if d.Attrs["type"] == "html" {
+			summary = text(d.Value)
+		} else {
+			summary = strings.Join(strings.Fields(d.Value), " ")
+		}
+		if summary != "" {
+			return summary
+		}
+	}
+	return ""
 }
 
 func thumbnail(item *gofeed.Item, base *url.URL) string {
