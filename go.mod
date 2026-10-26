@@ -6,7 +6,7 @@ require (
 	codeberg.org/readeck/go-readability/v2 v2.1.3
 	github.com/abadojack/whatlanggo v1.0.1
 	github.com/andybalholm/cascadia v1.3.5
-	github.com/egoist/mygo v0.5.5
+	github.com/egoist/mygo v0.6.3
 	github.com/mmcdole/gofeed v1.5.0
 	golang.org/x/net v0.61.0
 	golang.org/x/sys v0.49.0
