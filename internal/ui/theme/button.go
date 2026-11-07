@@ -1,34 +1,34 @@
 package theme
 
 import (
-	"time"
-
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/ui/icons"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // ButtonStyle is the look of a Button.
 type ButtonStyle int
 
 const (
-	// Secondary is a Track fill with Text: the default.
+	// Secondary is the fill with Text: the default.
 	Secondary ButtonStyle = iota
 	// Primary is the Accent fill with AccentText: the one action a form is for.
 	Primary
-	// Danger is a destructive action that is not the default: Danger text, no fill, Soft(Danger) under the pointer.
+	// Danger is a destructive action: the fill with Danger text, never a red fill.
 	Danger
-	// Plain is an action with no fill and Text, SurfaceHover-like fill under the pointer.
+	// Plain is an action with no fill and Text2, Text on the hover fill under the pointer.
 	Plain
 )
 
-// Button is the one text button of dialogs, forms and settings, by the values in design/tokens.md: 32 high (26 when
-// Small), radius 8, a 14 icon, 500 text (12 when Small), a 140 ms fade of the fill and the Focus ring ButtonBase
-// draws. A Primary or Secondary button has 14 side padding and the rim of Border with high contrast; a Danger or
-// Plain one has 8 and no rim. Disabled is Surface with TextMuted (no fill for Danger and Plain), never a faded accent.
+// Button is the one text button of dialogs, forms and settings, design CButton: control high (control-small when
+// Small), radius-control (radius-sm when Small), an icon-s icon, 500 text (12 when Small), a motion-fast fade of the
+// fill and the Focus ring ButtonBase draws. Its side padding is space-3 (space-2 when Small); a Primary or Secondary
+// button has the rim of Border with high contrast. Disabled keeps the fill (none for Plain) with TextMuted, never a
+// faded accent.
 type Button struct {
 	Style ButtonStyle
-	Small bool // 26 high with 12 text and 10 side padding, for a health line, a row or a card
-	On    bool // Secondary only: the chosen one of a few, in Soft(Accent) with Accent text
+	Small bool // control-small high with 12 text and space-2 side padding, for a health line, a row or a card
+	On    bool // Secondary or Plain: the chosen one of a few, in Soft(Accent) with Accent text
 	// Disabled is inert and dimmed; Busy swaps the icon for a turning loader and does not disable.
 	Disabled, Busy bool
 	Grow           bool // takes an equal share of the row, for two buttons that share its width
@@ -42,12 +42,12 @@ type Button struct {
 	Checked *bool
 }
 
-// ButtonHeight is the height of a Button in mockup pixels, 26 when small.
+// ButtonHeight is the height of a Button in mockup pixels: control, control-small when small.
 func ButtonHeight(small bool) float32 {
 	if small {
-		return 26
+		return tokens.ControlSmall
 	}
-	return 32
+	return tokens.Control
 }
 
 // Draw builds the button and returns it for Clicked and its other state. A Button with an Icon and no Text is an
@@ -59,16 +59,17 @@ func (bt Button) Draw(c *ui.Context) ui.Element {
 	if bt.Key != nil {
 		b.Key(bt.Key)
 	}
-	b.Height(h).Gap(t.Space(1.5)).Radius(t.Radius).Disabled(bt.Disabled)
+	b.Height(h).Gap(Px(t, tokens.Space1_5)).Radius(Px(t, tokens.RadiusControl)).Disabled(bt.Disabled)
+	if bt.Small {
+		b.Radius(Px(t, tokens.RadiusSm))
+	}
 	switch {
 	case bt.Text == "":
 		b.Width(h)
 	case bt.Small:
-		b.PaddingX(Px(t, 10))
-	case bt.Style == Danger || bt.Style == Plain:
-		b.PaddingX(t.Space(2))
+		b.PaddingX(Px(t, tokens.Space2))
 	default:
-		b.PaddingX(Px(t, 14))
+		b.PaddingX(Px(t, tokens.Space3))
 	}
 	if bt.Grow {
 		b.Grow(1).Basis(0)
@@ -92,7 +93,7 @@ func (bt Button) Draw(c *ui.Context) ui.Element {
 			switch {
 			case bt.Busy:
 				spin := ui.Icon(c, icons.LoaderCircle).FontSize(IconSmall(t))
-				spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+				spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
 			case bt.Icon != nil:
 				ui.Icon(c, bt.Icon).FontSize(IconSmall(t))
 			}
@@ -113,20 +114,18 @@ func (bt Button) Draw(c *ui.Context) ui.Element {
 	return b
 }
 
-// look is the fill and the text color of the button b in its state.
+// look is the fill and the text color of the button b in its state: the variants of design CButton.
 func (bt Button) look(t *ui.Theme, b ui.Element) (fill, color ui.Color) {
-	track, ink := Track(t), Ink(t, 1)
-	quiet := bt.Style == Danger || bt.Style == Plain
+	track := Track(t)
 	switch {
-	case bt.Disabled && quiet:
+	case bt.Disabled && bt.Style == Plain:
 		return ui.Color{}, t.TextMuted
 	case bt.Disabled:
-		return t.Surface, t.TextMuted
-	case bt.On && bt.Style == Secondary:
+		return track, t.TextMuted
+	case bt.On && (bt.Style == Secondary || bt.Style == Plain):
 		return Soft(t, t.Accent), t.Accent
 	}
-	switch bt.Style {
-	case Primary:
+	if bt.Style == Primary {
 		switch {
 		case b.Pressed():
 			return t.AccentPressed, t.AccentText
@@ -134,28 +133,22 @@ func (bt Button) look(t *ui.Theme, b ui.Element) (fill, color ui.Color) {
 			return t.AccentHover, t.AccentText
 		}
 		return t.Accent, t.AccentText
+	}
+	color = t.Text
+	switch bt.Style {
 	case Danger:
-		switch {
-		case b.Pressed():
-			return Soft(t, t.Danger).Mix(ink, 0.05), t.Danger
-		case b.Hovered():
-			return Soft(t, t.Danger), t.Danger
-		}
-		return ui.Color{}, t.Danger
+		color = t.Danger
 	case Plain:
-		switch {
-		case b.Pressed():
-			return t.SurfacePressed, t.Text
-		case b.Hovered():
-			return t.SurfaceHover, t.Text
+		track = ui.Color{}
+		if !b.Hovered() && !b.Pressed() {
+			color = Text2(t)
 		}
-		return ui.Color{}, t.Text
 	}
 	switch {
 	case b.Pressed():
-		return track.Mix(ink, 0.1), t.Text
+		return t.SurfacePressed, color
 	case b.Hovered():
-		return track.Mix(ink, 0.06), t.Text
+		return t.SurfaceHover, color
 	}
-	return track, t.Text
+	return track, color
 }

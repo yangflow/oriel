@@ -338,7 +338,7 @@ func (s *Screen) recentCard(c *ui.Context) {
 		return
 	}
 	now := s.deps.Now()
-	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Children(func() {
+	ui.Column(c).FillWidth().Radius(12).Background(theme.Surface(t)).Children(func() {
 		for i, src := range s.activity.Sources {
 			if i > 0 {
 				ui.Box(c).FillWidth().Height(1).Margin(0, theme.Px(t, 20)).Background(t.Border)

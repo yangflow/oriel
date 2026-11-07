@@ -2867,7 +2867,7 @@ func TestInkPane(t *testing.T) {
 	})
 }
 
-// The fill of a pane item and of a row steps up from hover to pressed to chosen, and the chosen row carries the marker.
+// The fill of a pane item steps up from hover to chosen to pressed, the state ladder of the design system.
 func TestStateFills(t *testing.T) {
 	inkCases(t, func(t *testing.T, dark bool, scale float32) {
 		s, f, tt, _ := inkSetup(t, dark, scale)
@@ -2889,8 +2889,8 @@ func TestStateFills(t *testing.T) {
 		talks, _ = tt.Find("Talks")
 		x, y = talks.X+2, talks.Y+talks.H/2
 		chosen := light(pixel(tt.Image(), x, y))
-		if !(rest < hover && hover < pressed && pressed < chosen) {
-			t.Errorf("pane item fills rest %d, hover %d, pressed %d, chosen %d are not in steps", rest, hover, pressed, chosen)
+		if !(rest < hover && hover < chosen && chosen < pressed) {
+			t.Errorf("pane item fills rest %d, hover %d, chosen %d, pressed %d are not in steps", rest, hover, chosen, pressed)
 		}
 		if s.scope.source != 2 {
 			t.Fatalf("scope %v after choosing Talks", s.scope)
@@ -3129,7 +3129,7 @@ func TestBrokenImages(t *testing.T) {
 	if p := s.pics.Peek("https://go.dev/t.png"); p == nil || !p.Failed || p.Bitmap != nil {
 		t.Fatalf("the thumbnail did not fail: %+v", p)
 	}
-	track, muted := theme.Track(main), main.TextMuted
+	track, muted := theme.Track(main).Over(main.Background), main.TextMuted
 	// Within the row of the first entry the thumbnail box is on Track, and its middle holds the icon in the muted
 	// color.
 	row := rowRect(t, tt, "Go Blog, Go 1.27 is released, 5 min ago, Unread")
