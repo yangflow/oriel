@@ -15,13 +15,13 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 //go:embed copy.json
@@ -1272,18 +1272,12 @@ func (s *Screen) View(c *ui.Context) {
 	if s.folderDlg.open {
 		s.folderDialog(c)
 	}
-	if s.deletingFolder {
-		if ui.AlertDialog(c, &s.deletingFolder, s.fill(s.text.FolderDeleteTitle, s.doomedFolder.Name), s.text.FolderDeleteBody,
-			s.text.Cancel, s.text.ConfirmDelete) == 1 {
-			s.removeFolder()
-		}
+	if s.deletingFolder && s.confirm(c, &s.deletingFolder, s.fill(s.text.FolderDeleteTitle, s.doomedFolder.Name),
+		s.text.FolderDeleteBody) {
+		s.removeFolder()
 	}
-	if s.deleting {
-		name := Name(s.doomed)
-		if ui.AlertDialog(c, &s.deleting, s.fill(s.text.DeleteTitle, name), s.text.DeleteBody, s.text.Cancel,
-			s.text.ConfirmDelete) == 1 {
-			s.remove()
-		}
+	if s.deleting && s.confirm(c, &s.deleting, s.fill(s.text.DeleteTitle, Name(s.doomed)), s.text.DeleteBody) {
+		s.remove()
 	}
 	s.toasts(c)
 	s.bulkToast(c)
@@ -1295,6 +1289,40 @@ func (s *Screen) View(c *ui.Context) {
 		c.Toast(s.toast)
 		s.toast = ""
 	}
+}
+
+// confirm asks before deleting, a dialog of design CDialog: the trash on a Surface chip in Danger, the title and the
+// consequence as a fact, and in the sill Cancel, which has the focus so Return does nothing harmful, and the Danger
+// action. It reports whether the action was chosen; Escape or a click outside cancels.
+func (s *Screen) confirm(c *ui.Context, open *bool, title, body string) bool {
+	t := c.Theme()
+	chosen := false
+	ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
+		theme.Scrim(c, backdrop).Padding(theme.Px(t, tokens.Space4))
+		panel.Column().Width(theme.Px(t, tokens.Dialog)).Clip().Role(ui.RoleAlertDialog).Label(title).Description(body)
+		theme.Sheet(c, panel, theme.Dialog)
+		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space3)).Padding(theme.Px(t, tokens.Space6)).
+			Children(func() {
+				chip(c, icons.Trash2, true)
+				ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Px(t, tokens.Space1)).Children(func() {
+					ui.Text(c, title).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+						Role(ui.RoleHeading).Level(2).Wrap()
+					ui.Text(c, body).TextColor(theme.Text2(t)).Wrap()
+				})
+			})
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+			Padding(theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space6)).Background(theme.Surface(t)).Children(func() {
+			ui.Box(c).Grow(1)
+			cancel := theme.Button{Text: s.text.Cancel}.Draw(c).AutoFocus()
+			if cancel.Clicked() {
+				*open = false
+			}
+			if (theme.Button{Style: theme.Danger, Text: s.text.ConfirmDelete}).Draw(c).Clicked() {
+				*open, chosen = false, true
+			}
+		})
+	})
+	return chosen
 }
 
 func kindIcon(kind string) *ui.SVG {
@@ -1325,107 +1353,96 @@ func (s *Screen) kindName(kind string) string {
 	return s.text.Article
 }
 
-// dialog draws a dialog of the mockup: a header, a form that scrolls when the window is too low, and a footer. A line
-// under the header shows once the form is scrolled, and one above the footer while more of it is below.
+// dialog draws a dialog of design CDialog: the head, a body that scrolls when the window is too low, and the sill, a
+// Surface band that holds the buttons. width is tokens.Dialog, or tokens.DialogWide for forms and lists. A hairline
+// shows under the head once the body is scrolled.
 func (s *Screen) dialog(c *ui.Context, open *bool, scroll *ui.ScrollState, width float32, title string, header, form,
 	footer func()) {
 	t := c.Theme()
 	_, height := c.Size()
 	ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
-		theme.Scrim(c, backdrop).Padding(t.Space(4))
-		panel.Column().Width(theme.Px(t, width)).MaxHeight(height - t.Space(8)).
-			Label(title)
+		theme.Scrim(c, backdrop).Padding(theme.Px(t, tokens.Space4))
+		panel.Column().Width(theme.Px(t, width)).MaxHeight(height - theme.Px(t, tokens.Space8)).Clip().Label(title)
 		theme.Sheet(c, panel, theme.Dialog)
-		edge := func(shown bool) {
-			color := t.Border
-			if !shown {
-				color = color.Alpha(0)
-			}
-			ui.Box(c).FillWidth().Height(1).Background(color)
-		}
 		header()
-		edge(scroll.Y > 0)
+		line := t.Border
+		if scroll.Y <= 0 {
+			line = line.Alpha(0)
+		}
+		ui.Box(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).Background(line)
 		ui.Scroll(c).TrackScroll(scroll).FillWidth().Shrink(1).MinHeight(0).Children(func() {
-			ui.Column(c).FillWidth().Gap(t.Space(3.5)).Padding(t.Space(3.5), t.Space(5), t.Space(1), t.Space(5)).
-				Children(form)
+			ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space4)).
+				Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space6)).Children(form)
 		})
-		edge(scroll.Y < scroll.MaxY)
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(4), t.Space(5), t.Space(4.5),
-			t.Space(5)).Children(footer)
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+			Padding(theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space6)).Background(theme.Surface(t)).Children(footer)
 	})
 }
 
-func (s *Screen) header(c *ui.Context, open *bool, lead func(), title, sub string) {
-	s.headerBusy(c, open, lead, title, sub, false)
+// head is what a dialog leads with: the chip or tile, the title, a muted line under it when there is one (in
+// monospace for an address), and the close button, held while busy.
+type head struct {
+	lead       func()
+	title, sub string
+	mono, busy bool
+	open       *bool
 }
 
-// headerBusy is header whose close button is disabled while busy.
-func (s *Screen) headerBusy(c *ui.Context, open *bool, lead func(), title, sub string, busy bool) {
+func (s *Screen) header(c *ui.Context, h head) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Padding(t.Space(4.5), t.Space(5), t.Space(1),
-		t.Space(5)).Children(func() {
-		lead()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+		Padding(theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space2)).Children(func() {
+		h.lead()
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			ui.Text(c, title).FontSize(theme.Px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(2)
-			if sub != "" {
-				ui.Text(c, sub).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine()
+			ui.Text(c, h.title).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+				Role(ui.RoleHeading).Level(2)
+			if h.sub != "" {
+				sub := ui.Text(c, h.sub).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).SingleLine()
+				if h.mono {
+					sub.Font("monospace")
+				}
 			}
 		})
-		x := theme.Fade(ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(8).AlignSelf(ui.Start).
-			Label(s.text.Close).Tooltip(s.text.Close).Disabled(busy))
-		color := t.TextMuted
-		switch {
-		case x.Pressed():
-			x.Background(t.SurfacePressed)
-			color = t.Text
-		case x.Hovered():
-			x.Background(t.SurfaceHover)
-			color = t.Text
-		}
+		x, color := theme.ToolButton(c, theme.ToolState{Disabled: h.busy})
+		x.AlignSelf(ui.Start).Label(s.text.Close).Tooltip(s.text.Close)
 		x.Children(func() { ui.Icon(c, icons.X).FontSize(theme.IconMedium(t)).TextColor(color) })
 		if x.Clicked() {
-			*open = false
+			*h.open = false
 		}
 	})
 }
 
+// label names a field above it, in label type.
 func label(c *ui.Context, text string) {
 	t := c.Theme()
-	ui.Text(c, text).FontSize(theme.Px(t, 12)).FontWeight(500)
+	ui.Text(c, text).FontSize(theme.Px(t, tokens.TextLabel.Size.En)).FontWeight(tokens.TextLabel.Weight)
 }
 
+// help is the line under a field, in meta muted.
 func help(c *ui.Context, text string) {
 	t := c.Theme()
-	ui.Text(c, text).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
+	ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Wrap()
 }
 
-// fieldEdge draws the hairline of a field, ink 12% (theme.LineStrong); with high contrast it is Border at 1 DIP.
-func fieldEdge(c *ui.Context, e ui.Element) {
+// box is a field of design CField, the frame of the input built by input: a well of the fill with no border,
+// radius-control, control high, inset space-3, its leading icon if any. Under the pointer it takes the hover fill;
+// focused it is raised with the focus ring; invalid it has a hairline Danger rim.
+func box(c *ui.Context, key string, lead *ui.SVG, invalid bool, input func()) ui.Element {
 	t := c.Theme()
-	if c.Preferences().HighContrast {
-		e.Border(1, t.Border)
-		return
-	}
-	e.Border(0.5, theme.LineStrong(t))
-}
-
-// box is the frame of a text field: its leading icon, if any, and the input built by input.
-func box(c *ui.Context, key string, lead *ui.SVG, invalid bool, fill ui.Color, input func()) ui.Element {
-	t := c.Theme()
-	b := ui.Row(c).Key(key).FillWidth().Height(theme.Px(t, 32)).AlignItems(ui.Center).Gap(t.Space(2)).
-		PaddingX(t.Space(2.5)).Radius(t.Radius)
-	fieldEdge(c, b)
-	b.Background(fill)
+	b := ui.Row(c).Key(key).FillWidth().Height(theme.Px(t, tokens.Control)).AlignItems(ui.Center).
+		Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl)).
+		Background(theme.Track(t))
 	color := t.TextMuted
-	switch focused := b.FocusWithin(); {
-	case invalid:
-		b.Border(1.5, t.Danger)
-		color = t.Danger
-		if focused {
-			b.Shadow(0, 0, 0, 2, theme.Soft(t, t.Danger))
-		}
+	focused := b.FocusWithin()
+	switch {
 	case focused:
-		b.Border(0, ui.Color{}).Background(theme.RaisedFill(t)).Shadow(0, 0, 0, 2, t.Focus)
+		b.Background(theme.RaisedFill(t)).Shadow(0, 0, 0, theme.Px(t, tokens.FocusRing), t.Focus)
+	case b.Hovered():
+		b.Background(t.SurfaceHover)
+	}
+	if invalid {
+		b.Border(theme.Px(t, tokens.Hairline), t.Danger)
+		color = t.Danger
 	}
 	return b.Children(func() {
 		if lead != nil {
@@ -1439,11 +1456,11 @@ func box(c *ui.Context, key string, lead *ui.SVG, invalid bool, fill ui.Color, i
 func errorLine(c *ui.Context, text string, links ...string) int {
 	t := c.Theme()
 	clicked := -1
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(1.5)).Children(func() {
-		ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Danger).Margin(1, 0, 0, 0)
-		ui.Text(c, text).FontSize(theme.Px(t, 12)).TextColor(t.Danger).Shrink(1).Wrap()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+		ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Danger)
+		ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.Danger).Shrink(1).Wrap()
 		for i, link := range links {
-			if link != "" && ui.Link(c, link, "").FontSize(theme.Px(t, 12)).FontWeight(500).Clicked() {
+			if link != "" && (theme.Link{Text: link, Key: "error-link-" + strconv.Itoa(i)}).Draw(c).Clicked() {
 				clicked = i
 			}
 		}
@@ -1451,14 +1468,21 @@ func errorLine(c *ui.Context, text string, links ...string) int {
 	return clicked
 }
 
-func tile(c *ui.Context, icon *ui.SVG) {
+// chip is the icon a dialog leads with: an icon-l glyph on a square of control plus space-2, radius-card, Soft with
+// the Accent, or Surface with the Danger when the dialog destroys something.
+func chip(c *ui.Context, icon *ui.SVG, danger bool) {
 	t := c.Theme()
-	ui.Box(c).Size(theme.Px(t, 32), theme.Px(t, 32)).Radius(8).Center().Background(theme.Soft(t, t.Accent)).Children(func() {
-		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(t.Accent)
+	side := theme.Px(t, tokens.Control+tokens.Space2)
+	fill, color := theme.Soft(t, t.Accent), t.Accent
+	if danger {
+		fill, color = theme.Surface(t), t.Danger
+	}
+	ui.Box(c).Size(side, side).Shrink(0).Radius(theme.Px(t, tokens.RadiusCard)).Center().Background(fill).Children(func() {
+		ui.Icon(c, icon).FontSize(theme.IconLarge(t)).TextColor(color)
 	})
 }
 
-// glyph is the site icon of src, in a tile with a rim, or its monogram while the icon is not decoded or when it has
+// glyph is the site icon of src on a tile-l with a rim, or its monogram while the icon is not decoded or when it has
 // none.
 func (s *Screen) glyph(c *ui.Context, kind string, src client.Source) {
 	t := c.Theme()
@@ -1467,12 +1491,13 @@ func (s *Screen) glyph(c *ui.Context, kind string, src client.Source) {
 		icon = s.deps.Icon(src.IconURL)
 	}
 	if icon == nil {
-		theme.Monogram(c, Name(src), 32)
+		theme.Monogram(c, Name(src), tokens.TileL)
 		return
 	}
-	ui.Box(c).Size(theme.Px(t, 32), theme.Px(t, 32)).Radius(8).Clip().Children(func() {
+	side := theme.Px(t, tokens.TileL)
+	ui.Box(c).Size(side, side).Shrink(0).Radius(theme.Px(t, tokens.RadiusXS)).Clip().Children(func() {
 		ui.Image(c, icon).Fit(ui.Cover).Fill()
-		ui.Box(c).Absolute().Fill().Radius(8).Border(0.5, theme.Ink(t, 0.2))
+		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, tokens.RadiusXS)).Border(0.5, theme.Ink(t, 0.2))
 	})
 }
 
@@ -1498,8 +1523,8 @@ func (s *Screen) addDialog(c *ui.Context) {
 	if a.open {
 		c.OnShortcut(ui.Cmd, ui.KeyEnter, func() { s.submit(true) })
 	}
-	s.dialog(c, &a.open, &a.form, 440, s.text.Add, func() {
-		s.header(c, &a.open, func() { tile(c, icons.Rss) }, s.text.Add, "")
+	s.dialog(c, &a.open, &a.form, tokens.DialogWide, s.text.Add, func() {
+		s.header(c, head{open: &a.open, lead: func() { chip(c, icons.Plus, false) }, title: s.text.Add})
 	}, func() {
 		if line := s.addedLine(); line != "" {
 			s.addedCard(c, line)
@@ -1542,7 +1567,7 @@ func (s *Screen) addDialog(c *ui.Context) {
 func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 	th := c.Theme()
 	a := &s.add
-	ui.Column(c).FillWidth().Gap(th.Space(1)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(th, tokens.Space1)).Children(func() {
 		label(c, s.text.Address)
 		before := a.address
 		empty := strings.TrimSpace(a.address) == ""
@@ -1555,7 +1580,7 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 		shown := s.routeView()
 		public := !empty && valid && t.Public && !hasCand
 		looking := !empty && valid && !public && (a.look.state == lookWaiting || a.look.state == lookSearching)
-		box(c, "address", icons.Link, a.addressErr != "", th.Surface, func() {
+		box(c, "address", icons.Link, a.addressErr != "", func() {
 			in := ui.TextInputBase(c, &a.address).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.Address).
 				Placeholder(s.text.AddressPlaceholder).Disabled(a.busy).
 				OnTextKey(func(k ui.TextKey) bool { // the input takes Enter itself, so the shortcut comes here
@@ -1595,21 +1620,10 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 			a.addressErr, a.exists, a.dupe, a.formErr = "", 0, false, ""
 		}
 		switch {
+		case a.addressErr != "" && (a.exists != 0 || a.dupe):
+			s.duplicate(c)
 		case a.addressErr != "":
-			show, anyway := "", ""
-			if a.exists != 0 {
-				show = s.text.ShowIt
-			}
-			if a.dupe {
-				anyway = s.text.AddAnyway
-			}
-			switch errorLine(c, a.addressErr, show, anyway) {
-			case 0:
-				a.open = false
-				s.deps.Show(a.exists)
-			case 1:
-				s.addAnyway()
-			}
+			errorLine(c, a.addressErr)
 		case shown == routeSearching:
 			s.searching(c, s.text.SearchingRoutes)
 		case shown == routeList:
@@ -1632,6 +1646,24 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 			s.found(c, t, what, where)
 		}
 	})
+}
+
+// duplicate is the warning under the address when it is already followed: a banner with the layers icon, and
+// "Show it" when the subscription is known and "Add anyway" when the spelling differs.
+func (s *Screen) duplicate(c *ui.Context) {
+	t := c.Theme()
+	a := &s.add
+	theme.Banner{Icon: icons.Layers, Tone: t.Warning, Title: a.addressErr, Actions: func() {
+		if a.exists != 0 {
+			if (theme.Button{Small: true, Style: theme.Plain, Text: s.text.ShowIt}).Draw(c).Clicked() {
+				a.open = false
+				s.deps.Show(a.exists)
+			}
+		}
+		if a.dupe && (theme.Button{Small: true, Text: s.text.AddAnyway}).Draw(c).Clicked() {
+			s.addAnyway()
+		}
+	}}.Draw(c)
 }
 
 // describeCandidate says what a feed found for the address subscribes to, and where it is.
@@ -1659,7 +1691,7 @@ func (s *Screen) describeCandidate(cand client.Candidate) (what, where string) {
 // searching is the line under the address field while the feeds of a page address are looked up.
 func (s *Screen) searching(c *ui.Context, text string) {
 	th := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(th.Space(1.5)).Role(ui.RoleStatus).Label(text).
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, tokens.Space1_5)).Role(ui.RoleStatus).Label(text).
 		Children(func() {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(th)).TextColor(th.TextMuted)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
@@ -1667,7 +1699,8 @@ func (s *Screen) searching(c *ui.Context, text string) {
 		})
 }
 
-// pickList lists the feeds found for the address, for the user to choose one.
+// pickList lists the feeds found for the address, for the user to choose one: a card of radio rows under a muted line
+// that counts them.
 func (s *Screen) pickList(c *ui.Context) {
 	th := c.Theme()
 	a := &s.add
@@ -1675,53 +1708,91 @@ func (s *Screen) pickList(c *ui.Context) {
 	if len(a.look.found) == 1 {
 		head = s.text.FoundSubscribed
 	}
-	ui.Column(c).FillWidth().Gap(theme.Px(th, 6)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(th, tokens.Space1_5)).Children(func() {
 		help(c, head)
-		ui.RadioGroup(c, func() {
+		choiceCard(c, head, func() {
 			for i, cand := range a.look.found {
+				if i > 0 {
+					choiceLine(c)
+				}
 				what, where := s.describeCandidate(cand)
 				if cand.SubscribedID != 0 {
 					s.subscribedRow(c, cand, what, where)
 					continue
 				}
-				on := a.look.chosen == i
-				row := ui.RadioBase(c, &a.look.chosen, i).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).
-					Padding(th.Space(2), theme.Px(th, 10)).Radius(th.Radius).Label(what + s.text.Separator + where).Disabled(a.busy)
-				if on {
-					row.Background(theme.Soft(th, th.Accent))
-				} else {
-					row.Border(1, th.Border)
-				}
-				row.Children(func() {
-					ui.Icon(c, s.candidateIcon(cand)).FontSize(theme.IconMedium(th)).TextColor(th.Accent)
-					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-						ui.Text(c, what).FontWeight(600).SingleLine()
-						ui.Text(c, where).Font("monospace").FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).SingleLine()
-					})
-					if on {
-						ui.Icon(c, icons.Check).FontSize(theme.IconMedium(th)).TextColor(th.Success)
-					}
-				})
+				row := ui.RadioBase(c, &a.look.chosen, i).Label(what + s.text.Separator + where).Disabled(a.busy)
+				choiceRow(c, row, a.look.chosen == i, s.candidateIcon(cand), what, where, "")
 			}
-		}).FillWidth().Gap(theme.Px(th, 6)).Label(head)
+		})
 	})
 }
 
-// subscribedRow is a feed some subscription already follows: it is not one to choose, so instead of the check it
-// says "Subscribed", and pressing it closes the dialog and shows that subscription.
-func (s *Screen) subscribedRow(c *ui.Context, cand client.Candidate, what, where string) {
-	th := c.Theme()
-	row := ui.ButtonBase(c).Key("subscribed-"+strconv.FormatInt(cand.SubscribedID, 10)+cand.URL+cand.RSSHubPath).
-		FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).Padding(th.Space(2), theme.Px(th, 10)).Radius(th.Radius).
-		Border(1, th.Border).Label(what + s.text.Separator + where + s.text.Separator + s.text.Subscribed).Disabled(s.add.busy)
+// choiceCard is a card of radio rows, as the candidates of design BDialogAdd: Surface, radius-card, the rows inset
+// space-4 with a hairline between them.
+func choiceCard(c *ui.Context, name string, rows func()) {
+	t := c.Theme()
+	ui.RadioGroup(c, rows).FillWidth().PaddingX(theme.Px(t, tokens.Space4)).Radius(theme.Px(t, tokens.RadiusCard)).
+		Background(theme.Surface(t)).Label(name)
+}
+
+// choiceLine is the hairline between two rows of a choiceCard.
+func choiceLine(c *ui.Context) {
+	t := c.Theme()
+	ui.Box(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).Background(t.Border)
+}
+
+// choiceRow draws row as a row of a choiceCard, at least row-compact high: the radio (none for a row that is not a
+// choice, whose tag then sits at the end), the icon, and what in label over where in monospace meta muted.
+func choiceRow(c *ui.Context, row ui.Element, on bool, icon *ui.SVG, what, where, tag string) {
+	t := c.Theme()
+	row.FillWidth().MinHeight(theme.Px(t, tokens.RowCompact)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+		PaddingY(theme.Px(t, tokens.Space2))
+	hot := row.Hovered()
 	row.Children(func() {
-		ui.Icon(c, s.candidateIcon(cand)).FontSize(theme.IconMedium(th)).TextColor(th.TextMuted)
+		if tag == "" {
+			radio(c, on, hot)
+		}
+		color := t.Accent
+		if tag != "" {
+			color = t.TextMuted
+		}
+		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color)
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			ui.Text(c, what).FontWeight(600).SingleLine()
-			ui.Text(c, where).Font("monospace").FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, what).FontWeight(tokens.TextLabel.Weight).SingleLine()
+			ui.Text(c, where).Font("monospace").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).SingleLine()
 		})
-		ui.Text(c, s.text.Subscribed).FontSize(theme.Px(th, 12)).TextColor(th.TextMuted)
+		if tag != "" {
+			ui.Text(c, tag).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
+		}
 	})
+}
+
+// radio is the 16 dot of a radio row: the Accent with a dot of AccentText when on, else a strong hairline ring that
+// darkens under the pointer.
+func radio(c *ui.Context, on, hot bool) {
+	t := c.Theme()
+	side := theme.Px(t, tokens.Space4)
+	dot := ui.Box(c).Size(side, side).Shrink(0).Radius(theme.Pill(side)).Center().Role(ui.RoleNone)
+	if on {
+		dot.Background(t.Accent).Children(func() {
+			inner := theme.Px(t, tokens.Space1_5)
+			ui.Box(c).Size(inner, inner).Radius(theme.Pill(inner)).Background(t.AccentText)
+		})
+		return
+	}
+	ring := theme.LineStrong(t)
+	if hot {
+		ring = theme.Text2(t)
+	}
+	dot.Background(theme.RaisedFill(t)).Border(1.5, ring)
+}
+
+// subscribedRow is a feed some subscription already follows: it is not one to choose, so instead of the radio it
+// says "Subscribed" at the end, and pressing it closes the dialog and shows that subscription.
+func (s *Screen) subscribedRow(c *ui.Context, cand client.Candidate, what, where string) {
+	row := ui.ButtonBase(c).Key("subscribed-" + strconv.FormatInt(cand.SubscribedID, 10) + cand.URL + cand.RSSHubPath).
+		Label(what + s.text.Separator + where + s.text.Separator + s.text.Subscribed).Disabled(s.add.busy)
+	choiceRow(c, row, false, s.candidateIcon(cand), what, where, s.text.Subscribed)
 	if row.Clicked() {
 		s.add.open = false
 		s.deps.Show(cand.SubscribedID)
@@ -1761,44 +1832,39 @@ func (s *Screen) found(c *ui.Context, t target, what, where string) {
 	if t.Platform != feed {
 		icon = kindIcon(kinds[s.add.kind])
 	}
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).Padding(th.Space(2), theme.Px(th, 10)).Radius(th.Radius).
-		Background(theme.Soft(th, th.Accent)).Role(ui.RoleStatus).Label(what + s.text.Separator + where).
-		Children(func() {
-			ui.Icon(c, icon).FontSize(theme.IconMedium(th)).TextColor(th.Accent)
-			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				ui.Text(c, what).FontWeight(600).SingleLine()
-				ui.Text(c, where).Font("monospace").FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).SingleLine()
-			})
-			ui.Icon(c, icons.Check).FontSize(theme.IconMedium(th)).TextColor(th.Success)
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, tokens.Space3)).Padding(theme.Px(th, tokens.Space4)).
+		Radius(theme.Px(th, tokens.RadiusCard)).Background(theme.Surface(th)).Role(ui.RoleStatus).
+		Label(what + s.text.Separator + where).Children(func() {
+		side := theme.Px(th, tokens.TileL)
+		ui.Box(c).Size(side, side).Shrink(0).Radius(theme.Px(th, tokens.RadiusXS)).Center().Background(theme.Track(th)).
+			Children(func() { ui.Icon(c, icon).FontSize(theme.IconMedium(th)).TextColor(th.Accent) })
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			ui.Text(c, what).FontWeight(tokens.TextLabel.Weight).SingleLine()
+			ui.Text(c, where).Font("monospace").FontSize(theme.Px(th, tokens.TextMeta.Size.En)).TextColor(th.TextMuted).SingleLine()
 		})
+		ui.Icon(c, icons.CircleCheckBig).FontSize(theme.IconMedium(th)).TextColor(th.Success)
+	})
 }
 
-// addedCard says what "Add and continue" has added so far, above the address for the next one.
+// addedCard says what "Add and continue" has added so far, a quiet line above the address for the next one.
 func (s *Screen) addedCard(c *ui.Context, line string) {
 	th := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).Padding(th.Space(2), theme.Px(th, 10)).Radius(th.Radius).
-		Background(theme.Soft(th, th.Success)).Role(ui.RoleStatus).Label(line).Children(func() {
-		ui.Icon(c, icons.Check).FontSize(theme.IconMedium(th)).TextColor(th.Success)
-		ui.Text(c, line).Grow(1).MinWidth(0).FontWeight(500).SingleLine()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, tokens.Space1_5)).Role(ui.RoleStatus).Label(line).Children(func() {
+		ui.Icon(c, icons.CircleCheckBig).FontSize(theme.IconSmall(th)).TextColor(th.Success)
+		ui.Text(c, line).Grow(1).MinWidth(0).FontSize(theme.Px(th, tokens.TextMeta.Size.En)).TextColor(theme.Text2(th)).SingleLine()
 	})
 }
 
 // publicCard warns that the public RSSHub instance blocks Oriel. With an instance of the user's own set it offers to
 // swap the address for its route, only when pressed; without one it leads to the settings to add it.
 func (s *Screen) publicCard(c *ui.Context) {
-	t := c.Theme()
 	a := &s.add
 	own := strings.TrimSpace(a.root) != ""
 	text := s.text.PublicNoInstance
 	if own {
 		text = s.text.PublicNote
 	}
-	ui.Column(c).FillWidth().Gap(t.Space(2)).Padding(theme.Px(t, 10)).Radius(t.Radius).
-		Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(1.5)).Children(func() {
-			ui.Icon(c, icons.TriangleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning).Margin(2, 0, 0, 0)
-			ui.Text(c, text).FontWeight(500).TextColor(t.Warning).Shrink(1).Wrap()
-		})
+	warnCard(c, text, func() {
 		if own {
 			use := theme.Button{Small: true, Text: s.text.UseMine}.Draw(c)
 			if use.Clicked() {
@@ -1817,18 +1883,26 @@ func (s *Screen) publicCard(c *ui.Context) {
 	})
 }
 
+// warnCard is a warning that needs more than a banner line: a Surface card, radius-card, padding space-3, the
+// triangle in Warning before the sentence in ink, and body under it.
+func warnCard(c *ui.Context, text string, body func()) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space3)).
+		Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Surface(t)).Role(ui.RoleStatus).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space2)).Children(func() {
+			ui.Icon(c, icons.TriangleAlert).FontSize(theme.IconMedium(t)).TextColor(t.Warning).Margin(theme.Px(t, tokens.Space0_5), 0, 0, 0)
+			ui.Text(c, text).FontWeight(tokens.TextLabel.Weight).Shrink(1).Wrap()
+		})
+		body()
+	})
+}
+
 // baseCard asks for the RSSHub instance a route needs, which the settings do not have yet.
 func (s *Screen) baseCard(c *ui.Context) {
-	t := c.Theme()
 	a := &s.add
-	ui.Column(c).FillWidth().Gap(t.Space(2)).Padding(theme.Px(t, 10)).Radius(t.Radius).
-		Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(1.5)).Children(func() {
-			ui.Icon(c, icons.TriangleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning).Margin(2, 0, 0, 0)
-			ui.Text(c, s.text.NeedsBase).FontWeight(500).TextColor(t.Warning).Shrink(1).Wrap()
-		})
+	warnCard(c, s.text.NeedsBase, func() {
 		before := a.base
-		box(c, "base", icons.Link, a.baseErr != "", theme.RaisedFill(t), func() {
+		box(c, "base", icons.Link, a.baseErr != "", func() {
 			in := ui.TextInputBase(c, &a.base).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.RSSHubAddress).
 				Placeholder(s.text.RSSHubPlaceholder).Disabled(a.busy)
 			if a.baseErr != "" {
@@ -1853,14 +1927,14 @@ func (s *Screen) baseCard(c *ui.Context) {
 
 func (s *Screen) kindPicker(c *ui.Context, value *int) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		label(c, s.text.ShowAs)
 		seg := ui.SegmentedBase(c, value, len(kinds))
-		seg.Track.FillWidth().Padding(3).Gap(2).Radius(10).Background(theme.Track(t)).Label(s.text.ShowAs).
+		seg.Track.FillWidth().Padding(3).Gap(2).Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Track(t)).Label(s.text.ShowAs).
 			Children(func() {
 				for i, kind := range kinds {
 					name := s.kindName(kind)
-					b := theme.Fade(seg.Segment(i).Grow(1).Basis(0).Height(theme.Px(t, 28)).Gap(t.Space(1.5)).Radius(6).
+					b := theme.Fade(seg.Segment(i).Grow(1).Basis(0).Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space1_5)).Radius(theme.Px(t, tokens.RadiusSm)).
 						Label(name))
 					color, iconColor := theme.Text2(t), t.TextMuted
 					switch {
@@ -1902,10 +1976,10 @@ func (s *Screen) kindSuggestion(c *ui.Context) {
 		text = s.text.SuggestForum
 	}
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(2), t.Space(3)).Radius(8).
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusCard)).
 		Background(theme.Surface(t)).Label(text).Children(func() {
 		ui.Icon(c, kindIcon(e.src.SuggestedKind)).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-		ui.Text(c, text).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Grow(1).MinWidth(0).Wrap()
+		ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Grow(1).MinWidth(0).Wrap()
 		use := theme.Button{Small: true, Disabled: e.busy, Text: strings.ReplaceAll(s.text.UseKind, "{kind}", s.kindName(e.src.SuggestedKind))}.Draw(c)
 		if use.Clicked() {
 			e.kind = i
@@ -1915,16 +1989,15 @@ func (s *Screen) kindSuggestion(c *ui.Context) {
 
 func (s *Screen) pair(c *ui.Context, left, right func()) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).Children(func() {
-		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(1)).Children(left)
-		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(1)).Children(right)
+	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space3)).Children(func() {
+		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(theme.Px(t, tokens.Space1)).Children(left)
+		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(theme.Px(t, tokens.Space1)).Children(right)
 	})
 }
 
 func (s *Screen) titleField(c *ui.Context, value *string, busy, focus bool, submit func()) {
-	t := c.Theme()
 	label(c, s.text.Title)
-	box(c, "title", nil, false, t.Surface, func() {
+	box(c, "title", nil, false, func() {
 		in := ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.Title).
 			Placeholder(s.text.TitlePlaceholder).Disabled(busy)
 		if focus {
@@ -2022,7 +2095,7 @@ func (s *Screen) keepField(c *ui.Context) {
 		}
 		shown = strings.ReplaceAll(s.text.KeepFollowing, "{keep}", global)
 	}
-	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		s.choiceSelect(c, &e.keep, options, s.text.Keep, shown, s.keepName, e.busy, false)
 		help(c, s.text.KeepHelp)
 	})
@@ -2043,7 +2116,7 @@ func (s *Screen) openName(i int64) string {
 func (s *Screen) openField(c *ui.Context) {
 	t := c.Theme()
 	e := &s.edit
-	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		s.choiceSelect(c, &e.target, []int64{0, 1, 2}, s.text.OpenTarget, s.openName(e.target), s.openName, e.busy, false)
 		help(c, s.text.OpenTargetHelp)
 	})
@@ -2073,7 +2146,7 @@ func (s *Screen) paceField(c *ui.Context) {
 		options = append(slices.Clone(options), e.pace)
 		slices.Sort(options[1:])
 	}
-	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		s.choiceSelect(c, &e.pace, options, s.text.Pace, s.paceName(e.pace), s.paceName, e.busy, false)
 		help(c, s.text.PaceHelp)
 	})
@@ -2096,7 +2169,7 @@ func (s *Screen) capField(c *ui.Context) {
 		options = append(slices.Clone(options), e.dailyCap)
 		slices.Sort(options[1:])
 	}
-	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		s.choiceSelect(c, &e.dailyCap, options, s.text.Cap, s.capName(e.dailyCap), s.capName, e.busy, false)
 		help(c, s.text.CapHelp)
 	})
@@ -2107,9 +2180,9 @@ func (s *Screen) capField(c *ui.Context) {
 func (s *Screen) extractGroup(c *ui.Context) {
 	t := c.Theme()
 	e := &s.edit
-	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
-		head := ui.ButtonBase(c).Key("extract").AlignSelf(ui.Start).Height(theme.Px(t, 28)).AlignItems(ui.Center).Gap(t.Space(1.5)).
-			Radius(t.Radius).Label(s.text.Extract).Role(ui.RoleDisclosure).Expanded(e.extract)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
+		head := ui.ButtonBase(c).Key("extract").AlignSelf(ui.Start).Height(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).
+			Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Extract).Role(ui.RoleDisclosure).Expanded(e.extract)
 		if head.Hovered() {
 			head.Background(t.SurfaceHover)
 		}
@@ -2120,7 +2193,7 @@ func (s *Screen) extractGroup(c *ui.Context) {
 				chevron = icons.ChevronDown
 			}
 			ui.Icon(c, chevron).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			ui.Text(c, s.text.Extract).FontSize(theme.Px(t, 12)).FontWeight(500)
+			ui.Text(c, s.text.Extract).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500)
 		})
 		if head.Clicked() {
 			e.extract = !e.extract
@@ -2131,9 +2204,9 @@ func (s *Screen) extractGroup(c *ui.Context) {
 		help(c, s.text.ExtractHelp)
 		s.extractInput(c, "selector", &e.selector, s.text.ExtractSelector, s.text.ExtractSelectorPlaceholder, s.text.ExtractSelectorHelp)
 		s.extractInput(c, "referer", &e.referer, s.text.ExtractReferer, s.text.ExtractRefererPlaceholder, s.text.ExtractRefererHelp)
-		ui.Column(c.Key("rewrites")).FillWidth().Gap(t.Space(1)).Children(func() {
+		ui.Column(c.Key("rewrites")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 			label(c, s.text.ExtractRewrites)
-			area := ui.TextArea(c, &e.rewrites).FillWidth().Lines(3, 8).Font("monospace").FontSize(theme.Px(t, 12)).
+			area := ui.TextArea(c, &e.rewrites).FillWidth().Lines(3, 8).Font("monospace").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).
 				Label(s.text.ExtractRewrites).Description(s.text.ExtractRewritesHelp).
 				Placeholder(s.text.ExtractRewritesPlaceholder).Disabled(e.busy)
 			if area.Focused() {
@@ -2153,9 +2226,9 @@ func (s *Screen) headersGroup(c *ui.Context) {
 	if e.src.URL == "" {
 		return
 	}
-	ui.Column(c.Key("headers")).FillWidth().Gap(t.Space(1)).Children(func() {
-		head := ui.ButtonBase(c).Key("headers-head").AlignSelf(ui.Start).Height(theme.Px(t, 28)).AlignItems(ui.Center).Gap(t.Space(1.5)).
-			Radius(t.Radius).Label(s.text.Headers).Role(ui.RoleDisclosure).Expanded(e.headers)
+	ui.Column(c.Key("headers")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
+		head := ui.ButtonBase(c).Key("headers-head").AlignSelf(ui.Start).Height(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).
+			Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Headers).Role(ui.RoleDisclosure).Expanded(e.headers)
 		if head.Hovered() {
 			head.Background(t.SurfaceHover)
 		}
@@ -2166,7 +2239,7 @@ func (s *Screen) headersGroup(c *ui.Context) {
 				chevron = icons.ChevronDown
 			}
 			ui.Icon(c, chevron).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			ui.Text(c, s.text.Headers).FontSize(theme.Px(t, 12)).FontWeight(500)
+			ui.Text(c, s.text.Headers).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500)
 		})
 		if head.Clicked() {
 			e.headers = !e.headers
@@ -2187,9 +2260,9 @@ func (s *Screen) headersGroup(c *ui.Context) {
 func (s *Screen) proxyGroup(c *ui.Context) {
 	t := c.Theme()
 	e := &s.edit
-	ui.Column(c.Key("proxy")).FillWidth().Gap(t.Space(1)).Children(func() {
-		head := ui.ButtonBase(c).Key("proxy-head").AlignSelf(ui.Start).Height(theme.Px(t, 28)).AlignItems(ui.Center).Gap(t.Space(1.5)).
-			Radius(t.Radius).Label(s.text.Proxy).Role(ui.RoleDisclosure).Expanded(e.proxyOpen)
+	ui.Column(c.Key("proxy")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
+		head := ui.ButtonBase(c).Key("proxy-head").AlignSelf(ui.Start).Height(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).
+			Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Proxy).Role(ui.RoleDisclosure).Expanded(e.proxyOpen)
 		if head.Hovered() {
 			head.Background(t.SurfaceHover)
 		}
@@ -2200,7 +2273,7 @@ func (s *Screen) proxyGroup(c *ui.Context) {
 				chevron = icons.ChevronDown
 			}
 			ui.Icon(c, chevron).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			ui.Text(c, s.text.Proxy).FontSize(theme.Px(t, 12)).FontWeight(500)
+			ui.Text(c, s.text.Proxy).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500)
 		})
 		if head.Clicked() {
 			e.proxyOpen = !e.proxyOpen
@@ -2209,7 +2282,7 @@ func (s *Screen) proxyGroup(c *ui.Context) {
 			return
 		}
 		names := map[int64]string{proxyFollow: s.text.ProxyFollow, proxyDirect: s.text.ProxyDirect, proxyCustom: s.text.ProxyCustom}
-		ui.Column(c.Key("proxy-mode")).FillWidth().Gap(t.Space(1)).Children(func() {
+		ui.Column(c.Key("proxy-mode")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 			s.choiceSelect(c, &e.proxyMode, []int64{proxyFollow, proxyDirect, proxyCustom}, s.text.ProxyMode, names[e.proxyMode],
 				func(v int64) string { return names[v] }, e.busy, false)
 			switch e.proxyMode {
@@ -2222,9 +2295,9 @@ func (s *Screen) proxyGroup(c *ui.Context) {
 		if e.proxyMode != proxyCustom {
 			return
 		}
-		ui.Column(c.Key("proxy-address")).FillWidth().Gap(t.Space(1)).Children(func() {
+		ui.Column(c.Key("proxy-address")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 			label(c, s.text.ProxyAddress)
-			box(c, "proxy-address-box", nil, e.proxyErr, t.Surface, func() {
+			box(c, "proxy-address-box", nil, e.proxyErr, func() {
 				ui.TextInputBase(c, &e.proxyURL).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.ProxyAddress).
 					Description(s.text.ProxyAddressHelp).Placeholder("socks5://127.0.0.1:1080").Disabled(e.busy)
 			})
@@ -2253,9 +2326,9 @@ func (s *Screen) proxyGroup(c *ui.Context) {
 // proxySecret is one box of the proxy's sign-in; the password is masked.
 func (s *Screen) proxySecret(c *ui.Context, key string, value *string, labelText, placeholder string, mask bool) {
 	t := c.Theme()
-	ui.Column(c.Key(key)).FillWidth().Gap(t.Space(1)).Children(func() {
+	ui.Column(c.Key(key)).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		label(c, labelText)
-		box(c, key, nil, false, t.Surface, func() {
+		box(c, key, nil, false, func() {
 			in := ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(labelText).Placeholder(placeholder).
 				Disabled(s.edit.busy)
 			if mask {
@@ -2269,9 +2342,9 @@ func (s *Screen) proxySecret(c *ui.Context, key string, value *string, labelText
 // refused it.
 func (s *Screen) headerInput(c *ui.Context, key string, value *string, invalid bool, labelText, placeholder, helpText, errText string) {
 	t := c.Theme()
-	ui.Column(c.Key(key)).FillWidth().Gap(t.Space(1)).Children(func() {
+	ui.Column(c.Key(key)).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		label(c, labelText)
-		box(c, key, nil, invalid, t.Surface, func() {
+		box(c, key, nil, invalid, func() {
 			ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(labelText).Description(helpText).
 				Placeholder(placeholder).Disabled(s.edit.busy)
 		})
@@ -2285,9 +2358,9 @@ func (s *Screen) headerInput(c *ui.Context, key string, value *string, invalid b
 // extractInput is one single-line field of the Extraction group, with its help line.
 func (s *Screen) extractInput(c *ui.Context, key string, value *string, labelText, placeholder, helpText string) {
 	t := c.Theme()
-	ui.Column(c.Key(key)).FillWidth().Gap(t.Space(1)).Children(func() {
+	ui.Column(c.Key(key)).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		label(c, labelText)
-		box(c, key, nil, false, t.Surface, func() {
+		box(c, key, nil, false, func() {
 			ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(labelText).Description(helpText).
 				Placeholder(placeholder).Disabled(s.edit.busy)
 		})
@@ -2295,18 +2368,20 @@ func (s *Screen) extractInput(c *ui.Context, key string, value *string, labelTex
 	})
 }
 
-// choiceSelect is a select of whole numbers named by name, with the label above it; shown is what the closed select
-// reads for the current value.
+// choiceSelect is a select of design CSelect, of whole numbers named by name, with the label above it: the look of a
+// secondary button with its text at the start and a muted chevron at the end. shown is what the closed select reads
+// for the current value.
 func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, busy, muted bool) {
 	t := c.Theme()
 	label(c, labelText)
 	sel := ui.SelectBase(c, value)
-	sel.Trigger.FillWidth().Height(theme.Px(t, 32)).Gap(t.Space(2)).PaddingX(t.Space(2.5)).Radius(t.Radius).
-		Background(t.Surface).Label(labelText).Disabled(busy)
-	fieldEdge(c, sel.Trigger)
-	if sel.Trigger.Focused() {
-		sel.Trigger.Border(0, ui.Color{}).Background(theme.RaisedFill(t)).Shadow(0, 0, 0, 2, t.Focus)
-	} else if sel.Trigger.Hovered() {
+	sel.Trigger.FillWidth().MinWidth(theme.Px(t, tokens.MenuMin)).Height(theme.Px(t, tokens.Control)).
+		Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl)).
+		Background(theme.Track(t)).Label(labelText).Disabled(busy)
+	switch {
+	case sel.Trigger.Pressed():
+		sel.Trigger.Background(t.SurfacePressed)
+	case sel.Trigger.Hovered():
 		sel.Trigger.Background(t.SurfaceHover)
 	}
 	sel.Trigger.Children(func() {
@@ -2317,10 +2392,10 @@ func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labe
 		ui.Icon(c, icons.ChevronDown).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160))
+		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, tokens.MenuMin))
 		theme.Sheet(c, panel, theme.Popup)
 		for _, v := range options {
-			item := sel.Item(v).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(6)
+			item := sel.Item(v).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space2)).Radius(theme.Px(t, tokens.RadiusSm))
 			if item.Highlighted() {
 				item.Background(theme.Chosen(t))
 			}
@@ -2340,8 +2415,8 @@ func (s *Screen) editDialog(c *ui.Context) {
 	if where == "" {
 		where = e.src.RSSHubPath
 	}
-	s.dialog(c, &e.open, &e.form, 480, s.text.EditTitle, func() {
-		s.header(c, &e.open, func() { s.glyph(c, kinds[e.kind], e.src) }, s.text.EditTitle, where)
+	s.dialog(c, &e.open, &e.form, tokens.DialogWide, s.text.EditTitle, func() {
+		s.header(c, head{open: &e.open, lead: func() { s.glyph(c, kinds[e.kind], e.src) }, title: s.text.EditTitle, sub: where, mono: true})
 	}, func() {
 		s.health(c)
 		s.servedBy(c)
@@ -2441,19 +2516,19 @@ func (s *Screen) movedCard(c *ui.Context) {
 		return
 	}
 	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(t.Space(2)).Padding(theme.Px(t, 10), theme.Px(t, 12)).Radius(t.Radius).
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusCard)).
 		Background(theme.Surface(t)).Role(ui.RoleStatus).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space2)).Children(func() {
 			ui.Icon(c, icons.Signpost).FontSize(theme.IconSmall(t)).TextColor(t.Accent).Margin(2, 0, 0, 0)
-			ui.Text(c, s.text.Moved).FontSize(theme.Px(t, 12)).FontWeight(500).Shrink(1).Wrap()
+			ui.Text(c, s.text.Moved).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).Shrink(1).Wrap()
 		})
 		ui.Column(c).FillWidth().Selectable().Children(func() {
-			ui.Text(c, src.MovedTo).Font("monospace").FontSize(theme.Px(t, 12)).Wrap()
+			ui.Text(c, src.MovedTo).Font("monospace").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).Wrap()
 		})
 		if s.edit.movedErr != "" {
 			errorLine(c, s.edit.movedErr, "")
 		}
-		ui.Row(c).Gap(t.Space(2)).Children(func() {
+		ui.Row(c).Gap(theme.Px(t, tokens.Space2)).Children(func() {
 			update := theme.Button{Small: true, Style: theme.Primary, Text: s.text.MovedUpdate,
 				Label: s.fill(s.text.MovedUpdateSource, Name(src))}.Draw(c)
 			if update.Clicked() {
@@ -2472,36 +2547,36 @@ func (s *Screen) health(c *ui.Context) {
 	t := c.Theme()
 	src := s.edit.src
 	text, bad := s.healthText(src, s.deps.Now())
-	icon, color, fill := icons.Check, t.TextMuted, theme.Surface(t)
+	icon, tone := icons.CircleCheckBig, t.Success
 	switch {
 	case src.Paused:
-		icon = icons.Pause
+		icon, tone = icons.Pause, theme.Text2(t)
 	case bad:
-		icon, color, fill = icons.CircleAlert, t.Warning, theme.Soft(t, t.Warning)
+		icon, tone = icons.CircleAlert, t.Warning
 	}
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(2), theme.Px(t, 10)).Radius(t.Radius).
-		Background(fill).Children(func() {
-		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
-		line := ui.Text(c, text).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap().
-			Role(ui.RoleStatus)
-		if bad && src.LastError != "" {
-			line.Tooltip(FailureDetail(s.lang, src, text)).Description(src.LastError)
+	b := theme.Banner{Icon: icon, Tone: tone, Title: text, Actions: func() {
+		if src.Paused {
+			return
 		}
-		if !src.Paused {
-			refresh := theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.refreshText(src)}.Draw(c)
-			if refresh.Clicked() {
-				s.Refresh(src)
-			}
+		refresh := theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.refreshText(src)}.Draw(c)
+		if refresh.Clicked() {
+			s.Refresh(src)
 		}
-	})
+	}}.Draw(c)
+	b.Label(text)
+	if bad && src.LastError != "" {
+		b.Tooltip(FailureDetail(s.lang, src, text)).Description(src.LastError)
+	}
 }
 
-// switchRow is a switch with its label and help, which turn it too; help may be empty.
+// switchRow is a row of design CSettingRow with a switch: the name in body over its help in meta muted, which turn
+// it too, and the switch at the end; help may be empty.
 func (s *Screen) switchRow(c *ui.Context, key string, value *bool, text, helpText string) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 10)).Children(func() {
+	ui.Row(c).FillWidth().MinHeight(theme.Px(t, tokens.RowCompact)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+		PaddingY(theme.Px(t, tokens.Space2)).Children(func() {
 		column := ui.Column(c).Key(key).Grow(1).MinWidth(0).Children(func() {
-			label(c, text)
+			ui.Text(c, text)
 			if helpText != "" {
 				help(c, helpText)
 			}
@@ -2519,10 +2594,10 @@ func (s *Screen) switchRow(c *ui.Context, key string, value *bool, text, helpTex
 // groupTitle opens a group of the edit dialog: a small icon and the name, as a level 3 heading.
 func groupTitle(c *ui.Context, icon *ui.SVG, text string) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(1.5)).Margin(t.Space(1.5), 0, 0, 0).Children(func() {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Margin(theme.Px(t, tokens.Space1_5), 0, 0, 0).Children(func() {
 		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-		ui.Text(c, text).FontSize(theme.Px(t, 12)).FontWeight(500).TextColor(t.TextMuted).
-			Role(ui.RoleHeading).Level(3)
+		ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(tokens.TextMetaStrong.Weight).
+			TextColor(t.TextMuted).Role(ui.RoleHeading).Level(3)
 	})
 }
 
@@ -2533,10 +2608,10 @@ func (s *Screen) aiGroup(c *ui.Context) {
 	e := &s.edit
 	groupTitle(c, icons.Sparkles, s.text.AIGroup)
 	if e.aiOff {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(2), theme.Px(t, 10)).Radius(t.Radius).
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusCard)).
 			Background(theme.Surface(t)).Children(func() {
 			ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			ui.Text(c, s.text.AIOff).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().
+			ui.Text(c, s.text.AIOff).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Wrap().
 				Role(ui.RoleStatus)
 			open := theme.Button{Small: true, Text: s.text.OpenSettings}.Draw(c)
 			if open.Clicked() {
@@ -2551,9 +2626,9 @@ func (s *Screen) aiGroup(c *ui.Context) {
 	s.switchRow(c, "translate", &e.auto[1], s.text.AutoTranslate, "")
 	s.switchRow(c, "titles", &e.titles, s.text.TranslateTitles, s.text.TranslateTitlesHelp)
 	for i, text := range [2]string{s.text.PromptSummary, s.text.PromptTranslate} {
-		ui.Column(c.Key(text)).FillWidth().Gap(t.Space(1)).Children(func() {
+		ui.Column(c.Key(text)).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 			label(c, text)
-			area := ui.TextArea(c, &e.prompts[i]).FillWidth().Lines(3, 8).Font("monospace").FontSize(theme.Px(t, 12)).
+			area := ui.TextArea(c, &e.prompts[i]).FillWidth().Lines(3, 8).Font("monospace").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).
 				Label(text).Placeholder(s.text.PromptPlaceholder).Disabled(e.busy)
 			if area.Focused() {
 				area.Background(theme.RaisedFill(t))
@@ -2564,7 +2639,7 @@ func (s *Screen) aiGroup(c *ui.Context) {
 
 func (s *Screen) muteField(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		label(c, s.text.Mute)
 		area := ui.TextArea(c, &s.edit.mute).FillWidth().Lines(2, 6).Label(s.text.Mute).Description(s.text.MuteHelp).
 			Disabled(s.edit.busy)
@@ -2578,7 +2653,7 @@ func (s *Screen) muteField(c *ui.Context) {
 			if e.hidden > 0 {
 				text = s.count(s.text.MuteHidden, e.hidden)
 			}
-			ui.Text(c, text).FontSize(theme.Px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).Wrap().Role(ui.RoleStatus)
+			ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(t.TextMuted).Wrap().Role(ui.RoleStatus)
 		}
 	})
 }
@@ -2688,26 +2763,26 @@ func (s *Screen) healthNumbers(h client.SourceHealth) string {
 
 func (s *Screen) healthDialog(c *ui.Context) {
 	r := &s.report
-	s.dialog(c, &r.open, &r.form, 480, s.text.HealthTitle, func() {
-		s.header(c, &r.open, func() { tile(c, icons.HeartPulse) }, s.text.HealthTitle, s.text.HealthSub)
+	s.dialog(c, &r.open, &r.form, tokens.DialogWide, s.text.HealthTitle, func() {
+		s.header(c, head{open: &r.open, lead: func() { chip(c, icons.HeartPulse, false) }, title: s.text.HealthTitle, sub: s.text.HealthSub})
 	}, func() {
 		t := c.Theme()
 		switch {
 		case r.state == healthLoading:
-			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(8), 0).Role(ui.RoleStatus).
+			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space8), 0).Role(ui.RoleStatus).
 				Label(s.text.HealthChecking).Children(func() {
 				spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconLarge(t)).TextColor(t.TextMuted)
 				spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 				ui.Text(c, s.text.HealthChecking).TextColor(t.TextMuted)
 			})
 		case r.state == healthFailed:
-			ui.Column(c).FillWidth().Padding(t.Space(6), 0).Children(func() {
+			ui.Column(c).FillWidth().Padding(theme.Px(t, tokens.Space6), 0).Children(func() {
 				if errorLine(c, r.err, s.text.Retry) == 0 {
 					s.loadHealth()
 				}
 			})
 		case len(r.items) == 0:
-			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(8), 0).Role(ui.RoleStatus).
+			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space8), 0).Role(ui.RoleStatus).
 				Label(s.text.HealthOk).Children(func() {
 				ui.Icon(c, icons.CircleCheckBig).FontSize(theme.IconLarge(t)).TextColor(t.Success)
 				ui.Text(c, s.text.HealthOk).FontWeight(500)
@@ -2746,22 +2821,22 @@ func (s *Screen) healthRow(c *ui.Context, h client.SourceHealth) {
 	case client.HealthFailing:
 		icon = icons.TriangleAlert
 	}
-	ui.Row(c).Key("health"+strconv.FormatInt(h.ID, 10)).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).
-		Padding(t.Space(3), 0).Children(func() {
+	ui.Row(c).Key("health"+strconv.FormatInt(h.ID, 10)).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+		Padding(theme.Px(t, tokens.Space3), 0).Children(func() {
 		s.smallGlyph(c, src)
-		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(t.Space(0.5)).Children(func() {
+		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
 			ui.Text(c, name).FontWeight(500).SingleLine()
-			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(1.5)).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
 				ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color).Margin(2, 0, 0, 0)
 				reason := s.healthReason(h)
-				line := ui.Text(c, reason).FontSize(theme.Px(t, 12)).TextColor(color).Shrink(1).MinWidth(0).Wrap()
+				line := ui.Text(c, reason).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(color).Shrink(1).MinWidth(0).Wrap()
 				if h.LastError != "" {
 					line.Tooltip(locale.WithOriginal(s.lang, reason, h.LastError)).Description(h.LastError)
 				}
 			})
-			ui.Text(c, s.healthNumbers(h)).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine()
+			ui.Text(c, s.healthNumbers(h)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).SingleLine()
 		})
-		ui.Row(c).Gap(t.Space(1)).Children(func() {
+		ui.Row(c).Gap(theme.Px(t, tokens.Space1)).Children(func() {
 			if h.State == client.HealthMoved {
 				update := theme.Button{Small: true, Text: s.text.MovedUpdate, Label: s.fill(s.text.MovedUpdateSource, name)}.Draw(c)
 				if update.Clicked() {
@@ -2806,24 +2881,19 @@ func (s *Screen) healthRow(c *ui.Context, h client.SourceHealth) {
 	})
 }
 
-// smallGlyph is the site icon of src at 16 DIP, or its monogram while the icon is not decoded or when it has none.
+// smallGlyph is the site icon of src on a tile-s, or its monogram while the icon is not decoded or when it has none.
 func (s *Screen) smallGlyph(c *ui.Context, src client.Source) {
 	t := c.Theme()
 	var icon *ui.Bitmap
 	if src.IconURL != "" && s.deps.Icon != nil {
 		icon = s.deps.Icon(src.IconURL)
 	}
-	if icon != nil {
-		ui.Box(c).Size(theme.Px(t, 16), theme.Px(t, 16)).Radius(4).Clip().Children(func() {
-			ui.Image(c, icon).Fit(ui.Cover).Fill()
-		})
+	if icon == nil {
+		theme.Monogram(c, Name(src), tokens.TileS)
 		return
 	}
-	letter := "·"
-	if r, _ := utf8.DecodeRuneInString(strings.TrimLeft(Name(src), "@#·/ ")); r != utf8.RuneError {
-		letter = strings.ToUpper(string(r))
-	}
-	ui.Box(c).Size(theme.Px(t, 16), theme.Px(t, 16)).Radius(4).Center().Background(t.SurfacePressed).Children(func() {
-		ui.Text(c, letter).FontSize(theme.Px(t, 9)).FontWeight(600)
+	side := theme.Px(t, tokens.TileS)
+	ui.Box(c).Size(side, side).Shrink(0).Radius(theme.Px(t, tokens.RadiusXS)).Clip().Children(func() {
+		ui.Image(c, icon).Fit(ui.Cover).Fill()
 	})
 }

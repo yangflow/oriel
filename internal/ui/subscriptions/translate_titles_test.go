@@ -7,7 +7,7 @@ func TestEditTranslateTitles(t *testing.T) {
 		t.Run(language, func(t *testing.T) {
 			s, f, tt := setup(t, language)
 			f.settings.AIBaseURL, f.settings.AIModel = "https://api.example.com/v1", "small"
-			tt.SetSize(1000, 1600)
+			tt.SetSize(1000, 2400)
 			s.Edit(f.sources[0])
 			tt.Frame()
 			f.settle(tt)
@@ -37,7 +37,7 @@ func TestEditTranslateTitles(t *testing.T) {
 func TestEditLeavesTranslateTitlesAloneWhenUntouched(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	f.sources[0].TranslateTitles = true
-	tt.SetSize(1000, 1600)
+	tt.SetSize(1000, 2400)
 	s.Edit(f.sources[0])
 	tt.Frame()
 	f.settle(tt)
