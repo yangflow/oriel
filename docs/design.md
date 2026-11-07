@@ -297,7 +297,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   (title above the count, so both fit 320 in either language), the filter as icons only (the segments keep their names for
   the screen reader), the time range and search; Mark all as read is not drawn there, it stays
   on its keys and in the List fallback. The reader pane is the reader itself, without its own sidebar: its toolbar is the
-  reader's (Summarize and Translate in the glass capsule, then Star, mark read or unread, Open in browser, Copy link and
+  reader's (Summarize and Translate, then Star, mark read or unread, Open in browser and
   More), without Back and without the previous and next arrows, since J and K step and the list is beside it; the
   actions work from the pane. Until a post is open the pane has no toolbar and shows the empty state (BEmpty) "Choose a post", with
   no hint. A hairline separates the panes. The chosen row keeps its
@@ -523,34 +523,48 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   reader's row gives way only as far as the column's edge leaves them too little room (below), and the sidebar button moves to the toolbar's leading edge, right after them,
   before the title, on the same line as before; it stays at that fixed position whatever the title is. The pane does not animate in or out. The choice is a device
   preference and is remembered.
-- **The reader.** It takes the main column's place; the pane stays. A 52 high toolbar row over the article, as in the
-  timeline: "Back to {scope}" (a chevron and the scope's name) at the left as a bare button; at the right
-  [previous, next] and [star (`Star` when starred), read toggle, open in browser, copy link (link icon), more] as bare icon buttons (more is the ellipsis, a menu button whose menu, the platform's own with text only, holds Copy as Markdown and Save as Markdown…; it is dimmed with the other article buttons). The order is fixed, the same in every article: back, previous, next, summary, translate, star, read/unread, open in
-  browser, copy link, more. The one glass capsule, [Summarize (sparkles), Translate (languages)], takes the summary and translate places,
-  carrying their names beside the icon (12
-  medium, icon only below a 760 wide window). The read toggle is an envelope: closed (mail) to mark unread, open
-  (mail-open) to mark read. Summarize and Translate are toggles: pressed,
-  they sit on `Soft(Accent)` in `Accent` and their names become "Hide the summary" and "Show the original". In a wide
-  window the toolbar lines up with the article column, centered in the whole main column as the article is: the back
-  button's icon starts at the text's left edge and the last button ends at its right edge. The window buttons over a
-  hidden pane (above) move the row only where the column's edge leaves them too little room: the row then pads that
-  side more and keeps its width, so in a wide window it does not move at all. Under the toolbar the article scrolls, a column at most 680 wide at Medium and Standard width (680 times the Reading text size scale and the Line width factor 0.85 / 1 / 1.2: 578, 680 and 816 at Medium, tokens.md; the window can limit it further), centered,
-  padded 28/32/48 (20 below a 760 wide window): the source's monogram, name, full date and, after a dot, the reading time ("6 min read") at 12; the title at 24 (21
-  when narrow, an exception in tokens.md) weight 600 in `Text`; the note on where the text comes from (`Warning` soft fill when it is the feed's,
-  `Surface` with a spinner while the full text is being got), 12, its "Open the original" link underlined and, when the
-  full text failed, a "Try again" text button at its end; when both the full text and the feed's text exist, the
-  Full text | Feed switch, the segmented control of the translation note (24 high segments in a 2 padded `Track` of ink 7%, the chosen one
-  `Raised`) on its own row, left aligned, 18 below the title and the notes; then the text 22 below. The body is set in the Reading font (the interface font unless the reader chose a serif or a family, tokens.md) at 16 and line height 1.7 (1.85 in
+- **The reader.** It takes the main column's place; the pane stays. A 52 high toolbar row (`Toolbar`) over the article,
+  design `BReaderBar`, every button a bare icon button (`ToolButton`, `Control` square, `IconM` glyph, named and
+  tooltipped with its key, never a word beside it), `Space1` apart. In order: back (chevron-left, "Back to {scope}",
+  Esc), previous and next (chevron-up and chevron-down, K and J); then, pushed to the right, Full text | Feed when the
+  article has both (the small `CSegmented`, a hairline after it), Summarize (sparkles) and Translate (languages), a
+  hairline, star (`Star` tint when starred), the read toggle (circle-dot, in `Accent` while the entry is unread, as the
+  timeline's unread dot), Open in browser (external-link) and More (ellipsis). Beside the list (the pane) back,
+  previous and next are not drawn. More is the platform's own text menu: the buttons moved out of the row, Copy link,
+  Full text and Feed as checked items when the switch does not fit, then Immersive reading and Find…, then Copy as
+  Markdown and Save as Markdown…. Below a 440 wide main column Open in browser moves into More, below 380 the read
+  toggle too. Summarize and Translate are toggles: pressed, they sit on `Soft(Accent)` in `Accent` and their names
+  become "Hide the summary" and "Show the original"; a translation the article cannot use stays in place, disabled,
+  named by the reason, which its tooltip shows. The order is fixed, the same in every article. In a wide window the
+  toolbar lines up with the article column, centered in the whole main column as the article is: the first glyph
+  stands on the text's left edge and the last on its right one (`Space6` inset, `Space2` below a 760 wide window). The
+  window buttons over a hidden pane (above) move the row only where the column's edge leaves them too little room: the
+  row then pads that side more and keeps its width, so in a wide window it does not move at all. Under the toolbar the
+  article scrolls, a column at most 680 wide at Medium and Standard width (680 times the Reading text size scale and
+  the Line width factor 0.85 / 1 / 1.2: 578, 680 and 816 at Medium, tokens.md; the window can limit it further),
+  centered, padded `Space6` below the toolbar, `Space8` at the sides and `Space12` at the end (`Space4`, `Space4` and
+  `Space8` below a 760 wide window); its parts stand `Space6` apart. The head, design `BReaderHead`, stacks `Space3`
+  apart: the source's monogram (`TileS`), name in `TextMetaStrong` `Text2`, the full date and the reading time ("6
+  min read") in `TextMeta` `TextMuted`, separated by dots; the title in `TextDisplay` (`TextDisplayCompact` below a
+  760 wide window) in `Text`; the lines on other copies and on a revision (below); and the note on where the text comes
+  from, a `CBanner`: file-text in `Warning`, "Not the full text" over "Showing what the feed carries" when the text is
+  the feed's, with a small Try again button when the full text failed; a turning loader, "Getting the full text" over
+  "Showing what the feed carries until then" while it is being got. The text follows. The body is set in the Reading font (the interface font unless the reader chose a serif or a family, tokens.md) at 16 and line height 1.7 (1.85 in
   Chinese) by default, in `theme.Prose`; the Reading font, text size and Line spacing preferences change it, the text size and the Line width change the column's width, the Reading appearance changes the colors of the whole content area (Color and dark mode, Reading appearance), and h2, h3, the
   gaps between paragraphs and list items and code scale in step with the size. The Reading font sets the body only: h2 and h3 use the interface font,
   19 and 16 semibold, 1.9em and 1.3em above, 0.6em below; 1.05em between paragraphs, 0.3em between list items, a 22
   wide marker column; quotes behind a 2 DIP ink 16% line in `Text2`; code on `Surface` at 13 monospace, radius 12,
   scrolling sideways, inline code on an ink 5.5% fill, radius 4; links in `Accent` with a 1 DIP underline 3 below in
   `Accent` at 38%; pictures radius 12 with a 0.5 DIP ink 10% outline, sized as in Pictures in the text below,
-  captions 12 in `TextMuted`. Loading is a skeleton of `Surface` bars; the empty states
-  (getting the text, no text, can't load) are a 48 tile, a 15 semibold heading, a hint at most 320 wide and a button; "no text" has two, the primary "Open the original" and "Try again", which runs the extraction again and shows the getting state meanwhile.
+  captions 12 in `TextMuted`. Loading is a skeleton of `Surface` bars. The empty states, design `BEmpty`, stand in for the text under the head:
+  the icon in `Text2` on a `Surface` disc twice `TileL`, a `TextDisplay` title saying what is missing, a body fact in
+  `Text2` only when the title cannot carry it (at most `Dialog` wide), and one button, the one thing to do next.
+  Getting the text: a turning loader, "Getting the full text", Open the original. No text: "No text to show", the
+  fact that the page could not be extracted and the feed carries none, and Try again (it runs the extraction again and
+  shows the getting state meanwhile) when the extraction failed, else Open the original. Can't load: wifi-off,
+  "Couldn't load this entry", "The server didn't answer.", Try again.
   **Media and embeds.** The reader plays nothing and loads no embedded page, but it says what it left out (docs/product.md, the reader's text). Each iframe, video, audio, object and embed is one row in the text, in its place, with the paragraph spacing (1.4em above and below, like a picture): `Surface` fill, radius 10, a 0.5 DIP ink 10% outline, at least 40 high, padded 10 by 12, 10 between its parts. First a 16 icon in `TextMuted` by kind (play for a video, volume-2 for audio, app-window for an iframe, object or embed), then the words in 13 `Text2` on one line ("There's a video here", "There's audio here", "There's embedded content here"; an ellipsis if the column is too narrow for them), then at the end "Open in browser" in 12 medium `Accent` with the external icon (14). The whole row is one button: hover darkens the fill (ink 8%), the focus ring is 2 DIP `Focus` with 1 offset, a press opens the entry's link in the system browser. It is named "{words}. Open in browser" ("这里有一个视频。在浏览器中打开"); when the element has a `title` attribute the title joins the name only, "{words}: {title}. Open in browser", and is never drawn (the visible words stay fixed, so the row has one look); no announcement when the text is laid out. With no link on the entry the row is the same without the trailing action, is not a button and takes no focus. Hidden elements get no row. Rows follow one another without being merged, and are never selected or searched; a figure's caption stays under its row.
-  When the text is nothing but these rows, the entry is "only embedded content" and the reader shows the empty state under the title in place of "No text to show": the 52 tile with the kind's icon (play, volume-2 or app-window), the 15 semibold heading ("Only a video here", "Only audio here" or "Only embedded content here" for a mix or an embedded page), the 13 hint "The reader doesn't play video or audio. Open it in the browser." (at most 320 wide) and one primary button "Open in browser" (external icon), which opens the entry's link; with no link there is no button. No "Try again" and no warning note: nothing failed. The toolbar's own Open in browser stays. Strings: `copy.json` of the reader, `en` and `zh-Hans`. Mockup: the `reader` page of the screens canvas, `embeds` (a video, an audio player and an embedded page among text), `embed-only` and `embed-only-audio`.
+  When the text is nothing but these rows, the entry is "only embedded content" and the reader shows the empty state under the title in place of "No text to show": the `BEmpty` disc with the kind's icon (play, volume-2 or app-window), the heading ("Only a video here", "Only audio here" or "Only embedded content here" for a mix or an embedded page), the fact "The reader doesn't play video or audio." and one button "Open in browser" (external icon), which opens the entry's link; with no link there is no button. No "Try again" and no warning note: nothing failed. The toolbar's own Open in browser stays. Strings: `copy.json` of the reader, `en` and `zh-Hans`. Mockup: the `reader` page of the screens canvas, `embeds` (a video, an audio player and an embedded page among text), `embed-only` and `embed-only-audio`.
   **Superscript, subscript and footnotes.** Marks are set in the same line and size as the text, as the Unicode superscript and subscript characters (10⁶, 2¹⁰, H₂O); MyGo cannot shift a baseline, and a mark with a character that has no such form (letters beyond a few, an expression) is drawn at body size as `^(i+1)` or `_(max)`, never smaller than the five tiers. No Chinese spacing is added beside a mark. A footnote reference is the mark in `Accent` without an underline (it is a link, named "Footnote N" to screen readers); clicking it scrolls the note to about 96 below the top of the article and fills the note with `Soft(Accent)`, radius 6, for about 1.6 seconds (no fade with Reduce motion); the note's own back arrow (or, when the page has none, one Oriel adds after the note's text, `Accent`, named "Back to the text") returns to the reference the same way. The notes (`role="doc-endnotes"` or class `footnotes`) sit under a 96 wide hairline at 0.8125em in `Text2`. A link to `#top` or `#` goes to the top; an in-page link whose target is not on the page stays plain text.
   **Tables.** A table of at least two rows and two columns whose cells hold only inline content is a data table: a frame of radius 12 with a 0.5 DIP ink 10% outline, cells at 0.8125em in `Prose` padded 8 by 12 with 0.5 DIP `Border` dividers between rows only, the header row (a `thead`, or a first row of `th`) on `Surface` in `Text` at weight 600, set apart by its bottom divider. A column is as wide as its widest cell, at most 240 (longer text wraps) and at least 48; a table narrower than the text column keeps that width, left aligned, and its frame hugs it. Cells align left, or as the `align` attribute says; a column of only numbers aligns right with tabular figures. A `caption` goes below the frame at 12 in `TextMuted`. A table wider than the column scrolls sideways inside the column, as code blocks do: a 32 wide fade of `Background` on each side where cells are cut off, a 3 high position bar (`Track` with a thumb of ink 28%, radius 4) 6 under the frame, and the frame takes the keyboard focus (arrow keys scroll, the focus ring is drawn around the frame); it is read as "Table, N columns, M rows". `colspan` is honored; `rowspan` is not (the covered cell stays empty). A table that is not a data table (one row or one column, or blocks inside the cells) stays as lines of text with the cells set apart by a dot.
   The whole text is one selection.
@@ -593,20 +607,20 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   shift of the text, the hairline shown); it hides when the pointer leaves, unless the keyboard focus is in the toolbar or a menu from it is open.
   The hidden toolbar is only transparent, not removed, so Tab reaches its buttons and a button taking the focus shows it. The toolbar's ends stay at the article column, but no
   closer than 640 wide in all, so the buttons do not fold early in a wide window; below that the narrow-window steps apply as in the normal reader.
-  Shown, the toolbar has one more button, "Exit immersive reading" (Lucide `minimize-2`, the toolbar button spec, tooltip "Exit immersive reading (Z)"), right
-  before More; it exists only in immersive reading. There is no button that enters it: the key, the palette's "Immersive reading" action (reader only) and a
+  Shown, the toolbar holds one button only, "Exit immersive reading" (Lucide `minimize-2`, tooltip "Exit immersive reading (Z)") at its right
+  end; the keys do the rest. It is entered by the key, More's "Immersive reading" item, the palette's "Immersive reading" action (reader only) and a
   Timeline menu item of the same name without accelerator (it does nothing unless the reader shows) do. J, K, N, S, M and O work as ever, so nothing needs the pointer.
   Cmd/Ctrl+\ leaves it too instead of toggling the sidebar; immersive reading never changes the device preference of the sidebar: leaving shows the sidebar as the preference says.
   It ends with the reader (back to the list, a lost session) and is not remembered across restarts. Resizing the window keeps it; the system's full screen is
   separate and untouched. Accessibility: entering announces "Immersive reading on" and leaving "Immersive reading off" with `Announce`, and the focus stays on the
   article (a focused toolbar button that disappears hands the focus to the article). Drawn in the `reader` page of the screens canvas, `immersive` and `immersive-bar`.
 - **Find in the article.** Cmd/Ctrl+F in the reader opens a find row; it does nothing while the article is still loading or has failed (no text to search), and it
-  never leaves the reader. The row is `ui.FindBar` (field, count, Previous, Next, Done), 44 high, laid between the toolbar band and the article: it sits under the
-  52 high toolbar with `Background` and the hairline below it, and its content is aligned to the article column like the toolbar's. The article moves down by
-  the row's height (no overlay, so no text is hidden under it) and returns when it closes; the scroll position of the text is kept. In immersive reading the row
-  shows in the same place in the empty band without bringing the toolbar. The field is 28 high, `Soft` ink fill, radius 8, search icon, placeholder "Find" (the toolkit's own word),
+  never leaves the reader; More's "Find…" opens it too. The row is `ui.FindBar` (field, count, Previous, Next, Done), `Control` high, in a
+  floating panel under the toolbar at its right, `Space4` from the column's edge (`Space2` from both edges below a 760 wide window), at most `Dialog`
+  wide: `Raised` fill, `RadiusCard`, `Space1` padding and the popup shadow. It floats over the text, so the article does not move; a match it
+  steps to is scrolled clear of it. In immersive reading the panel shows in the same place without bringing the toolbar. The field is `Soft` ink fill, radius 8, search icon, placeholder "Find" (the toolkit's own word),
   the Focus ring while focused; the count is 12 tabular muted ("2 of 4"), "No matches" in `Danger` (the field and the buttons stay, Previous and Next disabled);
-  Previous and Next are 28 icon buttons (`chevron-up`, `chevron-down`) and Done is a text button. States: empty (field focused, no count, no highlight), typing
+  Previous and Next are icon buttons (`chevron-up`, `chevron-down`) and Done is a text button. States: empty (field focused, no count, no highlight), typing
   (every match highlighted, the first match of the text is current, the view scrolls just enough to show it, count "n of m"), no matches, closed.
   Highlight: all matches `Warning` at 25% over `Background`; the current one `Warning` at 40% plus a 1.5 `Text` underline, so it is not told apart by color alone (the toolkit draws no outline round text).
   Text inside a match is always `Text` (links, muted and code color give way), which keeps at least 5.8:1 on the 40% fill in both schemes (prose, the accent and
@@ -616,29 +630,29 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   locally and without a request, the cells and the caption of a data table included (a match never runs from one cell into the next; it is highlighted in the cell like any other, and stepping to it scrolls the table sideways, as far as the cell needs, as well as the page), and when the view changes (original, translation) or another article opens it runs again on the new text (a new article closes it). Counting stops at 1000 and reads "1 of 1000".
   Accessibility: the row is a toolbar named "Find in article", the field is labeled by it, the count is announced as it changes ("2 of 4", "No matches")
   with `Announce`, and no pointer is needed. Drawn in the `reader` page of the screens canvas, `find-empty`, `find`, `find-none`, `find-translation` and `immersive-find`.
-- **Summary and translation in the reader.** The summary is a card under the title, radius 14, padded 14/16/16, text
-  13 at line height 1.65 (1.75 in Chinese), its head 12 medium: while it is made, `Soft(Accent)` with a spinner,
-  "Summarizing…", a Cancel text button and three skeleton lines; done, `Soft(Accent)` with "Summary · by {model}", the
-  head in `Accent`, the model in `TextMuted`, and a close button; failed, the `Danger` soft fill with what went wrong
-  and a small "Try again" (when the daily cap on automatic work stopped it, the reason says so and points to Settings;
-  state `summary-cap` in the mockup); while AI is not set up, `Surface` with "AI isn't set up", one line on where to set it and a
-  small primary "Open settings". The translation replaces the title and text in place; the note under the title says
-  what is shown. While it is made, the original stays with a note (`Surface`, a spinner, Cancel); done, the note is
-  `Soft(Accent)`, "Translated by {model}" and a segmented Translation | Original switch, and the translated text is
-  plain paragraphs, pictures and links staying in the original; failed, the original stays with the note in the
-  `Danger` soft fill, the reason and "Try again". Cancel only stops waiting; leaving the article does the same.
+- **Summary and translation in the reader.** Each is a card under the head, design `BAICard`: `Surface`, `RadiusCard`,
+  padded `Space3` by `Space4`; its head (`RowDense`) the icon in `Accent` (sparkles, languages) and the title in
+  `TextLabel`, the state at its end in `TextMeta` `TextMuted`; what it holds comes `Space2` below. The summary card is
+  headed "Summary": while it is made, a turning loader, "Working…" and a muted Cancel link; done, "By {model}" at the
+  end and the summary below in `TextBody` at line height 1.65 (1.75 in Chinese); failed, the reason in one line with a
+  Try again link (when the daily cap on automatic work stopped it, the reason says so and points to Settings; state
+  `summary-cap` in the mockup). While AI is not set up, the card is headed "AI isn't set up" with a muted Close link,
+  "Summaries and translations need an AI endpoint." and an Open settings link. The translation replaces the title and
+  text in place; its card is headed by the language it is made in: while it is made, the original stays, with
+  "Translating…" and Cancel; done, "Translated by {model}" and the small segmented Translation | Original switch
+  (named "Text shown"), and the translated text is plain paragraphs, pictures and links staying in the original;
+  failed, the original stays with the reason and Try again. Cancel only stops waiting; leaving the article does the same.
 - **Selection card in the reader.** A selection in the article opens the system context menu with Copy and Select All
   and, after a separator, "Translate selection" and "Explain selection" (only while text is selected). Choosing one pins
-  a card to the bottom of the reader column, 16 above the window edge, floating over the text: the width of the text
-  column at most, radius 14, `Surface` with a 0.5 DIP `Border` rim and a soft shadow, padded 12/16/14. The head (12
-  medium, 22 high): the `languages` or `sparkles` icon in `Accent`, the task name, then the first 40 characters of the
-  selection in `TextMuted` in curly quotes with an ellipsis, and a 22 close button at the end. Below it the result in
-  13 at line height 1.65 (1.75 in Chinese), selectable, scrolling inside the card from 40% of the window height, and a
-  small "Copy" button (secondary; copying announces "Copied" to screen readers) with "by {model}" in `TextMuted` beside it.
-  Loading is a spinner head ("Translating…" or "Explaining…") over three skeleton lines; failed is the `Danger` soft
-  fill with the reason and a small "Try again"; AI off has the "AI isn't set up" copy and the primary "Open
-  Settings…"; a selection over 2000 characters shows "Select less text" with the limit and no button. Escape closes
-  the card before it goes back to the list. The card has the group role named after the task, and the result is announced when it arrives.
+  a card to the bottom of the reader column, `Space4` above the window edge, floating over the text: the width of the text
+  column at most, the `BAICard` on `Raised` with the popup shadow, padded `Space3` by `Space4`. The head: the
+  `languages` or `sparkles` icon in `Accent`, the task name, then the first 40 characters of the selection in
+  `TextMuted` in curly quotes with an ellipsis, and a muted Close link at the end. Below it the result in `TextBody`
+  at line height 1.65 (1.75 in Chinese), selectable, scrolling inside the card from 40% of the window height, and a
+  small "Copy" button (copying announces "Copied" to screen readers) with "By {model}" in `TextMuted` beside it.
+  Loading is a turning loader with "Working…"; failed is the reason with Try again; AI off says "Translating and
+  explaining need an AI endpoint." with an Open settings link; a selection over 2000 characters shows "Select less
+  text" with the limit and no button. Escape closes the card before it goes back to the list. The card has the group role named after the task, and the result is announced when it arrives.
 - **The lightbox.** The pictures of a social or image entry, over the whole window (`ui.DialogBase`, drawn in
   the `timeline` page of the screens canvas, `lightbox`, `lightbox-failed`, with `size=min` for 640). A solid
   layer of `RGB(20,17,13)` covers the window in both appearances, opaque so nothing of the list or the sidebar shows
@@ -802,9 +816,9 @@ values are in [design/tokens.json](../design/tokens.json) (reasons in [design/to
 - **Updated entries.** An article its feed changed after it was fetched (`docs/product.md`, Entry revisions) shows two
   quiet signs, never an accent and never a dot. In the timeline row's meta line, after the time and before the reading
   time, a 12 `pencil` icon and "Updated" in 12 `Text2`; a read row keeps its read look and the marker, and its
-  accessible name ends with "Updated". In the reader, a note under the title (the note of the page: `Surface`, radius
-  12, padded 11 and 14) holds the 14 `pencil` icon, "Updated Oct 20, 09:12" in 12 `Text2` and, at the right, a text
-  button "See changes" in 12 `Accent` (`aria-expanded` follows; "Hide changes" when open). Open, the note is followed
+  accessible name ends with "Updated". In the reader, a `CBanner` under the title: the `pencil` icon in `Accent`, "This article changed" over the
+  time it changed, and at its end a small button "See what changed" with a chevron after it (`aria-expanded`
+  follows; "Hide changes" when open). Open, the banner is followed
   by the changed paragraphs, 6 apart, each a box padded 8 and 12 with radius 10: a removed paragraph on `DangerSoft`
   with a minus sign, the word "Removed" in 11 semibold `Danger` and the old text struck through; an added one on
   `AccentSoft` with a plus sign, the word "Added" in 11 semibold `Accent` and the new text. A title change carries
@@ -1149,9 +1163,9 @@ Overlays share focus and Escape behavior; see
   tooltip and accessible name give the reason (Translate on an article already in the target language still reads
   "Translate"; the tooltip and name say "Already in Simplified Chinese"). It takes no focus or click. The glass capsule is a pill (radius 16) of its own; the open search field is `radius-control`. The row actions on a row
   (`row-dense` squares, `radius-sm`, on their `float` plate) are their own smaller spec; on the plate their hover fill is
-  `SurfaceHover` and pressed `SurfacePressed`. In a narrow window the end buttons of the reader move into More in a
-  fixed order, copy link first, then open in browser, then read/unread (below 500, 440 and 380 wide in the main column); the
-  640 wide minimum window reaches the first step only. The menu then lists them above Copy as Markdown, under a hairline.
+  `SurfaceHover` and pressed `SurfacePressed`. In a narrow main column the end buttons of the reader move into More in a
+  fixed order, open in browser first, then read/unread (below 440 and 380 wide); the menu then lists them first, above
+  Copy link.
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.
 - **Timeline keys.** J or Down and K or Up move between entries, N goes to the next unread entry below the chosen one
   (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in the

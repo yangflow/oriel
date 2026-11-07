@@ -111,46 +111,30 @@ func (s *Screen) loadRevision(e client.Entry) {
 	})
 }
 
-// revisedLine is the notice under the title of an article that was updated: when, and the button that shows or hides
-// what changed.
+// revisedLine is the banner under the title of an article that was updated, design CBanner: when, and the button that
+// shows or hides what changed, the changes under it.
 func (s *Screen) revisedLine(c *ui.Context, e client.Entry) {
 	if e.RevisedAt == 0 {
 		return
 	}
 	t := c.Theme()
 	when := locale.DateTime(s.lang, s.hours, s.deps.Now(), time.UnixMilli(e.RevisedAt))
-	text := strings.ReplaceAll(s.text.Revised, "{time}", when)
-	ui.Column(c).Key("revised").FillWidth().Margin(theme.Px(t, 14), 0, 0, 0).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(theme.Px(t, 6), theme.Px(t, 6), theme.Px(t, 6), theme.Px(t, 14)).
-			Radius(theme.Px(t, 12)).Background(theme.Surface(t)).Role(ui.RoleStatus).Label(text).Children(func() {
-			ui.Icon(c, icons.Pencil).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			ui.Text(c, text).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(theme.Text2(t)).Wrap()
-			if !s.rev.ready || len(s.rev.changes) == 0 {
-				return
+	ui.Column(c).Key("revised").FillWidth().Children(func() {
+		bn := theme.Banner{Icon: icons.Pencil, Tone: t.Accent, Title: s.text.Revised, Text: when}
+		if s.rev.ready && len(s.rev.changes) > 0 {
+			bn.Actions = func() {
+				label, icon := s.text.ShowChanges, icons.ChevronDown
+				if s.rev.open {
+					label, icon = s.text.HideChanges, icons.ChevronUp
+				}
+				b := theme.Button{Small: true, Icon: icon, IconAfter: true, Text: label}.Draw(c)
+				b.Role(ui.RoleDisclosure).Expanded(s.rev.open)
+				if b.Clicked() {
+					s.rev.open = !s.rev.open
+				}
 			}
-			label, icon := s.text.ShowChanges, icons.ChevronDown
-			if s.rev.open {
-				label, icon = s.text.HideChanges, icons.ChevronUp
-			}
-			b := ui.ButtonBase(c).Height(theme.Px(t, 26)).PaddingX(theme.Px(t, 8)).Gap(theme.Px(t, 4)).Radius(theme.Px(t, 8)).
-				Label(label).Role(ui.RoleDisclosure).Expanded(s.rev.open)
-			color := theme.Text2(t)
-			switch {
-			case b.Pressed():
-				b.Background(t.SurfacePressed)
-				color = t.Text
-			case b.Hovered():
-				b.Background(t.SurfaceHover)
-				color = t.Text
-			}
-			b.Children(func() {
-				ui.Text(c, label).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
-				ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
-			})
-			if b.Clicked() {
-				s.rev.open = !s.rev.open
-			}
-		})
+		}
+		bn.Draw(c).Label(s.text.Revised + ", " + when)
 		if s.rev.open && s.rev.ready {
 			s.changeList(c)
 		}

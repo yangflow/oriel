@@ -147,7 +147,7 @@ func TestCommunityPaneToolbars(t *testing.T) {
 	if s.reading != 20 {
 		t.Fatalf("reading %d", s.reading)
 	}
-	for _, label := range []string{"Summarize", "Translate", "Star", "Open in browser", "Copy link", "More"} {
+	for _, label := range []string{"Summarize", "Translate", "Star", "Open in browser", "More"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Errorf("no %q in the reader pane: %v", label, tt.Texts())
 		}
