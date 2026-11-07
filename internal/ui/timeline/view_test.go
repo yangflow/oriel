@@ -1977,7 +1977,8 @@ func TestMarkAboveScope(t *testing.T) {
 
 func TestMarkBelowScope(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	// The last entry has nothing below it.
+	// The last entry has nothing below it. The window is tall enough to show it: a click outside the window misses.
+	tt.SetSize(960, 1400)
 	if err := tt.RightClick("Go turns 16"); err != nil {
 		t.Fatal(err)
 	}

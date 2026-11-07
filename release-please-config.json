@@ -13,6 +13,10 @@
       "section": "Added"
     },
     {
+      "type": "refactor",
+      "section": "Changed"
+    },
+    {
       "type": "fix",
       "section": "Fixed"
     },
@@ -23,11 +27,6 @@
     {
       "type": "docs",
       "section": "Documentation",
-      "hidden": true
-    },
-    {
-      "type": "refactor",
-      "section": "Changed",
       "hidden": true
     },
     {
