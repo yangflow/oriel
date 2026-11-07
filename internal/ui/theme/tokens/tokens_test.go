@@ -22,6 +22,8 @@ func TestGeneratedIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A Windows checkout may turn the file's line ends into CRLF; the generator writes LF.
+	got = bytes.ReplaceAll(got, []byte("\r\n"), []byte("\n"))
 	if !bytes.Equal(got, want) {
 		t.Fatal("tokens_gen.go is not what design/tokens.json generates; run go generate in internal/ui/theme/tokens")
 	}
