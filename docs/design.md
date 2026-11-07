@@ -15,8 +15,9 @@ Five screens are built: the connect screen in `internal/ui/connect/`, which conn
 server, the timeline in `internal/ui/timeline/`, which is home, the subscription dialogs over it in
 `internal/ui/subscriptions/`, the reader in `internal/ui/reader/`, which takes the list's place for an article, and the
 settings in `internal/ui/settings/`, which take the whole window. Each is drawn on its page of the screens canvas, the
-[Oriel screens](https://claude.ai/artifact/MVcNGTHthRZ9q4Ac8PGsWZ) Design artifact, one artboard per state; "Drawn in
-the `timeline` page, `dense`" below names a page and an artboard there.
+[Oriel 设计稿](https://claude.ai/artifact/M1YW6F7vwnQm2Ze8BJnYcb) Design artifact: its `4 页面` page holds one artboard
+per state of each screen, and its `5 桌面` page the window on each platform. "Drawn in the `timeline` page, `dense`"
+below names a page and an artboard there.
 
 Related files: [design/README.md](../design/README.md) (the design artifacts and how a UI change is made),
 [design/tokens.json](../design/tokens.json) and [design/layout.json](../design/layout.json) (every design value and
@@ -29,19 +30,23 @@ Oriel's values form one system, kept in `design/tokens.json` and `design/layout.
 
 - **One source.** Colors, alphas, space, sizes, radii, text styles, the reading scale, shadows and motion are named
   tokens in `tokens.json`; layout patterns (bar, column, stack, inset, entry row…) and the geometry of each part are in
-  `layout.json`. They are the target, not yet the code: when #522 is done, `internal/ui/theme` is generated from them
-  and screens read only the generated names, with no literal size, color, alpha or duration in a view, and a guard
-  test fails on one. Until then the theme is written by hand with the values in the tables of `design/tokens.md`, and
-  views still pass literal sizes through `theme.Px`.
-- **Color in layers.** Every color names its layer: region (paper, page, pane), surface (surface, float), state (fill,
-  hover, selected, pressed, raised), role (prose, inverse, badge, viewer), text (fg, fg2, fg3, muted, faint), meaning
-  (accent, star, danger, success, warning) and line (line, line2, rule, shadow, scrim). The ink pane and the reading
+  `layout.json`. `tokens.json` is generated into the Go package `internal/ui/theme/tokens`, values only; package
+  `theme` decides how they are used, scales DIPs with the text size and applies high contrast. When #522 is done,
+  screens read only those names, with no literal size, color, alpha or duration in a view, and a guard test fails on
+  one. Until a screen has moved, the theme it uses is written by hand in `internal/ui/theme`, and it still
+  passes literal sizes through `theme.Px`. The patterns of `layout.json` are prose
+  until the first screen moves and gives them a structured form.
+- **Color in layers.** Every color names its layer: region (paper, pane), surface (surface, float, raised), state (fill,
+  hover, selected, pressed), role (accent and its steps, on-accent, soft, selection, focus, inverse, badge, viewer),
+  text (fg, prose, fg2, muted, faint), meaning (star, danger, success, warning) and line (line, line2, rule,
+  scrollbar, shadow, scrim). The ink pane and the reading
   presets replace a region and the roles drawn on it, nothing else.
 - **Contrast by target.** Text tiers are set by contrast targets on their worst bed, not by eye: fg 10:1, prose 8.5,
-  fg2 7, fg3 5.5, muted 4.5, faint 2.6; accent, danger and success 4.5; star and warning 3 (graphics). The pane keeps
-  ivory text at fg 8, fg2 6, muted 4.5. The beds and targets are the audit in `tokens.json`; with the generated theme (#522), a theme test
-  computes it in every scheme and preset and a value that misses cannot merge. Today `TestContrast` and
-  `TestReadingPresetContrast` check the hand-written values against their own, looser floors. Because muted holds on the fill and the selected row,
+  fg2 7, muted 4.5, faint 2.6; accent, danger and success 4.5; star and warning 3 (graphics). The pane keeps
+  ivory text at fg 8, fg2 6, muted 4.5, with its accent at 3 and faint at 2.6. The beds and targets are the audit in `tokens.json`; `TestContrastAudit` in
+  `internal/ui/theme/tokens` computes it in every scheme, the pane and every preset, with alphas as MyGo stores them (a
+  byte), and a value that misses cannot merge. The hand-written theme is still checked by `TestContrast` and
+  `TestReadingPresetContrast` against their own, looser floors. Because muted holds on the fill and the selected row,
   no screen needs a "use Text2 here" exception.
 - **State ladder.** fill < hover < selected < pressed, four alphas of the scheme's ink, so a hovered chosen row still
   reads as chosen and pressing it still shows.
@@ -49,7 +54,7 @@ Oriel's values form one system, kept in `design/tokens.json` and `design/layout.
   `Spacing`, radius-control is `Radius`), so MyGo's own fields and buttons draw with the system; every other token
   is read by name.
 - **Type and opacity are tokens too.** Three families (sans, the platform's UI font or the chosen Interface font;
-  serif, for the reading body only; mono, for code and addresses), eleven interface text styles and the reading scale.
+  serif, for the reading body only; mono, for code and addresses), ten interface text styles and the reading scale.
   Opacity comes only from `opacity-faded` and `opacity-separator`; a disabled glyph takes `faint` instead of fading.
 - **Patterns and parts first.** A screen is assembled from the patterns and parts of `layout.json`; when one value
   needs changing, the view uses MyGo's own method with a token name (`Padding`, `Gap`, `Height`, `Width`, `MaxWidth`).
@@ -977,6 +982,8 @@ What Oriel uses today:
   cut short or hides in a narrow window. The label is the name, and a tooltip that repeats it is noise. A shortcut is no
   reason to keep one; the key sheet lists the keys.
 - An icon-only button keeps a `Tooltip` with the same text as its accessibility `Label`.
+- Where an icon carries the meaning, the icon stands alone and its words go into the tooltip and the `Label`: the
+  reader's back, summary and translate, Open in Settings in the edit dialog, and the bulk actions of a list.
 - The one exception to the first rule is a row whose text is a name of the user's data that the layout cuts short (a
   subscription in the pane): it has a `Tooltip` with the full name, only while the name is actually cut, found by
   measuring the text against its box. A row that fits has none. The row's `Label` is the full name either way and its
@@ -1499,6 +1506,10 @@ color, and the row actions fade. See
   next launches, and an app-level language beats the system's, so System gives it none and MyGo follows the system by
   itself; only a language chosen in Settings is given. The one exception is a Chinese in another script (zh-Hant,
   zh-TW): MyGo finds Simplified no match for it and would say English, so Simplified is given then.
+- Help text is the exception, not the rule. When a control already says it (a label, a placeholder, a value, an
+  icon) there is no line under it. A line that stays is a short fact: a state, a number, a time, a consequence
+  ("Excludes starred · can't be undone", "Updated 3 min ago"); never what the control does or why it exists. A
+  settings group has a title and no description.
 - Every key has both translations, and each screen's test fails on a missing or untranslated entry. Accessible
   names are copy too: translate `Label` and `Description`.
 - Feed content (titles, text, author names) is shown as it comes, in whatever language it is in; it is not copy.

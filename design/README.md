@@ -10,9 +10,9 @@ on a real device is what counts.
 
 | Path | Purpose |
 |---|---|
-| `tokens.json` | Every design value: colors in layers, the contrast audit, space, sizes, radii, text styles, the reading scale, motion; the one source and the target the code moves to (#522) |
-| `layout.json` | Named layout patterns and the geometry of each part |
-| `tokens.md` | Why the values are what they are, mapped to MyGo theme roles |
+| `tokens.json` | Every design value: colors in layers with the MyGo roles they set, the contrast audit, spacing, radii, shadows, opacities, sizes, text styles, the reading scale and choices, motion |
+| `layout.json` | The layout rules, the named patterns and the utilities every assembly uses |
+| `tokens.md` | Why the values are what they are, and how the code reads them |
 | `icon.svg`, `mark.svg`, `tray.svg` | The product icon, the mark and the menu bar template, copied from the design system's Logos |
 | `export-icon.sh` | Renders the product icon and the tray images into `resources/` with Chrome |
 
@@ -20,27 +20,25 @@ on a real device is what counts.
 
 | Artifact | What it holds |
 |---|---|
-| [Oriel design system](https://claude.ai/artifact/LBUfZ9m6MHwCsXp4D1d97w) | The tokens of `tokens.json` drawn, the brand book (principles, color layers, type, space, shape, layout, icons, motion, voice), the core components and the logo (Logos: the product icon, the mark and the menu bar template, the source of this folder's copies) |
-| [Oriel screens](https://claude.ai/artifact/MVcNGTHthRZ9q4Ac8PGsWZ) | The screens canvas: one page per screen (`connect`, `timeline`, `subscriptions`, `reader`, `settings`) and one artboard per state, named like the state in `docs/design.md` |
+| [Oriel design system](https://claude.ai/artifact/LBUfZ9m6MHwCsXp4D1d97w) | The tokens of `tokens.json` and `layout.json` drawn, the brand book (principles, color, type, space and shape, layout, icons, logo, motion, voice), the components from level 1 to level 3 and Logos (the product icon, the mark and the menu bar template, the source of this folder's copies) |
+| [Oriel 设计稿](https://claude.ai/artifact/M1YW6F7vwnQm2Ze8BJnYcb) | The canvas, in pages by level: `1 小组件`, `2 控件`, `3 大组件`, `4 页面` (one artboard per state of each screen), `5 桌面` (the window on macOS, Windows and Linux, the menu bar menu, the app menu, the startup failure), and `规范`, `配色` and `品牌` |
 
-The artifacts are private to the maintainer until shared. The canvas draws each state in the light scheme, in English,
-at the default window size; dark, Simplified Chinese and the minimum and wide sizes follow from the tokens and the
-rules in `docs/design.md`, and are checked in the app. The startup failure message has no mockup; it is a native
-system error dialog (`internal/ui/startup/`).
+The artifacts are private to the maintainer until shared. The canvas draws each state in Simplified Chinese, in the
+light scheme unless the artboard says dark, at the default window size unless it says narrow; English, the other
+scheme and the minimum and wide sizes follow from the tokens and the rules in `docs/design.md`, and are checked in the
+app.
 
 ## Screens
 
-| Screen | Canvas page | Code |
-|---|---|---|
-| Connect | `connect` | `internal/ui/connect/` |
-| Timeline | `timeline` | `internal/ui/timeline/` |
-| Subscriptions | `subscriptions` | `internal/ui/subscriptions/` |
-| Reader | `reader` | `internal/ui/reader/` |
-| Settings | `settings` | `internal/ui/settings/` |
+Each screen's artboards are on the `4 页面` page, titled `4 页面：<screen> <state>`.
 
-A canvas page maps to a package: the `<screen>` page is implemented by `internal/ui/<screen>/`. The text and states on
-the page are the strings in that package's `copy.json` (English and Simplified Chinese) and the states its `Screen`
-can be in; the test in the package covers each state.
+| Screen | Artboards | Code |
+|---|---|---|
+| Connect | 连接服务端 | `internal/ui/connect/` |
+| Timeline | 时间线, 社交, 视频, 图片, the empty states, 离线, 筛选订阅, 侧栏收起, 窄窗口 | `internal/ui/timeline/` |
+| Reader | 阅读器, 沉浸阅读, 看图 | `internal/ui/reader/` |
+| Subscriptions | 设置 订阅, 添加订阅, 编辑订阅, 确认退订 | `internal/ui/subscriptions/` |
+| Settings | 设置 外观, 抓取, AI, 活动与存储, 导入 | `internal/ui/settings/` |
 
 ## Changing the UI
 

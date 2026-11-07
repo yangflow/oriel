@@ -46,6 +46,7 @@ internal/ui/locale/      system language to UI language (Simplified Chinese, Eng
 internal/ui/pictures/    the picture queue the reader and the timeline share: download order, cancellation, retry, memory limit
 internal/ui/tray/        copy for the tray menu and the unread count on the icon and badge
 internal/ui/theme/       palette and the helpers every screen shares: Px, Monogram
+internal/ui/theme/tokens/ the design tokens generated from design/tokens.json (`go generate` there), and their contrast audit
 internal/ui/typeset/     the spacing of Chinese text (docs/design.md, Chinese typesetting)
 internal/ui/icons/       the Lucide icon set
 internal/ui/startup/     copy for the native error dialog when desktop startup fails
