@@ -10,14 +10,14 @@ import (
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
-// TestToolbarOrder shows the toolbar keeps one order: back, previous, next, summary, translate, star, read, open,
-// copy link and more.
+// TestToolbarOrder shows the toolbar keeps one order: back, previous, next, summary, translate, star, read, open and
+// more.
 func TestToolbarOrder(t *testing.T) {
 	_, f, tt := setup(t, "en", full())
 	f.settle(tt)
 	prev := float32(-1)
 	for _, name := range []string{"Back to All", "Previous entry", "Next entry", "Summarize", "Translate", "Star",
-		"Mark as unread", "Open in browser", "Copy link", "More"} {
+		"Mark as unread", "Open in browser", "More"} {
 		r, ok := tt.Find(name)
 		if !ok {
 			t.Fatalf("no %q in %v", name, tt.Texts())
@@ -31,7 +31,7 @@ func TestToolbarOrder(t *testing.T) {
 
 // TestTranslateDisabledInTargetLanguage shows an entry already in the language of the translations keeps its
 // Translate button, disabled, named and explained by the reason; one in another language, or in none known, has it
-// enabled.
+// enabled and named Translate.
 func TestTranslateDisabledInTargetLanguage(t *testing.T) {
 	for _, tc := range []struct {
 		language string
@@ -42,23 +42,21 @@ func TestTranslateDisabledInTargetLanguage(t *testing.T) {
 		_, f, tt := setup(t, "en", art)
 		f.ai = client.AIResults{TargetLanguage: "zh-Hans"}
 		f.settle(tt)
-		// The visible label is Translate either way; the reason is only the accessible name (and the tooltip).
 		done, plain := slices.Contains(tt.Texts(), "Already in Simplified Chinese"), slices.Contains(tt.Texts(), "Translate")
-		if done != tc.done || !plain {
-			t.Errorf("language %q: name is the reason = %v, label is Translate = %v, want %v and true", tc.language, done,
-				plain, tc.done)
+		if done != tc.done || plain == tc.done {
+			t.Errorf("language %q: name is the reason = %v, name is Translate = %v, want %v and %v", tc.language, done,
+				plain, tc.done, !tc.done)
 		}
 		expect(t, tt, "Summarize")
 		if tc.done {
-			if err := tt.Click("Translate"); err == nil && len(f.queue) > 0 {
+			if err := tt.Click("Already in Simplified Chinese"); err == nil && len(f.queue) > 0 {
 				t.Errorf("the disabled button asked for a translation")
 			}
 		}
 	}
 }
 
-// TestTranslateDisabledSaysWhy shows the reason is in the tooltip, in both languages, and the other buttons that
-// do not apply stay in place too.
+// TestTranslateDisabledSaysWhy shows the reason names the button and is its tooltip, in both languages.
 func TestTranslateDisabledSaysWhy(t *testing.T) {
 	for _, tc := range []struct{ ui, target, want string }{
 		{"en", "zh-Hans", "Already in Simplified Chinese"},
@@ -70,10 +68,9 @@ func TestTranslateDisabledSaysWhy(t *testing.T) {
 		_, f, tt := setup(t, tc.ui, art)
 		f.ai = client.AIResults{TargetLanguage: tc.target}
 		f.settle(tt)
-		label := map[string]string{"en": "Translate", "zh-Hans": "翻译"}[tc.ui]
-		r, ok := tt.Find(label)
+		r, ok := tt.Find(tc.want)
 		if !ok {
-			t.Fatalf("%s: no %q in %v", tc.ui, label, tt.Texts())
+			t.Fatalf("%s: no %q in %v", tc.ui, tc.want, tt.Texts())
 		}
 		if n := count(tt.Texts(), tc.want); n != 1 {
 			t.Errorf("%s: the reason %q shows %d times before any hover, want once, as the accessible name", tc.ui, tc.want, n)
@@ -97,14 +94,14 @@ func TestAIOffKeepsButtonsEnabled(t *testing.T) {
 	click(t, tt, "Translate")
 }
 
-// TestToolbarOverflow shows the narrow main column moves copy link, then open and then mark as read into More, below
-// widths 500, 440 and 380, and More lists them above the Markdown items.
+// TestToolbarOverflow shows the narrow main column moves open and then mark as read into More, below widths 440 and
+// 380, and More lists them above Copy link, which always lives there.
 func TestToolbarOverflow(t *testing.T) {
-	buttons := []string{"Mark as unread", "Open in browser", "Copy link"}
+	buttons := []string{"Mark as unread", "Open in browser"}
 	for _, tc := range []struct {
 		column float32
 		moved  int
-	}{{600, 0}, {500, 0}, {499, 1}, {440, 1}, {439, 2}, {380, 2}, {379, 3}} {
+	}{{600, 0}, {440, 0}, {439, 1}, {380, 1}, {379, 2}} {
 		_, f, tt := setup(t, "en", full())
 		f.nav.Column = tc.column
 		f.settle(tt)
@@ -117,10 +114,7 @@ func TestToolbarOverflow(t *testing.T) {
 		}
 		click(t, tt, "More")
 		want := slices.Clone(buttons[len(buttons)-tc.moved:])
-		if tc.moved > 0 {
-			want = append(want, "-")
-		}
-		want = append(want, "Copy as Markdown", "Save as Markdown…")
+		want = append(want, "Copy link", "-", "Immersive reading", "Find…", "-", "Copy as Markdown", "Save as Markdown…")
 		if got := tt.Menu(); !slices.Equal(got, want) {
 			t.Errorf("column %v: More lists %v, want %v", tc.column, got, want)
 		}
@@ -149,8 +143,8 @@ func TestOverflowDefaultsToWindow(t *testing.T) {
 	f.settle(tt)
 	tt.SetSize(430, 800)
 	tt.Frame()
-	if _, ok := tt.Find("Copy link"); ok {
-		t.Errorf("Copy link shows in a 430 wide window: %v", tt.Texts())
+	if _, ok := tt.Find("Open in browser"); ok {
+		t.Errorf("Open in browser shows in a 430 wide window: %v", tt.Texts())
 	}
 }
 
@@ -187,8 +181,8 @@ func count(texts []string, want string) int {
 }
 
 // The toolbar lines up with the article column in every window width, with the window controls over it or not: the
-// back button begins 28 inside the column's left edge (its icon on the text's 32) and More ends 32 inside the right
-// one. The controls move the row only where the column leaves them no room.
+// back button begins 24 inside the column's left edge and More ends 24 inside the right one, their icons on the text's
+// 32 (8 and 16 in a narrow window). The controls move the row only where the column leaves them no room.
 func TestToolbarAlignsWithColumn(t *testing.T) {
 	for _, tc := range []struct {
 		width    int
@@ -215,10 +209,10 @@ func TestToolbarAlignsWithColumn(t *testing.T) {
 		}
 		w := float32(tc.width)
 		col := min(w, column)
-		left, right := (w-col)/2+28*unit, (w-col)/2+col-32*unit
+		left, right := (w-col)/2+24*unit, (w-col)/2+col-24*unit
 		narrow := tc.width < 760
 		if narrow {
-			left, right = (w-col)/2+12*unit, (w-col)/2+col-16*unit
+			left, right = (w-col)/2+8*unit, (w-col)/2+col-8*unit
 		}
 		if tc.controls {
 			left = max(left, 78)
@@ -229,8 +223,9 @@ func TestToolbarAlignsWithColumn(t *testing.T) {
 		if got := more.X + more.W; got < right-0.5 || got > right+0.5 {
 			t.Errorf("width %d controls %v: More ends at %v, want %v", tc.width, tc.controls, got, right)
 		}
-		if !tc.controls && !narrow && back.X+4*unit > source.X {
-			t.Errorf("width %d: Back icon at %v is right of the source line at %v", tc.width, back.X+4, source.X)
+		// The source line begins with the source's tile-s glyph and a space-1.5 gap.
+		if icon, line := back.X+8*unit, source.X-22*unit; !tc.controls && !narrow && (icon < line-0.5 || icon > line+0.5) {
+			t.Errorf("width %d: Back icon at %v, not on the source line at %v", tc.width, icon, line)
 		}
 	}
 }

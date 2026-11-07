@@ -288,9 +288,8 @@ func TestFeedOnly(t *testing.T) {
 	a.ExtractStatus = "failed"
 	_, f, tt := setup(t, "en", a)
 	f.settle(tt)
-	expect(t, tt, "This isn’t the full text: the page could not be extracted, so this is what the feed carries. ",
-		"What the feed ", "carries")
-	if err := tt.Click("Open the original"); err != nil {
+	expect(t, tt, "Not the full text", "Showing what the feed carries", "What the feed ", "carries")
+	if err := tt.Click("Open in browser"); err != nil {
 		t.Fatal(err)
 	}
 	if opened := tt.OpenedURLs(); !slices.Equal(opened, []string{"https://go.dev/blog/go1.27"}) {
@@ -308,7 +307,7 @@ func TestExtracting(t *testing.T) {
 	a.ExtractStatus = "pending"
 	_, f, tt := setup(t, "en", a)
 	f.settle(tt)
-	expect(t, tt, "Getting the full text. Until then, this is what the feed carries. ", "The summary of the feed.")
+	expect(t, tt, "Getting the full text", "Showing what the feed carries until then", "The summary of the feed.")
 	f.now = f.now.Add(4 * time.Second)
 	tt.Frame()
 	if len(f.queue) != 0 {
@@ -323,14 +322,14 @@ func TestExtracting(t *testing.T) {
 		t.Fatalf("asked %d times", f.asked)
 	}
 	expect(t, tt, "The summary of the feed.")
-	absent(t, tt, "Can’t load this entry")
+	absent(t, tt, "Couldn’t load this entry")
 	f.err = nil
 	f.article.ExtractStatus, f.article.ExtractedHTML = "ok", "<p>The whole article.</p>"
 	f.now = f.now.Add(5 * time.Second)
 	tt.Frame()
 	f.settle(tt)
 	expect(t, tt, "The whole article.")
-	absent(t, tt, "The summary of the feed.", "Getting the full text. Until then, this is what the feed carries. ")
+	absent(t, tt, "The summary of the feed.", "Showing what the feed carries until then")
 	if !slices.Contains(tt.Announcements(), "Full text loaded") {
 		t.Fatal("the full text is not announced")
 	}
@@ -346,7 +345,7 @@ func TestWaiting(t *testing.T) {
 	a.Summary, a.ExtractStatus = "", "pending"
 	_, f, tt := setup(t, "zh-Hans", a)
 	f.settle(tt)
-	expect(t, tt, "正在取全文", "读完网页后，文章会显示在这里。")
+	expect(t, tt, "正在取全文")
 	if err := tt.Click("打开原文"); err != nil {
 		t.Fatal(err)
 	}
@@ -357,13 +356,15 @@ func TestWaiting(t *testing.T) {
 	f.now = f.now.Add(pollEvery)
 	tt.Frame()
 	f.settle(tt)
-	expect(t, tt, "没有可显示的正文", "网页抽不出正文，订阅里也没有这篇的内容。")
+	expect(t, tt, "没有可显示的正文", "网页抽不出正文，订阅里也没有。", "重试")
+	absent(t, tt, "打开原文")
 	absent(t, tt, "正在取全文")
 }
 
+// TestNothing shows a text there is nothing to try again for offers the original.
 func TestNothing(t *testing.T) {
 	a := client.Article{Entry: entry()}
-	a.Summary, a.ExtractStatus = "", "failed"
+	a.Summary, a.ExtractStatus = "", "skipped"
 	_, f, tt := setup(t, "en", a)
 	f.settle(tt)
 	expect(t, tt, "No text to show", "Go 1.27 is released")
@@ -379,11 +380,9 @@ func TestRetryExtraction(t *testing.T) {
 	for _, c := range []struct {
 		language, retry, note, gettingNote, whole, notice string
 	}{
-		{"en", "Try again", "This isn’t the full text: the page could not be extracted, so this is what the feed carries. ",
-			"Getting the full text. Until then, this is what the feed carries. ", "Full text loaded",
+		{"en", "Try again", "Not the full text", "Showing what the feed carries until then", "Full text loaded",
 			"Couldn’t try again. Check the connection."},
-		{"zh-Hans", "重试", "这不是全文：网页抽不出正文，下面是订阅里带的内容。", "正在取全文，先显示订阅里带的内容。",
-			"全文已载入", "没能重试，检查一下连接。"},
+		{"zh-Hans", "重试", "这不是全文", "先显示订阅里带的内容", "全文已载入", "没能重试，检查一下连接。"},
 	} {
 		a := client.Article{Entry: entry(), ContentHTML: "<p>What the feed carries.</p>"}
 		a.ExtractStatus = "failed"
@@ -438,14 +437,15 @@ func TestRetryFromNothing(t *testing.T) {
 	a.Summary, a.ExtractStatus = "", "failed"
 	_, f, tt := setup(t, "en", a)
 	f.settle(tt)
-	expect(t, tt, "No text to show", "Open the original", "Try again")
+	expect(t, tt, "No text to show", "Try again")
+	absent(t, tt, "Open the original")
 	f.retryTo = a
 	f.retryTo.ExtractStatus = "pending"
 	if err := tt.Click("Try again"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(tt)
-	expect(t, tt, "Getting the full text", "The article will show here once the page has been read.")
+	expect(t, tt, "Getting the full text", "Open the original")
 	absent(t, tt, "No text to show", "Try again")
 	// Only a failed extraction offers it: a skipped one has nothing to try.
 	a.ExtractStatus = "skipped"
@@ -459,8 +459,8 @@ func TestError(t *testing.T) {
 	s, f, tt := setup(t, "en", a)
 	f.err = errors.New("status 502")
 	f.settle(tt)
-	expect(t, tt, "Can’t load this entry", "The server didn’t answer. Check the connection and try again.")
-	if !slices.Contains(tt.Announcements(), "Can’t load this entry") {
+	expect(t, tt, "Couldn’t load this entry", "The server didn’t answer.")
+	if !slices.Contains(tt.Announcements(), "Couldn’t load this entry") {
 		t.Fatal("the error is not announced")
 	}
 	if _, ok := tt.Find("Next entry"); !ok {
@@ -485,7 +485,7 @@ func TestError(t *testing.T) {
 	s.Open(a.Entry)
 	tt.Frame()
 	f.settle(tt)
-	absent(t, tt, "Can’t load this entry")
+	absent(t, tt, "Couldn’t load this entry")
 }
 
 func TestKeys(t *testing.T) {
@@ -697,10 +697,10 @@ func (f *fake) wait(tt *ui.Tester, d time.Duration) {
 func TestSummary(t *testing.T) {
 	_, f, tt := setup(t, "en", full())
 	f.settle(tt)
-	absent(t, tt, "Summary", "Summarizing…")
+	absent(t, tt, "Summary", "Working…")
 	f.reply = client.AIResult{Status: "pending"}
 	click(t, tt, "Summarize")
-	expect(t, tt, "Summarizing…", "Cancel")
+	expect(t, tt, "Working…", "Cancel")
 	f.settle(tt)
 	if !slices.Equal(f.requests, []string{"summary"}) {
 		t.Fatalf("requests %v", f.requests)
@@ -716,8 +716,8 @@ func TestSummary(t *testing.T) {
 	if f.polls != polls+1 {
 		t.Fatalf("polled %d times", f.polls-polls)
 	}
-	expect(t, tt, "Summary", "· by gpt-4o-mini", "Go 1.27 is faster.", "Faster builds")
-	absent(t, tt, "Summarizing…")
+	expect(t, tt, "Summary", "By gpt-4o-mini", "Go 1.27 is faster.", "Faster builds")
+	absent(t, tt, "Working…")
 	if !slices.Contains(tt.Announcements(), "Summary ready") {
 		t.Fatal("the summary is not announced")
 	}
@@ -745,7 +745,7 @@ func TestSummaryCancel(t *testing.T) {
 	click(t, tt, "Summarize")
 	f.settle(tt)
 	click(t, tt, "Cancel")
-	absent(t, tt, "Summarizing…")
+	absent(t, tt, "Working…")
 	f.wait(tt, time.Minute)
 	if len(f.queue) != 0 {
 		t.Fatal("polls after Cancel")
@@ -755,7 +755,7 @@ func TestSummaryCancel(t *testing.T) {
 	click(t, tt, "Hide the summary")
 	f.reply = client.AIResult{Status: "ok", Text: "Late.", Model: "m"}
 	f.settle(tt)
-	absent(t, tt, "Late.", "Summarizing…")
+	absent(t, tt, "Late.", "Working…")
 }
 
 func TestSummaryFailed(t *testing.T) {
@@ -764,7 +764,7 @@ func TestSummaryFailed(t *testing.T) {
 	f.reply = client.AIResult{Status: "failed", Error: "ai_timeout"}
 	click(t, tt, "Summarize")
 	f.settle(tt)
-	expect(t, tt, "Couldn’t summarize", "The AI endpoint took too long to answer.", "Try again")
+	expect(t, tt, "The AI endpoint took too long to answer.", "Try again")
 	if !slices.Contains(tt.Announcements(), "Couldn’t summarize") {
 		t.Fatal("the failure is not announced")
 	}
@@ -772,7 +772,7 @@ func TestSummaryFailed(t *testing.T) {
 	f.reply = client.AIResult{Status: "pending"}
 	click(t, tt, "Try again")
 	f.settle(tt)
-	expect(t, tt, "Summarizing…")
+	expect(t, tt, "Working…")
 	f.ai.Summary = &client.AIResult{Status: "failed", Error: "ai_rate_limited"}
 	f.wait(tt, aiPollEvery)
 	f.settle(tt)
@@ -781,7 +781,7 @@ func TestSummaryFailed(t *testing.T) {
 	f.replyErr = errors.New("status 502")
 	click(t, tt, "Try again")
 	f.settle(tt)
-	expect(t, tt, "Couldn’t summarize", "The server didn’t answer. Check the connection and try again.")
+	expect(t, tt, "The server didn’t answer.")
 	if len(f.requests) != 3 {
 		t.Fatalf("requests %v", f.requests)
 	}
@@ -798,7 +798,7 @@ func TestReasons(t *testing.T) {
 		"ai_unknown":      "The AI endpoint answered with an error.",
 		"ai_empty":        "This entry has no text to send.",
 		"ai_cap_reached":  "Automatic AI work reached its daily cap, so this was not done. Try it yourself, or raise the cap in Settings.",
-		"":                "The server didn’t answer. Check the connection and try again.",
+		"":                "The server didn’t answer.",
 	} {
 		if got := s.reason(code); got != want {
 			t.Errorf("%q: %q", code, got)
@@ -832,7 +832,7 @@ func TestOpenWithResults(t *testing.T) {
 	f.ai.Summary = &client.AIResult{Status: "pending", Text: "Made before."}
 	s.Open(a.Entry)
 	f.settle(tt)
-	expect(t, tt, "Summarizing…")
+	expect(t, tt, "Working…")
 	f.ai.Summary = &client.AIResult{Status: "ok", Text: "Made again.", Model: "m"}
 	f.wait(tt, aiPollEvery)
 	f.settle(tt)
@@ -850,9 +850,8 @@ func TestAIOff(t *testing.T) {
 	f.replyErr = &client.APIError{Status: 409, Code: "ai_not_configured"}
 	click(t, tt, "Translate")
 	f.settle(tt)
-	expect(t, tt, "AI isn’t set up", "Open settings",
-		"Summaries and translations use an AI endpoint of your choosing, such as OpenAI or a model on this computer. Set one up in Settings first.")
-	absent(t, tt, "Translating. The original stays here until it’s done.")
+	expect(t, tt, "AI isn’t set up", "Open settings", "Summaries and translations need an AI endpoint.")
+	absent(t, tt, "Translating…")
 	click(t, tt, "Open settings")
 	if !slices.Equal(f.calls, []string{"settings"}) {
 		t.Fatalf("calls %v", f.calls)
@@ -865,7 +864,7 @@ func TestAIOff(t *testing.T) {
 	click(t, tt, "Summarize")
 	f.settle(tt)
 	expect(t, tt, "AI isn’t set up")
-	absent(t, tt, "Summarizing…")
+	absent(t, tt, "Working…")
 	if _, ok := tt.Find("Summarize"); !ok {
 		t.Fatal("the summary button stays pressed")
 	}
@@ -873,24 +872,25 @@ func TestAIOff(t *testing.T) {
 	f.replyErr, f.reply = nil, client.AIResult{Status: "pending"}
 	click(t, tt, "Summarize")
 	absent(t, tt, "AI isn’t set up")
-	expect(t, tt, "Summarizing…")
+	expect(t, tt, "Working…")
 }
 
 func TestTranslation(t *testing.T) {
 	_, f, tt := setup(t, "en", full())
+	f.ai.TargetLanguage = "zh-Hans"
 	f.settle(tt)
 	f.reply = client.AIResult{Status: "pending"}
 	click(t, tt, "Translate")
 	f.settle(tt)
 	// The original stays while the translation is made.
-	expect(t, tt, "Translating. The original stays here until it’s done.", "Go 1.27 is released", "Faster builds")
+	expect(t, tt, "Translating…", "Go 1.27 is released", "Faster builds")
 	f.ai.Translation = &client.AIResult{Status: "ok", Text: "Go 1.27 ist da\n\nHeute erscheint Go 1.27.\nSchneller.\n",
 		Model: "gpt-4o-mini"}
 	f.wait(tt, aiPollEvery)
 	f.settle(tt)
 	expect(t, tt, "Translated by gpt-4o-mini", "Translation", "Original", "Go 1.27 ist da", "Heute erscheint Go 1.27.",
 		"Schneller.")
-	absent(t, tt, "Go 1.27 is released", "Faster builds", "Translating. The original stays here until it’s done.")
+	absent(t, tt, "Go 1.27 is released", "Faster builds", "Translating…")
 	if !slices.Contains(tt.Announcements(), "Translation ready") {
 		t.Fatal("the translation is not announced")
 	}
@@ -916,7 +916,7 @@ func TestTranslationCancel(t *testing.T) {
 	click(t, tt, "Translate")
 	f.settle(tt)
 	click(t, tt, "Cancel")
-	absent(t, tt, "Translating. The original stays here until it’s done.")
+	absent(t, tt, "Translating…")
 	f.wait(tt, time.Minute)
 	if len(f.queue) != 0 {
 		t.Fatal("polls after Cancel")
@@ -925,7 +925,7 @@ func TestTranslationCancel(t *testing.T) {
 	click(t, tt, "Translate")
 	f.settle(tt)
 	click(t, tt, "Translate")
-	absent(t, tt, "Translating. The original stays here until it’s done.")
+	absent(t, tt, "Translating…")
 }
 
 func TestTranslationFailed(t *testing.T) {
@@ -934,7 +934,7 @@ func TestTranslationFailed(t *testing.T) {
 	f.reply = client.AIResult{Status: "failed", Error: "ai_unauthorized"}
 	click(t, tt, "翻译")
 	f.settle(tt)
-	expect(t, tt, "没能翻译。AI 接口不接受这个 API key，去设置里检查一下。", "重试", "Faster builds")
+	expect(t, tt, "AI 接口不接受这个 API key，去设置里检查一下。", "重试", "Faster builds")
 	f.reply = client.AIResult{Status: "ok", Text: "标题\n正文。", Model: "m"}
 	click(t, tt, "重试")
 	f.settle(tt)
@@ -957,12 +957,12 @@ func TestAILeave(t *testing.T) {
 	f.article = client.Article{Entry: other, ContentHTML: "<p>Another text.</p>"}
 	f.settle(tt)
 	expect(t, tt, "Another text.")
-	absent(t, tt, "For the article before.", "Summarizing…")
+	absent(t, tt, "For the article before.", "Working…")
 	// A session the server no longer takes shows no card.
 	f.replyErr = errExpired
 	click(t, tt, "Summarize")
 	f.settle(tt)
-	absent(t, tt, "Summarizing…", "Couldn’t summarize")
+	absent(t, tt, "Working…", "Couldn’t summarize")
 }
 
 func TestTranslated(t *testing.T) {
@@ -1061,15 +1061,15 @@ func readingScale(t *testing.T, scale float32) {
 	}
 }
 
-// TestToolbarNames shows Summarize and Translate carry their names beside the icon, and only the icon in a window
-// narrower than 760.
-func TestToolbarNames(t *testing.T) {
+// TestToolbarIcons shows Summarize and Translate are icon buttons, a control square at every text size, named for
+// screen readers and the tooltip.
+func TestToolbarIcons(t *testing.T) {
 	for _, scale := range textScales {
-		t.Run(fmt.Sprint("text=", scale), func(t *testing.T) { toolbarNames(t, scale) })
+		t.Run(fmt.Sprint("text=", scale), func(t *testing.T) { toolbarIcons(t, scale) })
 	}
 }
 
-func toolbarNames(t *testing.T, scale float32) {
+func toolbarIcons(t *testing.T, scale float32) {
 	f := &fake{now: now, article: full(), nav: Nav{Entry: full().Entry, Scope: "All"}}
 	s := New("en", f.deps())
 	s.Use(f)
@@ -1079,15 +1079,11 @@ func toolbarNames(t *testing.T, scale float32) {
 	s.Open(f.article.Entry)
 	tt.Frame()
 	f.settle(tt)
-	wide, ok := tt.Find("Summarize")
-	if !ok || wide.W < 60*unit {
-		t.Fatalf("wide: %v %v", wide, ok)
-	}
-	tt.SetSize(700, 800)
-	tt.Frame()
-	narrow, ok := tt.Find("Summarize")
-	if !ok || narrow.W > 32*unit {
-		t.Fatalf("narrow: %v %v", narrow, ok)
+	for _, name := range []string{"Summarize", "Translate"} {
+		r, ok := tt.Find(name)
+		if !ok || r.W > 32*unit+0.5 || r.H > 32*unit+0.5 {
+			t.Errorf("%s: %v %v, want a %v square", name, r, ok, 32*unit)
+		}
 	}
 }
 
@@ -1573,23 +1569,28 @@ func tipShows(t *testing.T, tt *ui.Tester, name string) bool {
 	return count() > before
 }
 
-// The back button names itself in text and has no tooltip, nor has the Summarize toggle, in a wide window or a narrow
-// one where only its icon shows; the icon-only buttons of the toolbar keep theirs.
+// The buttons of the toolbar are icons, and each has its name, and its key if any, as a tooltip, in a wide window and
+// a narrow one.
 func TestTooltips(t *testing.T) {
 	for _, width := range []int{1400, 700} {
 		s, f, tt := setup(t, "en", full())
 		tt.SetSize(width, 900)
 		f.settle(tt)
 		tt.Frame()
+		for _, name := range []string{"Summarize", s.text.More} {
+			if !tipShows(t, tt, name) {
+				t.Errorf("width %d: %q has no tooltip", width, name)
+			}
+		}
+		// A button with a key names it in the tooltip.
 		back := strings.ReplaceAll(s.text.Back, "{scope}", "All")
-		if tipShows(t, tt, back) {
-			t.Errorf("width %d: %q has a tooltip", width, back)
-		}
-		if tipShows(t, tt, "Summarize") {
-			t.Errorf("width %d: Summarize has a tooltip", width)
-		}
-		if !tipShows(t, tt, s.text.CopyLink) {
-			t.Errorf("width %d: %q has no tooltip", width, s.text.CopyLink)
+		r, _ := tt.Find(back)
+		tt.Move(r.X+r.W/2, r.Y+r.H/2)
+		tt.Frame()
+		tt.Advance(2 * time.Second)
+		tt.Frame()
+		if tip := s.shortcut(back, "Esc"); !tt.HasText(tip) {
+			t.Errorf("width %d: no tooltip %q in %v", width, tip, tt.Texts())
 		}
 	}
 }
@@ -1820,7 +1821,7 @@ func colorCount(img *image.RGBA, want ui.Color) int {
 }
 
 // TestReadingAppearanceKeepsTheWindowTheme shows the window's root background stays the theme's after the reader
-// draws a preset paper, the article is on that paper, and the failed state draws its icon in the paper's own danger color.
+// draws a preset paper, the article is on that paper, and the failed state draws its disc in the paper's own surface.
 func TestReadingAppearanceKeepsTheWindowTheme(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		for _, preset := range []string{prefs.PresetSepia, prefs.PresetMist} {
@@ -1840,8 +1841,8 @@ func TestReadingAppearanceKeepsTheWindowTheme(t *testing.T) {
 				}
 				tt, main, paper, _ = paperOf(t, preset, dark, func(f *fake) { f.err = errors.New("down") })
 				img = tt.Image()
-				if colorCount(img, paper.Danger) == 0 || colorCount(img, main.Danger) != 0 {
-					t.Errorf("failed icon: paper danger %d, theme danger %d", colorCount(img, paper.Danger), colorCount(img, main.Danger))
+				if on, off := colorCount(img, theme.Surface(paper)), colorCount(img, theme.Surface(main)); on == 0 || off != 0 {
+					t.Errorf("failed disc: paper surface %d, theme surface %d", on, off)
 				}
 			})
 		}

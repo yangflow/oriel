@@ -17,7 +17,7 @@ type words struct {
 var selectionWords = []words{
 	{"en", "Translate selection", "Explain selection", "Copy", "Copied", "Try again", "Open settings",
 		"AI isn’t set up", "Select less text", "Explanation ready"},
-	{"zh-Hans", "翻译所选", "解释所选", "复制", "已复制", "重试", "打开设置", "还没配置 AI", "请少选一些文字", "解释已生成"},
+	{"zh-Hans", "翻译所选", "解释所选", "复制", "已复制", "重试", "打开设置", "未配置 AI 接口", "请少选一些文字", "解释已生成"},
 }
 
 // tall opens the article in a window tall enough to keep the text clear of the toolbar over its foot.
@@ -125,7 +125,7 @@ func TestSelectionFailed(t *testing.T) {
 		f.selErr = &client.APIError{Status: 502, Code: "ai_rate_limited"}
 		askAbout(t, tt, w.translate)
 		f.settle(tt)
-		expect(t, tt, strings.ReplaceAll(s.text.SelectionFailed, "{reason}", s.reason("ai_rate_limited")), w.retry)
+		expect(t, tt, s.reason("ai_rate_limited"), w.retry)
 		f.selErr, f.selReply = nil, "Second try."
 		click(t, tt, w.retry)
 		absent(t, tt, w.retry)

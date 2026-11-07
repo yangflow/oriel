@@ -131,10 +131,12 @@ func TestExportCopyAndSave(t *testing.T) {
 				t.Fatal(err)
 			}
 			wantMenu := []string{"Copy as Markdown", "Save as Markdown…"}
+			full := []string{"Copy link", "-", "Immersive reading", "Find…", "-", wantMenu[0], wantMenu[1]}
 			if language == "zh-Hans" {
 				wantMenu = []string{"复制为 Markdown", "存为 Markdown…"}
+				full = []string{"复制链接", "-", "沉浸阅读", "查找…", "-", wantMenu[0], wantMenu[1]}
 			}
-			if menu := tt.Menu(); !slices.Equal(menu, wantMenu) {
+			if menu := tt.Menu(); !slices.Equal(menu, full) {
 				t.Fatalf("menu %q", menu)
 			}
 			tt.CloseMenu()
@@ -199,16 +201,14 @@ func TestExportOtherEntry(t *testing.T) {
 }
 
 func TestCopyLink(t *testing.T) {
-	for language, c := range map[string]struct{ button, copied string }{
-		"en":      {"Copy link", "Link copied"},
-		"zh-Hans": {"复制链接", "已复制链接"},
+	for language, c := range map[string]struct{ more, button, copied string }{
+		"en":      {"More", "Copy link", "Link copied"},
+		"zh-Hans": {"更多", "复制链接", "已复制链接"},
 	} {
 		t.Run(language, func(t *testing.T) {
 			_, f, tt := setup(t, language, full())
 			f.settle(tt)
-			if err := tt.Click(c.button); err != nil {
-				t.Fatal(err)
-			}
+			export(t, f, tt, c.more, c.button)
 			if tt.Clipboard() != "https://go.dev/blog/go1.27" || !slices.Contains(tt.Announcements(), c.copied) || len(f.queue) != 0 {
 				t.Fatalf("clipboard %q, announcements %v, queued %d", tt.Clipboard(), tt.Announcements(), len(f.queue))
 			}
@@ -227,9 +227,7 @@ func TestTrackingParamsLeaveLinks(t *testing.T) {
 	}
 	_, f, tt := setup(t, "en", tracked)
 	f.settle(tt)
-	if err := tt.Click("Copy link"); err != nil {
-		t.Fatal(err)
-	}
+	export(t, f, tt, "More", "Copy link")
 	if tt.Clipboard() != clean {
 		t.Errorf("clipboard %q", tt.Clipboard())
 	}
