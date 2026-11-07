@@ -29,16 +29,19 @@ Oriel's values form one system, kept in `design/tokens.json` and `design/layout.
 
 - **One source.** Colors, alphas, space, sizes, radii, text styles, the reading scale, shadows and motion are named
   tokens in `tokens.json`; layout patterns (bar, column, stack, inset, entry row…) and the geometry of each part are in
-  `layout.json`. `internal/ui/theme` is generated from them and screens read only the generated names: no literal
-  size, color, alpha or duration in a view. A guard test fails on one.
+  `layout.json`. They are the target, not yet the code: when #522 is done, `internal/ui/theme` is generated from them
+  and screens read only the generated names, with no literal size, color, alpha or duration in a view, and a guard
+  test fails on one. Until then the theme is written by hand with the values in the tables of `design/tokens.md`, and
+  views still pass literal sizes through `theme.Px`.
 - **Color in layers.** Every color names its layer: region (paper, page, pane), surface (surface, float), state (fill,
   hover, selected, pressed, raised), role (prose, inverse, badge, viewer), text (fg, fg2, fg3, muted, faint), meaning
   (accent, star, danger, success, warning) and line (line, line2, rule, shadow, scrim). The ink pane and the reading
   presets replace a region and the roles drawn on it, nothing else.
 - **Contrast by target.** Text tiers are set by contrast targets on their worst bed, not by eye: fg 10:1, prose 8.5,
   fg2 7, fg3 5.5, muted 4.5, faint 2.6; accent, danger and success 4.5; star and warning 3 (graphics). The pane keeps
-  ivory text at fg 8, fg2 6, muted 4.5. The beds and targets are the audit in `tokens.json`; a theme test computes it in
-  every scheme and preset, and a value that misses cannot merge. Because muted holds on the fill and the selected row,
+  ivory text at fg 8, fg2 6, muted 4.5. The beds and targets are the audit in `tokens.json`; with the generated theme (#522), a theme test
+  computes it in every scheme and preset and a value that misses cannot merge. Today `TestContrast` and
+  `TestReadingPresetContrast` check the hand-written values against their own, looser floors. Because muted holds on the fill and the selected row,
   no screen needs a "use Text2 here" exception.
 - **State ladder.** fill < hover < selected < pressed, four alphas of the scheme's ink, so a hovered chosen row still
   reads as chosen and pressing it still shows.
