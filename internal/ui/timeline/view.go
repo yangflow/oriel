@@ -5847,7 +5847,9 @@ func (s *Screen) cells(c *ui.Context, now time.Time, compact, square bool) {
 	if square {
 		minWidth = theme.Px(t, 170)
 	}
-	_, cell := columns(c, compact, minWidth, gap, 0)
+	// The cells are as wide as the grid lays them out, its own space-2 apart, not gap: a narrower guess leaves the
+	// rows too short for a square and squeezes it.
+	_, cell := columns(c, compact, minWidth, t.Space(2), 0)
 	height := cell*9/16 + theme.Px(t, 13.5)*2.9 + theme.Px(t, 18) + t.Space(3) + theme.Px(t, 20)
 	if square {
 		height = cell + theme.Px(t, 13)*1.5 + theme.Px(t, 20) + t.Space(3)
