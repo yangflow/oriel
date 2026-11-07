@@ -66,7 +66,7 @@
   {"name": "tooltip", "spec": "inverse ground, on-inverse meta, radius-sm, padding space-1 space-2", "usage": "Names of icon buttons."}
  ],
  "utilities": {
-  "note": "Fine adjustments to a pattern or part, taking token names only, never a number: padding P(space…), gap G(space), height H(size), width W(size), a square Sq(size), MaxW(size), and the flags fill (as wide as the parent), hug (as wide as the content), grow and center. A screen that needs a value no token has adds the token here or in tokens.json first. Geometry a screen computes from the window (a column that fits the room left) is a rule of behavior, written in code from the tokens it starts with."
+  "note": "When a pattern or part needs one value changed, the view sets it with MyGo's own method (Padding, Gap, Height, Width, MaxWidth) and a token name, never a number: Padding(space-3), Height(row). A value no token has is added here or in tokens.json first. Geometry computed from the window (the reading column fitted to the room left, the timeline's grid columns) is a rule of behavior, written in code from the tokens it starts with."
  },
  "density": {
   "note": "List density Compact; Comfortable keeps the values above.",

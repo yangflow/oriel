@@ -51,9 +51,9 @@ Oriel's values form one system, kept in `design/tokens.json` and `design/layout.
 - **Type and opacity are tokens too.** Three families (sans, the platform's UI font or the chosen Interface font;
   serif, for the reading body only; mono, for code and addresses), eleven interface text styles and the reading scale.
   Opacity comes only from `opacity-faded` and `opacity-separator`; a disabled glyph takes `faint` instead of fading.
-- **Patterns, then utilities.** A screen is assembled from the patterns and parts of `layout.json`; a fine adjustment
-  uses its utilities (padding, gap, height, width from token names). A value no token has is added to the JSON
-  first, never written in a view.
+- **Patterns and parts first.** A screen is assembled from the patterns and parts of `layout.json`; when one value
+  needs changing, the view uses MyGo's own method with a token name (`Padding`, `Gap`, `Height`, `Width`, `MaxWidth`).
+  A value no token has is added to the JSON first, never written in a view.
 - **Adoption.** Screens move to the system one pull request at a time (timeline, reader, subscriptions, settings,
   connect; #522). Until a screen has moved, the sections below describe what it draws; once it has, `tokens.json` wins
   where they differ.
@@ -1458,10 +1458,10 @@ The motion tokens are `motion-fast` (120 ms, ease-out: state fills, text color, 
 in `design/tokens.json`; screens that have moved to the design system use them, and the 140 ms state fade below
 becomes `motion-fast`.
 
-Motion answers only two questions: where did this come from (a popup grows out of its control, a folder opens in
-place) and what just happened (a fill under the pointer, a toast). It never decorates, loops or hides latency.
-Curves are fixed-duration ease-out with no spring or overshoot, leaving is never slower than arriving, and a new state
-starts from where the old one is.
+Oriel is for reading, so motion stays out of the way of the text. It keeps your place (a popup scales out of the
+control that opened it, a folder opens where it was, the scroll position stays when panes and bars change) and it
+acknowledges the pointer (state fills, link color, the row actions). Nothing in the reading column or the list moves on
+its own, nothing slides, and closing takes no longer than opening.
 
 Oriel has almost no custom animation: state changes take effect immediately, except that state fills, text and link
 color, and the row actions fade. See
