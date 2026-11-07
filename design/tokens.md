@@ -3,8 +3,10 @@
 > The values are now kept in [tokens.json](tokens.json) and [layout.json](layout.json), the one source, and drawn in
 > the [Oriel design system](https://claude.ai/artifact/LBUfZ9m6MHwCsXp4D1d97w) Design artifact. This file explains them. Screens move to the new tokens one pull request at a time
 > (#522); the tables below describe the code until its screen has moved, and `tokens.json` wins where they differ.
-> Nothing is generated from the JSON yet: `internal/ui/theme` is written by hand with these values, and the generator,
-> the contrast audit and the guard test come with #522.
+> `tokens.json` is generated into Go as `internal/ui/theme/tokens` (`go generate` there; `TestGeneratedIsCurrent` fails
+> when it is stale), and `TestContrastAudit` holds every scheme, the pane and every preset to the audit's floors. No
+> screen reads those values yet: `internal/ui/theme` is still written by hand, and the guard test against literals in
+> views comes as each screen moves (#522).
 > The deliberate changes: the state ladder becomes fill < hover < selected < pressed; text tiers come from contrast
 > targets (adding `fg3` for icons and `faint` in place of `Disabled`); light `Danger`, `Star` and `Success` are darker;
 > `LineStrong` and `Track` become ink alphas (`line2`, `fill`); the unread dot is 6, not 7; radius 10 goes (the Compact row and a
