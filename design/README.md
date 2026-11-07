@@ -1,7 +1,8 @@
 # Design
 
 Mockups and design notes for Oriel's native UI. The design language is [docs/design.md](../docs/design.md); the
-values it uses are in [tokens.md](tokens.md). Mockups approximate the result; the app running on a real device is
+values it uses are in [tokens.json](tokens.json) and [layout.json](layout.json), explained in [tokens.md](tokens.md)
+and drawn in [system.html](system.html). Mockups approximate the result; the app running on a real device is
 what counts.
 
 ## Layout
@@ -9,7 +10,10 @@ what counts.
 | Path | Purpose |
 |---|---|
 | `screens/<screen>.html` | One self-contained mockup per screen: static HTML and CSS, no external resources |
-| `tokens.md` | Spacing, size, color and motion values, mapped to MyGo theme roles |
+| `tokens.json` | Every design value: colors in layers, the contrast audit, space, sizes, radii, text styles, the reading scale, motion; the one source |
+| `layout.json` | Named layout patterns and the geometry of each part |
+| `tokens.md` | Why the values are what they are, mapped to MyGo theme roles |
+| `system.html` | The design system drawn: palette with live contrast, text styles, sizes, a sample timeline (`?scheme=light|dark`) |
 | `icon.svg` | The product icon's source |
 | `icon.html` | The product icon at every size it ships, on light and dark, in a Dock and a taskbar |
 | `export-icon.sh` | Renders `icon.svg` to `resources/icon.png` with Chrome |
@@ -45,7 +49,7 @@ A UI change starts from the mockup in design/; the maintainer confirms the visua
 written.
 
 1. Edit or add the mockup in `screens/` (light and dark, every state, the longer translation if layout is at risk),
-   and update `tokens.md` and `docs/design.md` if a rule changes.
+   and update `tokens.json`, `tokens.md` and `docs/design.md` if a value or rule changes.
 2. The maintainer confirms the visual direction.
 3. Write the native view in `internal/ui/<screen>/` with theme roles and `Space`/`Rem` sizes, localized copy and
    accessible names, plus tests.

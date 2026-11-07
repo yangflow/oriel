@@ -1,0 +1,81 @@
+{
+ "name": "Oriel layout",
+ "version": 1,
+ "note": "How views are put together. Values name tokens from tokens.json; a bare number is DIPs at the default text size. A screen builds from these patterns and parts and writes no size of its own; when a screen needs a new arrangement, it is added here first.",
+ "rules": [
+  "Alignment and space carry the structure: no borders around cards or controls, hairlines only between rows.",
+  "Spacing comes from the space scale and nothing else; it follows density through Theme.Spacing.",
+  "Text left-aligned; the reading column and the timeline column are centered in what remains beside the pane.",
+  "One column of content at a time, at most column wide; the pane and the toolbar are the only fixed frames.",
+  "A control is control high; a row in a list is pane-row, row or row-dense high; nothing is in between.",
+  "Gaps grow with distance in meaning: space-1 label to control, space-2 related controls, space-3 inside a card, space-4 between groups, space-6 between the parts of a sheet or page, space-8 between pages' parts.",
+  "Icons beside 12 and 13 text are icon-s, beside 15 and above icon-m; states use icon-l.",
+  "A narrow window (below 760) keeps the structure and narrows the frames: pane-width-narrow, display-compact, the search becomes an icon."
+ ],
+ "breakpoints": [
+  {"name": "narrow", "below": 760, "usage": "Narrow pane, compact reader title, toolbar search as an icon, Compact source field 96."},
+  {"name": "panes", "from": 800, "usage": "Main column width at which the Community kind shows three panes (window 1024 with the pane)."}
+ ],
+ "patterns": [
+  {"name": "inline", "spec": "row, center-aligned, gap space-1_5", "usage": "An icon beside its text: buttons, menu items, status lines."},
+  {"name": "meta-line", "spec": "row, center-aligned, height 20, gap space-1_5; tile-s, meta-strong source, meta muted time; keeps 88 free at the end for row actions", "usage": "The meta line of an entry row and the reader's byline."},
+  {"name": "cluster", "spec": "row, center-aligned, gap space-2", "usage": "Related controls: a button row, a field and its button."},
+  {"name": "toolbar-cluster", "spec": "row, center-aligned, gap space-1", "usage": "Toolbar icon buttons side by side."},
+  {"name": "bar", "spec": "row, height toolbar, center-aligned, padding 0 space-4, leading cluster, spacer, trailing cluster; paper ground; line along the bottom once the content has scrolled", "usage": "The toolbar of each screen; the window buttons sit on its middle line."},
+  {"name": "spacer", "spec": "flexible empty space", "usage": "Pushes the trailing cluster of a bar or a row to the end."},
+  {"name": "column", "spec": "centered, max width column (column-social for social), padding 0 space-6", "usage": "The timeline and the reader's text column."},
+  {"name": "stack-tight", "spec": "column, gap space-0_5", "usage": "Title and its subtitle; a row's text lines (space-0_5 compact)."},
+  {"name": "stack", "spec": "column, gap space-2", "usage": "Fields of a form, items of a card."},
+  {"name": "stack-section", "spec": "column, gap space-4", "usage": "Groups in a settings page, parts of a card."},
+  {"name": "stack-page", "spec": "column, gap space-6", "usage": "Parts of a sheet or page."},
+  {"name": "inset-row", "spec": "padding space-4, leading inset 28 for the unread dot", "usage": "An entry row; density Compact is space-2_5 (10)."},
+  {"name": "inset-card", "spec": "padding space-3, radius card, surface or soft(meaning) ground, no rim", "usage": "Code blocks, notes, the AI card (radius pane), plain cards."},
+  {"name": "inset-sheet", "spec": "padding space-6, radius sheet, float ground, rim line2, shadow-dialog", "usage": "Dialogs, the command palette, the key sheet."},
+  {"name": "inset-popup", "spec": "padding space-1, radius card, float ground, rim line2, shadow-popup; rows radius-sm, row high", "usage": "Select menus, the font picker."},
+  {"name": "track", "spec": "fill ground, radius pill (radius-control in settings), padding 3, gap 2; chosen segment raised with shadow-raised", "usage": "Segmented controls: the timeline scope, Summarize and Translate, settings choices."},
+  {"name": "divided-list", "spec": "rows separated by a hairline line, 28 in from the left and 16 from the right", "usage": "Lists of rows in the timeline and settings."},
+  {"name": "center", "spec": "centered on both axes, max width sheet-width, stack-page", "usage": "Empty, loading and error states; the connect screen."},
+  {"name": "grid", "spec": "cells at least the part's minimum width, fill the column, gaps from the part", "usage": "Video grid, picture grid, picture wall."}
+ ],
+ "parts": [
+  {"name": "pane", "spec": "inset space-2 from the window's edges, radius pane, width pane-width (pane-width-narrow below 760), pane ground; content starts 40 from the top, list padding 8 at the sides", "usage": "The ink pane."},
+  {"name": "pane-line", "spec": "25 from the pane's right edge", "usage": "The center line of the pane's trailing icon buttons: hide sidebar (32), add (22), Unread first (28), settings (28)."},
+  {"name": "pane-item", "spec": "height pane-row, radius control, padding 0 10, gap 10, tile-m, label; count caption muted at the end", "usage": "A kind, a subscription, a folder or a settings group."},
+  {"name": "pane-folder", "spec": "pane-item with a chevron button 22 by pane-row; members indented 22", "usage": "A folder row and its fold toggle."},
+  {"name": "pane-filter", "spec": "height row, radius control, fill ground, padding-left 10, gap 6; toggle row square, gap 4", "usage": "The subscription filter and the Unread first toggle."},
+  {"name": "pane-add", "spec": "22 square, radius control, icon-s, on the pane line; row-dense hit area", "usage": "The add button at the end of a section head."},
+  {"name": "button", "spec": "height control (control-small Small), radius control, inline with gap 6, icon-s, label (meta-strong Small); padding 14 Primary and Secondary, 8 Danger and Plain, 10 Small; icon only is a square", "usage": "Every button."},
+  {"name": "toolbar-button", "spec": "control square, radius control, icon-m fg3; hover and pressed fills; on is soft(accent) with accent", "usage": "Bare toolbar icon buttons."},
+  {"name": "search", "spec": "height control, width 200 (min 48) from a 736 wide column, else a toolbar-button; fill ground, radius control", "usage": "The toolbar search at the far right."},
+  {"name": "select-trigger", "spec": "height control, min 72, max 240, label + gap space-2 + chevron icon-s; opens an inset-popup at least menu-min wide", "usage": "Popup-menu buttons in settings."},
+  {"name": "segment", "spec": "height control-small, radius pill in a capsule (radius-sm in a settings track), meta-strong", "usage": "One choice of a track."},
+  {"name": "entry-row", "spec": "inset-row, radius card, gap 14 (10 compact); meta-line, title, body summary fg2, thumb at the end", "usage": "Article, social and mixed rows in the timeline."},
+  {"name": "unread-dot", "spec": "dot accent, 11 from the row's left edge, on the title's first line", "usage": "An unread entry."},
+  {"name": "row-actions", "spec": "buttons 28 by row-dense, radius-sm, gap 2, icon-s muted; at the end of the meta line; shown on hover, selection and focus with motion-fast", "usage": "Star, mark read, open in browser."},
+  {"name": "row-compact", "spec": "height row-compact (30 compact density), radius control, padding 0 16 0 28; source field 128 (96 narrow), title flexible, time at least 56", "usage": "An article in the Compact viewer."},
+  {"name": "thumb", "spec": "thumb-w by thumb-h, radius control, outline line2", "usage": "An article's picture."},
+  {"name": "social-compact-thumb", "spec": "56 square radius control; strip of up to four 40 squares radius-sm, gap 4", "usage": "Pictures of a social post in the Compact viewer."},
+  {"name": "cover-large", "spec": "16:9 at the row's content width, at most 640 by 360, radius card; title style under it", "usage": "A video in the Large cover viewer."},
+  {"name": "video-grid", "spec": "grid, cells at least 200, gap 16 across and 24 down, padding 16 24 32; 16:9 cover radius card, body title up to two lines 7 below", "usage": "The Videos scope."},
+  {"name": "picture-wall", "spec": "up to three columns at least 170, column gap 14, tile gap 20 (10 compact), padding 16 24 32; own aspect ratio (4:3 unknown), radius card, label caption one line", "usage": "The Images scope, Wall."},
+  {"name": "picture-grid", "spec": "grid, cells at least 170, video-grid gaps; square picture radius card, label one line 4 below", "usage": "The Images scope, Grid."},
+  {"name": "badge", "spec": "radius-xs, caption white on badge, 6 from the corner", "usage": "Duration (bottom right) and picture count (top right) on a cover."},
+  {"name": "forum-panes", "spec": "list 320, reader at least 480, hairline between; from the panes breakpoint", "usage": "The Community kind in the Panes viewer."},
+  {"name": "marker", "spec": "marker-w by marker-h, radius 2, accent, at the chosen item's leading edge", "usage": "The selection marker."},
+  {"name": "toast", "spec": "inverse ground, on-inverse meta, radius control, padding space-2 space-3, icon-m; bottom center, motion-base", "usage": "Short confirmations."},
+  {"name": "tooltip", "spec": "inverse ground, on-inverse meta, radius-sm, padding space-1 space-2", "usage": "Names of icon buttons."}
+ ],
+ "density": {
+  "note": "List density Compact; Comfortable keeps the values above.",
+  "compact": {
+   "row-padding": 10,
+   "social-row-padding": 8,
+   "row-compact": 30,
+   "row-gap": 10,
+   "text-gap": 2,
+   "cover-gap": 6,
+   "grid-gap": 10,
+   "wall-tile-gap": 10
+  }
+ }
+}

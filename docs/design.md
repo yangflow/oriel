@@ -18,8 +18,33 @@ connects the desktop app to a remote server, the timeline in `internal/ui/timeli
 `design/screens/reader.html`), which takes the list's place for an article, and the settings in
 `internal/ui/settings/` (mockup `design/screens/settings.html`), which take the whole window.
 
-Related files: [design/README.md](../design/README.md) (mockups and how a UI change is made) and
-[design/tokens.md](../design/tokens.md) (spacing, size and color values in one table).
+Related files: [design/README.md](../design/README.md) (mockups and how a UI change is made),
+[design/tokens.json](../design/tokens.json) and [design/layout.json](../design/layout.json) (every design value and
+layout pattern, the one source), [design/tokens.md](../design/tokens.md) (why the values are what they are) and
+[design/system.html](../design/system.html) (the design system drawn).
+
+### The design system
+
+Oriel's values form one system, kept in `design/tokens.json` and `design/layout.json`:
+
+- **One source.** Colors, alphas, space, sizes, radii, text styles, the reading scale, shadows and motion are named
+  tokens in `tokens.json`; layout patterns (bar, column, stack, inset, entry row…) and the geometry of each part are in
+  `layout.json`. `internal/ui/theme` is generated from them and screens read only the generated names: no literal
+  size, color, alpha or duration in a view. A guard test fails on one.
+- **Color in layers.** Every color names its layer: region (paper, page, pane), surface (surface, float), state (fill,
+  hover, selected, pressed, raised), role (prose, inverse, badge, viewer), text (fg, fg2, fg3, muted, faint), meaning
+  (accent, star, danger, success, warning) and line (line, line2, rule, shadow, scrim). The ink pane and the reading
+  presets replace a region and the roles drawn on it, nothing else.
+- **Contrast by target.** Text tiers are set by contrast targets on their worst bed, not by eye: fg 10:1, prose 8.5,
+  fg2 7, fg3 5.5, muted 4.5, faint 2.6; accent, danger and success 4.5; star and warning 3 (graphics). The pane keeps
+  ivory text at fg 8, fg2 6, muted 4.5. The beds and targets are the audit in `tokens.json`; a theme test computes it in
+  every scheme and preset, and a value that misses cannot merge. Because muted holds on the fill and the selected row,
+  no screen needs a "use Text2 here" exception.
+- **State ladder.** fill < hover < selected < pressed, four alphas of the scheme's ink, so a hovered chosen row still
+  reads as chosen and pressing it still shows.
+- **Adoption.** Screens move to the system one pull request at a time (timeline, reader, subscriptions, settings,
+  connect; #522). Until a screen has moved, the sections below describe what it draws; once it has, `tokens.json` wins
+  where they differ.
 
 ## Contents
 
@@ -619,7 +644,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
 Colors come from the theme, `c.Theme()`. Oriel puts its own palette, paper and ink (warm in light, neutral graphite in dark), on the theme
 roles: the root view calls `theme.Apply` (in `internal/ui/theme/`) first in every frame, which picks the light or
 dark palette for the Theme preference (the system appearance by default) and keeps the theme's metrics, so the desktop's text size still applies. The
-values are in [design/tokens.md](../design/tokens.md). See
+values are in [design/tokens.json](../design/tokens.json) (reasons in [design/tokens.md](../design/tokens.md)). See
 [Styling and themes](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/styling.md).
 
 - **Always use theme roles, never literals.** Screens use only theme colors; for example, secondary text uses
@@ -693,7 +718,7 @@ values are in [design/tokens.md](../design/tokens.md). See
   `design/screens/reader.html` with `preset` and in `design/screens/settings.html`, `reading-appearance`.
 - **Content colors.** Images and video thumbnails from feeds keep their own colors; everything Oriel draws around
   them uses theme roles.
-- **Mockups.** Mockups use the Oriel palette of `design/tokens.md`; the app running on a real device is what
+- **Mockups.** Mockups use the Oriel palette of `design/tokens.json`; the app running on a real device is what
   counts.
 
 ## Typography
@@ -1409,6 +1434,11 @@ The [Inspector](https://github.com/egoist/mygo/blob/v0.5.5/docs/ui/inspector.md)
 the element tree, roles and accessible names of a running window, which helps find a missing name before that check.
 
 ## Motion
+
+The motion tokens are `motion-fast` (120 ms, ease-out: state fills, text color, row actions, a popup scaling in from
+0.97 with a fade), `motion-base` (200 ms, ease-out: folding a folder or group, a toast) and `spin` (900 ms, linear),
+in `design/tokens.json`; screens that have moved to the design system use them, and the 140 ms state fade below
+becomes `motion-fast`.
 
 Oriel has almost no custom animation: state changes take effect immediately, except that state fills, text and link
 color, and the row actions fade. See
