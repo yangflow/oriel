@@ -18,7 +18,7 @@
 | modernc.org/sqlite | v1.60.1 | BSD-3-Clause; SQLite is public domain; sqlite-vec is MIT | yes | `resources/ThirdPartyLicenses/sqlite/` | no |
 | github.com/mmcdole/gofeed | v1.5.0 | MIT | yes | `resources/ThirdPartyLicenses/gofeed/LICENSE` | no |
 | github.com/mmcdole/goxpp/v2 | v2.0.0 | MIT | yes | `resources/ThirdPartyLicenses/goxpp/LICENSE` | no |
-| golang.org/x/net | v0.61.0 | BSD-3-Clause | yes | `resources/ThirdPartyLicenses/net/LICENSE` | no |
+| golang.org/x/net | v0.62.0 | BSD-3-Clause | yes | `resources/ThirdPartyLicenses/net/LICENSE` | no |
 | golang.org/x/text | v0.43.0 | BSD-3-Clause | yes | `resources/ThirdPartyLicenses/text/LICENSE` | no |
 | codeberg.org/readeck/go-readability/v2 | v2.1.3 | MIT | yes | `resources/ThirdPartyLicenses/readability/LICENSE` | no |
 | github.com/andybalholm/cascadia | v1.3.5 | BSD-2-Clause | yes | `resources/ThirdPartyLicenses/cascadia/LICENSE` | no |
