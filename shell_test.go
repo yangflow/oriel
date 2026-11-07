@@ -176,7 +176,7 @@ func TestShellUnreachableSession(t *testing.T) {
 	if !tt.HasText("Can’t reach this address") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
-	if err := tt.Click("This computer"); err != nil {
+	if err := tt.Click("Use this computer"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("Home") || s.session != nil {

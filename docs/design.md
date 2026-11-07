@@ -125,11 +125,20 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   [scroll view](https://github.com/egoist/mygo/blob/v0.7.4/docs/ui/scroll.md). The timeline is a
   [list](https://github.com/egoist/mygo/blob/v0.7.4/docs/ui/list.md), which builds only the rows in view and lets rows
   of different kinds have different heights.
-- **The connect screen.** A sheet at most `Space(80)` (320) wide, centered in a scroll view with outer padding
-  `Space(6)`; `Space(6)` between the header, the form and the buttons, `Space(2)` between fields, `Space(1.5)` (6)
-  between a field and its error. Fields and buttons are `Space(8)` (32) high; the two buttons share the width
-  equally (both `theme.Button`, the primary one with its arrow after the text or a spinner while it connects). The password field's eye button is a toggle button: its name stays "Show password" and its pressed
-  state says whether the password shows, while its icon flips between eye and eye-off.
+- **The connect screen.** Design BConnect: a sheet at most `sheet-width` (320) wide, centered in a scroll view with
+  outer padding `space-6`, its parts `space-4` apart. On top the product icon at 64 (the mark on the ivory tile, drawn
+  from design/icon.svg without its shadows) and the title in `title`, `space-3` apart, with `space-2` more under them;
+  a session that ran out adds a `meta` line under the title, a clock in `TextMuted` and the server's host in 500.
+  Then two fields, each with its name above in `meta-strong` `Text2`, `space-1-5` apart (a click on the name focuses
+  the field; screen readers hear the input's own name): the address, with `https://oriel.example.com` as placeholder
+  and, once the server answered, a check in `Success` named "Server found" at its end; and the password, "Leave empty
+  if none", with the eye toggle at its end (`row-dense` square, radius-sm, icon-s, the tool button fills): its name
+  stays "Show password" and its pressed state says whether the password shows, while its icon flips between eye and
+  eye-off. Fields are CField wells, `control` high: the fill, radius-control, padding `space-3`, the raised fill and
+  the focus ring while focused, a `Danger` hairline when refused. A problem sits under the field it is about, or under
+  both when it is about neither, as a quiet danger CBanner: its icon-s glyph in `Danger`, the words in `meta` `Text2`.
+  Then Connect, a primary `theme.Button` across the sheet, with its arrow after the text or a spinner while it
+  connects, and under it, `space-3` below, the muted link "Use this computer" with the laptop icon.
 - **The timeline.** An ink pane and the main column. The pane is 216 wide (184 below a 760 wide window), an opaque
   pane of ink (warm charcoal in light, deep teal in dark) floating 8 from the window's top, bottom and left edges, radius 14, with no divider; it is drawn with its
   own light-on-dark theme (see [Glass and ink](#windows-menus-and-navigation)); its first 40 are left to the window
@@ -794,7 +803,7 @@ values are in [design/tokens.json](../design/tokens.json) (reasons in [design/to
   [design/tokens.md](../design/tokens.md) (Typography, Exceptions); a new size is a new row there first.
   Weights 400, 500 and 600 only. The reading body is the article's own scale, not interface type. The table of
   sizes, line heights and tracking is in [design/tokens.md](../design/tokens.md).
-- **The connect screen.** Title 15 semibold, hint 12 in `TextMuted`.
+- **The connect screen.** Title in `title`, field names in `meta-strong`, the expired line and problems in `meta`.
 - **The timeline.** Screen title 15 semibold, row titles 15 semibold in `Text` (read rows 500 in `TextMuted`), the
   source name 12 medium in `Text2`, time and other meta 12 in `TextMuted`, summaries 13 in `Text2`, social text 13 in
   `Text`, counts 11 medium with tabular figures. Titles in rows and video cards wrap and stop at two lines, summaries

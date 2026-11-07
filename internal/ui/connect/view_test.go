@@ -216,7 +216,7 @@ func TestOpenDropsConnectionUnderWay(t *testing.T) {
 
 func TestUseLocal(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	if err := tt.Click("This computer"); err != nil {
+	if err := tt.Click("Use this computer"); err != nil {
 		t.Fatal(err)
 	}
 	if f.local != 1 {
@@ -225,7 +225,7 @@ func TestUseLocal(t *testing.T) {
 	s.address = "home.lan"
 	tt.Frame()
 	tt.Click("Connect")
-	tt.Click("This computer")
+	tt.Click("Use this computer")
 	if f.local != 1 {
 		t.Fatal("use local while connecting")
 	}
@@ -264,6 +264,8 @@ func TestAppearance(t *testing.T) {
 	if !tt.HasText("Connect to a server") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
+	// At twice the text size the form is taller than the window and scrolls: a click outside the window misses.
+	tt.Scroll(320, 240, 0, 1000)
 	if err := tt.Click("Connect"); err != nil {
 		t.Fatalf("connect is out of reach at the minimum size: %v", err)
 	}
