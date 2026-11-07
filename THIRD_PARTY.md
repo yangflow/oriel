@@ -6,16 +6,16 @@
 | github.com/ebitengine/purego | v0.11.1 | Apache-2.0 | yes | `resources/ThirdPartyLicenses/purego/LICENSE` | no |
 | github.com/go-text/typesetting | v0.3.5 | BSD-3-Clause | yes | `resources/ThirdPartyLicenses/typesetting/LICENSE` | no |
 | golang.org/x/image | v0.46.0 | BSD-3-Clause | yes | `resources/ThirdPartyLicenses/image/LICENSE` | no |
-| github.com/dustin/go-humanize | v1.0.1 | MIT | yes | `resources/ThirdPartyLicenses/humanize/LICENSE` | no |
+| github.com/dustin/go-humanize | v1.1.0 | MIT | yes | `resources/ThirdPartyLicenses/humanize/LICENSE` | no |
 | github.com/google/uuid | v1.6.0 | BSD-3-Clause | yes | `resources/ThirdPartyLicenses/uuid/LICENSE` | no |
 | github.com/mattn/go-isatty | v0.0.24 | MIT | yes | `resources/ThirdPartyLicenses/isatty/LICENSE` | no |
-| github.com/ncruces/go-strftime | v1.0.0 | MIT | yes | `resources/ThirdPartyLicenses/strftime/LICENSE` | no |
+| github.com/ncruces/go-strftime | v1.1.0 | MIT | yes | `resources/ThirdPartyLicenses/strftime/LICENSE` | no |
 | github.com/remyoudompheng/bigfft | v0.0.0-20230129092748-24d4a6f8daec | BSD-3-Clause | yes | `resources/ThirdPartyLicenses/bigfft/LICENSE` | no |
 | golang.org/x/sys | v0.49.0 | BSD-3-Clause | yes | `resources/ThirdPartyLicenses/sys/LICENSE` | no |
-| modernc.org/libc | v1.77.1 | BSD-3-Clause, with bundled third-party notices | yes | `resources/ThirdPartyLicenses/libc/` | no |
+| modernc.org/libc | v1.79.0 | BSD-3-Clause, with bundled third-party notices | yes | `resources/ThirdPartyLicenses/libc/` | no |
 | modernc.org/mathutil | v1.7.1 | BSD-3-Clause | yes | `resources/ThirdPartyLicenses/mathutil/LICENSE` | no |
 | modernc.org/memory | v1.12.1 | BSD-3-Clause, with bundled third-party notices | yes | `resources/ThirdPartyLicenses/memory/` | no |
-| modernc.org/sqlite | v1.60.1 | BSD-3-Clause; SQLite is public domain; sqlite-vec is MIT | yes | `resources/ThirdPartyLicenses/sqlite/` | no |
+| modernc.org/sqlite | v1.61.0 | BSD-3-Clause; SQLite is public domain; sqlite-vec is MIT | yes | `resources/ThirdPartyLicenses/sqlite/` | no |
 | github.com/mmcdole/gofeed | v1.5.0 | MIT | yes | `resources/ThirdPartyLicenses/gofeed/LICENSE` | no |
 | github.com/mmcdole/goxpp/v2 | v2.0.0 | MIT | yes | `resources/ThirdPartyLicenses/goxpp/LICENSE` | no |
 | golang.org/x/net | v0.62.0 | BSD-3-Clause | yes | `resources/ThirdPartyLicenses/net/LICENSE` | no |
