@@ -78,21 +78,20 @@ type Position struct {
 
 // EntryFilter narrows the timeline. Zero values do not filter.
 type EntryFilter struct {
-	SourceID      int64
-	Kind          string
-	FolderID      int64 // only subscriptions in this folder; 0 does not filter
-	Unread        bool
-	Starred       bool
-	MaxReadingSec int            // only entries that take at most this many seconds; unknown ones never match; 0 does not filter
-	Query         string         // the search syntax of internal/search; words, phrases and exclusions use the full-text index
-	Location      *time.Location // where after: and before: days begin; nil is time.Local
-	Oldest        bool           // list oldest first instead of newest first
-	After         *Position      // the next page after this position: older entries, or newer ones when Oldest
-	UpTo          *Position      // only this position and older ones
-	Newer         *Position      // only entries newer than this position
-	From          *Position      // only this position and newer ones
-	OlderThan     int64          // only entries shown as before this time, in Unix milliseconds: published_at, else created_at; 0 does not filter
-	Since         int64          // only entries that arrived (created_at) at this time or later, in Unix milliseconds; 0 does not filter
+	SourceID  int64
+	Kind      string
+	FolderID  int64 // only subscriptions in this folder; 0 does not filter
+	Unread    bool
+	Starred   bool
+	Query     string         // the search syntax of internal/search; words, phrases and exclusions use the full-text index
+	Location  *time.Location // where after: and before: days begin; nil is time.Local
+	Oldest    bool           // list oldest first instead of newest first
+	After     *Position      // the next page after this position: older entries, or newer ones when Oldest
+	UpTo      *Position      // only this position and older ones
+	Newer     *Position      // only entries newer than this position
+	From      *Position      // only this position and newer ones
+	OlderThan int64          // only entries shown as before this time, in Unix milliseconds: published_at, else created_at; 0 does not filter
+	Since     int64          // only entries that arrived (created_at) at this time or later, in Unix milliseconds; 0 does not filter
 	// Group shows entries with the same link once: only the earliest visible one of them matches, and read and starred are
 	// those of the whole group. It has no effect with SourceID or Query set.
 	Group bool
@@ -296,9 +295,6 @@ func (f EntryFilter) where() (string, []any) {
 		} else {
 			add("e.starred = 1")
 		}
-	}
-	if f.MaxReadingSec > 0 {
-		add("e.reading_sec <= ?", f.MaxReadingSec) // NULL never compares true
 	}
 	f.searchWhere(query, add)
 	if f.After != nil {
