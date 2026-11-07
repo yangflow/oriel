@@ -96,7 +96,7 @@ scripts/check.sh --cross --race   # 全部，CI 在 main 每次推送和每天�
 |---|---|
 | 产品行为、数据模型、抓取、HTTP 和登录 | [docs/product.md](docs/product.md) |
 | 设计语言：布局、颜色、字体、组件、无障碍（英文） | [docs/design.md](docs/design.md) |
-| 界面画板 | [design/README.md](design/README.md) |
+| 设计令牌、设计系统和界面画板 | [design/README.md](design/README.md) |
 | 路线图规则和 milestone | [docs/roadmap.md](docs/roadmap.md) |
 | 架构决定（英文） | [docs/adr/](docs/adr/README.md) |
 | 人和代理修改仓库的规则（英文） | [AGENTS.md](AGENTS.md) |

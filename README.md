@@ -154,7 +154,7 @@ scripts/check.sh --cross --race   # everything, as CI runs it on main and daily:
 |---|---|
 | Behavior, data model, fetching, HTTP and sign-in (in Chinese) | [docs/product.md](docs/product.md) |
 | Design language: layout, color, type, components, accessibility | [docs/design.md](docs/design.md) |
-| Screen mockups | [design/README.md](design/README.md) |
+| Design tokens, design system and screen mockups | [design/README.md](design/README.md) |
 | Roadmap rules and milestones (in Chinese) | [docs/roadmap.md](docs/roadmap.md) |
 | Architecture decisions | [docs/adr/](docs/adr/README.md) |
 | Repository rules for people and agents | [AGENTS.md](AGENTS.md) |

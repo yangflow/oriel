@@ -1,5 +1,13 @@
 # Design tokens
 
+> The values are now kept in [tokens.json](tokens.json) and [layout.json](layout.json), the one source, and drawn in
+> the [Oriel design system](https://claude.ai/artifact/LBUfZ9m6MHwCsXp4D1d97w) Design artifact. This file explains them. Screens move to the new tokens one pull request at a time
+> (#522); the tables below describe the code until its screen has moved, and `tokens.json` wins where they differ.
+> The deliberate changes: the state ladder becomes fill < hover < selected < pressed; text tiers come from contrast
+> targets (adding `fg3` for icons); light `Danger` and `Star` are darker; radius 10 goes (the Compact row and a
+> settings track take 8, grid pictures 12); the glass capsule becomes a `fill` track; the state fade is 120 ms; popups
+> scale in from 0.97.
+
 The values Oriel's UI uses, in one place. Each is a role or a unit of the MyGo theme (`c.Theme()`), or a helper in
 `internal/ui/theme` for what the theme has no role for, so screens read the theme and never copy the numbers; the
 colors and the radius are set on the theme by `internal/ui/theme`. The rules behind them are in
@@ -464,6 +472,6 @@ on the selected row and on the row with the focus; the fade is 120 ms.
 
 ## Keeping this file true
 
-Change a token here, in `docs/design.md` and in the code together. Mockups in `screens/` copy the color values above
-as CSS variables. When the MyGo version in `go.mod` changes, check that `internal/ui/theme` still sets every color
+Change a value in `tokens.json` or `layout.json` first, then the reason here and the rule in `docs/design.md`, and
+regenerate the theme, in one pull request. The design system artifact and the screens canvas (design/README.md) take the values from `tokens.json`; publish them again when a value changes. When the MyGo version in `go.mod` changes, check that `internal/ui/theme` still sets every color
 role its `ui/theme.go` has.

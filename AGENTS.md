@@ -11,7 +11,8 @@ Sources of truth:
 - `docs/product.md`: product behavior, data model, flows. New rules go into the docs first, then into code.
 - `docs/design.md`: the design language: layout, color, type, components, accessibility, localization.
 - `design/tokens.md`: spacing, size and color values, mapped to MyGo theme roles.
-- `design/`: the mockup of each screen and its states.
+- `design/README.md`: the two claude.ai Design artifacts: the design system and the screens canvas, one artboard per
+  state of each screen.
 - GitHub milestones and issues: the plan and its order. `docs/roadmap.md` holds only the rules and finished history.
 - `docs/release.md`: the release workflow, its secrets and the steps of a release.
 - `docs/adr/0002-standalone-client-and-server.md`: the client reads and writes only through the HTTP API and never
@@ -43,7 +44,7 @@ resources/               shipped licenses and product assets
 scripts/                 checks, packaging, secret scan
 mygo.json                name, identifier, version, packaging
 release-please-*.json    the release pull request: version and changelog from the merged titles
-docs/, design/           product spec, design language, ADRs, mockups, tokens
+docs/, design/           product spec, design language, ADRs, tokens, product icon
 ```
 
 ## Commands
@@ -69,7 +70,7 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
   thread.
 - Interface strings live in each screen package's `copy.json`, `en` and `zh-Hans` only; change both together. Do
   not add other languages.
-- `internal/ui/<screen>/` matches `design/screens/<screen>.html`.
+- `internal/ui/<screen>/` matches the `<screen>` page of the screens canvas.
 - The client only goes through `internal/server/`; UI code never imports `internal/store`.
 - Migrations: only add new files under `internal/store/migrations/`; never edit a released one.
 - Entry links are always fetched through `guardedClient` in `internal/fetch/`; never replace it with a plain
@@ -83,9 +84,9 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
 - When behavior changes, update the existing tests for that area. Passing headless tests is not on-device
   acceptance.
 - Do not split files just because they are long. Leave no temporary scripts, debug output or commented-out code.
-- A UI change starts from the mockup in design/; the maintainer confirms the visual direction before UI code is
-  written. Mockup, `docs/design.md` and code go in the same pull request; screenshots go in the pull request
-  body, not into the repository.
+- A UI change starts from the screens canvas (design/README.md); the maintainer confirms the visual direction before
+  UI code is written. `docs/design.md`, the tokens and code go in the same pull request, whose body links the
+  artboards it follows; screenshots go in the pull request body, not into the repository.
 - Keep `README.md` and `README.zh-CN.md` in sync; list only merged features, and mark plans as plans.
 - Commit messages and PR titles use Conventional Commits:
   `feat|fix|docs|refactor|perf|test|build|ci|chore|revert(scope)!: subject`. Branches are `<type>/<issue>-<slug>`;

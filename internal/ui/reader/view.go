@@ -1,5 +1,5 @@
 // Package reader is the reader: an article in its full text, drawn natively in the place of the timeline's list,
-// or what the feed carries while the text is being got or when it could not be; see design/screens/reader.html.
+// or what the feed carries while the text is being got or when it could not be; see the reader page of the screens canvas.
 // Everything it shows comes through the HTTP API.
 package reader
 

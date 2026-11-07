@@ -1,5 +1,5 @@
 // Package subscriptions adds, edits, pauses, refreshes and deletes subscriptions, in dialogs over the timeline; see
-// design/screens/subscriptions.html. Everything goes through the HTTP API.
+// the subscriptions page of the screens canvas. Everything goes through the HTTP API.
 package subscriptions
 
 import (
