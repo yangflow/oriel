@@ -12,6 +12,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // How often the page asks the server again while it is shown, and how often while a compaction runs.
@@ -118,14 +119,6 @@ func (s *Screen) startVacuum() {
 
 // activityPage is the storage, what is being fetched now and how the recent fetches went.
 func (s *Screen) activityPage(c *ui.Context) {
-	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(3)).Margin(0, 0, theme.Px(t, 20), 0).Children(func() {
-		ui.Text(c, s.text.ActivityLead).TextColor(t.TextMuted).Wrap().Grow(1).Shrink(1).MinWidth(0)
-		refresh := theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.text.Refresh}.Draw(c)
-		if refresh.Clicked() {
-			s.fetchActivity()
-		}
-	})
 	s.storageCard(c)
 	s.diagnosticsCard(c)
 	s.fetchingNowCard(c)
@@ -133,22 +126,29 @@ func (s *Screen) activityPage(c *ui.Context) {
 }
 
 func (s *Screen) storageCard(c *ui.Context) {
-	t := c.Theme()
 	st := s.storage
 	sectionTitle(c, s.text.Storage, 0)
-	card(c, func() {
-		ui.Column(c).FillWidth().Gap(theme.Px(t, 8)).Children(func() {
-			s.keyValue(c, s.text.DBSize, s.bytes(st.DatabaseBytes))
-			s.keyValue(c, s.text.Entries, strconv.FormatInt(st.Entries, 10))
-			s.keyValue(c, s.text.Images, s.fill(locale.Count(s.text.ImagesValue, "n", st.Images), "{size}", s.bytes(st.ImageBytes)))
-			s.keyValue(c, s.text.Copies, s.fill(locale.Count(s.text.CopiesValue, "n", st.Copies), "{size}", s.bytes(st.CopyBytes)))
-			s.preMigrateRow(c)
-		})
-	}, func() {
+	rows := []cardRow{
+		{key: "db", draw: func() { s.keyValue(c, icons.Database, s.text.DBSize, s.bytes(st.DatabaseBytes)) }},
+		{key: "entries", draw: func() { s.keyValue(c, icons.Inbox, s.text.Entries, strconv.FormatInt(st.Entries, 10)) }},
+		{key: "images", draw: func() {
+			s.keyValue(c, icons.Image, s.text.Images,
+				s.fill(locale.Count(s.text.ImagesValue, "n", st.Images), "{size}", s.bytes(st.ImageBytes)))
+		}},
+		{key: "copies", draw: func() {
+			s.keyValue(c, icons.Layers, s.text.Copies,
+				s.fill(locale.Count(s.text.CopiesValue, "n", st.Copies), "{size}", s.bytes(st.CopyBytes)))
+		}},
+	}
+	if st.PreMigrate != nil {
+		rows = append(rows, cardRow{key: "premigrate", draw: func() { s.preMigrateRow(c) }})
+	}
+	rows = append(rows, cardRow{key: "compact", draw: func() {
 		busy := s.compacting()
-		t := c.Theme()
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
-			label := s.text.Compact
+		setting(c, icons.Minimize2, false, s.text.Compact, func() {
+			meta(c, s.fill(s.text.CompactHelp, "{size}", s.bytes(st.ReclaimableBytes)))
+		}, func() {
+			label := s.text.CompactRun
 			if busy {
 				label = s.text.Compacting
 			}
@@ -156,11 +156,10 @@ func (s *Screen) storageCard(c *ui.Context) {
 			if compact.Clicked() {
 				s.startVacuum()
 			}
-			ui.Text(c, s.fill(s.text.CompactHelp, "{size}", s.bytes(st.ReclaimableBytes))).FontSize(theme.Px(t, 12)).
-				TextColor(t.TextMuted).Wrap().Grow(1).Shrink(1).MinWidth(0)
 		})
 		statusLine(c, s.vacuumStatus())
-	})
+	}})
+	cardOf(c, rows)
 }
 
 // preMigrateRow shows the copy of the database made before the last update with its size and the version it was made
@@ -170,14 +169,11 @@ func (s *Screen) preMigrateRow(c *ui.Context) {
 	if copyInfo == nil {
 		return
 	}
-	t := c.Theme()
 	value := s.bytes(copyInfo.Bytes)
 	if copyInfo.Version > 0 {
 		value = s.fill(s.fill(s.text.PreMigrateVersion, "{size}", value), "{version}", strconv.Itoa(copyInfo.Version))
 	}
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
-		ui.Text(c, s.text.PreMigrate).Grow(1).Shrink(1).MinWidth(0).SingleLine()
-		ui.Text(c, value).SingleLine().FontWeight(500)
+	setting(c, icons.RotateCcw, false, s.text.PreMigrate, func() { meta(c, value).FontFeatures("tnum") }, func() {
 		drop := theme.Button{Style: theme.Danger, Small: true, Disabled: s.dropping, Text: s.text.DeletePreMigrate,
 			Label: s.text.DeletePreMigrateTitle}.Draw(c)
 		if drop.Clicked() {
@@ -245,18 +241,18 @@ func (s *Screen) vacuumStatus() status {
 // diagnosticsCard exports the diagnostics file: what it holds, the button and how the last export went.
 func (s *Screen) diagnosticsCard(c *ui.Context) {
 	t := c.Theme()
-	sectionTitle(c, s.text.Diagnostics, t.Space(6))
+	sectionTitle(c, s.text.Diagnostics, gap(t))
 	card(c, func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
-			label := s.text.ExportDiagnostics
+		setting(c, icons.FileText, false, s.text.DiagnosticsFile, func() { meta(c, s.text.DiagnosticsHelp) }, func() {
+			label := s.text.Export
 			if s.diagBusy {
 				label = s.text.ExportingDiagnostics
 			}
-			export := theme.Button{Disabled: s.diagBusy, Icon: icons.Download, Text: label, Busy: s.diagBusy}.Draw(c)
+			export := theme.Button{Disabled: s.diagBusy, Icon: icons.Download, Text: label, Label: s.text.ExportDiagnostics,
+				Busy: s.diagBusy}.Draw(c)
 			if export.Clicked() {
 				s.exportDiagnostics()
 			}
-			ui.Text(c, s.text.DiagnosticsHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Grow(1).Shrink(1).MinWidth(0)
 		})
 		statusLine(c, s.diagStatus)
 	})
@@ -302,52 +298,56 @@ func (s *Screen) exportDiagnostics() {
 	})
 }
 
-func (s *Screen) keyValue(c *ui.Context, label, value string) {
+// keyValue is a setting row that shows a value, in Text2 with tabular figures, where a control would be.
+func (s *Screen) keyValue(c *ui.Context, icon *ui.SVG, label, value string) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
-		ui.Text(c, label).Grow(1).Shrink(1).MinWidth(0).SingleLine()
-		ui.Text(c, value).SingleLine().FontWeight(500)
+	setting(c, icon, false, label, nil, func() {
+		ui.Text(c, value).SingleLine().TextColor(theme.Text2(t)).FontFeatures("tnum")
 	})
 }
 
 func (s *Screen) fetchingNowCard(c *ui.Context) {
 	t := c.Theme()
-	sectionTitle(c, s.text.FetchingNow, t.Space(6))
-	card(c, func() {
-		if len(s.activity.Fetching) == 0 {
-			ui.Text(c, s.text.FetchingNone).TextColor(t.TextMuted).Wrap()
-			return
-		}
-		ui.Column(c).FillWidth().Children(func() {
-			for _, f := range s.activity.Fetching {
-				ui.Row(c).Key(f.ID).FillWidth().Height(theme.Px(t, 36)).AlignItems(ui.Center).Gap(theme.Px(t, 10)).Children(func() {
+	sectionTitle(c, s.text.FetchingNow, gap(t))
+	if len(s.activity.Fetching) == 0 {
+		card(c, func() { meta(c, s.text.FetchingNone) })
+		return
+	}
+	rows := make([]cardRow, len(s.activity.Fetching))
+	for i, f := range s.activity.Fetching {
+		rows[i] = cardRow{key: f.ID, draw: func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
+				ui.Box(c).Size(theme.Px(t, tokens.IconM), theme.Px(t, tokens.IconM)).Center().Children(func() {
 					spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
-					spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-					ui.Text(c, sourceName(f.Title, f.RSSHubPath, f.URL)).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+					spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
 				})
-			}
-		})
-	})
+				ui.Text(c, sourceName(f.Title, f.RSSHubPath, f.URL)).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+			})
+		}}
+	}
+	cardOf(c, rows)
 }
 
 func (s *Screen) recentCard(c *ui.Context) {
 	t := c.Theme()
-	sectionTitle(c, s.text.Recent, t.Space(6))
+	sectionTitle(c, s.text.Recent, gap(t))
 	if len(s.activity.Sources) == 0 {
-		card(c, func() { ui.Text(c, s.text.RecentNone).TextColor(t.TextMuted).Wrap() })
+		card(c, func() { meta(c, s.text.RecentNone) })
 		return
 	}
 	now := s.deps.Now()
-	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Children(func() {
+	plate(c).Children(func() {
 		for i, src := range s.activity.Sources {
-			if i > 0 {
-				ui.Box(c).FillWidth().Height(1).Margin(0, theme.Px(t, 20)).Background(t.Border)
-			}
-			s.sourceRow(c, src, now)
+			ui.Column(c).Key(src.ID).FillWidth().Children(func() {
+				if i > 0 {
+					hairline(c)
+				}
+				s.sourceRow(c, src, now)
+			})
 		}
 	})
-	ui.Text(c, locale.Count(s.text.RecentKeep, "n", s.activity.Keep)).FontSize(theme.Px(t, 12)).
-		TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 8), theme.Px(t, 4), 0, theme.Px(t, 4))
+	meta(c, locale.Count(s.text.RecentKeep, "n", s.activity.Keep)).
+		Margin(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space1), 0, theme.Px(t, tokens.Space1))
 }
 
 // sourceRow is a subscription with its last fetch, which opens the list of its recent fetches. Only the open row draws
@@ -357,8 +357,9 @@ func (s *Screen) sourceRow(c *ui.Context, src client.ActivitySource, now time.Ti
 	open := s.actOpen == src.ID
 	name := sourceName(src.Title, src.RSSHubPath, src.URL)
 	ui.Column(c).Key(src.ID).FillWidth().Children(func() {
-		row := ui.ButtonBase(c).FillWidth().Height(theme.Px(t, 44)).AlignItems(ui.Center).Gap(theme.Px(t, 10)).PaddingX(theme.Px(t, 20)).
-			Label(s.fill(s.text.ShowAttempts, "{name}", name)).Role(ui.RoleDisclosure).Expanded(open)
+		row := ui.ButtonBase(c).FillWidth().MinHeight(theme.Px(t, tokens.Control+tokens.Space4)).AlignItems(ui.Center).
+			Gap(theme.Px(t, tokens.Space3)).PaddingX(theme.Px(t, tokens.Space2)).Margin(0, -theme.Px(t, tokens.Space2)).
+			Radius(theme.Px(t, tokens.RadiusControl)).Label(s.fill(s.text.ShowAttempts, "{name}", name)).Role(ui.RoleDisclosure).Expanded(open)
 		switch {
 		case row.Pressed():
 			row.Background(t.SurfacePressed)
@@ -376,8 +377,8 @@ func (s *Screen) sourceRow(c *ui.Context, src client.ActivitySource, now time.Ti
 			}
 			s.resultIcon(c, ok)
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
-				ui.Text(c, name).FontWeight(500).SingleLine().MinWidth(0)
-				ui.Text(c, summary).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine().MinWidth(0)
+				ui.Text(c, name).SingleLine().MinWidth(0)
+				ui.Text(c, summary).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).SingleLine().MinWidth(0)
 			})
 			chevron := icons.ChevronRight
 			if open {
@@ -393,30 +394,41 @@ func (s *Screen) sourceRow(c *ui.Context, src client.ActivitySource, now time.Ti
 			}
 		}
 		if open {
-			ui.Column(c).FillWidth().Padding(0, theme.Px(t, 20), theme.Px(t, 8), theme.Px(t, 20)).Children(func() {
-				for i, a := range src.Attempts {
-					s.attemptLine(c, i, a, now)
-				}
-			})
+			ui.Column(c).FillWidth().Padding(0, 0, theme.Px(t, tokens.Space2), theme.Px(t, tokens.IconS+tokens.Space3)).
+				Children(func() {
+					for i, a := range src.Attempts {
+						s.attemptLine(c, i, a, now)
+					}
+				})
 		}
 	})
 }
+
+// The widths of an attempt's columns after its time: the HTTP status, how long it took and what it brought.
+const (
+	colStatus  = 40
+	colTook    = 56
+	colBrought = 84
+)
 
 // attemptLine is one fetch: how it went, when, the HTTP status, how long it took and what it brought; a failed one
 // says why on a second line.
 func (s *Screen) attemptLine(c *ui.Context, i int, a client.FetchAttempt, now time.Time) {
 	t := c.Theme()
 	ui.Column(c).Key(i).FillWidth().Children(func() {
-		ui.Row(c).FillWidth().MinHeight(theme.Px(t, 28)).AlignItems(ui.Center).Gap(theme.Px(t, 10)).Children(func() {
-			s.resultIcon(c, a.OK)
-			ui.Text(c, s.ago(a.At, now)).Grow(1).Shrink(1).MinWidth(0).SingleLine()
-			muted := ui.Text(c, s.status(a)).SingleLine().FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
-			muted.Width(theme.Px(t, 40))
-			ui.Text(c, s.duration(a.DurationMs)).SingleLine().FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Width(theme.Px(t, 56))
-			ui.Text(c, s.outcome(a)).SingleLine().FontSize(theme.Px(t, 12)).Width(theme.Px(t, 84))
-		})
+		size := theme.Px(t, tokens.TextMeta.Size.En)
+		ui.Row(c).FillWidth().MinHeight(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+			Children(func() {
+				s.resultIcon(c, a.OK)
+				ui.Text(c, s.ago(a.At, now)).FontSize(size).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+				ui.Text(c, s.status(a)).SingleLine().FontSize(size).TextColor(t.TextMuted).FontFeatures("tnum").
+					Width(theme.Px(t, colStatus))
+				ui.Text(c, s.duration(a.DurationMs)).SingleLine().FontSize(size).TextColor(t.TextMuted).FontFeatures("tnum").
+					Width(theme.Px(t, colTook))
+				ui.Text(c, s.outcome(a)).SingleLine().FontSize(size).FontFeatures("tnum").Width(theme.Px(t, colBrought))
+			})
 		if !a.OK && a.Error != "" {
-			ui.Text(c, a.Error).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(0, 0, theme.Px(t, 4), theme.Px(t, 24))
+			meta(c, a.Error).Margin(0, 0, theme.Px(t, tokens.Space1), theme.Px(t, tokens.IconS+tokens.Space3))
 		}
 	})
 }

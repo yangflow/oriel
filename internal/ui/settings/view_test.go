@@ -20,6 +20,7 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -1066,8 +1067,9 @@ func TestAIColumns(t *testing.T) {
 	if prompts.Y != conn.Y || prompts.X <= conn.X {
 		t.Errorf("two columns: connection %v, prompts %v", conn, prompts)
 	}
-	// The lead stops at 600, scaled with the text size, short of the two columns under it.
-	if lead := rect(t, tt, s.text.AILead); lead.X != conn.X || lead.W >= 2*conn.W {
+	// The lead, in the head after the page's chip, starts over the first column and stops at 600, scaled with the text
+	// size, short of the two columns under it.
+	if lead := rect(t, tt, s.text.AILead); lead.X <= conn.X || lead.X >= prompts.X || lead.W >= 2*conn.W {
 		t.Errorf("lead %v, connection %v", lead, conn)
 	}
 	// At the minimum window the single column keeps its Connection heading.
@@ -1139,6 +1141,13 @@ func press(t *testing.T, tt *ui.Tester, label string) {
 	if err := tt.Click(label); err != nil {
 		t.Fatalf("%v in %v", err, tt.Texts())
 	}
+}
+
+// clickModel clicks into the model field, which sits under its setting row: a control high, centered on the name, then
+// space-3.
+func clickModel(tt *ui.Tester, s *Screen) {
+	r, _ := tt.Find(s.text.Model)
+	tt.ClickAt(r.X+20, r.Y+r.H/2+tokens.Control/2+tokens.Space3+tokens.Control/2)
 }
 
 // edit changes the AI settings as typed, as the fields do between frames.
@@ -1264,8 +1273,7 @@ func TestTestAI(t *testing.T) {
 		}
 	}
 	// The model field sits under its heading, across the card.
-	r, _ := tt.Find(s.text.Model)
-	tt.ClickAt(r.X+20, r.Y+r.H+28)
+	clickModel(tt, s)
 	tt.Type("-2")
 	if !strings.Contains(s.aiModel, "-2") || tt.HasText(s.text.ErrorHint) || !tt.HasText(s.text.TestFirst) {
 		t.Fatalf("model %q, texts %v", s.aiModel, tt.Texts())
@@ -1420,8 +1428,7 @@ func TestChecks(t *testing.T) {
 	f.check = client.AITest{ModelFound: &yes}
 	press(t, tt, s.text.Test)
 	f.settle(tt)
-	r, _ := tt.Find(s.text.Model)
-	tt.ClickAt(r.X+20, r.Y+r.H+28)
+	clickModel(tt, s)
 	tt.Type("-2")
 	if len(s.aiChecks) != 0 || tt.HasText(s.text.CheckListed) {
 		t.Fatalf("checks %+v after a change", s.aiChecks)
@@ -2243,8 +2250,7 @@ func TestSubscriptionsInCountsOtherEncodings(t *testing.T) {
 // TestEscapeInField has Escape in a text field give up the focus, not leave, and keep what was typed.
 func TestEscapeInField(t *testing.T) {
 	s, f, tt := openAI(t, "en", true)
-	r, _ := tt.Find(s.text.Model)
-	tt.ClickAt(r.X+20, r.Y+r.H+28)
+	clickModel(tt, s)
 	tt.Type("-2")
 	typed := s.aiModel
 	if !s.typing || typed == "small" {

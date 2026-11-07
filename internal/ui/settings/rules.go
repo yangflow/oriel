@@ -13,6 +13,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // deletedToast is the ID of the toast of a deleted rule.
@@ -228,40 +229,35 @@ func (s *Screen) action(r client.Rule) (*ui.SVG, string) {
 func (s *Screen) rulesPage(c *ui.Context) {
 	t := c.Theme()
 	p := &s.rules
-	lead(c, s.text.RulesLead)
-	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Children(func() {
+	plate(c).Children(func() {
 		if len(p.list) == 0 {
-			ui.Row(c).Key("none").FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, 12)).Padding(theme.Px(t, 16), theme.Px(t, 20)).
-				Children(func() {
-					ui.Icon(c, icons.ListFilter).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted).Margin(theme.Px(t, 1), 0, 0, 0)
-					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-						ui.Text(c, s.text.RulesNone).FontWeight(500)
-						ui.Text(c, s.text.RulesNoneHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().
-							Margin(theme.Px(t, 4), 0, 0, 0)
-					})
+			ui.Column(c).Key("none").FillWidth().Children(func() {
+				ui.Column(c).FillWidth().PaddingY(theme.Px(t, tokens.Space3)).Children(func() {
+					setting(c, icons.ListFilter, false, s.text.RulesNone, func() { meta(c, s.text.RulesNoneHelp) }, nil)
 				})
+				hairline(c)
+			})
 		}
 		for _, r := range p.list {
 			id := strconv.FormatInt(r.ID, 10)
-			ui.Box(c).Key("line"+id).FillWidth().Height(1).Margin(0, theme.Px(t, 20)).Background(t.Border)
-			s.ruleRow(c, r, id)
-		}
-		if len(p.list) > 0 {
-			ui.Box(c).Key("line-add").FillWidth().Height(1).Margin(0, theme.Px(t, 20)).Background(t.Border)
-		}
-		ui.Row(c).Key("add").FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Padding(theme.Px(t, 16), theme.Px(t, 20)).
-			Children(func() {
-				full := len(p.list) >= maxRules
-				if full {
-					ui.Text(c, s.text.RulesMax).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
-				} else {
-					ui.Box(c).Grow(1)
-				}
-				add := theme.Button{Style: theme.Secondary, Disabled: full, Icon: icons.Plus, Text: s.text.AddRule}.Draw(c)
-				if add.Clicked() {
-					s.openRule(nil)
-				}
+			ui.Column(c).Key("line" + id).FillWidth().Children(func() {
+				s.ruleRow(c, r, id)
+				hairline(c)
 			})
+		}
+		ui.Row(c).Key("add").FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+			PaddingY(theme.Px(t, tokens.Space3)).Children(func() {
+			full := len(p.list) >= maxRules
+			if full {
+				meta(c, s.text.RulesMax).Grow(1).MinWidth(0)
+			} else {
+				ui.Box(c).Grow(1)
+			}
+			add := theme.Button{Style: theme.Secondary, Disabled: full, Icon: icons.Plus, Text: s.text.AddRule}.Draw(c)
+			if add.Clicked() {
+				s.openRule(nil)
+			}
+		})
 	})
 	s.mutedCard(c)
 }
@@ -269,58 +265,59 @@ func (s *Screen) rulesPage(c *ui.Context) {
 func (s *Screen) ruleRow(c *ui.Context, r client.Rule, id string) {
 	t := c.Theme()
 	summary := s.summary(r)
-	ui.Row(c).Key("rule"+id).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Padding(theme.Px(t, 16), theme.Px(t, 20)).
-		Children(func() {
-			text := ui.ButtonBase(c).Grow(1).Shrink(1).MinWidth(0).Column().AlignItems(ui.Start).
-				Radius(t.Radius).Label(summary)
-			if !r.Enabled {
-				text.Opacity(0.55)
-			}
-			text.Children(func() {
-				ui.Text(c, summary).FontWeight(500).Wrap()
-				icon, act := s.action(r)
-				ui.Row(c).Wrap().AlignItems(ui.Center).Gap(theme.Px(t, 6)).Margin(theme.Px(t, 2), 0, 0, 0).Children(func() {
+	ui.Row(c).Key("rule" + id).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+		PaddingY(theme.Px(t, tokens.Space3)).Children(func() {
+		text := ui.ButtonBase(c).Grow(1).Shrink(1).MinWidth(0).Column().AlignItems(ui.Start).
+			Radius(theme.Px(t, tokens.RadiusSm)).Label(summary)
+		if !r.Enabled {
+			text.Opacity(0.55)
+		}
+		text.Children(func() {
+			ui.Text(c, summary).Wrap()
+			icon, act := s.action(r)
+			ui.Row(c).Wrap().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Margin(theme.Px(t, tokens.Space0_5), 0, 0, 0).
+				Children(func() {
 					if scope := s.scope(r); scope != "" {
-						ui.Text(c, scope).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+						ui.Text(c, scope).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
 					}
 					ui.Icon(c, icons.ArrowRight).FontSize(theme.IconSmall(t)).TextColor(theme.Text2(t))
 					ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(theme.Text2(t))
-					ui.Text(c, act).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+					ui.Text(c, act).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
 					if !r.Enabled {
-						ui.Text(c, s.text.RuleOffBadge).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(theme.Text2(t)).
-							Padding(theme.Px(t, 1), theme.Px(t, 6)).Radius(theme.Px(t, 4)).Background(theme.Track(t))
+						tag(c, s.text.RuleOffBadge, "", false)
 					}
 				})
-			})
-			if text.Clicked() {
+		})
+		if text.Clicked() {
+			s.openRule(&r)
+		}
+		on := r.Enabled
+		ui.Switch(c, &on).Label(s.text.RuleSwitch).Description(summary)
+		if on != r.Enabled {
+			s.toggleRule(r.ID, on)
+		}
+		more := theme.Fade(ui.ButtonBase(c).Size(theme.Px(t, tokens.Row), theme.Px(t, tokens.Row)).
+			Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.RuleMore).
+			Tooltip(s.text.RuleMore))
+		color := t.TextMuted
+		switch {
+		case more.Pressed():
+			more.Background(t.SurfacePressed)
+			color = t.Text
+		case more.Hovered():
+			more.Background(t.SurfaceHover)
+			color = t.Text
+		}
+		more.Children(func() { ui.Icon(c, icons.Ellipsis).FontSize(theme.IconMedium(t)).TextColor(color) })
+		more.Menu(func(m *ui.Menu) {
+			if m.Item(s.text.MenuEdit).Chosen() {
 				s.openRule(&r)
 			}
-			on := r.Enabled
-			ui.Switch(c, &on).Label(s.text.RuleSwitch).Description(summary)
-			if on != r.Enabled {
-				s.toggleRule(r.ID, on)
+			if m.Item(s.text.MenuDelete).Chosen() {
+				s.deleteRule(r.ID)
 			}
-			more := theme.Fade(ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(8).Label(s.text.RuleMore).
-				Tooltip(s.text.RuleMore))
-			color := t.TextMuted
-			switch {
-			case more.Pressed():
-				more.Background(t.SurfacePressed)
-				color = t.Text
-			case more.Hovered():
-				more.Background(t.SurfaceHover)
-				color = t.Text
-			}
-			more.Children(func() { ui.Icon(c, icons.Ellipsis).FontSize(theme.IconMedium(t)).TextColor(color) })
-			more.Menu(func(m *ui.Menu) {
-				if m.Item(s.text.MenuEdit).Chosen() {
-					s.openRule(&r)
-				}
-				if m.Item(s.text.MenuDelete).Chosen() {
-					s.deleteRule(r.ID)
-				}
-			})
 		})
+	})
 }
 
 // ruleIndex is where the rule called id is in the list, -1 for none.
@@ -466,44 +463,34 @@ func (s *Screen) ruleDialog(c *ui.Context) {
 	}
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		theme.Scrim(c, backdrop).Padding(t.Space(4))
-		panel.Column().Width(theme.Px(t, 440)).MaxHeight(height - t.Space(8)).
+		theme.Scrim(c, backdrop).Padding(theme.Px(t, tokens.Space4))
+		panel.Column().Width(theme.Px(t, tokens.DialogWide)).MaxHeight(height - theme.Px(t, tokens.Space8)).Clip().
 			Label(title)
 		theme.Sheet(c, panel, theme.Dialog)
-		line := func(shown bool) {
-			color := t.Border
-			if !shown {
-				color = color.Alpha(0)
-			}
-			ui.Box(c).FillWidth().Height(1).Background(color)
-		}
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Padding(t.Space(4.5), t.Space(5), t.Space(1),
-			t.Space(5)).Children(func() {
-			ui.Text(c, title).FontSize(theme.Px(t, 15)).FontWeight(600).Grow(1).MinWidth(0).Role(ui.RoleHeading).Level(2)
-			x := theme.Fade(ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(8).AlignSelf(ui.Start).
-				Label(s.text.RuleClose).Tooltip(s.text.RuleClose))
-			color := t.TextMuted
-			switch {
-			case x.Pressed():
-				x.Background(t.SurfacePressed)
-				color = t.Text
-			case x.Hovered():
-				x.Background(t.SurfaceHover)
-				color = t.Text
-			}
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+			Padding(theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space2)).Children(func() {
+			chip(c, icons.ListFilter, false)
+			ui.Text(c, title).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).Grow(1).
+				MinWidth(0).Role(ui.RoleHeading).Level(2)
+			x, color := theme.ToolButton(c, theme.ToolState{})
+			x.AlignSelf(ui.Start).Label(s.text.RuleClose).Tooltip(s.text.RuleClose)
 			x.Children(func() { ui.Icon(c, icons.X).FontSize(theme.IconMedium(t)).TextColor(color) })
 			if x.Clicked() {
 				open = false
 			}
 		})
-		line(d.scroll.Y > 0)
+		line := t.Border
+		if d.scroll.Y <= 0 {
+			line = line.Alpha(0)
+		}
+		ui.Box(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).Background(line)
 		ui.Scroll(c).TrackScroll(&d.scroll).FillWidth().Shrink(1).MinHeight(0).Children(func() {
-			ui.Column(c).FillWidth().Gap(t.Space(3.5)).Padding(t.Space(3.5), t.Space(5), t.Space(1), t.Space(5)).
+			ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space4)).
+				Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space6)).
 				Children(func() { s.ruleFields(c, d) })
 		})
-		line(d.scroll.Y < d.scroll.MaxY)
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(4), t.Space(5), t.Space(4.5),
-			t.Space(5)).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+			Padding(theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space6)).Background(theme.Surface(t)).Children(func() {
 			ui.Box(c).Grow(1)
 			cancel := theme.Button{Style: theme.Secondary, Text: s.text.Cancel}.Draw(c)
 			if cancel.Clicked() {
@@ -523,14 +510,12 @@ func (s *Screen) ruleDialog(c *ui.Context) {
 func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 	t := c.Theme()
 	group := func(text string) {
-		ui.Text(c, text).FontWeight(500)
+		ui.Text(c, text).FontSize(theme.Px(t, tokens.TextLabel.Size.En)).FontWeight(tokens.TextLabel.Weight)
 	}
-	help := func(text string) {
-		ui.Text(c, text).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
-	}
+	help := func(text string) { meta(c, text) }
 	set := func(name, hint string, control func()) {
-		ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
-			ui.Text(c, name).TextColor(theme.Text2(t))
+		ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+			ui.Text(c, name).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t))
 			if hint != "" {
 				help(hint)
 			}
@@ -553,18 +538,8 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 	lines := func(key, label string, text *string, bad, focus bool) bool {
 		before := *text
 		area := ui.TextArea(c.Key(key), text).FillWidth().Lines(2, 6).Font("monospace").
-			FontSize(theme.Px(t, 12)).Label(label).Disabled(d.saving)
-		area.Background(theme.RaisedFill(t)).Radius(t.Radius)
-		edge(c, area)
-		switch {
-		case bad:
-			area.Border(1.5, t.Danger)
-			if area.Focused() {
-				area.Shadow(0, 0, 0, 2, theme.Soft(t, t.Danger))
-			}
-		case area.Focused():
-			area.Shadow(0, 0, 0, 2, t.Focus)
-		}
+			FontSize(theme.Px(t, tokens.TextCode.Size.En)).Label(label).Disabled(d.saving)
+		well(c, area, area.Focused(), bad)
 		if bad && d.keysErr != "" {
 			area.Error(d.keysErr)
 		}
@@ -602,11 +577,11 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 		if d.count > 0 {
 			line = locale.Count(s.text.RuleCount, "n", d.count)
 		}
-		ui.Text(c, line).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().FontFeatures("tnum").Role(ui.RoleStatus)
+		meta(c, line).FontFeatures("tnum").Role(ui.RoleStatus)
 	}
 
 	group(s.text.RuleThen)
-	ui.Column(c).FillWidth().Gap(theme.Px(t, 8)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Children(func() {
 		if ui.Checkbox(c, &d.star, s.text.ActStar).Disabled(d.saving).Changed() {
 			d.actErr = ""
 		}
@@ -615,9 +590,9 @@ func (s *Screen) ruleFields(c *ui.Context, d *ruleForm) {
 		}
 		statusLine(c, status{text: d.actErr})
 	})
-	ui.Text(c, s.text.RuleNote).TextColor(theme.Text2(t)).Wrap()
+	meta(c, s.text.RuleNote)
 	if d.formErr != "" {
-		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, 6)).Role(ui.RoleStatus).
+		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).
 			Children(func() { statusText(c, status{text: d.formErr}) })
 	}
 }
@@ -698,23 +673,16 @@ func (s *Screen) mutedCard(c *ui.Context) {
 	t := c.Theme()
 	p := &s.rules
 	s.watchMuted(c)
-	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Margin(theme.Px(t, 20), 0, 0, 0).Children(func() {
-		ui.Column(c).FillWidth().Padding(theme.Px(t, 16), theme.Px(t, 20)).Children(func() {
-			ui.Text(c, s.text.MutedTitle).FontWeight(500)
-			ui.Text(c, s.text.MutedHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 4), 0, 0, 0)
+	sectionTitle(c, s.text.MutedTitle, gap(t))
+	plate(c).Children(func() {
+		ui.Column(c).FillWidth().PaddingY(theme.Px(t, tokens.Space3)).Children(func() {
+			setting(c, icons.EyeOff, false, s.text.MutedHelp, nil, nil)
 			before := p.muted
-			area := ui.TextArea(c.Key("muted"), &p.muted).FillWidth().Lines(3, 8).Margin(theme.Px(t, 12), 0, 0, 0).
-				Font("monospace").FontSize(theme.Px(t, 12)).Label(s.text.MutedTitle).Disabled(p.saving)
-			area.Background(theme.RaisedFill(t)).Radius(t.Radius)
-			edge(c, area)
-			switch {
-			case p.invalid:
-				area.Border(1.5, t.Danger).Error(p.mutedState.text)
-				if area.Focused() {
-					area.Shadow(0, 0, 0, 2, theme.Soft(t, t.Danger))
-				}
-			case area.Focused():
-				area.Shadow(0, 0, 0, 2, t.Focus)
+			area := ui.TextArea(c.Key("muted"), &p.muted).FillWidth().Lines(3, 8).Margin(below(t), 0, 0, 0).
+				Font("monospace").FontSize(theme.Px(t, tokens.TextCode.Size.En)).Label(s.text.MutedTitle).Disabled(p.saving)
+			well(c, area, area.Focused(), p.invalid)
+			if p.invalid {
+				area.Error(p.mutedState.text)
 			}
 			if p.focus {
 				area.Focus()
@@ -730,15 +698,14 @@ func (s *Screen) mutedCard(c *ui.Context) {
 				if p.count > 0 {
 					line = locale.Count(s.text.MutedMany, "n", p.count)
 				}
-				ui.Text(c, line).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Margin(theme.Px(t, 8), 0, 0, 0).
-					FontFeatures("tnum").Role(ui.RoleStatus)
+				meta(c, line).Margin(theme.Px(t, tokens.Space2), 0, 0, 0).FontFeatures("tnum").Role(ui.RoleStatus)
 			}
 			dirty := cleanLines(p.muted) != cleanLines(s.settings.MuteKeywords)
 			style := theme.Secondary
 			if dirty {
 				style = theme.Primary
 			}
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Margin(theme.Px(t, 12), 0, 0, 0).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Margin(below(t), 0, 0, 0).Children(func() {
 				ui.Box(c).Grow(1)
 				save := theme.Button{Style: style, Disabled: !dirty || p.saving, Text: s.text.Save, Busy: p.saving}.Draw(c)
 				if save.Clicked() {
@@ -870,8 +837,8 @@ func (s *Screen) subsPicker(c *ui.Context, d *ruleForm) {
 		label = locale.Count(s.text.SubsN, "n", len(d.sources))
 	}
 	wasOpen := d.subsOpen
-	btn := ui.ButtonBase(c.Key("rulesubs")).FillWidth().Height(theme.Px(t, 32)).Gap(t.Space(2)).
-		Padding(0, t.Space(2), 0, theme.Px(t, 10)).Radius(t.Radius).AlignItems(ui.Center).Label(s.text.RuleSub + ": " + label)
+	btn := selectTrigger(t, ui.ButtonBase(c.Key("rulesubs")).FillWidth()).AlignItems(ui.Center).
+		Label(s.text.RuleSub + ": " + label)
 	trigger(c, btn)
 	btn.Disabled(d.saving)
 	btn.Children(func() {
@@ -882,20 +849,21 @@ func (s *Screen) subsPicker(c *ui.Context, d *ruleForm) {
 		d.subsOpen = !wasOpen
 	}
 	ui.PopoverBase(c, btn, &d.subsOpen, func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 240))
-		theme.Sheet(c, panel, theme.Popup)
-		ui.Scroll(c).MaxHeight(theme.Px(t, 320)).Children(func() {
+		menu(c, panel)
+		panel.MinWidth(theme.Px(t, tokens.SheetWidth) * 3 / 4)
+		ui.Scroll(c).MaxHeight(theme.Px(t, tokens.SheetWidth)).Children(func() {
 			ui.Column(c).FillWidth().Children(func() {
 				all := len(d.sources) == 0
-				if ui.Checkbox(c.Key("rulesub-all"), &all, s.text.AllSubs).FillWidth().Height(theme.Px(t, 28)).PaddingX(t.Space(2)).
-					Changed() {
+				if ui.Checkbox(c.Key("rulesub-all"), &all, s.text.AllSubs).FillWidth().Height(theme.Px(t, tokens.Row)).
+					PaddingX(theme.Px(t, tokens.Space2)).Changed() {
 					d.sources, d.condErr, d.formErr = nil, "", ""
 				}
-				ui.Box(c).Key("rulesub-line").FillWidth().Height(1).Margin(theme.Px(t, 4), 0).Background(t.Border)
+				ui.Box(c).Key("rulesub-line").FillWidth().Height(theme.Px(t, tokens.Hairline)).
+					Margin(theme.Px(t, tokens.Space1), 0).Background(t.Border)
 				for _, src := range s.rules.sources {
 					on := slices.Contains(d.sources, src.ID)
 					row := ui.Checkbox(c.Key("rulesub"+strconv.FormatInt(src.ID, 10)), &on, src.Title).FillWidth().
-						Height(theme.Px(t, 28)).PaddingX(t.Space(2))
+						Height(theme.Px(t, tokens.Row)).PaddingX(theme.Px(t, tokens.Space2))
 					if !row.Changed() {
 						continue
 					}

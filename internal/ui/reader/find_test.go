@@ -100,6 +100,7 @@ func TestFindHighlightsAndCounts(t *testing.T) {
 
 func TestFindSearchesTheViewShown(t *testing.T) {
 	s, f, tt, _ := findSetup(t, "en")
+	f.ai.TargetLanguage = "zh-Hans"
 	f.settle(tt)
 	f.reply = client.AIResult{Status: "pending"}
 	click(t, tt, "Translate")
@@ -173,15 +174,15 @@ func TestFindClosesWithAnotherArticle(t *testing.T) {
 	}
 }
 
-func TestFindMovesTheArticleDown(t *testing.T) {
-	_, f, tt, th := findSetup(t, "en")
+// TestFindFloatsOverTheArticle shows the find bar floats under the toolbar and leaves the article where it is.
+func TestFindFloatsOverTheArticle(t *testing.T) {
+	_, f, tt, _ := findSetup(t, "en")
 	f.settle(tt)
 	before, _ := tt.Find("Faster builds")
 	tt.Key(ui.Cmd, ui.KeyF)
 	tt.Frame()
-	after, _ := tt.Find("Faster builds")
-	if d, want := after.Y-before.Y, findHeight(*th); d < want-1 || d > want+1 {
-		t.Fatalf("the article moved by %v, want %v", d, want)
+	if after, _ := tt.Find("Faster builds"); after.Y != before.Y {
+		t.Fatalf("the article moved by %v", after.Y-before.Y)
 	}
 	if r, ok := tt.Find("Done"); !ok || r.Y < theme.Bar {
 		t.Fatalf("Done at %v, %v: not below the toolbar", r, ok)

@@ -81,7 +81,7 @@ func TestEmbedOnly(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			f, tt := opened(t, embedArticle("ok", c.html, ""))
-			expect(t, tt, c.title, "The reader doesn’t play video or audio. Open it in the browser.", "Go 1.27 is released")
+			expect(t, tt, c.title, "The reader doesn’t play video or audio.", "Go 1.27 is released")
 			absent(t, tt, "No text to show", "Try again", "There’s a video here", "There’s audio here")
 			click(t, tt, "Open in browser")
 			f.settle(tt)

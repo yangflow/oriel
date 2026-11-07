@@ -26,6 +26,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/pictures"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 	"github.com/yangflow/oriel/internal/ui/typeset"
 )
 
@@ -33,21 +34,21 @@ import (
 var catalog []byte
 
 type copy struct {
-	Back, Previous, Next, Star, Unstar, MarkRead, MarkUnread, Open, FeedNote, ExtractingNote, OpenOriginal        string
-	Extracting, ExtractingHint, Failed, FailedHint, Error, ErrorHint, Retry, Loading, FullText, OpenFailed        string
-	Shortcut                                                                                                      string
-	Summarize, HideSummary, Translate, ShowOriginal, Summary, By, Summarizing, Cancel, SummaryFailed              string
-	Translating, Translated, Translation, Original, TranslationFailed, SummaryReady, TranslationReady             string
-	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AICapReached, AIUpstream, AIEmpty, AIOff, AIOffTitle string
-	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                        string
-	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectionFailed, SelectLess, SelectLessHint         string
-	SelectionAIOff, ExplanationReady, TranslateDone, LanguageZhHans, LanguageEn                                   string
-	AlsoHead, Revised, ShowChanges, HideChanges, Changes, Removed, Added, Unchanged, TitleLabel                   string
-	ExitImmersive, FindLabel                                                                                      string
-	BackToText, Footnote, TableName                                                                               string
-	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles        string
-	PicFailed, PicFailedName, PicFailedNoAlt, PicRetry                                                            string
-	EmbedVideo, EmbedAudio, EmbedOther, EmbedTitled, EmbedName, OnlyVideo, OnlyAudio, OnlyOther, OnlyHint         string
+	Back, Previous, Next, Star, Unstar, MarkRead, MarkUnread, Open, FeedNote, FeedNoteHint                               string
+	ExtractingNote, OpenOriginal, Extracting, Failed, FailedHint, Error, ErrorHint, Retry, Loading, FullText, OpenFailed string
+	Shortcut                                                                                                             string
+	Summarize, HideSummary, Translate, ShowOriginal, Summary, By, Summarizing, Cancel, SummaryFailed                     string
+	Translating, Translated, Translation, Original, ShownText, SummaryReady, TranslationReady                            string
+	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AICapReached, AIUpstream, AIEmpty, AIOff, AIOffTitle        string
+	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                               string
+	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectLess, SelectLessHint                                 string
+	SelectionAIOff, ExplanationReady, TranslateDone, LanguageZhHans, LanguageEn                                          string
+	AlsoHead, Revised, ShowChanges, HideChanges, Changes, Removed, Added, Unchanged, TitleLabel                          string
+	ExitImmersive, FindLabel, Immersive, Find                                                                            string
+	BackToText, Footnote, TableName                                                                                      string
+	More, CopyLink, LinkCopied, CopyMarkdown, SaveMarkdown, Saved, SaveFailed, ExportFailed, MarkdownFiles               string
+	PicFailed, PicFailedName, PicFailedNoAlt, PicRetry                                                                   string
+	EmbedVideo, EmbedAudio, EmbedOther, EmbedTitled, EmbedName, OnlyVideo, OnlyAudio, OnlyOther, OnlyHint                string
 }
 
 var translations = func() map[string]copy {
@@ -219,7 +220,7 @@ type Screen struct {
 	epoch    int            // counts the servers and lists the cache is for, so an answer for one before is dropped
 
 	// The pieces of the texts drawn as one string, for Chinese typesetting.
-	titleSet, summarySet, noteSet, translatedSet memo
+	titleSet, summarySet memo
 
 	// The reading position, see docs/product.md "阅读器": the fraction last stored, the one asked to restore (-1 for
 	// none), the scroll offset last seen and when it moved, and the writes under way. known holds what this session
@@ -903,12 +904,10 @@ func (s *Screen) View(c *ui.Context, nav Nav) {
 	col.Children(func() {
 		switch {
 		case s.failed:
-			s.empty(c, icons.WifiOff, paper.Danger, s.text.Error, s.text.ErrorHint, func() {
-				if s.button(c, icons.RefreshCw, s.text.Retry, false) {
-					s.loading, s.failed = true, false
-					s.load(false)
-				}
-			}).Grow(1).FillWidth().Margin(theme.Bar, 0, 0, 0)
+			s.empty(c, icons.WifiOff, s.text.Error, s.text.ErrorHint, &next{icons.RefreshCw, s.text.Retry, func() {
+				s.loading, s.failed = true, false
+				s.load(false)
+			}}).Grow(1).FillWidth().Margin(theme.Bar, 0, 0, 0)
 		default:
 			s.page(c, narrow)
 		}
@@ -937,12 +936,14 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready, narrow bool) {
 	t := c.Theme()
 	e := nav.Entry
 	bar := c.TitleBar()
-	// The row lines up with the article column: its back button's text starts at the column's left edge and its
-	// last button ends at the right one. In a narrow window it spans the window.
-	left, right := theme.Px(t, 28), theme.Px(t, 32)
+	// The row lines up with the article column, design BReaderBar: the glyph of its first button stands on the text's
+	// left edge and the glyph of its last on the right one, a button's inset inside the column's padding. In a narrow
+	// window it spans the window.
+	inset := theme.Px(t, tokens.Space6)
 	if narrow {
-		left, right = theme.Px(t, 12), theme.Px(t, 16)
+		inset = theme.Px(t, tokens.Space2)
 	}
+	left, right := inset, inset
 	// The row is centered in the whole column, as the article is. With the timeline's sidebar hidden the window
 	// controls sit over the toolbar: only where the column's own edge leaves them too little room does the row give
 	// way, by padding that side more, so it keeps its width and every button stays on the article's lines otherwise.
@@ -960,72 +961,70 @@ func (s *Screen) toolbar(c *ui.Context, nav Nav, ready, narrow bool) {
 	}
 	row.Children(func() {
 		ui.Row(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Height(theme.Bar).AlignItems(ui.Center).
-			Gap(theme.Px(t, 4)).Padding(0, right, 0, left).Children(func() {
+			Gap(theme.Px(t, tokens.Space1)).Padding(0, right, 0, left).Children(func() {
 			s.toolbarItems(c, nav, e, ready, narrow)
 		})
 	})
 }
 
+// toolbarItems are the buttons of the bar: back, previous and next; then Full text | Feed when the article has both,
+// the summary and translation toggles, star, the read toggle, open in the browser and More. In immersive reading only
+// the way out stays; the keys still do the rest.
 func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, narrow bool) {
 	t := c.Theme()
+	if nav.Immersive {
+		ui.Box(c).Grow(1)
+		if s.tool(c, icons.Minimize2, s.text.ExitImmersive, "Z", theme.ToolState{}).Clicked() {
+			s.immerse()
+		}
+		return
+	}
 	if !nav.Pane {
 		back := strings.ReplaceAll(s.text.Back, "{scope}", nav.Scope)
-		b := ui.ButtonBase(c).Height(theme.Px(t, 32)).MinWidth(0).Shrink(1).Gap(theme.Px(t, 2)).Padding(0, theme.Px(t, 10), 0, theme.Px(t, 4)).
-			Radius(theme.Px(t, 8)).Label(back)
-		color := theme.Text2(t)
-		switch {
-		case b.Pressed():
-			b.Background(t.SurfacePressed)
-			color = t.Text
-		case b.Hovered():
-			b.Background(t.SurfaceHover)
-			color = t.Text
-		}
-		theme.Fade(b).Children(func() {
-			ui.Icon(c, icons.ChevronLeft).FontSize(theme.IconMedium(t)).TextColor(color)
-			ui.Text(c, nav.Scope).SingleLine().MinWidth(0).Shrink(1).FontWeight(500).TextColor(color)
-		})
-		if b.Clicked() {
+		if s.tool(c, icons.ChevronLeft, back, "Esc", theme.ToolState{}).Clicked() {
 			s.deps.Back()
 		}
-		ui.Box(c).Grow(1)
 		if s.tool(c, icons.ChevronUp, s.text.Previous, "K", theme.ToolState{Disabled: !nav.Previous}).Clicked() {
 			s.deps.Move(-1)
 		}
 		if s.tool(c, icons.ChevronDown, s.text.Next, "J", theme.ToolState{Disabled: !nav.Next}).Clicked() {
 			s.deps.Move(1)
 		}
-	} else {
-		// Beside the list there is nothing to go back to and J and K step, so the row starts with the actions.
-		ui.Box(c).Grow(1)
 	}
-	// The one capsule of glass holds the two AI toggles, in place of separators.
-	g := ui.Row(c).Height(theme.Px(t, 34)).AlignItems(ui.Center).Gap(1).PaddingX(theme.Px(t, 4)).Radius(theme.Pill(theme.Px(t, 34)))
-	theme.Capsule(c, g, false).Children(func() {
-		on, label := s.jobs[summary].on, s.text.Summarize
+	// Beside the list there is nothing to go back to and J and K step, so the row starts with the actions.
+	ui.Box(c).Grow(1)
+	// Full text | Feed stands first among the actions, and moves into More in a narrow window.
+	both := s.switchable() && !s.translating()
+	if both && !narrow {
+		s.textSwitch(c)
+		s.divider(c)
+	}
+	on, label := s.jobs[summary].on, s.text.Summarize
+	if on {
+		label = s.text.HideSummary
+	}
+	if s.tool(c, icons.Sparkles, label, "", theme.ToolState{On: on, Disabled: !ready}).Role(ui.RoleToggleButton).
+		Checked(on).Clicked() {
 		if on {
-			label = s.text.HideSummary
+			s.cancel(summary)
+		} else {
+			s.request(summary)
 		}
-		if s.toggle(c, icons.Sparkles, label, label, on, !ready, narrow).Clicked() {
-			if on {
-				s.cancel(summary)
-			} else {
-				s.request(summary)
-			}
-		}
-		// A translation the article cannot use stays in place, disabled, still labelled Translate; its name says why.
-		if !s.canTranslate(e) {
-			reason := s.translateDone()
-			ui.Box(c).Key("translate-done").Tooltip(reason).Children(func() {
-				s.toggle(c, icons.Languages, s.text.Translate, reason, false, true, narrow)
-			})
-			return
-		}
+	}
+	// A translation the article cannot use stays in place, disabled; its name and tooltip say why. A disabled button
+	// shows no tooltip, so the box around it does.
+	if !s.canTranslate(e) {
+		reason := s.translateDone()
+		ui.Box(c).Key("translate-done").Tooltip(reason).Children(func() {
+			s.tool(c, icons.Languages, reason, "", theme.ToolState{Disabled: true}).Tooltip("")
+		})
+	} else {
 		on, label = s.translating(), s.text.Translate
 		if on {
 			label = s.text.ShowOriginal
 		}
-		if s.toggle(c, icons.Languages, label, label, on, !ready, narrow).Clicked() {
+		if s.tool(c, icons.Languages, label, "", theme.ToolState{On: on, Disabled: !ready}).Role(ui.RoleToggleButton).
+			Checked(on).Clicked() {
 			j := s.jobs[translation]
 			switch {
 			case j.on && j.working:
@@ -1036,7 +1035,8 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 				s.request(translation)
 			}
 		}
-	})
+	}
+	s.divider(c)
 	star, starState := s.text.Star, theme.ToolState{Disabled: !ready}
 	if e.Starred {
 		star, starState.On, starState.Tint = s.text.Unstar, true, theme.Star(t)
@@ -1044,30 +1044,28 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 	if s.tool(c, icons.Star, star, "S", starState).Role(ui.RoleToggleButton).Checked(e.Starred).Clicked() {
 		s.deps.Star()
 	}
-	read, readIcon := s.text.MarkRead, icons.MailOpen
+	// The read toggle is the unread dot of the timeline's rows: in Accent while the entry is unread.
+	read, dot := s.text.MarkRead, t.Accent
 	if e.IsRead {
-		read, readIcon = s.text.MarkUnread, icons.Mail
+		read, dot = s.text.MarkUnread, ui.Color{}
 	}
-	// Read, open and copy link are the buttons a narrow column moves into More, the last of them first.
+	// Read and open are the buttons a narrow column moves into More, the last of them first.
 	buttons := [...]struct {
 		icon     *ui.SVG
 		label    string
 		key      string
 		disabled bool
+		tint     ui.Color
 		do       func()
 	}{
-		{readIcon, read, "M", !ready, s.deps.ToggleRead},
-		{icons.ExternalLink, s.text.Open, "O", !ready || e.URL == "", func() { s.openOriginal(c) }},
-		{icons.Link, s.text.CopyLink, "", !ready || e.URL == "", func() { s.CopyLink(e) }},
+		{icons.CircleDot, read, "M", !ready, dot, s.deps.ToggleRead},
+		{icons.ExternalLink, s.text.Open, "O", !ready || e.URL == "", ui.Color{}, func() { s.openOriginal(c) }},
 	}
 	inline := len(buttons) - overflow(s.columnWidth(c, nav))
 	for _, bt := range buttons[:inline] {
-		if s.tool(c, bt.icon, bt.label, bt.key, theme.ToolState{Disabled: bt.disabled}).Clicked() {
+		if s.tinted(c, bt.icon, bt.label, bt.key, theme.ToolState{Disabled: bt.disabled}, bt.tint).Clicked() {
 			bt.do()
 		}
-	}
-	if nav.Immersive && s.tool(c, icons.Minimize2, s.text.ExitImmersive, "Z", theme.ToolState{}).Clicked() {
-		s.immerse()
 	}
 	s.tool(c, icons.Ellipsis, s.text.More, "", theme.ToolState{Disabled: !ready}).Menu(func(m *ui.Menu) {
 		for _, bt := range buttons[inline:] {
@@ -1075,9 +1073,27 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 				bt.do()
 			}
 		}
-		if inline < len(buttons) {
-			m.Separator()
+		if m.Item(s.text.CopyLink).Disabled(e.URL == "").Chosen() {
+			s.CopyLink(e)
 		}
+		if both && narrow {
+			m.Separator()
+			for i, name := range []string{s.text.ShowFull, s.text.ShowFeed} {
+				if m.Item(name).Checked(s.feedText == i).Chosen() && s.feedText != i {
+					from := s.feedText
+					s.feedText = i
+					s.switched(c, from)
+				}
+			}
+		}
+		m.Separator()
+		if s.deps.Immerse != nil && m.Item(s.text.Immersive).Chosen() {
+			s.immerse()
+		}
+		if m.Item(s.text.Find).Chosen() {
+			s.openFind()
+		}
+		m.Separator()
 		if m.Item(s.text.CopyMarkdown).Chosen() {
 			s.Export(e, false)
 		}
@@ -1087,15 +1103,20 @@ func (s *Screen) toolbarItems(c *ui.Context, nav Nav, e client.Entry, ready, nar
 	})
 }
 
-// overflow is how many of the toolbar's read, open and copy link buttons move into More in a main column this wide:
-// copy link below 500, open too below 440, and mark read too below 380. See docs/design.md, Reader.
+// divider is the line2 hairline between groups of the bar, as tall as an icon.
+func (s *Screen) divider(c *ui.Context) {
+	t := c.Theme()
+	ui.Box(c).Width(tokens.Hairline).Height(theme.IconMedium(t)).Shrink(0).Margin(0, theme.Px(t, tokens.Space1)).
+		Background(theme.LineStrong(t))
+}
+
+// overflow is how many of the toolbar's read and open buttons move into More in a main column this wide: open below
+// 440, and mark read too below 380. See docs/design.md, Reader.
 func overflow(column float32) int {
 	switch {
 	case column < 380:
-		return 3
-	case column < 440:
 		return 2
-	case column < 500:
+	case column < 440:
 		return 1
 	}
 	return 0
@@ -1112,14 +1133,18 @@ func (s *Screen) columnWidth(c *ui.Context, nav Nav) float32 {
 
 // translateDone is why Translate is disabled: the article is already in the language translations are made in.
 func (s *Screen) translateDone() string {
-	name := s.target
+	return strings.ReplaceAll(s.text.TranslateDone, "{language}", s.language())
+}
+
+// language is the name of the language translations are made in.
+func (s *Screen) language() string {
 	switch s.target {
 	case "zh-Hans":
-		name = s.text.LanguageZhHans
+		return s.text.LanguageZhHans
 	case "en":
-		name = s.text.LanguageEn
+		return s.text.LanguageEn
 	}
-	return strings.ReplaceAll(s.text.TranslateDone, "{language}", name)
+	return s.target
 }
 
 // CopyLink puts the original link of the entry e on the clipboard and says so in a toast and to screen readers. It
@@ -1204,68 +1229,38 @@ func (s *Screen) Flush(c *ui.Context) {
 	}
 }
 
-// tool is a bare icon button of the toolbar: an icon, named by label, its key, if any, in the tooltip. Its look is
-// the one toolbar button of theme.ToolButton.
+// tool is a bare icon button of the toolbar, design CIconButton: an icon, named by label, its key, if any, in the
+// tooltip. Its look is the one toolbar button of theme.ToolButton.
 func (s *Screen) tool(c *ui.Context, icon *ui.SVG, label, key string, st theme.ToolState) ui.Element {
+	return s.tinted(c, icon, label, key, st, ui.Color{})
+}
+
+// tinted is tool with its glyph kept in tint, when one is given, while the button is enabled and not on.
+func (s *Screen) tinted(c *ui.Context, icon *ui.SVG, label, key string, st theme.ToolState, tint ui.Color) ui.Element {
 	t := c.Theme()
 	tip := label
 	if key != "" {
 		tip = s.shortcut(label, key)
 	}
 	b, color := theme.ToolButton(c, st)
+	if tint != (ui.Color{}) && !st.Disabled && !st.On {
+		color = tint
+	}
 	b.Label(label).Tooltip(tip)
 	theme.Fade(b).Children(func() { ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color) })
 	return b
 }
 
-// toggle is a button of the capsule that stays pressed while on, in the accent color on its soft tint. It carries its
-// label beside the icon, and only the icon in a narrow window. Its name is the label, or the reason it is disabled; only
-// a reason gets a tooltip, as a label alone is never repeated in one.
-func (s *Screen) toggle(c *ui.Context, icon *ui.SVG, label, name string, on, disabled, narrow bool) ui.Element {
-	t := c.Theme()
-	b := ui.ButtonBase(c).Height(theme.Px(t, 28)).Gap(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 28))).Label(name).
-		Disabled(disabled).Role(ui.RoleToggleButton).Checked(on)
-	if name != label {
-		b.Tooltip(name)
-	}
-	if narrow {
-		b.Width(theme.Px(t, 30))
-	} else {
-		b.Padding(0, theme.Px(t, 11), 0, theme.Px(t, 9))
-	}
-	color := t.TextMuted
-	switch {
-	case disabled:
-		color = theme.Disabled(t)
-	case on:
-		b.Background(theme.Soft(t, t.Accent))
-		color = t.Accent
-	case b.Pressed():
-		b.Background(t.SurfacePressed)
-		color = t.Text
-	case b.Hovered():
-		b.Background(t.SurfaceHover)
-		color = t.Text
-	}
-	theme.Fade(b).Children(func() {
-		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color)
-		if !narrow {
-			ui.Text(c, label).FontSize(theme.Px(t, 12)).FontWeight(500).LetterSpacing(theme.Px(t, 12) * 0.01).NoWrap().TextColor(color)
-		}
-	})
-	return b
-}
-
-// page is the scrolling article: its source and time, its title, a note on where its text comes from, and the text.
+// page is the scrolling article, design BReaderHead and BProse: its head, the AI cards, and the text, a
+// stack-section apart in the column.
 func (s *Screen) page(c *ui.Context, narrow bool) {
 	t := c.Theme()
 	e := s.article.Entry
-	pad := []float32{theme.Bar + theme.Px(t, 28), theme.Px(t, 32), theme.Px(t, 48), theme.Px(t, 32)}
+	pad := []float32{theme.Bar + theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space8), theme.Px(t, tokens.Space12),
+		theme.Px(t, tokens.Space8)}
 	if narrow {
-		pad = []float32{theme.Bar + theme.Px(t, 20), theme.Px(t, 20), theme.Px(t, 40), theme.Px(t, 20)}
-	}
-	if s.find.open {
-		pad[0] += findHeight(t)
+		pad = []float32{theme.Bar + theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space8),
+			theme.Px(t, tokens.Space4)}
 	}
 	title, original := strings.TrimSpace(e.Title), ""
 	if translated := strings.TrimSpace(e.TranslatedTitle); translated != "" {
@@ -1303,81 +1298,107 @@ func (s *Screen) page(c *ui.Context, narrow bool) {
 				s.landing.on = false
 			}
 		}
-		body := ui.Column(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Padding(pad...).Selectable()
+		s.han = s.hanText(e, title, blocks)
+		body := ui.Column(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Padding(pad...).
+			Gap(theme.Px(t, tokens.Space6)).Selectable()
 		// The menu is built by this call, so the body is named before it.
 		body.ContextMenu(func(m *ui.Menu) { s.selectionMenu(m, body) })
 		body.Children(func() {
-			ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
-				glyph(c, e.SourceTitle, s.icon)
-				ui.Text(c, e.SourceTitle).FontSize(theme.Px(t, 12)).FontWeight(500).LetterSpacing(theme.Px(t, 12) * 0.005).
-					TextColor(theme.Text2(t)).SingleLine().MinWidth(0).Shrink(1)
-				ui.Text(c, "·").FontSize(theme.Px(t, 12)).TextColor(t.TextMuted.Alpha(0.7))
-				ui.Text(c, s.when(e)).FontSize(theme.Px(t, 12)).LetterSpacing(theme.Px(t, 12) * 0.005).FontFeatures("tnum").
-					TextColor(t.TextMuted).NoWrap()
-				if reading := s.readLabel(e); reading != "" {
-					ui.Text(c, "·").FontSize(theme.Px(t, 12)).TextColor(t.TextMuted.Alpha(0.7))
-					ui.Text(c, reading).FontSize(theme.Px(t, 12)).LetterSpacing(theme.Px(t, 12) * 0.005).FontFeatures("tnum").
-						TextColor(t.TextMuted).NoWrap()
-				}
-			})
-			size := theme.Px(t, 24)
-			if narrow {
-				size = theme.Px(t, 21)
-			}
-			s.han = s.hanText(e, title, blocks)
-			tracking, line := -0.015*size, s.leading(1.28, 1.42)
-			if theme.Han(title) {
-				tracking = 0
-			}
-			s.plain(c, &s.titleSet, title, unitTitle, s.han, size, tracking).FontSize(size).FontWeight(600).LineHeight(line).
-				LetterSpacing(tracking).TextColor(t.Text).Wrap().Margin(theme.Px(t, 12), 0, 0, 0).Role(ui.RoleHeading).Level(1)
-			if original != "" {
-				// The title as the feed wrote it, under the translated one.
-				ui.Text(c, original).FontSize(theme.Px(t, 13)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 6), 0, 0, 0)
-			}
-			s.alsoLine(c, e)
-			s.revisedLine(c, e)
+			s.articleHead(c, e, title, original, how, narrow)
 			if s.jobs[translation].on {
-				s.translationNote(c)
+				s.translationCard(c)
 			}
 			if s.aiOff {
 				s.aiOffCard(c)
 			} else if s.jobs[summary].on {
 				s.summaryCard(c)
 			}
-			switch how {
-			case getting:
-				s.note(c, false, s.text.ExtractingNote)
-			case carried:
-				s.note(c, true, s.text.FeedNote)
-			}
-			if s.switchable() && !s.translating() {
-				s.textSwitch(c)
-			}
 			if len(blocks) > 0 {
-				ui.Column(c).FillWidth().Margin(theme.Px(t, 22), 0, 0, 0).Children(func() { s.blocks(c, blocks) })
+				ui.Column(c).FillWidth().Children(func() { s.blocks(c, blocks) })
 			}
 		})
 		switch how {
 		case waiting:
-			s.empty(c, icons.LoaderCircle, t.TextMuted, s.text.Extracting, s.text.ExtractingHint, func() {
-				if s.button(c, icons.ExternalLink, s.text.OpenOriginal, false) {
-					s.openOriginal(c)
-				}
-			}).FillWidth().Padding(t.Space(6), t.Space(6), t.Space(6), t.Space(6))
+			s.empty(c, icons.LoaderCircle, s.text.Extracting, "", s.openNext(c)).FillWidth()
 		case embedded:
 			s.embeddedOnly(c, rows)
 		case nothing:
-			s.empty(c, icons.FileText, t.TextMuted, s.text.Failed, s.text.FailedHint, func() {
-				if s.button(c, icons.ExternalLink, s.text.OpenOriginal, true) {
-					s.openOriginal(c)
-				}
-				if s.article.ExtractStatus == "failed" && s.button(c, icons.RefreshCw, s.text.Retry, false) {
-					s.retry()
-				}
-			}).FillWidth().Padding(t.Space(6), t.Space(6), t.Space(6), t.Space(6))
+			then := s.openNext(c)
+			if s.article.ExtractStatus == "failed" {
+				then = &next{icons.RefreshCw, s.text.Retry, s.retry}
+			}
+			s.empty(c, icons.FileText, s.text.Failed, s.text.FailedHint, then).FillWidth()
 		}
 	})
+}
+
+// articleHead is the top of the article, design BReaderHead, a stack-block: the source line, the title in display (display-compact
+// in a narrow window), the original of a translated title, the other sources that carry it, and the banners that say
+// the article changed or where its text comes from.
+func (s *Screen) articleHead(c *ui.Context, e client.Entry, title, original string, how int, narrow bool) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space3)).Children(func() {
+		meta := theme.Px(t, tokens.TextMeta.Size.En)
+		dot := func() {
+			ui.Text(c, "·").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted.Alpha(tokens.OpacitySeparator))
+		}
+		ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+			glyph(c, e.SourceTitle, s.icon)
+			strong := theme.Px(t, tokens.TextMetaStrong.Size.En)
+			ui.Text(c, e.SourceTitle).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(tokens.TextMetaStrong.Weight).
+				LetterSpacing(strong * tokens.TextMetaStrong.Tracking.En).TextColor(theme.Text2(t)).SingleLine().MinWidth(0).
+				Shrink(1)
+			dot()
+			ui.Text(c, s.when(e)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).LetterSpacing(meta * tokens.TextMeta.Tracking.En).FontFeatures("tnum").
+				TextColor(t.TextMuted).NoWrap()
+			if reading := s.readLabel(e); reading != "" {
+				dot()
+				ui.Text(c, reading).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).LetterSpacing(meta * tokens.TextMeta.Tracking.En).FontFeatures("tnum").
+					TextColor(t.TextMuted).NoWrap()
+			}
+		})
+		style := tokens.TextDisplay
+		if narrow {
+			style = tokens.TextDisplayCompact
+		}
+		size := theme.Px(t, style.Size.En)
+		tracking, line := style.Tracking.En*size, s.leading(style.Line.En/style.Size.En, style.Line.Zh/style.Size.Zh)
+		if theme.Han(title) {
+			tracking = style.Tracking.Zh * size
+		}
+		ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+			s.plain(c, &s.titleSet, title, unitTitle, s.han, size, tracking).FontSize(size).FontWeight(style.Weight).
+				LineHeight(line).LetterSpacing(tracking).TextColor(t.Text).Wrap().Role(ui.RoleHeading).Level(1)
+			if original != "" {
+				// The title as the feed wrote it, under the translated one.
+				ui.Text(c, original).TextColor(t.TextMuted).Wrap()
+			}
+		})
+		s.alsoLine(c, e)
+		s.revisedLine(c, e)
+		switch how {
+		case getting:
+			theme.Banner{Busy: true, Title: s.text.Extracting, Text: s.text.ExtractingNote}.Draw(c)
+		case carried:
+			bn := theme.Banner{Icon: icons.FileText, Tone: t.Warning, Title: s.text.FeedNote, Text: s.text.FeedNoteHint}
+			if s.article.ExtractStatus == "failed" {
+				bn.Actions = func() {
+					if (theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.text.Retry}).Draw(c).Clicked() {
+						s.retry()
+					}
+				}
+			}
+			bn.Draw(c)
+		}
+	})
+}
+
+// openNext is Open the original as the one thing an empty state offers, nil when the entry has no link.
+func (s *Screen) openNext(c *ui.Context) *next {
+	if s.article.URL == "" {
+		return nil
+	}
+	return &next{icons.ExternalLink, s.text.OpenOriginal, func() { s.openOriginal(c) }}
 }
 
 // embedWords is what an embed row says, and the icon in front of it, by the kind of the element.
@@ -1401,40 +1422,42 @@ func (s *Screen) embedLabel(b block, words string) string {
 	return strings.NewReplacer("{what}", words, "{title}", b.alt).Replace(s.text.EmbedTitled)
 }
 
-// embedRow is the row for a video, audio or embedded content: its icon, what it is and, at the end, Open in browser.
-// The whole row is one button that opens the entry's link; with no link it is plain text.
+// embedRow is the row for a video, audio or embedded content, an inset-card on surface: its icon, what it is and, at
+// the end, Open in browser. The whole row is one button that opens the entry's link; with no link it is plain text.
 func (s *Screen) embedRow(c *ui.Context, b block) {
 	t := c.Theme()
 	words, icon := s.embedWords(b)
 	parts := func(open bool) {
 		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
-		ui.Text(c, words).FontSize(theme.Px(t, 13)).TextColor(theme.Text2(t)).MaxLines(1).Grow(1).Shrink(1).MinWidth(0)
+		ui.Text(c, words).TextColor(theme.Text2(t)).MaxLines(1).Grow(1).Shrink(1).MinWidth(0)
 		if open {
-			ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(theme.Px(t, 5)).Children(func() {
-				ui.Text(c, s.text.Open).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(t.Accent)
+			ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).Children(func() {
+				ui.Text(c, s.text.Open).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).
+					FontWeight(tokens.TextMetaStrong.Weight).NoWrap().TextColor(t.Accent)
 				ui.Icon(c, icons.ExternalLink).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
 			})
 		}
 	}
 	label := s.embedLabel(b, words)
+	frame := func(e ui.Element) ui.Element {
+		return e.FillWidth().MinHeight(theme.Px(t, tokens.RowCompact)).Gap(theme.Px(t, tokens.Space2)).
+			Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl))
+	}
 	if s.article.URL == "" {
-		ui.Row(c).FillWidth().MinHeight(theme.Px(t, 40)).AlignItems(ui.Center).Gap(theme.Px(t, 10)).
-			Padding(theme.Px(t, 10), theme.Px(t, 12)).Radius(theme.Px(t, 10)).Background(t.Surface).
-			Border(0.5, theme.Ink(t, 0.1)).Label(label).Children(func() { parts(false) })
+		frame(ui.Row(c).AlignItems(ui.Center)).Background(theme.Surface(t)).Label(label).Children(func() { parts(false) })
 		return
 	}
-	row := ui.ButtonBase(c).FillWidth().MinHeight(theme.Px(t, 40)).Gap(theme.Px(t, 10)).
-		Padding(theme.Px(t, 10), theme.Px(t, 12)).Radius(theme.Px(t, 10)).Border(0.5, theme.Ink(t, 0.1)).
-		Label(strings.ReplaceAll(s.text.EmbedName, "{what}", label))
+	row := ui.ButtonBase(c)
+	frame(row).Label(strings.ReplaceAll(s.text.EmbedName, "{what}", label))
 	switch {
 	case row.Pressed():
-		row.Background(t.Surface.Mix(t.Text, 0.12))
+		row.Background(theme.Surface(t).Mix(t.Text, 0.12))
 	case row.Hovered():
-		row.Background(t.Surface.Mix(t.Text, 0.08))
+		row.Background(theme.Surface(t).Mix(t.Text, 0.08))
 	default:
-		row.Background(t.Surface)
+		row.Background(theme.Surface(t))
 	}
-	row.Children(func() { parts(true) })
+	theme.Fade(row).Children(func() { parts(true) })
 	if row.Clicked() {
 		s.openOriginal(c)
 	}
@@ -1443,7 +1466,6 @@ func (s *Screen) embedRow(c *ui.Context, b block) {
 // embeddedOnly is the empty state of a text that is nothing but video, audio and embedded content: it says what is
 // here, by the kind of the rows, and offers the entry's link; nothing failed, so there is no Try again.
 func (s *Screen) embeddedOnly(c *ui.Context, rows []block) {
-	t := c.Theme()
 	kinds := map[int]bool{}
 	for _, b := range rows {
 		if b.kind == embed {
@@ -1457,11 +1479,11 @@ func (s *Screen) embeddedOnly(c *ui.Context, rows []block) {
 	case len(kinds) == 1 && kinds[embedAudio]:
 		title, icon = s.text.OnlyAudio, icons.Volume2
 	}
-	s.empty(c, icon, t.TextMuted, title, s.text.OnlyHint, func() {
-		if s.article.URL != "" && s.button(c, icons.ExternalLink, s.text.Open, true) {
-			s.openOriginal(c)
-		}
-	}).FillWidth().Padding(t.Space(6), t.Space(6), t.Space(6), t.Space(6))
+	var then *next
+	if s.article.URL != "" {
+		then = &next{icons.ExternalLink, s.text.Open, func() { s.openOriginal(c) }}
+	}
+	s.empty(c, icon, title, s.text.OnlyHint, then).FillWidth()
 }
 
 // alsoLine is the other sources that carry the article, under its title: a text button each, with the source's
@@ -1471,14 +1493,14 @@ func (s *Screen) alsoLine(c *ui.Context, e client.Entry) {
 		return
 	}
 	t := c.Theme()
-	ui.Row(c).Key("also").FillWidth().AlignItems(ui.Center).Wrap().Gap(theme.Px(t, 2)).Margin(theme.Px(t, 10), 0, 0, 0).
+	ui.Row(c).Key("also").FillWidth().AlignItems(ui.Center).Wrap().Gap(theme.Px(t, tokens.Space0_5)).
 		Role(ui.RoleList).Label(s.text.AlsoHead).Children(func() {
-		ui.Text(c, s.text.AlsoHead).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(t.TextMuted).
-			Margin(0, theme.Px(t, 4), 0, 0)
+		ui.Text(c, s.text.AlsoHead).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(tokens.TextMetaStrong.Weight).NoWrap().TextColor(t.TextMuted).
+			Margin(0, theme.Px(t, tokens.Space1), 0, 0)
 		for _, m := range e.Group.Entries {
 			label := m.SourceTitle + " " + s.when(client.Entry{CreatedAt: m.CreatedAt})
-			b := ui.ButtonBase(c).Key(m.ID).Height(theme.Px(t, 28)).PaddingX(theme.Px(t, 8)).Gap(theme.Px(t, 6)).Radius(theme.Px(t, 6)).
-				Role(ui.RoleListItem).Label(label)
+			b := ui.ButtonBase(c).Key(m.ID).Height(theme.Px(t, tokens.Row)).PaddingX(theme.Px(t, tokens.Space2)).
+				Gap(theme.Px(t, tokens.Space1_5)).Radius(theme.Px(t, tokens.RadiusSm)).Role(ui.RoleListItem).Label(label)
 			color := theme.Text2(t)
 			switch {
 			case b.Pressed():
@@ -1488,11 +1510,11 @@ func (s *Screen) alsoLine(c *ui.Context, e client.Entry) {
 				b.Background(t.SurfaceHover)
 				color = t.Text
 			}
-			b.Children(func() {
-				theme.Monogram(c, m.SourceTitle, 15)
-				ui.Text(c, m.SourceTitle).FontSize(theme.Px(t, 13)).FontWeight(500).NoWrap().TextColor(color)
-				ui.Text(c, s.when(client.Entry{CreatedAt: m.CreatedAt})).FontSize(theme.Px(t, 12)).FontFeatures("tnum").
-					NoWrap().TextColor(t.TextMuted)
+			theme.Fade(b).Children(func() {
+				theme.Monogram(c, m.SourceTitle, tokens.TileS)
+				ui.Text(c, m.SourceTitle).FontWeight(tokens.TextLabel.Weight).NoWrap().TextColor(color)
+				ui.Text(c, s.when(client.Entry{CreatedAt: m.CreatedAt})).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).
+					FontFeatures("tnum").NoWrap().TextColor(t.TextMuted)
 			})
 			if b.Clicked() {
 				s.deps.OpenCopy(m.ID)
@@ -1501,237 +1523,154 @@ func (s *Screen) alsoLine(c *ui.Context, e client.Entry) {
 	})
 }
 
-// glyph is the site icon of the subscription, in a tile with a rim, or its monogram when there is no icon.
+// glyph is the site icon of the subscription, a tile-s tile with a rim, or its monogram when there is no icon.
 func glyph(c *ui.Context, name string, icon *ui.Bitmap) {
 	t := c.Theme()
 	if icon == nil {
-		theme.Monogram(c, name, 15)
+		theme.Monogram(c, name, tokens.TileS)
 		return
 	}
-	ui.Box(c).Size(theme.Px(t, 15), theme.Px(t, 15)).Radius(4).Clip().Children(func() {
+	tile := theme.Px(t, tokens.TileS)
+	ui.Box(c).Size(tile, tile).Radius(theme.Px(t, tokens.RadiusXS)).Clip().Children(func() {
 		ui.Image(c, icon).Fit(ui.Cover).Fill()
-		ui.Box(c).Absolute().Fill().Radius(4).Border(0.5, theme.Ink(t, 0.2))
+		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, tokens.RadiusXS)).Border(0.5, theme.Ink(t, 0.2))
 	})
 }
 
+// skeleton holds the place of the article while it loads: the source line, the title and two paragraphs, in track bars
+// as high as their text.
 func (s *Screen) skeleton(c *ui.Context, pad []float32) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Padding(pad...).Label(s.text.Loading).
-		Role(ui.RoleProgress).Children(func() {
-		bar := func(width, height, top, bottom float32) {
-			ui.Row(c).FillWidth().Margin(theme.Px(t, top), 0, theme.Px(t, bottom), 0).Children(func() {
-				ui.Box(c).Grow(width).Basis(0).Height(theme.Px(t, height)).Radius(theme.Pill(theme.Px(t, height))).Background(theme.Track(t))
+	ui.Column(c).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).Padding(pad...).Gap(theme.Px(t, tokens.Space3)).
+		Label(s.text.Loading).Role(ui.RoleProgress).Children(func() {
+		bar := func(width, height float32) {
+			ui.Row(c).FillWidth().Children(func() {
+				h := theme.Px(t, height)
+				ui.Box(c).Grow(width).Basis(0).Height(h).Radius(theme.Pill(h)).Background(theme.Track(t))
 				ui.Box(c).Grow(100 - width).Basis(0)
 			})
 		}
-		bar(30, 12, 10, 10)
-		bar(80, 22, 14, 22)
+		bar(30, tokens.TextMeta.Size.En)
+		bar(80, tokens.TextDisplay.Size.En)
 		for range 2 {
-			for range 3 {
-				bar(96, 12, 0, 10)
-			}
-			bar(64, 12, 0, 24)
-		}
-	})
-}
-
-// note says where the text shown comes from, with a link to the original: the warning tint when the text could
-// not be got, the Surface color with a spinner while it is being got.
-func (s *Screen) note(c *ui.Context, warn bool, text string) {
-	t := c.Theme()
-	color, background, icon := theme.Text2(t), t.Surface, t.TextMuted
-	if warn {
-		background, icon = theme.Soft(t, t.Warning), t.Warning
-	}
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Margin(theme.Px(t, 18), 0, 0, 0).Padding(theme.Px(t, 11), theme.Px(t, 14)).
-		Radius(theme.Px(t, 12)).Background(background).Role(ui.RoleStatus).Children(func() {
-		if warn {
-			ui.Icon(c, icons.TriangleAlert).FontSize(theme.IconSmall(t)).TextColor(icon).Margin(2, 0, 0, 0)
-		} else {
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(icon).Margin(2, 0, 0, 0)
-			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-		}
-		ui.RichText(c).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap().Children(func() {
-			s.pieces(c, &s.noteSet, text+" ", s.han, theme.Px(t, 12), 0)
-			if s.article.URL != "" {
-				ui.Link(c, s.text.OpenOriginal, tracker.StripLink(s.article.URL)).TextColor(color).Underline().FontWeight(500)
-			}
-		})
-		if warn && s.article.ExtractStatus == "failed" && s.textButton(c, s.text.Retry, color) {
-			s.retry()
-		}
-	})
-}
-
-// textSwitch is the choice between the full text and what the feed carries, under the title and its notes.
-func (s *Screen) textSwitch(c *ui.Context) {
-	t := c.Theme()
-	from := s.feedText
-	ui.Row(c).FillWidth().Margin(theme.Px(t, 18), 0, 0, 0).Children(func() {
-		seg := ui.SegmentedBase(c, &s.feedText, 2)
-		seg.Track.Padding(2).Gap(2).Radius(theme.Px(t, 8)).Background(theme.Ink(t, 0.07)).Label(s.text.TextSwitch).
-			Children(func() {
-				for i, name := range []string{s.text.ShowFull, s.text.ShowFeed} {
-					b := seg.Segment(i).Height(theme.Px(t, 24)).PaddingX(theme.Px(t, 9)).Radius(theme.Px(t, 6)).Label(name)
-					color := theme.Text2(t)
-					switch {
-					case i == s.feedText:
-						theme.Raised(t, b)
-						color = t.Text
-					case b.Hovered():
-						color = t.Text
-					}
-					b.Children(func() { ui.Text(c, name).FontSize(theme.Px(t, 12)).NoWrap().TextColor(color) })
+			ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Margin(theme.Px(t, tokens.Space3), 0, 0).Children(func() {
+				for range 3 {
+					bar(96, tokens.TextMeta.Size.En)
 				}
+				bar(64, tokens.TextMeta.Size.En)
 			})
+		}
 	})
-	if s.feedText != from {
+}
+
+// segmented is the choice between a few texts, design CSegmented: a track with the chosen segment raised. A small one is
+// control-small high, for a card. It says whether the choice changed.
+func (s *Screen) segmented(c *ui.Context, at *int, label string, names []string, small bool) bool {
+	t := c.Theme()
+	from := *at
+	high, pad := float32(tokens.Control), float32(tokens.Space3)
+	if small {
+		high, pad = tokens.ControlSmall, tokens.Space2
+	}
+	inner := theme.Px(t, tokens.Space0_5)
+	seg := ui.SegmentedBase(c, at, len(names))
+	seg.Track.Height(theme.Px(t, high)).Padding(inner).Gap(inner).Radius(theme.Px(t, tokens.RadiusControl)).
+		Background(theme.Track(t)).Label(label).Children(func() {
+		for i, name := range names {
+			b := seg.Segment(i).Height(theme.Px(t, high) - 2*inner).PaddingX(theme.Px(t, pad)).
+				Radius(theme.Px(t, tokens.RadiusSm)).Label(name)
+			color := theme.Text2(t)
+			switch {
+			case i == *at:
+				theme.Raised(t, b)
+				color = t.Text
+			case b.Hovered():
+				color = t.Text
+			}
+			theme.Fade(b).Children(func() {
+				ui.Text(c, name).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(tokens.TextMetaStrong.Weight).NoWrap().TextColor(color)
+			})
+		}
+	})
+	return *at != from
+}
+
+// textSwitch is the choice between the full text and what the feed carries, first among the toolbar's actions.
+func (s *Screen) textSwitch(c *ui.Context) {
+	from := s.feedText
+	if s.segmented(c, &s.feedText, s.text.TextSwitch, []string{s.text.ShowFull, s.text.ShowFeed}, false) {
 		s.switched(c, from)
 	}
 }
 
-// card is the box under the title holding the summary, or saying AI is not set up: a head line, then the rest.
-func (s *Screen) card(c *ui.Context, background ui.Color, label string, children func()) {
+// card is an AI card, design BAICard: an inset-card on surface, radius-card, its head an icon in accent and the
+// title in label with the state at its end, then the rest a space-2 below.
+func (s *Screen) card(c *ui.Context, icon *ui.SVG, title string, state, children func()) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().Margin(theme.Px(t, 18), 0, 0, 0).Padding(theme.Px(t, 14), theme.Px(t, 16), theme.Px(t, 16), theme.Px(t, 16)).
-		Radius(theme.Px(t, 14)).Background(background).Role(ui.RoleGroup).Label(label).Children(children)
-}
-
-// head is the first line of a card: an icon, the title in color, what follows it, and a button at the end.
-func (s *Screen) head(c *ui.Context, icon *ui.SVG, color ui.Color, title string, children func()) ui.Element {
-	t := c.Theme()
-	return ui.Row(c).FillWidth().Height(theme.Px(t, 22)).AlignItems(ui.Center).Gap(theme.Px(t, 6)).Children(func() {
-		i := ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
-		if icon == icons.LoaderCircle {
-			i.Rotate(i.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space3), theme.Px(t, tokens.Space4)).
+		Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Surface(t)).Role(ui.RoleGroup).Label(title).Children(func() {
+		ui.Row(c).FillWidth().MinHeight(theme.Px(t, tokens.RowDense)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).
+			Children(func() {
+				ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
+				ui.Text(c, title).FontWeight(tokens.TextLabel.Weight).NoWrap()
+				ui.Row(c).Grow(1).MinWidth(0).Justify(ui.End).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+					Children(state)
+			})
+		if children != nil {
+			children()
 		}
-		ui.Text(c, title).FontSize(theme.Px(t, 12)).FontWeight(500).LetterSpacing(theme.Px(t, 12) * 0.01).TextColor(color).SingleLine().
-			MinWidth(0).Shrink(1)
-		children()
 	})
 }
 
-// mini is the close button at the end of a card's head.
-func (s *Screen) mini(c *ui.Context, label string) bool {
+// status is a card's state in meta muted, with a turning loader in front while busy.
+func (s *Screen) status(c *ui.Context, text string, busy bool) {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label(label).Tooltip(label)
-	color := t.TextMuted
-	var fill ui.Color
-	switch {
-	case b.Pressed():
-		fill = t.SurfacePressed
-		color = t.Text
-	case b.Hovered():
-		fill = t.SurfaceHover
-		color = t.Text
+	if busy {
+		spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+		spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
 	}
-	x, y := theme.Hit{W: theme.Px(t, 22), H: theme.Px(t, 22), Radius: theme.Px(t, 6), Fill: fill, Fade: true}.Apply(c, b, func() {
-		ui.Icon(c, icons.X).FontSize(theme.IconSmall(t)).TextColor(color)
-	})
-	b.Margin(y, x, y, ui.Auto)
-	return b.Clicked()
+	meta := theme.Px(t, tokens.TextMeta.Size.En)
+	ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).LetterSpacing(meta * tokens.TextMeta.Tracking.En).TextColor(t.TextMuted).SingleLine().
+		MinWidth(0).Shrink(1).Role(ui.RoleStatus)
 }
 
-// textButton is a button of a card's head or a note that is only its text, in color.
-func (s *Screen) textButton(c *ui.Context, label string, color ui.Color) bool {
+// failure is why a card's work failed, in one line, with Try again.
+func (s *Screen) failure(c *ui.Context, code string, retry func()) {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label(label)
-	var fill ui.Color
-	switch {
-	case b.Pressed():
-		fill = t.SurfacePressed
-	case b.Hovered():
-		fill = t.SurfaceHover
-	}
-	_, y := theme.Hit{H: theme.Px(t, 22), Radius: theme.Px(t, 6), Fill: fill, PadX: theme.Px(t, 6), Fade: true}.Apply(c, b, func() {
-		ui.Text(c, label).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
-	})
-	b.Margin(y, 0, y, ui.Auto)
-	return b.Clicked()
-}
-
-// small is the small button of a card: an icon (none when nil) and a label, primary in the accent color.
-func (s *Screen) small(c *ui.Context, icon *ui.SVG, label string, primary bool) bool {
-	t := c.Theme()
-	b := ui.ButtonBase(c).Height(theme.Px(t, 26)).Margin(theme.Px(t, 10), 0, 0, 0).Gap(t.Space(1.5)).PaddingX(theme.Px(t, 10)).
-		Radius(theme.Px(t, 8)).Label(label)
-	color := t.Text
-	switch {
-	case primary && b.Pressed():
-		b.Background(t.AccentPressed)
-	case primary && b.Hovered():
-		b.Background(t.AccentHover)
-	case primary:
-		b.Background(t.Accent)
-	case b.Pressed():
-		b.Background(theme.Track(t).Mix(t.Text, 0.16))
-	case b.Hovered():
-		b.Background(theme.Track(t).Mix(t.Text, 0.1))
-	default:
-		b.Background(theme.Track(t))
-	}
-	if primary {
-		color = t.AccentText
-	}
-	b.Children(func() {
-		if icon != nil {
-			ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Role(ui.RoleStatus).Children(func() {
+		ui.Text(c, s.reason(code)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t)).Wrap().
+			Grow(1).MinWidth(0)
+		if (theme.Link{Text: s.text.Retry}).Draw(c).Clicked() {
+			retry()
 		}
-		ui.Text(c, label).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
 	})
-	return b.Clicked()
 }
 
-// summaryCard is the summary under the title: being made, with its Cancel and skeleton lines; made, with the model
-// that made it; or failed, with why and Try again.
+// summaryCard is the summary above the text: being made, with Cancel; made, with the model that made it, in body
+// prose; or failed, with why and Try again.
 func (s *Screen) summaryCard(c *ui.Context) {
 	t := c.Theme()
 	j := s.jobs[summary]
 	switch {
 	case j.working:
-		s.card(c, theme.Soft(t, t.Accent), s.text.Summary, func() {
-			s.head(c, icons.LoaderCircle, t.Accent, s.text.Summarizing, func() {
-				if s.textButton(c, s.text.Cancel, t.TextMuted) {
-					s.cancel(summary)
-				}
-			}).Role(ui.RoleStatus)
-			for _, width := range []float32{96, 90, 58} {
-				ui.Row(c).FillWidth().Margin(theme.Px(t, 9), 0, 0, 0).Children(func() {
-					ui.Box(c).Grow(width).Basis(0).Height(theme.Px(t, 10)).Radius(theme.Pill(theme.Px(t, 10))).
-						Background(theme.Ink(t, 0.08))
-					ui.Box(c).Grow(100 - width).Basis(0)
-				})
+		s.card(c, icons.Sparkles, s.text.Summary, func() {
+			s.status(c, s.text.Summarizing, true)
+			if (theme.Link{Text: s.text.Cancel, Muted: true}).Draw(c).Clicked() {
+				s.cancel(summary)
 			}
-		})
+		}, nil)
 	case j.failed:
-		s.card(c, theme.Soft(t, t.Danger), s.text.Summary, func() {
-			s.head(c, icons.TriangleAlert, t.Danger, s.text.SummaryFailed, func() {
-				if s.mini(c, s.text.HideSummary) {
-					s.cancel(summary)
-				}
-			}).Role(ui.RoleStatus)
-			ui.Text(c, s.reason(j.code)).Margin(theme.Px(t, 6), 0, 0, 0).FontSize(theme.Px(t, 13)).
-				LineHeight(cardLine(s.reason(j.code))).TextColor(t.Text).Wrap()
-			ui.Row(c).Children(func() {
-				if s.small(c, icons.RefreshCw, s.text.Retry, false) {
-					s.request(summary)
-				}
-			})
-		})
+		s.card(c, icons.Sparkles, s.text.Summary, func() {}, func() { s.failure(c, j.code, func() { s.request(summary) }) })
 	default:
-		s.card(c, theme.Soft(t, t.Accent), s.text.Summary, func() {
-			s.head(c, icons.Sparkles, t.Accent, s.text.Summary, func() {
-				if j.model != "" {
-					by := strings.ReplaceAll(s.text.By, "{model}", j.model)
-					ui.Text(c, "· "+by).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine().MinWidth(0).Shrink(1)
-				}
-				if s.mini(c, s.text.HideSummary) {
-					s.cancel(summary)
-				}
-			})
+		s.card(c, icons.Sparkles, s.text.Summary, func() {
+			if j.model != "" {
+				s.status(c, strings.ReplaceAll(s.text.By, "{model}", j.model), false)
+			}
+		}, func() {
 			text := strings.TrimSpace(j.text)
-			s.plain(c, &s.summarySet, text, unitSummary, theme.Han(text), theme.Px(t, 13), 0).Margin(theme.Px(t, 6), 0, 0, 0).FontSize(theme.Px(t, 13)).
-				LineHeight(cardLine(text)).TextColor(t.Text).Wrap()
+			size := theme.Px(t, tokens.TextBody.Size.En)
+			s.plain(c, &s.summarySet, text, unitSummary, theme.Han(text), size, 0).FontSize(size).LineHeight(cardLine(text)).
+				TextColor(theme.Prose(t)).Wrap()
 		})
 	}
 }
@@ -1739,126 +1678,82 @@ func (s *Screen) summaryCard(c *ui.Context) {
 // aiOffCard stands in for a summary or translation while AI is not set up, and leads to the settings.
 func (s *Screen) aiOffCard(c *ui.Context) {
 	t := c.Theme()
-	s.card(c, t.Surface, s.text.AIOffTitle, func() {
-		s.head(c, icons.Sparkles, theme.Text2(t), s.text.AIOffTitle, func() {
-			if s.mini(c, s.text.Close) {
-				s.aiOff = false
-			}
-		}).Role(ui.RoleStatus)
-		ui.Text(c, s.text.AIOff).Margin(theme.Px(t, 6), 0, 0, 0).FontSize(theme.Px(t, 13)).LineHeight(cardLine(s.text.AIOff)).
-			TextColor(theme.Text2(t)).Wrap()
-		ui.Row(c).Children(func() {
-			if s.small(c, icons.Settings, s.text.OpenSettings, true) && s.deps.OpenSettings != nil {
+	s.card(c, icons.Sparkles, s.text.AIOffTitle, func() {
+		if (theme.Link{Text: s.text.Close, Muted: true}).Draw(c).Clicked() {
+			s.aiOff = false
+		}
+	}, func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Role(ui.RoleStatus).Children(func() {
+			ui.Text(c, s.text.AIOff).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t)).Wrap().
+				Grow(1).MinWidth(0)
+			if (theme.Link{Text: s.text.OpenSettings}).Draw(c).Clicked() && s.deps.OpenSettings != nil {
 				s.deps.OpenSettings()
 			}
 		})
 	})
 }
 
-// translationNote says what the translation is doing under the title: being made, with Cancel, the original
-// meanwhile; failed, with why and Try again; made, with the model and the Translation | Original switch.
-func (s *Screen) translationNote(c *ui.Context) {
-	t := c.Theme()
-	j := s.jobs[translation]
-	row := ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(theme.Px(t, 18), 0, 0, 0).
-		Padding(theme.Px(t, 11), theme.Px(t, 14)).Radius(theme.Px(t, 12))
-	text2 := theme.Text2(t)
+// translationCard says what the translation is doing, above the text, headed by the language it is made in: being made, with Cancel, the original
+// meanwhile; failed, with why and Try again; made, with the model and Translation | Original.
+func (s *Screen) translationCard(c *ui.Context) {
+	j, head := s.jobs[translation], s.language()
+	if head == "" {
+		head = s.text.Translation
+	}
 	switch {
 	case j.working:
-		row.Background(t.Surface).Role(ui.RoleStatus).Children(func() {
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-			ui.Text(c, s.text.Translating).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(text2).Wrap()
-			if s.textButton(c, s.text.Cancel, text2) {
+		s.card(c, icons.Languages, head, func() {
+			s.status(c, s.text.Translating, true)
+			if (theme.Link{Text: s.text.Cancel, Muted: true}).Draw(c).Clicked() {
 				s.cancel(translation)
 			}
-		})
+		}, nil)
 	case j.failed:
-		reason := strings.ReplaceAll(s.text.TranslationFailed, "{reason}", s.reason(j.code))
-		row.Background(theme.Soft(t, t.Danger)).Role(ui.RoleStatus).Children(func() {
-			ui.Icon(c, icons.TriangleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Danger)
-			ui.Text(c, reason).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(text2).Wrap()
-			if s.textButton(c, s.text.Retry, text2) {
-				s.request(translation)
+		s.card(c, icons.Languages, head, func() {}, func() {
+			s.failure(c, j.code, func() { s.request(translation) })
+		})
+	default:
+		s.card(c, icons.Languages, head, func() {
+			s.status(c, strings.ReplaceAll(s.text.Translated, "{model}", j.model), false)
+			s.segmented(c, &s.shown, s.text.ShownText, []string{s.text.Translation, s.text.Original}, true)
+		}, nil)
+	}
+}
+
+// next is the one thing an empty state offers to do next.
+type next struct {
+	icon *ui.SVG
+	text string
+	do   func()
+}
+
+// empty is a state standing in for the text, design BEmpty: the icon on a surface disc twice tile-l, a display title
+// saying what is missing, a body fact only when the title cannot carry it, and the one thing to do next as a button.
+func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, fact string, then *next) ui.Element {
+	t := c.Theme()
+	return ui.Column(c).Center().Padding(theme.Px(t, tokens.Space6)).Role(ui.RoleStatus).Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(theme.Px(t, tokens.Dialog)).AlignItems(ui.Center).Children(func() {
+			disc := theme.Px(t, 2*tokens.TileL)
+			ui.Box(c).Size(disc, disc).Radius(theme.Pill(disc)).Center().Background(theme.Surface(t)).Children(func() {
+				i := ui.Icon(c, icon).FontSize(theme.IconLarge(t)).TextColor(theme.Text2(t))
+				if icon == icons.LoaderCircle {
+					i.Rotate(i.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
+				}
+			})
+			ui.Text(c, title).FontSize(theme.Px(t, tokens.TextDisplay.Size.En)).FontWeight(tokens.TextDisplay.Weight).
+				TextAlign(ui.Center).Wrap().Margin(theme.Px(t, tokens.Space6), 0, 0).Role(ui.RoleHeading).Level(2)
+			if fact != "" {
+				ui.Text(c, fact).TextColor(theme.Text2(t)).TextAlign(ui.Center).Wrap().Margin(theme.Px(t, tokens.Space2), 0, 0)
+			}
+			if then != nil {
+				b := theme.Button{Icon: then.icon, Text: then.text}.Draw(c)
+				b.Margin(theme.Px(t, tokens.Space6), 0, 0)
+				if b.Clicked() {
+					then.do()
+				}
 			}
 		})
-	default:
-		row.Background(theme.Soft(t, t.Accent)).Children(func() {
-			ui.Icon(c, icons.Languages).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
-			by := strings.ReplaceAll(s.text.Translated, "{model}", j.model)
-			s.plain(c, &s.translatedSet, by, -1, s.han, theme.Px(t, 12), 0).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).
-				TextColor(text2).Wrap()
-			seg := ui.SegmentedBase(c, &s.shown, 2)
-			seg.Track.Margin(-4, -6, -4, 0).Padding(2).Gap(2).Radius(theme.Px(t, 8)).Background(theme.Ink(t, 0.07)).
-				Label(s.text.Translate).Children(func() {
-				for i, name := range []string{s.text.Translation, s.text.Original} {
-					b := seg.Segment(i).Height(theme.Px(t, 24)).PaddingX(theme.Px(t, 9)).Radius(theme.Px(t, 6)).Label(name)
-					color := theme.Text2(t)
-					switch {
-					case i == s.shown:
-						theme.Raised(t, b)
-						color = t.Text
-					case b.Hovered():
-						color = t.Text
-					}
-					b.Children(func() { ui.Text(c, name).FontSize(theme.Px(t, 12)).NoWrap().TextColor(color) })
-				}
-			})
-		})
-	}
-}
-
-// empty is a state standing in for the text: a tile, a heading, a hint, and the buttons.
-func (s *Screen) empty(c *ui.Context, icon *ui.SVG, color ui.Color, title, hint string, buttons func()) ui.Element {
-	t := c.Theme()
-	return ui.Column(c).Center().Gap(t.Space(3)).Role(ui.RoleStatus).Children(func() {
-		tile := t.Surface
-		if color == t.Danger {
-			tile = theme.Soft(t, color)
-		}
-		ui.Box(c).Size(t.Space(12), t.Space(12)).Radius(t.Space(4)).Center().Background(tile).
-			Children(func() {
-				i := ui.Icon(c, icon).FontSize(theme.IconLarge(t)).TextColor(color)
-				if icon == icons.LoaderCircle {
-					i.Rotate(i.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-				}
-			})
-		ui.Text(c, title).FontSize(theme.Px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(2)
-		ui.Text(c, hint).MaxWidth(theme.Px(t, 320)).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap()
-		ui.Row(c).Gap(t.Space(2)).Children(buttons)
 	})
-}
-
-// button is a button of an empty state, primary in the accent color; it reports a click.
-func (s *Screen) button(c *ui.Context, icon *ui.SVG, label string, primary bool) bool {
-	t := c.Theme()
-	b := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(theme.Px(t, 10))
-	color := t.Text
-	switch {
-	case primary && b.Pressed():
-		b.Background(t.AccentPressed)
-	case primary && b.Hovered():
-		b.Background(t.AccentHover)
-	case primary:
-		b.Background(t.Accent)
-	case b.Pressed():
-		b.Background(theme.Track(t).Mix(t.Text, 0.16))
-	case b.Hovered():
-		b.Background(theme.Track(t).Mix(t.Text, 0.1))
-	default:
-		b.Background(theme.Track(t))
-	}
-	if primary {
-		color = t.AccentText
-	}
-	b.Children(func() {
-		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color)
-		text := ui.Text(c, label).NoWrap().TextColor(color)
-		if primary {
-			text.FontWeight(500)
-		}
-	})
-	return b.Clicked()
 }
 
 // blocks draws the text, a run of blocks in quotes drawn together behind a line on the left.
@@ -1979,7 +1874,7 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 		case embed:
 			s.embedRow(c, b)
 		case code:
-			ui.ScrollHorizontal(c).FillWidth().Radius(theme.Px(t, 12)).Background(t.Surface).Children(func() {
+			ui.ScrollHorizontal(c).FillWidth().Radius(theme.Px(t, 12)).Background(theme.Surface(t)).Children(func() {
 				text := ui.Text(c, b.text)
 				if marks := s.find.marks(unit, 0, len([]rune(b.text))); len(marks) > 0 {
 					text = ui.RichText(c).Children(func() {
@@ -2329,7 +2224,7 @@ func (s *Screen) cell(c *ui.Context, cl cell, r int, size float32, key, unit, ba
 	box := ui.Column(c).Key(key).ColumnSpan(cl.span).MinWidth(theme.Px(t, 48)).MaxWidth(theme.Px(t, 240)).
 		Padding(theme.Px(t, 8), theme.Px(t, 12))
 	if cl.head {
-		box.Background(t.Surface)
+		box.Background(theme.Surface(t))
 	}
 	if r > 0 {
 		box.BorderWidth(0.5, 0, 0, 0).BorderColor(t.Border)
@@ -2446,7 +2341,7 @@ func (s *Screen) picture(c *ui.Context, b block, avail float32) {
 			name = s.text.PicFailedNoAlt
 		}
 	}
-	box := ui.Box(c).FillWidth().Radius(theme.Px(t, 12)).Background(t.Surface).Clip().Label(name)
+	box := ui.Box(c).FillWidth().Radius(theme.Px(t, 12)).Background(theme.Surface(t)).Clip().Label(name)
 	if ratio > 0 {
 		box.AspectRatio(ratio)
 	} else {

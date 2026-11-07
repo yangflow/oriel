@@ -83,7 +83,7 @@ func (f *fake) Entries(_ context.Context, q client.Query) (client.Page, error) {
 			continue
 		}
 		if q.Kind != "" && e.Kind != q.Kind || q.Source != 0 && e.SourceID != q.Source || q.Unread && e.IsRead ||
-			q.Starred && !e.Starred || q.Since > 0 && e.CreatedAt < q.Since || q.MaxMinutes > 0 && (e.ReadingSec == 0 || e.ReadingSec > q.MaxMinutes*60) || q.Search != "" && !strings.Contains(strings.ToLower(e.Title), q.Search) {
+			q.Starred && !e.Starred || q.Since > 0 && e.CreatedAt < q.Since || q.Search != "" && !strings.Contains(strings.ToLower(e.Title), q.Search) {
 			continue
 		}
 		found = append(found, e)
@@ -1381,16 +1381,20 @@ func TestNewEntries(t *testing.T) {
 	}
 }
 
-// TestOrderToggle shows the reading-time menu offers the other order, keeps it in the preferences of the device, lists
-// the oldest entry first and tints the clock while it is oldest first.
+// TestOrderToggle shows the time-range menu offers the other order under the ranges, keeps it in the preferences of
+// the device, lists the oldest entry first and tints the calendar while it is oldest first.
 func TestOrderToggle(t *testing.T) {
 	p := prefs.Default()
 	s, f, tt := viewing(t, &p)
 	if s.entries[0].ID != 8 || f.queries[len(f.queries)-1].Oldest {
 		t.Fatalf("starts with %d, %+v", s.entries[0].ID, f.queries)
 	}
-	if err := tt.Click("Reading time: any length"); err != nil {
+	if err := tt.Click("Time range: any time"); err != nil {
 		t.Fatal(err)
+	}
+	want := []string{"Any time", "Today", "Last 24 hours", "-", "Newest first", "Oldest first", "Oldest first: new entries appear at the end of the list"}
+	if got := tt.Menu(); !slices.Equal(got, want) {
+		t.Fatalf("menu %v, want %v", got, want)
 	}
 	if err := tt.ChooseMenuItem("Oldest first"); err != nil {
 		t.Fatal(err)
@@ -1405,14 +1409,14 @@ func TestOrderToggle(t *testing.T) {
 	if s.entries[0].ID != 3 || s.entries[len(s.entries)-1].ID != 8 {
 		t.Fatalf("entries %v", s.entries)
 	}
-	if _, ok := tt.Find("Reading time: any length. Oldest first: new entries appear at the end of the list"); !ok {
-		t.Fatalf("the clock is not named by the order: %v", tt.Texts())
+	if _, ok := tt.Find("Time range: any time. Oldest first: new entries appear at the end of the list"); !ok {
+		t.Fatalf("the calendar is not named by the order: %v", tt.Texts())
 	}
 	if !slices.Contains(tt.Announcements(), "Oldest first") {
 		t.Fatalf("announcements %v", tt.Announcements())
 	}
 	// Back to newest first: the list kept for that order is drawn again.
-	if err := tt.Click("Reading time: any length. Oldest first: new entries appear at the end of the list"); err != nil {
+	if err := tt.Click("Time range: any time. Oldest first: new entries appear at the end of the list"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.ChooseMenuItem("Newest first"); err != nil {
@@ -1517,11 +1521,12 @@ func TestCompactDensity(t *testing.T) {
 func TestOfflineLine(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	const line = "Can’t reach the server · last updated 12:00 PM"
+	const shown = "Last updated 12:00 PM"
 	f.entriesErr = errors.New("offline")
 	f.now = f.now.Add(pollEvery)
 	tt.Frame()
 	f.settle(t, tt)
-	if !s.offline || !tt.HasText(line) || len(s.entries) != 6 || !tt.HasText("Go 1.27 is released") {
+	if !s.offline || !tt.HasText(shown) || len(s.entries) != 6 || !tt.HasText("Go 1.27 is released") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	if !slices.Contains(tt.Announcements(), line) {
@@ -1531,14 +1536,14 @@ func TestOfflineLine(t *testing.T) {
 	f.now = f.now.Add(pollEvery)
 	tt.Frame()
 	f.settle(t, tt)
-	if !tt.HasText(line) || len(tt.Announcements()) != before {
+	if !tt.HasText(shown) || len(tt.Announcements()) != before {
 		t.Fatalf("announcements %v", tt.Announcements())
 	}
 	f.entriesErr = nil
 	f.now = f.now.Add(pollEvery)
 	tt.Frame()
 	f.settle(t, tt)
-	if s.offline || tt.HasText(line) || len(s.entries) != 6 {
+	if s.offline || tt.HasText(shown) || len(s.entries) != 6 {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 }
@@ -1560,7 +1565,7 @@ func TestLanguageKeepsPlace(t *testing.T) {
 	tt.Frame()
 	s.SetLanguage("zh-Hans")
 	tt.Frame()
-	if _, ok := tt.Find("搜索条目"); !ok || !tt.HasText("Post 40") || tt.HasText("Post 0") {
+	if _, ok := tt.Find("搜索"); !ok || !tt.HasText("Post 40") || tt.HasText("Post 0") {
 		t.Fatalf("the list did not stay in place in Chinese: %v", tt.Texts())
 	}
 	s.read(40)
@@ -2585,7 +2590,7 @@ func TestStates(t *testing.T) {
 			}
 		}, "All caught up"},
 		{"no starred", func(f *fake, s *Screen) { f.entries[4].Starred = false }, "No starred entries"},
-		{"error", func(f *fake, s *Screen) { f.entriesErr = errors.New("offline") }, "Can’t load the timeline"},
+		{"error", func(f *fake, s *Screen) { f.entriesErr = errors.New("offline") }, "Couldn’t load"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, f, tt := setup(t, "en")
@@ -2711,7 +2716,7 @@ func TestAddFirst(t *testing.T) {
 	f.sources, f.entries = nil, nil
 	s.Use(f, "")
 	f.settle(t, tt)
-	if err := tt.Click("Add your first subscription"); err != nil {
+	if err := tt.Click("Add…"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -2736,19 +2741,19 @@ func TestNoSubscriptionsImport(t *testing.T) {
 	tt = newTester(s.View, 1100, 800)
 	s.Use(f, "")
 	f.settle(t, tt)
-	for _, text := range []string{"No subscriptions yet", "Add your first subscription", "Import OPML…", "Restore from backup…",
-		"Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram."} {
+	for _, text := range []string{"No subscriptions yet", "Add…", "Import…", "Restore…",
+		"RSS · RSSHub · YouTube…", "OPML · Miniflux · FreshRSS", "Oriel backup file"} {
 		if !tt.HasText(text) {
 			t.Fatalf("no %q in %v", text, tt.Texts())
 		}
 	}
-	if err := tt.Click("Import OPML…"); err != nil {
+	if err := tt.Click("Import…"); err != nil {
 		t.Fatal(err)
 	}
 	if f.imports != 1 || s.subs.Open() {
 		t.Fatalf("imports %d, add dialog %v", f.imports, s.subs.Open())
 	}
-	if err := tt.Click("Restore from backup…"); err != nil {
+	if err := tt.Click("Restore…"); err != nil {
 		t.Fatal(err)
 	}
 	if f.imports != 2 || s.subs.Open() {
@@ -2863,7 +2868,7 @@ func TestInkPane(t *testing.T) {
 	})
 }
 
-// The fill of a pane item and of a row steps up from hover to pressed to chosen, and the chosen row carries the marker.
+// The fill of a pane item steps up from hover to chosen to pressed, the state ladder of the design system.
 func TestStateFills(t *testing.T) {
 	inkCases(t, func(t *testing.T, dark bool, scale float32) {
 		s, f, tt, _ := inkSetup(t, dark, scale)
@@ -2885,8 +2890,8 @@ func TestStateFills(t *testing.T) {
 		talks, _ = tt.Find("Talks")
 		x, y = talks.X+2, talks.Y+talks.H/2
 		chosen := light(pixel(tt.Image(), x, y))
-		if !(rest < hover && hover < pressed && pressed < chosen) {
-			t.Errorf("pane item fills rest %d, hover %d, pressed %d, chosen %d are not in steps", rest, hover, pressed, chosen)
+		if !(rest < hover && hover < chosen && chosen < pressed) {
+			t.Errorf("pane item fills rest %d, hover %d, chosen %d, pressed %d are not in steps", rest, hover, chosen, pressed)
 		}
 		if s.scope.source != 2 {
 			t.Fatalf("scope %v after choosing Talks", s.scope)
@@ -3125,7 +3130,7 @@ func TestBrokenImages(t *testing.T) {
 	if p := s.pics.Peek("https://go.dev/t.png"); p == nil || !p.Failed || p.Bitmap != nil {
 		t.Fatalf("the thumbnail did not fail: %+v", p)
 	}
-	track, muted := theme.Track(main), main.TextMuted
+	track, muted := theme.Track(main).Over(main.Background), main.TextMuted
 	// Within the row of the first entry the thumbnail box is on Track, and its middle holds the icon in the muted
 	// color.
 	row := rowRect(t, tt, "Go Blog, Go 1.27 is released, 5 min ago, Unread")
@@ -3528,66 +3533,14 @@ func readingSample(f *fake) {
 	f.entries[5].ReadingSec = 30
 }
 
-func TestReadingTimeBudget(t *testing.T) {
+// TestReadingTimeRows shows the rows state how long an entry takes to read.
+func TestReadingTimeRows(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	readingSample(f)
 	s.reload()
 	f.settle(t, tt)
 	if !tt.HasText("6 min read") || !tt.HasText("20 min read") {
 		t.Fatalf("texts %v", tt.Texts())
-	}
-	if !tt.HasText("5 unread") {
-		t.Fatalf("no unread count: %v", tt.Texts())
-	}
-	if err := tt.Click("Reading time: any length"); err != nil {
-		t.Fatal(err)
-	}
-	menu := tt.Menu()
-	want := []string{"Any length", "Up to 5 minutes", "Up to 10 minutes", "Up to 15 minutes", "Up to 30 minutes", "-", "Newest first", "Oldest first", "Oldest first: new entries appear at the end of the list"}
-	if !slices.Equal(menu, want) {
-		t.Fatalf("menu %q", menu)
-	}
-	if err := tt.ChooseMenuItem("Up to 10 minutes"); err != nil {
-		t.Fatal(err)
-	}
-	f.settle(t, tt)
-	if q := f.queries[len(f.queries)-1]; q.MaxMinutes != 10 {
-		t.Fatalf("query %+v", q)
-	}
-	if len(s.entries) != 2 || s.entries[0].ID != 8 || s.entries[1].ID != 3 {
-		t.Fatalf("entries %v", s.entries)
-	}
-	if _, ok := tt.Find("Reading time: up to 10 minutes"); !ok || !tt.HasText("≤ 10 min") {
-		t.Fatalf("no pill: %v", tt.Texts())
-	}
-	if tt.HasText("5 unread") {
-		t.Fatalf("the unread count shows with a budget: %v", tt.Texts())
-	}
-	if s.canMarkAll() || s.canMarkAbove(3) || s.canMarkBelow(8) {
-		t.Fatal("marking is offered with a budget")
-	}
-	s.markVisible()
-	if len(f.marked) != 0 {
-		t.Fatalf("marked %v", f.marked)
-	}
-	// The budget stays across the filters and the scopes.
-	if err := tt.Click("Unread"); err != nil {
-		t.Fatal(err)
-	}
-	f.settle(t, tt)
-	if q := f.queries[len(f.queries)-1]; q.MaxMinutes != 10 || !q.Unread {
-		t.Fatalf("query %+v", q)
-	}
-	// Chosen again, "Any length" clears it.
-	if err := tt.Click("Reading time: up to 10 minutes"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.ChooseMenuItem("Any length"); err != nil {
-		t.Fatal(err)
-	}
-	f.settle(t, tt)
-	if s.budget != 0 || f.queries[len(f.queries)-1].MaxMinutes != 0 {
-		t.Fatalf("budget %d", s.budget)
 	}
 }
 
@@ -3607,7 +3560,7 @@ func TestTimeRange(t *testing.T) {
 	if err := tt.Click("Time range: any time"); err != nil {
 		t.Fatal(err)
 	}
-	if menu := tt.Menu(); !slices.Equal(menu, []string{"Any time", "Today", "Last 24 hours"}) {
+	if menu := tt.Menu(); !slices.Equal(menu, []string{"Any time", "Today", "Last 24 hours", "-", "Newest first", "Oldest first", "Oldest first: new entries appear at the end of the list"}) {
 		t.Fatalf("menu %q", menu)
 	}
 	if err := tt.ChooseMenuItem("Today"); err != nil {
@@ -3690,12 +3643,12 @@ func TestTimeRangeEmpty(t *testing.T) {
 	f.now = now.Add(60 * 24 * time.Hour)
 	s.show(func() { s.span = today })
 	f.settle(t, tt)
-	for _, text := range []string{"Nothing new today", "Entries count from when they arrived in Oriel, not from when they were published."} {
+	for _, text := range []string{"Nothing new today", "Any time"} {
 		if !tt.HasText(text) {
 			t.Fatalf("no %q: %v", text, tt.Texts())
 		}
 	}
-	if err := tt.Click("Show any time"); err != nil {
+	if err := tt.Click("Any time"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -3723,24 +3676,6 @@ func TestTimeRangeRestoreDropsOld(t *testing.T) {
 	s.show(func() { s.span = today })
 	if len(s.entries) != 0 {
 		t.Fatalf("a day later today holds %v", s.entries)
-	}
-}
-
-func TestReadingTimeEmpty(t *testing.T) {
-	s, f, tt := setup(t, "en")
-	s.show(func() { s.budget = 5 })
-	f.settle(t, tt)
-	for _, text := range []string{"Nothing fits in 5 minutes", "Entries with no estimate, like pictures, are left out."} {
-		if !tt.HasText(text) {
-			t.Fatalf("no %q: %v", text, tt.Texts())
-		}
-	}
-	if err := tt.Click("Show any length"); err != nil {
-		t.Fatal(err)
-	}
-	f.settle(t, tt)
-	if s.budget != 0 || len(s.entries) != 6 {
-		t.Fatalf("budget %d, %d entries", s.budget, len(s.entries))
 	}
 }
 
@@ -3773,16 +3708,6 @@ func TestReadingTimeLabel(t *testing.T) {
 	}
 }
 
-func TestReadingTimeReset(t *testing.T) {
-	s, f, tt := setup(t, "en")
-	s.show(func() { s.budget = 15 })
-	f.settle(t, tt)
-	s.Use(f, "other")
-	if s.budget != 0 {
-		t.Fatalf("budget %d", s.budget)
-	}
-}
-
 // viewing is the screen with the viewers of p, which the test may change while the screen is up.
 func viewing(t *testing.T, p *prefs.Preferences) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
@@ -3802,11 +3727,11 @@ func viewing(t *testing.T, p *prefs.Preferences) (*Screen, *fake, *ui.Tester) {
 	return s, f, tt
 }
 
-// TestOrderNameJoin shows the clock's name joins the order note with each language's own stop.
+// TestOrderNameJoin shows the calendar's name joins the order note with each language's own stop.
 func TestOrderNameJoin(t *testing.T) {
 	for language, name := range map[string]string{
-		"en":      "Reading time: any length. Oldest first: new entries appear at the end of the list",
-		"zh-Hans": "阅读时长：不限。最旧的在前时，新条目出现在列表末尾"} {
+		"en":      "Time range: any time. Oldest first: new entries appear at the end of the list",
+		"zh-Hans": "时间范围：不限。最旧的在前时，新条目出现在列表末尾"} {
 		t.Run(language, func(t *testing.T) {
 			p := prefs.Default()
 			p.OldestFirst = true
@@ -4356,8 +4281,8 @@ func TestSidebarButtonPlace(t *testing.T) {
 	}
 }
 
-// The segments are in the middle of the main column, and the buttons after them are one group in the order reading
-// time, grid, mark all as read, with search last at the far right.
+// The title leads; the segments are pushed to the trailing end, and the buttons after them are one group in the order
+// time range, grid, mark all as read, with the search icon last at the far right.
 func TestToolbarLayout(t *testing.T) {
 	for _, hidden := range []bool{false, true} {
 		p := prefs.Default()
@@ -4374,19 +4299,13 @@ func TestToolbarLayout(t *testing.T) {
 			f.settle(t, tt)
 			tt.Frame()
 		}
-		left := float32(0)
-		if !hidden {
-			grid, _ := tt.Find(s.markAllLabel())
-			left = 8 + 216*grid.W/32
-		}
 		first, _ := tt.Find(s.text.Everything)
 		last, _ := tt.Find(s.text.Starred)
-		mid := (first.X + last.X + last.W) / 2
-		if want := (left + 1280) / 2; mid < want-1.5 || mid > want+1.5 {
-			t.Fatalf("hidden %v: the segments are centered on %v, the column on %v", hidden, mid, want)
+		if first.X < 640 {
+			t.Fatalf("hidden %v: the segments at %v are not pushed to the trailing end", hidden, first)
 		}
 		var xs []float32
-		for _, name := range []string{"Reading time: any length", "Show as grid", s.markAllLabel(), "Search entries"} {
+		for _, name := range []string{"Time range: any time", "Show as grid", s.markAllLabel(), "Search"} {
 			r, ok := tt.Find(name)
 			if name == "Show as grid" && !ok {
 				continue
@@ -4402,14 +4321,17 @@ func TestToolbarLayout(t *testing.T) {
 		if !slices.IsSorted(xs) {
 			t.Fatalf("hidden %v: buttons in the wrong order: %v", hidden, xs)
 		}
-		search, _ := tt.Find("Search entries")
+		if _, ok := tt.Find("Search entries"); ok {
+			t.Fatalf("hidden %v: search is a field before it is opened", hidden)
+		}
+		search, _ := tt.Find("Search")
 		if search.X+search.W < 1280-20 || search.X+search.W > 1280 {
 			t.Fatalf("hidden %v: search ends at %v, not at the far right", hidden, search.X+search.W)
 		}
 	}
 }
 
-// In a narrow main column search is an icon after the group of buttons. Clicking it opens the field, which takes the
+// Search is an icon after the group of buttons. In a narrow main column clicking it opens the field, which takes the
 // room of the other buttons and the focus; with no text it goes back to an icon when it loses the focus, with text
 // it stays.
 func TestSearchIconOpens(t *testing.T) {
@@ -4426,8 +4348,8 @@ func TestSearchIconOpens(t *testing.T) {
 	if !ok || icon.W < 32 || icon.X+icon.W > 700 {
 		t.Fatalf("search icon %v, %v", icon, ok)
 	}
-	if clock, _ := tt.Find("Reading time: any length"); clock.X+clock.W > icon.X {
-		t.Fatalf("the icon at %v is not after the buttons, the first at %v", icon, clock)
+	if mark, _ := tt.Find(s.markAllLabel()); mark.X+mark.W > icon.X {
+		t.Fatalf("the icon at %v is not after the buttons, the first at %v", icon, mark)
 	}
 	if err := tt.Click("Search"); err != nil {
 		t.Fatal(err)
@@ -4437,7 +4359,7 @@ func TestSearchIconOpens(t *testing.T) {
 	if !tt.Focused("Search entries") {
 		t.Fatal("the opened field does not have the focus")
 	}
-	if _, ok := tt.Find("Reading time: any length"); ok {
+	if _, ok := tt.Find(s.markAllLabel()); ok {
 		t.Fatal("the other buttons still show beside the open field")
 	}
 	if r, _ := tt.Find("Search entries"); r.X+r.W > 700 {
@@ -4445,9 +4367,7 @@ func TestSearchIconOpens(t *testing.T) {
 	}
 	tt.Type("go t")
 	tt.Frame()
-	if err := tt.Click(s.text.Everything); err != nil {
-		t.Fatal(err)
-	}
+	tt.Key(0, ui.KeyTab)
 	tt.Frame()
 	if _, ok := tt.Find("Search entries"); !ok {
 		t.Fatal("the field closed with text in it")
@@ -4456,9 +4376,7 @@ func TestSearchIconOpens(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if err := tt.Click(s.text.Everything); err != nil {
-		t.Fatal(err)
-	}
+	tt.Key(0, ui.KeyTab)
 	tt.Frame()
 	if _, ok := tt.Find("Search entries"); ok {
 		t.Fatal("the field stays open with no text and no focus")
@@ -4468,6 +4386,27 @@ func TestSearchIconOpens(t *testing.T) {
 	tt.Frame()
 	if !tt.Focused("Search entries") {
 		t.Fatal("/ does not open the field")
+	}
+}
+
+// TestRangeButtonTight shows a main column too narrow for the time-range button still draws it while oldest first is
+// on, since its menu is where the order is chosen.
+func TestRangeButtonTight(t *testing.T) {
+	p := prefs.Default()
+	s, f, _ := viewing(t, &p)
+	tt := newTester(func(c *ui.Context) { c.Theme().FontSize = 14; s.View(c); theme.Toasts(c) }, 700, 700)
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	if _, ok := tt.Find("Time range: any time"); ok {
+		t.Fatal("the time-range button shows in a narrow column with no range")
+	}
+	p.OldestFirst = true
+	tt.Frame()
+	f.settle(t, tt)
+	tt.Frame()
+	if _, ok := tt.Find("Time range: any time. Oldest first: new entries appear at the end of the list"); !ok {
+		t.Fatalf("no time-range button oldest first: %v", tt.Texts())
 	}
 }
 
@@ -5434,8 +5373,8 @@ func TestOfflineBackoff(t *testing.T) {
 
 func TestOfflineRetryButton(t *testing.T) {
 	for language, names := range map[string][3]string{
-		"en":      {"Can’t reach the server · last updated 12:00 PM", "Try again", "Retrying…"},
-		"zh-Hans": {"连不上服务端 · 上次更新于 12:00", "重试", "正在重试…"},
+		"en":      {"Last updated 12:00 PM", "Try again", "Retrying…"},
+		"zh-Hans": {"上次更新于 12:00", "重试", "正在重试…"},
 	} {
 		t.Run(language, func(t *testing.T) {
 			s, f, tt := setup(t, language)

@@ -9,6 +9,7 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // maxFolderName is the longest folder name in characters, as the server takes it.
@@ -226,12 +227,11 @@ func (s *Screen) folderDialog(c *ui.Context) {
 	if d.id != 0 {
 		title = s.text.FolderRenameTitle
 	}
-	s.dialog(c, &d.open, &d.form, 400, title, func() {
-		s.headerBusy(c, &d.open, func() { tile(c, icons.FolderPlus) }, title, "", d.busy)
+	s.dialog(c, &d.open, &d.form, tokens.Dialog, title, func() {
+		s.header(c, head{open: &d.open, lead: func() { chip(c, icons.FolderPlus, false) }, title: title, busy: d.busy})
 	}, func() {
-		t := c.Theme()
 		label(c, s.text.FolderName)
-		box(c, "folder-name", nil, d.err != "", t.Surface, func() {
+		box(c, "folder-name", nil, d.err != "", func() {
 			in := ui.TextInputBase(c, &d.name).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.FolderName).
 				Placeholder(s.text.FolderNamePlaceholder).Disabled(d.busy)
 			in.Focus()
@@ -292,7 +292,7 @@ func (s *Screen) folderField(c *ui.Context) {
 	for _, f := range folders {
 		options = append(options, f.ID)
 	}
-	ui.Column(c).FillWidth().Gap(t.Space(1)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		s.choiceSelect(c, &e.folder, options, s.text.Folder, s.folderName(e.folder), s.folderName, e.busy, e.folder == 0)
 		help(c, s.text.FolderHelp)
 	})

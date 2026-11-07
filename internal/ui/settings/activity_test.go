@@ -257,7 +257,7 @@ func TestActivityExpired(t *testing.T) {
 func TestCompactRunsInTheBackground(t *testing.T) {
 	s, f, tt := openActivity(t, "en")
 	f.started = client.Vacuum{State: client.VacuumRunning, StartedAt: now.UnixMilli()}
-	press(t, tt, s.text.Compact)
+	press(t, tt, s.text.CompactRun)
 	if !tt.HasText(s.text.Compacting) {
 		t.Fatalf("starting: texts %v", tt.Texts())
 	}
@@ -301,7 +301,7 @@ func TestCompactRunsInTheBackground(t *testing.T) {
 func TestCompactFailures(t *testing.T) {
 	s, f, tt := openActivity(t, "en")
 	f.vacuumErr = errors.New("connection refused")
-	press(t, tt, s.text.Compact)
+	press(t, tt, s.text.CompactRun)
 	f.settle(tt)
 	if !tt.HasText(s.fill(s.text.CompactFailed, "{reason}", "connection refused")) {
 		t.Fatalf("a request that failed: %v", tt.Texts())
@@ -309,7 +309,7 @@ func TestCompactFailures(t *testing.T) {
 	if f.vacuums != 1 {
 		t.Fatalf("%d requests", f.vacuums)
 	}
-	press(t, tt, s.text.Compact)
+	press(t, tt, s.text.CompactRun)
 	f.settle(tt)
 	if f.vacuums != 2 {
 		t.Errorf("Compact did not come back after a failure")
@@ -318,7 +318,7 @@ func TestCompactFailures(t *testing.T) {
 	f.vacuumErr = nil
 	f.started = client.Vacuum{State: client.VacuumRunning, StartedAt: now.UnixMilli()}
 	f.storage.Vacuum = client.Vacuum{State: client.VacuumFailed, Error: "database or disk is full"}
-	press(t, tt, s.text.Compact)
+	press(t, tt, s.text.CompactRun)
 	f.settle(tt)
 	f.after(tt, vacuumEvery)
 	if !tt.HasText(s.fill(s.text.CompactFailed, "{reason}", "database or disk is full")) {
@@ -330,7 +330,7 @@ func TestCompactStartedElsewhere(t *testing.T) {
 	s, f, tt := openActivity(t, "en")
 	f.vacuumErr = &client.APIError{Status: 409, Code: "vacuum_running"}
 	f.storage.Vacuum = client.Vacuum{State: client.VacuumRunning, StartedAt: now.UnixMilli()}
-	press(t, tt, s.text.Compact)
+	press(t, tt, s.text.CompactRun)
 	f.settle(tt)
 	f.settle(tt)
 	if !tt.HasText(s.text.Compacting) || tt.HasText(s.fill(s.text.CompactFailed, "{reason}", "vacuum_running")) {

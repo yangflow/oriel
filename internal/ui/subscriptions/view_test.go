@@ -875,7 +875,7 @@ func TestEditAI(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	f.settings.AIBaseURL, f.settings.AIModel = "https://api.example.com/v1", "small"
 	f.sources[0].PromptTranslate, f.sources[0].AutoTranslate = "Translate plainly.", true
-	tt.SetSize(1000, 1600)
+	tt.SetSize(1000, 2400)
 	s.Edit(f.sources[0])
 	tt.Frame()
 	f.settle(tt)
@@ -906,7 +906,7 @@ func TestEditAI(t *testing.T) {
 
 func TestEditAIOff(t *testing.T) {
 	s, f, tt := setup(t, "zh-Hans")
-	tt.SetSize(1000, 1400)
+	tt.SetSize(1000, 2400)
 	s.Edit(f.sources[0])
 	tt.Frame()
 	if tt.HasText(s.text.AIOff) {
@@ -1068,6 +1068,15 @@ func TestMenu(t *testing.T) {
 	tt.Key(0, ui.KeyEscape)
 	if s.Open() || len(f.deleted) != 0 {
 		t.Fatalf("escape deleted %v", f.deleted)
+	}
+	// Cancel has the focus, so Return does nothing harmful.
+	s.AskDelete(f.sources[1])
+	tt.Frame()
+	tt.Frame()
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if s.Open() || len(f.deleted) != 0 {
+		t.Fatalf("return deleted %v, open %v", f.deleted, s.Open())
 	}
 	s.AskDelete(f.sources[1])
 	tt.Frame()

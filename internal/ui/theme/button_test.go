@@ -43,8 +43,8 @@ func TestButtonSizes(t *testing.T) {
 		{"primary", Button{Style: Primary, Text: "Save"}, 32},
 		{"danger", Button{Style: Danger, Text: "Delete"}, 32},
 		{"plain", Button{Style: Plain, Text: "More"}, 32},
-		{"small", Button{Small: true, Text: "Refresh"}, 26},
-		{"small danger", Button{Style: Danger, Small: true, Text: "Sign out"}, 26},
+		{"small", Button{Small: true, Text: "Refresh"}, 24},
+		{"small danger", Button{Style: Danger, Small: true, Text: "Sign out"}, 24},
 		{"with icon", Button{Icon: icons.Plus, Text: "Add"}, 32},
 		{"busy", Button{Busy: true, Text: "Saving"}, 32},
 	} {
@@ -57,17 +57,20 @@ func TestButtonSizes(t *testing.T) {
 	}
 }
 
-// Every variant of a size has the same height, and a Danger button is not wider than a Secondary one for the same
-// text: it has less padding, so its text lines up with the edge of the row.
+// Every variant of a size has the same height and the same padding, so buttons with the same text are as wide.
 func TestButtonPadding(t *testing.T) {
-	sec, th := drawn(t, Button{Text: "Delete"}, false)
+	sec, _ := drawn(t, Button{Text: "Delete"}, false)
 	pri, _ := drawn(t, Button{Style: Primary, Text: "Delete"}, false)
 	dan, _ := drawn(t, Button{Style: Danger, Text: "Delete"}, false)
 	if !near(sec.W, pri.W) {
 		t.Errorf("primary %v wide, secondary %v", pri.W, sec.W)
 	}
-	if want := 2 * (Px(&th, 14) - th.Space(2)); !near(sec.W-dan.W, want) {
-		t.Errorf("danger %v wide, secondary %v, want %v less", dan.W, sec.W, want)
+	if !near(sec.W, dan.W) {
+		t.Errorf("danger %v wide, secondary %v", dan.W, sec.W)
+	}
+	plain, _ := drawn(t, Button{Style: Plain, Text: "Delete"}, false)
+	if !near(sec.W, plain.W) {
+		t.Errorf("plain %v wide, secondary %v", plain.W, sec.W)
 	}
 	small, _ := drawn(t, Button{Small: true, Style: Danger, Text: "Delete"}, false)
 	smallSecondary, _ := drawn(t, Button{Small: true, Text: "Delete"}, false)
@@ -83,7 +86,7 @@ func TestButtonIconOnly(t *testing.T) {
 		t.Errorf("icon-only button %v by %v, want %v square", r.W, r.H, side)
 	}
 	r, th = drawn(t, Button{Small: true, Icon: icons.X, Label: "Close"}, false)
-	if side = Px(&th, 26); !near(r.W, side) || !near(r.H, side) || r.W < MinTarget {
+	if side = Px(&th, 24); !near(r.W, side) || !near(r.H, side) || r.W < MinTarget {
 		t.Errorf("small icon-only button %v by %v, want %v square", r.W, r.H, side)
 	}
 }
@@ -130,12 +133,12 @@ func TestButtonLook(t *testing.T) {
 		for name, want := range map[string][2]ui.Color{
 			"secondary":        {Track(&th), th.Text},
 			"primary":          {th.Accent, th.AccentText},
-			"danger":           {{}, th.Danger},
-			"plain":            {{}, th.Text},
+			"danger":           {Track(&th), th.Danger},
+			"plain":            {{}, Text2(&th)},
 			"on":               {Soft(&th, th.Accent), th.Accent},
-			"disabled":         {th.Surface, th.TextMuted},
-			"disabled primary": {th.Surface, th.TextMuted},
-			"disabled danger":  {{}, th.TextMuted},
+			"disabled":         {Track(&th), th.TextMuted},
+			"disabled primary": {Track(&th), th.TextMuted},
+			"disabled danger":  {Track(&th), th.TextMuted},
 		} {
 			if got[name] != want {
 				t.Errorf("dark %v %s: fill and color %v, want %v", dark, name, got[name], want)

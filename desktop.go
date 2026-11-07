@@ -13,8 +13,8 @@ import (
 	"github.com/yangflow/oriel/internal/ui/tray"
 )
 
-// The icons of the menu bar and the tray: a template of black and transparent pixels that macOS tints (made from
-// icon.png, at 32x32), and the colored icon the other systems show.
+// The icons of the menu bar and the tray: a template of black and transparent pixels that macOS tints (design/tray.svg
+// at 36x36), and the colored icon the other systems show. design/export-icon.sh renders both.
 var (
 	//go:embed resources/trayTemplate@2x.png
 	trayTemplate []byte

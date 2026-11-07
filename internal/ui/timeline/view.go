@@ -27,6 +27,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/reader"
 	"github.com/yangflow/oriel/internal/ui/subscriptions"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 //go:embed copy.json
@@ -35,38 +36,38 @@ var catalog []byte
 type copy struct {
 	DropTitle, DropHint, DropBusy string
 
-	FoldMore, FoldLabel, FoldShown                                                                                                                                      string
-	AlsoChip, AlsoName, AlsoHead, Revised                                                                                                                               string
-	All, Article, Video, Social, Image, Forum, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                         string
-	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                    string
-	MarkUnread, Open, OpenReader, Blocked, BlockedPublic, FeedRemoved, FailedOnce, FailedTimes, NewEntries, Offline, Loading, LoadingMore, LoadMoreFailed, AllLoaded    string
-	SyntaxLead, SyntaxFrom, SyntaxPhrase, SyntaxExclude                                                                                                                 string
-	Limited, NoResults, NoResultsHint, UnreadDone, UnreadDoneHint, NoStarred, NoStarredHint                                                                             string
-	Empty, EmptyHint, NoSubscriptions, NoSubscriptionsHint, Error, ErrorHint, Retry, Marked                                                                             string
-	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                            string
-	MorePictures, Pictures, AISummary, Separator                                                                                                                        string
-	AddSource, EditSource, AddFirst, ImportOPML, RestoreBackup, PausedMark, HiddenMark, HiddenName, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu          string
-	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyOpenOther, KeyStar                                                      string
-	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                          string
-	PanePlaceholder, PaneHint, KeyFind, KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                 string
-	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                        string
-	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkBelow, MarkedBelow, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                 string
-	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                                        string
-	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteManage, PaletteActions, PaletteUnreadOnly, PaletteShowAll     string
-	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, PageActivity, HideSidebar, ShowSidebar, KeyToggleSidebar string
-	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                                      string
-	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                                          string
-	NewFolder, Collapse, Expand                                                                                                                                         string
-	CopyLink, CopyMarkdown, SaveMarkdown                                                                                                                                string
-	LastLooked                                                                                                                                                          string
-	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                                            string
-	OrderNewest, OrderOldest, OrderOldestNote, NameJoin                                                                                                                 string
-	RangeAny, RangeToday, Range24, RangeChipToday, RangeChip24, RangeName, RangeNameOf, NothingNewToday, NothingNew24, NothingNewHint, AnyRange, KeyRange, PaletteRange string
-	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                                 string
-	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu                            string
-	RemindLater, RemindHour, RemindEvening, RemindTomorrow, RemindNextWeek, RemindCancel, RemindSet, RemindAt, RemindCancelled, RemindPalette                           string
-	Retrying, Pending                                                                                                                                                   string
-	Fetching, FetchedEntries, FetchedEntry, FetchedNone, FetchFailed, FreshEntries, FreshEntry, NothingNewIn                                                            string
+	FoldMore, FoldLabel, FoldShown                                                                                                                                                                                                                   string
+	AlsoChip, AlsoName, AlsoHead, Revised                                                                                                                                                                                                            string
+	All, Article, Video, Social, Image, Forum, Kinds, Sources, Everything, Unread, Read, Starred, Leaving, Show                                                                                                                                      string
+	Search, SearchLabel, Clear, UnreadCount, Results, MoreResults, MarkAllIn, Star, Unstar, MarkRead                                                                                                                                                 string
+	MarkUnread, Open, OpenReader, Blocked, BlockedPublic, FeedRemoved, FailedOnce, FailedTimes, NewEntries, Offline, OfflineTitle, OfflineSince, Loading, LoadingMore, LoadMoreFailed, AllLoaded                                                     string
+	SyntaxLead, SyntaxFrom, SyntaxPhrase, SyntaxExclude                                                                                                                                                                                              string
+	Limited, NoResults, ClearSearch, UnreadDone, ShowRead, NoStarred, NoStarredHint                                                                                                                                                                  string
+	Empty, EmptyHint, NoSubscriptions, Error, ErrorHint, Retry, Marked                                                                                                                                                                               string
+	Starring, Unstarring, ActionFailed, OpenFailed, ThisComputer, Server, Settings, Duration                                                                                                                                                         string
+	MorePictures, Pictures, AISummary, Separator                                                                                                                                                                                                     string
+	AddSource, EditSource, WayAdd, WayAddWhat, WayAddButton, WayImport, WayImportWhat, WayImportButton, WayRestore, WayRestoreWhat, WayRestoreButton, PausedMark, HiddenMark, HiddenName, Undo, Dismiss, NoMoreUnread, KeysTitle, KeysMenu, HelpMenu string
+	Close, Or, InTimeline, InReader, Anywhere, KeyNext, KeyPrevious, KeyNextUnread, KeyOpen, KeyOpenOther, KeyStar                                                                                                                                   string
+	KeyRead, KeyOpenBrowser, KeySearch, KeyEscape, KeyUndo, KeyNextArticle, KeyPreviousArticle                                                                                                                                                       string
+	PanePlaceholder, KeyFind, KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                                                                                                        string
+	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                                                                                                     string
+	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkBelow, MarkedBelow, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                                                                              string
+	ReadingTime                                                                                                                                                                                                                                      string
+	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteManage, PaletteActions, PaletteUnreadOnly, PaletteShowAll                                                                                  string
+	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, PageActivity, HideSidebar, ShowSidebar, KeyToggleSidebar                                                                              string
+	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                                                                                                                   string
+	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                                                                                                                       string
+	NewFolder, Collapse, Expand                                                                                                                                                                                                                      string
+	CopyLink, CopyMarkdown, SaveMarkdown                                                                                                                                                                                                             string
+	LastLooked                                                                                                                                                                                                                                       string
+	LbTitle, LbPicture, LbPrev, LbNext, LbOpenPicture, LbFailed, KeyPictures                                                                                                                                                                         string
+	OrderNewest, OrderOldest, OrderOldestNote, NameJoin                                                                                                                                                                                              string
+	RangeAny, RangeToday, Range24, RangeChipToday, RangeChip24, RangeClear, RangeName, RangeNameOf, NothingNewToday, NothingNew24, AnyRange, KeyRange, PaletteRange                                                                                  string
+	TimelineMenu, KeyUnread, KeyAll, KeyStarred, KeyMarkAll, KeyLoadNew                                                                                                                                                                              string
+	RefreshAll, RefreshingName, RefreshingAnnounce, Refreshed, RefreshedFailed, RefreshedPart, RefreshNone, RefreshFailed, SubscriptionsMenu                                                                                                         string
+	RemindLater, RemindHour, RemindEvening, RemindTomorrow, RemindNextWeek, RemindCancel, RemindSet, RemindAt, RemindCancelled, RemindPalette                                                                                                        string
+	Retrying, Pending                                                                                                                                                                                                                                string
+	Fetching, FetchedEntries, FetchedEntry, FetchedNone, FetchFailed, FreshEntries, FreshEntry, NothingNewIn                                                                                                                                         string
 }
 
 var translations = func() map[string]copy {
@@ -183,12 +184,10 @@ const keepLists = 8
 // no loading state at all.
 const skeletonDelay = 300 * time.Millisecond
 
-// listKey is what defines a list: the scope, the filter, the reading-time budget and the time range. A search is not
-// kept.
+// listKey is what defines a list: the scope, the filter, the time range and the order. A search is not kept.
 type listKey struct {
 	scope  scope
 	filter int
-	budget int
 	span   int
 	oldest bool // oldest first
 }
@@ -202,9 +201,6 @@ const (
 
 // spans are the time ranges in the order the menu and T go through them.
 var spans = []int{anyTime, today, lastDay}
-
-// budgets are the reading-time budgets the menu offers, in minutes; 0 is any length.
-var budgets = []int{5, 10, 15, 30}
 
 // snapshot is a list left, kept to draw again, where it was, when it is chosen again.
 type snapshot struct {
@@ -263,7 +259,6 @@ type Screen struct {
 	scope       scope
 	tab         int  // the tab of scope.kind
 	filter      int  // everything, unread or starred
-	budget      int  // the most minutes an entry may take to read, 0 for any length; not kept between servers
 	span        int  // the time range: anyTime, today or lastDay; kept with the scope and the filter
 	oldest      bool // the list runs oldest first, as the preferences of this device choose
 	restoring   bool // the scope is a subscription kept from the last run, to check when the sources load
@@ -276,7 +271,7 @@ type Screen struct {
 	editing    bool
 	searchBox  bool // give the search field the focus in the next frame
 	focusSeen  bool // the search field had the focus in the last frame
-	searchOpen bool // the search icon of a narrow toolbar was opened and stays a field until it loses the focus
+	searchOpen bool // the search icon was opened and stays a field until it loses the focus
 	typing     bool // the search field has the focus
 	clearing   bool // Escape cleared the search field
 
@@ -452,7 +447,7 @@ func (s *Screen) Use(api API, server string) {
 	s.sources, s.sourcesLoaded = nil, false
 	s.setUnread(0)
 	s.sourcesGen++
-	s.scope, s.tab, s.filter, s.budget, s.span = scope{}, 0, everything, 0, anyTime
+	s.scope, s.tab, s.filter, s.span = scope{}, 0, everything, anyTime
 	s.restorePlace()
 	s.oldest = s.views().OldestFirst
 	s.query, s.searched, s.editing = "", "", false
@@ -816,7 +811,7 @@ func (s *Screen) checkRestored() {
 
 func (s *Screen) query1(cursor string) client.Query {
 	q := client.Query{Source: s.scope.source, Unread: s.filter == unread, Starred: s.filter == starred,
-		MaxMinutes: s.budget, Since: s.since(), Search: s.searched, Limit: pageSize, Cursor: cursor, Oldest: s.oldest}
+		Since: s.since(), Search: s.searched, Limit: pageSize, Cursor: cursor, Oldest: s.oldest}
 	if s.scope.source == 0 {
 		q.Kind = s.scope.kind
 		q.Folder = s.scope.folder
@@ -889,7 +884,7 @@ func (s *Screen) retryPictures() {
 	s.pics.ForgetFailed()
 }
 
-func (s *Screen) key() listKey { return listKey{s.scope, s.filter, s.budget, s.span, s.oldest} }
+func (s *Screen) key() listKey { return listKey{s.scope, s.filter, s.span, s.oldest} }
 
 // views are the viewers of the four kinds, as the preferences of this device choose them: the defaults where the
 // screen has no preferences to read.
@@ -1121,10 +1116,10 @@ func markerOf(e client.Entry) prefs.Marker { return prefs.Marker{At: e.CreatedAt
 
 // movesMarker tells whether the list on screen may move the marker: only the list of everything, in the order of the
 // whole timeline, newest first, has the newest entry there is as its first. In a kind, a subscription, Unread,
-// Starred, a reading time, a search or oldest first the first entry is not that, so those only read the marker.
+// Starred, a time range, a search or oldest first the first entry is not that, so those only read the marker.
 func (s *Screen) movesMarker() bool {
 	return s.api != nil && s.reading == 0 && !s.loading && !s.loadErr && len(s.entries) > 0 && s.searched == "" &&
-		s.scope == (scope{}) && s.filter == everything && s.budget == 0 && s.span == anyTime && !s.oldest
+		s.scope == (scope{}) && s.filter == everything && s.span == anyTime && !s.oldest
 }
 
 // onTop tells whether the first entry was drawn whole in the last frame, or the grid or wall is at its top.
@@ -2075,7 +2070,7 @@ func (s *Screen) kindName(kind string) string {
 }
 
 func (s *Screen) canMarkAll() bool {
-	if s.filter == starred || s.budget != 0 || s.searched != "" || len(s.entries) == 0 {
+	if s.filter == starred || s.searched != "" || len(s.entries) == 0 {
 		return false
 	}
 	if s.span != anyTime {
@@ -2104,7 +2099,7 @@ func (s *Screen) markAll() {
 // canMarkAbove says whether an unread entry is loaded above the entry id, where "Mark above as read" can apply: not
 // under Starred or a search, which the server's scopes do not know.
 func (s *Screen) canMarkAbove(id int64) bool {
-	if s.filter == starred || s.budget != 0 || s.searched != "" {
+	if s.filter == starred || s.searched != "" {
 		return false
 	}
 	for _, e := range s.entries {
@@ -2138,7 +2133,7 @@ func (s *Screen) markAbove(id int64) {
 // canMarkBelow says whether an unread entry is loaded below the entry id, where "Mark below as read" can apply: not
 // under Starred or a search, which the server's scopes do not know.
 func (s *Screen) canMarkBelow(id int64) bool {
-	if s.filter == starred || s.budget != 0 || s.searched != "" {
+	if s.filter == starred || s.searched != "" {
 		return false
 	}
 	i := s.index(id)
@@ -2180,7 +2175,7 @@ func (s *Screen) fullyShown(i int) bool {
 // stays unread and is the one scrolled to. At the end of the list it moves the choice to the last entry marked and does
 // not scroll. Under Starred or a search, which the server's scopes do not know, it does nothing.
 func (s *Screen) markVisible() {
-	if s.filter == starred || s.budget != 0 || s.searched != "" || s.loading || s.api == nil {
+	if s.filter == starred || s.searched != "" || s.loading || s.api == nil {
 		return
 	}
 	first := 0
@@ -2516,14 +2511,6 @@ func (s *Screen) readLabel(e client.Entry) string {
 		return ""
 	}
 	return s.format(s.text.ReadingTime, e.ReadingSec/60)
-}
-
-// budgetName is the name of the reading-time button, which states the budget.
-func (s *Screen) budgetName() string {
-	if s.budget == 0 {
-		return s.text.TimeNameAny
-	}
-	return s.format(s.text.TimeNameUpTo, s.budget)
 }
 
 func duration(sec int) string {
@@ -3099,7 +3086,7 @@ func (s *Screen) panes(c *ui.Context, now time.Time, open bool, column float32, 
 	ui.Box(c).Width(1).Shrink(0).Background(t.Border)
 	if s.reading == 0 {
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			s.empty(c, icons.MessagesSquare, s.text.PanePlaceholder, s.text.PaneHint, false)
+			s.empty(c, icons.MessagesSquare, s.text.PanePlaceholder, "", nil)
 		})
 		return
 	}
@@ -3187,11 +3174,14 @@ func (s *Screen) tabs(c *ui.Context, focus bool) {
 			for i, kind := range kinds {
 				name := s.kindName(kind)
 				on := i == s.tab
-				tab := seg.Segment(i).FillWidth().Height(theme.Px(t, 30)).Gap(theme.Px(t, 10)).PaddingX(theme.Px(t, 10)).
-					Radius(theme.Px(t, 8)).Label(name)
+				tab := seg.Segment(i).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, 10)).PaddingX(theme.Px(t, 10)).
+					Radius(theme.Px(t, tokens.RadiusControl)).Label(name)
 				icon, count := t.TextMuted, t.TextMuted
+				// The kind is selected while it is the timeline; while a folder or a subscription of it is, it holds
+				// the selection and carries only the marker.
+				selected := on && s.scope.source == 0 && s.scope.folder == 0
 				switch {
-				case on:
+				case selected:
 					tab.Background(theme.Chosen(t))
 					icon, count = t.Accent, theme.Text2(t)
 				case tab.Hovered():
@@ -3209,16 +3199,21 @@ func (s *Screen) tabs(c *ui.Context, focus bool) {
 				}
 				cut := false
 				tab.Children(func() {
+					if on {
+						// The marker of design AMarker, at the pane's edge.
+						ui.Box(c).Attach(ui.AnchorLeft, ui.AnchorLeft).Left(-theme.Px(t, paneEdge)).
+							Size(theme.Px(t, 3), theme.Px(t, 18)).Radius(theme.Pill(theme.Px(t, 3))).Background(theme.Marker(t))
+					}
 					ui.Icon(c, kindIcon(kind)).FontSize(theme.IconMedium(t)).TextColor(icon)
 					label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(theme.Text2(t))
 					weight := 0
-					if on {
+					if selected {
 						label.TextColor(t.Text).FontWeight(500)
 						weight = 500
 					}
 					cut = theme.Cut(c, label, name, 0, weight, 1)
 					if n > 0 {
-						ui.Text(c, countText(n)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
+						ui.Text(c, countText(n)).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).FontFeatures("tnum").
 							TextColor(count)
 					}
 				})
@@ -3282,7 +3277,7 @@ func (s *Screen) section(c *ui.Context, failing int) {
 		})
 }
 
-// sectionButton is a 22 square icon button at the end of the section header.
+// sectionButton is a control-small square icon button at the end of the section header, design CSectionHead.
 func (s *Screen) sectionButton(c *ui.Context, icon *ui.SVG, label string, click func()) {
 	t := c.Theme()
 	b := ui.ButtonBase(c).Key(label).Shrink(0).Label(label).Tooltip(label)
@@ -3292,7 +3287,7 @@ func (s *Screen) sectionButton(c *ui.Context, icon *ui.SVG, label string, click 
 		fill = t.SurfaceHover
 		color = t.Text
 	}
-	mx, my := theme.Hit{W: theme.Px(t, 22), H: theme.Px(t, 22), Radius: theme.Px(t, 8), Fill: fill}.Apply(c, b, func() {
+	mx, my := theme.Hit{W: theme.Px(t, 22), H: theme.Px(t, 22), Radius: theme.Px(t, tokens.RadiusSm), Fill: fill}.Apply(c, b, func() {
 		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
 	})
 	b.Margin(my, mx, my, mx)
@@ -3443,7 +3438,7 @@ func (s *Screen) sourceTools(c *ui.Context) {
 	ui.Row(c).FillWidth().Height(theme.Px(t, 28)).Gap(theme.Px(t, 4)).Margin(0, 0, theme.Px(t, 6), 0).
 		Padding(0, paneLineInset(t, 28), 0, 0).Children(func() {
 		box := ui.Row(c).Key("filter").Grow(1).MinWidth(0).Height(theme.Px(t, 28)).Gap(theme.Px(t, 6)).
-			Padding(0, theme.Px(t, 4), 0, theme.Px(t, 10)).Radius(theme.Px(t, 8)).AlignItems(ui.Center)
+			Padding(0, theme.Px(t, 4), 0, theme.Px(t, 10)).Radius(theme.Px(t, tokens.RadiusControl)).AlignItems(ui.Center)
 		switch {
 		case s.filtering:
 			box.Background(theme.Ink(t, 0.085)).Shadow(0, 0, 0, 2, t.Focus)
@@ -3475,7 +3470,7 @@ func (s *Screen) sourceTools(c *ui.Context) {
 				if clear.Hovered() {
 					fill = t.SurfaceHover
 				}
-				mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: theme.Px(t, 6), Fill: fill}.Apply(c, clear, func() {
+				mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: theme.Px(t, tokens.RadiusSm), Fill: fill}.Apply(c, clear, func() {
 					ui.Icon(c, icons.X).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 				})
 				clear.Margin(my, mx, my, mx)
@@ -3491,7 +3486,7 @@ func (s *Screen) sourceTools(c *ui.Context) {
 			input.Focus()
 		}
 
-		b := ui.ButtonBase(c).Key("unread-first").Size(theme.Px(t, 28), theme.Px(t, 28)).Shrink(0).Radius(theme.Px(t, 8)).
+		b := ui.ButtonBase(c).Key("unread-first").Size(theme.Px(t, 28), theme.Px(t, 28)).Shrink(0).Radius(theme.Px(t, tokens.RadiusControl)).
 			Role(ui.RoleToggleButton).Label(s.text.UnreadFirst).Tooltip(s.text.UnreadFirst).Checked(unreadFirst)
 		color := t.TextMuted
 		switch {
@@ -3527,7 +3522,7 @@ func (s *Screen) link(c *ui.Context, icon *ui.SVG, text, label string, color ui.
 		if icon != nil {
 			ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
 		}
-		ui.Text(c, text).SingleLine().FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(color)
+		ui.Text(c, text).SingleLine().FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).TextColor(color)
 	})
 	b.Margin(y, 0, y, 0)
 	return b.Clicked()
@@ -3542,8 +3537,8 @@ func (s *Screen) progressLink(c *ui.Context) {
 	ui.Row(c).Height(theme.Px(t, 20)).AlignItems(ui.Center).Gap(theme.Px(t, 4)).PaddingX(theme.Px(t, 6)).Label(label).
 		Children(func() {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-			ui.Text(c, strconv.Itoa(r.done)+"/"+strconv.Itoa(r.queued)).SingleLine().FontSize(theme.Px(t, 11)).FontWeight(500).
+			spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
+			ui.Text(c, strconv.Itoa(r.done)+"/"+strconv.Itoa(r.queued)).SingleLine().FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).
 				TextColor(t.TextMuted)
 		})
 }
@@ -3568,9 +3563,9 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first, inside bool
 	if inside {
 		left = theme.Px(t, 22)
 	}
-	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(theme.Px(t, 30)).Gap(theme.Px(t, 10)).
+	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, 10)).
 		Padding(0, theme.Px(t, 10), 0, left).
-		Radius(theme.Px(t, 8)).Label(label).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
+		Radius(theme.Px(t, tokens.RadiusControl)).Label(label).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
 	if src.UnreadCount > 0 && !src.Paused {
 		item.Description(s.format(s.text.UnreadCount, src.UnreadCount))
 	}
@@ -3624,7 +3619,7 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first, inside bool
 			})
 		}
 		if src.UnreadCount > 0 && !src.Paused {
-			ui.Text(c, countText(src.UnreadCount)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
+			ui.Text(c, countText(src.UnreadCount)).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).FontFeatures("tnum").
 				TextColor(count)
 		}
 	})
@@ -3648,7 +3643,7 @@ func (s *Screen) folderItem(c *ui.Context, row sideRow, first bool) {
 		if row.folded {
 			chevron, verb = icons.ChevronRight, s.text.Expand
 		}
-		fold := ui.ButtonBase(c).Shrink(0).Size(theme.Px(t, 22), theme.Px(t, 30)).Radius(theme.Px(t, 8)).
+		fold := ui.ButtonBase(c).Shrink(0).Size(theme.Px(t, 22), theme.Px(t, tokens.Row)).Radius(theme.Px(t, tokens.RadiusControl)).
 			Label(strings.ReplaceAll(verb, "{name}", f.Name)).Tooltip(strings.ReplaceAll(verb, "{name}", f.Name))
 		color := t.TextMuted
 		if fold.Hovered() {
@@ -3662,8 +3657,8 @@ func (s *Screen) folderItem(c *ui.Context, row sideRow, first bool) {
 			s.sideKeyed = fold.FocusVisible()
 			s.fold(f.ID, !row.folded)
 		}
-		item := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(theme.Px(t, 30)).Gap(theme.Px(t, 8)).
-			Padding(0, theme.Px(t, 10), 0, theme.Px(t, 4)).Radius(theme.Px(t, 8)).Label(f.Name).
+		item := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, 8)).
+			Padding(0, theme.Px(t, 10), 0, theme.Px(t, 4)).Radius(theme.Px(t, tokens.RadiusControl)).Label(f.Name).
 			ContextMenu(func(m *ui.Menu) { s.subs.FolderMenu(m, f) })
 		if row.unread > 0 {
 			item.Description(s.format(s.text.UnreadCount, row.unread))
@@ -3701,7 +3696,7 @@ func (s *Screen) folderItem(c *ui.Context, row sideRow, first bool) {
 			}
 			cut = theme.Cut(c, title, f.Name, 0, weight, 1)
 			if row.unread > 0 {
-				ui.Text(c, countText(row.unread)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
+				ui.Text(c, countText(row.unread)).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).FontFeatures("tnum").
 					TextColor(count)
 			}
 		})
@@ -3767,8 +3762,8 @@ func (s *Screen) serverBar(c *ui.Context) {
 			if s.offline {
 				dot = t.Warning
 			}
-			bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(theme.Px(t, 30)).Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 10)).
-				Radius(theme.Px(t, 8)).Label(strings.ReplaceAll(s.text.Server, "{server}", name))
+			bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 10)).
+				Radius(theme.Px(t, tokens.RadiusControl)).Label(strings.ReplaceAll(s.text.Server, "{server}", name))
 			if bar.Hovered() {
 				bar.Background(t.SurfaceHover)
 			}
@@ -3782,7 +3777,7 @@ func (s *Screen) serverBar(c *ui.Context) {
 			if bar.Clicked() {
 				s.deps.OpenConnect()
 			}
-			gear := ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(theme.Px(t, 8)).Label(s.text.Settings).
+			gear := ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Settings).
 				Tooltip(s.text.Settings)
 			color := t.TextMuted
 			if gear.Hovered() {
@@ -3796,41 +3791,39 @@ func (s *Screen) serverBar(c *ui.Context) {
 		})
 }
 
-// narrowColumn is the main column width under which the toolbar spends less: the segments are padded 7, the
-// gap between the items is 4 and the unread count is left out. fieldColumn is the width from which search is a field;
-// under it search is an icon that expands when it is clicked. Both are about the column, not the window, so hiding the
-// sidebar gives the toolbar its room back. rangeColumn is the width from which the time-range button has room beside the
-// others at any text size; under it the button shows only while a range is on.
+// narrowColumn is the main column width under which the toolbar spends less: the segments are icons and the unread
+// count is left out. fieldColumn is the width from which the open search field has room beside the other buttons;
+// under it the open field takes their room. Both are about the column, not the window, so hiding the sidebar gives
+// the toolbar its room back. rangeColumn is the width from which the time-range button has room beside the others at
+// any text size; under it the button shows only while a range is on.
 const (
 	narrowColumn = 580
 	rangeColumn  = 700
 	fieldColumn  = 736
 )
 
-// toolbar is three parts on one 52 high row: the title at the leading end, the segments in the middle, and at the
-// trailing end a group of icon buttons with search last. The title's and the trailing part's boxes grow equally from
-// nothing, so the segments sit in the middle of the column however long the title is.
+// toolbar is the toolbar row of design BToolbar, level with the window buttons: the scope's title with its unread
+// count at the leading end, then pushed to the trailing end the filter segments, the time range, list or grid, mark
+// all as read and search, which opens into a field. With the pane hidden it starts with the window buttons' room and
+// Show Sidebar.
 func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 	t := c.Theme()
 	bar := c.TitleBar()
 	// The window controls sit over the pane; with the pane hidden they sit over the toolbar, whose left gives them room.
-	left := t.Space(3)
+	left := theme.Px(t, tokens.Space4)
 	if hidden {
-		left += bar.Left
+		left = bar.Left + theme.Px(t, tokens.Space2)
 	}
 	width, _ := c.Size()
 	column := mainColumn(t, width, hidden, compact)
-	right := t.Space(3) + bar.Right
+	right := theme.Px(t, tokens.Space2) + bar.Right
 	if s.paned {
 		// The list is the left pane: the reader beside it holds the window's right edge.
-		column, right = theme.Px(t, listPane), t.Space(3)
+		column, right = theme.Px(t, listPane), theme.Px(t, tokens.Space2)
 	}
 	narrow := column < narrowColumn
-	field := column >= fieldColumn
-	gap := theme.Px(t, 10)
-	if narrow {
-		gap = theme.Px(t, 4)
-	}
+	room := column >= fieldColumn
+	gap := theme.Px(t, tokens.Space2)
 	// Keyed, so the search field keeps its focus when the hint above it in the column comes and goes.
 	ui.Row(c).Key("toolbar").Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).Gap(gap).
 		Padding(0, right, 0, left).DragWindow().Children(func() {
@@ -3849,7 +3842,7 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 				if s.next != "" {
 					sub = s.format(s.text.MoreResults, len(s.entries))
 				}
-			case s.searched == "" && s.budget == 0 && s.span == anyTime && s.sourcesLoaded:
+			case s.searched == "" && s.span == anyTime && s.sourcesLoaded:
 				if n := s.unreadIn(s.scope); n > 0 {
 					sub = s.format(s.text.UnreadCount, n)
 				}
@@ -3874,134 +3867,74 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 			}
 			s.editButton(c)
 		})
+		// Where the open field has no room beside the other buttons, it takes their room while it is open.
+		open := s.searchOpen || s.searchBox || s.typing || s.query != ""
+		if open && !room {
+			s.searchField(c)
+			return
+		}
 		s.filters(c, narrow)
-		ui.Row(c).Grow(1).Basis(0).MinWidth(0).AlignItems(ui.Center).Justify(ui.End).Gap(gap).Children(func() {
-			// Where search is only an icon, it takes the room of the other buttons while it is open.
-			open := field || s.searchOpen || s.searchBox || s.typing || s.query != ""
-			if open && !field {
-				s.searchField(c, true)
-				return
+		// The icon buttons are one group with the same gap between them, whatever the column.
+		ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).Shrink(0).Children(func() {
+			// The 320 wide list pane has room for the time range and search only; Mark all as read is in the list
+			// of the narrow fallback and on the keys.
+			s.rangeButton(c, column < rangeColumn && !s.paned)
+			s.gridButton(c)
+			if !s.paned {
+				s.markAllButton(c)
 			}
-			// The icon buttons are one group with the same gap between them, whatever the column.
-			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 4)).Shrink(0).Children(func() {
-				// The 320 wide list pane has room for the time range and search only; the reading-time budget and
-				// Mark all as read are in the list of the narrow fallback and on the keys.
-				if !s.paned {
-					s.budgetButton(c, !field)
-				}
-				s.rangeButton(c, !field, column < rangeColumn && !s.paned)
-				s.gridButton(c)
-				if !s.paned {
-					s.markAllButton(c)
-				}
-			})
-			if field {
-				s.searchField(c, false)
-				return
+			if !open {
+				s.searchIcon(c)
 			}
-			s.searchIcon(c)
 		})
+		if open {
+			s.searchField(c)
+		}
 	})
 }
 
+// filters is the segmented control of design CSegmented: Everything, Unread and Starred on a fill groove, the
+// chosen one raised. In a narrow column the segments are their icons.
 func (s *Screen) filters(c *ui.Context, compact bool) {
 	t := c.Theme()
 	before := s.filter
 	seg := ui.SegmentedBase(c, &s.filter, 3)
-	theme.Capsule(c, seg.Track.Height(theme.Px(t, 32)).Shrink(0).Padding(theme.Px(t, 3)).Gap(2).Radius(theme.Px(t, 16)), false).Label(s.text.Show).
-		Children(func() {
-			for i, item := range []struct {
-				icon *ui.SVG
-				name string
-			}{{icons.Inbox, s.text.Everything}, {icons.CircleDot, s.text.Unread}, {icons.Star, s.text.Starred}} {
-				on := i == s.filter
-				pad := theme.Px(t, 11)
-				if compact {
-					pad = theme.Px(t, 7)
-				}
-				b := seg.Segment(i).Height(theme.Px(t, 26)).Gap(theme.Px(t, 4)).PaddingX(pad).Radius(theme.Pill(theme.Px(t, 26))).
-					Label(item.name)
-				color := t.TextMuted
-				switch {
-				case on:
-					theme.Lifted(t, b)
-					color = t.Text
-				case b.Hovered():
-					b.Background(t.SurfaceHover)
-					color = t.Text
-				}
-				theme.Fade(b)
-				b.Children(func() {
-					ui.Icon(c, item.icon).FontSize(theme.IconSmall(t)).TextColor(color)
-					if !compact {
-						ui.Text(c, item.name).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
-					}
-				})
+	seg.Track.Height(theme.Px(t, tokens.Control)).Shrink(0).Padding(theme.Px(t, tokens.Space0_5)).
+		Radius(theme.Px(t, tokens.RadiusControl)).Background(theme.Track(t)).Label(s.text.Show).Children(func() {
+		for i, item := range []struct {
+			icon *ui.SVG
+			name string
+		}{{icons.Inbox, s.text.Everything}, {icons.CircleDot, s.text.Unread}, {icons.Star, s.text.Starred}} {
+			on := i == s.filter
+			b := seg.Segment(i).Height(theme.Px(t, tokens.Control-2*tokens.Space0_5)).Radius(theme.Px(t, tokens.RadiusSm)).
+				Label(item.name)
+			if compact {
+				b.Width(theme.Px(t, tokens.Control-2*tokens.Space0_5))
+			} else {
+				b.PaddingX(theme.Px(t, tokens.Space3))
 			}
-		})
+			color := theme.Text2(t)
+			switch {
+			case on:
+				theme.Raised(t, b)
+				color = t.Text
+			case b.Hovered():
+				color = t.Text
+			}
+			theme.Fade(b)
+			b.Children(func() {
+				if compact {
+					ui.Icon(c, item.icon).FontSize(theme.IconSmall(t)).TextColor(color)
+					return
+				}
+				ui.Text(c, item.name).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
+			})
+		}
+	})
 	if after := s.filter; after != before {
 		s.filter = before
 		s.show(func() { s.filter = after })
 	}
-}
-
-// budgetButton is the reading-time button: a bare clock icon, or with a budget a pill saying "≤ 10 min" (only the
-// icon and a dot when narrow). Its menu lists the budgets, then under a hairline the two orders; choosing a budget or
-// an order reloads the list from the top. Oldest first tints the clock like a budget does, with no text beside it.
-func (s *Screen) budgetButton(c *ui.Context, compact bool) {
-	t := c.Theme()
-	name := s.budgetName()
-	if s.oldest {
-		name += s.text.NameJoin + s.text.OrderOldestNote
-	}
-	timed := s.budget != 0
-	on := timed || s.oldest
-	b := ui.ButtonBase(c).Key("budget").Height(theme.Px(t, 32)).Shrink(0).Radius(theme.Px(t, 8)).Label(name).Tooltip(name)
-	color := toolFill(t, b)
-	if on {
-		color = t.Accent
-		fill := theme.Soft(t, t.Accent)
-		if b.Hovered() || b.Pressed() {
-			fill = fill.Mix(t.Accent, 0.12)
-		}
-		b.Background(fill)
-	}
-	if timed && !compact {
-		b.Gap(theme.Px(t, 5)).Padding(0, theme.Px(t, 12), 0, theme.Px(t, 10))
-	} else {
-		b.Width(theme.Px(t, 32))
-	}
-	b.Children(func() {
-		ui.Icon(c, icons.Clock).FontSize(theme.IconMedium(t)).TextColor(color)
-		if timed && !compact {
-			ui.Text(c, s.format(s.text.TimeChip, s.budget)).FontSize(theme.Px(t, 12)).
-				FontWeight(500).FontFeatures("tnum").NoWrap().TextColor(t.Accent)
-		}
-		if on && compact {
-			ui.Box(c).Absolute().Top(theme.Px(t, 4)).Right(theme.Px(t, 4)).Size(theme.Px(t, 7), theme.Px(t, 7)).Radius(theme.Pill(theme.Px(t, 7))).
-				Background(t.Accent)
-		}
-	})
-	b.Menu(func(m *ui.Menu) {
-		if m.Item(s.text.TimeAny).Checked(s.budget == 0).Chosen() {
-			s.setBudget(0)
-		}
-		for _, n := range budgets {
-			label := s.format(s.text.TimeUpTo, n)
-			if m.Item(label).Checked(s.budget == n).Chosen() {
-				s.setBudget(n)
-			}
-		}
-		m.Separator()
-		if m.Item(s.text.OrderNewest).Checked(!s.oldest).Chosen() && s.oldest {
-			s.switchOrder()
-		}
-		if m.Item(s.text.OrderOldest).Checked(s.oldest).Chosen() && !s.oldest {
-			s.switchOrder()
-		}
-		// The menu is native and its rows have no second line, so the note is a disabled row of its own.
-		m.Item(s.text.OrderOldestNote).Disabled(true)
-	})
 }
 
 // rangeText is the name of a time range, as the menu lists it.
@@ -4023,51 +3956,74 @@ func (s *Screen) rangeName() string {
 	return strings.ReplaceAll(s.text.RangeNameOf, "{range}", s.rangeText(s.span))
 }
 
-// rangeButton is the time-range button beside the clock: a bare calendar icon, or with a range a pill saying "Today"
-// or "24 h" (only the icon and a dot when narrow). Where the toolbar has no room for it (tight) it is there only while a range is on: T, the
-// palette and the Timeline menu reach it otherwise. Its menu lists the ranges; choosing one reloads the list from the top.
-func (s *Screen) rangeButton(c *ui.Context, compact, tight bool) {
-	if tight && s.span == anyTime {
+// rangeButton is the time-range button: a bare calendar icon, or with a range the capsule of design CTag saying
+// "Today" or "24 h" with a button that clears it. Its menu lists the ranges, then under a hairline the two orders;
+// choosing a range or an order reloads the list from the top. Oldest first turns the calendar on like a range does,
+// with no text beside it. Where the toolbar has no room for it (tight) it is there only while a range or oldest first
+// is on: T, the palette and the Timeline menu reach the range otherwise.
+func (s *Screen) rangeButton(c *ui.Context, tight bool) {
+	if tight && s.span == anyTime && !s.oldest {
 		return
 	}
 	t := c.Theme()
 	name := s.rangeName()
-	on := s.span != anyTime
-	b := ui.ButtonBase(c).Key("range").Height(theme.Px(t, 32)).Shrink(0).Radius(theme.Px(t, 8)).Label(name).Tooltip(name)
-	color := toolFill(t, b)
-	if on {
-		color = t.Accent
-		fill := theme.Soft(t, t.Accent)
-		if b.Hovered() || b.Pressed() {
-			fill = fill.Mix(t.Accent, 0.12)
-		}
-		b.Background(fill)
+	if s.oldest {
+		name += s.text.NameJoin + s.text.OrderOldestNote
 	}
-	if on && !compact {
-		b.Gap(theme.Px(t, 5)).Padding(0, theme.Px(t, 12), 0, theme.Px(t, 10))
-	} else {
-		b.Width(theme.Px(t, 32))
-	}
-	b.Children(func() {
-		ui.Icon(c, icons.CalendarDays).FontSize(theme.IconMedium(t)).TextColor(color)
-		if on && !compact {
-			chip := s.text.RangeChipToday
-			if s.span == lastDay {
-				chip = s.text.RangeChip24
+	var b ui.Element
+	if s.span != anyTime {
+		pill := theme.Pill(theme.Px(t, tokens.ControlSmall))
+		ui.Row(c).Key("range-capsule").Height(theme.Px(t, tokens.ControlSmall)).Shrink(0).AlignItems(ui.Center).
+			Radius(pill).Background(theme.Soft(t, t.Accent)).Children(func() {
+			b = ui.ButtonBase(c).Key("range").Height(theme.Px(t, tokens.ControlSmall)).AlignItems(ui.Center).
+				Gap(theme.Px(t, tokens.Space1)).Padding(0, theme.Px(t, tokens.Space1), 0, theme.Px(t, tokens.Space2)).
+				Radius(pill).Label(name).Tooltip(name)
+			if b.Hovered() || b.Pressed() {
+				b.Background(theme.Soft(t, t.Accent))
 			}
-			ui.Text(c, chip).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(t.Accent)
-		}
-		if on && compact {
-			ui.Box(c).Absolute().Top(theme.Px(t, 4)).Right(theme.Px(t, 4)).Size(theme.Px(t, 7), theme.Px(t, 7)).Radius(theme.Pill(theme.Px(t, 7))).
-				Background(t.Accent)
-		}
-	})
+			b.Children(func() {
+				ui.Icon(c, icons.CalendarDays).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
+				chip := s.text.RangeChipToday
+				if s.span == lastDay {
+					chip = s.text.RangeChip24
+				}
+				ui.Text(c, chip).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(t.Accent)
+			})
+			clear := ui.ButtonBase(c).Key("range-clear").Label(s.text.RangeClear).Tooltip(s.text.RangeClear)
+			var fill ui.Color
+			if clear.Hovered() || clear.Pressed() {
+				fill = theme.Soft(t, t.Accent)
+			}
+			side := theme.Px(t, tokens.TileM)
+			mx, my := theme.Hit{W: side, H: side, Radius: theme.Pill(side), Fill: fill}.Apply(c, clear, func() {
+				ui.Icon(c, icons.X).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
+			})
+			clear.Margin(my, mx+theme.Px(t, tokens.Space1), my, mx)
+			if clear.Clicked() {
+				s.setRange(anyTime)
+			}
+		})
+	} else {
+		var color ui.Color
+		b, color = theme.ToolButton(c, theme.ToolState{On: s.oldest})
+		b.Key("range").Label(name).Tooltip(name)
+		b.Children(func() { ui.Icon(c, icons.CalendarDays).FontSize(theme.IconMedium(t)).TextColor(color) })
+	}
 	b.Menu(func(m *ui.Menu) {
 		for _, span := range spans {
 			if m.Item(s.rangeText(span)).Checked(s.span == span).Chosen() {
 				s.setRange(span)
 			}
 		}
+		m.Separator()
+		if m.Item(s.text.OrderNewest).Checked(!s.oldest).Chosen() && s.oldest {
+			s.switchOrder()
+		}
+		if m.Item(s.text.OrderOldest).Checked(s.oldest).Chosen() && !s.oldest {
+			s.switchOrder()
+		}
+		// The menu is native and its rows have no second line, so the note is a disabled row of its own.
+		m.Item(s.text.OrderOldestNote).Disabled(true)
 	})
 }
 
@@ -4093,8 +4049,8 @@ func (s *Screen) sidebarButton(c *ui.Context, hidden bool) {
 	if hidden {
 		name = s.text.ShowSidebar
 	}
-	b := ui.ButtonBase(c).Key("sidebar").Size(theme.Px(t, 32), theme.Px(t, 32)).Shrink(0).Radius(theme.Px(t, 8)).Label(name).Tooltip(name)
-	color := toolFill(t, b)
+	b, color := theme.ToolButton(c, theme.ToolState{})
+	b.Key("sidebar").Label(name).Tooltip(name)
 	b.Children(func() { ui.Icon(c, icons.PanelLeft).FontSize(theme.IconMedium(t)).TextColor(color) })
 	if b.Clicked() {
 		s.toggleSidebar()
@@ -4112,8 +4068,8 @@ func (s *Screen) gridButton(c *ui.Context) {
 	if s.gridOn() {
 		icon, name = icons.List, s.text.ShowList
 	}
-	b := ui.ButtonBase(c).Key("grid").Size(theme.Px(t, 32), theme.Px(t, 32)).Shrink(0).Radius(theme.Px(t, 8)).Label(name).Tooltip(name)
-	color := toolFill(t, b)
+	b, color := theme.ToolButton(c, theme.ToolState{})
+	b.Key("grid").Label(name).Tooltip(name)
 	b.Children(func() { ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color) })
 	if b.Clicked() {
 		s.switchGrid()
@@ -4146,32 +4102,28 @@ func (s *Screen) switchOrder() {
 	}
 }
 
-// setBudget limits the list to entries that take at most n minutes, 0 for any length, and shows it from the top.
-func (s *Screen) setBudget(n int) {
-	if n == s.budget {
-		return
-	}
-	s.show(func() { s.budget = n })
-}
-
 // searchField is a search field whose text input takes the focus from Cmd+F and /, which ui.SearchField does not
 // let it: the magnifier, the input, and a button clearing it, as Escape does. It is 200 wide and gives room before
 // anything else does; opened from the icon of a narrow toolbar (opened) it stays until it loses the focus with no
 // text in it.
-func (s *Screen) searchField(c *ui.Context, opened bool) {
+// searchField is search while it is open, the search field of design CField: a fill well sheet-width wide that
+// gives way to the others, raised with the focus ring while it has the focus. It closes when it loses the focus with
+// nothing in it.
+func (s *Screen) searchField(c *ui.Context) {
 	t := c.Theme()
-	box := ui.Row(c).Key("search").Width(theme.Px(t, 200)).MinWidth(theme.Px(t, 48)).Shrink(100).Height(theme.Px(t, 32)).Gap(theme.Px(t, 6)).Padding(0, theme.Px(t, 6), 0, theme.Px(t, 12)).
-		Radius(theme.Px(t, 16))
-	focused := s.typing
+	box := ui.Row(c).Key("search").Width(theme.Px(t, tokens.SheetWidth)).MinWidth(theme.Px(t, 48)).Shrink(100).
+		Height(theme.Px(t, tokens.Control)).Gap(theme.Px(t, tokens.Space1_5)).
+		Padding(0, theme.Px(t, tokens.Space1_5), 0, theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl))
 	switch {
-	case c.Preferences().HighContrast:
-		theme.Capsule(c, box, box.Hovered())
-	case focused:
-		box.Background(theme.RaisedFill(t)).Shadow(0, 0, 0, 2, t.Focus)
+	case s.typing:
+		box.Background(theme.RaisedFill(t)).Shadow(0, 0, 0, theme.Px(t, tokens.FocusRing), t.Focus)
 	case box.Hovered():
-		box.Background(theme.Ink(t, 0.075))
+		box.Background(t.SurfaceHover)
 	default:
-		box.Background(theme.Ink(t, 0.055))
+		box.Background(theme.Track(t))
+	}
+	if c.Preferences().HighContrast {
+		box.Border(1, t.Border)
 	}
 	theme.Fade(box)
 	var input ui.Element
@@ -4191,7 +4143,7 @@ func (s *Screen) searchField(c *ui.Context, opened bool) {
 			if clear.Hovered() {
 				fill = t.SurfaceHover
 			}
-			mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: theme.Px(t, 6), Fill: fill}.Apply(c, clear, func() {
+			mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: theme.Px(t, tokens.RadiusSm), Fill: fill}.Apply(c, clear, func() {
 				ui.Icon(c, icons.X).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 			})
 			clear.Margin(my, mx, my, mx)
@@ -4203,10 +4155,10 @@ func (s *Screen) searchField(c *ui.Context, opened bool) {
 	if box.Clicked() || s.searchBox {
 		input.Focus()
 		s.searchBox = false
-		s.searchOpen = opened
+		s.searchOpen = true
 	}
 	s.typing = input.Focused()
-	if opened && s.searchOpen && !s.typing && s.focusSeen {
+	if s.searchOpen && !s.typing && s.focusSeen {
 		s.searchOpen = false
 	}
 	s.focusSeen = s.typing
@@ -4227,12 +4179,11 @@ func (s *Screen) searchField(c *ui.Context, opened bool) {
 	}
 }
 
-// searchIcon is search in a toolbar too narrow for the field: a bare 32 square icon button that opens the field.
+// searchIcon is search while it is closed: a bare icon button that opens the field.
 func (s *Screen) searchIcon(c *ui.Context) {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Key("search").Size(theme.Px(t, 32), theme.Px(t, 32)).Shrink(0).Radius(theme.Px(t, 8)).Label(s.text.Search).
-		Tooltip(s.text.Search)
-	color := toolFill(t, b)
+	b, color := theme.ToolButton(c, theme.ToolState{})
+	b.Key("search").Label(s.text.Search).Tooltip(s.text.Search)
 	b.Children(func() { ui.Icon(c, icons.Search).FontSize(theme.IconMedium(t)).TextColor(color) })
 	if b.Clicked() {
 		s.searchBox = true
@@ -4246,28 +4197,17 @@ func (s *Screen) editButton(c *ui.Context) {
 		return
 	}
 	t := c.Theme()
-	b := ui.ButtonBase(c).Size(theme.Px(t, 32), theme.Px(t, 32)).Shrink(0).Radius(theme.Px(t, 8)).Label(s.text.EditSource).
-		Tooltip(s.text.EditSource)
-	color := toolFill(t, b)
+	b, color := theme.ToolButton(c, theme.ToolState{})
+	b.Label(s.text.EditSource).Tooltip(s.text.EditSource)
 	b.Children(func() { ui.Icon(c, icons.Pencil).FontSize(theme.IconMedium(t)).TextColor(color) })
 	if b.Clicked() {
 		s.subs.Edit(s.sources[i])
 	}
 }
 
-// toolFill fills a bare toolbar button for its state, SurfaceHover under the pointer and SurfacePressed pressed, and
-// returns the color of its icon.
-func toolFill(t *ui.Theme, b ui.Element) ui.Color {
-	switch {
-	case b.Pressed():
-		b.Background(t.SurfacePressed)
-		return t.Text
-	case b.Hovered():
-		b.Background(t.SurfaceHover)
-		return t.Text
-	}
-	return t.TextMuted
-}
+// toolFill fills a bare icon button for its state, the hover fill under the pointer and the pressed one pressed, and
+// returns the color of its icon: design CIconButton.
+func toolFill(t *ui.Theme, b ui.Element) ui.Color { return theme.ToolFill(t, b, theme.ToolState{}) }
 
 // markAllLabel names the button by what it would mark: "Mark all in “Videos” as read".
 func (s *Screen) markAllLabel() string {
@@ -4278,11 +4218,8 @@ func (s *Screen) markAllButton(c *ui.Context) {
 	t := c.Theme()
 	can := s.canMarkAll()
 	label := s.markAllLabel()
-	b := ui.ButtonBase(c).Size(theme.Px(t, 32), theme.Px(t, 32)).Shrink(0).Radius(theme.Px(t, 8)).Label(label).Tooltip(label).Disabled(!can)
-	color := theme.Disabled(t)
-	if can {
-		color = toolFill(t, b)
-	}
+	b, color := theme.ToolButton(c, theme.ToolState{Disabled: !can})
+	b.Label(label).Tooltip(label)
 	b.Children(func() { ui.Icon(c, icons.CheckCheck).FontSize(theme.IconMedium(t)).TextColor(color) })
 	if b.Clicked() {
 		s.markAll()
@@ -4355,15 +4292,17 @@ func (s *Screen) syntax(c *ui.Context) {
 	})
 }
 
-// staleHeight is the height of the line that says the server is out of reach.
-const staleHeight = 28
+// staleHeight is the room the banner that says the server is out of reach takes above the list: the banner and the
+// gap under it.
+const staleHeight = theme.BannerHeight + tokens.Space2
 
-// staleShown tells whether the line that says the server is out of reach shows under the toolbar.
+// staleShown tells whether the banner that says the server is out of reach shows under the toolbar.
 func (s *Screen) staleShown() bool {
 	return s.offline && !s.loadErr && !s.loading
 }
 
-// stale is the quiet line under the toolbar while background checks fail, lined up with the list.
+// stale is the banner at the top of the column while background checks fail, design CBanner with wifi-off: the
+// server is out of reach, when the list was last brought up to date, and a retry.
 func (s *Screen) stale(c *ui.Context) {
 	if !s.staleShown() {
 		return
@@ -4373,38 +4312,30 @@ func (s *Screen) stale(c *ui.Context) {
 	if s.limited() {
 		top = 4
 	}
-	row := ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 6)).Height(staleHeight).Role(ui.RoleStatus)
+	box := ui.Column(c).FillWidth().Shrink(0)
 	if s.inColumn() {
 		maxWidth := theme.Px(t, 680)
 		if s.scope.kind == "social" {
 			maxWidth = theme.Px(t, 720)
 		}
-		row.MaxWidth(maxWidth).Margin(top, ui.Auto, 0).Padding(0, theme.Px(t, 20), 0, theme.Px(t, 36))
+		box.MaxWidth(maxWidth).Margin(top, ui.Auto, tokens.Space2).Padding(0, theme.Px(t, 20))
 	} else {
-		row.Margin(top, 0, 0).Padding(0, theme.Px(t, 20))
+		box.Margin(top, 0, tokens.Space2).Padding(0, theme.Px(t, 20))
 	}
-	row.Children(func() {
-		ui.Icon(c, icons.WifiOff).FontSize(theme.IconSmall(t)).TextColor(t.Warning)
-		ui.Text(c, s.staleText()).FontSize(theme.Px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).SingleLine().
-			MinWidth(0).Shrink(1)
-		busy := s.polling || s.checking
-		name, color := s.text.Retry, t.Accent
-		if busy {
-			name, color = s.text.Retrying, t.TextMuted
-		}
-		b := ui.ButtonBase(c).Shrink(0).Label(name).Disabled(busy)
-		var fill ui.Color
-		if b.Hovered() && !busy {
-			fill = t.SurfaceHover
-		}
-		_, y := theme.Hit{H: theme.Px(t, 22), Radius: theme.Px(t, 6), Fill: fill, PadX: theme.Px(t, 8)}.Apply(c, b, func() {
-			ui.Text(c, name).FontSize(theme.Px(t, 12)).FontWeight(500).TextColor(color).NoWrap()
-		})
-		b.Margin(y, 0, y, 0)
-		if b.Clicked() {
-			s.polledAt = time.Time{}
-			c.Invalidate()
-		}
+	box.Children(func() {
+		since := strings.ReplaceAll(s.text.OfflineSince, "{time}", locale.Clock(s.lang, s.hours, s.updated))
+		theme.Banner{Icon: icons.WifiOff, Tone: t.Warning, Title: s.text.OfflineTitle, Text: since, Actions: func() {
+			busy := s.polling || s.checking
+			name := s.text.Retry
+			if busy {
+				name = s.text.Retrying
+			}
+			b := theme.Button{Small: true, Busy: busy, Disabled: busy, Text: name, Label: name}.Draw(c)
+			if b.Clicked() {
+				s.polledAt = time.Time{}
+				c.Invalidate()
+			}
+		}}.Draw(c).Grow(1)
 	})
 }
 
@@ -4413,21 +4344,26 @@ func (s *Screen) inColumn() bool {
 	return s.layout() == columnLayout
 }
 
+// pill is the mark of design BListMarks for entries that arrived above while reading: a float pill with the popup
+// elevation over the top of the list, Accent text and arrow-up. Clicking it loads them and goes to the top.
 func (s *Screen) pill(c *ui.Context) {
 	if s.fresh == 0 {
 		return
 	}
 	t := c.Theme()
 	text := s.format(s.text.NewEntries, s.fresh)
-	b := ui.ButtonBase(c).Attach(ui.AnchorTop, ui.AnchorTop).Top(theme.Px(t, 60)).Height(theme.Px(t, 28)).Gap(t.Space(1.5)).
-		Padding(0, t.Space(3), 0, t.Space(2.5)).Radius(theme.Px(t, 14)).Background(t.Accent).
-		Shadow(0, 4, 14, 0, ui.RGBA(0, 0, 0, 0.18)).Label(text)
+	h := theme.Px(t, tokens.Row)
+	b := theme.Fade(ui.ButtonBase(c)).Attach(ui.AnchorTop, ui.AnchorTop).Top(theme.Px(t, theme.Bar+tokens.Space2)).
+		Height(h).Gap(theme.Px(t, tokens.Space1_5)).Padding(0, theme.Px(t, tokens.Space3), 0, theme.Px(t, tokens.Space2)).
+		Radius(theme.Pill(h)).Background(theme.RaisedFill(t)).Label(text)
+	theme.Shadow(t, b, theme.Elevation(t).Popup)
+	color := t.Accent
 	if b.Hovered() {
-		b.Background(t.AccentHover)
+		color = t.AccentHover
 	}
 	b.Children(func() {
-		ui.Icon(c, icons.ArrowUp).FontSize(theme.IconSmall(t)).TextColor(t.AccentText)
-		ui.Text(c, text).FontSize(theme.Px(t, 12)).FontWeight(500).TextColor(t.AccentText).NoWrap()
+		ui.Icon(c, icons.ArrowUp).FontSize(theme.IconSmall(t)).TextColor(color)
+		ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(500).TextColor(color).NoWrap()
 	})
 	if b.Clicked() {
 		s.renew()
@@ -4451,29 +4387,31 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 			}
 			s.skeleton(c)
 		case s.loadErr:
-			s.empty(c, icons.WifiOff, s.text.Error, s.text.ErrorHint, true)
+			s.empty(c, icons.WifiOff, s.text.Error, s.text.ErrorHint, &next{icons.RefreshCw, s.text.Retry, func() {
+				if !s.sourcesLoaded {
+					s.loadSources()
+				}
+				s.reload()
+			}})
 		case len(s.entries) == 0:
 			switch {
 			case s.sourcesLoaded && len(s.sources) == 0:
-				s.empty(c, icons.Rss, s.text.NoSubscriptions, s.text.NoSubscriptionsHint, false)
+				s.empty(c, icons.Rss, s.text.NoSubscriptions, "", nil)
 			case s.searched != "":
-				s.empty(c, icons.Search, strings.ReplaceAll(s.text.NoResults, "{q}", s.searched), s.text.NoResultsHint,
-					false)
+				s.empty(c, icons.Search, strings.ReplaceAll(s.text.NoResults, "{q}", s.searched), "",
+					&next{nil, s.text.ClearSearch, func() { s.query = ""; s.search() }})
 			case s.span != anyTime:
 				title := s.text.NothingNewToday
 				if s.span == lastDay {
 					title = s.text.NothingNew24
 				}
-				s.empty(c, icons.CalendarDays, title, s.text.NothingNewHint, false)
-			case s.budget != 0:
-				s.empty(c, icons.Clock, s.format(s.text.NothingFits, s.budget),
-					s.text.NothingFitsHint, false)
+				s.empty(c, icons.CalendarDays, title, "", &next{nil, s.text.AnyRange, func() { s.setRange(anyTime) }})
 			case s.filter == unread:
-				s.empty(c, icons.CircleCheckBig, s.text.UnreadDone, s.text.UnreadDoneHint, false)
+				s.empty(c, icons.CircleCheckBig, s.text.UnreadDone, "", &next{nil, s.text.ShowRead, func() { s.show(func() { s.filter = everything }) }})
 			case s.filter == starred:
-				s.empty(c, icons.Star, s.text.NoStarred, s.text.NoStarredHint, false)
+				s.empty(c, icons.Star, s.text.NoStarred, s.text.NoStarredHint, nil)
 			default:
-				s.empty(c, icons.Inbox, s.text.Empty, s.text.EmptyHint, false)
+				s.empty(c, icons.Inbox, s.text.Empty, s.text.EmptyHint, nil)
 			}
 		case s.layout() == gridLayout:
 			s.cells(c, now, compact, false)
@@ -4551,17 +4489,29 @@ func (s *Screen) DropBusy() bool {
 	return false
 }
 
-func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed bool) {
+// next is the one thing an empty state offers to do next.
+type next struct {
+	icon *ui.SVG
+	text string
+	do   func()
+}
+
+// empty is what fills the list or the pane when there is nothing to show, design BEmpty: centered under the bar at
+// most dialog-wide wide, the icon on a surface disc twice tile-l, a display title saying what is missing, a body
+// fact only when the title cannot carry it, and the one thing to do next as a button. No subscriptions yet shows the
+// three ways in on a card instead.
+func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, fact string, then *next) {
 	t := c.Theme()
-	col := ui.Column(c).Fill().Center().Gap(t.Space(3)).Padding(s.top()+t.Space(6), t.Space(6), t.Space(6)).
-		Role(ui.RoleStatus)
+	col := ui.Column(c).Fill().Center().Padding(s.top()+theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space6),
+		theme.Px(t, tokens.Space6)).Role(ui.RoleStatus)
 	// The first-run empty state takes OPML files dropped on it, handing them to the settings' import like the rest
 	// of the window.
 	first := title == s.text.NoSubscriptions
 	if first {
 		if over := col.FileDragOver(); over {
-			icon, title, hint = icons.Upload, s.text.DropTitle, s.text.DropHint
-			col.Background(theme.Soft(t, t.Accent)).Border(1.5, t.Accent).BorderStyle(ui.BorderDashed).Radius(t.Radius)
+			icon, title, fact = icons.Upload, s.text.DropTitle, s.text.DropHint
+			col.Background(theme.Soft(t, t.Accent)).Border(1.5, t.Accent).BorderStyle(ui.BorderDashed).
+				Radius(theme.Px(t, tokens.RadiusCard))
 			first = false
 		}
 		if paths := col.DroppedFiles(); len(paths) > 0 && s.deps.DropFiles != nil {
@@ -4569,129 +4519,89 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed b
 		}
 	}
 	col.Children(func() {
-		fill, color := t.Surface, t.TextMuted
-		if failed {
-			fill, color = theme.Soft(t, t.Danger), t.Danger
-		}
-		ui.Box(c).Size(theme.Px(t, 52), theme.Px(t, 52)).Radius(theme.Px(t, 16)).Center().Background(fill).
-			Children(func() { ui.Icon(c, icon).FontSize(theme.IconLarge(t)).TextColor(color) })
-		ui.Text(c, title).FontSize(theme.Px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(2)
-		ui.Text(c, hint).MaxWidth(theme.Px(t, 300)).TextColor(t.TextMuted).Wrap()
-		if failed {
-			b := ui.ButtonBase(c).Height(theme.Px(t, 32)).Gap(theme.Px(t, 6)).PaddingX(theme.Px(t, 14)).Radius(theme.Px(t, 10)).
-				Background(theme.Track(t))
-			if b.Pressed() {
-				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
-			} else if b.Hovered() {
-				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
+		ui.Column(c).FillWidth().MaxWidth(theme.Px(t, tokens.DialogWide)).AlignItems(ui.Center).Children(func() {
+			disc := theme.Px(t, 2*tokens.TileL)
+			ui.Box(c).Size(disc, disc).Radius(theme.Pill(disc)).Center().Background(theme.Surface(t)).
+				Children(func() { ui.Icon(c, icon).FontSize(theme.IconLarge(t)).TextColor(theme.Text2(t)) })
+			ui.Text(c, title).FontSize(theme.Px(t, tokens.TextDisplay.Size.En)).FontWeight(600).TextAlign(ui.Center).
+				Wrap().Margin(theme.Px(t, tokens.Space6), 0, 0).Role(ui.RoleHeading).Level(2)
+			if fact != "" {
+				ui.Text(c, fact).TextColor(theme.Text2(t)).TextAlign(ui.Center).Wrap().Margin(theme.Px(t, tokens.Space2), 0, 0)
 			}
-			theme.Fade(b)
-			b.Children(func() {
-				ui.Icon(c, icons.RefreshCw).FontSize(theme.IconMedium(t)).TextColor(t.Text)
-				ui.Text(c, s.text.Retry).NoWrap().FontWeight(500)
-			})
-			if b.Clicked() {
-				if !s.sourcesLoaded {
-					s.loadSources()
-				}
-				s.reload()
-			}
-		}
-		if s.span != anyTime && !failed && icon == icons.CalendarDays {
-			b := ui.ButtonBase(c).Height(theme.Px(t, 32)).PaddingX(theme.Px(t, 14)).Radius(theme.Px(t, 10)).Background(theme.Track(t))
-			if b.Pressed() {
-				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
-			} else if b.Hovered() {
-				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
-			}
-			theme.Fade(b)
-			b.Children(func() { ui.Text(c, s.text.AnyRange).NoWrap().FontWeight(500) })
-			if b.Clicked() {
-				s.setRange(anyTime)
-			}
-		}
-		if s.budget != 0 && !failed && icon == icons.Clock {
-			b := ui.ButtonBase(c).Height(theme.Px(t, 32)).PaddingX(theme.Px(t, 14)).Radius(theme.Px(t, 10)).Background(theme.Track(t))
-			if b.Pressed() {
-				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
-			} else if b.Hovered() {
-				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
-			}
-			theme.Fade(b)
-			b.Children(func() { ui.Text(c, s.text.AnyLength).NoWrap().FontWeight(500) })
-			if b.Clicked() {
-				s.setBudget(0)
-			}
-		}
-		if first {
-			ui.Row(c).Wrap().Justify(ui.Center).Gap(t.Space(2)).Children(func() {
-				b := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(t.Radius).
-					Background(t.Accent)
-				if b.Pressed() {
-					b.Background(t.AccentPressed)
-				} else if b.Hovered() {
-					b.Background(t.AccentHover)
-				}
-				b.Children(func() {
-					ui.Icon(c, icons.Plus).FontSize(theme.IconMedium(t)).TextColor(t.AccentText)
-					ui.Text(c, s.text.AddFirst).NoWrap().FontWeight(500).TextColor(t.AccentText)
-				})
+			if then != nil {
+				b := theme.Button{Icon: then.icon, Text: then.text}.Draw(c)
+				b.Margin(theme.Px(t, tokens.Space6), 0, 0)
 				if b.Clicked() {
-					s.subs.Add()
+					then.do()
 				}
-				// Importing a file and restoring a backup both go to Import and export in Settings.
-				for _, quiet := range []struct {
-					icon  *ui.SVG
-					label string
-				}{{icons.Upload, s.text.ImportOPML}, {icons.Database, s.text.RestoreBackup}} {
-					i := ui.ButtonBase(c).Height(t.Space(8)).Gap(t.Space(1.5)).PaddingX(t.Space(3.5)).Radius(t.Radius).
-						Background(theme.Track(t))
-					if i.Pressed() {
-						i.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
-					} else if i.Hovered() {
-						i.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
-					}
-					theme.Fade(i)
-					i.Children(func() {
-						ui.Icon(c, quiet.icon).FontSize(theme.IconMedium(t)).TextColor(t.Text)
-						ui.Text(c, quiet.label).NoWrap().FontWeight(500)
+			}
+			if first {
+				s.waysIn(c)
+			}
+		})
+	})
+}
+
+// waysIn is the card of the first-run empty state: adding a subscription, importing them from a file or another
+// reader, and restoring a backup, one row each.
+func (s *Screen) waysIn(c *ui.Context) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Margin(theme.Px(t, tokens.Space6), 0, 0).Padding(theme.Px(t, tokens.Space2)).
+		Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Surface(t)).Children(func() {
+		for i, way := range []struct {
+			icon                *ui.SVG
+			title, what, button string
+			primary             bool
+			do                  func()
+		}{
+			{icons.Plus, s.text.WayAdd, s.text.WayAddWhat, s.text.WayAddButton, true, s.subs.Add},
+			{icons.Upload, s.text.WayImport, s.text.WayImportWhat, s.text.WayImportButton, false, s.deps.OpenImport},
+			{icons.Database, s.text.WayRestore, s.text.WayRestoreWhat, s.text.WayRestoreButton, false, s.deps.OpenImport},
+		} {
+			ui.Row(c).Key(i).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Padding(theme.Px(t, tokens.Space2)).
+				Children(func() {
+					square := theme.Px(t, tokens.Control)
+					ui.Box(c).Size(square, square).Shrink(0).Radius(theme.Px(t, tokens.RadiusControl)).Center().
+						Background(theme.Track(t)).
+						Children(func() { ui.Icon(c, way.icon).FontSize(theme.IconMedium(t)).TextColor(theme.Text2(t)) })
+					ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+						ui.Text(c, way.title).FontWeight(500).SingleLine()
+						ui.Text(c, way.what).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t)).
+							SingleLine()
 					})
-					if i.Clicked() {
-						s.deps.OpenImport()
+					style := theme.Secondary
+					if way.primary {
+						style = theme.Primary
 					}
-				}
-			})
+					b := theme.Button{Style: style, Small: true, Text: way.button}.Draw(c)
+					b.Shrink(0)
+					if b.Clicked() && way.do != nil {
+						way.do()
+					}
+				})
 		}
 	})
 }
 
-// footer is the end of the loaded entries: loading the next page, or a retry when that failed.
+// footer is the end of the loaded entries, a mark of design BListMarks: loading the next page, or a retry when that
+// failed.
 func (s *Screen) footer(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().Justify(ui.Center).AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(4)).
-		Children(func() {
-			if s.moreErr {
-				ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Danger)
-				ui.Text(c, s.text.LoadMoreFailed).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
-				b := ui.ButtonBase(c).Height(theme.Px(t, 24)).Gap(t.Space(1)).PaddingX(t.Space(2)).Radius(t.Space(1.5)).
-					Label(s.text.Retry)
-				if b.Hovered() {
-					b.Background(t.SurfaceHover)
-				}
-				b.Children(func() {
-					ui.Icon(c, icons.RefreshCw).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
-					ui.Text(c, s.text.Retry).FontSize(theme.Px(t, 12)).TextColor(t.Accent)
-				})
-				if b.Clicked() {
-					s.moreErr = false
-					s.loadMore()
-				}
-				return
+	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.RowCompact)).Justify(ui.Center).AlignItems(ui.Center).
+		Gap(theme.Px(t, tokens.Space2)).Children(func() {
+		if s.moreErr {
+			ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Danger)
+			ui.Text(c, s.text.LoadMoreFailed).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t))
+			if (theme.Link{Text: s.text.Retry, Icon: icons.RefreshCw}).Draw(c).Clicked() {
+				s.moreErr = false
+				s.loadMore()
 			}
-			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
-			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-			ui.Text(c, s.text.LoadingMore).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
-		})
+			return
+		}
+		spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
+		spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
+		ui.Text(c, s.text.LoadingMore).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
+	})
 }
 
 func (s *Screen) hasFooter() bool { return s.more || s.moreErr }
@@ -4780,7 +4690,7 @@ func (s *Screen) entryMenu(c *ui.Context, m *ui.Menu, id int64) {
 }
 
 // actionFade fades the actions of a row in and out, opacity only.
-var actionFade = ui.ElementTransition{Duration: 120 * time.Millisecond, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
+var actionFade = ui.ElementTransition{Duration: tokens.MotionFast, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
 
 // place is where the actions sit on an entry.
 type place int
@@ -4792,53 +4702,59 @@ const (
 	belowMeta              // at the right of the meta line under a large cover, at the bottom of the row
 )
 
-// actions are the bare icons of an entry, at the place given: a row's own meta line has room for them at the top,
+// actions are the row actions of design BEntry, at the place given: star, the read toggle and open, row-dense
+// buttons floating on the float fill with the popup elevation. A row's own meta line has room for them at the top,
 // a card has its meta line at the bottom of the card.
 func (s *Screen) actions(c *ui.Context, i int, at place) {
 	t := c.Theme()
 	e := s.entries[i]
-	bar := ui.Row(c).Key("actions").Gap(theme.Px(t, 2)).Transition(actionFade)
+	inset := theme.Px(t, tokens.Space2)
+	bar := ui.Row(c).Key("actions").Gap(theme.Px(t, tokens.Space0_5)).Padding(theme.Px(t, tokens.Space0_5)).
+		Radius(theme.Px(t, tokens.RadiusControl)).Background(theme.RaisedFill(t)).Transition(actionFade)
+	theme.Shadow(t, bar, theme.Elevation(t).Popup)
 	switch at {
 	case onCard:
 		bar.Attach(ui.AnchorBottomRight, ui.AnchorBottomRight)
 	case centered:
-		bar.Attach(ui.AnchorRight, ui.AnchorRight).Right(theme.Px(t, 10))
+		bar.Attach(ui.AnchorRight, ui.AnchorRight).Right(inset)
 	case belowMeta:
-		bar.Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).Bottom(theme.Px(t, 14)).Right(theme.Px(t, 10))
+		bar.Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).Bottom(inset).Right(inset)
 	default:
-		bar.Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(theme.Px(t, 14)).Right(theme.Px(t, 10))
+		bar.Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(inset).Right(inset)
 	}
 	bar.Children(func() {
-		star, starColor := s.text.Star, t.TextMuted
+		star, starColor := s.text.Star, theme.Text2(t)
 		if e.Starred {
 			star, starColor = s.text.Unstar, theme.Star(t)
 		}
 		if s.action(c, star, icons.Star, starColor, e.Starred) {
 			s.toggleStar(i)
 		}
-		read, readIcon := s.text.MarkRead, icons.MailOpen
+		// The read toggle is the unread dot, as in the reader's bar: Accent while unread, Text2 once read.
+		read, readColor := s.text.MarkRead, t.Accent
 		if e.IsRead {
-			read, readIcon = s.text.MarkUnread, icons.Mail
+			read, readColor = s.text.MarkUnread, theme.Text2(t)
 		}
-		if s.action(c, read, readIcon, t.TextMuted, false) {
+		if s.action(c, read, icons.CircleDot, readColor, !e.IsRead) {
 			s.toggleRead(i)
 		}
-		if s.action(c, s.text.Open, icons.ExternalLink, t.TextMuted, false) {
+		if s.action(c, s.text.Open, icons.ExternalLink, theme.Text2(t), false) {
 			s.browse(c, i)
 		}
 	})
 }
 
-// action is one bare icon of a row: 27 by 24, SurfacePressed under the pointer and Chosen pressed. A starred one
-// keeps its own color.
+// action is one button of the row actions: a row-dense square, radius-sm, the hover fill under the pointer and the
+// pressed fill pressed. One that keeps its color, a star or the unread dot, keeps it under the pointer.
 func (s *Screen) action(c *ui.Context, label string, icon *ui.SVG, color ui.Color, keep bool) bool {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 24)).Radius(theme.Px(t, 6)).Label(label).Tooltip(label)
+	size := theme.Px(t, tokens.RowDense)
+	b := theme.Fade(ui.ButtonBase(c)).Size(size, size).Radius(theme.Px(t, tokens.RadiusSm)).Label(label).Tooltip(label)
 	switch {
 	case b.Pressed():
-		b.Background(theme.Chosen(t))
-	case b.Hovered():
 		b.Background(t.SurfacePressed)
+	case b.Hovered():
+		b.Background(t.SurfaceHover)
 		if !keep {
 			color = t.Text
 		}
@@ -5190,9 +5106,9 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 	s.unfoldClicked()
 }
 
-// divide is the divider above the first entry at or older than the marker of what the reader last looked at: a hairline
-// with the count of the entries above it, newer than the marker and loaded, in the middle. It is a button that
-// dismisses it, named by its text.
+// divide is the mark of design BListMarks above the first entry at or older than the marker of what the reader last
+// looked at: an Accent meta-strong phrase with the count of the entries above it, newer than the marker and loaded,
+// between faded Accent hairlines. It is a button that dismisses it, named by its text.
 func (s *Screen) divide(c *ui.Context, newer int) {
 	t := c.Theme()
 	count := strconv.Itoa(newer)
@@ -5200,16 +5116,17 @@ func (s *Screen) divide(c *ui.Context, newer int) {
 		count = strconv.Itoa(maxNewCount) + "+"
 	}
 	label := strings.ReplaceAll(s.text.LastLooked, "{n}", count)
-	b := ui.ButtonBase(c).Key("looked").FillWidth().Height(theme.Px(t, 28)).Padding(0, theme.Px(t, 16), 0, theme.Px(t, 28)).Label(label)
+	b := ui.ButtonBase(c).Key("looked").FillWidth().Height(theme.Px(t, tokens.RowCompact)).
+		Padding(0, theme.Px(t, tokens.Space4), 0, theme.Px(t, 28)).Label(label)
 	color := t.Accent
 	if b.Hovered() {
 		color = t.AccentHover
 	}
 	b.Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 10)).Children(func() {
-			ui.Box(c).Grow(1).Height(1).Background(t.Border)
-			ui.Text(c, label).FontSize(theme.Px(t, 12)).FontWeight(500).TextColor(color).NoWrap()
-			ui.Box(c).Grow(1).Height(1).Background(t.Border)
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
+			ui.Box(c).Grow(1).Height(1).Background(t.Accent.Alpha(0.3))
+			ui.Text(c, label).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(500).TextColor(color).NoWrap()
+			ui.Box(c).Grow(1).Height(1).Background(t.Accent.Alpha(0.3))
 		})
 	})
 	if b.Clicked() {

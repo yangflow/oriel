@@ -12,6 +12,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // watchHealth reads the health of the RSSHub instances once when the Fetching group is shown.
@@ -53,14 +54,15 @@ func (s *Screen) healthBlock(c *ui.Context) {
 	for _, in := range s.health.Instances {
 		data = data || in.Requests > 0
 	}
-	ui.Box(c).FillWidth().Height(1).Background(t.Border).Margin(theme.Px(t, 16), 0, theme.Px(t, 14), 0)
+	ui.Box(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).Background(t.Border).
+		Margin(theme.Px(t, tokens.Space3), 0)
 	ui.Column(c).Key("health").FillWidth().Role(ui.RoleGroup).Label(s.text.Health).Children(func() {
-		ui.Text(c, s.text.Health).FontWeight(500)
 		help := s.text.HealthEmpty
 		if data {
 			help = s.fill(s.text.HealthHelp, "{keep}", strconv.Itoa(s.health.Keep), "{days}", strconv.Itoa(s.health.Days))
 		}
-		ui.Text(c, help).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 2), 0, theme.Px(t, 8), 0)
+		setting(c, icons.HeartPulse, false, s.text.Health, func() { meta(c, help) }, nil)
+		ui.Box(c).Height(theme.Px(t, tokens.Space2))
 		if !data {
 			return
 		}
@@ -88,29 +90,32 @@ func (s *Screen) healthSaved() bool {
 // instanceRow is one instance: its address, a badge on the first, and how its latest requests went.
 func (s *Screen) instanceRow(c *ui.Context, i int, in client.InstanceHealth, now time.Time) {
 	t := c.Theme()
-	ui.Column(c).Key(i).FillWidth().PaddingY(theme.Px(t, 4)).Children(func() {
-		ui.Row(c).FillWidth().MinHeight(theme.Px(t, 24)).AlignItems(ui.Center).Gap(theme.Px(t, 12)).Children(func() {
-			addr := ui.Row(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Center).Gap(theme.Px(t, 8))
-			addr.Children(func() {
-				ui.Text(c, hostOf(in.URL)).Font("monospace").FontSize(theme.Px(t, 12)).SingleLine().MinWidth(0).Shrink(1)
-				if i == 0 {
-					ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 7)).Radius(theme.Pill(theme.Px(t, 18))).Center().
-						Background(theme.Soft(t, t.Accent)).Children(func() {
-						ui.Text(c, s.text.MainBadge).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.Accent).NoWrap()
-					})
+	indent := theme.Px(t, tokens.Control+tokens.Space3)
+	ui.Column(c).Key(i).FillWidth().Padding(theme.Px(t, tokens.Space1), 0, theme.Px(t, tokens.Space1), indent).Children(func() {
+		ui.Row(c).FillWidth().MinHeight(theme.Px(t, tokens.RowDense)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+			Children(func() {
+				addr := ui.Row(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2))
+				addr.Children(func() {
+					ui.Text(c, hostOf(in.URL)).Font("monospace").FontSize(theme.Px(t, tokens.TextCode.Size.En)).SingleLine().
+						MinWidth(0).Shrink(1)
+					if i == 0 {
+						tag(c, "", s.text.MainBadge, true)
+					}
+				})
+				theme.Tip(c, addr, in.URL)
+				color := theme.Text2(t)
+				if in.Requests == 0 {
+					color = t.TextMuted
 				}
+				ui.Text(c, s.figures(in)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(color).
+					NoWrap()
 			})
-			theme.Tip(c, addr, in.URL)
-			color := theme.Text2(t)
-			if in.Requests == 0 {
-				color = t.TextMuted
-			}
-			ui.Text(c, s.figures(in)).FontSize(theme.Px(t, 12)).FontFeatures("tnum").TextColor(color).NoWrap()
-		})
 		if in.CoolingUntil != nil {
-			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, 6)).Role(ui.RoleStatus).Margin(theme.Px(t, 2), 0, 0, 0).Children(func() {
-				ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning).Margin(1, 0, 0, 0)
-				ui.Text(c, s.cooling(*in.CoolingUntil, now)).FontSize(theme.Px(t, 12)).Wrap().Grow(1).MinWidth(0)
+			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).
+				Margin(theme.Px(t, tokens.Space0_5), 0, 0, 0).Children(func() {
+				ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning).Margin(theme.Px(t, 1), 0, 0, 0)
+				ui.Text(c, s.cooling(*in.CoolingUntil, now)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).Wrap().Grow(1).
+					MinWidth(0)
 			})
 		}
 	})

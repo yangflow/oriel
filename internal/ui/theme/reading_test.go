@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/prefs"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // readingThemes returns the preset's theme in each scheme, with and without high contrast, made the way the reader
@@ -49,20 +50,20 @@ func TestReadingPresetContrast(t *testing.T) {
 			}{
 				{"Text on Background", th.Text, th.Background, 4.5, 11.6},
 				{"Prose on Background", Prose(th), th.Background, 4.5, 9.6},
-				{"Prose on Surface", Prose(th), th.Surface, 4.5, 8.6},
+				{"Prose on Surface", Prose(th), Surface(th), 4.5, 8.6},
 				{"Text2 on Background", Text2(th), th.Background, 4.5, 7.0},
-				{"Text2 on Surface", Text2(th), th.Surface, 4.5, 6.3},
+				{"Text2 on Surface", Text2(th), Surface(th), 4.5, 6.3},
 				{"TextMuted on Background", th.TextMuted, th.Background, 4.5, 5.2},
-				{"TextMuted on Surface", th.TextMuted, th.Surface, 4.5, 4.7},
+				{"TextMuted on Surface", th.TextMuted, Surface(th), 4.5, 4.7},
 				{"Accent on Background", th.Accent, th.Background, 4.5, 5.7},
-				{"Accent on Surface", th.Accent, th.Surface, 4.5, 5.2},
+				{"Accent on Surface", th.Accent, Surface(th), 4.5, 5.2},
 				{"AccentText on Accent", th.AccentText, th.Accent, 4.5, 6.8},
 				{"AccentText on AccentHover", th.AccentText, th.AccentHover, 4.5, 0},
 				{"AccentText on AccentPressed", th.AccentText, th.AccentPressed, 4.5, 0},
 				{"Danger on Background", th.Danger, th.Background, 4.5, 5.2},
 				{"Prose on Selection", Prose(th), sel, 4.5, 4.8},
 				{"Text on RaisedFill", th.Text, RaisedFill(th), 4.5, 0},
-				{"Text on Track", th.Text, Track(th), 4.5, 0},
+				{"Text on Track", th.Text, Track(th).Over(th.Background), 4.5, 0},
 			}
 			for _, c := range text {
 				r := contrast(c.fg, c.bg)
@@ -82,7 +83,7 @@ func TestReadingPresetContrast(t *testing.T) {
 				{"Star on Background", Star(th), th.Background},
 				{"Accent on Selection", th.Accent, sel},
 				{"focus ring on Background", th.Focus.Over(th.Background), th.Background},
-				{"focus ring on Surface", th.Focus.Over(th.Surface), th.Surface},
+				{"focus ring on Surface", th.Focus.Over(Surface(th)), Surface(th)},
 			} {
 				if r := contrast(g.fg, g.bg); r < 3 {
 					t.Errorf("%s: %s is %.2f:1, graphics need 3:1", name, g.what, r)
@@ -94,7 +95,7 @@ func TestReadingPresetContrast(t *testing.T) {
 			if r := contrast(th.TextMuted, th.Background); r < 4.5 {
 				t.Errorf("%s: TextMuted on Background is %.2f:1", name, r)
 			}
-			if r := contrast(th.TextMuted, th.Surface); r < 4.5 {
+			if r := contrast(th.TextMuted, Surface(th)); r < 4.5 {
 				t.Errorf("%s: TextMuted on Surface is %.2f:1", name, r)
 			}
 			if r := contrast(th.Border.Over(th.Background), th.Background); r < 3 {
@@ -119,8 +120,13 @@ func TestReadingThemeOnlyRecolors(t *testing.T) {
 			}
 		}
 		got := ReadingTheme(&main, prefs.PresetSepia)
-		if got.Dark != main.Dark || got.Font != main.Font || got.Radius != main.Radius || got.Warning != main.Warning || got.Success != main.Success {
-			t.Errorf("dark %v: the preset changed more than paper and ink", dark)
+		p := tokens.Presets[prefs.PresetSepia][0]
+		if dark {
+			p = tokens.Presets[prefs.PresetSepia][1]
+		}
+		if got.Dark != main.Dark || got.Font != main.Font || got.Radius != main.Radius || got.Warning != p.Warning ||
+			got.Success != p.Success || got.Inverse != main.Inverse {
+			t.Errorf("dark %v: the preset changed more than paper, ink and meaning colors", dark)
 		}
 		if got.Background == main.Background || got.Text == main.Text || got.Accent == main.Accent {
 			t.Errorf("dark %v: the preset left the theme's colours", dark)
@@ -128,8 +134,8 @@ func TestReadingThemeOnlyRecolors(t *testing.T) {
 		if again := ReadingTheme(got, prefs.PresetMist); again != got {
 			t.Errorf("dark %v: a reading theme was recoloured", dark)
 		}
-		if Ink(got, 0.5) != got.Text.Alpha(0.5) {
-			t.Errorf("dark %v: ink is not the preset's text", dark)
+		if Ink(got, 0.5) != p.Ink.Alpha(0.5) {
+			t.Errorf("dark %v: ink is not the preset's ink", dark)
 		}
 	}
 	main := applied(t, false, ui.Preferences{})

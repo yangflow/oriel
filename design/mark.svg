@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="10 9 80 80">
+  <!-- Oriel's mark: a drop of ink in logo-body with the subscription sign inside: two arcs cut out to the ground, and a
+       dot in logo-piece (light values; on a dark ground use the tokens' dark values). The product icon (icon.svg) puts
+       it on the ivory tile and the menu bar template (tray.svg) draws it in black. -->
+  <defs>
+    <mask id="feed" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+      <rect width="100" height="100" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="5.5" stroke-linecap="round"><path d="M39 56a16 16 0 0 1 16 16"/><path d="M39 43a29 29 0 0 1 29 29"/></g>
+    </mask>
+  </defs>
+  <path d="M50 10C50 10 23 41 23 61a27 27 0 0 0 54 0C77 41 50 10 50 10z" fill="#26231f" mask="url(#feed)"/>
+  <circle cx="39" cy="72" r="5.5" fill="#0f766e"/>
+</svg>

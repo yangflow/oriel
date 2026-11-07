@@ -29,9 +29,6 @@ func TestSingularCounts(t *testing.T) {
 		{"RefreshedPart", s.text.RefreshedPart, [3]string{"Checked {done} of 0 subscriptions, the rest will follow", "Checked {done} of 1 subscription, the rest will follow", "Checked {done} of 2 subscriptions, the rest will follow"}},
 		{"FailedTimes", s.text.FailedTimes, [3]string{"Failed 0 times in a row: {error}", "Failed 1 time in a row: {error}", "Failed 2 times in a row: {error}"}},
 		{"FailingShow", s.text.FailingShow, [3]string{"Show only the 0 failing subscriptions", "Show only the 1 failing subscription", "Show only the 2 failing subscriptions"}},
-		{"TimeUpTo", s.text.TimeUpTo, [3]string{"Up to 0 minutes", "Up to 1 minute", "Up to 2 minutes"}},
-		{"TimeNameUpTo", s.text.TimeNameUpTo, [3]string{"Reading time: up to 0 minutes", "Reading time: up to 1 minute", "Reading time: up to 2 minutes"}},
-		{"NothingFits", s.text.NothingFits, [3]string{"Nothing fits in 0 minutes", "Nothing fits in 1 minute", "Nothing fits in 2 minutes"}},
 	} {
 		for n, want := range tc.want {
 			if got := s.format(tc.text, n); got != want {

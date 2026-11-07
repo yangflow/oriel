@@ -41,12 +41,12 @@ func TestCommunityPanes(t *testing.T) {
 	if s.scope.kind != "forum" || !s.paned {
 		t.Fatalf("scope %v, paned %v", s.scope, s.paned)
 	}
-	if !tt.HasText("Choose a post to read") || !tt.HasText("Use J and K, or click a row.") {
+	if !tt.HasText("Choose a post") {
 		t.Fatalf("no note in %v", tt.Texts())
 	}
 	tt.Key(0, ui.KeyJ)
 	f.settle(t, tt)
-	if s.reading != 20 || !tt.HasText("The text of Third thread.") || tt.HasText("Choose a post to read") {
+	if s.reading != 20 || !tt.HasText("The text of Third thread.") || tt.HasText("Choose a post") {
 		t.Fatalf("reading %d, texts %v", s.reading, tt.Texts())
 	}
 	if !tt.HasText("Second thread") || !tt.HasText("First thread") {
@@ -78,7 +78,7 @@ func TestCommunityPanes(t *testing.T) {
 	}
 	tt.Key(0, ui.KeyEscape)
 	f.settle(t, tt)
-	if s.reading != 0 || !tt.HasText("Choose a post to read") {
+	if s.reading != 0 || !tt.HasText("Choose a post") {
 		t.Fatalf("reading %d, texts %v", s.reading, tt.Texts())
 	}
 }
@@ -89,7 +89,7 @@ func TestCommunityFallsBack(t *testing.T) {
 	s, f, tt := communing(t, &p)
 	tt.SetSize(900, 800)
 	tt.Frame()
-	if s.paned || tt.HasText("Choose a post to read") {
+	if s.paned || tt.HasText("Choose a post") {
 		t.Fatalf("paned in a narrow window: %v", tt.Texts())
 	}
 	tt.Key(0, ui.KeyJ)
@@ -122,7 +122,7 @@ func TestCommunityFallsBack(t *testing.T) {
 	p.ForumViewer = prefs.ViewList
 	tt.Frame()
 	tt.Frame()
-	if s.paned || tt.HasText("Choose a post to read") {
+	if s.paned || tt.HasText("Choose a post") {
 		t.Fatalf("paned with the viewer List: %v", tt.Texts())
 	}
 }
@@ -147,7 +147,7 @@ func TestCommunityPaneToolbars(t *testing.T) {
 	if s.reading != 20 {
 		t.Fatalf("reading %d", s.reading)
 	}
-	for _, label := range []string{"Summarize", "Translate", "Star", "Open in browser", "Copy link", "More"} {
+	for _, label := range []string{"Summarize", "Translate", "Star", "Open in browser", "More"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Errorf("no %q in the reader pane: %v", label, tt.Texts())
 		}

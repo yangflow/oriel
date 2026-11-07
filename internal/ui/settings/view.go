@@ -28,6 +28,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 	"github.com/yangflow/oriel/internal/ui/typeset"
 	"golang.org/x/net/html/charset"
 )
@@ -64,20 +65,20 @@ type copy struct {
 	LineWidth, LineWidthHelp, WidthNarrow, WidthStandard, WidthWide                                                                                                                                                                                                                                                                         string
 	ReadingAppearance, ReadingAppearanceHelp, PresetTheme, PresetSepia, PresetMist                                                                                                                                                                                                                                                          string
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                                                                                                                                               string
-	Preset, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                               string
+	Preset, Limits, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                       string
 	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                                                                                                                                              string
 	Desktop, OpenAtLogin, OpenAtLoginHelp, OpenAtLoginHelpTray, OpenAtLoginNeedsApp, MenuBarIcon, MenuBarIconHelp                                                                                                                                                                                                                           string
 	TrayIcon, TrayIconHelp, DockBadge, DockBadgeHelp, LoginFailed, TrayFailed                                                                                                                                                                                                                                                               string
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                                                                                                                                                       string
 	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewForum, ViewPanes, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                              string
 	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10 string
-	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, Compacting                                                                                                                                                                                                                string
+	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, CompactRun, Compacting                                                                                                                                                                                                    string
 	PreMigrate, PreMigrateVersion, DeletePreMigrate, DeletePreMigrateTitle, DeletePreMigrateBody                                                                                                                                                                                                                                            string
 	DeletePreMigrateConfirm, PreMigrateDeleted, PreMigrateFailed                                                                                                                                                                                                                                                                            string
 	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                                                                                                                                                                                                                                        string
 	Health, HealthHelp, HealthEmpty, MainBadge, NoData, NoAnswer, LastN, Cooling, CoolingSoon                                                                                                                                                                                                                                               string
 	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                                                                                                                                                          string
-	Diagnostics, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                                            string
+	Diagnostics, DiagnosticsFile, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                           string
 	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                                                                                                                                                      string
 
 	ImportingOf, Progress, ViewSources, Stopped, Lost, ImportBusy, BusyWhy        string
@@ -1712,16 +1713,9 @@ func (s *Screen) View(c *ui.Context) {
 	room := s.room(c, width, compact)
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
 		s.sidebar(c, compact)
-		// The title row floats over the page, which scrolls under it and fades under the scroll edge.
-		bar := c.TitleBar()
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			s.head(c, compact, room)
 			s.content(c, compact, room)
-			theme.Edge(c, s.scroll.Y > 0)
-			ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(theme.Bar).AlignItems(ui.Center).
-				Padding(0, t.Space(3)+bar.Right, 0, s.titleLeft(t, compact, room)).DragWindow().Children(func() {
-				ui.Text(c, s.groupName(s.group)).FontSize(theme.Px(t, 15)).FontWeight(600).SingleLine().MinWidth(0).
-					Shrink(1).Role(ui.RoleHeading).Level(1)
-			})
 		})
 	})
 	if s.revoking {
@@ -1778,57 +1772,47 @@ func (s *Screen) undoRestore(r *restoration) {
 // sidebarWidth is the sidebar's width.
 func sidebarWidth(t *ui.Theme, compact bool) float32 {
 	if compact {
-		return theme.Px(t, 184)
+		return theme.Px(t, tokens.PaneWidthNarrow)
 	}
-	return theme.Px(t, 216)
+	return theme.Px(t, tokens.PaneWidth)
 }
 
 // room is the width of the main area, which is what is left of the window after the sidebar and its margin; the
 // layout cannot measure it, and the page widths below depend on it.
 func (s *Screen) room(c *ui.Context, width float32, compact bool) float32 {
-	return width - sidebarWidth(c.Theme(), compact) - 8
+	return width - sidebarWidth(c.Theme(), compact) - tokens.Space2
 }
 
+// groupIcons are the groups' icons in the order of the groups, for the sidebar and the page head.
+var groupIcons = [...]*ui.SVG{icons.Palette, icons.RefreshCw, icons.ListFilter, icons.ArrowUpDown, icons.Sparkles,
+	icons.Laptop, icons.Database}
+
+// sidebar is the settings pane, design BSettingsNav: the window buttons' strip, Back to the timeline and the groups,
+// pane items one under the other, with whose settings these are at the foot.
 func (s *Screen) sidebar(c *ui.Context, compact bool) {
 	main := c.Theme()
 	width := sidebarWidth(main, compact)
-	pane := ui.Column(c).Width(width).Margin(8, 0, 8, 8)
+	pane := ui.Column(c).Width(width).Margin(tokens.Space2, 0, tokens.Space2, tokens.Space2).
+		Padding(0, theme.Px(main, tokens.Space2), 0, theme.Px(main, tokens.Space2))
 	theme.Pane(c, pane).Children(func() {
 		// The pane has a theme of its own, light on dark in both schemes; the main one is back after it.
 		c.SetTheme(theme.PaneTheme(main))
 		defer c.SetTheme(main)
 		t := c.Theme()
-		// The first 40 are the window buttons' and drag the window.
-		ui.Box(c).FillWidth().Height(40).DragWindow()
-		ui.Row(c).FillWidth().Height(theme.Px(t, 36)).AlignItems(ui.Center).PaddingX(t.Space(2)).Children(func() {
-			label := s.text.BackTimeline
-			b := ui.ButtonBase(c).Height(theme.Px(t, 28)).MinWidth(0).Shrink(1).Gap(2).Padding(0, t.Space(2), 0, t.Space(1)).
-				Radius(t.Space(1.5)).Label(label)
-			color := t.TextMuted
-			if b.Pressed() {
-				b.Background(t.SurfacePressed)
-				color = t.Text
-			} else if b.Hovered() {
-				b.Background(t.SurfaceHover)
-				color = t.Text
-			}
-			b.Children(func() {
-				ui.Icon(c, icons.ChevronLeft).FontSize(theme.IconMedium(t)).TextColor(color)
-				ui.Text(c, label).SingleLine().MinWidth(0).Shrink(1).TextColor(color)
-			})
-			if s.blur {
-				b.Focus()
-				s.blur = false
-			}
-			if b.Clicked() {
-				s.deps.Back()
-			}
-		})
+		// The toolbar's height, less the pane's margin, is the window buttons' and drags the window.
+		ui.Box(c).FillWidth().Height(tokens.Toolbar - 2*tokens.Space2).DragWindow()
+		b := s.paneItem(c, "back", icons.ChevronLeft, s.text.BackTimeline, false)
+		if s.blur {
+			b.Focus()
+			s.blur = false
+		}
+		if b.Clicked() {
+			s.deps.Back()
+		}
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-			ui.Column(c).FillWidth().Padding(t.Space(2)).Label(s.text.Settings).Children(func() {
-				ui.Text(c, s.text.Settings).SingleLine().FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
-					Margin(t.Space(3), t.Space(2), t.Space(1), t.Space(2))
-				for g, icon := range []*ui.SVG{icons.Palette, icons.Rss, icons.ListFilter, icons.ArrowUpDown, icons.Sparkles, icons.Laptop, icons.Database} {
+			ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space0_5)).Padding(theme.Px(t, tokens.Space4), 0, theme.Px(t, tokens.Space2), 0).
+				Role(ui.RoleGroup).Label(s.text.Settings).Children(func() {
+				for g, icon := range groupIcons {
 					s.navItem(c, g, icon)
 				}
 			})
@@ -1837,30 +1821,37 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 	})
 }
 
-func (s *Screen) navItem(c *ui.Context, g int, icon *ui.SVG) {
+// paneItem is a row of the pane, design CPaneItem: row high, radius-control, the icon in Text2 and the name, the
+// chosen one on the Chosen fill in Text.
+func (s *Screen) paneItem(c *ui.Context, key any, icon *ui.SVG, name string, chosen bool) ui.Element {
 	t := c.Theme()
-	name := s.groupName(g)
-	item := ui.ButtonBase(c).Key(g).FillWidth().Height(theme.Px(t, 30)).Gap(theme.Px(t, 10)).PaddingX(theme.Px(t, 10)).
-		Radius(t.Space(2)).Label(name)
+	item := ui.ButtonBase(c).Key(key).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space2)).
+		PaddingX(theme.Px(t, tokens.Space2)).Radius(theme.Px(t, tokens.RadiusControl)).Label(name)
 	iconColor, nameColor := t.TextMuted, theme.Text2(t)
 	switch {
-	case g == s.group:
+	case chosen:
 		item.Background(theme.Chosen(t))
 		iconColor, nameColor = t.Accent, t.Text
 	case item.Pressed():
 		item.Background(t.SurfacePressed)
+		iconColor, nameColor = theme.Text2(t), t.Text
 	case item.Hovered():
 		item.Background(t.SurfaceHover)
-		iconColor = theme.Text2(t)
+		iconColor, nameColor = theme.Text2(t), t.Text
 	}
 	theme.Fade(item)
 	item.Children(func() {
 		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(iconColor)
 		label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(nameColor)
-		if g == s.group {
-			label.FontWeight(500)
+		if chosen {
+			label.FontWeight(tokens.TextLabel.Weight)
 		}
 	})
+	return item
+}
+
+func (s *Screen) navItem(c *ui.Context, g int, icon *ui.SVG) {
+	item := s.paneItem(c, g, icon, s.groupName(g), g == s.group)
 	if item.Clicked() {
 		if g != s.group {
 			s.healthAsked = false
@@ -1876,11 +1867,11 @@ func (s *Screen) serverBar(c *ui.Context) {
 	if s.server != "" {
 		name, icon = s.server, icons.Server
 	}
-	ui.Row(c).FillWidth().Height(theme.Px(t, 40)).AlignItems(ui.Center).Gap(t.Space(2)).PaddingX(t.Space(4)).
-		Tooltip(s.text.ServerNote).Children(func() {
+	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.RowCompact)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+		PaddingX(theme.Px(t, tokens.Space2)).Tooltip(s.text.ServerNote).Children(func() {
 		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
-		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
-		ui.Box(c).Size(6, 6).Radius(theme.Pill(6)).Background(t.Success)
+		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
+		ui.Box(c).Size(tokens.Dot, tokens.Dot).Radius(theme.Pill(tokens.Dot)).Background(t.Success)
 	})
 }
 
@@ -1934,15 +1925,22 @@ const (
 	splitRoom = 976
 )
 
-func formWidth(t *ui.Theme) float32 { return theme.Px(t, 600) }
+func formWidth(t *ui.Theme) float32 { return theme.Px(t, formPage) }
+
+// The widest a page goes: a form, the devices table and the AI page's two columns, padding included.
+const (
+	formPage  = 600
+	tablePage = 880
+	splitPage = 1040
+)
 
 // pageWidth is the widest the page of the current group goes, for the room the main area has.
 func (s *Screen) pageWidth(t *ui.Theme, room float32) float32 {
 	switch {
 	case s.wideTable(t, room):
-		return theme.Px(t, 880)
+		return theme.Px(t, tablePage)
 	case s.twoColumns(t, room):
-		return theme.Px(t, 1040)
+		return theme.Px(t, splitPage)
 	}
 	return formWidth(t)
 }
@@ -1957,35 +1955,108 @@ func (s *Screen) twoColumns(t *ui.Theme, room float32) bool {
 	return s.group == ai && room >= theme.Px(t, splitRoom)
 }
 
-// titleLeft is the title's left padding, which puts it on the left edge of the centered page.
-func (s *Screen) titleLeft(t *ui.Theme, compact bool, room float32) float32 {
-	pad := theme.Px(t, 32)
+// side is the page's padding at either side: space-8, space-4 when compact.
+func side(t *ui.Theme, compact bool) float32 {
 	if compact {
-		pad = theme.Px(t, 20)
+		return theme.Px(t, tokens.Space4)
 	}
+	return theme.Px(t, tokens.Space8)
+}
+
+// titleLeft is the head's left padding, which puts it on the left edge of the centered page.
+func (s *Screen) titleLeft(t *ui.Theme, compact bool, room float32) float32 {
+	pad := side(t, compact)
 	col := min(room, s.pageWidth(t, room))
 	return max(pad, (room-col)/2+pad)
 }
 
+// headFade fades the hairline under the head in and out.
+var headFade = ui.ElementTransition{Duration: tokens.MotionFast, Colors: true}
+
+// head is the page's head, which stays while the page scrolls under it: the group's icon in a soft accent chip
+// (control plus space-4 square, radius-card), the name in display and what the page is for in meta. It drags the
+// window, and a hairline fades in under it once the page has scrolled.
+func (s *Screen) head(c *ui.Context, compact bool, room float32) {
+	t := c.Theme()
+	bar := c.TitleBar()
+	top, bottom := theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space6)
+	if compact {
+		top, bottom = theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space4)
+	}
+	left := s.titleLeft(t, compact, room)
+	ui.Column(c).FillWidth().Shrink(0).DragWindow().Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space4)).
+			Padding(top, max(left, theme.Px(t, tokens.Space3)+bar.Right), bottom, left).Children(func() {
+			square := theme.Px(t, tokens.Control+tokens.Space4)
+			ui.Box(c).Size(square, square).Shrink(0).Radius(theme.Px(t, tokens.RadiusCard)).Center().
+				Background(theme.Soft(t, t.Accent)).Children(func() {
+				ui.Icon(c, groupIcons[s.group]).FontSize(theme.IconLarge(t)).TextColor(t.Accent)
+			})
+			ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Px(t, tokens.Space1)).Children(func() {
+				ui.Text(c, s.groupName(s.group)).FontSize(theme.Px(t, tokens.TextDisplay.Size.En)).
+					FontWeight(tokens.TextDisplay.Weight).SingleLine().MinWidth(0).Role(ui.RoleHeading).Level(1)
+				if lead := s.lead(); lead != "" {
+					ui.Text(c, lead).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Wrap()
+				}
+			})
+			if s.group == activity && s.actState == loaded {
+				refresh := theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.text.Refresh}.Draw(c)
+				if refresh.Clicked() {
+					s.fetchActivity()
+				}
+			}
+		})
+		line := t.Border.Alpha(0)
+		if s.scroll.Y > 0 {
+			line = t.Border
+		}
+		width := float32(tokens.Outline)
+		if c.Preferences().HighContrast {
+			width = tokens.Hairline
+		}
+		ui.Box(c).FillWidth().Height(width).Background(line).Transition(headFade)
+	})
+}
+
+// lead is the sentence under the page's name: what the page is for.
+func (s *Screen) lead() string {
+	switch s.group {
+	case appearance:
+		return s.text.AppearanceLead
+	case fetching:
+		return s.text.Lead
+	case rules:
+		return s.text.RulesLead
+	case opml:
+		return s.text.OPMLHelp
+	case ai:
+		return s.text.AILead
+	case devices:
+		if s.signedIn {
+			return s.text.DevicesHelp
+		}
+	case activity:
+		return s.text.ActivityLead
+	}
+	return ""
+}
+
 func (s *Screen) page(c *ui.Context, compact bool, maxWidth float32, children func()) {
 	t := c.Theme()
-	ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).FillWidth().ScrollbarInsets(theme.Bar, 0, 0, 0).Children(func() {
-		p := ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto)
-		if compact {
-			p.Padding(theme.Bar+theme.Px(t, 20), theme.Px(t, 20), theme.Px(t, 40), theme.Px(t, 20))
-		} else {
-			p.Padding(theme.Bar+theme.Px(t, 32), theme.Px(t, 32), theme.Px(t, 48), theme.Px(t, 32))
-		}
-		p.Children(children)
+	ui.Scroll(c).TrackScroll(&s.scroll).Grow(1).FillWidth().Children(func() {
+		pad := side(t, compact)
+		ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto).
+			Padding(theme.Px(t, tokens.Space2), pad, theme.Px(t, tokens.Space12), pad).Children(children)
 	})
 }
 
 func (s *Screen) skeleton(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).FillWidth().Label(s.text.Loading).Role(ui.RoleProgress).Children(func() {
-		ui.Box(c).Width(theme.Px(t, 320)).MaxWidth(theme.Px(t, 360)).Height(theme.Px(t, 12)).Radius(theme.Pill(theme.Px(t, 12))).Background(theme.Track(t)).
-			Margin(theme.Px(t, 10), 0)
-		ui.Box(c).FillWidth().Height(theme.Px(t, 160)).Radius(10).Background(theme.Track(t)).Margin(t.Space(4), 0, 0, 0)
+		bar := theme.Px(t, tokens.Space3)
+		ui.Box(c).Width(theme.Px(t, tokens.SheetWidth)).Height(bar).Radius(theme.Pill(bar)).Background(theme.Track(t)).
+			Margin(theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space3))
+		ui.Box(c).FillWidth().Height(theme.Px(t, 5*tokens.Space8)).Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Track(t))
 	})
 }
 
@@ -1995,13 +2066,15 @@ func (s *Screen) failure(c *ui.Context) {
 	if s.group == rules {
 		title, hint = s.text.RulesError, s.text.RulesErrorHint
 	}
-	ui.Column(c).Grow(1).FillWidth().Center().Gap(t.Space(3)).Padding(theme.Bar+t.Space(6), t.Space(6), t.Space(6)).
+	ui.Column(c).Grow(1).FillWidth().Center().Gap(theme.Px(t, tokens.Space3)).Padding(theme.Px(t, tokens.Space6)).
 		Role(ui.RoleStatus).
 		Children(func() {
-			ui.Box(c).Size(t.Space(12), t.Space(12)).Radius(t.Space(3)).Center().Background(theme.Soft(t, t.Danger)).
+			square := theme.Px(t, tokens.Space12)
+			ui.Box(c).Size(square, square).Radius(theme.Px(t, tokens.RadiusCard)).Center().Background(theme.Soft(t, t.Danger)).
 				Children(func() { ui.Icon(c, icons.WifiOff).FontSize(theme.IconLarge(t)).TextColor(t.Danger) })
-			ui.Text(c, title).FontSize(theme.Px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(2)
-			ui.Text(c, hint).MaxWidth(theme.Px(t, 320)).TextColor(t.TextMuted).Wrap()
+			ui.Text(c, title).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+				Role(ui.RoleHeading).Level(2)
+			ui.Text(c, hint).MaxWidth(theme.Px(t, tokens.SheetWidth)).TextColor(t.TextMuted).Wrap()
 			retry := theme.Button{Style: theme.Secondary, Icon: icons.RefreshCw, Text: s.text.Retry}.Draw(c)
 			if retry.Clicked() {
 				switch s.group {
@@ -2019,12 +2092,8 @@ func (s *Screen) failure(c *ui.Context) {
 		})
 }
 
-func lead(c *ui.Context, text string) {
-	t := c.Theme()
-	ui.Text(c, text).TextColor(t.TextMuted).Wrap().MaxWidth(theme.Px(t, 600)).Margin(0, 0, theme.Px(t, 20), 0)
-}
-
-// card draws rows on a tinted Surface card, an inset hairline between each.
+// card draws rows on a Surface card, design BSettingsCard: radius-card, padding space-1 and space-4, a hairline
+// under each row but the last.
 func card(c *ui.Context, rows ...func()) {
 	keyed := make([]cardRow, len(rows))
 	for i, row := range rows {
@@ -2042,38 +2111,119 @@ type cardRow struct {
 // cardOf is card for rows that come and go: each is keyed by its own key, which is unique in the card, so a row below
 // one that appears or disappears keeps its focus.
 func cardOf(c *ui.Context, rows []cardRow) {
-	t := c.Theme()
-	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Children(func() {
+	plate(c).Children(func() {
 		for i, row := range rows {
-			if i > 0 {
-				ui.Box(c).FillWidth().Height(1).Margin(0, theme.Px(t, 20)).Background(t.Border)
-			}
-			ui.Column(c).Key(row.key).FillWidth().Padding(theme.Px(t, 16), theme.Px(t, 20)).Children(row.draw)
+			ui.Column(c).Key(row.key).FillWidth().Children(func() {
+				ui.Column(c).FillWidth().MinHeight(theme.Px(c.Theme(), tokens.RowCompact)).Justify(ui.Center).
+					PaddingY(theme.Px(c.Theme(), tokens.Space3)).Children(row.draw)
+				if i < len(rows)-1 {
+					hairline(c)
+				}
+			})
 		}
 	})
 }
 
-// labeled draws a setting's label and help beside its control.
-func labeled(c *ui.Context, label, help string, control func()) {
+// plate is the card's Surface plate: radius-card, padding space-1 and space-4.
+func plate(c *ui.Context) ui.Element {
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
-		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
-			ui.Text(c, label).FontWeight(500)
-			if help != "" {
-				ui.Text(c, help).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 4), 0, 0, 0)
+	return ui.Column(c).FillWidth().Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Surface(t)).
+		Padding(theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space4))
+}
+
+// hairline is the line between the rows of a card, inside its padding.
+func hairline(c *ui.Context) {
+	ui.Box(c).FillWidth().Height(tokens.Hairline).Background(c.Theme().Border)
+}
+
+// sectionTitle is the title over a card, design BSettingsCard: title, space-1 in, space-3 over the card; top is the
+// space over it, space-6 between one card and the next title.
+func sectionTitle(c *ui.Context, text string, top float32) {
+	t := c.Theme()
+	ui.Text(c, text).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+		Margin(top, theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space3)).Role(ui.RoleHeading).Level(2)
+}
+
+// gap is the space over a card's title when another card is above it.
+func gap(t *ui.Theme) float32 { return theme.Px(t, tokens.Space6) }
+
+// chip is the icon square at the start of a setting row, design CSettingRow: control square, radius-control, the
+// paper fill, the glyph icon-m in Text2, or Danger for a row that destroys.
+func chip(c *ui.Context, icon *ui.SVG, danger bool) {
+	t := c.Theme()
+	square := theme.Px(t, tokens.Control)
+	color := theme.Text2(t)
+	if danger {
+		color = t.Danger
+	}
+	ui.Box(c).Size(square, square).Shrink(0).Radius(theme.Px(t, tokens.RadiusControl)).Center().Background(t.Background).
+		Children(func() { ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color) })
+}
+
+// labeled is a setting row, design CSettingRow: the icon chip, the name in body over its help in meta, and the
+// control at the end.
+func labeled(c *ui.Context, icon *ui.SVG, label, help string, control func()) {
+	setting(c, icon, false, label, func() {
+		if help != "" {
+			meta(c, help)
+		}
+	}, control)
+}
+
+// setting is labeled with the help drawn by help, and a chip in Danger when danger is set; control may be nil.
+func setting(c *ui.Context, icon *ui.SVG, danger bool, label string, help, control func()) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
+		chip(c, icon, danger)
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
+			ui.Text(c, label).Wrap()
+			if help != nil {
+				help()
 			}
 		})
-		control()
+		if control != nil {
+			control()
+		}
 	})
 }
+
+// fieldName names a field of a dialog above it, in label type.
+func fieldName(c *ui.Context, text string) ui.Element {
+	t := c.Theme()
+	return ui.Text(c, text).FontSize(theme.Px(t, tokens.TextLabel.Size.En)).FontWeight(tokens.TextLabel.Weight)
+}
+
+// meta is a line of help under a setting's name: meta, muted.
+func meta(c *ui.Context, text string) ui.Element {
+	t := c.Theme()
+	return ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Wrap()
+}
+
+// tag is the small pill that says whether a secret is kept: off in Track and Text2, on in the soft accent.
+func tag(c *ui.Context, off, on string, set bool) {
+	t := c.Theme()
+	text, fill, color := off, theme.Track(t), theme.Text2(t)
+	if set {
+		text, fill, color = on, theme.Soft(t, t.Accent), t.Accent
+	}
+	h := theme.Px(t, tokens.Tag)
+	ui.Box(c).Height(h).PaddingX(theme.Px(t, tokens.Space1_5)).Radius(theme.Pill(h)).Center().Background(fill).Shrink(0).
+		Children(func() {
+			ui.Text(c, text).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(tokens.TextCaption.Weight).
+				TextColor(color).NoWrap()
+		})
+}
+
+// below is the space between a setting's row and the field or text under it.
+func below(t *ui.Theme) float32 { return theme.Px(t, tokens.Space3) }
 
 func statusLine(c *ui.Context, st status) {
 	if st.text == "" {
 		return
 	}
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, 6)).Margin(theme.Px(t, 6), 0, 0, 0).Role(ui.RoleStatus).
-		Children(func() { statusText(c, st) })
+	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Margin(theme.Px(t, tokens.Space2), 0, 0, 0).
+		Role(ui.RoleStatus).Children(func() { statusText(c, st) })
 }
 
 // statusText is the icon and text of a status.
@@ -2095,12 +2245,12 @@ func statusText(c *ui.Context, st status) {
 		iconColor = color
 	}
 	if icon != nil {
-		i := ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(iconColor).Margin(1, 0, 0, 0)
+		i := ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(iconColor).Margin(tokens.Outline*2, 0, 0, 0)
 		if st.spin {
-			i.Rotate(i.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+			i.Rotate(i.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
 		}
 	}
-	ui.Text(c, st.text).FontSize(theme.Px(t, 12)).TextColor(color).Shrink(1).Wrap()
+	ui.Text(c, st.text).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(color).Shrink(1).Wrap()
 }
 
 // coded is help text with one placeholder drawn as code, such as an address or a route.
@@ -2111,19 +2261,19 @@ func coded(c *ui.Context, text, placeholder, code string) ui.Element {
 		ui.Span{Text: before, Color: t.TextMuted},
 		ui.Span{Text: code, Font: "monospace", Color: t.TextMuted},
 		ui.Span{Text: after, Color: t.TextMuted},
-	).FontSize(theme.Px(t, 12)).Wrap()
+	).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).Wrap()
 }
 
 func (s *Screen) fetchingPage(c *ui.Context) {
 	t := c.Theme()
 	s.watchHealth()
-	lead(c, s.text.Lead)
 	card(c, func() {
-		ui.Text(c, s.text.RSSHub).FontWeight(500)
-		coded(c, s.text.RSSHubHelp, "{route}", "/github/issue/golang/go").Margin(theme.Px(t, 4), 0, 0, 0)
+		setting(c, icons.Rss, false, s.text.RSSHub, func() {
+			coded(c, s.text.RSSHubHelp, "{route}", "/github/issue/golang/go")
+		}, nil)
 		s.baseField(c)
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(theme.Px(t, 8), 0, 0, 0).Children(func() {
-			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(theme.Px(t, 6)).Role(ui.RoleStatus).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Margin(theme.Px(t, tokens.Space2), 0, 0, 0).Children(func() {
+			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).Children(func() {
 				if s.baseStatus.text != "" {
 					statusText(c, s.baseStatus)
 				}
@@ -2140,7 +2290,7 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 		})
 		s.healthBlock(c)
 	}, func() {
-		labeled(c, s.text.Retention, s.text.RetentionHelp, func() { s.retentionSelect(c) })
+		labeled(c, icons.CalendarDays, s.text.Retention, s.text.RetentionHelp, func() { s.retentionSelect(c) })
 		statusLine(c, s.keepStatus)
 	})
 	s.proxyCard(c)
@@ -2149,7 +2299,7 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 // proxyCard is the proxy for fetches: its address, its sign-in and a Save of its own.
 func (s *Screen) proxyCard(c *ui.Context) {
 	t := c.Theme()
-	sectionTitle(c, s.text.Proxy, theme.Px(t, 28))
+	sectionTitle(c, s.text.Proxy, gap(t))
 	before := [...]string{s.proxy, s.proxyUser, s.proxyPass}
 	submit := func(in ui.Element) {
 		if in.Submitted() {
@@ -2157,9 +2307,10 @@ func (s *Screen) proxyCard(c *ui.Context) {
 		}
 	}
 	card(c, func() {
-		ui.Text(c, s.text.ProxyAddress).FontWeight(500)
-		coded(c, s.text.ProxyHelp, "{address}", s.text.ProxyExample).Margin(theme.Px(t, 4), 0, 0, 0)
-		ui.Row(c).FillWidth().Margin(theme.Px(t, 12), 0, 0, 0).Children(func() {
+		setting(c, icons.Globe, false, s.text.ProxyAddress, func() {
+			coded(c, s.text.ProxyHelp, "{address}", s.text.ProxyExample)
+		}, nil)
+		ui.Row(c).FillWidth().Margin(below(t), 0, 0, 0).Children(func() {
 			s.watch(field(c, "proxy", &s.proxy, 0, s.proxyInvalid, func(in ui.Element) {
 				in.Font("monospace").Label(s.text.ProxyAddress).Placeholder(s.text.ProxyPlaceholder).Disabled(s.proxySaving)
 				if s.proxyInvalid {
@@ -2176,22 +2327,14 @@ func (s *Screen) proxyCard(c *ui.Context) {
 			statusLine(c, status{text: s.text.InvalidProxy})
 		}
 	}, func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
-			ui.Text(c, s.text.ProxyAuth).FontWeight(500).Shrink(1).MinWidth(0)
-			badge, fill, color := s.text.KeyUnset, theme.Track(t), theme.Text2(t)
-			if s.proxyAuthKept() {
-				badge, fill, color = s.text.KeySet, theme.Soft(t, t.Accent), t.Accent
-			}
-			ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 18))).Center().Background(fill).Children(func() {
-				ui.Text(c, badge).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(color).NoWrap()
-			})
+		setting(c, icons.LockKeyhole, false, s.text.ProxyAuth, func() { meta(c, s.text.ProxyAuthHelp) }, func() {
+			tag(c, s.text.KeyUnset, s.text.KeySet, s.proxyAuthKept())
 		})
-		ui.Text(c, s.text.ProxyAuthHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 4), 0, 0, 0)
 		placeholder := s.text.ProxyOptional
 		if s.proxyAuthKept() {
 			placeholder = s.text.ProxySet
 		}
-		ui.Row(c).FillWidth().Gap(t.Space(2)).Margin(theme.Px(t, 12), 0, 0, 0).Children(func() {
+		ui.Row(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Margin(below(t), 0, 0, 0).Children(func() {
 			s.watch(field(c, "proxy-user", &s.proxyUser, 0, false, func(in ui.Element) {
 				in.Label(s.text.ProxyUser).Placeholder(placeholder).Disabled(s.proxySaving)
 				submit(in)
@@ -2202,7 +2345,7 @@ func (s *Screen) proxyCard(c *ui.Context) {
 			}))
 		})
 		if s.proxyAuthKept() {
-			remove := theme.Button{Style: theme.Secondary, Small: true, Disabled: s.proxySaving, Text: s.text.ProxyRemoveAuth}.Draw(c)
+			remove := theme.Link{Muted: true, Disabled: s.proxySaving, Text: s.text.ProxyRemoveAuth}.Draw(c).Margin(theme.Px(t, tokens.Space2), 0, 0, 0)
 			if remove.Clicked() {
 				s.proxyDrop, s.proxyStatus = true, status{}
 			}
@@ -2211,8 +2354,8 @@ func (s *Screen) proxyCard(c *ui.Context) {
 			statusLine(c, status{warn: true, text: s.text.ProxyChanged})
 		}
 	}, func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
-			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(theme.Px(t, 6)).Role(ui.RoleStatus).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
+			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).Children(func() {
 				if s.proxyStatus.text != "" {
 					statusText(c, s.proxyStatus)
 				}
@@ -2233,44 +2376,44 @@ func (s *Screen) proxyCard(c *ui.Context) {
 	}
 }
 
-// field draws a text input editing value, width wide or growing for 0, a raised fill with a hairline edge, the
-// focus ring while focused and a danger edge while invalid; input names and handles the input.
+// field draws a text input editing value, width wide or growing for 0, a well of design CField; input names and
+// handles the input.
 func field(c *ui.Context, key string, value *string, width float32, invalid bool, input func(in ui.Element)) (focused bool) {
 	t := c.Theme()
-	b := ui.Row(c).Key(key).MinWidth(0).Height(theme.Px(t, 32)).AlignItems(ui.Center).PaddingX(theme.Px(t, 10)).
-		Radius(t.Radius).Background(theme.RaisedFill(t))
+	b := ui.Row(c).Key(key).MinWidth(0).Height(theme.Px(t, tokens.Control)).AlignItems(ui.Center).
+		PaddingX(theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl))
 	if width > 0 {
 		b.Width(width).Shrink(1)
 	} else {
 		b.Grow(1)
 	}
 	focused = b.FocusWithin()
-	edge(c, b)
-	switch {
-	case invalid:
-		b.Border(1.5, t.Danger)
-		if focused {
-			b.Shadow(0, 0, 0, 2, theme.Soft(t, t.Danger))
-		}
-	case focused:
-		b.Shadow(0, 0, 0, 2, t.Focus)
-	}
+	well(c, b, focused, invalid)
 	b.Children(func() { input(ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false)) })
 	return focused
 }
 
-// edge gives a field or a text area its hairline, a Border line with high contrast.
-func edge(c *ui.Context, e ui.Element) {
+// well is the look of a field or a text area, design CField: the fill with no border, the hover fill under the pointer,
+// raised with the focus ring while focused and a hairline Danger rim while invalid; with high contrast a Border rim.
+func well(c *ui.Context, e ui.Element, focused, invalid bool) {
 	t := c.Theme()
-	if c.Preferences().HighContrast {
-		e.Border(1, t.Border)
-		return
+	e.Radius(theme.Px(t, tokens.RadiusControl)).Background(theme.Track(t))
+	switch {
+	case focused:
+		e.Background(theme.RaisedFill(t)).Shadow(0, 0, 0, theme.Px(t, tokens.FocusRing), t.Focus)
+	case e.Hovered():
+		e.Background(t.SurfaceHover.Over(theme.Track(t)))
 	}
-	e.Border(0.5, theme.Ink(t, 0.12))
+	switch {
+	case invalid:
+		e.Border(theme.Px(t, tokens.Hairline), t.Danger)
+	case c.Preferences().HighContrast:
+		e.Border(tokens.Hairline, t.Border)
+	}
 }
 
-// trigger styles the button of a drop-down: a Track trough, a little darker under the pointer, with the focus ring
-// while focused and a Border rim with high contrast.
+// trigger styles the button of a drop-down, design CSelect: a secondary button's Track fill, a little darker under the
+// pointer, with the focus ring while focused and a Border rim with high contrast.
 func trigger(c *ui.Context, e ui.Element) {
 	t := c.Theme()
 	fill := theme.Track(t)
@@ -2279,29 +2422,47 @@ func trigger(c *ui.Context, e ui.Element) {
 	}
 	e.Background(fill)
 	if c.Preferences().HighContrast {
-		e.Border(1, t.Border)
+		e.Border(tokens.Hairline, t.Border)
 	}
 	if e.Focused() {
-		e.Shadow(0, 0, 0, 2, t.Focus)
+		e.Shadow(0, 0, 0, theme.Px(t, tokens.FocusRing), t.Focus)
 	}
+}
+
+// selectTrigger sizes the button of a drop-down, design CSelect: control high and as wide as its label, the text inset
+// space-3 and the chevron space-2 from the end.
+func selectTrigger(t *ui.Theme, e ui.Element) ui.Element {
+	return e.Height(theme.Px(t, tokens.Control)).Gap(theme.Px(t, tokens.Space2)).
+		Padding(0, theme.Px(t, tokens.Space2), 0, theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl))
+}
+
+// menu styles the popup of a drop-down, design CMenu: the popup sheet, padding space-1, at least menu-min wide, space-1
+// under the trigger.
+func menu(c *ui.Context, panel ui.Element) {
+	t := c.Theme()
+	panel.Margin(theme.Px(t, tokens.Space1), 0, 0, 0).Padding(theme.Px(t, tokens.Space1)).MinWidth(theme.Px(t, tokens.MenuMin))
+	theme.Sheet(c, panel, theme.Popup)
+}
+
+// menuItem styles an item of a drop-down, design CMenuItem: row high, radius-sm, the Chosen fill while highlighted.
+func menuItem(t *ui.Theme, item ui.Element) ui.Element {
+	item.FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space2)).
+		Radius(theme.Px(t, tokens.RadiusSm))
+	if item.Highlighted() {
+		item.Background(theme.Chosen(t))
+	}
+	return item
 }
 
 // baseField is the list of RSSHub instances, one address per line. Enter starts a new line, so only Save saves.
 func (s *Screen) baseField(c *ui.Context) {
 	t := c.Theme()
 	before := s.base
-	area := ui.TextArea(c.Key("base"), &s.base).FillWidth().Lines(2, 6).Margin(theme.Px(t, 12), 0, 0, 0).Font("monospace").
-		FontSize(theme.Px(t, 12)).Label(s.text.RSSHub).Placeholder(s.text.RSSHubPlaceholder).Disabled(s.saving)
-	area.Background(theme.RaisedFill(t)).Radius(t.Radius)
-	edge(c, area)
-	switch {
-	case s.invalid:
-		area.Border(1.5, t.Danger).Error(s.baseStatus.text)
-		if area.Focused() {
-			area.Shadow(0, 0, 0, 2, theme.Soft(t, t.Danger))
-		}
-	case area.Focused():
-		area.Shadow(0, 0, 0, 2, t.Focus)
+	area := ui.TextArea(c.Key("base"), &s.base).FillWidth().Lines(2, 6).Margin(below(t), 0, 0, 0).Font("monospace").
+		FontSize(theme.Px(t, tokens.TextCode.Size.En)).Label(s.text.RSSHub).Placeholder(s.text.RSSHubPlaceholder).Disabled(s.saving)
+	well(c, area, area.Focused(), s.invalid)
+	if s.invalid {
+		area.Error(s.baseStatus.text)
 	}
 	s.watch(area.Focused())
 	if s.focusBase {
@@ -2321,21 +2482,16 @@ func (s *Screen) retentionSelect(c *ui.Context) {
 		slices.Sort(options[1:])
 	}
 	sel := ui.SelectBase(c, &s.retention)
-	sel.Trigger.MinWidth(theme.Px(t, 72)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).Gap(t.Space(2)).Padding(0, t.Space(2), 0, theme.Px(t, 10)).
-		Radius(t.Radius).Label(s.text.Retention).Disabled(s.keeping)
+	selectTrigger(t, sel.Trigger).MaxWidth(theme.Px(t, tokens.SheetWidth)).Label(s.text.Retention).Disabled(s.keeping)
 	trigger(c, sel.Trigger)
 	sel.Trigger.Children(func() {
 		ui.Text(c, s.keep(s.retention)).Grow(1).MinWidth(0).SingleLine()
 		ui.Icon(c, icons.ChevronDown).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160))
-		theme.Sheet(c, panel, theme.Popup)
+		menu(c, panel)
 		for _, v := range options {
-			item := sel.Item(v).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(6)
-			if item.Highlighted() {
-				item.Background(theme.Chosen(t))
-			}
+			item := menuItem(t, sel.Item(v))
 			item.Children(func() {
 				ui.Text(c, s.keep(v)).Grow(1).NoWrap()
 				if v == s.retention {
@@ -2352,23 +2508,15 @@ func (s *Screen) retentionSelect(c *ui.Context) {
 // aiPage is the connection and the prompts, one under the other or, with room, side by side.
 func (s *Screen) aiPage(c *ui.Context, two bool) {
 	t := c.Theme()
-	lead(c, s.text.AILead)
 	if !two {
 		s.aiConnection(c, 0)
-		s.aiPrompts(c, theme.Px(t, 28), false)
+		s.aiPrompts(c, gap(t), false)
 		return
 	}
-	ui.Grid(c).FillWidth().Columns(2).GapX(theme.Px(t, 24)).AlignItems(ui.Start).Children(func() {
+	ui.Grid(c).FillWidth().Columns(2).GapX(theme.Px(t, tokens.Space6)).AlignItems(ui.Start).Children(func() {
 		ui.Column(c).MinWidth(0).Children(func() { s.aiConnection(c, 0) })
 		ui.Column(c).MinWidth(0).Children(func() { s.aiPrompts(c, 0, true) })
 	})
-}
-
-// sectionTitle is the small heading over a card.
-func sectionTitle(c *ui.Context, text string, top float32) {
-	t := c.Theme()
-	ui.Text(c, text).FontSize(theme.Px(t, 12)).FontWeight(600).TextColor(t.TextMuted).
-		Margin(top, 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
 }
 
 // aiConnection is the endpoint, model, key and language, with Test and Save.
@@ -2382,12 +2530,13 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 		}
 	}
 	card(c, func() {
-		ui.Text(c, s.text.Endpoint).FontWeight(500)
-		coded(c, s.text.EndpointHelp, "{address}", s.text.EndpointPlaceholder).Margin(theme.Px(t, 4), 0, 0, 0)
-		if line := s.destination(); line != "" {
-			ui.Text(c, line).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 4), 0, 0, 0)
-		}
-		ui.Row(c).FillWidth().Margin(theme.Px(t, 12), 0, 0, 0).Children(func() {
+		setting(c, icons.Link, false, s.text.Endpoint, func() {
+			coded(c, s.text.EndpointHelp, "{address}", s.text.EndpointPlaceholder)
+			if line := s.destination(); line != "" {
+				meta(c, line)
+			}
+		}, nil)
+		ui.Row(c).FillWidth().Margin(below(t), 0, 0, 0).Children(func() {
 			s.watch(field(c, "endpoint", &s.aiBase, 0, s.aiInvalid, func(in ui.Element) {
 				in.Font("monospace").Label(s.text.Endpoint).Placeholder(s.text.EndpointPlaceholder).Disabled(s.aiSaving)
 				if s.aiInvalid {
@@ -2405,30 +2554,22 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 		}
 		s.presetRow(c)
 	}, func() {
-		ui.Text(c, s.text.Model).FontWeight(500)
 		hint := s.text.ModelPlaceholder
 		if i := s.preset(); i >= 0 && presets[i].hint != "" {
 			hint = presets[i].hint
 		}
-		ui.Row(c).FillWidth().Margin(theme.Px(t, 12), 0, 0, 0).Children(func() {
+		setting(c, icons.Sparkles, false, s.text.Model, nil, nil)
+		ui.Row(c).FillWidth().Margin(below(t), 0, 0, 0).Children(func() {
 			s.watch(field(c, "model", &s.aiModel, 0, false, func(in ui.Element) {
 				in.Font("monospace").Label(s.text.Model).Placeholder(hint).Disabled(s.aiSaving)
 				submit(in)
 			}))
 		})
 	}, func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
-			ui.Text(c, s.text.APIKey).FontWeight(500).Shrink(1).MinWidth(0)
-			badge, fill, color := s.text.KeyUnset, theme.Track(t), theme.Text2(t)
-			if s.settings.AIAPIKeySet {
-				badge, fill, color = s.text.KeySet, theme.Soft(t, t.Accent), t.Accent
-			}
-			ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 18))).Center().Background(fill).Children(func() {
-				ui.Text(c, badge).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(color).NoWrap()
-			})
+		setting(c, icons.KeyRound, false, s.text.APIKey, func() { meta(c, s.text.KeyHelp) }, func() {
+			tag(c, s.text.KeyUnset, s.text.KeySet, s.settings.AIAPIKeySet)
 		})
-		ui.Text(c, s.text.KeyHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 4), 0, 0, 0)
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(theme.Px(t, 12), 0, 0, 0).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Margin(below(t), 0, 0, 0).Children(func() {
 			placeholder := s.text.KeyPlaceholder
 			if s.settings.AIAPIKeySet {
 				placeholder = s.text.KeyReplace
@@ -2446,11 +2587,11 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 			}
 		})
 	}, func() {
-		labeled(c, s.text.Language, s.text.LanguageHelp, func() { s.languageSelect(c) })
+		labeled(c, icons.Languages, s.text.Language, s.text.LanguageHelp, func() { s.languageSelect(c) })
 	}, func() {
 		s.limitFields(c)
 	}, func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
 			dirty := s.aiDirty()
 			st := s.aiStatus
 			switch {
@@ -2459,7 +2600,7 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 			case st.text == "" && dirty && !s.aiInvalid && s.settings.AIConfigured():
 				st = status{muted: true, text: s.text.TestFirst}
 			}
-			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(theme.Px(t, 6)).Role(ui.RoleStatus).Children(func() {
+			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).Children(func() {
 				if st.text != "" {
 					statusText(c, st)
 				}
@@ -2492,9 +2633,10 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 func (s *Screen) presetRow(c *ui.Context) {
 	t := c.Theme()
 	picked := s.preset()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Margin(theme.Px(t, 10), 0, 0, 0).Role(ui.RoleGroup).
-		Label(s.text.Preset).Children(func() {
-		ui.Text(c, s.text.Preset).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Margin(0, theme.Px(t, 4), 0, 0)
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Margin(theme.Px(t, tokens.Space2), 0, 0, 0).
+		Role(ui.RoleGroup).Label(s.text.Preset).Children(func() {
+		ui.Text(c, s.text.Preset).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).
+			Margin(0, theme.Px(t, tokens.Space1), 0, 0)
 		for i, p := range presets {
 			chosen := i == picked
 			b := theme.Button{Small: true, On: chosen, Disabled: s.aiSaving, Text: p.name, Checked: &chosen}.Draw(c)
@@ -2512,16 +2654,13 @@ func (s *Screen) limitFields(c *ui.Context) {
 	names := [4]string{s.text.SummaryLimit, s.text.ChunkLimit, s.text.DailyCap, s.text.FetchCap}
 	defaults := [4]int{s.settings.DefaultAISummaryLimit, s.settings.DefaultAIChunkLimit,
 		s.settings.DefaultAIAutoDaily, s.settings.DefaultAIAutoFetch}
+	setting(c, icons.SlidersHorizontal, false, s.text.Limits, nil, nil)
 	for row := 0; row < 2; row++ {
-		margin := float32(0)
-		if row > 0 {
-			margin = theme.Px(t, 12)
-		}
-		ui.Row(c).FillWidth().Gap(t.Space(3)).Margin(margin, 0, 0, 0).Children(func() {
+		ui.Row(c).FillWidth().Gap(theme.Px(t, tokens.Space3)).Margin(below(t), 0, 0, 0).Children(func() {
 			for i := row * 2; i < row*2+2; i++ {
 				ui.Column(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
-					ui.Text(c, names[i]).FontWeight(500)
-					ui.Row(c).FillWidth().Margin(theme.Px(t, 8), 0, 0, 0).Children(func() {
+					ui.Text(c, names[i]).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t))
+					ui.Row(c).FillWidth().Margin(theme.Px(t, tokens.Space1), 0, 0, 0).Children(func() {
 						s.watch(field(c, "limit"+strconv.Itoa(i), &s.aiLimits[i], 0, false, func(in ui.Element) {
 							in.Font("monospace").Label(names[i]).Placeholder(strconv.Itoa(defaults[i])).Disabled(s.aiSaving)
 							if in.Submitted() {
@@ -2536,7 +2675,7 @@ func (s *Screen) limitFields(c *ui.Context) {
 		if row == 1 {
 			help = s.text.CapsHelp
 		}
-		ui.Text(c, help).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 4), 0, 0, 0)
+		meta(c, help).Margin(theme.Px(t, tokens.Space1), 0, 0, 0)
 	}
 	if st := s.capStatus(); st.text != "" {
 		statusLine(c, st)
@@ -2582,7 +2721,7 @@ func (s *Screen) aiPrompts(c *ui.Context, top float32, two bool) {
 	card(c, func() { s.promptField(c, 0, s.text.PromptSummary, two) },
 		func() { s.promptField(c, 1, s.text.PromptTranslate, two) },
 		func() {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
 				coded(c, s.text.PromptHelp, "{language}", "{language}").Grow(1).MinWidth(0)
 				dirty := s.promptsDirty()
 				style := theme.Secondary
@@ -2605,8 +2744,11 @@ func (s *Screen) aiPrompts(c *ui.Context, top float32, two bool) {
 // promptField is a prompt, with Restore default while it is not the default.
 func (s *Screen) promptField(c *ui.Context, i int, label string, two bool) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Children(func() {
-		ui.Text(c, label).FontWeight(500).Grow(1).MinWidth(0)
+	icon := icons.FileText
+	if i == 1 {
+		icon = icons.Languages
+	}
+	setting(c, icon, false, label, nil, func() {
 		reset := theme.Button{Small: true, Disabled: s.promptSaving || strings.TrimSpace(s.prompts[i]) == s.defaults()[i],
 			Icon: icons.RotateCcw, Text: s.text.Reset, Label: label + " · " + s.text.Reset}.Draw(c)
 		if reset.Clicked() {
@@ -2614,16 +2756,12 @@ func (s *Screen) promptField(c *ui.Context, i int, label string, two bool) {
 			s.prompts[i] = s.defaults()[i]
 		}
 	})
-	area := ui.TextArea(c.Key(i), &s.prompts[i]).FillWidth().Lines(3, 10).Margin(theme.Px(t, 12), 0, 0, 0).Font("monospace").
-		FontSize(theme.Px(t, 12)).Label(label).Disabled(s.promptSaving)
+	area := ui.TextArea(c.Key(i), &s.prompts[i]).FillWidth().Lines(3, 10).Margin(below(t), 0, 0, 0).Font("monospace").
+		FontSize(theme.Px(t, tokens.TextCode.Size.En)).Label(label).Disabled(s.promptSaving)
 	if two {
-		area.MinHeight(theme.Px(t, 120))
+		area.MinHeight(theme.Px(t, 4*tokens.Space8))
 	}
-	area.Background(theme.RaisedFill(t)).Radius(t.Radius)
-	edge(c, area)
-	if area.Focused() {
-		area.Shadow(0, 0, 0, 2, t.Focus)
-	}
+	well(c, area, area.Focused(), false)
 	s.watch(area.Focused())
 }
 
@@ -2638,21 +2776,16 @@ func (s *Screen) languageSelect(c *ui.Context) {
 		return code
 	}
 	sel := ui.SelectBase(c, &s.aiLanguage)
-	sel.Trigger.MinWidth(theme.Px(t, 72)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).Gap(t.Space(2)).Padding(0, t.Space(2), 0, theme.Px(t, 10)).
-		Radius(t.Radius).Label(s.text.Language).Disabled(s.aiSaving)
+	selectTrigger(t, sel.Trigger).MaxWidth(theme.Px(t, tokens.SheetWidth)).Label(s.text.Language).Disabled(s.aiSaving)
 	trigger(c, sel.Trigger)
 	sel.Trigger.Children(func() {
 		ui.Text(c, name(s.aiLanguage)).Grow(1).MinWidth(0).SingleLine()
 		ui.Icon(c, icons.ChevronDown).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160))
-		theme.Sheet(c, panel, theme.Popup)
+		menu(c, panel)
 		for _, l := range languages {
-			item := sel.Item(l.code).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(6)
-			if item.Highlighted() {
-				item.Background(theme.Chosen(t))
-			}
+			item := menuItem(t, sel.Item(l.code))
 			item.Children(func() {
 				ui.Text(c, l.name).Grow(1).NoWrap()
 				if l.code == s.aiLanguage {
@@ -2668,9 +2801,8 @@ func (s *Screen) languageSelect(c *ui.Context) {
 func (s *Screen) appearancePage(c *ui.Context) {
 	t := c.Theme()
 	p := s.deps.Preferences()
-	lead(c, s.text.AppearanceLead)
 	card(c, func() {
-		labeled(c, s.text.Theme, s.text.ThemeHelp, func() {
+		labeled(c, icons.Monitor, s.text.Theme, s.text.ThemeHelp, func() {
 			themes := []string{"", prefs.ThemeLight, prefs.ThemeDark}
 			names := []string{s.text.ThemeSystem, s.text.ThemeLight, s.text.ThemeDark}
 			if i, changed := s.segments(c, s.text.Theme, names, slices.Index(themes, p.Theme)); changed {
@@ -2679,7 +2811,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		labeled(c, s.text.UILanguage, s.text.UILanguageHelp, func() {
+		labeled(c, icons.Globe, s.text.UILanguage, s.text.UILanguageHelp, func() {
 			options := []choice{{value: "", name: s.text.SystemChoice}}
 			for _, l := range interfaceLanguages {
 				options = append(options, choice{value: l.code, name: l.name})
@@ -2690,7 +2822,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		labeled(c, s.text.UIFont, s.text.UIFontHelp, func() {
+		labeled(c, icons.FileText, s.text.UIFont, s.text.UIFontHelp, func() {
 			// The pinned rows of the Interface font: the system's, and the family in use.
 			pinned := []choice{{value: "", name: s.text.SystemFont}}
 			fonts := s.deps.Fonts()
@@ -2703,10 +2835,9 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	})
-	ui.Text(c, s.text.Reading).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
-		Margin(theme.Px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+	sectionTitle(c, s.text.Reading, gap(t))
 	card(c, func() {
-		labeled(c, s.text.ReadingFont, s.text.ReadingFontHelp, func() {
+		labeled(c, icons.FileText, s.text.ReadingFont, s.text.ReadingFontHelp, func() {
 			// The pinned rows of the Reading font: Follow interface, Serif in its own face, and the family in use.
 			fonts := s.deps.Fonts()
 			serif := prefs.Preferences{ReadingFont: prefs.ReadingSerif}.ReadingFace(runtime.GOOS, fonts, "")
@@ -2722,7 +2853,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		labeled(c, s.text.TextSize, s.text.TextSizeHelp, func() {
+		labeled(c, icons.SlidersHorizontal, s.text.TextSize, s.text.TextSizeHelp, func() {
 			names := []string{s.text.SizeSmall, s.text.SizeMedium, s.text.SizeLarge, s.text.SizeXLarge}
 			if i, changed := s.segments(c, s.text.TextSize, names, slices.Index(prefs.Sizes, p.ReadingSize)); changed {
 				p.ReadingSize = prefs.Sizes[i]
@@ -2730,7 +2861,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		labeled(c, s.text.LineSpacing, s.text.LineSpacingHelp, func() {
+		labeled(c, icons.List, s.text.LineSpacing, s.text.LineSpacingHelp, func() {
 			names := []string{s.text.SpacingCompact, s.text.SpacingStandard, s.text.SpacingRelaxed}
 			if i, changed := s.segments(c, s.text.LineSpacing, names, slices.Index(prefs.Spacings, p.LineSpacing)); changed {
 				p.LineSpacing = prefs.Spacings[i]
@@ -2738,7 +2869,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		labeled(c, s.text.LineWidth, s.text.LineWidthHelp, func() {
+		labeled(c, icons.Maximize2, s.text.LineWidth, s.text.LineWidthHelp, func() {
 			names := []string{s.text.WidthNarrow, s.text.WidthStandard, s.text.WidthWide}
 			if i, changed := s.segments(c, s.text.LineWidth, names, slices.Index(prefs.Widths, p.ReadingWidth)); changed {
 				p.ReadingWidth = prefs.Widths[i]
@@ -2746,7 +2877,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		labeled(c, s.text.ReadingAppearance, s.text.ReadingAppearanceHelp, func() {
+		labeled(c, icons.Palette, s.text.ReadingAppearance, s.text.ReadingAppearanceHelp, func() {
 			names := []string{s.text.PresetTheme, s.text.PresetSepia, s.text.PresetMist}
 			if i, changed := s.segments(c, s.text.ReadingAppearance, names, slices.Index(prefs.Presets, p.ReadingPreset)); changed {
 				p.ReadingPreset = prefs.Presets[i]
@@ -2754,7 +2885,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		labeled(c, s.text.ChineseTypesetting, s.text.ChineseTypesettingHelp, func() {
+		labeled(c, icons.Languages, s.text.ChineseTypesetting, s.text.ChineseTypesettingHelp, func() {
 			on := p.ChineseTypesetting
 			ui.Switch(c, &on).Label(s.text.ChineseTypesetting).Description(s.text.ChineseTypesettingHelp)
 			if on != p.ChineseTypesetting {
@@ -2764,20 +2895,20 @@ func (s *Screen) appearancePage(c *ui.Context) {
 		})
 	}, func() {
 		paper := theme.ReadingTheme(t, p.ReadingPreset)
-		ui.Column(c).FillWidth().Padding(theme.Px(t, 12), theme.Px(t, 14)).Radius(8).Background(paper.Background).Children(func() {
-			size := 16 * float32(p.Scale())
+		ui.Column(c).FillWidth().Padding(theme.Px(t, tokens.Space3), theme.Px(t, tokens.Space4)).Radius(theme.Px(t, tokens.RadiusControl)).
+			Background(paper.Background).Children(func() {
+			size := tokens.ReadingBody.Size * float32(p.Scale())
 			sample := s.sample(c, p.ChineseTypesetting && s.lang == prefs.LanguageChinese, size).FontSize(size).
 				TextColor(theme.Prose(paper)).LineHeight(float32(p.Leading(s.lang == prefs.LanguageChinese))).Wrap().
-				MaxWidth(float32(math.Round(320*p.Scale()*p.WidthFactor()))).Margin(0, ui.Auto)
+				MaxWidth(float32(math.Round(tokens.SheetWidth*p.Scale()*p.WidthFactor()))).Margin(0, ui.Auto)
 			if face := s.deps.ReadingFont(); face != "" {
 				sample.Font(face)
 			}
 		})
 	})
-	ui.Text(c, s.text.Timeline).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
-		Margin(theme.Px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+	sectionTitle(c, s.text.Timeline, gap(t))
 	rows := []func(){func() {
-		labeled(c, s.text.Density, s.text.DensityHelp, func() {
+		labeled(c, icons.Layers, s.text.Density, s.text.DensityHelp, func() {
 			names := []string{s.text.DensityComfortable, s.text.DensityCompact}
 			if i, changed := s.segments(c, s.text.Density, names, slices.Index(prefs.Densities, p.Density)); changed {
 				p.Density = prefs.Densities[i]
@@ -2790,7 +2921,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			prefs.MarkOnScroll: s.text.MarkReadScroll, prefs.MarkNever: s.text.MarkReadNever}
 		helps := map[string]string{prefs.MarkOnOpen: s.text.MarkReadHelpOpen, prefs.MarkAfterStay: s.text.MarkReadHelpDwell,
 			prefs.MarkOnScroll: s.text.MarkReadHelpScroll, prefs.MarkNever: s.text.MarkReadHelpNever}
-		labeled(c, s.text.MarkRead, helps[when], func() {
+		labeled(c, icons.CheckCheck, s.text.MarkRead, helps[when], func() {
 			options := make([]choice, 0, len(prefs.MarkReadChoices))
 			for _, w := range prefs.MarkReadChoices {
 				options = append(options, choice{value: w, name: names[w]})
@@ -2804,7 +2935,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 	if when, _ := p.MarkRead(); when == prefs.MarkAfterStay {
 		rows = append(rows, func() {
 			_, stay := p.MarkRead()
-			labeled(c, s.text.Dwell, s.text.DwellHelp, func() {
+			labeled(c, icons.Clock, s.text.Dwell, s.text.DwellHelp, func() {
 				names := []string{s.text.Seconds3, s.text.Seconds5, s.text.Seconds10}
 				if i, changed := s.segments(c, s.text.Dwell, names, slices.Index(prefs.DwellSeconds, int(stay/time.Second))); changed {
 					p.MarkReadDwellSec = prefs.DwellSeconds[i]
@@ -2814,7 +2945,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 		})
 	}
 	rows = append(rows, func() {
-		labeled(c, s.text.GroupSameLink, s.text.GroupSameLinkHelp, func() {
+		labeled(c, icons.Link, s.text.GroupSameLink, s.text.GroupSameLinkHelp, func() {
 			on := s.settings.GroupSameLink
 			ui.Switch(c, &on).Label(s.text.GroupSameLink).Description(s.text.GroupSameLinkHelp).
 				Disabled(s.state != loaded || s.grouping)
@@ -2824,45 +2955,44 @@ func (s *Screen) appearancePage(c *ui.Context) {
 		})
 	})
 	card(c, rows...)
-	ui.Text(c, s.text.ViewAs).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
-		Margin(theme.Px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
+	sectionTitle(c, s.text.ViewAs, gap(t))
 	card(c, func() {
-		labeled(c, s.text.ViewArticles, "", func() {
+		labeled(c, icons.Newspaper, s.text.ViewArticles, "", func() {
 			if v, changed := s.viewer(c, s.text.ViewArticles, p.ArticleViewer, prefs.ArticleViewers); changed {
 				p.ArticleViewer = v
 				s.deps.Change(p)
 			}
 		})
 	}, func() {
-		labeled(c, s.text.ViewVideos, "", func() {
+		labeled(c, icons.Play, s.text.ViewVideos, "", func() {
 			if v, changed := s.viewer(c, s.text.ViewVideos, p.VideoViewer, prefs.VideoViewers); changed {
 				p.VideoViewer = v
 				s.deps.Change(p)
 			}
 		})
 	}, func() {
-		labeled(c, s.text.ViewSocial, "", func() {
+		labeled(c, icons.MessageCircle, s.text.ViewSocial, "", func() {
 			if v, changed := s.viewer(c, s.text.ViewSocial, p.SocialViewer, prefs.SocialViewers); changed {
 				p.SocialViewer = v
 				s.deps.Change(p)
 			}
 		})
 	}, func() {
-		labeled(c, s.text.ViewImages, "", func() {
+		labeled(c, icons.Images, s.text.ViewImages, "", func() {
 			if v, changed := s.viewer(c, s.text.ViewImages, p.ImageViewer, prefs.ImageViewers); changed {
 				p.ImageViewer = v
 				s.deps.Change(p)
 			}
 		})
 	}, func() {
-		labeled(c, s.text.ViewForum, "", func() {
+		labeled(c, icons.MessagesSquare, s.text.ViewForum, "", func() {
 			if v, changed := s.viewer(c, s.text.ViewForum, p.ForumViewer, prefs.ForumViewers); changed {
 				p.ForumViewer = v
 				s.deps.Change(p)
 			}
 		})
 	}, func() {
-		ui.Text(c, s.text.ViewAsHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
+		meta(c, s.text.ViewAsHelp)
 	})
 	if d := s.deps.Desktop; d != nil {
 		s.desktopCard(c, p, *d)
@@ -2874,11 +3004,10 @@ func (s *Screen) appearancePage(c *ui.Context) {
 func (s *Screen) desktopCard(c *ui.Context, p prefs.Preferences, d Desktop) {
 	t := c.Theme()
 	mac := d.OS == "darwin"
-	ui.Text(c, s.text.Desktop).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
-		Margin(theme.Px(t, 28), 0, t.Space(2), 0).Role(ui.RoleHeading).Level(2)
-	toggle := func(label, help string, on *bool, disabled bool, set func(bool)) func() {
+	sectionTitle(c, s.text.Desktop, gap(t))
+	toggle := func(icon *ui.SVG, label, help string, on *bool, disabled bool, set func(bool)) func() {
 		return func() {
-			labeled(c, label, help, func() {
+			labeled(c, icon, label, help, func() {
 				value := *on
 				ui.Switch(c, &value).Label(label).Description(help).Disabled(disabled)
 				if value != *on {
@@ -2896,7 +3025,7 @@ func (s *Screen) desktopCard(c *ui.Context, p prefs.Preferences, d Desktop) {
 		loginHelp = s.text.OpenAtLoginNeedsApp
 	}
 	rows := []cardRow{
-		{"login", toggle(s.text.OpenAtLogin, loginHelp, &p.OpenAtLogin, needsApp, func(on bool) {
+		{"login", toggle(icons.Laptop, s.text.OpenAtLogin, loginHelp, &p.OpenAtLogin, needsApp, func(on bool) {
 			s.loginFailed = false
 			p.OpenAtLogin = on
 			s.deps.Change(p)
@@ -2906,7 +3035,7 @@ func (s *Screen) desktopCard(c *ui.Context, p prefs.Preferences, d Desktop) {
 		rows = append(rows, cardRow{"loginFailed", func() { statusLine(c, status{text: s.text.LoginFailed}) }})
 	}
 	rows = append(rows,
-		cardRow{"tray", toggle(trayLabel, trayHelp, &p.TrayIcon, false, func(on bool) {
+		cardRow{"tray", toggle(icons.AppWindow, trayLabel, trayHelp, &p.TrayIcon, false, func(on bool) {
 			s.trayFailed = false
 			p.TrayIcon = on
 			s.deps.Change(p)
@@ -2915,7 +3044,7 @@ func (s *Screen) desktopCard(c *ui.Context, p prefs.Preferences, d Desktop) {
 		rows = append(rows, cardRow{"trayFailed", func() { statusLine(c, status{text: s.text.TrayFailed}) }})
 	}
 	if mac {
-		rows = append(rows, cardRow{"dock", toggle(s.text.DockBadge, s.text.DockBadgeHelp, &p.DockBadge, false, func(on bool) {
+		rows = append(rows, cardRow{"dock", toggle(icons.CircleDot, s.text.DockBadge, s.text.DockBadgeHelp, &p.DockBadge, false, func(on bool) {
 			p.DockBadge = on
 			s.deps.Change(p)
 		})})
@@ -2976,9 +3105,11 @@ func (s *Screen) segments(c *ui.Context, label string, names []string, current i
 	t := c.Theme()
 	chosen := max(current, 0)
 	seg := ui.SegmentedBase(c, &chosen, len(names))
-	seg.Track.Padding(3).Gap(2).Radius(10).Background(theme.Track(t)).Label(label).Children(func() {
+	seg.Track.Padding(theme.Px(t, tokens.Space0_5)).Gap(theme.Px(t, tokens.Space0_5)).Radius(theme.Px(t, tokens.RadiusControl)).
+		Background(theme.Track(t)).Label(label).Children(func() {
 		for i, name := range names {
-			b := seg.Segment(i).Height(theme.Px(t, 26)).PaddingX(theme.Px(t, 12)).Radius(6).Label(name)
+			b := seg.Segment(i).Height(theme.Px(t, tokens.Row)).PaddingX(theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusSm)).
+				Label(name)
 			color := theme.Text2(t)
 			switch {
 			case i == chosen:
@@ -2990,7 +3121,7 @@ func (s *Screen) segments(c *ui.Context, label string, names []string, current i
 			b.Children(func() {
 				text := ui.Text(c, name).NoWrap().TextColor(color)
 				if i == chosen {
-					text.FontWeight(500)
+					text.FontWeight(tokens.TextLabel.Weight)
 				}
 			})
 		}
@@ -3019,12 +3150,11 @@ func (s *Screen) pickIn(c *ui.Context, current, label string, options []choice, 
 	}
 	value := shown.value
 	sel := ui.SelectBase(c, &value)
-	sel.Trigger.MinWidth(theme.Px(t, 72)).Height(theme.Px(t, 32)).Gap(t.Space(2)).
-		Padding(0, t.Space(2), 0, theme.Px(t, 10)).Radius(t.Radius).Label(label)
+	selectTrigger(t, sel.Trigger).Label(label)
 	if full {
 		sel.Trigger.FillWidth()
 	} else {
-		sel.Trigger.MaxWidth(theme.Px(t, 240))
+		sel.Trigger.MaxWidth(theme.Px(t, tokens.SheetWidth))
 	}
 	trigger(c, sel.Trigger)
 	sel.Trigger.Children(func() {
@@ -3035,14 +3165,10 @@ func (s *Screen) pickIn(c *ui.Context, current, label string, options []choice, 
 		ui.Icon(c, icons.ChevronDown).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, 160))
-		theme.Sheet(c, panel, theme.Popup)
-		ui.Scroll(c).MaxHeight(theme.Px(t, 320)).Children(func() {
+		menu(c, panel)
+		ui.Scroll(c).MaxHeight(theme.Px(t, tokens.SheetWidth)).Children(func() {
 			for _, o := range options {
-				item := sel.Item(o.value).FillWidth().Height(theme.Px(t, 28)).Gap(t.Space(2)).PaddingX(t.Space(2)).Radius(6)
-				if item.Highlighted() {
-					item.Background(theme.Chosen(t))
-				}
+				item := menuItem(t, sel.Item(o.value))
 				item.Children(func() {
 					name := ui.Text(c, o.name).Grow(1).NoWrap()
 					if o.family != "" {
@@ -3060,13 +3186,12 @@ func (s *Screen) pickIn(c *ui.Context, current, label string, options []choice, 
 
 func (s *Screen) opmlPage(c *ui.Context) {
 	t := c.Theme()
-	lead(c, s.text.OPMLHelp)
 	card(c, func() {
-		zone := ui.Column(c).FillWidth().Radius(theme.Px(t, 10))
+		zone := ui.Column(c).FillWidth().Radius(theme.Px(t, tokens.RadiusControl))
 		over := zone.FileDragOver()
 		if over {
-			zone.Background(theme.Soft(t, t.Accent)).Border(1.5, t.Accent).BorderStyle(ui.BorderDashed).
-				Padding(theme.Px(t, 12))
+			zone.Background(theme.Soft(t, t.Accent)).Border(theme.Px(t, tokens.Hairline), t.Accent).BorderStyle(ui.BorderDashed).
+				Padding(theme.Px(t, tokens.Space2))
 		}
 		if paths := zone.DroppedFiles(); len(paths) > 0 {
 			s.ImportFiles(paths)
@@ -3076,7 +3201,7 @@ func (s *Screen) opmlPage(c *ui.Context) {
 			if over {
 				help = s.text.DropHelp
 			}
-			labeled(c, s.text.ImportLabel, help, func() {
+			labeled(c, icons.Upload, s.text.ImportLabel, help, func() {
 				b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Upload, Text: s.text.Import}.Draw(c)
 				if b.Clicked() {
 					s.chooseImport()
@@ -3088,14 +3213,14 @@ func (s *Screen) opmlPage(c *ui.Context) {
 			s.resultBox(c)
 		}
 	}, func() {
-		labeled(c, s.text.ReaderLabel, s.text.ReaderHelp, func() {
+		labeled(c, icons.ArrowUpDown, s.text.ReaderLabel, s.text.ReaderHelp, func() {
 			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.ArrowUpDown, Text: s.text.ReaderButton}.Draw(c)
 			if b.Clicked() {
 				s.openReader()
 			}
 		})
 	}, func() {
-		labeled(c, s.text.ExportLabel, s.text.ExportHelp, func() {
+		labeled(c, icons.Download, s.text.ExportLabel, s.text.ExportHelp, func() {
 			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Download, Text: s.text.Export}.Draw(c)
 			if b.Clicked() {
 				s.export()
@@ -3105,26 +3230,21 @@ func (s *Screen) opmlPage(c *ui.Context) {
 			s.resultBox(c)
 		}
 	}, func() {
-		labeled(c, s.text.BackupLabel, s.text.BackupHelp, func() {
+		labeled(c, icons.Database, s.text.BackupLabel, s.text.BackupHelp, func() {
 			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Database, Text: s.text.BackupButton}.Draw(c)
 			if b.Clicked() {
 				s.backUp()
 			}
 		})
 	}, func() {
-		labeled(c, s.text.RestoreLabel, s.text.RestoreHelp, func() {
+		labeled(c, icons.RotateCcw, s.text.RestoreLabel, s.text.RestoreHelp, func() {
 			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.RotateCcw, Text: s.text.RestoreButton}.Draw(c)
 			if b.Clicked() {
 				s.chooseRestore()
 			}
 		})
 		if s.working != "" {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 6)).Margin(theme.Px(t, 6), 0, 0, 0).Role(ui.RoleStatus).
-				Children(func() {
-					spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-					spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-					ui.Text(c, s.working).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Shrink(1).Wrap()
-				})
+			statusLine(c, status{spin: true, text: s.working})
 		}
 		if s.result.text != "" && s.result.backup {
 			s.resultBox(c)
@@ -3244,7 +3364,7 @@ func (s *Screen) commitAuto() {
 func (s *Screen) autoRows(c *ui.Context) {
 	t := c.Theme()
 	st := s.settings
-	labeled(c, s.text.AutoLabel, s.text.AutoHelp, func() {
+	labeled(c, icons.Clock, s.text.AutoLabel, s.text.AutoHelp, func() {
 		on := st.AutoBackupEnabled
 		ui.Switch(c, &on).Label(s.text.AutoLabel).Description(s.text.AutoHelp).Disabled(s.autoSaving)
 		if on != st.AutoBackupEnabled {
@@ -3255,12 +3375,15 @@ func (s *Screen) autoRows(c *ui.Context) {
 			s.saveAuto(patch)
 		}
 	})
+	// The lines under the switch start under its name, past the chip.
+	indent := theme.Px(t, tokens.Control+tokens.Space3)
 	line := func(name string, control func()) {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 12)).Margin(theme.Px(t, 10), 0, 0, 0).MinHeight(theme.Px(t, 32)).
-			Children(func() {
-				ui.Text(c, name).Width(theme.Px(t, 96)).Shrink(0)
-				control()
-			})
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Margin(theme.Px(t, tokens.Space2), 0, 0, indent).
+			MinHeight(theme.Px(t, tokens.Control)).Children(func() {
+			ui.Text(c, name).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t)).
+				Width(theme.Px(t, tokens.ThumbW)).Shrink(0)
+			control()
+		})
 	}
 	line(s.text.AutoFolder, func() {
 		switch {
@@ -3284,7 +3407,7 @@ func (s *Screen) autoRows(c *ui.Context) {
 		}
 	})
 	if s.autoRemote() {
-		ui.Text(c, s.text.AutoRemote).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 6), 0, 0, theme.Px(t, 108))
+		meta(c, s.text.AutoRemote).Margin(theme.Px(t, tokens.Space1), 0, 0, indent+theme.Px(t, tokens.ThumbW+tokens.Space3))
 	}
 	line(s.text.AutoFrequency, func() {
 		frequencies := []string{"daily", "weekly"}
@@ -3295,13 +3418,13 @@ func (s *Screen) autoRows(c *ui.Context) {
 		}
 	})
 	line(s.text.AutoKeep, func() {
-		s.watch(field(c, "autokeep", &s.autoKeep, theme.Px(t, 64), false, func(in ui.Element) {
+		s.watch(field(c, "autokeep", &s.autoKeep, theme.Px(t, 2*tokens.Space8), false, func(in ui.Element) {
 			in.Font("monospace").Label(s.text.AutoKeep).Disabled(s.autoSaving)
 			if in.Submitted() {
 				s.commitAuto()
 			}
 		}))
-		ui.Text(c, s.text.AutoCopies).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+		ui.Text(c, s.text.AutoCopies).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
 	})
 	now := s.deps.Now()
 	switch {
@@ -3326,18 +3449,18 @@ func (s *Screen) importProgress(c *ui.Context) {
 	s.watchImport(c)
 	t := c.Theme()
 	p := r.job.Progress
-	ui.Column(c).FillWidth().Margin(theme.Px(t, 6), 0, 0, 0).Gap(theme.Px(t, 6)).Role(ui.RoleStatus).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 6)).Children(func() {
+	ui.Column(c).FillWidth().Margin(theme.Px(t, tokens.Space2), 0, 0, 0).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
-			ui.Text(c, s.importLabel(r)).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Shrink(1).Wrap()
+			spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
+			ui.Text(c, s.importLabel(r)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Shrink(1).Wrap()
 		})
 		if p.Total <= 0 {
 			return
 		}
 		how := s.fill(s.text.Progress, "{done}", strconv.Itoa(p.Done), "{total}", strconv.Itoa(p.Total))
-		ui.Progress(c, float64(p.Done)/float64(p.Total)).FillWidth().Height(theme.Px(t, 4)).Label(how)
-		ui.Text(c, how).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+		ui.Progress(c, float64(p.Done)/float64(p.Total)).FillWidth().Height(theme.Px(t, tokens.Space1)).Label(how)
+		ui.Text(c, how).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(t.TextMuted)
 	})
 }
 
@@ -3351,11 +3474,11 @@ func (s *Screen) resultBox(c *ui.Context) {
 	case refused:
 		fill, icon, iconColor = theme.Soft(t, t.Danger), icons.CircleAlert, t.Danger
 	}
-	ui.Column(c).FillWidth().Margin(t.Space(3), 0, 0, 0).Padding(theme.Px(t, 10), t.Space(3)).Radius(t.Radius).
-		Background(fill).Role(ui.RoleStatus).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Children(func() {
-			ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(iconColor).Margin(2, 0, 0, 0)
-			ui.Text(c, r.text).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(color).Wrap()
+	ui.Column(c).FillWidth().Margin(theme.Px(t, tokens.Space3), 0, 0, 0).Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).
+		Radius(theme.Px(t, tokens.RadiusControl)).Background(fill).Role(ui.RoleStatus).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space2)).Children(func() {
+			ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(iconColor).Margin(theme.Px(t, tokens.Space0_5), 0, 0, 0)
+			ui.Text(c, r.text).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(color).Wrap()
 			if r.view {
 				s.viewSources(c)
 			}
@@ -3366,7 +3489,8 @@ func (s *Screen) resultBox(c *ui.Context) {
 				xFill = t.SurfaceHover
 				xColor = t.Text
 			}
-			mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: 6, Fill: xFill}.Apply(c, x, func() {
+			mx, my := theme.Hit{W: theme.Px(t, tokens.RowDense), H: theme.Px(t, tokens.RowDense), Radius: theme.Px(t, tokens.RadiusSm),
+				Fill: xFill}.Apply(c, x, func() {
 				ui.Icon(c, icons.X).FontSize(theme.IconSmall(t)).TextColor(xColor)
 			})
 			x.Margin(my, mx, my, mx)
@@ -3377,7 +3501,7 @@ func (s *Screen) resultBox(c *ui.Context) {
 		if len(r.fails) == 0 {
 			return
 		}
-		ui.Column(c).FillWidth().Padding(t.Space(2), 0, 0, theme.Px(t, 22)).Label(s.text.NotAdded).Role(ui.RoleList).
+		ui.Column(c).FillWidth().Padding(theme.Px(t, tokens.Space2), 0, 0, theme.Px(t, tokens.IconS+tokens.Space2)).Label(s.text.NotAdded).Role(ui.RoleList).
 			Children(func() {
 				for i, f := range r.fails {
 					s.failRow(c, i, f)
@@ -3395,8 +3519,10 @@ func (s *Screen) viewSources(c *ui.Context) {
 	if b.Hovered() {
 		fill = theme.Soft(t, t.Accent)
 	}
-	mx, my := theme.Hit{H: theme.Px(t, 22), Radius: 6, Fill: fill, PadX: theme.Px(t, 6)}.Apply(c, b, func() {
-		ui.Text(c, s.text.ViewSources).FontSize(theme.Px(t, 12)).FontWeight(500).TextColor(color).NoWrap()
+	mx, my := theme.Hit{H: theme.Px(t, tokens.RowDense), Radius: theme.Px(t, tokens.RadiusSm), Fill: fill,
+		PadX: theme.Px(t, tokens.Space1_5)}.Apply(c, b, func() {
+		ui.Text(c, s.text.ViewSources).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(tokens.TextMetaStrong.Weight).
+			TextColor(color).NoWrap()
 	})
 	b.Margin(my, mx, my, mx)
 	if b.Clicked() && s.deps.ViewSources != nil {
@@ -3415,7 +3541,8 @@ func (s *Screen) failRow(c *ui.Context, i int, f client.ImportFail) {
 	if why == "" {
 		why = f.Error
 	}
-	ui.Row(c).Key(i).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(theme.Px(t, 3), 0).Role(ui.RoleListItem).
+	ui.Row(c).Key(i).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space0_5), 0).
+		Role(ui.RoleListItem).
 		Children(func() {
 			spans := []ui.Span{}
 			if title := strings.TrimSpace(f.Title); title != "" {
@@ -3425,26 +3552,19 @@ func (s *Screen) failRow(c *ui.Context, i int, f client.ImportFail) {
 				spans = append(spans, ui.Span{Text: title})
 			}
 			if f.Address != "" {
-				spans = append(spans, ui.Span{Text: f.Address, Font: "monospace", Size: theme.Px(t, 12)})
+				spans = append(spans, ui.Span{Text: f.Address, Font: "monospace", Size: theme.Px(t, tokens.TextCode.Size.En)})
 			}
-			ui.RichText(c, spans...).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).SingleLine()
-			ui.Text(c, why).FontSize(theme.Px(t, 12)).TextColor(theme.Text2(t)).NoWrap()
+			ui.RichText(c, spans...).Grow(1).MinWidth(0).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).SingleLine()
+			ui.Text(c, why).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t)).NoWrap()
 		})
 }
 
 // devicesPage is the signed-in devices, as a table where there is room and as stacked rows where there is not.
 func (s *Screen) devicesPage(c *ui.Context, table bool) {
-	t := c.Theme()
 	if !s.signedIn {
-		card(c, func() {
-			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, 10)).Children(func() {
-				ui.Icon(c, icons.Laptop).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted).Margin(1, 0, 0, 0)
-				ui.Text(c, s.text.LocalDevices).TextColor(t.TextMuted).Shrink(1).Wrap()
-			})
-		})
+		card(c, func() { setting(c, icons.Laptop, false, s.text.LocalDevices, nil, nil) })
 		return
 	}
-	lead(c, s.text.DevicesHelp)
 	now := s.deps.Now()
 	if table {
 		s.deviceTable(c, now)
@@ -3457,18 +3577,27 @@ func (s *Screen) devicesPage(c *ui.Context, table bool) {
 	card(c, rows...)
 }
 
+// The widths of the devices table's columns after the device's own: platform, signed in, last used and Revoke.
+const (
+	colPlatform = 88
+	colSigned   = 96
+	colSeen     = 116
+	colRevoke   = 96
+)
+
 // deviceTable draws the devices in columns: the device, its platform, when it signed in, when it was last used
 // and Revoke. Every row is a grid of the same tracks, so the columns line up.
 func (s *Screen) deviceTable(c *ui.Context, now time.Time) {
 	t := c.Theme()
 	tracks := func(g ui.Element) ui.Element {
-		return g.FillWidth().ColumnTracks(ui.Fr(1), ui.Fixed(theme.Px(t, 88)), ui.Fixed(theme.Px(t, 96)), ui.Fixed(theme.Px(t, 116)),
-			ui.Fixed(theme.Px(t, 96))).GapX(theme.Px(t, 16)).AlignItems(ui.Center).Padding(0, theme.Px(t, 20))
+		return g.FillWidth().ColumnTracks(ui.Fr(1), ui.Fixed(theme.Px(t, colPlatform)), ui.Fixed(theme.Px(t, colSigned)),
+			ui.Fixed(theme.Px(t, colSeen)), ui.Fixed(theme.Px(t, colRevoke))).GapX(theme.Px(t, tokens.Space4)).AlignItems(ui.Center)
 	}
-	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Role(ui.RoleTable).Label(s.text.Devices).Children(func() {
-		tracks(ui.Grid(c)).Height(theme.Px(t, 36)).Role(ui.RoleRow).Children(func() {
+	plate(c).Role(ui.RoleTable).Label(s.text.Devices).Children(func() {
+		tracks(ui.Grid(c)).Height(theme.Px(t, tokens.RowCompact)).Role(ui.RoleRow).Children(func() {
 			head := func(text string, align ui.Align) {
-				ui.Text(c, text).FontSize(theme.Px(t, 12)).FontWeight(500).TextColor(t.TextMuted).SingleLine().
+				ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(tokens.TextMetaStrong.Weight).
+					TextColor(t.TextMuted).SingleLine().
 					TextAlign(align).Role(ui.RoleColumnHeader)
 			}
 			head(s.text.ColDevice, ui.Start)
@@ -3479,8 +3608,8 @@ func (s *Screen) deviceTable(c *ui.Context, now time.Time) {
 		})
 		for _, d := range s.devices {
 			ui.Column(c.Key(d.ID)).FillWidth().Children(func() {
-				ui.Box(c).FillWidth().Height(1).Margin(0, theme.Px(t, 20)).Background(t.Border)
-				tracks(ui.Grid(c)).Height(theme.Px(t, 48)).Role(ui.RoleRow).Children(func() { s.deviceCells(c, d, now) })
+				hairline(c)
+				tracks(ui.Grid(c)).Height(theme.Px(t, tokens.Control+tokens.Space4)).Role(ui.RoleRow).Children(func() { s.deviceCells(c, d, now) })
 			})
 		}
 	})
@@ -3491,18 +3620,13 @@ func (s *Screen) deviceCells(c *ui.Context, d client.Device, now time.Time) {
 	t := c.Theme()
 	name, platform, icon := s.deviceParts(d)
 	muted := func(text string) ui.Element {
-		return ui.Text(c, text).FontSize(theme.Px(t, 13)).TextColor(t.TextMuted).SingleLine()
+		return ui.Text(c, text).TextColor(t.TextMuted).SingleLine()
 	}
-	ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(theme.Px(t, 12)).Children(func() {
-		ui.Box(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(8).Center().Background(theme.Track(t)).Children(func() {
-			ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(theme.Text2(t))
-		})
-		ui.Text(c, name).FontWeight(500).SingleLine().MinWidth(0).Shrink(1)
+	ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
+		chip(c, icon, false)
+		ui.Text(c, name).SingleLine().MinWidth(0).Shrink(1)
 		if d.Current {
-			ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 18))).Center().
-				Background(theme.Soft(t, t.Accent)).Children(func() {
-				ui.Text(c, s.text.ThisDevice).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.Accent).NoWrap()
-			})
+			tag(c, "", s.text.ThisDevice, true)
 		}
 	})
 	muted(platform)
@@ -3525,21 +3649,16 @@ func (s *Screen) deviceRow(c *ui.Context, d client.Device, now time.Time) {
 	t := c.Theme()
 	name, icon := s.device(d)
 	when := s.fill(s.text.SignedIn, "{date}", s.date(d.CreatedAt, now), "{seen}", s.ago(d.LastSeenAt, now))
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
-		ui.Box(c).Size(theme.Px(t, 32), theme.Px(t, 32)).Radius(8).Center().Background(theme.Track(t)).Children(func() {
-			ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(theme.Text2(t))
-		})
-		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 6)).Children(func() {
-				ui.Text(c, name).FontWeight(500).SingleLine().MinWidth(0).Shrink(1)
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
+		chip(c, icon, false)
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+				ui.Text(c, name).SingleLine().MinWidth(0).Shrink(1)
 				if d.Current {
-					ui.Box(c).Height(theme.Px(t, 18)).PaddingX(theme.Px(t, 6)).Radius(theme.Pill(theme.Px(t, 18))).Center().
-						Background(theme.Soft(t, t.Accent)).Children(func() {
-						ui.Text(c, s.text.ThisDevice).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.Accent).NoWrap()
-					})
+					tag(c, "", s.text.ThisDevice, true)
 				}
 			})
-			ui.Text(c, when).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).SingleLine()
+			ui.Text(c, when).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).SingleLine()
 		})
 		if !d.Current {
 			b := theme.Button{Style: theme.Danger, Small: true, Text: s.text.Revoke,

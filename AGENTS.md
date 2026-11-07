@@ -28,22 +28,32 @@ do the wrong thing.
 main.go                  dispatches desktop and headless (`oriel serve`) modes; lifecycle, menu, window, native updater
 desktop.go               login item, tray icon, Dock badge and the hidden-window unread poll, behind a host the tests fake
 backend.go               opens the database, starts and stops the HTTP server; shared by both modes
+shell.go                 the window's content: the connect screen, Settings or home under Oriel's palette, and this device's preferences
+cli.go                   the headless commands: `oriel backup`, `oriel restore`, `oriel healthcheck`
 internal/store/          SQLite and all queries; migrations in internal/store/migrations/
 internal/fetch/          fetch loop, feed parsing, failure backoff, full-text extraction, retention pruning, proxied image fetch and its disk cache
 internal/ai/             AI summaries and translations: settings, OpenAI-compatible calls, background queue
-internal/tracker/        known tracking-picture addresses, shared by the reader and the image proxy
+internal/autobackup/     scheduled backups into a chosen folder, keeping the newest few
+internal/importer/       import of subscriptions, stars and read state from Miniflux and FreshRSS
+internal/search/         the timeline's search syntax, parsed without touching storage
+internal/tracker/        known tracking pictures and link tracking parameters, shared by the reader, the image proxy and the store
 internal/diag/           the diagnostics file: recent redacted log records, per-source failures, redaction rules
 internal/server/         HTTP API and authentication
+internal/client/         the HTTP client the desktop UI reads and writes through
+internal/prefs/          this device's appearance and reading preferences, kept beside the session file, never on the server
 internal/ui/<screen>/    one package per screen: state, copy.json catalog, headless interaction tests
 internal/ui/locale/      system language to UI language (Simplified Chinese, English), shared by all catalogs
 internal/ui/pictures/    the picture queue the reader and the timeline share: download order, cancellation, retry, memory limit
 internal/ui/tray/        copy for the tray menu and the unread count on the icon and badge
 internal/ui/theme/       palette and the helpers every screen shares: Px, Monogram
+internal/ui/theme/tokens/ the design tokens generated from design/tokens.json (`go generate` there), and their contrast audit
+internal/ui/typeset/     the spacing of Chinese text (docs/design.md, Chinese typesetting)
+internal/ui/icons/       the Lucide icon set
 internal/ui/startup/     copy for the native error dialog when desktop startup fails
 resources/               shipped licenses and product assets
 scripts/                 checks, packaging, secret scan
 mygo.json                name, identifier, version, packaging
-release-please-*.json    the release pull request: version and changelog from the merged titles
+release-please-config.json, .release-please-manifest.json  the release pull request: version and changelog from the merged titles
 docs/, design/           product spec, design language, ADRs, tokens, product icon
 ```
 
@@ -95,8 +105,7 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
 
 ## Issues and pull requests
 
-`gh issue create` and `gh pr create --body` skip the issue forms and the pull request template, so write their
-structure yourself. Search open issues first; one issue is one problem.
+The repository has no issue forms or pull request template, so write the structure below yourself. Search open issues first; one issue is one problem.
 Work starts from an issue in a milestone; a new idea gets an issue first and does not join the milestone in progress
 unless the maintainer moves it there.
 

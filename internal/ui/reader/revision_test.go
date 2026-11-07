@@ -36,8 +36,8 @@ func TestRevisedNoticeShowsChanges(t *testing.T) {
 		lang                               string
 		notice, show, hide, removed, added string
 	}{
-		{"en", "Updated ", "See changes", "Hide changes", "Removed", "Added"},
-		{"zh-Hans", "已于 ", "查看改动", "收起改动", "删除", "新增"},
+		{"en", "This article changed", "See what changed", "Hide changes", "Removed", "Added"},
+		{"zh-Hans", "这篇文章改过", "看改了什么", "收起改动", "删除", "新增"},
 	} {
 		t.Run(c.lang, func(t *testing.T) {
 			article := revised()
@@ -65,7 +65,7 @@ func TestRevisedNoticeShowsChanges(t *testing.T) {
 func TestNoRevisedNoticeForUnchangedArticle(t *testing.T) {
 	_, f, tt := setup(t, "en", full())
 	f.settle(tt)
-	absent(t, tt, "See changes")
+	absent(t, tt, "This article changed", "See what changed")
 	if f.ctxs["revision"] != nil {
 		t.Fatal("asked for a revision of an entry never updated")
 	}
@@ -75,8 +75,8 @@ func TestRevisedNoticeWithoutRevision(t *testing.T) {
 	_, f, tt := setup(t, "en", revised())
 	f.revisionErr = errors.New("gone")
 	f.settle(tt)
-	expect(t, tt, "Updated Oct 18, 10:00 AM")
-	absent(t, tt, "See changes")
+	expect(t, tt, "This article changed", "Oct 18, 10:00 AM")
+	absent(t, tt, "See what changed")
 }
 
 func TestRevisionDroppedWhenArticleChanges(t *testing.T) {

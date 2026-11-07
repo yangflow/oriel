@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 	"github.com/yangflow/oriel/internal/ui/typeset"
 	"golang.org/x/text/unicode/norm"
 )
@@ -307,28 +308,31 @@ func (s *Screen) pieceList(m *memo, text string, chinese bool) []typeset.Piece {
 	return []typeset.Piece{{Text: text}}
 }
 
-// findRow is the find row, under the toolbar: Background, the height of findHeight, its bar lined up with the article
-// column, with a hairline under it. The article is padded down by its height, so nothing is hidden.
+// findRow is the find bar, design BFindBar: a float with the popup elevation at the top end of the reader, under
+// the toolbar, dialog wide; in a narrow window it spans the window, a space-2 from each side. It covers the article,
+// which revealBlock keeps the current match clear of.
 func (s *Screen) findRow(c *ui.Context, narrow bool) {
 	t := c.Theme()
 	f := &s.find
 	if !f.open {
 		return
 	}
-	inset := theme.Px(t, 28)
+	panel := ui.Row(c).Key("find-row").Absolute().Top(theme.Bar).Right(theme.Px(t, tokens.Space4)).
+		Padding(theme.Px(t, tokens.Space1)).Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.RaisedFill(t))
+	theme.Shadow(t, panel, theme.Elevation(t).Popup)
 	if narrow {
-		inset = theme.Px(t, 12)
+		panel.Left(theme.Px(t, tokens.Space2)).Right(theme.Px(t, tokens.Space2))
+	} else {
+		panel.Width(theme.Px(t, tokens.Dialog))
 	}
-	ui.Row(c).Key("find-row").Absolute().Top(theme.Bar).Left(0).Right(0).Height(findHeight(t)).Background(t.Background).
-		BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-		ui.FindBar(c, &f.open, &f.query, len(f.hits), &f.cur).FillWidth().MaxWidth(s.column(t)).Margin(0, ui.Auto).
-			Height(findHeight(t)).Padding(0, inset).Background(t.Background).BorderWidth(0, 0, 0, 0).
-			Label(s.text.FindLabel)
+	panel.Children(func() {
+		ui.FindBar(c, &f.open, &f.query, len(f.hits), &f.cur).FillWidth().Height(theme.Px(t, tokens.Control)).
+			Background(ui.Color{}).BorderWidth(0, 0, 0, 0).Label(s.text.FindLabel)
 	})
 }
 
-// findHeight is the height of the find row.
-func findHeight(t *ui.Theme) float32 { return theme.Px(t, 44) }
+// findHeight is the height of the find bar: a control and its panel's padding.
+func findHeight(t *ui.Theme) float32 { return theme.Px(t, tokens.Control+2*tokens.Space1) }
 
 // revealBlock puts a marker in the block of unit that reaches up under the toolbar and the find row, and has it scrolled
 // into view when the block holds the match the bar has just gone to: the match comes to rest below the bars, not behind.
@@ -338,7 +342,7 @@ func (s *Screen) revealBlock(c *ui.Context, unit int) bool {
 		return false
 	}
 	t := c.Theme()
-	up := theme.Bar + findHeight(t) + theme.Px(t, 16)
+	up := theme.Bar + findHeight(t) + theme.Px(t, tokens.Space4)
 	ui.Box(c).Key("find-reveal").Absolute().Top(-up).Left(0).Right(0).Bottom(0).PassThrough().ScrollIntoView()
 	return true
 }

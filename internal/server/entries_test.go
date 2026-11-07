@@ -45,23 +45,19 @@ func titles(t *testing.T, body map[string]any) []string {
 func TestEntryQueryValidation(t *testing.T) {
 	s, _ := newServer(t, "")
 	for query, code := range map[string]string{
-		"source=x":        "invalid_source",
-		"source=0":        "invalid_source",
-		"kind=podcast":    "invalid_kind",
-		"limit=0":         "invalid_limit",
-		"limit=101":       "invalid_limit",
-		"cursor=abc":      "invalid_cursor",
-		"cursor=1.0":      "invalid_cursor",
-		"order=up":        "invalid_order",
-		"order=ASC":       "invalid_order",
-		"maxMinutes=0":    "invalid_max_minutes",
-		"maxMinutes=1441": "invalid_max_minutes",
-		"maxMinutes=x":    "invalid_max_minutes",
-		"maxMinutes=2.5":  "invalid_max_minutes",
-		"since=0":         "invalid_since",
-		"since=-5":        "invalid_since",
-		"since=x":         "invalid_since",
-		"since=1.5":       "invalid_since",
+		"source=x":     "invalid_source",
+		"source=0":     "invalid_source",
+		"kind=podcast": "invalid_kind",
+		"limit=0":      "invalid_limit",
+		"limit=101":    "invalid_limit",
+		"cursor=abc":   "invalid_cursor",
+		"cursor=1.0":   "invalid_cursor",
+		"order=up":     "invalid_order",
+		"order=ASC":    "invalid_order",
+		"since=0":      "invalid_since",
+		"since=-5":     "invalid_since",
+		"since=x":      "invalid_since",
+		"since=1.5":    "invalid_since",
 	} {
 		w := do(s, "GET", "/api/entries?"+query, "", nil)
 		if w.Code != http.StatusBadRequest || decode(t, w)["error"] != code {
@@ -474,15 +470,6 @@ func TestReadingTime(t *testing.T) {
 	all := list("")
 	if len(all) != 3 || all["Long"] != 660.0 || all["Short"] != 120.0 || all["Empty"] != nil {
 		t.Fatalf("readingSec: %v", all)
-	}
-	if got := list("?maxMinutes=10"); len(got) != 1 || got["Short"] != 120.0 {
-		t.Fatalf("maxMinutes=10: %v", got)
-	}
-	if got := list("?maxMinutes=11"); len(got) != 2 || got["Long"] != 660.0 {
-		t.Fatalf("maxMinutes=11: %v", got)
-	}
-	if got := list("?maxMinutes=1440&unread=1&kind=video"); len(got) != 0 {
-		t.Fatalf("stacked filters: %v", got)
 	}
 	id := strconv.Itoa(int(decode(t, do(s, "GET", "/api/entries?q=Short", "", bearer(token)))["entries"].([]any)[0].(map[string]any)["id"].(float64)))
 	if one := decode(t, do(s, "GET", "/api/entries/"+id, "", bearer(token))); one["readingSec"] != 120.0 {

@@ -19,8 +19,6 @@ const (
 	shortQueryLimit = 200
 	// maxListAISummary is the most characters of an AI summary a list carries; the full one is at /api/entries/{id}/ai.
 	maxListAISummary = 300
-	// maxBudgetMinutes is the longest reading-time budget a client may ask for: one day.
-	maxBudgetMinutes = 1440
 	// maxRemindAhead is how far ahead a reminder may be set: a year.
 	maxRemindAhead = 366 * 24 * time.Hour
 )
@@ -216,14 +214,6 @@ func (s *Server) listEntries(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		filter.FolderID = id
-	}
-	if raw := query.Get("maxMinutes"); raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil || n < 1 || n > maxBudgetMinutes {
-			fail(w, http.StatusBadRequest, "invalid_max_minutes")
-			return
-		}
-		filter.MaxReadingSec = n * 60
 	}
 	if raw := query.Get("since"); raw != "" {
 		n, err := strconv.ParseInt(raw, 10, 64)
