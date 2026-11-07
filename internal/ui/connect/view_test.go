@@ -216,7 +216,7 @@ func TestOpenDropsConnectionUnderWay(t *testing.T) {
 
 func TestUseLocal(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	if err := tt.Click("This computer"); err != nil {
+	if err := tt.Click("Use this computer"); err != nil {
 		t.Fatal(err)
 	}
 	if f.local != 1 {
@@ -225,7 +225,7 @@ func TestUseLocal(t *testing.T) {
 	s.address = "home.lan"
 	tt.Frame()
 	tt.Click("Connect")
-	tt.Click("This computer")
+	tt.Click("Use this computer")
 	if f.local != 1 {
 		t.Fatal("use local while connecting")
 	}

@@ -11,10 +11,12 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/yangflow/oriel/design"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 //go:embed copy.json
@@ -212,67 +214,83 @@ func (s *Screen) View(c *ui.Context) {
 func (s *Screen) form(c *ui.Context, height float32, busy bool) {
 	t := c.Theme()
 	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().MinHeight(height).Center().Padding(t.Space(6)).Children(func() {
-			ui.Column(c).FillWidth().MaxWidth(t.Space(80)).Gap(t.Space(6)).Children(func() {
-				s.header(c)
-				ui.Column(c).FillWidth().Gap(t.Space(2)).Children(func() {
-					ui.Column(c).FillWidth().Gap(t.Space(1.5)).Children(func() { s.addressField(c, busy) })
-					ui.Column(c).FillWidth().Gap(t.Space(1.5)).Children(func() { s.passwordField(c, busy) })
+		ui.Column(c).FillWidth().MinHeight(height).Center().Padding(theme.Px(t, tokens.Space6)).Children(func() {
+			ui.Column(c).FillWidth().MaxWidth(theme.Px(t, tokens.SheetWidth)).Gap(theme.Px(t, tokens.Space4)).
+				Children(func() {
+					s.header(c)
+					s.group(c, s.text.Address, addressField, func() { s.addressField(c, busy) })
+					s.group(c, s.text.PasswordLabel, passwordField, func() { s.passwordField(c, busy) })
 					s.errorLine(c, formField)
+					s.actions(c, busy)
 				})
-				s.actions(c, busy)
-			})
 		})
 	})
 }
 
+// group is a field with its name above it, design BConnect; a click on the name focuses the field, as a label does.
+func (s *Screen) group(c *ui.Context, name string, f field, draw func()) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+		// The input carries the same name, so screen readers skip the visible one.
+		label := ui.Text(c, name).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).
+			FontWeight(tokens.TextMetaStrong.Weight).TextColor(theme.Text2(t)).Role(ui.RoleNone)
+		if label.Clicked() && s.phase == idle {
+			s.focus = f
+		}
+		draw()
+	})
+}
+
+var logo = ui.MustParseSVG(design.Icon)
+
 func (s *Screen) header(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
-		ui.Box(c).Size(t.Space(12), t.Space(12)).Radius(t.Space(3)).Center().Background(theme.Soft(t, t.Accent)).
-			Children(func() { ui.Icon(c, icons.Server).FontSize(theme.IconLarge(t)).TextColor(t.Accent) })
-		ui.Text(c, s.text.Title).FontSize(theme.Px(t, 15)).FontWeight(600).Role(ui.RoleHeading).Level(1)
+	ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+		Padding(0, 0, theme.Px(t, tokens.Space2), 0).Children(func() {
+		mark := theme.Px(t, logoSize)
+		ui.Image(c, logo).Size(mark, mark)
+		ui.Text(c, s.text.Title).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+			Role(ui.RoleHeading).Level(1)
 		if s.expired != "" {
 			before, after, _ := strings.Cut(s.text.Expired, "{server}")
-			ui.Row(c).AlignItems(ui.Center).Gap(t.Space(1.5)).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
 				ui.Icon(c, icons.Clock).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 				ui.RichText(c,
-					ui.Span{Text: before, Color: t.TextMuted},
+					ui.Span{Text: before, Color: theme.Text2(t)},
 					ui.Span{Text: s.expired, Weight: 500},
-					ui.Span{Text: after, Color: t.TextMuted},
-				).FontSize(theme.Px(t, 12))
+					ui.Span{Text: after, Color: theme.Text2(t)},
+				).FontSize(theme.Px(t, tokens.TextMeta.Size.En))
 			})
 		}
 	})
 }
 
-// box is the frame of a text field: its leading icon, the input built by input, and what trails it.
-func (s *Screen) box(c *ui.Context, key string, lead *ui.SVG, busy, ok bool, input func(), trail func()) {
+// addressExample is the address field's placeholder, the same in every language.
+const addressExample = "https://oriel.example.com"
+
+// logoSize is the product icon above the title, design ALogo at 64: two display lines.
+const logoSize = 2 * tokens.Space8
+
+// box is a text field, design CField: its input built by input and what trails it on the fill well.
+func (s *Screen) box(c *ui.Context, key string, busy bool, input func(), trail func()) {
 	t := c.Theme()
 	invalid := s.problem.field == fieldOf(key)
-	box := ui.Row(c).Key(key).FillWidth().Height(t.Space(8)).AlignItems(ui.Center).Gap(t.Space(2)).
-		Padding(0, t.Space(1), 0, t.Space(2.5)).Radius(t.Radius).Background(t.Surface)
+	box := ui.Row(c).Key(key).FillWidth().Height(theme.Px(t, tokens.Control)).AlignItems(ui.Center).
+		Gap(theme.Px(t, tokens.Space1_5)).Padding(0, theme.Px(t, tokens.Space1), 0, theme.Px(t, tokens.Space3)).
+		Radius(theme.Px(t, tokens.RadiusControl)).Background(theme.Track(t))
 	if c.Preferences().HighContrast {
-		box.Border(1, t.Border)
-	} else {
-		box.Border(0.5, theme.LineStrong(t))
+		box.Border(tokens.Hairline, t.Border)
 	}
 	focused := box.FocusWithin() && !busy
-	color := t.TextMuted
 	switch {
-	case invalid:
-		box.Border(1.5, t.Danger)
-		color = t.Danger
-		if focused {
-			box.Shadow(0, 0, 0, 2, theme.Soft(t, t.Danger))
-		}
 	case focused:
-		box.Border(0, ui.Color{}).Background(theme.RaisedFill(t)).Shadow(0, 0, 0, 2, t.Focus)
-	case ok:
-		color = t.Success
+		box.Background(theme.RaisedFill(t)).Shadow(0, 0, 0, theme.Px(t, tokens.FocusRing), t.Focus)
+	case invalid:
+		box.Border(theme.Px(t, tokens.Hairline), t.Danger)
+	case box.Hovered() && !busy:
+		box.Background(t.SurfaceHover.Over(theme.Track(t)))
 	}
 	box.Children(func() {
-		ui.Icon(c, lead).FontSize(theme.IconMedium(t)).TextColor(color)
 		input()
 		trail()
 	})
@@ -308,11 +326,12 @@ func (s *Screen) input(c *ui.Context, value *string, f field, label, placeholder
 func (s *Screen) addressField(c *ui.Context, busy bool) {
 	t := c.Theme()
 	before := s.address
-	s.box(c, "address", icons.Globe, busy, s.phase == signingIn, func() {
-		s.input(c, &s.address, addressField, s.text.Address, s.text.Address, busy)
+	s.box(c, "address", busy, func() {
+		s.input(c, &s.address, addressField, s.text.Address, addressExample, busy)
 	}, func() {
 		if s.phase == signingIn {
-			ui.Box(c).Size(t.Space(6), t.Space(6)).Center().Label(s.text.Reachable).Role(ui.RoleImage).Children(func() {
+			side := theme.Px(t, tokens.RowDense)
+			ui.Box(c).Size(side, side).Center().Label(s.text.Reachable).Role(ui.RoleImage).Children(func() {
 				ui.Icon(c, icons.Check).FontSize(theme.IconMedium(t)).TextColor(t.Success)
 			})
 		}
@@ -326,7 +345,7 @@ func (s *Screen) addressField(c *ui.Context, busy bool) {
 func (s *Screen) passwordField(c *ui.Context, busy bool) {
 	t := c.Theme()
 	before := s.password
-	s.box(c, "password", icons.KeyRound, busy, false, func() {
+	s.box(c, "password", busy, func() {
 		in := s.input(c, &s.password, passwordField, s.text.PasswordLabel, s.text.Password, busy)
 		if !s.shown {
 			in.Password()
@@ -337,18 +356,11 @@ func (s *Screen) passwordField(c *ui.Context, busy bool) {
 			icon = icons.EyeOff
 		}
 		// The name stays the same and the pressed state says whether the password shows.
-		eye := theme.Fade(ui.ButtonBase(c).Size(t.Space(6), t.Space(6)).Radius(t.Space(1.5)).Label(s.text.Show).
-			Tooltip(s.text.Show).Role(ui.RoleToggleButton).Checked(s.shown).Disabled(busy))
-		color := t.TextMuted
-		switch {
-		case eye.Pressed():
-			eye.Background(t.SurfacePressed)
-			color = t.Text
-		case eye.Hovered():
-			eye.Background(t.SurfaceHover)
-			color = t.Text
-		}
-		eye.Children(func() { ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color) })
+		side := theme.Px(t, tokens.RowDense)
+		eye := theme.Fade(ui.ButtonBase(c).Size(side, side).Shrink(0).Radius(theme.Px(t, tokens.RadiusSm)).
+			Label(s.text.Show).Tooltip(s.text.Show).Role(ui.RoleToggleButton).Checked(s.shown).Disabled(busy))
+		color := theme.ToolFill(t, eye, theme.ToolState{Disabled: busy})
+		eye.Children(func() { ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color) })
 		if eye.Clicked() {
 			s.shown = !s.shown
 		}
@@ -359,33 +371,36 @@ func (s *Screen) passwordField(c *ui.Context, busy bool) {
 	s.errorLine(c, passwordField)
 }
 
+// errorLine is what went wrong with f, design CBanner quiet in the danger tone: only the glyph takes the tone.
 func (s *Screen) errorLine(c *ui.Context, f field) {
 	if s.problem.field != f {
 		return
 	}
 	t := c.Theme()
-	ui.Row(c).AlignItems(ui.Center).Gap(t.Space(1.5)).PaddingX(t.Space(0.5)).Children(func() {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
 		ui.Icon(c, s.problem.icon).FontSize(theme.IconSmall(t)).TextColor(t.Danger)
-		ui.Text(c, s.problem.message).FontSize(theme.Px(t, 12)).TextColor(t.Danger)
+		ui.Text(c, s.problem.message).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t)).Wrap()
 	})
 }
 
+// actions is Connect across the sheet and, under it, the quiet way back to this computer's server.
 func (s *Screen) actions(c *ui.Context, busy bool) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().Gap(t.Space(2)).Children(func() {
-		local := theme.Button{Grow: true, Disabled: busy, Icon: icons.Laptop, Text: s.text.UseLocal}.Draw(c)
-		if local.Clicked() && !busy {
-			s.advance()
-			s.deps.UseLocal()
-		}
+	ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
 		label, icon := s.text.Connect, icons.ArrowRight
 		if busy {
 			label, icon = s.text.Connecting, nil
 		}
-		primary := theme.Button{Style: theme.Primary, Grow: true, Disabled: busy, Busy: busy, IconAfter: !busy, Icon: icon,
+		primary := theme.Button{Style: theme.Primary, Disabled: busy, Busy: busy, IconAfter: !busy, Icon: icon,
 			Text: label}.Draw(c)
+		primary.FillWidth()
 		if primary.Clicked() {
 			s.connect()
+		}
+		local := theme.Link{Muted: true, Disabled: busy, Icon: icons.Laptop, Text: s.text.UseLocal}.Draw(c)
+		if local.Clicked() && !busy {
+			s.advance()
+			s.deps.UseLocal()
 		}
 	})
 }
