@@ -1069,6 +1069,15 @@ func TestMenu(t *testing.T) {
 	if s.Open() || len(f.deleted) != 0 {
 		t.Fatalf("escape deleted %v", f.deleted)
 	}
+	// Cancel has the focus, so Return does nothing harmful.
+	s.AskDelete(f.sources[1])
+	tt.Frame()
+	tt.Frame()
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if s.Open() || len(f.deleted) != 0 {
+		t.Fatalf("return deleted %v, open %v", f.deleted, s.Open())
+	}
 	s.AskDelete(f.sources[1])
 	tt.Frame()
 	if err := tt.Click("Delete"); err != nil {

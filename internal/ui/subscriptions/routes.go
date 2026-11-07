@@ -11,6 +11,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // The states of the preview of a route.
@@ -295,32 +296,19 @@ func (s *Screen) routeList(c *ui.Context) {
 	th := c.Theme()
 	a := &s.add
 	head := s.routeNote(routeList)
-	ui.Column(c).FillWidth().Gap(theme.Px(th, 10)).Children(func() {
-		ui.Column(c).FillWidth().Gap(theme.Px(th, 6)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(th, tokens.Space3)).Children(func() {
+		ui.Column(c).FillWidth().Gap(theme.Px(th, tokens.Space1_5)).Children(func() {
 			help(c, head)
-			ui.RadioGroup(c, func() {
+			choiceCard(c, head, func() {
 				for i, rt := range a.routes.res.Routes {
-					what := s.routeName(rt)
-					on := a.routes.chosen == i
-					row := ui.RadioBase(c, &a.routes.chosen, i).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).
-						Padding(th.Space(2), theme.Px(th, 10)).Radius(th.Radius).Label(what + s.text.Separator + rt.Path).Disabled(a.busy)
-					if on {
-						row.Background(theme.Soft(th, th.Accent))
-					} else {
-						row.Border(1, th.Border)
+					if i > 0 {
+						choiceLine(c)
 					}
-					row.Children(func() {
-						ui.Icon(c, icons.Rss).FontSize(theme.IconMedium(th)).TextColor(th.Accent)
-						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-							ui.Text(c, what).FontWeight(600).SingleLine()
-							ui.Text(c, rt.Path).Font("monospace").FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).SingleLine()
-						})
-						if on {
-							ui.Icon(c, icons.Check).FontSize(theme.IconMedium(th)).TextColor(th.Success)
-						}
-					})
+					what := s.routeName(rt)
+					row := ui.RadioBase(c, &a.routes.chosen, i).Label(what + s.text.Separator + rt.Path).Disabled(a.busy)
+					choiceRow(c, row, a.routes.chosen == i, icons.Rss, what, rt.Path, "")
 				}
-			}).FillWidth().Gap(theme.Px(th, 6)).Label(head)
+			})
 		})
 		if rt, ok := s.chosenRoute(); ok {
 			s.routeParams(c, rt)
@@ -333,14 +321,14 @@ func (s *Screen) routeParams(c *ui.Context, rt client.Route) {
 	th := c.Theme()
 	a := &s.add
 	r := &a.routes
-	ui.Column(c).FillWidth().Gap(theme.Px(th, 10)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(th, tokens.Space3)).Children(func() {
 		for i, p := range rt.Parameters {
 			if i >= len(r.values) {
 				break
 			}
-			ui.Column(c).FillWidth().Gap(th.Space(1)).Children(func() {
+			ui.Column(c).FillWidth().Gap(theme.Px(th, tokens.Space1)).Children(func() {
 				label(c, p.Name)
-				box(c, "param-"+p.Name, nil, false, th.Surface, func() {
+				box(c, "param-"+p.Name, nil, false, func() {
 					in := ui.TextInputBase(c, &r.values[i]).Grow(1).MinWidth(0).FocusRing(false).Label(p.Name).
 						Placeholder(p.Description).Disabled(a.busy)
 					if in.Submitted() {
@@ -369,7 +357,7 @@ func (s *Screen) previewCard(c *ui.Context) {
 	th := c.Theme()
 	p := s.add.routes.preview
 	head := strings.ReplaceAll(s.text.PreviewOf, "{name}", p.data.Title)
-	ui.Column(c).FillWidth().Gap(theme.Px(th, 6)).Padding(th.Space(2), theme.Px(th, 10)).Radius(th.Radius).Border(1, th.Border).
+	ui.Column(c).FillWidth().Gap(theme.Px(th, tokens.Space1_5)).Padding(theme.Px(th, tokens.Space3)).Radius(theme.Px(th, tokens.RadiusCard)).Background(theme.Surface(th)).
 		Role(ui.RoleStatus).Label(head).Children(func() {
 		if len(p.data.Entries) == 0 {
 			help(c, s.text.PreviewEmpty)
@@ -378,10 +366,10 @@ func (s *Screen) previewCard(c *ui.Context) {
 		help(c, head)
 		now := s.deps.Now()
 		for _, e := range p.data.Entries {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, 10)).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, tokens.Space3)).Children(func() {
 				ui.Text(c, e.Title).Grow(1).MinWidth(0).FontWeight(500).SingleLine()
 				if e.PublishedAt != nil {
-					ui.Text(c, locale.Capital(locale.Ago(s.lang, now, time.UnixMilli(*e.PublishedAt)))).FontSize(theme.Px(th, 12)).TextColor(th.TextMuted).NoWrap()
+					ui.Text(c, locale.Capital(locale.Ago(s.lang, now, time.UnixMilli(*e.PublishedAt)))).FontSize(theme.Px(th, tokens.TextMeta.Size.En)).TextColor(th.TextMuted).NoWrap()
 				}
 			})
 		}
