@@ -1,5 +1,5 @@
 // Package timeline is the main screen: the entries of every subscription in one list, newest first, each kind drawn
-// in its own way; see design/screens/timeline.html. Everything it shows comes through the HTTP API.
+// in its own way; see the timeline page of the screens canvas. Everything it shows comes through the HTTP API.
 package timeline
 
 import (

@@ -1,6 +1,6 @@
 // Package settings is the settings screen, in the place of the timeline: the RSSHub instance and how long entries are
 // kept, OPML import and export, the AI endpoint and prompts, the devices signed in to the server, and what the server
-// is fetching with the space its database uses; see design/screens/settings.html. Everything
+// is fetching with the space its database uses; see the settings page of the screens canvas. Everything
 // goes through the HTTP API; the settings belong to the server, so every device connected to it shares them.
 package settings
 

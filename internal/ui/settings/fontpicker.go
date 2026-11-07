@@ -11,7 +11,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
-// The measures of the font picker, in the units of the mockup (design/screens/settings.html): px scales them.
+// The measures of the font picker, in the units of the mockup (the settings page of the screens canvas): px scales them.
 const (
 	pickerWidth   = 300 // the least width; the popup is also as wide as its control
 	pickerHeight  = 360 // the most height; only the list scrolls

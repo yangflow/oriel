@@ -12,7 +12,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
-// The measures of the command palette, in the units of the mockup (design/screens/timeline.html): px scales them.
+// The measures of the command palette, in the units of the mockup (the timeline page of the screens canvas): px scales them.
 const (
 	paletteMax      = 50  // the most rows it shows
 	paletteWidth    = 560 // the most width

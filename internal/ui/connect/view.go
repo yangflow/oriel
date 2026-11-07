@@ -1,5 +1,5 @@
 // Package connect is the screen that connects the desktop app to an Oriel server and signs in; see
-// design/screens/connect.html. The password lives only in the screen while it is typed and is sent once, to sign in.
+// the connect page of the screens canvas. The password lives only in the screen while it is typed and is sent once, to sign in.
 package connect
 
 import (
