@@ -45,6 +45,15 @@ Oriel's values form one system, kept in `design/tokens.json` and `design/layout.
   no screen needs a "use Text2 here" exception.
 - **State ladder.** fill < hover < selected < pressed, four alphas of the scheme's ink, so a hovered chosen row still
   reads as chosen and pressing it still shows.
+- **MyGo roles.** A token marked `mygo` sets that role of `ui.Theme` (fill is `Surface`, line is `Border`, space-1 is
+  `Spacing`, radius-control is `Radius`), so MyGo's own fields and buttons draw with the system; every other token
+  is read by name.
+- **Type and opacity are tokens too.** Three families (sans, the platform's UI font or the chosen Interface font;
+  serif, for the reading body only; mono, for code and addresses), eleven interface text styles and the reading scale.
+  Opacity comes only from `opacity-faded` and `opacity-separator`; a disabled glyph takes `faint` instead of fading.
+- **Patterns, then utilities.** A screen is assembled from the patterns and parts of `layout.json`; a fine adjustment
+  uses its utilities (padding, gap, height, width from token names). A value no token has is added to the JSON
+  first, never written in a view.
 - **Adoption.** Screens move to the system one pull request at a time (timeline, reader, subscriptions, settings,
   connect; #522). Until a screen has moved, the sections below describe what it draws; once it has, `tokens.json` wins
   where they differ.
@@ -1448,6 +1457,11 @@ The motion tokens are `motion-fast` (120 ms, ease-out: state fills, text color, 
 0.97 with a fade), `motion-base` (200 ms, ease-out: folding a folder or group, a toast) and `spin` (900 ms, linear),
 in `design/tokens.json`; screens that have moved to the design system use them, and the 140 ms state fade below
 becomes `motion-fast`.
+
+Motion answers only two questions: where did this come from (a popup grows out of its control, a folder opens in
+place) and what just happened (a fill under the pointer, a toast). It never decorates, loops or hides latency.
+Curves are fixed-duration ease-out with no spring or overshoot, leaving is never slower than arriving, and a new state
+starts from where the old one is.
 
 Oriel has almost no custom animation: state changes take effect immediately, except that state fills, text and link
 color, and the row actions fade. See
