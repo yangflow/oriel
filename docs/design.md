@@ -120,7 +120,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   unread count (11 type, tabular; above 999 it reads "999+", so the column never grows past that text and is not fixed, and the full number stays in the row's accessible description; `many-feeds` shows one); then the subscriptions of the chosen kind, 30 high rows, their counts capped the same way; at the bottom the server bar, 40 high. The main
   column is the paper: `Background`. It has a 52 high toolbar row on a solid `Background` bar (see Glass and ink), with no divider at the top and a hairline once the list has scrolled under it, in three parts: the title and its count at the leading end,
   one capsule with the Everything/Unread/Starred segments in the middle, and at the trailing end an evenly spaced
-  group of bare icon buttons (the reading-time button, the grid switch (only where it applies), mark all as read, whose name and
+  group of bare icon buttons (the time-range button, the grid switch (only where it applies), mark all as read, whose name and
   tooltip say its scope: "Mark all in “Videos” as read"; right click opens its menu, see Components), 4 apart, with search
   last, at the far right. The segments are one 32 high capsule of glass on the bar; the entries scroll under the bar,
   not through it. The title's part and the trailing part take equal room, so the segments are centered in the main
@@ -130,38 +130,29 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   over the buttons and takes the focus, and the field closes again when it loses the focus with no text in it. Under 580 the gap
   between the toolbar items is 4, the segments are padded 7 and the unread count is left out; the title is then cut with an
   ellipsis, 40 wide at least; the buttons never shrink, so mark all as read is always inside the window. The Tab order is the visual one:
-  the sidebar button, the segments, the buttons, search. The reading-time button is a bare 32 square clock icon right of the capsule, named "Reading time: any
-  length"; its menu lists Any length (the default), Up to 5, 10, 15 and 30 minutes, each a 28 high menu row with a
-  check on the current one. With a budget chosen it becomes a 32 high button (radius 8) with the `Soft(Accent)` fill,
-  "≤ 10 min" in `Accent` at 12 medium beside the icon, tabular numerals, named "Reading time: up to 10 minutes"; below
-  a 760 wide window it keeps only the icon, with a 7 `Accent` dot at its top right. It is a view filter: it does not
-  mark or move anything, the title's unread count is hidden while it is on, and mark all as read, mark above, mark below and V are
-  disabled as under Starred. The list order has no button of its own, at any width: "Newest first" and "Oldest first"
-  are the last two rows of the reading-time menu, under a hairline, with a check on the current one; choosing one
-  announces its name. While it is oldest first the clock gets the same `Soft(Accent)` fill and `Accent` icon as with a
-  budget (a bare 32 circle, no text beside it unless a budget is chosen too, and the dot below 760), and its name
-  adds ". Oldest first: new entries appear at the end of the list". The menu is native and its rows have one line, so
-  under the two orders sits a disabled row with that same sentence (muted by the system, wrapping to two lines in a narrow menu), and the
-  sentence is also the clock's tooltip and screen-reader name; the "N new" pill never shows in this order and the note
-  is why. The list goes back to its top, the oldest entry, and the "N new" pill is not shown while it
-  is on (new entries appear when paging reaches the end). The order is kept per device. Drawn in
-  the `timeline` page of the screens canvas, `order-oldest`.
-  The time-range button is a bare 32 square calendar-days icon right of the clock, named "Time range: any time"; its
+  the sidebar button, the segments, the buttons, search. The time-range button is a bare 32 square calendar-days icon right of the capsule, named "Time range: any time"; its
   menu lists Any time (the default), Today and Last 24 hours, each a 28 high radio row with a check on the current
-  one. It sits beside the clock because both are the same kind of control, an icon that opens a short menu and shows
-  what it holds as a chip; it is not a segment because the segments are about the state of an entry and the bar has
-  no room for a fourth. With a range chosen it is the same chip as the budget: 32 high (radius 8), `Soft(Accent)`
-  fill, "Today" or "24 h" in `Accent` at 12 medium beside the icon, named "Time range: Today"; below 760 it keeps only
-  the icon with the 7 `Accent` dot. It is a view filter that marks nothing and, like the budget, hides the title's
-  unread count, but mark all as read and its variants stay enabled and mark only what the range holds. With the
-  budget and the range both on there are two chips side by side, 4 apart. In a main column under 700 there is no
-  room for another button at every text size, so the range button shows only while a range is on; T, the palette and
-  the Timeline menu reach the range otherwise. When the range leaves nothing the list
-  shows the empty-state pattern: a 48 tile with a calendar, "Nothing new today" (or "Nothing new in the last 24
-  hours"), the hint "Entries count from when they arrived in Oriel, not from when they were published.", and one
-  secondary button, "Show any time", which clears the range. The range is kept per server with the scope and the
-  filter. T cycles it and is on the key sheet. Drawn in the `timeline` page of the screens canvas, `range-menu`, `range-today`,
-  `range-24h`, `range-empty`. An entry with a reminder (Remind me later) is read and carries, in its meta line after
+  one. It is not a segment because the segments are about the state of an entry and the bar has no room for a
+  fourth. With a range chosen it becomes a chip: 32 high (radius 8), `Soft(Accent)` fill, "Today" or "24 h" in `Accent`
+  at 12 medium beside the icon, named "Time range: Today"; below 760 it keeps only the icon with a 7 `Accent` dot at
+  its top right. It is a view filter that marks nothing and hides the title's unread count, but mark all as read and
+  its variants stay enabled and mark only what the range holds. The list order has no button of its own, at any
+  width: "Newest first" and "Oldest first" are the last two rows of the time-range menu, under a hairline, with a
+  check on the current one; choosing one announces its name. While it is oldest first the calendar gets the same
+  `Soft(Accent)` fill and `Accent` icon as with a range (a bare 32 square, no text beside it unless a range is chosen
+  too, and the dot below 760), and its name adds ". Oldest first: new entries appear at the end of the list". The
+  menu is native and its rows have one line, so under the two orders sits a disabled row with that same sentence
+  (muted by the system, wrapping to two lines in a narrow menu), and the sentence is also the button's tooltip; the
+  "N new" pill never shows in this order and the note is why. The list goes back to its top, the oldest entry, and
+  new entries appear when paging reaches the end. The order is kept per device. In a main column under 700 there is
+  no room for another button at every text size, so the time-range button shows only while a range is on or the
+  order is oldest first; T, the palette and the Timeline menu reach the range and the order otherwise. When the range
+  leaves nothing the list shows the empty-state pattern: a 48 tile with a calendar, "Nothing new today" (or "Nothing
+  new in the last 24 hours"), the hint "Entries count from when they arrived in Oriel, not from when they were
+  published.", and one secondary button, "Show any time", which clears the range. The range is kept per server with
+  the scope and the filter. T cycles it and is on the key sheet. There is no reading-time filter: the estimate is
+  shown on rows and in the reader only. Drawn in the `timeline` page of the screens canvas, `range-menu`, `range-today`,
+  `range-24h`, `range-empty`, `order-oldest`. An entry with a reminder (Remind me later) is read and carries, in its meta line after
   the reading time, a 14 `Accent` clock icon and its time in 12 `Accent` ("Tomorrow 09:00"), named "reminder on
   Tomorrow 09:00" for screen readers; it goes away when the reminder fires or is cancelled. Drawn in
   the `timeline` page of the screens canvas, `reminded`. An entry of a subscription that translates titles shows the translation
@@ -176,9 +167,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   10:42 AM", with no fill; it is a polite status, announced once, and goes away on the next successful check. At its end sits a quiet text button, "Try again" (12 `Accent`, 22 high, 8 padding, radius 6, hover fill like other quiet buttons); while a check runs it reads "Retrying…" in `TextMuted` and is disabled. A star or read change made while the server is out of reach stays on the row and is not rolled back; until it is sent, the row's meta line carries a 14 `TextMuted` upload icon after the star, named "Waiting to save". The queue lives in memory only and is lost on quit. Drawn in the `timeline` page of the screens canvas, `offline`, `offline-retrying`, `offline-pending`. Loading the first page of a list (a switch of scope, filter or kind, a reload) draws the skeleton only after 300 ms; an answer that comes sooner shows no loading state, so switching never flashes bars. With no subscriptions the list is an empty state: a 48 tile, a
   15 semibold heading, a hint at most 320 wide that names the links Oriel recognises, then a row of two buttons 8 apart,
   wrapping when narrow: the primary "Add your first subscription" and the secondary "Import OPML…" and a second secondary "Restore from backup…", both of which open
-  Settings on Import and export. Drawn in the `timeline` page of the screens canvas, `no-subscriptions`. While an OPML file is dragged over the window from Finder or Explorer, this empty state becomes a drop zone: the list area inset 16 gets a dashed 1.5 `Accent` outline with radius 14 and a `Soft(Accent)` fill, the tile turns to `Soft(Accent)` with an `Accent` upload icon, and the heading and hint become "Drop to import" and "Release an OPML file to add its subscriptions." (15 semibold and 13 `Text2`); the buttons give way. The outline and the words, not the color alone, say the zone is live; it is a polite status. It goes back as soon as the file leaves or drops. Drawn in the `timeline` page of the screens canvas, `no-subscriptions-drop`. Files dropped anywhere else in the window are not highlighted; they open Settings on Import and export and import there. While a dialog is open on the timeline the drop is refused with a toast, "Busy. Close the open window and try again." When a reading-time budget leaves nothing, the list shows the same pattern: a 48
-  tile with a clock, "Nothing fits in 10 minutes", the hint "Entries with no estimate, like pictures, are left out.",
-  and one secondary button, "Show any length", which clears the budget. Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
+  Settings on Import and export. Drawn in the `timeline` page of the screens canvas, `no-subscriptions`. While an OPML file is dragged over the window from Finder or Explorer, this empty state becomes a drop zone: the list area inset 16 gets a dashed 1.5 `Accent` outline with radius 14 and a `Soft(Accent)` fill, the tile turns to `Soft(Accent)` with an `Accent` upload icon, and the heading and hint become "Drop to import" and "Release an OPML file to add its subscriptions." (15 semibold and 13 `Text2`); the buttons give way. The outline and the words, not the color alone, say the zone is live; it is a polite status. It goes back as soon as the file leaves or drops. Drawn in the `timeline` page of the screens canvas, `no-subscriptions-drop`. Files dropped anywhere else in the window are not highlighted; they open Settings on Import and export and import there. While a dialog is open on the timeline the drop is refused with a toast, "Busy. Close the open window and try again." Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
   at the sides; a row is as high as its text, padded 16 with 14 between its parts, radius 12 when it has a fill, and
   an article's thumbnail, at most 96 by 64, radius 8, starts under the meta line and never makes the row taller. A
   row reads, top to bottom: the meta line (20 high: the site icon, the source name, a dot, the time, the reading
@@ -283,8 +272,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   three panes sit side by side: the ink sidebar, a list pane 320 wide and the reader pane filling the rest (at least
   480). The list pane draws Article rows. Its toolbar floats over it and keeps the scope title with the unread count
   (title above the count, so both fit 320 in either language), the filter as icons only (the segments keep their names for
-  the screen reader), the time range and search; the reading-time clock and Mark all as read are not drawn there, they stay
-  on their keys and in the List fallback. The reader pane is the reader itself, without its own sidebar: its toolbar is the
+  the screen reader), the time range and search; Mark all as read is not drawn there, it stays
+  on its keys and in the List fallback. The reader pane is the reader itself, without its own sidebar: its toolbar is the
   reader's (Summarize and Translate in the glass capsule, then Star, mark read or unread, Open in browser, Copy link and
   More), without Back and without the previous and next arrows, since J and K step and the list is beside it; the
   actions work from the pane. Until a post is open the pane has no toolbar and shows a centered `TextMuted` 15 "Choose a
@@ -299,12 +288,11 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   the `timeline` page of the screens canvas: `article-compact`, `social-compact`, `video-cover`, `video-list`, `image-grid`,
   `image-card` and `mixed-viewers`; with no state, `scope=video` and `scope=image` are the defaults, the grid and the
   wall.
-  **Grid switch.** A bare 32 square icon button right of the reading-time button, shown only in the Videos and Images
+  **Grid switch.** A bare 32 square icon button right of the time-range button, shown only in the Videos and Images
   scopes and in a single video or image subscription, never while searching. It is one toggle: while the list shows it
   draws the layout-grid icon, named and tooltipped "Show as grid"; while the grid shows it draws the list icon, named
   "Show as list". Same states as the other bare tool buttons (hover fill, focus ring), 16 icon in `TextMuted`. It does
-  not show a pressed state, since its icon already says which look comes next. At the minimum width it stays, as the
-  reading-time icon does. The grid it asks for is the kind's: the cover grid for videos, the wall for images, or the
+  not show a pressed state, since its icon already says which look comes next. At the minimum width it stays. The grid it asks for is the kind's: the cover grid for videos, the wall for images, or the
   square grid when the Images viewer is Grid; the list is the kind's other look. The choice belongs to the scope it was
   made in, overrides the viewer of Settings there, and is kept on this device. The app never suggests the grid. Drawn in
   the `timeline` page of the screens canvas: `image-switch` (Images switched to the list, so the switch shows the grid icon) and
@@ -315,8 +303,13 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   tile or monogram, the title 15 semibold, a 28 square bare close button), a form that scrolls when the window is too low while the header and the buttons stay (a `Border` line appears under
   the header once the form is scrolled and above the buttons while more is below),
   with `Space(3.5)` between fields and 20 to the sides, and a footer with the buttons at the right; in the edit
-  dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high; in the add dialog title and interval share a
-  row, in the edit dialog each has its own. Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` soft fill) or what
+  dialog "Delete…" sits alone at the left, in `Danger` without a fill. Fields are 32 high. The two dialogs hold only what is decided while
+  adding or glancing at one subscription; every other setting of a subscription lives on its page in Settings →
+  Subscriptions (below), so neither dialog has groups, disclosures or a long scroll. The add dialog has the address, then
+  "Show as" and "Folder" side by side (two selects of equal width, 12 gap, each with its 12 medium label above; "Show
+  as" shows the kind's 14 icon before its name), then one muted 12 line: the title comes from the feed and the interval
+  is set on its own, both changed later in More settings. "Folder" is absent while no folder exists, and "Show as" then
+  takes the row alone. There is no title field and no interval in the add dialog (`add`). Under the address, one line at a time: the error, the help, the RSSHub instance card (`Warning` soft fill) or what
   the address was recognized as (`Accent` soft fill, the address in monospace). An address that is a web page is looked up
   half a second after typing stops: the line reads "Looking for feeds…" with a spinning loader at 14 and Add is held. Every feed
   found is a row of the same recognized-as style (RSS icon, title or site and what it carries, the address in monospace, a check
@@ -340,84 +333,34 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   a 14 triangle with one sentence in `Warning` medium and a small secondary button under it, "Use my RSSHub instance"
   (an instance is set; it rewrites the field to the route only when pressed) or "Open settings" (none is set). Mockup
   states `add-public` and `add-public-no-instance`. When the site's bot protection turned a fetch away, the failure
-  text (health line, sidebar tooltip, toast) is one localized sentence in place of the raw HTTP text (`edit-blocked`). Other known failures (timeout, name not found, certificate, no connection, 401/403, 404/410, 429, 5xx, not a feed) read as a short phrase in the same places in place of the English text the server stores (`edit-failing`); the raw text is in the tooltip of the health line, the sidebar mark and the health list ("Original: …") and in the description a screen reader reads. Text it does not know is shown as it is. No new element: the line is the same, only its words and its tooltip change. The edit dialog starts with a health line
-  (`Surface`, or the `Warning` soft fill while fetches fail) with a small Refresh button, Try again while fetches fail.
-  For a route that has been fetched, a muted 12 line under it names the RSSHub instance that served the last fetch
-  (host only, "Served by fallback address {host}" with a second muted line saying the first address did not answer, when it is not the first of the list).
-  When the site has moved the feed for good (the server saw a permanent redirect to the same new address three times)
-  a moved card sits under that line and above the title: `Surface` fill, 8 radius, 10 12 padding, 8 between its parts,
+  text (health line, sidebar tooltip, toast) is one localized sentence in place of the raw HTTP text (`edit-blocked`). Other known failures (timeout, name not found, certificate, no connection, 401/403, 404/410, 429, 5xx, not a feed) read as a short phrase in the same places in place of the English text the server stores (`edit-failing`); the raw text is in the tooltip of the health line, the sidebar mark and the health list ("Original: …") and in the description a screen reader reads. Text it does not know is shown as it is. No new element: the line is the same, only its words and its tooltip change.
+  The edit dialog, 480 wide, keeps to the same few things, top to bottom: the health line (`Surface`, or the `Warning`
+  soft fill while fetches fail) with a small Refresh button, Try again while fetches fail;
+  for a route that has been fetched, a muted 12 line under it naming the RSSHub instance that served the last fetch
+  (host only, "Served by fallback address {host}" with a second muted line saying the first address did not answer, when it is not the first of the list);
+  when the site has moved the feed for good (the server saw a permanent redirect to the same new address three times)
+  the moved card: `Surface` fill, 8 radius, 10 12 padding, 8 between its parts,
   12 type. The head is a 14 `signpost` icon in `Accent` and "This subscription has moved to" in 12 medium `Text`; under it
   the new address in 12 monospace on `Text`, wrapping anywhere and selectable; then two small buttons, "Update address"
   (primary) and "Dismiss" (secondary). Neither belongs to the form: they act at once and Save does not carry them. If
   the new address is already another subscription, a 12 `Danger` error line with `circle-alert` sits between the address and the buttons and the
-  card stays (`edit-moved-exists`). After Update address the card is gone and the toast says "Address updated". Drawn in
-  the `subscriptions` page of the screens canvas, `edit-moved` and `edit-moved-exists`. The interval offers Auto
-  first, and an automatic subscription reads "Auto · 6 h" with the interval in use. When the first fetch found the feed to look like
-  another kind, a line in the style of the health line sits under the kind picker with the kind's icon, one sentence and a small
-  button "Show as Videos"; it only chooses the kind in the dialog.
-  Below the status lines the form has four groups, each opened by the same group title: an icon at 14 and the name in 12
-  medium `TextMuted` (a heading, level 3), with a fixed `Space(2)` extra above it, so a group reads as one block. The
-  groups follow what the user is doing, not the order the settings were added: "Display" (eye icon) holds the title,
-  on a row of its own, and "Show as" with the kind suggestion; "Fetching" (refresh icon) holds "Pause fetching" first, so
-  the switch sits next to the status line it changes, then the check interval, then "Extraction" and "Request headers";
-  "Timeline" (list-filter icon) holds "Hide from All" first, a switch row with the help "Only seen when you open this
-  subscription. Search and Starred still show it.", then "Folder" (a select, only when folders exist), then "Opens in",
-  "Keep entries", "Pace", "At most per day" and "Mute keywords";
-  "Summaries and translations" (sparkles icon) closes the dialog. One row style: a field, a select or a text box has its
-  12 medium label above the control with `Space(1)` between, and a muted 12 help line of at most one line under it, only
-  where the label does not say it already; a switch is the app-wide switch row, the label at the left and the switch at
-  the right, the label in the same 12 medium, with its help line under the label when it has one. The choice is
-  deliberate: a switch has two states and no room for a label above it, and the settings screen reads the same way, so
-  both kinds of row keep their familiar shape and only the type, the gaps and the help lines are shared. The disclosures
-  are not a third style: they are a label that opens more fields, left-aligned with the other labels (never centered or
-  full width), and the help of what is inside shows only when it is open. "Pause fetching" has no help line, the label
-  says it.
-  The interval offers Auto first, and an automatic subscription reads "Auto · 6 h" with the interval in use.
-  "Opens in" is the first select of the group, in the same style: "Follow the kind" is the default, then "In the reader"
-  and "In the browser"; the help line says where a click on the entries goes.
-  "Keep entries" is a full-width select in the style of the interval: "Follow settings · 1 month" (the global period
-  after the dot) is the default, then 1 week to 1 year and Forever, and an "N d" row when the stored number is none of
-  those; the help line says starred entries are always kept. "Pace" follows in the same style: Off is the default, then
-  Breaking (3 h), Daily (2 days) and Weekly (7 days), and an "N h" or "N d" row when the stored number is none of
-  those; the help line says unread entries fade, then leave All and Unread. "At most per day" is a select in the same
-  style: Off is the default, then 5, 10, 20 and 50 entries, and an "N entries" row when the stored number is none of
-  those; the help line says the extra entries fold into one row in All and Unread until it is opened (`edit-cap` in the
-  mockup). "Mute keywords" is a box two lines high
-  that grows with its content up to six, with a help line (one per line, starred entries stay visible) and, under it,
-  the count line below. "Extraction" is a disclosure row (12 medium, a chevron that turns from right to down), aligned
-  to the left with the labels, collapsed unless one of its three fields is set and with no help line while collapsed
-  (`edit-extract` in the mockup). Opened, it starts with a muted 12 line saying that an empty field uses automatic
-  extraction, then a "Content selector" box, a "Referer" box and a "Link rewrites" box (monospace, three lines that
-  grow to eight, one `from => to` per line), each with a one-line help. Saving checks the three on the server, and a
-  refusal shows under the field it concerns, in the field's error style. "Request headers" follows in the same
-  disclosure style (`edit-headers-empty`, `edit-headers`, `edit-headers-error`), collapsed unless one of its two
-  fields is set and without help while collapsed: a "User-Agent" box and a "Referer" box, each with a one-line help
-  that says where it is sent, and a closing muted 12 note: cookies and sign-in are not supported, the headers go only
-  to the subscription's own site, and a site that blocks Oriel stays blocked. The placeholder of User-Agent is the one
-  Oriel sends (`Oriel/{version}`) and the Referer's is `https://example.com/`, so an empty box reads as the default.
-  There is no "header name" field and no third box. "Proxy" is a third disclosure row, in the same style, for every
-  subscription (a route-only one too: its fetches go through the proxy as well), collapsed while the subscription
-  follows the settings and without help while collapsed. Opened, it has a full-width select "Connection" (the style
-  of the interval) with three choices, "Follow settings" (the default; the help says it uses the proxy from Settings →
-  Fetching, if there is one), "Direct connection" (the help says this subscription goes without a proxy even when
-  Settings has one) and "Custom address". Custom adds a monospace "Proxy address" box with a help line, a "User name"
-  and a "Password" box (the password masked) with a muted note that they are kept on the server and never shown again,
-  and, while a sign-in is stored, a small "Remove sign-in" button; the boxes are empty with the placeholder "Set"
-  while a sign-in is stored, "Optional" otherwise. The button waits for Save, as everything in the dialog does: the
-  button goes away and the placeholders read "Optional". Changing the address drops a stored sign-in on the server
-  unless new ones are typed. A refused address shows in the error style under the box (`edit-proxy`,
-  `edit-proxy-direct`, `edit-proxy-custom`, `edit-proxy-error`). A refusal from the server shows under the field it
-  concerns in the error style, and the box takes the `Danger` outline. A subscription kept as an RSSHub route only has
-  no Request headers row, but it has the Proxy row. The last group, "Summaries and translations", has three switches:
-  the two that queue new entries and "Translate titles", with a one-line 12 `TextMuted` help ("Translate new titles into
-  your language; the original stays under it."); it is drawn in the `subscriptions` page of the screens canvas, `edit-titles`. Then two monospace prompt boxes, three lines that grow to eight, whose placeholder says the
-  empty box uses the prompt in Settings. While AI is not set up a line on `Surface` in `TextMuted` says so, with a small
-  "Open settings".
-  Under the mute keywords, after their help, a second 12 `TextMuted` line (tabular figures, a status text) says how many
-  entries the keywords hide now: "{n} hidden now." (「现在隐藏了 {n} 条。」) or "Nothing hidden now." (「现在没有隐藏的条目。」).
-  It follows the box as keywords are typed, after a short pause; until the new number arrives the old one stays, with
-  no spinner. With no keywords, or if the count cannot be read, the line is not drawn. Drawn in
-  the `subscriptions` page of the screens canvas, `edit` and `edit-mute-none`.
+  card stays (`edit-moved-exists`). After Update address the card is gone and the toast says "Address updated" (`edit-moved`).
+  Then the Title field on a row of its own, then "Show as" and "Folder" side by side as in the add dialog (`edit-folder`
+  with the folder list open). When the first fetch found the feed to look like another kind, a line in the style of the
+  health line sits under that pair with the kind's icon, one sentence and a small button "Show as Videos"; it only
+  chooses the kind in the dialog (`edit-suggest`). Then the two switches, between two `Border` hairlines with 12 above
+  and below and 14 between them: "Pause fetching" (no help line, the label says it; `edit-paused`) and "Hide from All"
+  with the help "Only seen when you open this subscription. Search and Starred still show it." (`edit-hidden`). A
+  switch is the app-wide switch row, the label at the left in 12 medium and the switch at the right; a field or a select
+  has its 12 medium label above with `Space(1)` between. The form ends with the "More settings" row: full width, at
+  least 48 high, 8 12 padding, 10 radius, `Surface` fill (a slightly darker fill on hover), a 16 `sliders-horizontal`
+  in `TextMuted`, "More settings" in 13 medium over a muted 12 line that names what is there, "Interval, extraction,
+  proxy, keywords, summaries" (one line, cut with an ellipsis), and a 14 `chevron-right`. It is a button: it closes the
+  dialog, keeping nothing unsaved (when the form has changes, it saves them first, as Save would, and stays open on a
+  refusal), and opens Settings → Subscriptions on this subscription's page. The footer has "Delete…" alone at the left,
+  in `Danger` without a fill, then Cancel and Save. Drawn in the `subscriptions` page of the screens canvas, `edit`,
+  `edit-failing`, `edit-blocked`, `edit-paused`, `edit-hidden`, `edit-folder`, `edit-suggest`, `edit-moved` and
+  `edit-moved-exists`.
 - **Subscription health.** A dialog 480 wide like the edit dialog opened from the command palette action
   "Subscription health…"; the sidebar has no entry for it. Header: the `heart-pulse` icon, the title and a muted line,
   "Sources that need a decision. Nothing changes until you choose." Body, one state at a time: loading is a muted line
@@ -443,47 +386,109 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   away, with the announcement "Showed {n} entries". It is not part of j and k, "next unread" or "mark visible"; Tab
   reaches it. Its accessible name is "{n} more from {name}, show". Drawn in the `timeline` page of the screens canvas, `folded`
   and `folded-focus`; the grid and wall layouts do not fold.
-- **Manage subscriptions.** A dialog 640 wide, opened from the command palette action "Manage subscriptions…" and the
-  menu item "Subscriptions > Manage subscriptions…"; the sidebar gets no checkboxes. Header: the `list-checks` icon, the
-  title and a muted line, "Select several to change them together." Under it a filter field (the settings search field),
-  then, in the same 40-high band slot, one of two things. With nothing selected, a plain "Select all" row: the
-  checkbox, the label in `TextSecondary`, and "{n} subscriptions" muted 12 tabular at the right. With a selection, the
-  action bar replaces it: an `AccentSoft` band, 10 radius, 6 gaps; the tri-state checkbox, "{n} selected" (13 medium,
-  tabular), the small buttons "Pause" (`pause`) and "Resume" (`play`) (each drawn only when some selected row needs it,
-  so both show for a mixed selection), "Change settings…" (`sliders-horizontal`), "Delete…" (`trash2`, `Danger` text, no
-  fill), and at the far right a 28 square quiet `x` that clears the selection. The buttons sit on `Raised` with the edge
-  hairline so they read on the band. The checkbox is 16, radius 4, a 1.5 `EdgeLine` ring on `Raised`; checked it is
-  filled `Accent` with a 14 `check`, partly selected a 14 `minus`. Rows are 48 high, 12 horizontal and 6 vertical padding,
-  8 radius, 2 apart, no hairlines: checkbox, the glyph (16), then the title (13 medium, one line, with the 14
-  `triangle-alert` in `Warning` for a failing source and a 14 `pause` in `TextMuted` for a paused one) over a muted 12
-  line, "Every 6 hours · Articles · Keep 1 month" ("Auto · 6 h" when the interval follows the server). A paused row's
-  title is `TextMuted`, regular. A selected row is filled `AccentSoft`; the keyboard focus ring is the usual 2 `Focus`
-  ring around the row. The list scrolls inside the dialog; the footer has the hint "Shift selects a range, ⌘/Ctrl adds
-  one." at the left and "Close" at the right.
-  The settings sheet is the 440 dialog stacked over the list (the list stays visible and dimmed behind): header
-  `sliders-horizontal`, "Change settings for {n} subscriptions" and "Only the fields you change are sent."; three fields,
-  "Check every", "Show as", "Keep entries", each a select that starts on "Keep as is" in `TextMuted`, with a muted 12
-  line under it, "Now: {value}" or "Now: mixed". A field that was changed shows its value in `Text`. "Apply" is primary
-  and disabled until a field changed; "Cancel" beside it. Delete uses the standard delete alert, "Delete {n}
-  subscriptions?", with the danger tile, the usual body and Cancel and Delete. When the run is done the rows leave the list and the
-  toast, "Deleted {n} subscriptions" with Undo and close, sits at the bottom of the window over the dialog, drawn like
-  the single-delete toast.
-  A running action replaces the bar with a muted line, a spinning `loader-circle` and "Pausing… 5 of 8"; the rows dim to
-  55 %, the filter field, Close and the close button are disabled. A partial failure draws a result band between the
-  filter and the bar: `DangerSoft`, 10 radius, a 14 `circle-alert`, "Paused 5. 3 couldn’t be finished." (12 `Danger`),
-  and two small buttons, "Try again" and "Dismiss", at the right. The failed rows stay selected and carry a third line, a
-  14 `circle-alert` and the reason ("Couldn’t reach the server", "It no longer exists", "The server had an error") in
-  12 `Danger`; the succeeded rows are no longer selected. The band stays until dismissed. When a delete partly fails the
-  toast is still drawn for the ones that went through.
-  Drawn in the `subscriptions` page of the screens canvas: `manage` (nothing selected), `manage-selected` (three selected, one
-  paused, one with the focus ring), `manage-all`, `manage-change` (all fields "Keep as is", Apply disabled),
-  `manage-change-set`, `manage-working`, `manage-partial`, `manage-delete`, `manage-deleted` and
-  `manage-deleted-partial`. Accessibility: the dialog is labeled by its title; the list is a multi-selectable listbox and
-  each row an option named "{title}, {interval}, {kind}, paused", with its reason appended after a failure; the action bar
-  is a toolbar named "Actions for {n} selected subscriptions" and its buttons carry the count ("Pause {n}
-  subscriptions"); the count, progress and result are announced with `Announce`; the result band is an alert. The
-  checkbox is never the only way: Space, Shift+Arrow and ⌘/Ctrl+A do the same from the keyboard, and a selected row is
-  told by its state, not by the fill alone.
+- **Settings → Subscriptions.** The second group of Settings (`list-checks` icon), after Appearance: every
+  subscription of the server, and the one place where all of a subscription's settings are. A form page in width (600).
+  It has two levels in the same column: the list, and one subscription's page opened from it.
+  *The list.* The lead line ("Every subscription on this server. Open one to change all of its settings, or select
+  several to change them together.") shares its row with a small primary "Add subscription" (`plus`), which opens the
+  add dialog over the settings. Under it, a 40 high tools row, 16 left and 8 right padding: the select-all checkbox, a
+  32 high filter field ("Filter by name or address", a 14 `search`, `Raised` with the edge hairline, filling the
+  row) and a kinds select ("All kinds", then each kind). Under it the list is one card, a multi-selectable listbox:
+  rows at least 56 high, 10 16 padding, 12 gap, a hairline between rows as in every settings card: the checkbox, the
+  glyph (28 square, 7 radius, the monogram on `Track`), the name (13 medium, one line, followed by a 13 `pause` for a
+  paused subscription and a 13 `eye-off` for one hidden from All, both `TextMuted`, with tooltips) over a 12 muted
+  meta line, "Articles · Reading · Auto · 6 h" (kind, folder or "No folder", interval); a failing subscription's
+  meta line is `Danger` with a 13 `circle-alert` and the failure, "Failed 3 times · the site answered 503". A 14
+  `chevron-right` in `TextMuted` closes the row. Under the card a 12 muted line counts them, "18 subscriptions". The
+  checkbox is 16, radius 5, a 1 `EdgeLine` ring on `Raised`; checked it is filled `Accent` with a 12 `check`, partly
+  checked (select-all over a partial selection) an 8 wide bar. A selected row is filled `AccentSoft`, with no hairline
+  next to it. The filter and the kinds select work locally; rows that go out of view are unselected, so an action only
+  ever touches visible subscriptions (`subs`).
+  Selecting: a click on the checkbox toggles the row; a click elsewhere on the row, or Enter on it, opens its page.
+  Cmd/Ctrl+click toggles a row and Shift+click selects the range from the last clicked row. From the keyboard the list
+  is one tab stop; Up and Down move the focus, Home and End go to the ends, Space toggles the focused row, Shift+Up and
+  Shift+Down extend the range from the anchor, Cmd/Ctrl+A selects every visible row, and Escape clears the selection
+  before it does anything else. Down in the filter field moves the focus to the list.
+  With a selection the tools row turns into the action bar, in the same 40 slot: `AccentSoft` band, 10 radius, 8 gaps;
+  the tri-state checkbox, "3 selected" (13 medium, tabular), the small buttons "Change…" (`sliders-horizontal`),
+  "Pause" (`pause`; "Resume" with `play` when every selected one is paused, both for a mixed selection), "Refresh"
+  (`refresh-cw`) and "Delete…" (`trash2`, `Danger` text, no fill), and at the far right a 28 square quiet `x` that
+  clears the selection (`subs-selected`). The buttons sit on `Raised` with the edge hairline so they read on the band.
+  "Change…" opens a sheet over the settings, 520 wide, the Dialog level as the add dialog: header "Change 3
+  subscriptions" and the muted line "Only the items you change are applied; the rest stay as each subscription has
+  them."; then eight selects in two columns (12 gap): "Show as", "Folder", "Check every", "Opens in", "Keep
+  entries", "Proxy" (Follow settings or Direct connection; a custom address is set on one subscription's page),
+  "Pause fetching" and "Hide from All" (the two switches as selects: Leave as is, On, Off). Each starts on "Leave as
+  is" in `TextMuted`; a changed one shows its value in `Text`. "Apply" is primary and disabled until something
+  changed; Cancel sends nothing (`subs-change`, with Folder changed). Running, the bar keeps its checkbox and count and shows a spinning `loader-circle` with "Applying
+  to 3 subscriptions…" in place of the buttons; the list, the filter and the bar are disabled and Escape does nothing
+  (`subs-working`). A partial failure puts a result band between the bar and the list: `Surface`, 10 radius, a 14
+  `triangle-alert` in `Warning`, one line naming what failed and why ("Changed 2 of 3. Daring Fireball could not be
+  saved: the server did not answer."), and a small "Try again" for the failed ones; the failed rows stay selected, the
+  others are unselected (`subs-partial`). The band stays until the selection changes or another action runs. Delete
+  uses the standard delete alert, "Delete 3 subscriptions?" with the danger tile, the usual body and Cancel and Delete
+  (`subs-delete`); when it is done the rows leave the list and the toast "Deleted 3 subscriptions" with Undo and close
+  sits at the bottom of the window, drawn like the single-delete toast (`subs-deleted`). Accessibility: the list is a
+  multi-selectable listbox named "Subscriptions", each row an option named "{title}, {kind}, {folder}, {interval}",
+  with "paused", "hidden from All" or the failure appended; the action bar is a toolbar named by the count; the count
+  (after the selection settles for half a second), progress and result are announced with `Announce`; the result band
+  is an alert. The checkbox is never the only way, and a selected row is told by its state, not by the fill alone.
+  *A subscription's page.* The toolbar title becomes a crumb, a quiet "‹ Subscriptions" button, a `/` in `TextMuted`
+  and the subscription's name; the button and Escape (under the usual Escape rule of Settings) go back to the list
+  with the row focused. The page opens from a row, from "More settings" in the edit dialog and from the palette
+  action of the focused subscription; it never opens a dialog. It is the cards of a settings page, each under an 11
+  section title, and every row is the settings row: a select, a switch or a field in the row style of the other pages.
+  First a head card, 28 below it: the glyph at 40 (10 radius, 16 monogram), the name in 15 semibold over the address
+  in 12 monospace `TextMuted` (selectable), a small "Refresh" (`refresh-cw`; "Try again" while failing) at the right,
+  and under them the health line in 12: `TextMuted` with a 14 `check` ("Checked 5 min ago · next in 10 min"), or the
+  `Danger` error line with the full failure while fetches fail (`sub-error`); the RSSHub instance line and the moved
+  card of the edit dialog sit here too, under the same rules. Then four cards:
+  "General": Title (a field with the help "Empty uses the title from the feed."), "Show as" (with the kind's icon),
+  "Folder" ("A subscription is in one folder at most.", absent while no folder exists), "Pause fetching" ("Keeps its
+  entries; nothing new arrives until you resume.") and "Hide from All".
+  "Fetching": "Check every" (Auto first; an automatic subscription reads "Auto · 6 h" with the interval in use; the
+  help says Auto follows how often the feed publishes, between 15 minutes and a day), "Extraction", "Request headers"
+  and "Proxy". "Extraction" and "Request headers" are disclosure rows: the label and its one-line help at the left,
+  the current value in `TextMuted` at the right ("Automatic", "None", or what is set) and a 14 chevron that turns
+  from right to down; opened, their fields follow under a hairline, 14 above and below. Extraction holds a muted 12
+  line saying an empty field uses automatic extraction, then "Content selector", "Referer" and "Link rewrites"
+  (monospace, three lines that grow to eight, one `from => to` per line), each with a one-line help; a refusal from the
+  server shows under the field it concerns in the error style. Request headers holds a "User-Agent" box (placeholder
+  `Oriel/{version}`, the one Oriel sends; help: also used for its entry pages) and a "Referer" box (placeholder
+  `https://example.com/`), and the help says cookies and sign-in are not supported and the headers go only to this
+  site (`sub-headers`). A subscription kept as an RSSHub route only has no Request headers row. "Proxy" is a select at
+  the right of its row, for every subscription: "Follow settings · Off" (the global proxy after the dot; the default),
+  "Direct connection" and "Custom address"; the help says it uses the proxy from Settings → Fetching unless another
+  is chosen. Custom opens a "Proxy address" box (monospace) under the row, then a "User name" and a "Password" box (the
+  password masked) with the muted note that they are kept on the server and never shown again, and a small "Remove
+  sign-in" while one is stored; the boxes read "Set" while a sign-in is stored and "Optional" otherwise, and changing
+  the address drops a stored sign-in unless new ones are typed. A refused address takes the `Danger` outline and the
+  error line (`sub-proxy`).
+  "Timeline": "Opens in" ("Follow the kind", "In the reader", "In the browser"; the help says where a click on its
+  entries goes), "Keep entries" ("Follow settings · 3 months" with the global period after the dot, then 1 week to 1
+  year and Forever, and an "N d" row when the stored number is none of those; starred entries are always kept),
+  "Pace" (Off, Breaking 3 h, Daily 2 days, Weekly 7 days, and an "N h" or "N d" row for another stored number; unread
+  entries fade after a while, then leave All and Unread), "At most per day" (No limit, 5, 10, 20, 50, and an "N
+  entries" row; extra entries fold into one row in All and Unread until it is opened) and "Mute keywords": a box two
+  lines high that grows with its content up to six, the help "One per line; starred entries stay visible.", and under
+  it one row with the count at the left and Save at the right. The count is a 12 `TextMuted` status (tabular): "{n}
+  hidden now." (「现在隐藏了 {n} 条。」) or "Nothing hidden now." (「现在没有隐藏的条目。」); it follows the box as keywords
+  are typed, after a short pause, the old number staying until the new one arrives, with no spinner, and it is not
+  drawn with no keywords or when the count cannot be read (`sub-edited`, with Cancel beside Save).
+  "Summaries and translations": while AI is not set up a first row holds the note "AI isn’t set up, so nothing is
+  summarized or translated yet." (`sparkles`) with a small "Set up AI" (`sub-ai-off`); then the switches "Summarize
+  new entries" and "Translate new entries" (help: only entries that arrive after it is turned on) and "Translate
+  titles" ("Translate new titles into your language; the original stays under it."), then the "Custom prompts"
+  disclosure (value "Using Settings"; two monospace prompt boxes, three lines that grow to eight, whose placeholder
+  says the empty box uses the prompt in Settings → AI).
+  Last, a "Delete" card with one row: "Delete subscription", the help "Its entries are deleted too; starred entries
+  stay." and a small "Delete…" in `Danger` text, which opens the standard delete alert and then goes back to the list.
+  Saving follows the other settings pages: a select or a switch applies at once (one `PATCH` with that field); a text
+  box (Title, Extraction, Request headers, the proxy boxes, Mute keywords, the prompts) carries a Save in its own row
+  or disclosure, quiet until it changed and primary after, so the unsaved-changes rule of Settings covers each of them.
+  Drawn in the `settings` page of the screens canvas, `subs`, `subs-selected`, `subs-change`, `subs-working`,
+  `subs-partial`, `subs-delete`, `subs-deleted`, `sub`, `sub-headers`, `sub-proxy`, `sub-edited`, `sub-error` and
+  `sub-ai-off`.
 - **Hiding the sidebar.** The button sits in the pane's top 40, at its right end, centered on the pane line (25 from the pane's edge, like the add, Unread first and settings buttons) and on the toolbar row's middle line,
   level with the window buttons at the left; it is a bare 32 square icon button with
   the Lucide `panel-left` icon (16, `toolFill` colors, radius 8), named "Hide sidebar" while the pane shows and "Show
@@ -938,7 +943,7 @@ What Oriel uses today:
 | `ui.Icon` | Lucide icons from `internal/ui/icons`. |
 | `ui.SegmentedBase` | The timeline's list of kinds and its Everything/Unread/Starred filter, the kind of a subscription, and the reader's Translation/Original switch, drawn in the Oriel look. |
 | Select trigger | The button of a popup menu in Settings (Interface language, Interface font, Reading font, Output language, Keep entries): it hugs its content, label then a normal gap (8) then the chevron, 32 high, padding 10 left and 8 right, at least 72 wide so a very short label is not a chip and at most 240 (a longer label is cut with an ellipsis). It is never stretched to a common column width, so there is no gap between label and chevron beyond the normal one. The menu it opens may be wider than the trigger (at least 160). Form fields that fill their row (the select in a subscription form) are fields, not triggers, and keep the full width. |
-| `ui.DialogBase` | The add and edit subscription dialogs: Escape and a click outside close them, the window's keys stop behind them, and the focus goes back where it was. |
+| `ui.DialogBase` | The add and edit subscription dialogs and the change sheet of Settings → Subscriptions: Escape and a click outside close them, the window's keys stop behind them, and the focus goes back where it was. |
 | Add and continue | The footer of the add dialog is Cancel, "Add and continue" (a secondary button, Cmd/Ctrl+Enter, listed in the key sheet under "Anywhere" and with no tooltip, as its label is visible) and the primary "Add". Adding with "Add and continue" keeps the dialog open: the address and title empty, the kind and the focus back on the address, and above the address a status row (`Success` at 12% fill, a check at 16, 13 medium text) saying "Added “name”", then "Added “name” · 2 added" and so on, announced when it changes. Cancel turns into "Done" once something was added. A failed address shows its reason under the field as before and the row stays, so one failure blocks nothing. Mockup state `add-more`. |
 | `ui.SelectBase`, `ui.Switch`, `ui.TextArea` | A subscription's fetch interval and keep period, its pause switch and its mute keywords. |
 | `Element.ContextMenu` | Right click on a subscription: Refresh (Try again on a failing one), Mark subscription as read, Mark older than 1 day as read, Mark older than 1 week as read, Mark older than 1 month as read (dimmed with Mark subscription as read), Edit…, Pause or Resume, Hide from All or Show in All, the submenu Move to folder (No folder, the folders with a check on the current one, and under a hairline New folder…), a hairline, Delete…. Right click on a folder: Rename…, Delete folder…. Right click on an entry: Star, Mark as read or unread, the submenu Remind me later (In 1 hour, This evening, Tomorrow morning, Next week, and under a hairline Cancel reminder while one is set; `menu-remind`, `menu-remind-set`) and Open in browser, as on the row, then Copy link (dimmed for an entry with no link), a hairline, Copy as Markdown, Save as Markdown…, a hairline, Mark above as read and Mark below as read. Right click on the mark all as read button: Mark all in “…” as read (as the click), a hairline, Mark older than 1 day / 1 week / 1 month as read, dimmed where the button is; `menu-markall`, `menu-feed` and `menu-entry` (`menu-entry-first` and `menu-entry-last` dim one of the two) in the `timeline` page of the screens canvas. The menu is the platform's own, so its items are text only, with no icons or key hints; an item that has nothing to do (no unread above or below the entry, none in the subscription) is dimmed and does nothing. |
@@ -1109,7 +1114,7 @@ Overlays share focus and Escape behavior; see
 - **Toolbar buttons.** One spec for every bare icon button in a toolbar, in the timeline and the reader alike: 32 by 32, a 16
   icon, radius 8, 4 between neighbors. No fill at rest; hovered `SurfaceHover`, pressed `SurfacePressed`; the icon is
   `TextMuted`, `Text` when hovered or pressed; disabled keeps no fill and the icon turns `Disabled`; an on button (the
-  reading-time budget, a pressed toggle) sits on `Soft(Accent)` in `Accent`, and a starred one is `Star`. A button that does not apply to the
+  time range while one is chosen, a pressed toggle) sits on `Soft(Accent)` in `Accent`, and a starred one is `Star`. A button that does not apply to the
   current article is disabled, never hidden, so the toolbar keeps its shape; it keeps its place and its label, greyed, and its
   tooltip and accessible name give the reason (Translate on an article already in the target language still reads
   "Translate"; the tooltip and name say "Already in Simplified Chinese"). It takes no focus or click. The glass capsule and search are pills (radius 16) of their own. The row actions on a row
@@ -1179,9 +1184,9 @@ Overlays share focus and Escape behavior; see
   an alert, "Delete the folder “{name}”?", saying its subscriptions stay and become unfiled (`folder-delete`). A
   subscription's context menu has "Move to folder" after Hide from All: a submenu with No folder, each folder with a
   check on the current one, and under a hairline "New folder…", which names a folder and puts the subscription in it
-  (`menu-move`, `menu-feed-move`). The edit dialog has a Folder select under Hide from All, with the help "A
-  subscription is in one folder at most. The sidebar groups subscriptions by folder.", shown only when there are folders
-  (`edit-folder`).
+  (`menu-move`, `menu-feed-move`). The add and edit dialogs have a Folder select beside Show as, and a subscription's page in
+  Settings → Subscriptions has it in General, with the help "A subscription is in one folder at most."; it is shown only
+  when there are folders (`edit-folder`).
 - **Sidebar filter and sort.** Under the Subscriptions heading, above the list, one row 28 high with a 4 gap, inset 3 at the
   right so the toggle sits on the pane line: the filter field, which grows, and the Unread first toggle (`side-filter`, `side-filter-none` and
   `side-unread-first` in the mockup). The field is a flat fill of the pane's hover (pane ink 5.5%, 8.5% under the
@@ -1229,11 +1234,11 @@ Overlays share focus and Escape behavior; see
   links. Every icon-only toolbar button names its key in the tooltip; the back button carries its name as text and has no
   tooltip, its key is in the key sheet.
 - **Settings.** The settings take the whole window, in place of the timeline: their own sidebar has "Back to the
-  timeline" on top, one item per group (Appearance, Fetching, Rules, Import and export, AI, Devices, Activity and storage) and the server bar, which says whose
+  timeline" on top, one item per group (Appearance, Subscriptions, Fetching, Rules, Import and export, AI, Devices, Activity and storage) and the server bar, which says whose
   settings these are and does not open the connect screen. They open from the gear beside the timeline's server bar
   or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. Escape never throws typing away: with a text field focused it only takes the focus off the field (to the back button; the text stays), and with text not saved (AI endpoint, model, key, language and limits, the prompts, the RSSHub instances, the muted keywords) it does not leave and the page does not change, it only announces "Some changes are not saved" with `Announce` (no new dialog or visual; the Save button already turns primary); otherwise it returns. The back button always returns. A MyGo text field does not consume Escape (the headless test shows it reaches the window shortcut), so the page decides. The page's toolbar title lines up with the left edge
   of its content column. **Page width.** A page is one column centered in the room beside the sidebar, its width
-  taken from the page and the room, not from the window: a form page (Appearance, Fetching, Rules, Import and export, Activity and storage) keeps
+  taken from the page and the room, not from the window: a form page (Appearance, Subscriptions, Fetching, Rules, Import and export, Activity and storage) keeps
   a column at most 600 wide, padding included, for a readable line; Devices is a list and widens to 880 once the room
   is 656 wide (a window of 880); AI splits in two columns, 1040 wide at most with a 24 gap, once the room is 976 wide
   (a window of 1200). Below those widths a page is the single 600 column, padded 32 (20 below a 760 wide window).
@@ -1265,7 +1270,7 @@ Overlays share focus and Escape behavior; see
   the AI key), a help line (kept on the server, never shown again) and two boxes side by side, "User name" and
   "Password" (the password is masked). The server never returns the user name or the password, so while a sign-in is
   stored both boxes are empty and their placeholder reads "Set"; with none stored it reads "Optional". A small button
-  "Remove sign-in" sits under the boxes while one is stored. It waits for Save, like the edit dialog: pressing it sends
+  "Remove sign-in" sits under the boxes while one is stored. It waits for Save, like the one on a subscription's page: pressing it sends
   nothing, the badge turns to Not configured, the placeholders to "Optional", the button goes away and Save becomes
   primary; leaving the page without saving drops the removal (the unsaved-changes prompt covers it). Changing the
   address while a sign-in is stored adds a warning line (14 triangle in `Warning`, 12 `Text`): saving another address
@@ -1415,8 +1420,8 @@ MyGo exposes native UI to VoiceOver, Narrator, NVDA and Orca; see
 - [ ] Immersive reading announces "Immersive reading on" and "Immersive reading off", keeps the focus on the article, leaves with Z or Escape, and needs no pointer for any reader action.
 - [ ] Find in the article announces the match count ("2 of 4", "No matches") as it changes, highlights the current match by underline as well as fill, keeps text inside matches at 4.5:1 or more in both schemes, and Escape closes it with the focus back on the article.
 - [ ] The lightbox is a dialog named for its entry; paging announces "Picture {n} of {total}", every button has a name, the focus order is bar, then Previous and Next, and Escape closes it with the focus back on its row.
-- [ ] A row's screen-reader label reads source, title, time, reading time, unread or read, starred; the reading-time
-      button's name states the current budget and the time-range button's the current range, and their menu items
+- [ ] A row's screen-reader label reads source, title, time, reading time, unread or read, starred; the time-range
+      button's name states the current range and, when it is oldest first, the order, and its menu items
       are radio items with the current one checked.
 - [ ] Text uses theme sizes (`Rem`) and scales; layouts reflow at larger text and in the longer translation.
 - [ ] Colors are theme roles; contrast holds in both appearances and with high contrast on, and on every Reading appearance (the numbers are in tokens.md, Reading appearance presets).
@@ -1495,7 +1500,7 @@ color, and the row actions fade. See
   | kind | 形态 | Not 类型, which is left to the technical sense. |
   | mark as read | 标为已读 | Sentences use 把 ("把上面的标为已读"), not 将. |
   | star | 收藏 | |
-  | reading time | 阅读时间 | The row label is "{n} 分钟阅读"; the filter is "阅读时长" in its name ("阅读时长：10 分钟内") and "{n} 分钟内" in its menu. |
+  | reading time | 阅读时间 | The row label is "{n} 分钟阅读"; there is no reading-time filter. |
   | sign in, sign out | 登录, 退出登录 | A device is signed out, never "吊销". |
   | password | 口令 | |
   | server | 服务端 | Not 服务器, which names the machine. |

@@ -51,7 +51,7 @@ type copy struct {
 	PanePlaceholder, PaneHint, KeyFind, KeyImmersive, KeyImmersiveExit, PaletteExitImmersive, ImmersiveOn, ImmersiveOff                                                 string
 	KeyBack, KeyAdd, KeyAddContinue, KeySettings, KeyKeys, FailingName, FailingUnread, FailingCount, FailingShow                                                        string
 	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkBelow, MarkedBelow, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                 string
-	TimeAny, TimeUpTo, TimeChip, TimeNameAny, TimeNameUpTo, ReadingTime, NothingFits, NothingFitsHint, AnyLength                                                        string
+	ReadingTime                                                                                                                                                         string
 	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteManage, PaletteActions, PaletteUnreadOnly, PaletteShowAll     string
 	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, PageActivity, HideSidebar, ShowSidebar, KeyToggleSidebar string
 	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                                      string
@@ -183,12 +183,10 @@ const keepLists = 8
 // no loading state at all.
 const skeletonDelay = 300 * time.Millisecond
 
-// listKey is what defines a list: the scope, the filter, the reading-time budget and the time range. A search is not
-// kept.
+// listKey is what defines a list: the scope, the filter, the time range and the order. A search is not kept.
 type listKey struct {
 	scope  scope
 	filter int
-	budget int
 	span   int
 	oldest bool // oldest first
 }
@@ -202,9 +200,6 @@ const (
 
 // spans are the time ranges in the order the menu and T go through them.
 var spans = []int{anyTime, today, lastDay}
-
-// budgets are the reading-time budgets the menu offers, in minutes; 0 is any length.
-var budgets = []int{5, 10, 15, 30}
 
 // snapshot is a list left, kept to draw again, where it was, when it is chosen again.
 type snapshot struct {
@@ -263,7 +258,6 @@ type Screen struct {
 	scope       scope
 	tab         int  // the tab of scope.kind
 	filter      int  // everything, unread or starred
-	budget      int  // the most minutes an entry may take to read, 0 for any length; not kept between servers
 	span        int  // the time range: anyTime, today or lastDay; kept with the scope and the filter
 	oldest      bool // the list runs oldest first, as the preferences of this device choose
 	restoring   bool // the scope is a subscription kept from the last run, to check when the sources load
@@ -452,7 +446,7 @@ func (s *Screen) Use(api API, server string) {
 	s.sources, s.sourcesLoaded = nil, false
 	s.setUnread(0)
 	s.sourcesGen++
-	s.scope, s.tab, s.filter, s.budget, s.span = scope{}, 0, everything, 0, anyTime
+	s.scope, s.tab, s.filter, s.span = scope{}, 0, everything, anyTime
 	s.restorePlace()
 	s.oldest = s.views().OldestFirst
 	s.query, s.searched, s.editing = "", "", false
@@ -816,7 +810,7 @@ func (s *Screen) checkRestored() {
 
 func (s *Screen) query1(cursor string) client.Query {
 	q := client.Query{Source: s.scope.source, Unread: s.filter == unread, Starred: s.filter == starred,
-		MaxMinutes: s.budget, Since: s.since(), Search: s.searched, Limit: pageSize, Cursor: cursor, Oldest: s.oldest}
+		Since: s.since(), Search: s.searched, Limit: pageSize, Cursor: cursor, Oldest: s.oldest}
 	if s.scope.source == 0 {
 		q.Kind = s.scope.kind
 		q.Folder = s.scope.folder
@@ -889,7 +883,7 @@ func (s *Screen) retryPictures() {
 	s.pics.ForgetFailed()
 }
 
-func (s *Screen) key() listKey { return listKey{s.scope, s.filter, s.budget, s.span, s.oldest} }
+func (s *Screen) key() listKey { return listKey{s.scope, s.filter, s.span, s.oldest} }
 
 // views are the viewers of the four kinds, as the preferences of this device choose them: the defaults where the
 // screen has no preferences to read.
@@ -1121,10 +1115,10 @@ func markerOf(e client.Entry) prefs.Marker { return prefs.Marker{At: e.CreatedAt
 
 // movesMarker tells whether the list on screen may move the marker: only the list of everything, in the order of the
 // whole timeline, newest first, has the newest entry there is as its first. In a kind, a subscription, Unread,
-// Starred, a reading time, a search or oldest first the first entry is not that, so those only read the marker.
+// Starred, a time range, a search or oldest first the first entry is not that, so those only read the marker.
 func (s *Screen) movesMarker() bool {
 	return s.api != nil && s.reading == 0 && !s.loading && !s.loadErr && len(s.entries) > 0 && s.searched == "" &&
-		s.scope == (scope{}) && s.filter == everything && s.budget == 0 && s.span == anyTime && !s.oldest
+		s.scope == (scope{}) && s.filter == everything && s.span == anyTime && !s.oldest
 }
 
 // onTop tells whether the first entry was drawn whole in the last frame, or the grid or wall is at its top.
@@ -2075,7 +2069,7 @@ func (s *Screen) kindName(kind string) string {
 }
 
 func (s *Screen) canMarkAll() bool {
-	if s.filter == starred || s.budget != 0 || s.searched != "" || len(s.entries) == 0 {
+	if s.filter == starred || s.searched != "" || len(s.entries) == 0 {
 		return false
 	}
 	if s.span != anyTime {
@@ -2104,7 +2098,7 @@ func (s *Screen) markAll() {
 // canMarkAbove says whether an unread entry is loaded above the entry id, where "Mark above as read" can apply: not
 // under Starred or a search, which the server's scopes do not know.
 func (s *Screen) canMarkAbove(id int64) bool {
-	if s.filter == starred || s.budget != 0 || s.searched != "" {
+	if s.filter == starred || s.searched != "" {
 		return false
 	}
 	for _, e := range s.entries {
@@ -2138,7 +2132,7 @@ func (s *Screen) markAbove(id int64) {
 // canMarkBelow says whether an unread entry is loaded below the entry id, where "Mark below as read" can apply: not
 // under Starred or a search, which the server's scopes do not know.
 func (s *Screen) canMarkBelow(id int64) bool {
-	if s.filter == starred || s.budget != 0 || s.searched != "" {
+	if s.filter == starred || s.searched != "" {
 		return false
 	}
 	i := s.index(id)
@@ -2180,7 +2174,7 @@ func (s *Screen) fullyShown(i int) bool {
 // stays unread and is the one scrolled to. At the end of the list it moves the choice to the last entry marked and does
 // not scroll. Under Starred or a search, which the server's scopes do not know, it does nothing.
 func (s *Screen) markVisible() {
-	if s.filter == starred || s.budget != 0 || s.searched != "" || s.loading || s.api == nil {
+	if s.filter == starred || s.searched != "" || s.loading || s.api == nil {
 		return
 	}
 	first := 0
@@ -2516,14 +2510,6 @@ func (s *Screen) readLabel(e client.Entry) string {
 		return ""
 	}
 	return s.format(s.text.ReadingTime, e.ReadingSec/60)
-}
-
-// budgetName is the name of the reading-time button, which states the budget.
-func (s *Screen) budgetName() string {
-	if s.budget == 0 {
-		return s.text.TimeNameAny
-	}
-	return s.format(s.text.TimeNameUpTo, s.budget)
 }
 
 func duration(sec int) string {
@@ -3849,7 +3835,7 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 				if s.next != "" {
 					sub = s.format(s.text.MoreResults, len(s.entries))
 				}
-			case s.searched == "" && s.budget == 0 && s.span == anyTime && s.sourcesLoaded:
+			case s.searched == "" && s.span == anyTime && s.sourcesLoaded:
 				if n := s.unreadIn(s.scope); n > 0 {
 					sub = s.format(s.text.UnreadCount, n)
 				}
@@ -3884,11 +3870,8 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 			}
 			// The icon buttons are one group with the same gap between them, whatever the column.
 			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 4)).Shrink(0).Children(func() {
-				// The 320 wide list pane has room for the time range and search only; the reading-time budget and
-				// Mark all as read are in the list of the narrow fallback and on the keys.
-				if !s.paned {
-					s.budgetButton(c, !field)
-				}
+				// The 320 wide list pane has room for the time range and search only; Mark all as read is in the list
+				// of the narrow fallback and on the keys.
 				s.rangeButton(c, !field, column < rangeColumn && !s.paned)
 				s.gridButton(c)
 				if !s.paned {
@@ -3945,65 +3928,6 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 	}
 }
 
-// budgetButton is the reading-time button: a bare clock icon, or with a budget a pill saying "≤ 10 min" (only the
-// icon and a dot when narrow). Its menu lists the budgets, then under a hairline the two orders; choosing a budget or
-// an order reloads the list from the top. Oldest first tints the clock like a budget does, with no text beside it.
-func (s *Screen) budgetButton(c *ui.Context, compact bool) {
-	t := c.Theme()
-	name := s.budgetName()
-	if s.oldest {
-		name += s.text.NameJoin + s.text.OrderOldestNote
-	}
-	timed := s.budget != 0
-	on := timed || s.oldest
-	b := ui.ButtonBase(c).Key("budget").Height(theme.Px(t, 32)).Shrink(0).Radius(theme.Px(t, 8)).Label(name).Tooltip(name)
-	color := toolFill(t, b)
-	if on {
-		color = t.Accent
-		fill := theme.Soft(t, t.Accent)
-		if b.Hovered() || b.Pressed() {
-			fill = fill.Mix(t.Accent, 0.12)
-		}
-		b.Background(fill)
-	}
-	if timed && !compact {
-		b.Gap(theme.Px(t, 5)).Padding(0, theme.Px(t, 12), 0, theme.Px(t, 10))
-	} else {
-		b.Width(theme.Px(t, 32))
-	}
-	b.Children(func() {
-		ui.Icon(c, icons.Clock).FontSize(theme.IconMedium(t)).TextColor(color)
-		if timed && !compact {
-			ui.Text(c, s.format(s.text.TimeChip, s.budget)).FontSize(theme.Px(t, 12)).
-				FontWeight(500).FontFeatures("tnum").NoWrap().TextColor(t.Accent)
-		}
-		if on && compact {
-			ui.Box(c).Absolute().Top(theme.Px(t, 4)).Right(theme.Px(t, 4)).Size(theme.Px(t, 7), theme.Px(t, 7)).Radius(theme.Pill(theme.Px(t, 7))).
-				Background(t.Accent)
-		}
-	})
-	b.Menu(func(m *ui.Menu) {
-		if m.Item(s.text.TimeAny).Checked(s.budget == 0).Chosen() {
-			s.setBudget(0)
-		}
-		for _, n := range budgets {
-			label := s.format(s.text.TimeUpTo, n)
-			if m.Item(label).Checked(s.budget == n).Chosen() {
-				s.setBudget(n)
-			}
-		}
-		m.Separator()
-		if m.Item(s.text.OrderNewest).Checked(!s.oldest).Chosen() && s.oldest {
-			s.switchOrder()
-		}
-		if m.Item(s.text.OrderOldest).Checked(s.oldest).Chosen() && !s.oldest {
-			s.switchOrder()
-		}
-		// The menu is native and its rows have no second line, so the note is a disabled row of its own.
-		m.Item(s.text.OrderOldestNote).Disabled(true)
-	})
-}
-
 // rangeText is the name of a time range, as the menu lists it.
 func (s *Screen) rangeText(span int) string {
 	switch span {
@@ -4023,16 +3947,22 @@ func (s *Screen) rangeName() string {
 	return strings.ReplaceAll(s.text.RangeNameOf, "{range}", s.rangeText(s.span))
 }
 
-// rangeButton is the time-range button beside the clock: a bare calendar icon, or with a range a pill saying "Today"
-// or "24 h" (only the icon and a dot when narrow). Where the toolbar has no room for it (tight) it is there only while a range is on: T, the
-// palette and the Timeline menu reach it otherwise. Its menu lists the ranges; choosing one reloads the list from the top.
+// rangeButton is the time-range button: a bare calendar icon, or with a range a pill saying "Today" or "24 h" (only
+// the icon and a dot when narrow). Its menu lists the ranges, then under a hairline the two orders; choosing a range or
+// an order reloads the list from the top. Oldest first tints the calendar like a range does, with no text beside it.
+// Where the toolbar has no room for it (tight) it is there only while a range or oldest first is on: T, the palette
+// and the Timeline menu reach the range otherwise.
 func (s *Screen) rangeButton(c *ui.Context, compact, tight bool) {
-	if tight && s.span == anyTime {
+	if tight && s.span == anyTime && !s.oldest {
 		return
 	}
 	t := c.Theme()
 	name := s.rangeName()
-	on := s.span != anyTime
+	if s.oldest {
+		name += s.text.NameJoin + s.text.OrderOldestNote
+	}
+	ranged := s.span != anyTime
+	on := ranged || s.oldest
 	b := ui.ButtonBase(c).Key("range").Height(theme.Px(t, 32)).Shrink(0).Radius(theme.Px(t, 8)).Label(name).Tooltip(name)
 	color := toolFill(t, b)
 	if on {
@@ -4043,14 +3973,14 @@ func (s *Screen) rangeButton(c *ui.Context, compact, tight bool) {
 		}
 		b.Background(fill)
 	}
-	if on && !compact {
+	if ranged && !compact {
 		b.Gap(theme.Px(t, 5)).Padding(0, theme.Px(t, 12), 0, theme.Px(t, 10))
 	} else {
 		b.Width(theme.Px(t, 32))
 	}
 	b.Children(func() {
 		ui.Icon(c, icons.CalendarDays).FontSize(theme.IconMedium(t)).TextColor(color)
-		if on && !compact {
+		if ranged && !compact {
 			chip := s.text.RangeChipToday
 			if s.span == lastDay {
 				chip = s.text.RangeChip24
@@ -4068,6 +3998,15 @@ func (s *Screen) rangeButton(c *ui.Context, compact, tight bool) {
 				s.setRange(span)
 			}
 		}
+		m.Separator()
+		if m.Item(s.text.OrderNewest).Checked(!s.oldest).Chosen() && s.oldest {
+			s.switchOrder()
+		}
+		if m.Item(s.text.OrderOldest).Checked(s.oldest).Chosen() && !s.oldest {
+			s.switchOrder()
+		}
+		// The menu is native and its rows have no second line, so the note is a disabled row of its own.
+		m.Item(s.text.OrderOldestNote).Disabled(true)
 	})
 }
 
@@ -4144,14 +4083,6 @@ func (s *Screen) switchOrder() {
 	} else {
 		s.announce = s.text.OrderNewest
 	}
-}
-
-// setBudget limits the list to entries that take at most n minutes, 0 for any length, and shows it from the top.
-func (s *Screen) setBudget(n int) {
-	if n == s.budget {
-		return
-	}
-	s.show(func() { s.budget = n })
 }
 
 // searchField is a search field whose text input takes the focus from Cmd+F and /, which ui.SearchField does not
@@ -4465,9 +4396,6 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 					title = s.text.NothingNew24
 				}
 				s.empty(c, icons.CalendarDays, title, s.text.NothingNewHint, false)
-			case s.budget != 0:
-				s.empty(c, icons.Clock, s.format(s.text.NothingFits, s.budget),
-					s.text.NothingFitsHint, false)
 			case s.filter == unread:
 				s.empty(c, icons.CircleCheckBig, s.text.UnreadDone, s.text.UnreadDoneHint, false)
 			case s.filter == starred:
@@ -4608,19 +4536,6 @@ func (s *Screen) empty(c *ui.Context, icon *ui.SVG, title, hint string, failed b
 			b.Children(func() { ui.Text(c, s.text.AnyRange).NoWrap().FontWeight(500) })
 			if b.Clicked() {
 				s.setRange(anyTime)
-			}
-		}
-		if s.budget != 0 && !failed && icon == icons.Clock {
-			b := ui.ButtonBase(c).Height(theme.Px(t, 32)).PaddingX(theme.Px(t, 14)).Radius(theme.Px(t, 10)).Background(theme.Track(t))
-			if b.Pressed() {
-				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.16))
-			} else if b.Hovered() {
-				b.Background(theme.Track(t).Mix(theme.Ink(t, 1), 0.1))
-			}
-			theme.Fade(b)
-			b.Children(func() { ui.Text(c, s.text.AnyLength).NoWrap().FontWeight(500) })
-			if b.Clicked() {
-				s.setBudget(0)
 			}
 		}
 		if first {
