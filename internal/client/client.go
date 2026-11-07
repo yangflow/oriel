@@ -658,8 +658,6 @@ type Query struct {
 	Unread  bool
 	Starred bool
 	Search  string
-	// MaxMinutes keeps the entries that take at most this many minutes and have an estimate; 0 does not filter.
-	MaxMinutes int
 	// Since keeps the entries that arrived (created_at) at or after this time in Unix milliseconds; 0 does not filter.
 	Since int64
 	// Oldest lists the oldest entries first; the cursor of a page then leads to newer entries.
@@ -742,9 +740,6 @@ func (s Session) Entries(ctx context.Context, q Query) (Page, error) {
 		if zone := zoneName(); zone != "" && zone != "Local" {
 			values.Set("tz", zone)
 		}
-	}
-	if q.MaxMinutes != 0 {
-		values.Set("maxMinutes", strconv.Itoa(q.MaxMinutes))
 	}
 	if q.Since != 0 {
 		values.Set("since", strconv.FormatInt(q.Since, 10))

@@ -264,7 +264,7 @@ func TestTimelineAPI(t *testing.T) {
 	local := zoneName
 	zoneName = func() string { return "Asia/Shanghai" }
 	defer func() { zoneName = local }()
-	page, err := session.Entries(ctx, Query{Kind: "video", Unread: true, Search: "go fmt", MaxMinutes: 10, Since: 1700000000000, Oldest: true, Limit: 50, Cursor: "1.2"})
+	page, err := session.Entries(ctx, Query{Kind: "video", Unread: true, Search: "go fmt", Since: 1700000000000, Oldest: true, Limit: 50, Cursor: "1.2"})
 	if err != nil || len(page.Entries) != 1 || page.Next != "" {
 		t.Fatalf("Entries = %+v, %v", page, err)
 	}
@@ -381,7 +381,7 @@ func TestTimelineAPI(t *testing.T) {
 		t.Errorf("SetSettings = %+v, %v", settings, err)
 	}
 	want := []string{
-		"GET /api/entries?cursor=1.2&kind=video&limit=50&maxMinutes=10&order=asc&q=go+fmt&since=1700000000000&tz=Asia%2FShanghai&unread=1 ",
+		"GET /api/entries?cursor=1.2&kind=video&limit=50&order=asc&q=go+fmt&since=1700000000000&tz=Asia%2FShanghai&unread=1 ",
 		"GET /api/entries?cursor=bad ",
 		"POST /api/entries/7/extract ",
 		"GET /api/entries/7/revision ",
