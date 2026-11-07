@@ -921,12 +921,15 @@ character from the line before. Rules 1 and 2 above hold with or without them.
   image icon, and a video cover keeps its play mark and duration. A video cover
   carries a play mark and the duration, labelled "Duration 12:34". The unread dot is a 7 `Accent` circle; a failing
   subscription is `Warning` with a mark, the server is a `Success` dot, `Warning` while background checks fail; a starred entry is `theme.Star`.
-- **The product icon** is a mixed timeline on a warm ivory tile: a teal rail joins three entries, each a teal dot
-  with a title line in ink (`#26231f`) and a shorter summary line in muted gray; the newest entry's dot, at the top,
-  is the brightest (`#5eead4` to `#0f766e`). It sits on the macOS grid (an 824 tile at 100 in 1024, radius 185) with
-  transparent corners, so every platform shows the same rounded tile. It was drawn for Oriel and is MIT licensed with
-  the rest of the project. The source is [design/icon.svg](../design/icon.svg); see
-  [design/README.md](../design/README.md) for exporting it.
+- **The product icon** is a drop of ink on a warm ivory tile (`logo-tile`), with the subscription sign inside it. The
+  drop is ink (`logo-body`, `#26231f`); two arcs are cut out of it to the tile, and the sign's dot is teal
+  (`logo-piece`), drawn as a sphere from `#5eead4` to `#0f766e`, the same teal as the unread dot. The arcs and the dot
+  share one center and are spaced evenly. The drop says paper and ink, the product's ground, and the sign says what it
+  does. The icon sits on the macOS grid (an 824 tile at 100 in 1024, radius 185) with transparent corners, so every
+  platform shows the same rounded tile. The menu bar template is the drop in black on transparent, with the arcs and the
+  dot cut out. The logo is managed in the design system's Logos group and copied to [design/](../design/) (`icon.svg`,
+  `mark.svg`, `tray.svg`); see [design/README.md](../design/README.md) for copying and exporting it. It was drawn for
+  Oriel and is MIT licensed with the rest of the project.
 
 ## Component guide
 

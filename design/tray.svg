@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="7 6 86 86">
+  <!-- The menu bar template: the product icon's ink drop alone, black on transparent, with the arcs and the dot of the
+       subscription sign cut out, without the tile, colors or shadows; macOS tints it. design/export-icon.sh renders it
+       to resources/trayTemplate@2x.png (18 points high). -->
+  <defs>
+    <mask id="feed" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+      <rect width="100" height="100" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="5.5" stroke-linecap="round"><path d="M39 56a16 16 0 0 1 16 16"/><path d="M39 43a29 29 0 0 1 29 29"/></g>
+      <circle cx="39" cy="72" r="5.5" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M50 10C50 10 23 41 23 61a27 27 0 0 0 54 0C77 41 50 10 50 10z" mask="url(#feed)"/>
+</svg>

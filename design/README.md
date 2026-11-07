@@ -13,14 +13,14 @@ on a real device is what counts.
 | `tokens.json` | Every design value: colors in layers, the contrast audit, space, sizes, radii, text styles, the reading scale, motion; the one source and the target the code moves to (#522) |
 | `layout.json` | Named layout patterns and the geometry of each part |
 | `tokens.md` | Why the values are what they are, mapped to MyGo theme roles |
-| `icon.svg` | The product icon's source |
-| `export-icon.sh` | Renders `icon.svg` to `resources/icon.png` with Chrome |
+| `icon.svg`, `mark.svg`, `tray.svg` | The product icon, the mark and the menu bar template, copied from the design system's Logos |
+| `export-icon.sh` | Renders the product icon and the tray images into `resources/` with Chrome |
 
 ## Design artifacts
 
 | Artifact | What it holds |
 |---|---|
-| [Oriel design system](https://claude.ai/artifact/LBUfZ9m6MHwCsXp4D1d97w) | The tokens of `tokens.json` drawn, the brand book (principles, color layers, type, space, shape, layout, icons, motion, voice), the core components and the product icon |
+| [Oriel design system](https://claude.ai/artifact/LBUfZ9m6MHwCsXp4D1d97w) | The tokens of `tokens.json` drawn, the brand book (principles, color layers, type, space, shape, layout, icons, motion, voice), the core components and the logo (Logos: the product icon, the mark and the menu bar template, the source of this folder's copies) |
 | [Oriel screens](https://claude.ai/artifact/MVcNGTHthRZ9q4Ac8PGsWZ) | The screens canvas: one page per screen (`connect`, `timeline`, `subscriptions`, `reader`, `settings`) and one artboard per state, named like the state in `docs/design.md` |
 
 The artifacts are private to the maintainer until shared. The canvas draws each state in the light scheme, in English,
@@ -62,8 +62,25 @@ carries the screenshots.
 
 Interface icons are Lucide, kept in `internal/ui/icons/lucide/`; the canvas uses the same SVG paths.
 
-The product icon's source is `icon.svg`. After changing it, run `design/export-icon.sh` (it needs Google Chrome, or
-a Chromium-based browser given as `CHROME`) and commit `resources/icon.png` with it; `mygo build` makes every
-platform's icon from that PNG. MyGo does not draw SVG filters, which is why the app uses the PNG.
+The logo is managed in the design system's **Logos** group, which holds three SVG files, each kept in this folder
+under a shorter name:
+
+| Logos | Here | What |
+|---|---|---|
+| `oriel-icon.svg` | `icon.svg` | The product icon: the mark on the ivory tile, on the macOS grid |
+| `oriel-mark.svg` | `mark.svg` | The mark alone, in `logo-body` and `logo-piece` |
+| `oriel-tray.svg` | `tray.svg` | The menu bar template: the mark in black on transparent |
+
+A logo change is drawn and approved in the design system first, together with the `logo-*` tokens, and then copied
+here as the same drawing. The copies here keep comments, and the asset store rewrites an SVG on upload (dropping
+comments, expanding empty tags), so the two sides match in what they draw, not byte for byte. Upload the new copies
+back to Logos when this side changes. After copying, run `design/export-icon.sh` and commit the three PNGs it writes.
+The script needs Google Chrome, or a Chromium-based browser given as `CHROME`, and macOS's `sips`. It writes:
+
+- `resources/icon.png`: `mygo build` makes every platform's icon from it.
+- `resources/trayTemplate@2x.png`: the macOS menu bar.
+- `resources/trayIcon.png`: the tray on Windows and Linux.
+
+MyGo does not draw SVG filters, which is why the app uses PNGs.
 
 Screenshots go in the pull request body, not into the repository; `design/screenshots/` is ignored by git.
