@@ -86,6 +86,10 @@ Sizes of text are in [Typography](#typography); the window sizes follow.
 
 ## Typography
 
+The families are tokens (`font` in `tokens.json`). The interface is sans: MyGo's `Font` left empty, so each platform
+draws its own UI font, or the Interface font chosen in Settings. Serif is a per-platform list for the reading body
+only, and mono is MyGo's generic `monospace`, for code and addresses. A screen sets no other family.
+
 Five sizes, three weights (400, 500, 600). Hierarchy comes from lightness first (`Text`, `Text2`, `TextMuted`), then
 weight, then size. Sizes are `px(t, n)`; line height is a multiple of the size and is larger in Simplified Chinese
 (zh), which runs taller. Tabular numerals (`FontFeatures("tnum")`) for every count, time and duration.
@@ -403,6 +407,13 @@ Contrast of text on the two other fills it is drawn on (light / dark): `Track`, 
 So the unselected labels of a segmented control and the "no key" and "off" badges are `Text2` on their `Track`, and
 the text of a refused result box, with the reason beside each failed row, is `Text` and `Text2`, with the icon in
 `Danger`. `Text2` also holds 6.5 or more on `Soft(Warning)`.
+
+### Opacity
+
+A view writes no opacity of its own. Two remain, as tokens: `opacity-faded` (0.55) for a row that is still there but
+has stepped back (a turned-off rule, a subscription locked while a change runs) and `opacity-separator` (0.7) for the
+middle dot of a meta line. A disabled control does not fade; its glyph takes `faint` (`Disabled` until its screen has
+moved) and its label stays `TextMuted`, so the label keeps 4.5:1.
 
 ### High contrast
 

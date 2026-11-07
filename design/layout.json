@@ -65,6 +65,9 @@
   {"name": "toast", "spec": "inverse ground, on-inverse meta, radius control, padding space-2 space-3, icon-m; bottom center, motion-base", "usage": "Short confirmations."},
   {"name": "tooltip", "spec": "inverse ground, on-inverse meta, radius-sm, padding space-1 space-2", "usage": "Names of icon buttons."}
  ],
+ "utilities": {
+  "note": "When a pattern or part needs one value changed, the view sets it with MyGo's own method (Padding, Gap, Height, Width, MaxWidth) and a token name, never a number: Padding(space-3), Height(row). A value no token has is added here or in tokens.json first. Geometry computed from the window (the reading column fitted to the room left, the timeline's grid columns) is a rule of behavior, written in code from the tokens it starts with."
+ },
  "density": {
   "note": "List density Compact; Comfortable keeps the values above.",
   "compact": {
