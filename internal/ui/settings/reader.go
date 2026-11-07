@@ -12,6 +12,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // readerEvery is how often the dialog asks the server how the import goes while it reads or writes.
@@ -287,21 +288,19 @@ func (s *Screen) readerDialog(c *ui.Context) {
 	step := r.step()
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		theme.Scrim(c, backdrop).Padding(t.Space(4))
-		panel.Column().Width(theme.Px(t, 440)).MaxHeight(height - t.Space(8)).
+		theme.Scrim(c, backdrop).Padding(theme.Px(t, tokens.Space4))
+		panel.Column().Width(theme.Px(t, tokens.DialogWide)).MaxHeight(height - theme.Px(t, tokens.Space8)).Clip().
 			Label(s.text.ReaderTitle)
 		theme.Sheet(c, panel, theme.Dialog)
-		line := func(shown bool) {
-			color := t.Border
-			if !shown {
-				color = color.Alpha(0)
-			}
-			ui.Box(c).FillWidth().Height(1).Background(color)
-		}
 		s.readerHeader(c, &open)
-		line(r.scroll.Y > 0)
+		line := t.Border
+		if r.scroll.Y <= 0 {
+			line = line.Alpha(0)
+		}
+		ui.Box(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).Background(line)
 		ui.Scroll(c).TrackScroll(&r.scroll).FillWidth().Shrink(1).MinHeight(0).Children(func() {
-			ui.Column(c).FillWidth().Gap(t.Space(3.5)).Padding(t.Space(3.5), t.Space(5), t.Space(1), t.Space(5)).
+			ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space4)).
+				Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space6)).
 				Children(func() {
 					switch step {
 					case stepForm:
@@ -317,9 +316,8 @@ func (s *Screen) readerDialog(c *ui.Context) {
 					}
 				})
 		})
-		line(r.scroll.Y < r.scroll.MaxY)
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(4), t.Space(5), t.Space(4.5),
-			t.Space(5)).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+			Padding(theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space6)).Background(theme.Surface(t)).Children(func() {
 			ui.Box(c).Grow(1)
 			s.readerButtons(c, step)
 		})
@@ -331,20 +329,13 @@ func (s *Screen) readerDialog(c *ui.Context) {
 
 func (s *Screen) readerHeader(c *ui.Context, open *bool) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Padding(t.Space(4.5), t.Space(5), t.Space(1),
-		t.Space(5)).Children(func() {
-		ui.Text(c, s.text.ReaderTitle).FontSize(theme.Px(t, 15)).FontWeight(600).Grow(1).MinWidth(0).Role(ui.RoleHeading).Level(2)
-		x := theme.Fade(ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(8).AlignSelf(ui.Start).
-			Label(s.text.ReaderClose).Tooltip(s.text.ReaderClose))
-		color := t.TextMuted
-		switch {
-		case x.Pressed():
-			x.Background(t.SurfacePressed)
-			color = t.Text
-		case x.Hovered():
-			x.Background(t.SurfaceHover)
-			color = t.Text
-		}
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+		Padding(theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space2)).Children(func() {
+		chip(c, icons.ArrowUpDown, false)
+		ui.Text(c, s.text.ReaderTitle).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+			Grow(1).MinWidth(0).Role(ui.RoleHeading).Level(2)
+		x, color := theme.ToolButton(c, theme.ToolState{})
+		x.AlignSelf(ui.Start).Label(s.text.ReaderClose).Tooltip(s.text.ReaderClose)
 		x.Children(func() { ui.Icon(c, icons.X).FontSize(theme.IconMedium(t)).TextColor(color) })
 		if x.Clicked() {
 			*open = false
@@ -399,8 +390,8 @@ func (s *Screen) readerForm(c *ui.Context) {
 	for i, svc := range readerServices {
 		names[i] = svc.name
 	}
-	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
-		ui.Text(c, s.text.ReaderService).FontSize(theme.Px(t, 12)).FontWeight(500)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+		fieldName(c, s.text.ReaderService)
 		ui.Row(c).Children(func() {
 			if i, changed := s.segments(c, s.text.ReaderService, names, r.service); changed {
 				r.service = i
@@ -415,8 +406,8 @@ func (s *Screen) readerForm(c *ui.Context) {
 	}
 	trimmed := strings.TrimSpace(r.base)
 	bad := trimmed != "" && !validAddress(trimmed) && (strings.Contains(trimmed, "://") || strings.Contains(trimmed, "."))
-	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
-		ui.Text(c, s.text.ReaderAddress).FontSize(theme.Px(t, 12)).FontWeight(500)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+		fieldName(c, s.text.ReaderAddress)
 		field(c, "reader-base", &r.base, 0, bad, func(in ui.Element) {
 			in.Font("monospace").Label(s.text.ReaderAddress).Placeholder(s.text.ReaderAddressHint)
 			if bad {
@@ -429,13 +420,13 @@ func (s *Screen) readerForm(c *ui.Context) {
 			submit(in)
 		})
 		if bad {
-			ui.Text(c, s.text.ReaderErrAddress).FontSize(theme.Px(t, 12)).TextColor(t.Danger).Wrap()
+			meta(c, s.text.ReaderErrAddress).TextColor(t.Danger)
 		}
 	})
 	freshrss := readerServices[r.service].code == client.ServiceFreshRSS
 	if freshrss {
-		ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
-			ui.Text(c, s.text.ReaderUser).FontSize(theme.Px(t, 12)).FontWeight(500)
+		ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+			fieldName(c, s.text.ReaderUser)
 			field(c, "reader-user", &r.user, 0, false, func(in ui.Element) {
 				in.Label(s.text.ReaderUser)
 				submit(in)
@@ -446,13 +437,13 @@ func (s *Screen) readerForm(c *ui.Context) {
 	if freshrss {
 		credential = s.text.ReaderPassword
 	}
-	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
-		ui.Text(c, credential).FontSize(theme.Px(t, 12)).FontWeight(500)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+		fieldName(c, credential)
 		field(c, "reader-credential", &r.cred, 0, false, func(in ui.Element) {
 			in.Password().Label(credential).Description(s.text.ReaderMemory)
 			submit(in)
 		})
-		ui.Text(c, s.text.ReaderMemory).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
+		meta(c, s.text.ReaderMemory)
 	})
 }
 
@@ -481,14 +472,14 @@ func (s *Screen) readerProgress(c *ui.Context) {
 	case p.Done > 0:
 		how = s.fill(s.text.ReaderProgressOpen, "{done}", strconv.Itoa(p.Done))
 	}
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Role(ui.RoleStatus).Children(func() {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Role(ui.RoleStatus).Children(func() {
 		spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-		spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+		spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
 		ui.Text(c, stage).Shrink(1).Wrap()
 	})
 	ui.Progress(c, value).FillWidth().Label(stage)
 	if how != "" {
-		ui.Text(c, how).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+		meta(c, how).FontFeatures("tnum")
 	}
 }
 
@@ -508,16 +499,16 @@ func (s *Screen) readerPreview(c *ui.Context) {
 	ui.Text(c, s.fill(s.text.ReaderFound, "{service}", readerServices[s.reader.service].name)).Wrap()
 	row := func(label string, n int, note string) {
 		ui.Column(c).FillWidth().Role(ui.RoleListItem).Children(func() {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(3)).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
 				ui.Text(c, label).Grow(1).Shrink(1).MinWidth(0)
-				ui.Text(c, count(n)).FontWeight(500).NoWrap()
+				ui.Text(c, count(n)).FontWeight(tokens.TextLabel.Weight).FontFeatures("tnum").NoWrap()
 			})
 			if note != "" {
-				ui.Text(c, note).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
+				meta(c, note)
 			}
 		})
 	}
-	ui.Column(c).FillWidth().Gap(theme.Px(t, 8)).Role(ui.RoleList).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Role(ui.RoleList).Children(func() {
 		row(s.text.ReaderSources, counts.Sources, "")
 		row(s.text.ReaderStarred, counts.Starred, "")
 		row(s.text.ReaderRead, counts.Read, "")
@@ -563,15 +554,15 @@ func (s *Screen) readerResult(c *ui.Context) {
 // skippedList is what the import left out, with the reason of each.
 func (s *Screen) skippedList(c *ui.Context, res *client.ImportResult) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
-		ui.Text(c, s.text.ReaderSkipped).FontSize(theme.Px(t, 12)).FontWeight(500).Role(ui.RoleHeading).Level(3)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+		fieldName(c, s.text.ReaderSkipped).Role(ui.RoleHeading).Level(3)
 		ui.Column(c).FillWidth().Label(s.text.ReaderSkipped).Role(ui.RoleList).Children(func() {
 			for i, item := range res.Skipped {
 				s.skippedRow(c, i, item)
 			}
 		})
 		if more := res.SkippedTotal - len(res.Skipped); more > 0 {
-			ui.Text(c, s.fill(s.text.ReaderMore, "{n}", strconv.Itoa(more))).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+			meta(c, s.fill(s.text.ReaderMore, "{n}", strconv.Itoa(more)))
 		}
 	})
 }
@@ -579,24 +570,23 @@ func (s *Screen) skippedList(c *ui.Context, res *client.ImportResult) {
 // droppedList is the subscriptions that had several labels: the one they were filed under and the ones not used.
 func (s *Screen) droppedList(c *ui.Context, res *client.ImportResult) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Children(func() {
-		ui.Text(c, s.text.ReaderDropped).FontSize(theme.Px(t, 12)).FontWeight(500).Role(ui.RoleHeading).Level(3)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+		fieldName(c, s.text.ReaderDropped).Role(ui.RoleHeading).Level(3)
 		ui.Column(c).FillWidth().Label(s.text.ReaderDropped).Role(ui.RoleList).Children(func() {
 			for i, item := range res.DroppedLabels {
-				ui.Column(c).Key(i).FillWidth().Padding(theme.Px(t, 3), 0).Role(ui.RoleListItem).Children(func() {
+				ui.Column(c).Key(i).FillWidth().Padding(theme.Px(t, tokens.Space0_5), 0).Role(ui.RoleListItem).Children(func() {
 					spans := []ui.Span{}
 					if title := strings.TrimSpace(item.Title); title != "" {
 						spans = append(spans, ui.Span{Text: title + " · "})
 					}
-					spans = append(spans, ui.Span{Text: item.Address, Font: "monospace", Size: theme.Px(t, 12)})
-					ui.RichText(c, spans...).FillWidth().FontSize(theme.Px(t, 12)).SingleLine()
-					ui.Text(c, s.fill(s.text.ReaderDroppedRow, "{kept}", item.Kept, "{dropped}", strings.Join(item.Dropped, ", "))).
-						FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
+					spans = append(spans, ui.Span{Text: item.Address, Font: "monospace", Size: theme.Px(t, tokens.TextCode.Size.En)})
+					ui.RichText(c, spans...).FillWidth().FontSize(theme.Px(t, tokens.TextMeta.Size.En)).SingleLine()
+					meta(c, s.fill(s.text.ReaderDroppedRow, "{kept}", item.Kept, "{dropped}", strings.Join(item.Dropped, ", ")))
 				})
 			}
 		})
 		if more := res.DroppedLabelsTotal - len(res.DroppedLabels); more > 0 {
-			ui.Text(c, s.fill(s.text.ReaderMore, "{n}", strconv.Itoa(more))).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+			meta(c, s.fill(s.text.ReaderMore, "{n}", strconv.Itoa(more)))
 		}
 	})
 }
@@ -611,14 +601,14 @@ func (s *Screen) skippedRow(c *ui.Context, i int, item client.ImportSkip) {
 	if why == "" {
 		why = item.Error
 	}
-	ui.Column(c).Key(i).FillWidth().Padding(theme.Px(t, 3), 0).Role(ui.RoleListItem).Children(func() {
+	ui.Column(c).Key(i).FillWidth().Padding(theme.Px(t, tokens.Space0_5), 0).Role(ui.RoleListItem).Children(func() {
 		spans := []ui.Span{}
 		if title := strings.TrimSpace(item.Title); title != "" {
 			spans = append(spans, ui.Span{Text: title + " · "})
 		}
-		spans = append(spans, ui.Span{Text: item.Address, Font: "monospace", Size: theme.Px(t, 12)})
-		ui.RichText(c, spans...).FillWidth().FontSize(theme.Px(t, 12)).SingleLine()
-		ui.Text(c, why).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap()
+		spans = append(spans, ui.Span{Text: item.Address, Font: "monospace", Size: theme.Px(t, tokens.TextCode.Size.En)})
+		ui.RichText(c, spans...).FillWidth().FontSize(theme.Px(t, tokens.TextMeta.Size.En)).SingleLine()
+		meta(c, why)
 	})
 }
 
@@ -637,12 +627,13 @@ func (s *Screen) noteBox(c *ui.Context, tone int, lines []string) {
 	case refused:
 		fill, icon, iconColor, color = theme.Soft(t, t.Danger), icons.CircleAlert, t.Danger, t.Danger
 	}
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Padding(theme.Px(t, 10), t.Space(3)).Radius(t.Radius).
+	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space2)).
+		Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl)).
 		Background(fill).Role(ui.RoleStatus).Children(func() {
-		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(iconColor).Margin(2, 0, 0, 0)
-		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(theme.Px(t, 2)).Children(func() {
+		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(iconColor).Margin(theme.Px(t, tokens.Space0_5), 0, 0, 0)
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
 			for i, line := range lines {
-				ui.Text(c, line).Key(i).FontSize(theme.Px(t, 12)).TextColor(color).Wrap()
+				ui.Text(c, line).Key(i).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(color).Wrap()
 			}
 		})
 	})

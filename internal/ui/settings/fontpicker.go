@@ -9,19 +9,21 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
-// The measures of the font picker, in the units of the mockup (the settings page of the screens canvas): px scales them.
+// The measures of the font picker, design CMenu with a search field, in tokens: px scales them.
 const (
-	pickerWidth   = 300 // the least width; the popup is also as wide as its control
-	pickerHeight  = 360 // the most height; only the list scrolls
-	pickerGap     = 4   // between the control and the popup
-	pickerMargin  = 8   // between the popup and the window
-	pickerRow     = 32  // the height of a row and of the search field
-	pickerRule    = 13  // the hairline between the pinned rows and the list, with its margins
-	pickerStatus  = 56  // the loading and the empty line
-	pickerHead    = 46  // the search field with its margins, up to the list
-	pickerPadding = 14  // the list's padding above and below
+	pickerWidth   = tokens.SheetWidth                                 // the least width; the popup is also as wide as its control
+	pickerHeight  = tokens.SheetWidth + tokens.Space8 + tokens.Space2 // the most height; only the list scrolls
+	pickerGap     = tokens.Space1                                     // between the control and the popup
+	pickerMargin  = tokens.Space2                                     // between the popup and the window
+	pickerRow     = tokens.Row                                        // the height of a row, design CMenuItem
+	pickerField   = tokens.Control                                    // the height of the search field
+	pickerRule    = tokens.Hairline + 2*tokens.Space1_5               // the hairline between the pinned rows and the list, with its margins
+	pickerStatus  = tokens.Space12 + tokens.Space2                    // the loading and the empty line
+	pickerHead    = tokens.Space1 + pickerField + tokens.Space1       // the search field with its margins, up to the list
+	pickerPadding = 2 * tokens.Space1                                 // the list's padding above and below
 )
 
 // announcePause is how long the result count of the picker waits for more typing before it is announced.
@@ -75,9 +77,8 @@ func (s *Screen) fontPick(c *ui.Context, p *fontPicker, label, current string, p
 	}
 
 	trig := ui.ButtonBase(c)
-	trig.MinWidth(theme.Px(t, 72)).MaxWidth(theme.Px(t, 240)).Height(theme.Px(t, 32)).AlignItems(ui.Center).Gap(t.Space(2)).
-		Padding(0, t.Space(2), 0, theme.Px(t, 10)).Radius(t.Radius).Label(label).Value(shown.name).Expanded(p.open).
-		Role(ui.RolePopUpButton)
+	selectTrigger(t, trig).MaxWidth(theme.Px(t, tokens.SheetWidth)).AlignItems(ui.Center).Label(label).Value(shown.name).
+		Expanded(p.open).Role(ui.RolePopUpButton)
 	trigger(c, trig)
 	if p.open {
 		trig.Background(theme.Chosen(t))
@@ -241,8 +242,9 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 	var chosen bool
 	ui.Column(c).Fill().Children(func() {
 		var in ui.Element
-		search := ui.Row(c).Margin(theme.Px(t, 8), theme.Px(t, 8), 0, theme.Px(t, 8)).Height(theme.Px(t, pickerRow)).AlignItems(ui.Center).
-			Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 10)).Radius(theme.Px(t, 8)).Background(t.Surface).Shrink(0)
+		search := ui.Row(c).Margin(theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space1), 0, theme.Px(t, tokens.Space1)).
+			Height(theme.Px(t, pickerField)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+			PaddingX(theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl)).Background(theme.RaisedFill(t)).Shrink(0)
 		search.Children(func() {
 			ui.Icon(c, icons.Search).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
 			in = ui.TextInputBase(c, &p.query).Grow(1).MinWidth(0).FocusRing(false).
@@ -252,7 +254,7 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 				p.focus = false
 			}
 		})
-		search.Shadow(0, 0, 0, 2, t.Focus)
+		search.Shadow(0, 0, 0, theme.Px(t, tokens.FocusRing), t.Focus)
 
 		// The arrows, Home and End move the highlight while the caret stays in the text. The field edits with Home and End,
 		// which it gives to no shortcut, so they come through OnTextKey, between frames.
@@ -299,8 +301,8 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 			switch {
 			case i < p.pinned:
 			case rule && i == p.pinned:
-				ui.Row(c).FillWidth().Height(1).Margin(theme.Px(t, 6), theme.Px(t, 2), theme.Px(t, 6), theme.Px(t, 2)).Background(t.Border).
-					Role(ui.RoleNone)
+				ui.Row(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).
+					Margin(theme.Px(t, tokens.Space1_5), theme.Px(t, tokens.Space2)).Background(t.Border).Role(ui.RoleNone)
 				return
 			case status && i == p.pinned+btoi(rule):
 				s.pickerStatus(c, p, loaded)
@@ -319,7 +321,7 @@ func (s *Screen) pickerPanel(c *ui.Context, p *fontPicker, panel, trig ui.Elemen
 				picked, chosen = opt.value, true
 			}
 		})
-		list.Grow(1).MinHeight(0).Margin(theme.Px(t, 6), 0, 0, 0).Padding(theme.Px(t, 6), theme.Px(t, 8), theme.Px(t, 8), theme.Px(t, 8)).
+		list.Grow(1).MinHeight(0).Margin(theme.Px(t, tokens.Space1), 0, 0, 0).Padding(theme.Px(t, tokens.Space1)).
 			Label(s.text.FontList)
 	})
 	return picked, chosen
@@ -332,8 +334,8 @@ func (s *Screen) pickerOption(c *ui.Context, o choice, current, highlighted bool
 	if current {
 		name += ", " + s.text.FontCurrent
 	}
-	row := ui.Row(c).FillWidth().Height(theme.Px(t, pickerRow)).AlignItems(ui.Center).Gap(theme.Px(t, 8)).
-		Padding(0, theme.Px(t, 8), 0, theme.Px(t, 10)).Radius(theme.Px(t, 6)).Role(ui.RoleListItem).Label(name).KeepFocus()
+	row := ui.Row(c).FillWidth().Height(theme.Px(t, pickerRow)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+		PaddingX(theme.Px(t, tokens.Space2)).Radius(theme.Px(t, tokens.RadiusSm)).Role(ui.RoleListItem).Label(name).KeepFocus()
 	switch {
 	case highlighted:
 		row.Background(theme.Chosen(t))
@@ -341,7 +343,7 @@ func (s *Screen) pickerOption(c *ui.Context, o choice, current, highlighted bool
 		row.Background(t.SurfaceHover)
 	}
 	row.Children(func() {
-		face := ui.Text(c, o.name).Grow(1).MinWidth(0).SingleLine().Ellipsis("…").FontSize(theme.Px(t, 13))
+		face := ui.Text(c, o.name).Grow(1).MinWidth(0).SingleLine().Ellipsis("…")
 		if o.family != "" {
 			face.Font(o.family)
 		}
@@ -356,11 +358,11 @@ func (s *Screen) pickerOption(c *ui.Context, o choice, current, highlighted bool
 func (s *Screen) pickerStatus(c *ui.Context, p *fontPicker, loaded bool) {
 	t := c.Theme()
 	row := ui.Row(c).FillWidth().MinHeight(theme.Px(t, pickerStatus)).AlignItems(ui.Center).Justify(ui.Center).
-		Gap(theme.Px(t, 8)).Padding(theme.Px(t, 12)).Role(ui.RoleStatus)
+		Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space3)).Role(ui.RoleStatus)
 	row.Children(func() {
 		if !loaded {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+			spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
 			ui.Text(c, s.text.FontLoading).TextColor(t.TextMuted).Wrap().TextAlign(ui.Center)
 			return
 		}
