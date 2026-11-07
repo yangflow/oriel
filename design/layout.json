@@ -1,7 +1,7 @@
 {
  "name": "Oriel layout",
  "version": 1,
- "note": "How views are put together. Values name tokens from tokens.json; a bare number is DIPs at the default text size. A screen builds from these patterns and parts and writes no size of its own; when a screen needs a new arrangement, it is added here first.",
+ "note": "How views are put together. Values name tokens from tokens.json; a bare number is DIPs at the default text size. A screen that has moved to the tokens (#522) builds from these patterns and parts and writes no size of its own; when a screen needs a new arrangement, it is added here first.",
  "rules": [
   "Alignment and space carry the structure: no borders around cards or controls, hairlines only between rows.",
   "Spacing comes from the space scale and nothing else; it follows density through Theme.Spacing.",

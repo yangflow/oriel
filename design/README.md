@@ -10,7 +10,7 @@ on a real device is what counts.
 
 | Path | Purpose |
 |---|---|
-| `tokens.json` | Every design value: colors in layers, the contrast audit, space, sizes, radii, text styles, the reading scale, motion; the one source |
+| `tokens.json` | Every design value: colors in layers, the contrast audit, space, sizes, radii, text styles, the reading scale, motion; the one source and the target the code moves to (#522) |
 | `layout.json` | Named layout patterns and the geometry of each part |
 | `tokens.md` | Why the values are what they are, mapped to MyGo theme roles |
 | `icon.svg` | The product icon's source |
@@ -51,7 +51,7 @@ A UI change starts from the screens canvas; the maintainer confirms the visual d
    is published to the design system too.
 2. The maintainer confirms the visual direction.
 3. Write the native view in `internal/ui/<screen>/` with theme roles and `Space`/`Rem` sizes, localized copy and
-   accessible names, plus tests.
+   accessible names, plus tests. On a screen that has moved to the tokens (#522), use only the token names.
 4. Run `scripts/check.sh`, then the design acceptance checklist in `docs/design.md` on real devices. A headless test
    is not device acceptance.
 
