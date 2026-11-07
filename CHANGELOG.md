@@ -23,6 +23,24 @@ release-please writes each release's section from the titles of the pull request
 - In Settings, the AI model field sits under its heading across the card, and all fields and text areas share one fill, turning to the background while focused.
 - The add and edit dialogs keep their title and buttons in place while the form scrolls, with a divider showing where more is hidden.
 
+## [0.12.0](https://github.com/yangflow/oriel/compare/v0.11.0...v0.12.0) (2026-11-07)
+
+
+### Added
+
+* new app icon, an ink drop with the subscription sign ([#529](https://github.com/yangflow/oriel/issues/529)) ([f695b7c](https://github.com/yangflow/oriel/commit/f695b7cef6d86e8b00c384541a8d5e450909cedd))
+
+
+### Changed
+
+* **connect:** take the logo, fields, problem line and buttons from the design ([#542](https://github.com/yangflow/oriel/issues/542)) ([32d1b98](https://github.com/yangflow/oriel/commit/32d1b98d86d6ad0ffad587b6578e1c060518824c))
+* **reader:** take the toolbar, head, banners, AI cards, find bar and empty states from the design ([#539](https://github.com/yangflow/oriel/issues/539)) ([d45fbdf](https://github.com/yangflow/oriel/commit/d45fbdfd6dad8dc0dbad4493de8c7f752a3ab127))
+* **settings:** take the head, cards, rows, fields and dialogs from the design ([#541](https://github.com/yangflow/oriel/issues/541)) ([1d136c5](https://github.com/yangflow/oriel/commit/1d136c5eb113f1eb80e8e29765027e4f0d5a3276))
+* **subscriptions:** take the dialogs, fields, cards and delete confirm from the design ([#540](https://github.com/yangflow/oriel/issues/540)) ([becfbd8](https://github.com/yangflow/oriel/commit/becfbd84921b38a826fa7f618f66db6cbe72fdae))
+* **theme:** generate the final design system's tokens into Go with a contrast audit ([#537](https://github.com/yangflow/oriel/issues/537)) ([2f9448b](https://github.com/yangflow/oriel/commit/2f9448bd657df6505d1d6684a6944e0fd2904919))
+* **timeline:** remove the reading-time filter ([#524](https://github.com/yangflow/oriel/issues/524)) ([e01cda8](https://github.com/yangflow/oriel/commit/e01cda8429743148f864bda70d5e885b61676031))
+* **timeline:** take the toolbar, empty states, banner, row actions and list marks from the design ([#538](https://github.com/yangflow/oriel/issues/538)) ([0a3bd0d](https://github.com/yangflow/oriel/commit/0a3bd0d74f65cb90960e141445016c7d7ea3fcf7))
+
 ## [0.11.0](https://github.com/yangflow/oriel/compare/v0.10.0...v0.11.0) (2026-10-25)
 
 
