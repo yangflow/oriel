@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/prefs"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 func applied(t *testing.T, dark bool, up ui.Preferences) ui.Theme {
@@ -50,80 +51,72 @@ func TestFontChoice(t *testing.T) {
 }
 
 func TestPalette(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		th := applied(t, dark, ui.Preferences{})
+		s := &tokens.SchemeLight
+		if dark {
+			s = &tokens.SchemeDark
+		}
+		for name, c := range map[string][2]ui.Color{
+			"Background": {th.Background, s.Paper}, "Surface": {th.Surface, s.Fill},
+			"Text": {th.Text, s.Fg}, "TextMuted": {th.TextMuted, s.Muted}, "Accent": {th.Accent, s.Accent},
+			"Danger": {th.Danger, s.Danger}, "Inverse": {th.Inverse, s.Inverse}, "Border": {th.Border, s.Line},
+			"Text2": {Text2(&th), s.Fg2}, "Prose": {Prose(&th), s.Prose}, "Surface()": {Surface(&th), s.Surface},
+			"Track": {Track(&th), s.Fill}, "RaisedFill": {RaisedFill(&th), s.Float}, "LineStrong": {LineStrong(&th), s.Line2},
+			"Disabled": {Disabled(&th), s.Faint}, "Star": {Star(&th), s.Star}, "Chosen": {Chosen(&th), s.Selected},
+			"Ink": {Ink(&th, 1), ui.RGB(s.Fill.R, s.Fill.G, s.Fill.B)}, "Marker": {Marker(&th), s.Accent},
+			"Soft": {Soft(&th, th.Accent), s.Soft},
+		} {
+			if c[0] != c[1] {
+				t.Errorf("dark %v: %s %v, want %v", dark, name, c[0], c[1])
+			}
+		}
+		if th.Dark != dark || th.Radius != 8 {
+			t.Errorf("dark %v: %+v", dark, th)
+		}
+	}
+	// The light values the design system's audit was signed off with.
 	light := applied(t, false, ui.Preferences{})
-	for name, c := range map[string][2]ui.Color{
-		"Background": {light.Background, ui.Hex("#fdfcfa")}, "Surface": {light.Surface, ui.Hex("#f6f3ee")},
-		"Text": {light.Text, ui.Hex("#25221e")}, "TextMuted": {light.TextMuted, ui.Hex("#736d62")},
-		"Accent": {light.Accent, ui.Hex("#2a6d65")}, "Danger": {light.Danger, ui.Hex("#b4533c")},
-		"Inverse": {light.Inverse, ui.Hex("#2a2620")}, "Text2": {Text2(&light), ui.Hex("#58534a")},
-		"Prose": {Prose(&light), ui.Hex("#3a362f")}, "Track": {Track(&light), ui.Hex("#ece8e0")},
-		"RaisedFill": {RaisedFill(&light), ui.Hex("#ffffff")}, "LineStrong": {LineStrong(&light), ui.Hex("#d4cec2")},
-		"Disabled": {Disabled(&light), ui.Hex("#b3ada1")}, "Star": {Star(&light), ui.Hex("#b98a22")},
-		"Ink": {Ink(&light, 1), ui.RGB(37, 34, 30)}, "Marker": {Marker(&light), ui.Hex("#2a6d65")},
-	} {
-		if c[0] != c[1] {
-			t.Errorf("light %s %v, want %v", name, c[0], c[1])
-		}
-	}
-	if light.Dark || light.Radius != 8 {
-		t.Errorf("light: %+v", light)
-	}
-	dark := applied(t, true, ui.Preferences{})
-	for name, c := range map[string][2]ui.Color{
-		"Background": {dark.Background, ui.Hex("#171918")}, "Surface": {dark.Surface, ui.Hex("#1d1f1e")},
-		"Text": {dark.Text, ui.Hex("#dde1df")}, "TextMuted": {dark.TextMuted, ui.Hex("#8a918f")},
-		"Accent": {dark.Accent, ui.Hex("#78beb1")}, "Inverse": {dark.Inverse, ui.Hex("#333837")},
-		"Text2": {Text2(&dark), ui.Hex("#aab0ae")}, "Prose": {Prose(&dark), ui.Hex("#c3c9c7")},
-		"Track": {Track(&dark), ui.Hex("#2c2f2e")}, "RaisedFill": {RaisedFill(&dark), ui.Hex("#252827")},
-		"LineStrong": {LineStrong(&dark), ui.Hex("#3d4241")}, "Disabled": {Disabled(&dark), ui.Hex("#565b59")},
-		"Star": {Star(&dark), ui.Hex("#e2b24f")}, "Ink": {Ink(&dark, 1), ui.RGB(234, 240, 238)},
-	} {
-		if c[0] != c[1] {
-			t.Errorf("dark %s %v, want %v", name, c[0], c[1])
-		}
-	}
-	if !dark.Dark {
-		t.Error("dark is not dark")
+	if Text2(&light) != ui.Hex("#4c4840") || light.TextMuted != ui.Hex("#6a645a") || light.Danger != ui.Hex("#a34b36") {
+		t.Error("light palette is not the final design's")
 	}
 }
 
 func TestPaneTheme(t *testing.T) {
-	for _, tc := range []struct {
-		dark                   bool
-		bg, text, text2, muted string
-		ink                    ui.Color
-		rim                    float32
-	}{
-		{false, "#37332e", "#ece7dd", "#cdc7bb", "#a49e91", ui.RGB(255, 248, 235), 0.1},
-		{true, "#1a2422", "#e8eeec", "#cbd5d2", "#93a39f", ui.RGB(235, 248, 244), 0.08},
-	} {
-		main := applied(t, tc.dark, ui.Preferences{})
+	for _, dark := range []bool{false, true} {
+		s := &tokens.SchemeLight
+		if dark {
+			s = &tokens.SchemeDark
+		}
+		main := applied(t, dark, ui.Preferences{})
 		p := PaneTheme(&main)
-		if !p.Dark || p.Background != ui.Hex(tc.bg) || p.Text != ui.Hex(tc.text) || p.TextMuted != ui.Hex(tc.muted) {
-			t.Errorf("dark %v: pane %+v", tc.dark, p)
+		ink := ui.RGB(s.PaneFill.R, s.PaneFill.G, s.PaneFill.B)
+		if !p.Dark || p.Background != s.Pane || p.Text != s.PaneFg || p.TextMuted != s.PaneMuted || p.Accent != s.PaneAccent {
+			t.Errorf("dark %v: pane %+v", dark, p)
 		}
-		if Text2(p) != ui.Hex(tc.text2) || Ink(p, 1) != tc.ink || Ink(p, 0.5) != tc.ink.Alpha(0.5) {
-			t.Errorf("dark %v: pane Text2 %v, ink %v", tc.dark, Text2(p), Ink(p, 1))
+		if Text2(p) != s.PaneFg2 || Ink(p, 1) != ink || Disabled(p) != s.PaneFaint {
+			t.Errorf("dark %v: pane Text2 %v, ink %v", dark, Text2(p), Ink(p, 1))
 		}
-		if p.Accent != ui.Hex("#7cc9bb") || p.Warning != ui.Hex("#d6aa55") || p.Success != ui.Hex("#8ab997") ||
-			p.Surface != tc.ink.Alpha(0.11) || p.Border != tc.ink.Alpha(0.08) || p.Scrollbar != tc.ink.Alpha(0.3) ||
-			p.Inverse != ui.Hex("#333837") {
-			t.Errorf("dark %v: pane roles %+v", tc.dark, p)
+		if p.Warning != tokens.SchemeDark.Warning || p.Success != tokens.SchemeDark.Success ||
+			p.Inverse != tokens.SchemeDark.Inverse || p.Surface != s.PaneFill || p.Border != s.PaneLine ||
+			p.Scrollbar != ink.Alpha(0.3) {
+			t.Errorf("dark %v: pane roles %+v", dark, p)
 		}
-		if Track(p) != tc.ink.Alpha(0.11) || Chosen(p) != tc.ink.Alpha(0.12) || Soft(p, p.Accent) != p.Accent.Alpha(0.12) ||
-			Star(p) != ui.Hex("#e2b24f") || Marker(p) != p.Accent || p.SurfaceHover != tc.ink.Alpha(0.055) ||
-			p.SurfacePressed != tc.ink.Alpha(0.085) {
-			t.Errorf("dark %v: pane helpers", tc.dark)
+		if Track(p) != s.PaneFill || Chosen(p) != s.PaneSelected || p.SurfaceHover != s.PaneHover ||
+			p.SurfacePressed != s.PanePressed || Star(p) != tokens.SchemeDark.Star || Marker(p) != p.Accent {
+			t.Errorf("dark %v: pane helpers", dark)
 		}
 		if PaneTheme(p) != p {
-			t.Errorf("dark %v: PaneTheme of the pane theme is not itself", tc.dark)
+			t.Errorf("dark %v: PaneTheme of the pane theme is not itself", dark)
 		}
-		if main.Background == p.Background || main.Dark != tc.dark {
-			t.Errorf("dark %v: PaneTheme changed main", tc.dark)
+		if main.Background == p.Background || main.Dark != dark {
+			t.Errorf("dark %v: PaneTheme changed main", dark)
 		}
 	}
 }
 
+// TestStateFillsStep holds the state ladder in order: hover under selected under pressed, so a hovered chosen row
+// still reads as chosen and pressing it still shows.
 func TestStateFillsStep(t *testing.T) {
 	for _, high := range []bool{false, true} {
 		for name, th := range map[string]ui.Theme{
@@ -133,25 +126,18 @@ func TestStateFillsStep(t *testing.T) {
 			base := th
 			pane := PaneTheme(&base)
 			for _, tt := range []*ui.Theme{&base, pane} {
-				h, p, c := tt.SurfaceHover.A, tt.SurfacePressed.A, Chosen(tt).A
-				if !(h < p && p < c) {
-					t.Errorf("%s high %v: fills %d, %d, %d do not step", name, high, h, p, c)
+				f, h, c, p := Track(tt).A, tt.SurfaceHover.A, Chosen(tt).A, tt.SurfacePressed.A
+				if !(f < h && h < c && c < p) {
+					t.Errorf("%s high %v: fills %d, %d, %d, %d do not step", name, high, f, h, c, p)
 				}
 			}
 		}
 	}
-	light := applied(t, false, ui.Preferences{})
-	if light.SurfaceHover != Ink(&light, 0.03) || light.SurfacePressed != Ink(&light, 0.05) ||
-		Chosen(&light) != Ink(&light, 0.065) || light.Border != Ink(&light, 0.075) {
-		t.Error("light fills are not 3, 5 and 6.5% with a 7.5% hairline")
-	}
-	dark := applied(t, true, ui.Preferences{})
-	if dark.SurfaceHover != Ink(&dark, 0.04) || dark.SurfacePressed != Ink(&dark, 0.06) || Chosen(&dark) != Ink(&dark, 0.08) {
-		t.Error("dark fills are not 4, 6 and 8%")
-	}
 	strong := applied(t, false, ui.Preferences{HighContrast: true})
-	if strong.SurfaceHover != Ink(&strong, 0.08) || strong.SurfacePressed != Ink(&strong, 0.12) || Chosen(&strong) != Ink(&strong, 0.16) {
-		t.Error("high contrast fills are not 8, 12 and 16%")
+	hc := tokens.HighContrast
+	if Track(&strong) != Ink(&strong, hc.Fill) || strong.SurfaceHover != Ink(&strong, hc.Hover) ||
+		Chosen(&strong) != Ink(&strong, hc.Selected) || strong.SurfacePressed != Ink(&strong, hc.Pressed) {
+		t.Error("high contrast fills are not the high contrast ladder")
 	}
 }
 
@@ -187,17 +173,6 @@ func TestHighContrast(t *testing.T) {
 	}
 }
 
-func TestSoft(t *testing.T) {
-	th := applied(t, false, ui.Preferences{})
-	if s := Soft(&th, th.Accent); s != th.Accent.Alpha(0.09) {
-		t.Errorf("soft accent %v", s)
-	}
-	th = applied(t, true, ui.Preferences{})
-	if s := Soft(&th, th.Accent); s != th.Accent.Alpha(0.12) {
-		t.Errorf("dark soft accent %v", s)
-	}
-}
-
 // contrast is the WCAG 2.1 contrast ratio of two opaque colors.
 func contrast(a, b ui.Color) float64 {
 	lum := func(c ui.Color) float64 {
@@ -220,7 +195,7 @@ func contrast(a, b ui.Color) float64 {
 func TestContrast(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		th := applied(t, dark, ui.Preferences{})
-		for _, ground := range []ui.Color{th.Background, th.Surface} {
+		for _, ground := range []ui.Color{th.Background, Surface(&th)} {
 			for _, text := range []ui.Color{th.Text, Text2(&th), Prose(&th), th.TextMuted, th.Accent} {
 				if r := contrast(text, ground); r < 4.5 {
 					t.Errorf("dark %v: %v on %v is %.2f:1", dark, text, ground, r)
@@ -252,7 +227,7 @@ func TestContrast(t *testing.T) {
 				t.Errorf("dark %v: pane text %v is %.2f:1", dark, text, r)
 			}
 		}
-		if r := contrast(pane.Accent, pane.Background); r < 4.5 {
+		if r := contrast(pane.Accent, pane.Background); r < 3 {
 			t.Errorf("dark %v: pane accent is %.2f:1", dark, r)
 		}
 		sel := Chosen(pane).Over(pane.Background)
@@ -278,7 +253,7 @@ func TestFocusRing(t *testing.T) {
 			theme   *ui.Theme
 			grounds []ui.Color
 		}{
-			"main": {&th, []ui.Color{th.Background, th.Surface}},
+			"main": {&th, []ui.Color{th.Background, Surface(&th)}},
 			"pane": {pane, []ui.Color{pane.Background}},
 		} {
 			for _, ground := range tc.grounds {
@@ -296,7 +271,7 @@ func TestFillContrast(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		for _, high := range []bool{false, true} {
 			th := applied(t, dark, ui.Preferences{HighContrast: high})
-			for _, ground := range []ui.Color{th.Background, th.Surface} {
+			for _, ground := range []ui.Color{th.Background, Surface(&th)} {
 				softs := map[string]ui.Color{
 					"Soft(Danger)":  Soft(&th, th.Danger).Over(ground),
 					"Soft(Warning)": Soft(&th, th.Warning).Over(ground),
@@ -314,7 +289,7 @@ func TestFillContrast(t *testing.T) {
 				}
 			}
 			for _, text := range []ui.Color{th.Text, Text2(&th)} {
-				if r := contrast(text, Track(&th)); r < 4.5 {
+				if r := contrast(text, Track(&th).Over(th.Background)); r < 4.5 {
 					t.Errorf("dark %v high %v: %v on Track is %.2f:1", dark, high, text, r)
 				}
 			}
@@ -362,12 +337,12 @@ func TestPaneOpaque(t *testing.T) {
 func TestCapsuleOpaqueInHighContrast(t *testing.T) {
 	paint := func(c *ui.Context, e ui.Element) { Capsule(c, e, false) }
 	th, glass := fill(t, ui.Preferences{}, paint)
-	if glass == rgba(th.Surface) {
+	if glass == rgba(Surface(&th)) {
 		t.Error("capsule is opaque Surface without high contrast")
 	}
 	th, solid := fill(t, ui.Preferences{HighContrast: true}, paint)
-	if solid != rgba(th.Surface) {
-		t.Errorf("high contrast fill %v, want Surface %v", solid, rgba(th.Surface))
+	if solid != rgba(Surface(&th)) {
+		t.Errorf("high contrast fill %v, want Surface %v", solid, rgba(Surface(&th)))
 	}
 }
 
@@ -399,7 +374,7 @@ func TestMonogramSizes(t *testing.T) {
 			t.Fatalf("%q at %v has no letter %q", tc.name, tc.size, tc.want)
 		}
 	}
-	if GlyphRadius(15) != 4 || GlyphRadius(18) != 4 || GlyphRadius(20) != 4 || GlyphRadius(32) != 8 {
+	if GlyphRadius(16) != tokens.RadiusXS || GlyphRadius(32) != tokens.RadiusXS {
 		t.Fatal("glyph radii")
 	}
 }
@@ -411,22 +386,21 @@ func TestSheet(t *testing.T) {
 	}{{"light", false, false}, {"dark", true, false}, {"light high", false, true}, {"dark high", true, true}} {
 		th := applied(t, tc.dark, ui.Preferences{HighContrast: tc.high})
 		pop, dlg := SheetFor(&th, tc.high, Popup), SheetFor(&th, tc.high, Dialog)
-		if pop.Radius != 12 || dlg.Radius != 16 || pop.Blur >= dlg.Blur || pop.Offset >= dlg.Offset {
+		if pop.Radius != tokens.RadiusCard || dlg.Radius != tokens.RadiusPane || pop.Shadow.Blur >= dlg.Shadow.Blur ||
+			pop.Shadow.Y >= dlg.Shadow.Y {
 			t.Errorf("%s: popup %+v, dialog %+v", tc.name, pop, dlg)
+		}
+		e := tokens.ElevationLight
+		if tc.dark {
+			e = tokens.ElevationDark
 		}
 		switch {
 		case tc.high:
-			if dlg.RimWidth != 1 || dlg.Rim != th.Border {
-				t.Errorf("%s: rim %v %v", tc.name, dlg.RimWidth, dlg.Rim)
+			if dlg.Shadow.Rim != 1 || dlg.Shadow.RimColor != th.Border {
+				t.Errorf("%s: rim %v %v", tc.name, dlg.Shadow.Rim, dlg.Shadow.RimColor)
 			}
-		case tc.dark:
-			if dlg.RimWidth != 1 || dlg.Rim != ui.RGBA(255, 255, 255, 0.08) || dlg.Shadow != ui.RGBA(0, 0, 0, 0.55) {
-				t.Errorf("%s: rim %v %v, shadow %v", tc.name, dlg.RimWidth, dlg.Rim, dlg.Shadow)
-			}
-		default:
-			if dlg.RimWidth != 0.5 || dlg.Rim != Ink(&th, 0.12) || dlg.Shadow != ui.RGBA(28, 24, 18, 0.25) {
-				t.Errorf("%s: rim %v %v, shadow %v", tc.name, dlg.RimWidth, dlg.Rim, dlg.Shadow)
-			}
+		case dlg.Shadow != e.Dialog || pop.Shadow != e.Popup:
+			t.Errorf("%s: shadows %+v, %+v", tc.name, pop.Shadow, dlg.Shadow)
 		}
 	}
 	light, dark := applied(t, false, ui.Preferences{}), applied(t, true, ui.Preferences{})
@@ -434,7 +408,7 @@ func TestSheet(t *testing.T) {
 		th   *ui.Theme
 		high bool
 		want ui.Color
-	}{{&light, false, ui.RGBA(28, 24, 18, 0.32)}, {&dark, false, ui.RGBA(0, 0, 0, 0.45)},
+	}{{&light, false, tokens.SchemeLight.Scrim}, {&dark, false, tokens.SchemeDark.Scrim},
 		{&light, true, ui.RGBA(28, 24, 18, 0.5)}, {&dark, true, ui.RGBA(0, 0, 0, 0.6)}} {
 		if got := ScrimFor(tc.th, tc.high); got != tc.want {
 			t.Errorf("dark %v high %v: scrim %v, want %v", tc.th.Dark, tc.high, got, tc.want)

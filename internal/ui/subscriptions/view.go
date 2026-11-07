@@ -1903,7 +1903,7 @@ func (s *Screen) kindSuggestion(c *ui.Context) {
 	}
 	t := c.Theme()
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(2), t.Space(3)).Radius(8).
-		Background(t.Surface).Label(text).Children(func() {
+		Background(theme.Surface(t)).Label(text).Children(func() {
 		ui.Icon(c, kindIcon(e.src.SuggestedKind)).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 		ui.Text(c, text).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Grow(1).MinWidth(0).Wrap()
 		use := theme.Button{Small: true, Disabled: e.busy, Text: strings.ReplaceAll(s.text.UseKind, "{kind}", s.kindName(e.src.SuggestedKind))}.Draw(c)
@@ -2442,7 +2442,7 @@ func (s *Screen) movedCard(c *ui.Context) {
 	}
 	t := c.Theme()
 	ui.Column(c).FillWidth().Gap(t.Space(2)).Padding(theme.Px(t, 10), theme.Px(t, 12)).Radius(t.Radius).
-		Background(t.Surface).Role(ui.RoleStatus).Children(func() {
+		Background(theme.Surface(t)).Role(ui.RoleStatus).Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Children(func() {
 			ui.Icon(c, icons.Signpost).FontSize(theme.IconSmall(t)).TextColor(t.Accent).Margin(2, 0, 0, 0)
 			ui.Text(c, s.text.Moved).FontSize(theme.Px(t, 12)).FontWeight(500).Shrink(1).Wrap()
@@ -2472,7 +2472,7 @@ func (s *Screen) health(c *ui.Context) {
 	t := c.Theme()
 	src := s.edit.src
 	text, bad := s.healthText(src, s.deps.Now())
-	icon, color, fill := icons.Check, t.TextMuted, t.Surface
+	icon, color, fill := icons.Check, t.TextMuted, theme.Surface(t)
 	switch {
 	case src.Paused:
 		icon = icons.Pause
@@ -2534,7 +2534,7 @@ func (s *Screen) aiGroup(c *ui.Context) {
 	groupTitle(c, icons.Sparkles, s.text.AIGroup)
 	if e.aiOff {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(t.Space(2), theme.Px(t, 10)).Radius(t.Radius).
-			Background(t.Surface).Children(func() {
+			Background(theme.Surface(t)).Children(func() {
 			ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 			ui.Text(c, s.text.AIOff).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().
 				Role(ui.RoleStatus)

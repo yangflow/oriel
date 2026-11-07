@@ -37,6 +37,8 @@ func TestTextSizesAreTiers(t *testing.T) {
 	number := regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
 	px := regexp.MustCompile(`^(?:theme\.)?Px\([A-Za-z.()]+, ?([0-9.]+)\)$`)
 	rem := regexp.MustCompile(`^[A-Za-z.()]+\.Rem\(([0-9.]+)\)$`)
+	// A text style token is a tier by construction: package tokens is generated from the tiers.
+	token := regexp.MustCompile(`^(?:theme\.)?Px\([A-Za-z.]+, ?tokens\.Text[A-Za-z]+\.Size\.En\)$`)
 	// Literals that reach FontSize through a variable or a parameter.
 	via := []*regexp.Regexp{
 		regexp.MustCompile(`titleText\(c, e, ([0-9.]+),`),
@@ -96,7 +98,7 @@ func TestTextSizesAreTiers(t *testing.T) {
 				case rem.MatchString(arg):
 					v, _ := strconv.ParseFloat(rem.FindStringSubmatch(arg)[1], 64)
 					check(where, v*13, arg)
-				case forms[arg]:
+				case token.MatchString(arg), forms[arg]:
 				default:
 					t.Errorf("%s: FontSize(%s) is neither a literal nor a listed form; add the form here with its literals checked", where, arg)
 				}

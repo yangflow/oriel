@@ -1,10 +1,9 @@
 package theme
 
 import (
-	"time"
-
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/ui/icons"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // ToastLook is the Data of a toast that shows more than its text: Icon before the text, Keys, the shortcut of the
@@ -32,11 +31,14 @@ func Toasts(c *ui.Context) {
 		for _, ts := range toasts {
 			look, _ := ts.Data.(ToastLook)
 			p := ui.ToastBase(c, ts)
-			box := p.Root.Row().AlignItems(ui.Center).Gap(Px(t, 10)).MinHeight(Px(t, 40)).MaxWidth(width-t.Space(10)).
-				Padding(Px(t, 6), Px(t, 14)).Radius(Px(t, 12)).Background(fill).TextColor(text).
-				Shadow(0, 8, 28, 0, ui.RGBA(0, 0, 0, 0.28))
+			box := p.Root.Row().AlignItems(ui.Center).Gap(Px(t, tokens.Space2)).MinHeight(Px(t, tokens.Toolbar-12)).
+				MaxWidth(min(Px(t, tokens.Dialog), width-t.Space(10))).Padding(Px(t, tokens.Space1_5), Px(t, tokens.Space4)).
+				Radius(Px(t, tokens.RadiusCard)).Background(fill).TextColor(text)
+			popup := Elevation(t).Popup
+			popup.Rim = 0
+			Shadow(t, box, popup)
 			if ts.Action != "" {
-				box.Padding(Px(t, 6), Px(t, 6), Px(t, 6), Px(t, 14))
+				box.Padding(Px(t, tokens.Space1_5), Px(t, tokens.Space1_5), Px(t, tokens.Space1_5), Px(t, tokens.Space4))
 			}
 			box.Opacity(fade(c, p))
 			cut := false
@@ -44,18 +46,21 @@ func Toasts(c *ui.Context) {
 				if look.Icon != nil {
 					ui.Icon(c, look.Icon).FontSize(IconMedium(t))
 				}
-				title := ui.Text(c, ts.Title).Shrink(1).MinWidth(0).MaxLines(2).FontSize(Px(t, 12))
-				cut = Cut(c, title, ts.Title, Px(t, 12), 0, 2)
+				title := ui.Text(c, ts.Title).Shrink(1).MinWidth(0).MaxLines(2)
+				cut = Cut(c, title, ts.Title, t.FontSize, 0, 2)
 				if ts.Action == "" {
 					return
 				}
-				action := p.ActionButton().Row().AlignItems(ui.Center).Gap(Px(t, 6)).Height(Px(t, 28)).
-					PaddingX(Px(t, 10)).Radius(Px(t, 8)).Background(text.Alpha(0.16))
+				action := p.ActionButton().Row().AlignItems(ui.Center).Gap(Px(t, tokens.Space1_5)).
+					Height(Px(t, tokens.ControlSmall+4)).PaddingX(Px(t, tokens.Space2)).Radius(Px(t, tokens.RadiusControl))
 				if action.Hovered() {
-					action.Background(text.Alpha(0.24))
+					action.Background(text.Alpha(0.16))
 				}
 				action.Children(func() {
-					ui.Text(c, ts.Action).FontSize(Px(t, 12)).FontWeight(600).SingleLine()
+					label := ui.Text(c, ts.Action).FontWeight(600).SingleLine()
+					if action.Hovered() {
+						label.Underline()
+					}
 					if look.Keys != "" {
 						ui.Text(c, look.Keys).FontSize(Px(t, 12)).TextColor(text.Alpha(0.6)).SingleLine()
 					}
@@ -63,8 +68,8 @@ func Toasts(c *ui.Context) {
 				if look.Close == "" {
 					return
 				}
-				close := p.CloseButton().Label(look.Close).Tooltip(look.Close).Size(Px(t, 28), Px(t, 28)).Center().
-					Radius(Px(t, 8))
+				close := p.CloseButton().Label(look.Close).Tooltip(look.Close).Size(Px(t, tokens.ControlSmall+4), Px(t, tokens.ControlSmall+4)).
+					Center().Radius(Px(t, tokens.RadiusControl))
 				if close.Hovered() {
 					close.Background(text.Alpha(0.16))
 				}
@@ -81,7 +86,7 @@ func Toasts(c *ui.Context) {
 
 // fade is the opacity of a toast: it fades in, and out at the end.
 func fade(c *ui.Context, p ui.ToastParts) float32 {
-	const length = 200 * time.Millisecond
+	const length = tokens.MotionBase
 	left := p.Left()
 	switch {
 	case left <= 0:

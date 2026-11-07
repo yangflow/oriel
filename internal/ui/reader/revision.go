@@ -122,7 +122,7 @@ func (s *Screen) revisedLine(c *ui.Context, e client.Entry) {
 	text := strings.ReplaceAll(s.text.Revised, "{time}", when)
 	ui.Column(c).Key("revised").FillWidth().Margin(theme.Px(t, 14), 0, 0, 0).Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Padding(theme.Px(t, 6), theme.Px(t, 6), theme.Px(t, 6), theme.Px(t, 14)).
-			Radius(theme.Px(t, 12)).Background(t.Surface).Role(ui.RoleStatus).Label(text).Children(func() {
+			Radius(theme.Px(t, 12)).Background(theme.Surface(t)).Role(ui.RoleStatus).Label(text).Children(func() {
 			ui.Icon(c, icons.Pencil).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 			ui.Text(c, text).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(theme.Text2(t)).Wrap()
 			if !s.rev.ready || len(s.rev.changes) == 0 {

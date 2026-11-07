@@ -10,6 +10,7 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // foldGroup is the entries of one subscription on one day that sit over its daily cap, drawn as one row.
@@ -96,30 +97,22 @@ func (s *Screen) foldRows() map[int][]foldGroup {
 	return rows
 }
 
-// foldRow is the row of g: its glyph, how many entries it holds, and a chevron. It is a button that shows them.
+// foldRow is the mark of design BListMarks for g: how many entries of its source the daily cap folded, a muted link
+// with a chevron, centered on the column. It shows them.
 func (s *Screen) foldRow(c *ui.Context, g foldGroup) {
 	t := c.Theme()
 	n := len(g.entries)
 	text := strings.ReplaceAll(s.format(s.text.FoldMore, n), "{name}", g.name)
 	label := strings.ReplaceAll(s.format(s.text.FoldLabel, n), "{name}", g.name)
-	b := ui.ButtonBase(c).Key("fold"+strconv.FormatInt(g.source, 10)+"-"+strconv.Itoa(g.day)).FillWidth().
-		Height(theme.Px(t, 36)).AlignItems(ui.Center).Gap(theme.Px(t, 12)).Padding(0, theme.Px(t, 16), 0, theme.Px(t, 28)).
-		Radius(theme.Px(t, 10)).Label(label)
-	switch {
-	case b.Pressed():
-		b.Background(t.SurfacePressed)
-	case b.Hovered() || b.Focused():
-		b.Background(t.SurfaceHover)
-	}
-	theme.Fade(b)
-	b.Children(func() {
-		s.glyph(c, g.name, s.iconOf(g.source), 16)
-		ui.Text(c, text).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine()
-		ui.Icon(c, icons.ChevronDown).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.RowCompact)).Justify(ui.Center).AlignItems(ui.Center).
+		Padding(0, theme.Px(t, tokens.Space4), 0, theme.Px(t, 28)).Children(func() {
+		b := theme.Link{Key: "fold" + strconv.FormatInt(g.source, 10) + "-" + strconv.Itoa(g.day), Text: text,
+			Label: label, Icon: icons.ChevronDown, IconAfter: true, Muted: true}.Draw(c)
+		b.MinWidth(0)
+		if b.Clicked() {
+			s.unfolding = &g // the list is being built: the entries change when it is done
+		}
 	})
-	if b.Clicked() {
-		s.unfolding = &g // the list is being built: the entries change when it is done
-	}
 }
 
 // unfold puts the entries of g in their places in the list, keeps the choice on its entry, and gives the focus to

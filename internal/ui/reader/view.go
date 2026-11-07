@@ -1419,7 +1419,7 @@ func (s *Screen) embedRow(c *ui.Context, b block) {
 	label := s.embedLabel(b, words)
 	if s.article.URL == "" {
 		ui.Row(c).FillWidth().MinHeight(theme.Px(t, 40)).AlignItems(ui.Center).Gap(theme.Px(t, 10)).
-			Padding(theme.Px(t, 10), theme.Px(t, 12)).Radius(theme.Px(t, 10)).Background(t.Surface).
+			Padding(theme.Px(t, 10), theme.Px(t, 12)).Radius(theme.Px(t, 10)).Background(theme.Surface(t)).
 			Border(0.5, theme.Ink(t, 0.1)).Label(label).Children(func() { parts(false) })
 		return
 	}
@@ -1428,11 +1428,11 @@ func (s *Screen) embedRow(c *ui.Context, b block) {
 		Label(strings.ReplaceAll(s.text.EmbedName, "{what}", label))
 	switch {
 	case row.Pressed():
-		row.Background(t.Surface.Mix(t.Text, 0.12))
+		row.Background(theme.Surface(t).Mix(t.Text, 0.12))
 	case row.Hovered():
-		row.Background(t.Surface.Mix(t.Text, 0.08))
+		row.Background(theme.Surface(t).Mix(t.Text, 0.08))
 	default:
-		row.Background(t.Surface)
+		row.Background(theme.Surface(t))
 	}
 	row.Children(func() { parts(true) })
 	if row.Clicked() {
@@ -1539,7 +1539,7 @@ func (s *Screen) skeleton(c *ui.Context, pad []float32) {
 // not be got, the Surface color with a spinner while it is being got.
 func (s *Screen) note(c *ui.Context, warn bool, text string) {
 	t := c.Theme()
-	color, background, icon := theme.Text2(t), t.Surface, t.TextMuted
+	color, background, icon := theme.Text2(t), theme.Surface(t), t.TextMuted
 	if warn {
 		background, icon = theme.Soft(t, t.Warning), t.Warning
 	}
@@ -1739,7 +1739,7 @@ func (s *Screen) summaryCard(c *ui.Context) {
 // aiOffCard stands in for a summary or translation while AI is not set up, and leads to the settings.
 func (s *Screen) aiOffCard(c *ui.Context) {
 	t := c.Theme()
-	s.card(c, t.Surface, s.text.AIOffTitle, func() {
+	s.card(c, theme.Surface(t), s.text.AIOffTitle, func() {
 		s.head(c, icons.Sparkles, theme.Text2(t), s.text.AIOffTitle, func() {
 			if s.mini(c, s.text.Close) {
 				s.aiOff = false
@@ -1765,7 +1765,7 @@ func (s *Screen) translationNote(c *ui.Context) {
 	text2 := theme.Text2(t)
 	switch {
 	case j.working:
-		row.Background(t.Surface).Role(ui.RoleStatus).Children(func() {
+		row.Background(theme.Surface(t)).Role(ui.RoleStatus).Children(func() {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
 			ui.Text(c, s.text.Translating).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12)).TextColor(text2).Wrap()
@@ -1812,7 +1812,7 @@ func (s *Screen) translationNote(c *ui.Context) {
 func (s *Screen) empty(c *ui.Context, icon *ui.SVG, color ui.Color, title, hint string, buttons func()) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Center().Gap(t.Space(3)).Role(ui.RoleStatus).Children(func() {
-		tile := t.Surface
+		tile := theme.Surface(t)
 		if color == t.Danger {
 			tile = theme.Soft(t, color)
 		}
@@ -1979,7 +1979,7 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 		case embed:
 			s.embedRow(c, b)
 		case code:
-			ui.ScrollHorizontal(c).FillWidth().Radius(theme.Px(t, 12)).Background(t.Surface).Children(func() {
+			ui.ScrollHorizontal(c).FillWidth().Radius(theme.Px(t, 12)).Background(theme.Surface(t)).Children(func() {
 				text := ui.Text(c, b.text)
 				if marks := s.find.marks(unit, 0, len([]rune(b.text))); len(marks) > 0 {
 					text = ui.RichText(c).Children(func() {
@@ -2329,7 +2329,7 @@ func (s *Screen) cell(c *ui.Context, cl cell, r int, size float32, key, unit, ba
 	box := ui.Column(c).Key(key).ColumnSpan(cl.span).MinWidth(theme.Px(t, 48)).MaxWidth(theme.Px(t, 240)).
 		Padding(theme.Px(t, 8), theme.Px(t, 12))
 	if cl.head {
-		box.Background(t.Surface)
+		box.Background(theme.Surface(t))
 	}
 	if r > 0 {
 		box.BorderWidth(0.5, 0, 0, 0).BorderColor(t.Border)
@@ -2446,7 +2446,7 @@ func (s *Screen) picture(c *ui.Context, b block, avail float32) {
 			name = s.text.PicFailedNoAlt
 		}
 	}
-	box := ui.Box(c).FillWidth().Radius(theme.Px(t, 12)).Background(t.Surface).Clip().Label(name)
+	box := ui.Box(c).FillWidth().Radius(theme.Px(t, 12)).Background(theme.Surface(t)).Clip().Label(name)
 	if ratio > 0 {
 		box.AspectRatio(ratio)
 	} else {

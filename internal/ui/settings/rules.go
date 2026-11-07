@@ -229,7 +229,7 @@ func (s *Screen) rulesPage(c *ui.Context) {
 	t := c.Theme()
 	p := &s.rules
 	lead(c, s.text.RulesLead)
-	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Children(func() {
+	ui.Column(c).FillWidth().Radius(12).Background(theme.Surface(t)).Children(func() {
 		if len(p.list) == 0 {
 			ui.Row(c).Key("none").FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, 12)).Padding(theme.Px(t, 16), theme.Px(t, 20)).
 				Children(func() {
@@ -698,7 +698,7 @@ func (s *Screen) mutedCard(c *ui.Context) {
 	t := c.Theme()
 	p := &s.rules
 	s.watchMuted(c)
-	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Margin(theme.Px(t, 20), 0, 0, 0).Children(func() {
+	ui.Column(c).FillWidth().Radius(12).Background(theme.Surface(t)).Margin(theme.Px(t, 20), 0, 0, 0).Children(func() {
 		ui.Column(c).FillWidth().Padding(theme.Px(t, 16), theme.Px(t, 20)).Children(func() {
 			ui.Text(c, s.text.MutedTitle).FontWeight(500)
 			ui.Text(c, s.text.MutedHelp).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Wrap().Margin(theme.Px(t, 4), 0, 0, 0)

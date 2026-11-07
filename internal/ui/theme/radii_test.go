@@ -14,8 +14,8 @@ import (
 // fails here until it is merged into a tier or listed there.
 //
 // Every Radius(...) argument and every `Radius:` field is read. A literal (a bare number, Px(t, n), t.Space(k) as
-// 4k, Rem(n / 13)) must be a tier; Pill(...) is the one radius that follows its shape (a pill or a circle) and
-// t.Radius is the theme's own 8. A non-literal argument must be one of the forms listed below, whose values are
+// 4k, Rem(n / 13)) must be a tier; a tokens.Radius constant is one; Pill(...) is the one radius that follows its
+// shape (a pill or a circle) and t.Radius is the theme's own 8. A non-literal argument must be one of the forms listed below, whose values are
 // checked at the places that produce them: the callers of picture and coverOf, GlyphRadius and SheetLook.
 func TestRadiiAreTiers(t *testing.T) {
 	allowed := map[float64]bool{
@@ -37,11 +37,12 @@ func TestRadiiAreTiers(t *testing.T) {
 	space := regexp.MustCompile(`^[A-Za-z.]+\.Space\(([0-9.]+)\)$`)
 	rem := regexp.MustCompile(`^[A-Za-z.]+\.Rem\(([0-9.]+) ?/ ?13\)$`)
 	pill := regexp.MustCompile(`^(?:theme\.)?Pill\(.+\)$`)
+	// A radius token is a tier by construction: package tokens is generated from the tiers.
+	token := regexp.MustCompile(`^(?:(?:theme\.)?Px\([A-Za-z.]+, ?)?tokens\.Radius[A-Za-z]+\)?$`)
 	// Literals that reach a radius through a parameter or an assignment.
 	via := []*regexp.Regexp{
 		regexp.MustCompile(`\b(?:picture|pictureOf)\(c, [^,]+, [^,]+, (?:theme\.Px\(t, )?([0-9.]+)\)?,`),
 		regexp.MustCompile(`\bcoverOf\(c, e, [^,]+, [^,]+, (?:theme\.Px\(t, )?([0-9.]+)\)?,`),
-		regexp.MustCompile(`\bl\.Radius, l\.Offset, l\.Blur, l\.Shadow = ([0-9.]+),`),
 		regexp.MustCompile(`\bRadius: ([0-9.]+),`),
 	}
 	check := func(where string, v float64, text string) {
@@ -96,7 +97,7 @@ func TestRadiiAreTiers(t *testing.T) {
 				case rem.MatchString(arg):
 					v, _ := strconv.ParseFloat(rem.FindStringSubmatch(arg)[1], 64)
 					check(where, v, arg)
-				case pill.MatchString(arg), forms[arg]:
+				case pill.MatchString(arg), token.MatchString(arg), forms[arg]:
 				default:
 					t.Errorf("%s: Radius(%s) is neither a literal nor a listed form; add the form here with its literals checked", where, arg)
 				}

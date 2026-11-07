@@ -2043,7 +2043,7 @@ type cardRow struct {
 // one that appears or disappears keeps its focus.
 func cardOf(c *ui.Context, rows []cardRow) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Children(func() {
+	ui.Column(c).FillWidth().Radius(12).Background(theme.Surface(t)).Children(func() {
 		for i, row := range rows {
 			if i > 0 {
 				ui.Box(c).FillWidth().Height(1).Margin(0, theme.Px(t, 20)).Background(t.Border)
@@ -3465,7 +3465,7 @@ func (s *Screen) deviceTable(c *ui.Context, now time.Time) {
 		return g.FillWidth().ColumnTracks(ui.Fr(1), ui.Fixed(theme.Px(t, 88)), ui.Fixed(theme.Px(t, 96)), ui.Fixed(theme.Px(t, 116)),
 			ui.Fixed(theme.Px(t, 96))).GapX(theme.Px(t, 16)).AlignItems(ui.Center).Padding(0, theme.Px(t, 20))
 	}
-	ui.Column(c).FillWidth().Radius(12).Background(t.Surface).Role(ui.RoleTable).Label(s.text.Devices).Children(func() {
+	ui.Column(c).FillWidth().Radius(12).Background(theme.Surface(t)).Role(ui.RoleTable).Label(s.text.Devices).Children(func() {
 		tracks(ui.Grid(c)).Height(theme.Px(t, 36)).Role(ui.RoleRow).Children(func() {
 			head := func(text string, align ui.Align) {
 				ui.Text(c, text).FontSize(theme.Px(t, 12)).FontWeight(500).TextColor(t.TextMuted).SingleLine().

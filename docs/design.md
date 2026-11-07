@@ -135,38 +135,36 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   own light-on-dark theme (see [Glass and ink](#windows-menus-and-navigation)); its first 40 are left to the window
   buttons. Then the kinds (All, Articles, Videos, Social, Images, Community) as 30 high rows, each an icon, its name and its
   unread count (11 type, tabular; above 999 it reads "999+", so the column never grows past that text and is not fixed, and the full number stays in the row's accessible description; `many-feeds` shows one); then the subscriptions of the chosen kind, 30 high rows, their counts capped the same way; at the bottom the server bar, 40 high. The main
-  column is the paper: `Background`. It has a 52 high toolbar row on a solid `Background` bar (see Glass and ink), with no divider at the top and a hairline once the list has scrolled under it, in three parts: the title and its count at the leading end,
-  one capsule with the Everything/Unread/Starred segments in the middle, and at the trailing end an evenly spaced
-  group of bare icon buttons (the time-range button, the grid switch (only where it applies), mark all as read, whose name and
-  tooltip say its scope: "Mark all in “Videos” as read"; right click opens its menu, see Components), 4 apart, with search
-  last, at the far right. The segments are one 32 high capsule of glass on the bar; the entries scroll under the bar,
-  not through it. The title's part and the trailing part take equal room, so the segments are centered in the main
-  column, whatever the title or the buttons are. Search is a flat ink field 200 wide; it gives up width before anything else,
-  down to 48 (the magnifier and a letter), when the column is tight. Under a 736 wide main column (the column, not the window, so
-  hiding the sidebar gives room back) search is a 32 square magnifier button after the other buttons; clicked, it opens the field
-  over the buttons and takes the focus, and the field closes again when it loses the focus with no text in it. Under 580 the gap
-  between the toolbar items is 4, the segments are padded 7 and the unread count is left out; the title is then cut with an
+  column is the paper: `Background`. It has a 52 high toolbar row on a solid `Background` bar (see Glass and ink), with no divider at the top and a hairline once the list has scrolled under it, design BToolbar: the title (`title`) and its unread count (`meta`
+  `muted`) at the leading end, then pushed to the trailing end the Everything/Unread/Starred segments (`CSegmented`: a
+  `fill` groove, `control` high, padding `space-0_5`, the chosen segment `raised` in `fg`, the others `fg2`), and a
+  group of bare icon buttons `space-1` apart (the time-range button, the grid switch (only where it applies), mark all
+  as read, whose name and tooltip say its scope: "Mark all in “Videos” as read"; right click opens its menu, see
+  Components), with search last, at the far right. The parts are `space-2` apart; the entries scroll under the bar,
+  not through it. Search is a `control` square magnifier until it is used: clicked, or with /, it opens into a field
+  (`sheet-width` 320 wide, `control` high, `radius-control`, the `fill` well, `float` with the focus ring while
+  focused) that takes the focus, and it closes again when it loses the focus with no text in it. Under a 736 wide main
+  column (the column, not the window, so hiding the sidebar gives room back) the open field takes the room of the
+  segments and the buttons. Under 580 the segments are their icons and the unread count is left out; the title is then cut with an
   ellipsis, 40 wide at least; the buttons never shrink, so mark all as read is always inside the window. The Tab order is the visual one:
   the sidebar button, the segments, the buttons, search. The time-range button is a bare 32 square calendar-days icon right of the capsule, named "Time range: any time"; its
   menu lists Any time (the default), Today and Last 24 hours, each a 28 high radio row with a check on the current
   one. It is not a segment because the segments are about the state of an entry and the bar has no room for a
-  fourth. With a range chosen it becomes a chip: 32 high (radius 8), `Soft(Accent)` fill, "Today" or "24 h" in `Accent`
-  at 12 medium beside the icon, named "Time range: Today"; below 760 it keeps only the icon with a 7 `Accent` dot at
-  its top right. It is a view filter that marks nothing and hides the title's unread count, but mark all as read and
+  fourth. With a range chosen it becomes a capsule: `control-small` high, a pill, `Soft(Accent)` fill, the icon and
+  "Today" or "24 h" in `Accent` (a button that opens the menu, named "Time range: Today"), then an x that clears the
+  range ("Clear time range"); in a tight column it keeps only the icon and the x. It is a view filter that marks nothing and hides the title's unread count, but mark all as read and
   its variants stay enabled and mark only what the range holds. The list order has no button of its own, at any
   width: "Newest first" and "Oldest first" are the last two rows of the time-range menu, under a hairline, with a
   check on the current one; choosing one announces its name. While it is oldest first the calendar gets the same
-  `Soft(Accent)` fill and `Accent` icon as with a range (a bare 32 square, no text beside it unless a range is chosen
-  too, and the dot below 760), and its name adds ". Oldest first: new entries appear at the end of the list". The
+  `Soft(Accent)` fill and `Accent` icon as a pressed toolbar button, and its name adds ". Oldest first: new entries appear at the end of the list". The
   menu is native and its rows have one line, so under the two orders sits a disabled row with that same sentence
   (muted by the system, wrapping to two lines in a narrow menu), and the sentence is also the button's tooltip; the
   "N new" pill never shows in this order and the note is why. The list goes back to its top, the oldest entry, and
   new entries appear when paging reaches the end. The order is kept per device. In a main column under 700 there is
   no room for another button at every text size, so the time-range button shows only while a range is on or the
   order is oldest first; T, the palette and the Timeline menu reach the range and the order otherwise. When the range
-  leaves nothing the list shows the empty-state pattern: a 48 tile with a calendar, "Nothing new today" (or "Nothing
-  new in the last 24 hours"), the hint "Entries count from when they arrived in Oriel, not from when they were
-  published.", and one secondary button, "Show any time", which clears the range. The range is kept per server with
+  leaves nothing the list shows the empty state (BEmpty, below) with a calendar, "Nothing new today" (or "Nothing
+  new in the last 24 hours") and "Any time", which clears the range. The range is kept per server with
   the scope and the filter. T cycles it and is on the key sheet. There is no reading-time filter: the estimate is
   shown on rows and in the reader only. Drawn in the `timeline` page of the screens canvas, `range-menu`, `range-today`,
   `range-24h`, `range-empty`, `order-oldest`. An entry with a reminder (Remind me later) is read and carries, in its meta line after
@@ -179,12 +177,20 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   original"). Entries without a translation look as before, with no second line. Drawn in the `timeline` page of the screens canvas,
   `translated-titles`. Compact list density (Settings,
   Appearance, Timeline) tightens only the spacing of rows, grid cells and wall tiles, by the values in
-  `design/tokens.md`; no content is dropped. Drawn in the `timeline` page of the screens canvas, `dense`. When a background check fails after the list loaded, a quiet 28 high status line sits under the toolbar,
-  lined up with the list: a 14 `Warning` wifi-off icon and 12 `TextMuted` text, "Can't reach the server · last updated
-  10:42 AM", with no fill; it is a polite status, announced once, and goes away on the next successful check. At its end sits a quiet text button, "Try again" (12 `Accent`, 22 high, 8 padding, radius 6, hover fill like other quiet buttons); while a check runs it reads "Retrying…" in `TextMuted` and is disabled. A star or read change made while the server is out of reach stays on the row and is not rolled back; until it is sent, the row's meta line carries a 14 `TextMuted` upload icon after the star, named "Waiting to save". The queue lives in memory only and is lost on quit. Drawn in the `timeline` page of the screens canvas, `offline`, `offline-retrying`, `offline-pending`. Loading the first page of a list (a switch of scope, filter or kind, a reload) draws the skeleton only after 300 ms; an answer that comes sooner shows no loading state, so switching never flashes bars. With no subscriptions the list is an empty state: a 48 tile, a
-  15 semibold heading, a hint at most 320 wide that names the links Oriel recognises, then a row of two buttons 8 apart,
-  wrapping when narrow: the primary "Add your first subscription" and the secondary "Import OPML…" and a second secondary "Restore from backup…", both of which open
-  Settings on Import and export. Drawn in the `timeline` page of the screens canvas, `no-subscriptions`. While an OPML file is dragged over the window from Finder or Explorer, this empty state becomes a drop zone: the list area inset 16 gets a dashed 1.5 `Accent` outline with radius 14 and a `Soft(Accent)` fill, the tile turns to `Soft(Accent)` with an `Accent` upload icon, and the heading and hint become "Drop to import" and "Release an OPML file to add its subscriptions." (15 semibold and 13 `Text2`); the buttons give way. The outline and the words, not the color alone, say the zone is live; it is a polite status. It goes back as soon as the file leaves or drops. Drawn in the `timeline` page of the screens canvas, `no-subscriptions-drop`. Files dropped anywhere else in the window are not highlighted; they open Settings on Import and export and import there. While a dialog is open on the timeline the drop is refused with a toast, "Busy. Close the open window and try again." Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
+  `design/tokens.md`; no content is dropped. Drawn in the `timeline` page of the screens canvas, `dense`. When a background check fails after the list loaded, a banner (`CBanner`) sits at the top of the column, lined
+  up with the list: the `wifi-off` glyph in `Warning` on its `fill` square, "Can't reach the server" over "Last updated
+  10:42 AM", and a small secondary "Try again" at its end; while a check runs the button turns its loader and reads
+  "Retrying…", disabled. It is a polite status, announced once ("Can't reach the server · last updated 10:42 AM"), and
+  goes away on the next successful check. A star or read change made while the server is out of reach stays on the row and is not rolled back; until it is sent, the row's meta line carries a 14 `TextMuted` upload icon after the star, named "Waiting to save". The queue lives in memory only and is lost on quit. Drawn in the `timeline` page of the screens canvas, `offline`, `offline-retrying`, `offline-pending`. Loading the first page of a list (a switch of scope, filter or kind, a reload) draws the skeleton only after 300 ms; an answer that comes sooner shows no loading state, so switching never flashes bars. An empty list is design BEmpty, centered under the bar at most `dialog-wide`
+  wide: the icon (`icon-l`, `fg2`) on a `surface` disc twice `tile-l`, `space-6` above a `display` title saying what is
+  missing, a `body` `fg2` fact only where the title cannot carry it, and the one thing to do next as a secondary button
+  `space-6` below: "Couldn't load" with "The server didn't answer." and Try again; "All caught up" with "Show read";
+  "Nothing matches “…”" with "Clear search"; "Nothing new today" with "Any time"; "No starred entries" and "Nothing
+  here yet" keep a short fact and offer nothing. With no subscriptions the title "No subscriptions yet" sits over a
+  `surface` card (`radius-card`) of three ways in, one row each: a `control` square of `fill` for the icon, a `label`
+  title, what it takes in `meta` `fg2`, and a small button: Add a subscription (RSS · RSSHub · YouTube…, "Add…", the
+  only primary, which opens the add dialog), Import (OPML · Miniflux · FreshRSS, "Import…") and Restore (Oriel backup
+  file, "Restore…"), both of which open Settings on Import and export. Drawn in the `timeline` page of the screens canvas, `no-subscriptions`. While an OPML file is dragged over the window from Finder or Explorer, this empty state becomes a drop zone: the list area inset 16 gets a dashed 1.5 `Accent` outline with radius 14 and a `Soft(Accent)` fill, the tile turns to `Soft(Accent)` with an `Accent` upload icon, and the heading and hint become "Drop to import" and "Release an OPML file to add its subscriptions." (15 semibold and 13 `Text2`); the buttons give way. The outline and the words, not the color alone, say the zone is live; it is a polite status. It goes back as soon as the file leaves or drops. Drawn in the `timeline` page of the screens canvas, `no-subscriptions-drop`. Files dropped anywhere else in the window are not highlighted; they open Settings on Import and export and import there. While a dialog is open on the timeline the drop is refused with a toast, "Busy. Close the open window and try again." Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
   at the sides; a row is as high as its text, padded 16 with 14 between its parts, radius 12 when it has a fill, and
   an article's thumbnail, at most 96 by 64, radius 8, starts under the meta line and never makes the row taller. A
   row reads, top to bottom: the meta line (20 high: the site icon, the source name, a dot, the time, the reading
@@ -237,9 +243,9 @@ Layout uses flexbox in device-independent pixels (DIPs); see
     it does not split the row's name, which stays the title, the source and the state, as without a search. Copying
     and selecting give the plain text. Compact rows, cards and grid cells mark their title the same way; a picture
     result has no text to mark.
-- **"Last looked" divider.** In the column of rows only, a 28 high row of its own between two entries, in the row
-  column (at most 680, the same side padding): a 1 high `Border` hairline across it with the label centered on the
-  hairline, 12 medium `Accent` on the `Background` with 10 of padding at each side, tabular numerals: "12 new since you
+- **"Last looked" divider.** A mark of design BListMarks. In the column of rows only, a `row-compact` high row of
+  its own between two entries, in the row column (at most 680, the same side padding): the label in `meta-strong`
+  `Accent` between faded `Accent` hairlines, `space-3` from each, tabular numerals: "12 new since you
   last looked" / "上次看到这里 · 新增 12 条" ("50+" over 50). It is a button, named by its label (the accessible
   name is the label); hover steps the label to `AccentHover`, the keyboard ring is the row's, and a click closes it with
   no animation, the list below keeping its place. It has no fill and no actions, and the hairline stands in for the
@@ -253,7 +259,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   semibold `Text`, one line, ellipsis, taking the rest; read: 500 `TextMuted`), the star mark when starred, and the
   time (12 `TextMuted`, tabular figures, right-aligned, 56 wide at least). The reading time is left out, the summary
   and the thumbnail too. The row actions replace the time while the pointer rests on the row or it is chosen or
-  focused (28 by 24, centered vertically, no longer in the meta band because there is none).
+  focused (centered vertically, no longer in the meta band because there is none).
   **Social, Compact.** A row padded 12 16 12 28 with 4 between its parts: the meta line (author, handle, time), the
   text at 13 `Text` clamped to 2 lines (6 in the default viewer), then the pictures shrunk to thumbnails. One picture
   is a 56 square, radius 8, at the right of the text, starting under the meta line (as an article's thumbnail does);
@@ -293,8 +299,8 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   on its keys and in the List fallback. The reader pane is the reader itself, without its own sidebar: its toolbar is the
   reader's (Summarize and Translate in the glass capsule, then Star, mark read or unread, Open in browser, Copy link and
   More), without Back and without the previous and next arrows, since J and K step and the list is beside it; the
-  actions work from the pane. Until a post is open the pane has no toolbar and shows a centered `TextMuted` 15 "Choose a
-  post to read" over a 13 hint "Use J and K, or click a row.". A hairline separates the panes. The chosen row keeps its
+  actions work from the pane. Until a post is open the pane has no toolbar and shows the empty state (BEmpty) "Choose a post", with
+  no hint. A hairline separates the panes. The chosen row keeps its
   chosen fill while its post is open, so the list shows where you are; opening marks it read, so it carries no unread
   dot. Below 800 (or with the Community viewer set to List) the kind falls back to List, open, back, like Articles. Drawn
   in the `timeline` page of the screens canvas as `forum-panes`, `forum-panes-empty` and `forum-narrow`.
@@ -396,10 +402,9 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   `health-empty`. Accessibility: the dialog is labeled by its title, each row is a list item named by the source and
   its reason, the buttons carry the source's name ("Pause {name}", "Unsubscribe {name}"), and the loaded count is
   announced with `Announce`.
-- **Fold row.** In All and Unread, the entries over a subscription's daily cap are drawn as one row where the first of
-  them would have been: 36 high, the list's side padding, the source's glyph (16), "{n} more from {name}" in 12
-  `TextMuted` and a `chevron-down` at the right, on no fill; hover and focus use the quiet button fill and the focus
-  ring. It is a button: Enter, Space or a click opens it, the entries take their places in the list and the row goes
+- **Fold row.** A mark of design BListMarks. In All and Unread, the entries over a subscription's daily cap are
+  drawn as one `row-compact` line where the first of them would have been: a muted `CLink`, "{n} more from {name}" with
+  a `chevron-down` after it, centered on the column. It is a button: Enter, Space or a click opens it, the entries take their places in the list and the row goes
   away, with the announcement "Showed {n} entries". It is not part of j and k, "next unread" or "mark visible"; Tab
   reaches it. Its accessible name is "{n} more from {name}, show". Drawn in the `timeline` page of the screens canvas, `folded`
   and `folded-focus`; the grid and wall layouts do not fold.
@@ -524,7 +529,7 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   browser, copy link, more. The one glass capsule, [Summarize (sparkles), Translate (languages)], takes the summary and translate places,
   carrying their names beside the icon (12
   medium, icon only below a 760 wide window). The read toggle is an envelope: closed (mail) to mark unread, open
-  (mail-open) to mark read, the same icons as the timeline's row action. Summarize and Translate are toggles: pressed,
+  (mail-open) to mark read. Summarize and Translate are toggles: pressed,
   they sit on `Soft(Accent)` in `Accent` and their names become "Hide the summary" and "Show the original". In a wide
   window the toolbar lines up with the article column, centered in the whole main column as the article is: the back
   button's icon starts at the text's left edge and the last button ends at its right edge. The window buttons over a
@@ -928,9 +933,11 @@ character from the line before. Rules 1 and 2 above hold with or without them.
   loads through `/api/image` in the background; the monogram stands until it is decoded and stays when there is none or
   it fails, so nothing jumps (`broken-images`). With about 60 subscriptions the pane scrolls its heading and
   subscriptions together, in the store's order (lowercase name); the kinds above and the server bar below stay in
-  place (`many-feeds`). Row actions are bare icons only (star, mark read, open in browser) with labels and
-  tooltips, in the row's meta line at the right, never over a thumbnail or a title, shown on hover, on the chosen row and
-  on the focused row, fading in 120 ms. Pictures are downloaded through the server (`/api/image`), at most four at a
+  place (`many-feeds`). Row actions (design BEntry) are three `row-dense` icon buttons with labels and
+  tooltips, star, the read toggle and open in browser, floating on `float` with `elevation-popup` (`radius-control`,
+  padding `space-0_5`) at the row's top end, `space-2` in, never over a thumbnail or a title, shown on hover, on the
+  chosen row and on the focused row, fading in `motion-fast`. The read toggle is the unread dot (`circle-dot`):
+  `Accent` while unread ("Mark as read"), `Text2` once read ("Mark as unread"). Pictures are downloaded through the server (`/api/image`), at most four at a
   time, and the 300 most recent bitmaps are kept; a picture that fails to load keeps its box on `Track` with a muted
   image icon, and a video cover keeps its play mark and duration. A video cover
   carries a play mark and the duration, labelled "Duration 12:34". The unread dot is a 7 `Accent` circle; a failing
@@ -1104,7 +1111,8 @@ Overlays share focus and Escape behavior; see
   inner rim in the pane ink, in light-on-dark roles of its own (tokens.md): the root view takes them from
   `theme.PaneTheme`, calls `c.SetTheme(paneTheme)` before building the sidebar and sets the main theme back after. The
   toolbar has one glass capsule (a 32 high pill, tint rgba(255, 254, 251, 0.66) in light and rgba(58, 63, 62, 0.52) in
-  dark, radius 16, 0.5 DIP rim): the segmented control in the timeline, Summarize and Translate in the reader.
+  dark, radius 16, 0.5 DIP rim): Summarize and Translate in the reader. The timeline's segments are a `CSegmented`
+  groove, not glass.
   The toolbar row is a solid bar: `Background`, 52 high, over the content and under the controls, in the timeline, the
   reader and Settings alike (`theme.Edge` draws it; `glass.ScrollEdge{}` is not used). At the top of the content it has no edge; once the content has
   scrolled under it a 0.5 DIP `Border` hairline shows along its bottom, which fades in over 120 ms. A fade, even a tall and opaque one, let text show through
@@ -1132,16 +1140,16 @@ Overlays share focus and Escape behavior; see
 - **Leaving the app.** Video and social entries have no embedded player; opening them hands the link to the system
   browser. Say so in the control ("Open in browser"), not only with an icon.
 - **Toolbar.** Frequent window-level commands, in order of importance; controls that do not fit overflow into a menu.
-  One glass capsule at most per toolbar; everything else is a bare icon or the flat search field. Search is last, at the far right.
+  One glass capsule at most per toolbar; everything else is a bare icon, a segmented groove or the search field. Search is last, at the far right.
 - **Toolbar buttons.** One spec for every bare icon button in a toolbar, in the timeline and the reader alike: 32 by 32, a 16
   icon, radius 8, 4 between neighbors. No fill at rest; hovered `SurfaceHover`, pressed `SurfacePressed`; the icon is
   `TextMuted`, `Text` when hovered or pressed; disabled keeps no fill and the icon turns `Disabled`; an on button (the
   time range while one is chosen, a pressed toggle) sits on `Soft(Accent)` in `Accent`, and a starred one is `Star`. A button that does not apply to the
   current article is disabled, never hidden, so the toolbar keeps its shape; it keeps its place and its label, greyed, and its
   tooltip and accessible name give the reason (Translate on an article already in the target language still reads
-  "Translate"; the tooltip and name say "Already in Simplified Chinese"). It takes no focus or click. The glass capsule and search are pills (radius 16) of their own. The row actions on a row
-  (28 by 24, radius 6, 2 apart) are their own smaller spec with the same colors, but their hover fill is `SurfacePressed`, since
-  they sit on a row that is itself `SurfaceHover`-filled; a 32 button would not fit the meta line. In a narrow window the end buttons of the reader move into More in a
+  "Translate"; the tooltip and name say "Already in Simplified Chinese"). It takes no focus or click. The glass capsule is a pill (radius 16) of its own; the open search field is `radius-control`. The row actions on a row
+  (`row-dense` squares, `radius-sm`, on their `float` plate) are their own smaller spec; on the plate their hover fill is
+  `SurfaceHover` and pressed `SurfacePressed`. In a narrow window the end buttons of the reader move into More in a
   fixed order, copy link first, then open in browser, then read/unread (below 500, 440 and 380 wide in the main column); the
   640 wide minimum window reaches the first step only. The menu then lists them above Copy as Markdown, under a hairline.
 - **Notifications.** Use system notifications only for events the user would want when the app is in the background.
