@@ -1521,11 +1521,12 @@ func TestCompactDensity(t *testing.T) {
 func TestOfflineLine(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	const line = "Can’t reach the server · last updated 12:00 PM"
+	const shown = "Last updated 12:00 PM"
 	f.entriesErr = errors.New("offline")
 	f.now = f.now.Add(pollEvery)
 	tt.Frame()
 	f.settle(t, tt)
-	if !s.offline || !tt.HasText(line) || len(s.entries) != 6 || !tt.HasText("Go 1.27 is released") {
+	if !s.offline || !tt.HasText(shown) || len(s.entries) != 6 || !tt.HasText("Go 1.27 is released") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	if !slices.Contains(tt.Announcements(), line) {
@@ -1535,14 +1536,14 @@ func TestOfflineLine(t *testing.T) {
 	f.now = f.now.Add(pollEvery)
 	tt.Frame()
 	f.settle(t, tt)
-	if !tt.HasText(line) || len(tt.Announcements()) != before {
+	if !tt.HasText(shown) || len(tt.Announcements()) != before {
 		t.Fatalf("announcements %v", tt.Announcements())
 	}
 	f.entriesErr = nil
 	f.now = f.now.Add(pollEvery)
 	tt.Frame()
 	f.settle(t, tt)
-	if s.offline || tt.HasText(line) || len(s.entries) != 6 {
+	if s.offline || tt.HasText(shown) || len(s.entries) != 6 {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 }
@@ -1564,7 +1565,7 @@ func TestLanguageKeepsPlace(t *testing.T) {
 	tt.Frame()
 	s.SetLanguage("zh-Hans")
 	tt.Frame()
-	if _, ok := tt.Find("搜索条目"); !ok || !tt.HasText("Post 40") || tt.HasText("Post 0") {
+	if _, ok := tt.Find("搜索"); !ok || !tt.HasText("Post 40") || tt.HasText("Post 0") {
 		t.Fatalf("the list did not stay in place in Chinese: %v", tt.Texts())
 	}
 	s.read(40)
@@ -2589,7 +2590,7 @@ func TestStates(t *testing.T) {
 			}
 		}, "All caught up"},
 		{"no starred", func(f *fake, s *Screen) { f.entries[4].Starred = false }, "No starred entries"},
-		{"error", func(f *fake, s *Screen) { f.entriesErr = errors.New("offline") }, "Can’t load the timeline"},
+		{"error", func(f *fake, s *Screen) { f.entriesErr = errors.New("offline") }, "Couldn’t load"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, f, tt := setup(t, "en")
@@ -2715,7 +2716,7 @@ func TestAddFirst(t *testing.T) {
 	f.sources, f.entries = nil, nil
 	s.Use(f, "")
 	f.settle(t, tt)
-	if err := tt.Click("Add your first subscription"); err != nil {
+	if err := tt.Click("Add…"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -2740,19 +2741,19 @@ func TestNoSubscriptionsImport(t *testing.T) {
 	tt = newTester(s.View, 1100, 800)
 	s.Use(f, "")
 	f.settle(t, tt)
-	for _, text := range []string{"No subscriptions yet", "Add your first subscription", "Import OPML…", "Restore from backup…",
-		"Entries from your subscriptions show up here, newest first. Feed addresses work, and so do links to YouTube, X, GitHub, Bilibili, Weibo and Telegram."} {
+	for _, text := range []string{"No subscriptions yet", "Add…", "Import…", "Restore…",
+		"RSS · RSSHub · YouTube…", "OPML · Miniflux · FreshRSS", "Oriel backup file"} {
 		if !tt.HasText(text) {
 			t.Fatalf("no %q in %v", text, tt.Texts())
 		}
 	}
-	if err := tt.Click("Import OPML…"); err != nil {
+	if err := tt.Click("Import…"); err != nil {
 		t.Fatal(err)
 	}
 	if f.imports != 1 || s.subs.Open() {
 		t.Fatalf("imports %d, add dialog %v", f.imports, s.subs.Open())
 	}
-	if err := tt.Click("Restore from backup…"); err != nil {
+	if err := tt.Click("Restore…"); err != nil {
 		t.Fatal(err)
 	}
 	if f.imports != 2 || s.subs.Open() {
@@ -3642,12 +3643,12 @@ func TestTimeRangeEmpty(t *testing.T) {
 	f.now = now.Add(60 * 24 * time.Hour)
 	s.show(func() { s.span = today })
 	f.settle(t, tt)
-	for _, text := range []string{"Nothing new today", "Entries count from when they arrived in Oriel, not from when they were published."} {
+	for _, text := range []string{"Nothing new today", "Any time"} {
 		if !tt.HasText(text) {
 			t.Fatalf("no %q: %v", text, tt.Texts())
 		}
 	}
-	if err := tt.Click("Show any time"); err != nil {
+	if err := tt.Click("Any time"); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
@@ -4280,8 +4281,8 @@ func TestSidebarButtonPlace(t *testing.T) {
 	}
 }
 
-// The segments are in the middle of the main column, and the buttons after them are one group in the order reading
-// time, grid, mark all as read, with search last at the far right.
+// The title leads; the segments are pushed to the trailing end, and the buttons after them are one group in the order
+// time range, grid, mark all as read, with the search icon last at the far right.
 func TestToolbarLayout(t *testing.T) {
 	for _, hidden := range []bool{false, true} {
 		p := prefs.Default()
@@ -4298,19 +4299,13 @@ func TestToolbarLayout(t *testing.T) {
 			f.settle(t, tt)
 			tt.Frame()
 		}
-		left := float32(0)
-		if !hidden {
-			grid, _ := tt.Find(s.markAllLabel())
-			left = 8 + 216*grid.W/32
-		}
 		first, _ := tt.Find(s.text.Everything)
 		last, _ := tt.Find(s.text.Starred)
-		mid := (first.X + last.X + last.W) / 2
-		if want := (left + 1280) / 2; mid < want-1.5 || mid > want+1.5 {
-			t.Fatalf("hidden %v: the segments are centered on %v, the column on %v", hidden, mid, want)
+		if first.X < 640 {
+			t.Fatalf("hidden %v: the segments at %v are not pushed to the trailing end", hidden, first)
 		}
 		var xs []float32
-		for _, name := range []string{"Time range: any time", "Show as grid", s.markAllLabel(), "Search entries"} {
+		for _, name := range []string{"Time range: any time", "Show as grid", s.markAllLabel(), "Search"} {
 			r, ok := tt.Find(name)
 			if name == "Show as grid" && !ok {
 				continue
@@ -4326,14 +4321,17 @@ func TestToolbarLayout(t *testing.T) {
 		if !slices.IsSorted(xs) {
 			t.Fatalf("hidden %v: buttons in the wrong order: %v", hidden, xs)
 		}
-		search, _ := tt.Find("Search entries")
+		if _, ok := tt.Find("Search entries"); ok {
+			t.Fatalf("hidden %v: search is a field before it is opened", hidden)
+		}
+		search, _ := tt.Find("Search")
 		if search.X+search.W < 1280-20 || search.X+search.W > 1280 {
 			t.Fatalf("hidden %v: search ends at %v, not at the far right", hidden, search.X+search.W)
 		}
 	}
 }
 
-// In a narrow main column search is an icon after the group of buttons. Clicking it opens the field, which takes the
+// Search is an icon after the group of buttons. In a narrow main column clicking it opens the field, which takes the
 // room of the other buttons and the focus; with no text it goes back to an icon when it loses the focus, with text
 // it stays.
 func TestSearchIconOpens(t *testing.T) {
@@ -4369,9 +4367,7 @@ func TestSearchIconOpens(t *testing.T) {
 	}
 	tt.Type("go t")
 	tt.Frame()
-	if err := tt.Click(s.text.Everything); err != nil {
-		t.Fatal(err)
-	}
+	tt.Key(0, ui.KeyTab)
 	tt.Frame()
 	if _, ok := tt.Find("Search entries"); !ok {
 		t.Fatal("the field closed with text in it")
@@ -4380,9 +4376,7 @@ func TestSearchIconOpens(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if err := tt.Click(s.text.Everything); err != nil {
-		t.Fatal(err)
-	}
+	tt.Key(0, ui.KeyTab)
 	tt.Frame()
 	if _, ok := tt.Find("Search entries"); ok {
 		t.Fatal("the field stays open with no text and no focus")
@@ -5379,8 +5373,8 @@ func TestOfflineBackoff(t *testing.T) {
 
 func TestOfflineRetryButton(t *testing.T) {
 	for language, names := range map[string][3]string{
-		"en":      {"Can’t reach the server · last updated 12:00 PM", "Try again", "Retrying…"},
-		"zh-Hans": {"连不上服务端 · 上次更新于 12:00", "重试", "正在重试…"},
+		"en":      {"Last updated 12:00 PM", "Try again", "Retrying…"},
+		"zh-Hans": {"上次更新于 12:00", "重试", "正在重试…"},
 	} {
 		t.Run(language, func(t *testing.T) {
 			s, f, tt := setup(t, language)
