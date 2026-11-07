@@ -85,10 +85,10 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
 - Migrations: only add new files under `internal/store/migrations/`; never edit a released one.
 - Entry links are always fetched through `guardedClient` in `internal/fetch/`; never replace it with a plain
   `http.Client`.
-- Releases: release-please keeps a release pull request open on `main` and computes the version from the merged
-  titles, writing `mygo.json`, where the version lives only, and `CHANGELOG.md`; the `feat`, `fix` and `perf`
-  titles become the release notes, so write them for users. Do not edit `CHANGELOG.md` or the version by hand; only
-  the maintainer merges the release pull request, which tags the release (docs/release.md).
+- Releases: release-please keeps a release pull request open on `main` and computes the version from the merged titles,
+  writing `mygo.json`, where the version lives only, and `CHANGELOG.md`; the `feat`, `refactor`, `fix` and `perf` titles
+  become the release notes, so write them for users. Do not edit `CHANGELOG.md` or the version by hand; only the
+  maintainer merges the release pull request, which tags the release (docs/release.md).
 - The MyGo library and CLI are one module; update them together in `go.mod`. When dependencies change, update
   `THIRD_PARTY.md` and `resources/ThirdPartyLicenses/`.
 - When behavior changes, update the existing tests for that area. Passing headless tests is not on-device

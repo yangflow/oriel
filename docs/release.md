@@ -3,9 +3,9 @@
 `.github/workflows/release-please.yml` runs release-please on every push to `main`. It keeps one pull request,
 `chore(release): X.Y.Z`, open with the next version in `mygo.json` and its section in `CHANGELOG.md`, both made from
 the Conventional Commit titles merged since the last release (`release-please-config.json`): before 1.0, `feat`
-raises the minor version and `fix` and `perf` the patch; `feat` lists under Added, `fix` under Fixed, `perf` under
-Performance, and the other types are left out. Do not edit `CHANGELOG.md` or the version by hand on `main`; only
-the maintainer merges the release pull request.
+raises the minor version and `fix`, `perf` and `refactor` the patch; `feat` lists under Added, `refactor` under
+Changed, `fix` under Fixed, `perf` under Performance, and the other types are left out. Do not edit `CHANGELOG.md`
+or the version by hand on `main`; only the maintainer merges the release pull request.
 
 Merging it creates a draft release with that section as its notes and the tag `vX.Y.Z`. The tag runs
 `.github/workflows/release.yml`: the checks, then one build per platform that signs and uploads its installers and
@@ -82,10 +82,10 @@ added to the configuration only in the workflow; local builds are signed ad hoc 
 
 ## Each release
 
-1. Make sure the titles merged since the last release say what changed for users: the `feat`, `fix` and `perf`
-   titles become the release notes and the text of the update window. To change the wording, edit `CHANGELOG.md` on
-   the release pull request's branch before merging; release-please keeps the edit until a new commit reaches
-   `main`, and then writes the section again.
+1. Make sure the titles merged since the last release say what changed for users: the `feat`, `refactor`, `fix` and
+   `perf` titles become the release notes and the text of the update window. To change the wording, edit `CHANGELOG.md`
+   on the release pull request's branch before merging; release-please keeps the edit until a new commit reaches `main`,
+   and then writes the section again.
 2. Squash-merge the release pull request once CI passes. The tag and the draft release follow; watch `release.yml`
    on the Actions page.
 
