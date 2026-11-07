@@ -264,6 +264,8 @@ func TestAppearance(t *testing.T) {
 	if !tt.HasText("Connect to a server") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
+	// At twice the text size the form is taller than the window and scrolls: a click outside the window misses.
+	tt.Scroll(320, 240, 0, 1000)
 	if err := tt.Click("Connect"); err != nil {
 		t.Fatalf("connect is out of reach at the minimum size: %v", err)
 	}
