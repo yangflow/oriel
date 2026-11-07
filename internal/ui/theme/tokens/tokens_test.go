@@ -65,36 +65,38 @@ func bed(expr string, named func(string) (ui.Color, bool)) (ui.Color, error) {
 	return out, nil
 }
 
-// audit checks every target of a region against its beds, with named looking tokens up.
-func audit(t *testing.T, where, region string, named func(string) (ui.Color, bool)) {
+// audit checks every target against its grounds, with named looking tokens up. A preset is checked on the main
+// grounds that are not floating, for the targets that are neither the pane's nor on a token.
+func audit(t *testing.T, where string, preset bool, named func(string) (ui.Color, bool)) {
 	t.Helper()
 	for _, target := range AuditTargets {
-		token, isPane := strings.CutPrefix(target.Token, "pane.")
-		if isPane != (region == "pane") {
+		isPane := strings.HasPrefix(target.Token, "pane-")
+		if preset && (isPane || target.On != "") {
 			continue
 		}
-		fg, ok := named(token)
+		fg, ok := named(target.Token)
 		if !ok {
-			t.Errorf("%s: no token %q", where, token)
+			t.Errorf("%s: no token %q", where, target.Token)
 			continue
 		}
-		if target.On != "" {
-			bg, ok := named(target.On)
-			if !ok {
-				t.Errorf("%s: no token %q", where, target.On)
-			} else if r := ratio(fg, bg); r < target.Min {
-				t.Errorf("%s: %s on %s is %.2f:1, below %.1f:1", where, token, target.On, r, target.Min)
+		grounds := AuditGrounds["main"]
+		switch {
+		case target.On != "":
+			grounds = []string{target.On}
+		case isPane:
+			grounds = AuditGrounds["pane"]
+		}
+		for _, expr := range grounds {
+			if preset && strings.HasPrefix(expr, "float") {
+				continue
 			}
-			continue
-		}
-		for _, expr := range AuditBeds[region] {
 			bg, err := bed(expr, named)
 			if err != nil {
 				t.Error(err)
 				continue
 			}
 			if r := ratio(fg.Over(bg), bg); r < target.Min {
-				t.Errorf("%s: %s on %s is %.2f:1, below %.1f:1", where, token, expr, r, target.Min)
+				t.Errorf("%s: %s on %s is %.2f:1, below %.1f:1", where, target.Token, expr, r, target.Min)
 			}
 		}
 	}
@@ -104,27 +106,21 @@ func audit(t *testing.T, where, region string, named func(string) (ui.Color, boo
 // and in every reading preset. A preset takes the main scheme's value for a token it does not set, and its alpha
 // fills are its ink at the main ladder's alphas.
 func TestContrastAudit(t *testing.T) {
-	schemes := []struct {
-		name       string
-		main       *Scheme
-		pane       *Pane
-		presetSide int
-	}{{"light", &SchemeLight, &PaneLight, 0}, {"dark", &SchemeDark, &PaneDark, 1}}
-	for _, s := range schemes {
-		audit(t, s.name, "main", s.main.Named)
-		audit(t, s.name+" pane", "pane", s.pane.Named)
+	for i, s := range []*Scheme{&SchemeLight, &SchemeDark} {
+		where := [2]string{"light", "dark"}[i]
+		audit(t, where, false, s.Named)
 		for _, name := range PresetNames {
-			p := Presets[name][s.presetSide]
+			p := Presets[name][i]
 			named := func(token string) (ui.Color, bool) {
 				if c, ok := p.Named(token); ok {
 					return c, true
 				}
-				if c, ok := s.main.Named(token); ok && c.A < 255 {
+				if c, ok := s.Named(token); ok && c.A < 255 {
 					return p.Ink.Alpha(float32(c.A) / 255), true
 				}
-				return s.main.Named(token)
+				return s.Named(token)
 			}
-			audit(t, s.name+" "+name, "preset", named)
+			audit(t, where+" "+name, true, named)
 		}
 	}
 }
@@ -145,5 +141,10 @@ func TestRolesCoverTheme(t *testing.T) {
 	}
 	if th.Spacing != Space1 || th.Radius != RadiusControl {
 		t.Errorf("metrics: Spacing %v, Radius %v", th.Spacing, th.Radius)
+	}
+	var pane ui.Theme
+	SchemeLight.SetPaneRoles(&pane)
+	if pane.Background != SchemeLight.Pane || pane.Text != SchemeLight.PaneFg {
+		t.Errorf("pane roles: Background %v, Text %v", pane.Background, pane.Text)
 	}
 }

@@ -38,7 +38,14 @@ func main() {
 	}
 }
 
-type scheme struct{ Light, Dark json.RawMessage }
+type scheme struct{ Light, Dark string }
+
+type token struct {
+	Name  string
+	MyGo  string `json:"mygo"`
+	Value json.RawMessage
+	Usage string
+}
 
 type colorToken struct {
 	Name  string
@@ -49,100 +56,60 @@ type colorToken struct {
 
 type lang struct{ En, Zh float64 }
 
-// UnmarshalJSON reads a number used for both languages or an {"en", "zh"} pair.
-func (l *lang) UnmarshalJSON(b []byte) error {
-	var n float64
-	if json.Unmarshal(b, &n) == nil {
-		l.En, l.Zh = n, n
-		return nil
+type style struct {
+	Name          string
+	FontSize      json.RawMessage `json:"fontSize"`
+	FontWeight    int             `json:"fontWeight"`
+	LineHeight    json.RawMessage `json:"lineHeight"`
+	LetterSpacing string          `json:"letterSpacing"`
+	Usage         string
+	Zh            struct {
+		FontSize   json.RawMessage `json:"fontSize"`
+		LineHeight json.RawMessage `json:"lineHeight"`
 	}
-	var s string
-	if json.Unmarshal(b, &s) == nil {
-		n, err := strconv.ParseFloat(strings.TrimSuffix(s, "em"), 64)
-		l.En, l.Zh = n, n
-		return err
-	}
-	var p struct{ En, Zh float64 }
-	err := json.Unmarshal(b, &p)
-	l.En, l.Zh = p.En, p.Zh
-	return err
-}
-
-type named struct {
-	Name     string
-	MyGo     string `json:"mygo"`
-	Value    json.RawMessage
-	Duration float64
-	Curve    string
-	Usage    string
 }
 
 type file struct {
 	Color struct {
-		Ink    map[string]string
-		Tokens []colorToken
-		Pane   struct {
-			Ink    map[string]string
-			Tokens []colorToken
-		}
-		Presets      map[string]json.RawMessage
+		Tokens       []colorToken
 		HighContrast struct {
 			Overrides []struct{ Name, Value string }
 		} `json:"high-contrast"`
 	}
-	Audit struct {
-		Beds    map[string][]string
-		Targets []struct {
-			Token string
-			Min   float64
-			On    string
+	Type struct {
+		Groups []struct {
+			Name   string
+			Styles []style
+		}
+		Native struct {
+			Sans, Mono string
+			Serif      map[string][]string
+		}
+		Reading struct {
+			SizeScale              map[string]float64 `json:"size-scale"`
+			LineSpacing            map[string]lang    `json:"line-spacing"`
+			LineWidth              map[string]float64 `json:"line-width"`
+			Paragraph              float64
+			ListItem               float64 `json:"list-item"`
+			H2Above                float64 `json:"h2-above"`
+			H2Below                float64 `json:"h2-below"`
+			HanLatin               float64 `json:"han-latin"`
+			PunctuationCompression float64 `json:"punctuation-compression"`
 		}
 	}
-	Shadow  []named
-	Opacity struct{ Tokens []named }
-	Space   struct{ Tokens []named }
-	Radius  struct{ Tokens []named }
-	Size    struct{ Tokens []named }
-	Font    struct{ Families []named }
-	Text    struct {
-		Styles []struct {
-			Name     string
-			Size     json.RawMessage
-			Line     json.RawMessage
-			Weight   int
-			Tracking *lang
-			Mono     bool
-			Usage    string
-		}
+	Spacing, Radius, Opacity, Size, Motion struct{ Tokens []token }
+	Shadow                                 struct{ Tokens []colorToken }
+	Audit                                  struct {
+		Grounds map[string][]string
+		Targets [][]json.RawMessage
 	}
-	Reading struct {
-		Body, H2, H3, Code struct {
-			Size     float64
-			Line     lang
-			Weight   int
-			Tracking *lang
-			Mono     bool
-		}
-		SizeScale   map[string]float64 `json:"size-scale"`
-		LineSpacing map[string]lang    `json:"line-spacing"`
-		LineWidth   map[string]float64 `json:"line-width"`
-		Paragraph   lang
-		ListItem    lang `json:"list-item"`
-		H2Space     struct {
-			Above, Below lang
-		} `json:"h2-space"`
-		HanLatin               lang `json:"han-latin"`
-		PunctuationCompression lang `json:"punctuation-compression"`
-	}
-	Motion struct{ Tokens []named }
 }
 
 type writer struct{ bytes.Buffer }
 
 func (w *writer) p(format string, a ...any) { fmt.Fprintf(&w.Buffer, format+"\n", a...) }
 
-// ident turns a token name into a Go identifier: accent-hover is AccentHover, space-0_5 is Space0_5, radius-xs is
-// RadiusXS.
+// ident turns a token name into a Go identifier: on-accent is OnAccent, space-0_5 is Space0_5, radius-xs is RadiusXS.
 func ident(name string) string {
 	var b strings.Builder
 	for _, part := range strings.Split(name, "-") {
@@ -176,11 +143,7 @@ func (w *writer) comment(indent, name, usage string) {
 var rgba = regexp.MustCompile(`^rgba\((\d+),(\d+),(\d+),([.\d]+)\)$`)
 
 // color is the Go expression of a CSS color: #rrggbb or rgba(r,g,b,a).
-func color(raw json.RawMessage) (string, error) {
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return "", err
-	}
+func color(s string) (string, error) {
 	s = strings.ReplaceAll(s, " ", "")
 	if strings.HasPrefix(s, "#") && len(s) == 7 {
 		return fmt.Sprintf("ui.Hex(%q)", s), nil
@@ -197,6 +160,7 @@ func color(raw json.RawMessage) (string, error) {
 
 func num(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 
+// number reads 12, "12", "12px", "0.86em" or "-0.015em" as its number.
 func number(raw json.RawMessage) (float64, error) {
 	var f float64
 	if json.Unmarshal(raw, &f) == nil {
@@ -206,6 +170,11 @@ func number(raw json.RawMessage) (float64, error) {
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return 0, err
 	}
+	return unit(s)
+}
+
+func unit(s string) (float64, error) {
+	s = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSpace(s), "px"), "em")
 	return strconv.ParseFloat(s, 64)
 }
 
@@ -218,40 +187,49 @@ func render(data []byte) ([]byte, error) {
 	w.p("// Code generated by go run ./gen from design/tokens.json; DO NOT EDIT.\n")
 	w.p("package tokens\n")
 	w.p("import (\n\"time\"\n\n\"github.com/egoist/mygo/ui\"\n\"github.com/yangflow/oriel/internal/prefs\"\n)\n")
-	if err := w.colors(&f); err != nil {
-		return nil, err
+	var main, logo []colorToken
+	presets := map[string][]colorToken{}
+	for _, t := range f.Color.Tokens {
+		switch {
+		case strings.HasPrefix(t.Name, "sepia-"), strings.HasPrefix(t.Name, "mist-"):
+			name, field, _ := strings.Cut(t.Name, "-")
+			presets[name] = append(presets[name], colorToken{Name: field, Value: t.Value, Usage: t.Usage})
+		case strings.HasPrefix(t.Name, "logo-"):
+			logo = append(logo, t)
+		default:
+			main = append(main, t)
+		}
 	}
-	if err := w.presets(&f); err != nil {
-		return nil, err
+	steps := []func() error{
+		func() error { return w.scheme(main) },
+		func() error { return w.presets(presets) },
+		func() error {
+			return w.palette("Logo", "Logo is the colors of the mark, never used by the interface.", logo)
+		},
+		func() error { return w.highContrast(&f) },
+		func() error { return w.audit(&f) },
+		func() error { return w.shadows(&f) },
+		func() error { return w.metrics(&f) },
+		func() error { return w.fonts(&f) },
+		func() error { return w.text(&f) },
+		func() error { return w.reading(&f) },
+		func() error { return w.motion(&f) },
 	}
-	w.audit(&f)
-	if err := w.metrics(&f); err != nil {
-		return nil, err
-	}
-	if err := w.fonts(&f); err != nil {
-		return nil, err
-	}
-	if err := w.text(&f); err != nil {
-		return nil, err
-	}
-	w.reading(&f)
-	if err := w.motion(&f); err != nil {
-		return nil, err
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return nil, err
+		}
 	}
 	return format.Source(w.Bytes())
 }
 
-// palette writes one struct type for a set of color tokens, its light and dark values, Named and SetRoles.
-func (w *writer) palette(typ, doc string, toks []colorToken, extra func(colorToken) (string, bool)) error {
+// palette writes one struct type for a set of color tokens, its light and dark values and Named.
+func (w *writer) palette(typ, doc string, toks []colorToken) error {
 	w.p("// %s", doc)
 	w.p("type %s struct {", typ)
 	for _, t := range toks {
 		w.comment("\t", ident(t.Name), t.Usage)
-		goType := "ui.Color"
-		if _, ok := extra(t); ok {
-			goType = "float32"
-		}
-		w.p("\t%s %s", ident(t.Name), goType)
+		w.p("\t%s ui.Color", ident(t.Name))
 	}
 	w.p("}\n")
 	for _, s := range []string{"Light", "Dark"} {
@@ -261,14 +239,6 @@ func (w *writer) palette(typ, doc string, toks []colorToken, extra func(colorTok
 			raw := t.Value.Light
 			if s == "Dark" {
 				raw = t.Value.Dark
-			}
-			if _, ok := extra(t); ok {
-				v, err := number(raw)
-				if err != nil {
-					return fmt.Errorf("%s: %w", t.Name, err)
-				}
-				w.p("\t%s: %s,", ident(t.Name), num(v))
-				continue
 			}
 			c, err := color(raw)
 			if err != nil {
@@ -282,94 +252,58 @@ func (w *writer) palette(typ, doc string, toks []colorToken, extra func(colorTok
 	w.p("func (p *%s) Named(name string) (ui.Color, bool) {", typ)
 	w.p("switch name {")
 	for _, t := range toks {
-		if _, ok := extra(t); ok {
-			continue
-		}
 		w.p("case %q:\nreturn p.%s, true", t.Name, ident(t.Name))
 	}
 	w.p("}\nreturn ui.Color{}, false\n}\n")
-	w.p("// SetRoles sets the roles of MyGo's theme that these tokens stand for, leaving every other field as it is.")
-	w.p("func (p *%s) SetRoles(t *ui.Theme) {", typ)
-	for _, t := range toks {
-		if t.MyGo != "" {
-			w.p("t.%s = p.%s", t.MyGo, ident(t.Name))
-		}
-	}
-	w.p("}\n")
 	return nil
 }
 
-func (w *writer) colors(f *file) error {
-	soft := func(t colorToken) (string, bool) { return "", t.Name == "soft" }
-	none := func(colorToken) (string, bool) { return "", false }
-	if err := w.palette("Scheme", "Scheme is every color token of the main window in one scheme. Soft is an alpha: the tint of a meaning color behind its icon.", f.Color.Tokens, soft); err != nil {
+// scheme writes the main window's colors, the ink pane's among them, and the two ways they set MyGo's roles.
+func (w *writer) scheme(toks []colorToken) error {
+	if err := w.palette("Scheme", "Scheme is every color token of the window in one scheme: the main regions, the roles drawn on them and the ink pane, which is dark in both.", toks); err != nil {
 		return err
 	}
-	if err := w.palette("Pane", "Pane is the ink pane's colors in one scheme of the main window; the pane is dark in both.", f.Color.Pane.Tokens, none); err != nil {
-		return err
-	}
-	w.p("// The inks every alpha fill is made of: the main window's and the pane's, light and dark.")
-	w.p("var (")
-	for _, k := range []struct{ name, val string }{
-		{"InkLight", f.Color.Ink["light"]}, {"InkDark", f.Color.Ink["dark"]},
-		{"PaneInkLight", f.Color.Pane.Ink["light"]}, {"PaneInkDark", f.Color.Pane.Ink["dark"]},
+	for _, fn := range []struct {
+		name, doc string
+		pane      bool
+	}{
+		{"SetRoles", "SetRoles sets the roles of MyGo's theme that the main tokens stand for, leaving every other field as it is.", false},
+		{"SetPaneRoles", "SetPaneRoles sets the roles of MyGo's theme that the pane tokens stand for, for the pane's own theme.", true},
 	} {
-		c, err := color(json.RawMessage(strconv.Quote(k.val)))
-		if err != nil {
-			return err
+		w.p("// %s", fn.doc)
+		w.p("func (p *Scheme) %s(t *ui.Theme) {", fn.name)
+		for _, t := range toks {
+			if t.MyGo != "" && (t.Name == "pane" || strings.HasPrefix(t.Name, "pane-")) == fn.pane {
+				w.p("t.%s = p.%s", t.MyGo, ident(t.Name))
+			}
 		}
-		w.p("%s = %s", k.name, c)
+		w.p("}\n")
 	}
-	w.p(")\n")
-	w.p("// StateAlphas are the alphas of the state ladder, the scheme's ink at each.")
-	w.p("type StateAlphas struct{ Fill, Hover, Selected, Pressed float32 }\n")
-	w.p("// HighContrast is the state ladder with high contrast on. The overrides that are rules, not numbers, are in the")
-	w.p("// hand-written theme:")
-	var alphas []string
-	for _, o := range f.Color.HighContrast.Overrides {
-		if v, err := strconv.ParseFloat(o.Value, 64); err == nil {
-			alphas = append(alphas, fmt.Sprintf("%s: %s", ident(o.Name), num(v)))
-		} else {
-			w.p("//   - %s: %s", o.Name, o.Value)
-		}
-	}
-	w.p("var HighContrast = StateAlphas{%s}\n", strings.Join(alphas, ", "))
 	return nil
 }
 
-func (w *writer) presets(f *file) error {
-	names := make([]string, 0, len(f.Color.Presets))
-	var fields []string
-	seen := map[string]bool{}
-	values := map[string]map[string]scheme{}
-	for name, raw := range f.Color.Presets {
-		if name == "note" {
-			continue
+func (w *writer) presets(presets map[string][]colorToken) error {
+	names := make([]string, 0, len(presets))
+	for n := range presets {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	first := presets[names[0]]
+	for _, n := range names[1:] {
+		if len(presets[n]) != len(first) {
+			return fmt.Errorf("preset %s has %d tokens, %s has %d", n, len(presets[n]), names[0], len(first))
 		}
-		var p map[string]scheme
-		if err := json.Unmarshal(raw, &p); err != nil {
-			return fmt.Errorf("preset %s: %w", name, err)
-		}
-		names = append(names, name)
-		values[name] = p
-		for k := range p {
-			if !seen[k] {
-				seen[k] = true
-				fields = append(fields, k)
+		for i, t := range presets[n] {
+			if t.Name != first[i].Name {
+				return fmt.Errorf("preset %s token %d is %s, %s has %s", n, i, t.Name, names[0], first[i].Name)
 			}
 		}
 	}
-	sort.Strings(names)
-	order := map[string]int{}
-	for i, t := range f.Color.Tokens {
-		order[t.Name] = i + 1
-	}
-	sort.Slice(fields, func(i, j int) bool { return order[fields[i]] < order[fields[j]] })
 	w.p("// Preset is a reading appearance preset in one scheme: the page region and the roles drawn on it, in the reader's")
 	w.p("// content area only. Ink is what its alpha fills are made of, at the main ladder's alphas.")
 	w.p("type Preset struct {")
-	for _, k := range fields {
-		w.p("\t%s ui.Color", ident(k))
+	for _, t := range first {
+		w.p("\t%s ui.Color", ident(t.Name))
 	}
 	w.p("}\n")
 	w.p("// PresetNames are the presets in tokens.json, in order of name.")
@@ -378,66 +312,159 @@ func (w *writer) presets(f *file) error {
 	w.p("var Presets = map[string][2]Preset{")
 	for _, n := range names {
 		w.p("%q: {", n)
-		for _, s := range []string{"light", "dark"} {
+		for _, dark := range []bool{false, true} {
 			w.p("{")
-			for _, k := range fields {
-				v, ok := values[n][k]
-				if !ok {
-					return fmt.Errorf("preset %s has no %s", n, k)
-				}
-				raw := v.Light
-				if s == "dark" {
-					raw = v.Dark
+			for _, t := range presets[n] {
+				raw := t.Value.Light
+				if dark {
+					raw = t.Value.Dark
 				}
 				c, err := color(raw)
 				if err != nil {
-					return fmt.Errorf("preset %s %s: %w", n, k, err)
+					return fmt.Errorf("preset %s %s: %w", n, t.Name, err)
 				}
-				w.p("%s: %s,", ident(k), c)
+				w.p("%s: %s,", ident(t.Name), c)
 			}
 			w.p("},")
 		}
 		w.p("},")
 	}
 	w.p("}\n")
-	w.p("// Named returns the color of the token called name, and false when the preset has none.")
+	w.p("// Named returns the color of the token called name, and false when the preset has none. Paper is its page.")
 	w.p("func (p *Preset) Named(name string) (ui.Color, bool) {\nswitch name {")
-	for _, k := range fields {
-		w.p("case %q:\nreturn p.%s, true", k, ident(k))
+	for _, t := range first {
+		w.p("case %q:\nreturn p.%s, true", t.Name, ident(t.Name))
 	}
+	w.p("case \"paper\":\nreturn p.Page, true")
 	w.p("}\nreturn ui.Color{}, false\n}\n")
 	return nil
 }
 
-func (w *writer) audit(f *file) {
-	w.p("// Target is a contrast floor: Token on every bed of its region, or on the token On when On is set.")
+func (w *writer) highContrast(f *file) error {
+	w.p("// StateAlphas are the alphas of the state ladder, the scheme's ink at each.")
+	w.p("type StateAlphas struct{ Fill, Hover, Selected, Pressed float32 }\n")
+	w.p("// HighContrast is the state ladder with the desktop's high contrast on. The overrides that are rules, not numbers,")
+	w.p("// are applied by package theme:")
+	var alphas []string
+	for _, o := range f.Color.HighContrast.Overrides {
+		if v, err := strconv.ParseFloat(o.Value, 64); err == nil {
+			alphas = append(alphas, fmt.Sprintf("%s: %s", ident(o.Name), num(v)))
+		} else {
+			w.p("//   - %s: %s", o.Name, o.Value)
+		}
+	}
+	if len(alphas) != 4 {
+		return fmt.Errorf("high contrast: want the four state alphas, got %d", len(alphas))
+	}
+	w.p("var HighContrast = StateAlphas{%s}\n", strings.Join(alphas, ", "))
+	return nil
+}
+
+func (w *writer) audit(f *file) error {
+	w.p("// Target is a contrast floor: Token on every ground of its region, or on the token On when On is set.")
 	w.p("type Target struct {\nToken string\nMin float64\nOn string\n}\n")
-	w.p("// AuditTargets are the WCAG 2.x contrast floors every text token keeps. A token named pane.x is the pane's x.")
+	w.p("// AuditTargets are the WCAG 2 contrast floors every text token keeps. A pane- token is checked on the pane's grounds.")
 	w.p("var AuditTargets = []Target{")
 	for _, t := range f.Audit.Targets {
-		w.p("{%q, %s, %q},", t.Token, num(t.Min), t.On)
+		var name, on string
+		var min float64
+		if len(t) < 2 || json.Unmarshal(t[0], &name) != nil || json.Unmarshal(t[1], &min) != nil {
+			return fmt.Errorf("audit target %s: want [token, floor] or [token, floor, ground]", t)
+		}
+		if len(t) == 3 {
+			if err := json.Unmarshal(t[2], &on); err != nil {
+				return err
+			}
+		}
+		w.p("{%q, %s, %q},", name, num(min), on)
 	}
 	w.p("}\n")
-	w.p("// AuditBeds are the grounds text is drawn on per region (main, pane, preset); \"a + b\" is b laid over a.")
-	w.p("var AuditBeds = map[string][]string{")
-	keys := make([]string, 0, len(f.Audit.Beds))
-	for k := range f.Audit.Beds {
+	w.p("// AuditGrounds are the grounds text is drawn on per region (main, pane); \"a + b\" is b laid over a.")
+	w.p("var AuditGrounds = map[string][]string{")
+	keys := make([]string, 0, len(f.Audit.Grounds))
+	for k := range f.Audit.Grounds {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		w.p("%q: %#v,", k, f.Audit.Beds[k])
+		w.p("%q: %#v,", k, f.Audit.Grounds[k])
 	}
 	w.p("}\n")
+	return nil
 }
 
-func (w *writer) consts(doc string, toks []named, skip func(named) bool) error {
+// shadow parses "0 1px 2px rgba(...), 0 0 0 0.5px rgba(...)": a drop shadow and a rim.
+func shadow(css string) (string, error) {
+	parts := strings.SplitN(css, ", 0 0 0 ", 2)
+	drop := strings.Fields(strings.TrimSpace(parts[0]))
+	if len(drop) != 4 {
+		return "", fmt.Errorf("want x y blur color, got %q", parts[0])
+	}
+	var v [3]float64
+	for i := range v {
+		n, err := unit(drop[i])
+		if err != nil {
+			return "", err
+		}
+		v[i] = n
+	}
+	c, err := color(drop[3])
+	if err != nil {
+		return "", err
+	}
+	lit := fmt.Sprintf("Shadow{X: %s, Y: %s, Blur: %s, Color: %s", num(v[0]), num(v[1]), num(v[2]), c)
+	if len(parts) == 2 {
+		rim := strings.Fields(parts[1])
+		if len(rim) != 2 {
+			return "", fmt.Errorf("want width color for the rim, got %q", parts[1])
+		}
+		width, err := unit(rim[0])
+		if err != nil {
+			return "", err
+		}
+		rc, err := color(rim[1])
+		if err != nil {
+			return "", err
+		}
+		lit += fmt.Sprintf(", Rim: %s, RimColor: %s", num(width), rc)
+	}
+	return lit + "}", nil
+}
+
+func (w *writer) shadows(f *file) error {
+	w.p("// Shadow is a drop shadow at the default text size, with a rim of Rim DIPs in RimColor around the shape when Rim")
+	w.p("// is above 0.")
+	w.p("type Shadow struct {\nX, Y, Blur float32\nColor ui.Color\nRim float32\nRimColor ui.Color\n}\n")
+	w.p("// Elevation is the shadows of floating things in one scheme; everything in the flow is flat.")
+	w.p("type Elevation struct {")
+	for _, t := range f.Shadow.Tokens {
+		w.comment("\t", ident(strings.TrimPrefix(t.Name, "elevation-")), t.Usage)
+		w.p("\t%s Shadow", ident(strings.TrimPrefix(t.Name, "elevation-")))
+	}
+	w.p("}\n")
+	for _, s := range []string{"Light", "Dark"} {
+		w.p("// Elevation%s is the %s scheme.", s, strings.ToLower(s))
+		w.p("var Elevation%s = Elevation{", s)
+		for _, t := range f.Shadow.Tokens {
+			css := t.Value.Light
+			if s == "Dark" {
+				css = t.Value.Dark
+			}
+			lit, err := shadow(css)
+			if err != nil {
+				return fmt.Errorf("%s: %w", t.Name, err)
+			}
+			w.p("%s: %s,", ident(strings.TrimPrefix(t.Name, "elevation-")), lit)
+		}
+		w.p("}\n")
+	}
+	return nil
+}
+
+func (w *writer) consts(doc string, toks []token) error {
 	w.p("// %s", doc)
 	w.p("const (")
 	for _, t := range toks {
-		if skip != nil && skip(t) {
-			continue
-		}
 		v, err := number(t.Value)
 		if err != nil {
 			return fmt.Errorf("%s: %w", t.Name, err)
@@ -450,48 +477,22 @@ func (w *writer) consts(doc string, toks []named, skip func(named) bool) error {
 }
 
 func (w *writer) metrics(f *file) error {
-	w.p("// Shadow is a drop shadow at the default text size: Color is a token of the scheme, and a rim of RimWidth in")
-	w.p("// RimColor goes around the shape when RimWidth is above 0.")
-	w.p("type Shadow struct {\nX, Y, Blur float32\nColor string\nRimWidth float32\nRimColor string\n}\n")
-	w.p("var (")
-	for _, s := range f.Shadow {
-		var v string
-		if err := json.Unmarshal(s.Value, &v); err != nil {
-			return fmt.Errorf("%s: %w", s.Name, err)
+	for _, g := range []struct {
+		doc  string
+		toks []token
+	}{
+		{"Opacities: the only ones a view uses.", f.Opacity.Tokens},
+		{"Spacing, in DIPs at the default text size and density.", f.Spacing.Tokens},
+		{"Corner radii by role, in DIPs at the default text size. RadiusPill is drawn as half the shape's height.", f.Radius.Tokens},
+		{"Sizes, in DIPs at the default text size.", f.Size.Tokens},
+	} {
+		if err := w.consts(g.doc, g.toks); err != nil {
+			return err
 		}
-		main, rim, _ := strings.Cut(v, " + ")
-		p := strings.Fields(main)
-		if len(p) != 4 {
-			return fmt.Errorf("%s: want x y blur color, got %q", s.Name, main)
-		}
-		w.comment("\t", ident(s.Name), s.Usage)
-		lit := fmt.Sprintf("Shadow{X: %s, Y: %s, Blur: %s, Color: %q", p[0], p[1], p[2], p[3])
-		if rim != "" {
-			r := strings.Fields(rim)
-			if len(r) != 3 || r[2] != "rim" {
-				return fmt.Errorf("%s: want width color rim, got %q", s.Name, rim)
-			}
-			lit += fmt.Sprintf(", RimWidth: %s, RimColor: %q", r[0], r[1])
-		}
-		w.p("\t%s = %s}", ident(s.Name), lit)
-	}
-	w.p(")\n")
-	if err := w.consts("Opacities: the only ones a view uses.", f.Opacity.Tokens, nil); err != nil {
-		return err
-	}
-	if err := w.consts("Spacing, in DIPs at the default text size.", f.Space.Tokens, nil); err != nil {
-		return err
-	}
-	pill := func(t named) bool { return string(t.Value) == `"half"` }
-	if err := w.consts("Corner radii, in DIPs at the default text size. A pill's radius is half its height.", f.Radius.Tokens, pill); err != nil {
-		return err
-	}
-	if err := w.consts("Sizes, in DIPs at the default text size.", f.Size.Tokens, nil); err != nil {
-		return err
 	}
 	w.p("// SetMetrics sets the metrics of MyGo's theme that tokens stand for, at the default text size.")
 	w.p("func SetMetrics(t *ui.Theme) {")
-	for _, group := range [][]named{f.Space.Tokens, f.Radius.Tokens, f.Size.Tokens} {
+	for _, group := range [][]token{f.Spacing.Tokens, f.Radius.Tokens, f.Size.Tokens} {
 		for _, t := range group {
 			if t.MyGo != "" {
 				w.p("t.%s = %s", t.MyGo, ident(t.Name))
@@ -503,33 +504,22 @@ func (w *writer) metrics(f *file) error {
 }
 
 func (w *writer) fonts(f *file) error {
-	w.p("// Font families. Sans is empty: MyGo then draws the platform's UI font, or the Interface font chosen in Settings.")
-	w.p("const (")
-	var serif map[string][]string
-	for _, t := range f.Font.Families {
-		var s string
-		if json.Unmarshal(t.Value, &s) == nil {
-			if s == "system" {
-				s = ""
-			}
-			w.p("Font%s = %q", ident(t.Name), s)
-			continue
-		}
-		if err := json.Unmarshal(t.Value, &serif); err != nil {
-			return fmt.Errorf("%s: %w", t.Name, err)
-		}
+	n := f.Type.Native
+	if n.Sans != "system" {
+		return fmt.Errorf("type.native.sans: want system, got %q", n.Sans)
 	}
-	w.p(")\n")
+	w.p("// Font families. Sans is empty: MyGo then draws the platform's UI font, or the Interface font chosen in Settings.")
+	w.p("const (\nFontSans = \"\"\nFontMono = %q\n)\n", n.Mono)
 	w.p("// FontSerif is the serif family list per platform (GOOS); the first installed one draws.")
 	w.p("var FontSerif = map[string][]string{")
-	goos := make([]string, 0, len(serif))
-	for k := range serif {
+	goos := make([]string, 0, len(n.Serif))
+	for k := range n.Serif {
 		goos = append(goos, k)
 	}
 	sort.Strings(goos)
 	for _, k := range goos {
 		var list []string
-		for _, fam := range serif[k] {
+		for _, fam := range n.Serif[k] {
 			if fam == "system serif" {
 				list = append(list, "prefs.SystemSerif")
 			} else {
@@ -542,8 +532,33 @@ func (w *writer) fonts(f *file) error {
 	return nil
 }
 
+// metric reads a style's size, line and tracking, with Chinese taking its own values where it has them and no tracking.
+func metric(s style) (size, line, track lang, err error) {
+	if size.En, err = number(s.FontSize); err != nil {
+		return
+	}
+	if line.En, err = number(s.LineHeight); err != nil {
+		return
+	}
+	size.Zh, line.Zh = size.En, line.En
+	if s.Zh.FontSize != nil {
+		if size.Zh, err = number(s.Zh.FontSize); err != nil {
+			return
+		}
+	}
+	if s.Zh.LineHeight != nil {
+		if line.Zh, err = number(s.Zh.LineHeight); err != nil {
+			return
+		}
+	}
+	if s.LetterSpacing != "" {
+		track.En, err = unit(s.LetterSpacing)
+	}
+	return
+}
+
 func (w *writer) text(f *file) error {
-	w.p("// Lang is a value in English and in Simplified Chinese, which runs taller.")
+	w.p("// Lang is a value in English and in Simplified Chinese, which runs taller and carries no tracking.")
 	w.p("type Lang struct{ En, Zh float32 }\n")
 	w.p("// TextStyle is an interface text style. Size and Line are DIPs at the default text size and Tracking is in em;")
 	w.p("// when Relative is set, Size is a multiple of the surrounding text's size and Line a multiple of Size.")
@@ -551,24 +566,23 @@ func (w *writer) text(f *file) error {
 	w.p("// The interface text styles, the only ones a screen sets.")
 	w.p("var (")
 	var all []string
-	for _, s := range f.Text.Styles {
-		var size, line lang
-		if err := json.Unmarshal(s.Size, &size); err != nil {
-			return fmt.Errorf("%s size: %w", s.Name, err)
+	for _, g := range f.Type.Groups {
+		if g.Name != "Interface" {
+			continue
 		}
-		if err := json.Unmarshal(s.Line, &line); err != nil {
-			return fmt.Errorf("%s line: %w", s.Name, err)
+		for _, s := range g.Styles {
+			size, line, track, err := metric(s)
+			if err != nil {
+				return fmt.Errorf("%s: %w", s.Name, err)
+			}
+			relative := strings.HasSuffix(string(s.FontSize), `em"`)
+			name := "Text" + ident(s.Name)
+			all = append(all, name)
+			w.comment("\t", name, s.Usage)
+			w.p("\t%s = TextStyle{Name: %q, Size: Lang{%s, %s}, Line: Lang{%s, %s}, Tracking: Lang{%s, 0}, Weight: %d, Mono: %t, Relative: %t}",
+				name, s.Name, num(size.En), num(size.Zh), num(line.En), num(line.Zh), num(track.En), s.FontWeight,
+				strings.HasPrefix(s.Name, "code"), relative)
 		}
-		relative := strings.HasSuffix(string(s.Size), `em"`)
-		var track lang
-		if s.Tracking != nil {
-			track = *s.Tracking
-		}
-		name := "Text" + ident(s.Name)
-		all = append(all, name)
-		w.comment("\t", name, s.Usage)
-		w.p("\t%s = TextStyle{Name: %q, Size: Lang{%s, %s}, Line: Lang{%s, %s}, Tracking: Lang{%s, %s}, Weight: %d, Mono: %t, Relative: %t}",
-			name, s.Name, num(size.En), num(size.Zh), num(line.En), num(line.Zh), num(track.En), num(track.Zh), s.Weight, s.Mono, relative)
 	}
 	w.p(")\n")
 	w.p("// TextStyles lists every interface text style.")
@@ -576,35 +590,29 @@ func (w *writer) text(f *file) error {
 	return nil
 }
 
-func (w *writer) reading(f *file) {
-	r := f.Reading
-	w.p("// ReadingStyle is a style of the article: Size in DIPs at the default reading size, Line a multiple of the size,")
-	w.p("// Tracking in em.")
+func (w *writer) reading(f *file) error {
+	w.p("// ReadingStyle is a style of the article at Medium, Standard: Size in DIPs, Line a multiple of the size, Tracking")
+	w.p("// in em.")
 	w.p("type ReadingStyle struct {\nSize float32\nLine, Tracking Lang\nWeight int\nMono bool\n}\n")
 	w.p("// The reading scale.")
 	w.p("var (")
-	for _, s := range []struct {
-		name string
-		v    struct {
-			Size     float64
-			Line     lang
-			Weight   int
-			Tracking *lang
-			Mono     bool
+	for _, g := range f.Type.Groups {
+		if g.Name != "Reading" {
+			continue
 		}
-	}{{"ReadingBody", r.Body}, {"ReadingH2", r.H2}, {"ReadingH3", r.H3}, {"ReadingCode", r.Code}} {
-		var t lang
-		if s.v.Tracking != nil {
-			t = *s.v.Tracking
+		for _, s := range g.Styles {
+			size, line, track, err := metric(s)
+			if err != nil {
+				return fmt.Errorf("%s: %w", s.Name, err)
+			}
+			w.comment("\t", ident(s.Name), s.Usage)
+			w.p("%s = ReadingStyle{Size: %s, Line: Lang{%s, %s}, Tracking: Lang{%s, 0}, Weight: %d, Mono: %t}",
+				ident(s.Name), num(size.En), num(line.En), num(line.Zh), num(track.En), s.FontWeight,
+				strings.HasSuffix(s.Name, "code"))
 		}
-		weight := s.v.Weight
-		if weight == 0 {
-			weight = 400
-		}
-		w.p("%s = ReadingStyle{Size: %s, Line: Lang{%s, %s}, Tracking: Lang{%s, %s}, Weight: %d, Mono: %t}",
-			s.name, num(s.v.Size), num(s.v.Line.En), num(s.v.Line.Zh), num(t.En), num(t.Zh), weight, s.v.Mono)
 	}
 	w.p(")\n")
+	r := f.Type.Reading
 	w.p("// The reading choices: text size, line spacing and line width, by the name Settings stores.")
 	w.p("var (")
 	w.p("ReadingSizeScale = %s", floatMap(r.SizeScale))
@@ -623,15 +631,16 @@ func (w *writer) reading(f *file) {
 	w.p(")\n")
 	w.p("// Spaces of the article, in em of the body size.")
 	w.p("const (")
-	w.p("ReadingParagraph = %s", num(r.Paragraph.En))
-	w.p("ReadingListItem = %s", num(r.ListItem.En))
-	w.p("ReadingH2Above = %s", num(r.H2Space.Above.En))
-	w.p("ReadingH2Below = %s", num(r.H2Space.Below.En))
+	w.p("ReadingParagraph = %s", num(r.Paragraph))
+	w.p("ReadingListItem = %s", num(r.ListItem))
+	w.p("ReadingH2Above = %s", num(r.H2Above))
+	w.p("ReadingH2Below = %s", num(r.H2Below))
 	w.p("// HanLatin is the space between Han and Latin text; PunctuationCompression what a pair of full-width marks")
 	w.p("// gives back.")
-	w.p("HanLatin = %s", num(r.HanLatin.En))
-	w.p("PunctuationCompression = %s", num(r.PunctuationCompression.En))
+	w.p("HanLatin = %s", num(r.HanLatin))
+	w.p("PunctuationCompression = %s", num(r.PunctuationCompression))
 	w.p(")\n")
+	return nil
 }
 
 func floatMap(m map[string]float64) string {
@@ -647,16 +656,22 @@ func floatMap(m map[string]float64) string {
 	return "map[string]float32{" + strings.Join(parts, ", ") + "}"
 }
 
+var duration = regexp.MustCompile(`^(\d+)ms (.+)$`)
+
 func (w *writer) motion(f *file) error {
-	w.p("// Motion: durations of the fixed curves named beside them, and the scale a popup opens from.")
+	w.p("// Motion: durations, with the curve beside each, and the scale a popup opens from.")
 	w.p("const (")
 	for _, t := range f.Motion.Tokens {
+		var s string
+		if err := json.Unmarshal(t.Value, &s); err != nil {
+			return fmt.Errorf("%s: %w", t.Name, err)
+		}
 		w.comment("\t", ident(t.Name), t.Usage)
-		if t.Duration > 0 {
-			w.p("\t%s = %s * time.Millisecond // %s", ident(t.Name), num(t.Duration), t.Curve)
+		if m := duration.FindStringSubmatch(s); m != nil {
+			w.p("\t%s = %s * time.Millisecond // %s", ident(t.Name), m[1], m[2])
 			continue
 		}
-		v, err := number(t.Value)
+		v, err := strconv.ParseFloat(s, 64)
 		if err != nil {
 			return fmt.Errorf("%s: %w", t.Name, err)
 		}

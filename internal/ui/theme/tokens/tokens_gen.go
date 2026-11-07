@@ -9,14 +9,11 @@ import (
 	"github.com/yangflow/oriel/internal/prefs"
 )
 
-// Scheme is every color token of the main window in one scheme. Soft is an alpha: the tint of a meaning color behind its icon.
+// Scheme is every color token of the window in one scheme: the main regions, the roles drawn on them and the ink pane, which is dark in both.
 type Scheme struct {
 	// Paper: The window, the toolbar bar and the timeline: warm paper in light, graphite with a hint of teal in dark.
 	// Never pure white or black.
 	Paper ui.Color
-	// Page: The reader's page, toolbar bar, text, links, code, notes and AI card. Equal to paper; a reading preset
-	// replaces this region and the roles drawn on it, nothing else.
-	Page ui.Color
 	// Surface: Things that sit on a region: code blocks, notes, plain cards, fields, picture placeholders. No rim and no
 	// shadow in the flow.
 	Surface ui.Color
@@ -26,12 +23,12 @@ type Scheme struct {
 	// Fill: The resting face of a control: the segmented trough, the search field, inline code, a monogram tile, a
 	// skeleton bar. Step 1 of the state ladder.
 	Fill ui.Color
-	// Hover: Hovered row or control. Step 2.
+	// Hover: Hovered row or control. Step 2. / dark rgba(234,240,238,.06).)
 	Hover ui.Color
 	// Selected: The chosen row, navigation item or menu item. Step 3: darker than hover, so a hovered chosen row still
-	// reads as chosen. Neutral, never tinted with the accent.
+	// reads as chosen. Neutral, never tinted with the accent. / dark rgba(234,240,238,.085).)
 	Selected ui.Color
-	// Pressed: Pressed. Step 4, the deepest, so pressing a chosen row still shows.
+	// Pressed: Pressed. Step 4, the deepest, so pressing a chosen row still shows. / dark rgba(234,240,238,.11).)
 	Pressed ui.Color
 	// Raised: The chosen segment of a segmented control or capsule, lighter than its fill trough, with shadow-raised.
 	Raised ui.Color
@@ -41,8 +38,6 @@ type Scheme struct {
 	Prose ui.Color
 	// Fg2: Source names, summaries, the unselected labels of a segmented control, unselected names. Target 7:1.
 	Fg2 ui.Color
-	// Fg3: Icons and glyphs of controls (toolbar icons, row actions at rest). Target 5.5:1.
-	Fg3 ui.Color
 	// Muted: Meta, times, counts, read titles, hints, placeholders. Target 4.5:1 on every bed, the fill and the selected
 	// row included, so no screen needs an exception.
 	Muted ui.Color
@@ -65,9 +60,10 @@ type Scheme struct {
 	Success ui.Color
 	// Warning: Caution; a graphic, never text. Target 3:1.
 	Warning ui.Color
-	// Soft: The alpha of a meaning color behind an icon or a status: the AI card, a note, a health line, an on toolbar
-	// button. soft(accent), soft(danger).
-	Soft float32
+	// Soft: Accent at the soft alpha; other meanings take the same alpha of their own color. The alpha of a meaning
+	// color behind an icon or a status: the AI card, a note, a health line, an on toolbar button. soft(accent),
+	// soft(danger).
+	Soft ui.Color
 	// Selection: Selected text.
 	Selection ui.Color
 	// Focus: The keyboard focus ring, 2 DIPs, always visible. 3:1 as a control boundary.
@@ -96,32 +92,43 @@ type Scheme struct {
 	ShadowDialog ui.Color
 	// Scrim: The dim behind a dialog.
 	Scrim ui.Color
-	// LogoBody: The mark's ink drop, with the arcs cut out of it. It keeps the brand ink, within a step of fg; never
-	// used in the interface.
-	LogoBody ui.Color
-	// LogoPiece: The mark's dot, the one teal piece; the product icon draws it as a sphere from #5eead4 to #0f766e.
-	// Never used in the interface.
-	LogoPiece ui.Color
-	// LogoTile: The product icon's warm ivory tile, the same in both schemes (a gradient from #fdfcf9 to #e6e0d5 in the
-	// icon).
-	LogoTile ui.Color
+	// Pane: Ink pane. The pane's ground.
+	Pane ui.Color
+	// PaneFill: Ink pane. Resting face of a control in the pane: the filter field.
+	PaneFill ui.Color
+	// PaneHover: Ink pane. Hovered pane item. / dark rgba(235,248,244,.055).)
+	PaneHover ui.Color
+	// PaneSelected: Ink pane. Chosen pane item, with its icon in accent.
+	PaneSelected ui.Color
+	// PanePressed: Ink pane. Pressed pane item. / dark rgba(235,248,244,.14).)
+	PanePressed ui.Color
+	// PaneFg: Ink pane. The chosen name; headings. Target 8:1.
+	PaneFg ui.Color
+	// PaneFg2: Ink pane. Names, icons on hover, counts on a chosen or hovered item. Target 6:1.
+	PaneFg2 ui.Color
+	// PaneMuted: Ink pane. Counts, section heads, icons at rest. Target 4.5:1.
+	PaneMuted ui.Color
+	// PaneFaint: Ink pane. Disabled glyphs. Target 2.6:1.
+	PaneFaint ui.Color
+	// PaneAccent: Ink pane. The chosen item's icon; icons only, never text. Target 3:1.
+	PaneAccent ui.Color
+	// PaneLine: Ink pane. Hairlines in the pane.
+	PaneLine ui.Color
 }
 
 // SchemeLight is the light scheme.
 var SchemeLight = Scheme{
 	Paper:         ui.Hex("#fdfcfa"),
-	Page:          ui.Hex("#fdfcfa"),
 	Surface:       ui.Hex("#f6f3ee"),
 	Float:         ui.Hex("#ffffff"),
 	Fill:          ui.RGBA(37, 34, 30, 0.04),
-	Hover:         ui.RGBA(37, 34, 30, 0.05),
-	Selected:      ui.RGBA(37, 34, 30, 0.075),
-	Pressed:       ui.RGBA(37, 34, 30, 0.1),
+	Hover:         ui.RGBA(37, 34, 30, 0.055),
+	Selected:      ui.RGBA(37, 34, 30, 0.085),
+	Pressed:       ui.RGBA(37, 34, 30, 0.12),
 	Raised:        ui.Hex("#ffffff"),
 	Fg:            ui.Hex("#25221e"),
 	Prose:         ui.Hex("#3a362f"),
 	Fg2:           ui.Hex("#4c4840"),
-	Fg3:           ui.Hex("#5c584f"),
 	Muted:         ui.Hex("#6a645a"),
 	Faint:         ui.Hex("#948b7a"),
 	Accent:        ui.Hex("#2a6d65"),
@@ -132,7 +139,7 @@ var SchemeLight = Scheme{
 	Danger:        ui.Hex("#a34b36"),
 	Success:       ui.Hex("#446f50"),
 	Warning:       ui.Hex("#9a7222"),
-	Soft:          0.09,
+	Soft:          ui.RGBA(42, 109, 101, 0.09),
 	Selection:     ui.RGBA(42, 109, 101, 0.22),
 	Focus:         ui.RGBA(42, 109, 101, 0.7),
 	LinkUnderline: ui.RGBA(42, 109, 101, 0.38),
@@ -147,26 +154,32 @@ var SchemeLight = Scheme{
 	Shadow:        ui.RGBA(28, 24, 18, 0.22),
 	ShadowDialog:  ui.RGBA(28, 24, 18, 0.25),
 	Scrim:         ui.RGBA(28, 24, 18, 0.32),
-	LogoBody:      ui.Hex("#26231f"),
-	LogoPiece:     ui.Hex("#0f766e"),
-	LogoTile:      ui.Hex("#f4f1ea"),
+	Pane:          ui.Hex("#37332e"),
+	PaneFill:      ui.RGBA(255, 248, 235, 0.04),
+	PaneHover:     ui.RGBA(255, 248, 235, 0.065),
+	PaneSelected:  ui.RGBA(255, 248, 235, 0.12),
+	PanePressed:   ui.RGBA(255, 248, 235, 0.16),
+	PaneFg:        ui.Hex("#f8f6f2"),
+	PaneFg2:       ui.Hex("#dbd7ce"),
+	PaneMuted:     ui.Hex("#bfbbb1"),
+	PaneFaint:     ui.Hex("#928d83"),
+	PaneAccent:    ui.Hex("#7cc9bb"),
+	PaneLine:      ui.RGBA(255, 248, 235, 0.08),
 }
 
 // SchemeDark is the dark scheme.
 var SchemeDark = Scheme{
 	Paper:         ui.Hex("#171918"),
-	Page:          ui.Hex("#171918"),
 	Surface:       ui.Hex("#1d1f1e"),
-	Float:         ui.Hex("#252827"),
+	Float:         ui.Hex("#222524"),
 	Fill:          ui.RGBA(234, 240, 238, 0.045),
 	Hover:         ui.RGBA(234, 240, 238, 0.06),
-	Selected:      ui.RGBA(234, 240, 238, 0.085),
-	Pressed:       ui.RGBA(234, 240, 238, 0.11),
+	Selected:      ui.RGBA(234, 240, 238, 0.095),
+	Pressed:       ui.RGBA(234, 240, 238, 0.13),
 	Raised:        ui.Hex("#2c2f2e"),
 	Fg:            ui.Hex("#dee2e0"),
 	Prose:         ui.Hex("#cdd2d0"),
 	Fg2:           ui.Hex("#babfbd"),
-	Fg3:           ui.Hex("#a4aaa8"),
 	Muted:         ui.Hex("#939998"),
 	Faint:         ui.Hex("#6b716f"),
 	Accent:        ui.Hex("#78beb1"),
@@ -177,7 +190,7 @@ var SchemeDark = Scheme{
 	Danger:        ui.Hex("#e0897a"),
 	Success:       ui.Hex("#8ab997"),
 	Warning:       ui.Hex("#d6aa55"),
-	Soft:          0.12,
+	Soft:          ui.RGBA(120, 190, 177, 0.12),
 	Selection:     ui.RGBA(120, 190, 177, 0.3),
 	Focus:         ui.RGBA(120, 190, 177, 0.7),
 	LinkUnderline: ui.RGBA(120, 190, 177, 0.38),
@@ -192,9 +205,17 @@ var SchemeDark = Scheme{
 	Shadow:        ui.RGBA(0, 0, 0, 0.5),
 	ShadowDialog:  ui.RGBA(0, 0, 0, 0.55),
 	Scrim:         ui.RGBA(0, 0, 0, 0.45),
-	LogoBody:      ui.Hex("#f4f1ea"),
-	LogoPiece:     ui.Hex("#5eead4"),
-	LogoTile:      ui.Hex("#f4f1ea"),
+	Pane:          ui.Hex("#1a2422"),
+	PaneFill:      ui.RGBA(235, 248, 244, 0.04),
+	PaneHover:     ui.RGBA(235, 248, 244, 0.065),
+	PaneSelected:  ui.RGBA(235, 248, 244, 0.12),
+	PanePressed:   ui.RGBA(235, 248, 244, 0.16),
+	PaneFg:        ui.Hex("#e8eeec"),
+	PaneFg2:       ui.Hex("#cbd5d2"),
+	PaneMuted:     ui.Hex("#9aa9a5"),
+	PaneFaint:     ui.Hex("#678079"),
+	PaneAccent:    ui.Hex("#7cc9bb"),
+	PaneLine:      ui.RGBA(235, 248, 244, 0.08),
 }
 
 // Named returns the color of the token called name, and false when it has none.
@@ -202,8 +223,6 @@ func (p *Scheme) Named(name string) (ui.Color, bool) {
 	switch name {
 	case "paper":
 		return p.Paper, true
-	case "page":
-		return p.Page, true
 	case "surface":
 		return p.Surface, true
 	case "float":
@@ -224,8 +243,6 @@ func (p *Scheme) Named(name string) (ui.Color, bool) {
 		return p.Prose, true
 	case "fg2":
 		return p.Fg2, true
-	case "fg3":
-		return p.Fg3, true
 	case "muted":
 		return p.Muted, true
 	case "faint":
@@ -246,6 +263,8 @@ func (p *Scheme) Named(name string) (ui.Color, bool) {
 		return p.Success, true
 	case "warning":
 		return p.Warning, true
+	case "soft":
+		return p.Soft, true
 	case "selection":
 		return p.Selection, true
 	case "focus":
@@ -274,17 +293,33 @@ func (p *Scheme) Named(name string) (ui.Color, bool) {
 		return p.ShadowDialog, true
 	case "scrim":
 		return p.Scrim, true
-	case "logo-body":
-		return p.LogoBody, true
-	case "logo-piece":
-		return p.LogoPiece, true
-	case "logo-tile":
-		return p.LogoTile, true
+	case "pane":
+		return p.Pane, true
+	case "pane-fill":
+		return p.PaneFill, true
+	case "pane-hover":
+		return p.PaneHover, true
+	case "pane-selected":
+		return p.PaneSelected, true
+	case "pane-pressed":
+		return p.PanePressed, true
+	case "pane-fg":
+		return p.PaneFg, true
+	case "pane-fg2":
+		return p.PaneFg2, true
+	case "pane-muted":
+		return p.PaneMuted, true
+	case "pane-faint":
+		return p.PaneFaint, true
+	case "pane-accent":
+		return p.PaneAccent, true
+	case "pane-line":
+		return p.PaneLine, true
 	}
 	return ui.Color{}, false
 }
 
-// SetRoles sets the roles of MyGo's theme that these tokens stand for, leaving every other field as it is.
+// SetRoles sets the roles of MyGo's theme that the main tokens stand for, leaving every other field as it is.
 func (p *Scheme) SetRoles(t *ui.Theme) {
 	t.Background = p.Paper
 	t.Surface = p.Fill
@@ -307,121 +342,17 @@ func (p *Scheme) SetRoles(t *ui.Theme) {
 	t.Scrollbar = p.Scrollbar
 }
 
-// Pane is the ink pane's colors in one scheme of the main window; the pane is dark in both.
-type Pane struct {
-	// Pane: The pane's ground.
-	Pane ui.Color
-	// Fill: Resting face of a control in the pane: the filter field.
-	Fill ui.Color
-	// Hover: Hovered pane item.
-	Hover ui.Color
-	// Selected: Chosen pane item, with its icon in accent.
-	Selected ui.Color
-	// Pressed: Pressed pane item.
-	Pressed ui.Color
-	// Fg: The chosen name; headings. Target 8:1.
-	Fg ui.Color
-	// Fg2: Names, icons on hover, counts on a chosen or hovered item. Target 6:1.
-	Fg2 ui.Color
-	// Muted: Counts, section heads, icons at rest. Target 4.5:1.
-	Muted ui.Color
-	// Faint: Disabled glyphs. Target 2.6:1.
-	Faint ui.Color
-	// Accent: The chosen item's icon; icons only, never text. Target 3:1.
-	Accent ui.Color
-	// Line: Hairlines in the pane.
-	Line ui.Color
-}
-
-// PaneLight is the light scheme.
-var PaneLight = Pane{
-	Pane:     ui.Hex("#37332e"),
-	Fill:     ui.RGBA(255, 248, 235, 0.04),
-	Hover:    ui.RGBA(255, 248, 235, 0.055),
-	Selected: ui.RGBA(255, 248, 235, 0.12),
-	Pressed:  ui.RGBA(255, 248, 235, 0.14),
-	Fg:       ui.Hex("#f8f6f2"),
-	Fg2:      ui.Hex("#dbd7ce"),
-	Muted:    ui.Hex("#bfbbb1"),
-	Faint:    ui.Hex("#928d83"),
-	Accent:   ui.Hex("#7cc9bb"),
-	Line:     ui.RGBA(255, 248, 235, 0.08),
-}
-
-// PaneDark is the dark scheme.
-var PaneDark = Pane{
-	Pane:     ui.Hex("#1a2422"),
-	Fill:     ui.RGBA(235, 248, 244, 0.04),
-	Hover:    ui.RGBA(235, 248, 244, 0.055),
-	Selected: ui.RGBA(235, 248, 244, 0.12),
-	Pressed:  ui.RGBA(235, 248, 244, 0.14),
-	Fg:       ui.Hex("#e8eeec"),
-	Fg2:      ui.Hex("#cbd5d2"),
-	Muted:    ui.Hex("#9aa9a5"),
-	Faint:    ui.Hex("#678079"),
-	Accent:   ui.Hex("#7cc9bb"),
-	Line:     ui.RGBA(235, 248, 244, 0.08),
-}
-
-// Named returns the color of the token called name, and false when it has none.
-func (p *Pane) Named(name string) (ui.Color, bool) {
-	switch name {
-	case "pane":
-		return p.Pane, true
-	case "fill":
-		return p.Fill, true
-	case "hover":
-		return p.Hover, true
-	case "selected":
-		return p.Selected, true
-	case "pressed":
-		return p.Pressed, true
-	case "fg":
-		return p.Fg, true
-	case "fg2":
-		return p.Fg2, true
-	case "muted":
-		return p.Muted, true
-	case "faint":
-		return p.Faint, true
-	case "accent":
-		return p.Accent, true
-	case "line":
-		return p.Line, true
-	}
-	return ui.Color{}, false
-}
-
-// SetRoles sets the roles of MyGo's theme that these tokens stand for, leaving every other field as it is.
-func (p *Pane) SetRoles(t *ui.Theme) {
+// SetPaneRoles sets the roles of MyGo's theme that the pane tokens stand for, for the pane's own theme.
+func (p *Scheme) SetPaneRoles(t *ui.Theme) {
 	t.Background = p.Pane
-	t.Surface = p.Fill
-	t.SurfaceHover = p.Hover
-	t.SurfacePressed = p.Pressed
-	t.Text = p.Fg
-	t.TextMuted = p.Muted
-	t.Accent = p.Accent
-	t.Border = p.Line
+	t.Surface = p.PaneFill
+	t.SurfaceHover = p.PaneHover
+	t.SurfacePressed = p.PanePressed
+	t.Text = p.PaneFg
+	t.TextMuted = p.PaneMuted
+	t.Accent = p.PaneAccent
+	t.Border = p.PaneLine
 }
-
-// The inks every alpha fill is made of: the main window's and the pane's, light and dark.
-var (
-	InkLight     = ui.Hex("#25221e")
-	InkDark      = ui.Hex("#eaf0ee")
-	PaneInkLight = ui.Hex("#fff8eb")
-	PaneInkDark  = ui.Hex("#ebf8f4")
-)
-
-// StateAlphas are the alphas of the state ladder, the scheme's ink at each.
-type StateAlphas struct{ Fill, Hover, Selected, Pressed float32 }
-
-// HighContrast is the state ladder with high contrast on. The overrides that are rules, not numbers, are in the
-// hand-written theme:
-//   - line: fg at .55
-//   - muted: muted mixed 40% toward fg
-//   - focus: accent, opaque
-//   - float: adds a 1 DIP line rim
-var HighContrast = StateAlphas{Fill: 0.06, Hover: 0.08, Selected: 0.12, Pressed: 0.16}
 
 // Preset is a reading appearance preset in one scheme: the page region and the roles drawn on it, in the reader's
 // content area only. Ink is what its alpha fills are made of, at the main ladder's alphas.
@@ -433,13 +364,12 @@ type Preset struct {
 	Fg       ui.Color
 	Prose    ui.Color
 	Fg2      ui.Color
-	Fg3      ui.Color
 	Muted    ui.Color
 	Faint    ui.Color
 	Accent   ui.Color
 	OnAccent ui.Color
-	Star     ui.Color
 	Danger   ui.Color
+	Star     ui.Color
 	Success  ui.Color
 	Warning  ui.Color
 }
@@ -458,13 +388,12 @@ var Presets = map[string][2]Preset{
 			Fg:       ui.Hex("#1d2830"),
 			Prose:    ui.Hex("#29343d"),
 			Fg2:      ui.Hex("#394047"),
-			Fg3:      ui.Hex("#475058"),
 			Muted:    ui.Hex("#525d66"),
 			Faint:    ui.Hex("#738390"),
 			Accent:   ui.Hex("#1d6470"),
 			OnAccent: ui.Hex("#ffffff"),
-			Star:     ui.Hex("#9a6f13"),
 			Danger:   ui.Hex("#98412c"),
+			Star:     ui.Hex("#9a6f13"),
 			Success:  ui.Hex("#3d6448"),
 			Warning:  ui.Hex("#987022"),
 		},
@@ -476,13 +405,12 @@ var Presets = map[string][2]Preset{
 			Fg:       ui.Hex("#eff3f6"),
 			Prose:    ui.Hex("#dce2e6"),
 			Fg2:      ui.Hex("#c6ced3"),
-			Fg3:      ui.Hex("#aeb8bf"),
 			Muted:    ui.Hex("#9ba6af"),
 			Faint:    ui.Hex("#6f7d8a"),
 			Accent:   ui.Hex("#86c5d0"),
 			OnAccent: ui.Hex("#102329"),
-			Star:     ui.Hex("#e2b24f"),
 			Danger:   ui.Hex("#e28f81"),
+			Star:     ui.Hex("#e2b24f"),
 			Success:  ui.Hex("#8ab997"),
 			Warning:  ui.Hex("#d6aa55"),
 		},
@@ -496,13 +424,12 @@ var Presets = map[string][2]Preset{
 			Fg:       ui.Hex("#2e251a"),
 			Prose:    ui.Hex("#3b3125"),
 			Fg2:      ui.Hex("#493d2e"),
-			Fg3:      ui.Hex("#594c3a"),
 			Muted:    ui.Hex("#685944"),
 			Faint:    ui.Hex("#8d7f5f"),
 			Accent:   ui.Hex("#1f6258"),
 			OnAccent: ui.Hex("#ffffff"),
-			Star:     ui.Hex("#9a6f13"),
 			Danger:   ui.Hex("#98412c"),
+			Star:     ui.Hex("#9a6f13"),
 			Success:  ui.Hex("#3d6448"),
 			Warning:  ui.Hex("#987022"),
 		},
@@ -514,20 +441,19 @@ var Presets = map[string][2]Preset{
 			Fg:       ui.Hex("#f8f4eb"),
 			Prose:    ui.Hex("#e9e2d3"),
 			Fg2:      ui.Hex("#d6cebd"),
-			Fg3:      ui.Hex("#c0b7a2"),
 			Muted:    ui.Hex("#b1a68b"),
 			Faint:    ui.Hex("#8d795c"),
 			Accent:   ui.Hex("#8cc9b8"),
 			OnAccent: ui.Hex("#10241f"),
-			Star:     ui.Hex("#e2b24f"),
 			Danger:   ui.Hex("#e29183"),
+			Star:     ui.Hex("#e2b24f"),
 			Success:  ui.Hex("#8ab997"),
 			Warning:  ui.Hex("#d6aa55"),
 		},
 	},
 }
 
-// Named returns the color of the token called name, and false when the preset has none.
+// Named returns the color of the token called name, and false when the preset has none. Paper is its page.
 func (p *Preset) Named(name string) (ui.Color, bool) {
 	switch name {
 	case "ink":
@@ -544,8 +470,6 @@ func (p *Preset) Named(name string) (ui.Color, bool) {
 		return p.Prose, true
 	case "fg2":
 		return p.Fg2, true
-	case "fg3":
-		return p.Fg3, true
 	case "muted":
 		return p.Muted, true
 	case "faint":
@@ -554,70 +478,136 @@ func (p *Preset) Named(name string) (ui.Color, bool) {
 		return p.Accent, true
 	case "on-accent":
 		return p.OnAccent, true
-	case "star":
-		return p.Star, true
 	case "danger":
 		return p.Danger, true
+	case "star":
+		return p.Star, true
 	case "success":
 		return p.Success, true
 	case "warning":
 		return p.Warning, true
+	case "paper":
+		return p.Page, true
 	}
 	return ui.Color{}, false
 }
 
-// Target is a contrast floor: Token on every bed of its region, or on the token On when On is set.
+// Logo is the colors of the mark, never used by the interface.
+type Logo struct {
+	// LogoBody: The mark's frame and arcs. It keeps the brand ink, within a step of fg; never used in the interface.
+	LogoBody ui.Color
+	// LogoPiece: The mark's dot, the one teal piece; the product icon draws it as a sphere from #5eead4 to #0f766e.
+	// Never used in the interface.
+	LogoPiece ui.Color
+	// LogoTile: The product icon's warm ivory tile, the same in both schemes (a gradient from #fdfcf9 to #e6e0d5 in the
+	// icon).
+	LogoTile ui.Color
+}
+
+// LogoLight is the light scheme.
+var LogoLight = Logo{
+	LogoBody:  ui.Hex("#26231f"),
+	LogoPiece: ui.Hex("#0f766e"),
+	LogoTile:  ui.Hex("#f4f1ea"),
+}
+
+// LogoDark is the dark scheme.
+var LogoDark = Logo{
+	LogoBody:  ui.Hex("#f4f1ea"),
+	LogoPiece: ui.Hex("#5eead4"),
+	LogoTile:  ui.Hex("#f4f1ea"),
+}
+
+// Named returns the color of the token called name, and false when it has none.
+func (p *Logo) Named(name string) (ui.Color, bool) {
+	switch name {
+	case "logo-body":
+		return p.LogoBody, true
+	case "logo-piece":
+		return p.LogoPiece, true
+	case "logo-tile":
+		return p.LogoTile, true
+	}
+	return ui.Color{}, false
+}
+
+// StateAlphas are the alphas of the state ladder, the scheme's ink at each.
+type StateAlphas struct{ Fill, Hover, Selected, Pressed float32 }
+
+// HighContrast is the state ladder with the desktop's high contrast on. The overrides that are rules, not numbers,
+// are applied by package theme:
+//   - line: fg at .55
+//   - muted: muted mixed 40% toward fg
+//   - focus: accent, opaque
+//   - float: adds a 1 DIP line rim
+var HighContrast = StateAlphas{Fill: 0.06, Hover: 0.08, Selected: 0.12, Pressed: 0.16}
+
+// Target is a contrast floor: Token on every ground of its region, or on the token On when On is set.
 type Target struct {
 	Token string
 	Min   float64
 	On    string
 }
 
-// AuditTargets are the WCAG 2.x contrast floors every text token keeps. A token named pane.x is the pane's x.
+// AuditTargets are the WCAG 2 contrast floors every text token keeps. A pane- token is checked on the pane's grounds.
 var AuditTargets = []Target{
 	{"fg", 10, ""},
 	{"prose", 8.5, ""},
 	{"fg2", 7, ""},
-	{"fg3", 5.5, ""},
 	{"muted", 4.5, ""},
+	{"faint", 2.6, ""},
 	{"accent", 4.5, ""},
 	{"danger", 4.5, ""},
 	{"success", 4.5, ""},
-	{"star", 3, ""},
 	{"warning", 3, ""},
-	{"faint", 2.6, ""},
+	{"star", 3, ""},
+	{"pane-fg", 8, ""},
+	{"pane-fg2", 6, ""},
+	{"pane-muted", 4.5, ""},
+	{"pane-faint", 2.6, ""},
+	{"pane-accent", 3, ""},
 	{"on-accent", 4.5, "accent"},
-	{"pane.fg", 8, ""},
-	{"pane.fg2", 6, ""},
-	{"pane.muted", 4.5, ""},
-	{"pane.accent", 3, ""},
-	{"pane.faint", 2.6, ""},
+	{"on-inverse", 4.5, "inverse"},
 }
 
-// AuditBeds are the grounds text is drawn on per region (main, pane, preset); "a + b" is b laid over a.
-var AuditBeds = map[string][]string{
-	"main":   []string{"paper", "surface", "float", "paper + selected", "surface + selected"},
-	"pane":   []string{"pane", "pane + selected"},
-	"preset": []string{"page", "surface", "page + selected", "surface + selected"},
+// AuditGrounds are the grounds text is drawn on per region (main, pane); "a + b" is b laid over a.
+var AuditGrounds = map[string][]string{
+	"main": []string{"paper", "paper + hover", "paper + selected", "surface", "float", "float + hover"},
+	"pane": []string{"pane", "pane + pane-hover", "pane + pane-selected"},
 }
 
-// Shadow is a drop shadow at the default text size: Color is a token of the scheme, and a rim of RimWidth in
-// RimColor goes around the shape when RimWidth is above 0.
+// Shadow is a drop shadow at the default text size, with a rim of Rim DIPs in RimColor around the shape when Rim
+// is above 0.
 type Shadow struct {
 	X, Y, Blur float32
-	Color      string
-	RimWidth   float32
-	RimColor   string
+	Color      ui.Color
+	Rim        float32
+	RimColor   ui.Color
 }
 
-var (
-	// ShadowRaised: The chosen segment.
-	ShadowRaised = Shadow{X: 0, Y: 1, Blur: 2, Color: "shadow", RimWidth: 0.5, RimColor: "line2"}
-	// ShadowPopup: Select menus, the font picker. Radius card, rim 0.5 line2 (1 DIP white 8% in dark).
-	ShadowPopup = Shadow{X: 0, Y: 12, Blur: 32, Color: "shadow"}
-	// ShadowDialog: Dialogs, the command palette, the key sheet. Radius sheet, same rim.
-	ShadowDialog = Shadow{X: 0, Y: 20, Blur: 50, Color: "shadow-dialog"}
-)
+// Elevation is the shadows of floating things in one scheme; everything in the flow is flat.
+type Elevation struct {
+	// Raised: The chosen segment of a track.
+	Raised Shadow
+	// Popup: Select menus, the font picker. Radius card on float.
+	Popup Shadow
+	// Dialog: Dialogs, the command palette, the key sheet. Radius sheet on float.
+	Dialog Shadow
+}
+
+// ElevationLight is the light scheme.
+var ElevationLight = Elevation{
+	Raised: Shadow{X: 0, Y: 1, Blur: 2, Color: ui.RGBA(28, 24, 18, 0.22), Rim: 0.5, RimColor: ui.RGBA(37, 34, 30, 0.12)},
+	Popup:  Shadow{X: 0, Y: 12, Blur: 32, Color: ui.RGBA(28, 24, 18, 0.22), Rim: 0.5, RimColor: ui.RGBA(37, 34, 30, 0.12)},
+	Dialog: Shadow{X: 0, Y: 20, Blur: 50, Color: ui.RGBA(28, 24, 18, 0.25), Rim: 0.5, RimColor: ui.RGBA(37, 34, 30, 0.12)},
+}
+
+// ElevationDark is the dark scheme.
+var ElevationDark = Elevation{
+	Raised: Shadow{X: 0, Y: 1, Blur: 2, Color: ui.RGBA(0, 0, 0, 0.5), Rim: 0.5, RimColor: ui.RGBA(234, 240, 238, 0.12)},
+	Popup:  Shadow{X: 0, Y: 12, Blur: 32, Color: ui.RGBA(0, 0, 0, 0.5), Rim: 0.5, RimColor: ui.RGBA(234, 240, 238, 0.12)},
+	Dialog: Shadow{X: 0, Y: 20, Blur: 50, Color: ui.RGBA(0, 0, 0, 0.55), Rim: 0.5, RimColor: ui.RGBA(234, 240, 238, 0.12)},
+}
 
 // Opacities: the only ones a view uses.
 const (
@@ -628,7 +618,7 @@ const (
 	OpacitySeparator = 0.7
 )
 
-// Spacing, in DIPs at the default text size.
+// Spacing, in DIPs at the default text size and density.
 const (
 	Space0_5 = 2
 	Space1   = 4
@@ -641,7 +631,7 @@ const (
 	Space12  = 48
 )
 
-// Corner radii, in DIPs at the default text size. A pill's radius is half its height.
+// Corner radii by role, in DIPs at the default text size. RadiusPill is drawn as half the shape's height.
 const (
 	// RadiusXS: Site icons and small tiles, inline code, badges.
 	RadiusXS = 4
@@ -653,8 +643,8 @@ const (
 	RadiusCard = 12
 	// RadiusPane: The ink pane, the AI card.
 	RadiusPane = 14
-	// RadiusSheet: Dialogs and the command palette.
-	RadiusSheet = 16
+	// RadiusPill: Capsules, segments in a capsule, dots, the new-entries pill.
+	RadiusPill = 9999
 )
 
 // Sizes, in DIPs at the default text size.
@@ -677,12 +667,10 @@ const (
 	RowDense = 24
 	// Row: Menu items, popup rows, the pane filter, icon buttons in the pane.
 	Row = 28
-	// PaneRow: A kind, a subscription, a folder or a settings group in the pane.
-	PaneRow = 30
 	// Control: Buttons, fields, toolbar icon buttons, capsules.
 	Control = 32
 	// ControlSmall: Small buttons; a segment inside a capsule.
-	ControlSmall = 26
+	ControlSmall = 24
 	// RowCompact: An article in the Compact viewer.
 	RowCompact = 36
 	// Toolbar: The toolbar bar; the window buttons sit on its middle line.
@@ -696,13 +684,19 @@ const (
 	ColumnSocial = 720
 	// SheetWidth: The widest a centered sheet grows (connect).
 	SheetWidth = 320
+	// Tag: A tag or badge: N failed, Updated, 6 min read.
+	Tag = 18
+	// Dialog: A dialog: confirm, edit, add subscription.
+	Dialog = 440
+	// DialogWide: A wide dialog or the command palette: rules, health, bulk edit.
+	DialogWide = 560
 	// MenuMin: The narrowest select menu.
 	MenuMin = 160
 	// ThumbW: An article's picture, 96 x 64.
 	ThumbW = 96
 	ThumbH = 64
-	// MarkerW: The selection marker, 2.5 x 18, radius 2.
-	MarkerW = 2.5
+	// MarkerW: The selection marker, 3 x 18, radius-pill.
+	MarkerW = 3
 	MarkerH = 18
 	// Dot: The unread dot.
 	Dot = 6
@@ -710,9 +704,11 @@ const (
 	FocusRing = 2
 	Hairline  = 1
 	// Outline: Image outline and float rims in light.
-	Outline    = 0.5
-	WindowW    = 960
-	WindowH    = 640
+	Outline = 0.5
+	// WindowW: Default window width.
+	WindowW = 1280
+	// WindowH: Default window height.
+	WindowH    = 800
 	WindowMinW = 640
 	WindowMinH = 480
 )
@@ -736,7 +732,7 @@ var FontSerif = map[string][]string{
 	"windows": {"Georgia", "SimSun"},
 }
 
-// Lang is a value in English and in Simplified Chinese, which runs taller.
+// Lang is a value in English and in Simplified Chinese, which runs taller and carries no tracking.
 type Lang struct{ En, Zh float32 }
 
 // TextStyle is an interface text style. Size and Line are DIPs at the default text size and Tracking is in em;
@@ -750,35 +746,33 @@ type TextStyle struct {
 
 // The interface text styles, the only ones a screen sets.
 var (
-	// TextDisplay: The reader title.
+	// TextDisplay: The reader title. Chinese line height 34.
 	TextDisplay = TextStyle{Name: "display", Size: Lang{24, 24}, Line: Lang{30, 34}, Tracking: Lang{-0.015, 0}, Weight: 600, Mono: false, Relative: false}
-	// TextDisplayCompact: The reader title in a window narrower than 760.
+	// TextDisplayCompact: The reader title in a window narrower than 760. Chinese line height 30.
 	TextDisplayCompact = TextStyle{Name: "display-compact", Size: Lang{21, 21}, Line: Lang{27, 30}, Tracking: Lang{-0.015, 0}, Weight: 600, Mono: false, Relative: false}
-	// TextTitle: Row titles, section heads, screen titles, the 32 tile's letter, the +N tile.
+	// TextTitle: Row titles, section heads, screen titles, the 32 tile's letter, the +N tile. Chinese line height 22.
 	TextTitle = TextStyle{Name: "title", Size: Lang{15, 15}, Line: Lang{20, 22}, Tracking: Lang{-0.005, 0}, Weight: 600, Mono: false, Relative: false}
-	// TextBody: Summaries, social text, cards, notes.
+	// TextBody: Summaries, social text, cards, notes. Chinese line height 22.
 	TextBody = TextStyle{Name: "body", Size: Lang{13, 13}, Line: Lang{20, 22}, Tracking: Lang{0, 0}, Weight: 400, Mono: false, Relative: false}
-	// TextBodyProse: Body text read as prose: the summary card.
-	TextBodyProse = TextStyle{Name: "body-prose", Size: Lang{13, 13}, Line: Lang{21, 23}, Tracking: Lang{0, 0}, Weight: 400, Mono: false, Relative: false}
-	// TextLabel: Buttons, menu items, pane items, fields.
+	// TextLabel: Buttons, menu items, pane items, fields. Chinese line height 20.
 	TextLabel = TextStyle{Name: "label", Size: Lang{13, 13}, Line: Lang{18, 20}, Tracking: Lang{0, 0}, Weight: 500, Mono: false, Relative: false}
-	// TextMeta: Times, hints, status lines, notes, toasts, the shortcut sheet's action names.
+	// TextMeta: Times, hints, status lines, notes, toasts, the shortcut sheet's action names. Chinese line height 17.
 	TextMeta = TextStyle{Name: "meta", Size: Lang{12, 12}, Line: Lang{17, 17}, Tracking: Lang{0.005, 0}, Weight: 400, Mono: false, Relative: false}
-	// TextMetaStrong: The source name in a meta line, segments, the capsule.
+	// TextMetaStrong: The source name in a meta line, segments, the capsule. Chinese line height 17.
 	TextMetaStrong = TextStyle{Name: "meta-strong", Size: Lang{12, 12}, Line: Lang{17, 17}, Tracking: Lang{0.01, 0}, Weight: 500, Mono: false, Relative: false}
-	// TextCaption: Section heads in the pane, counts, durations, key caps, badges.
-	TextCaption = TextStyle{Name: "caption", Size: Lang{11, 12}, Line: Lang{14, 16}, Tracking: Lang{0.04, 0.02}, Weight: 500, Mono: false, Relative: false}
-	// TextCode: Monospace fields: rewrite rules, prompts, addresses.
+	// TextCaption: Section heads in the pane, counts, durations, key caps, badges. Chinese line height 16.
+	TextCaption = TextStyle{Name: "caption", Size: Lang{11, 12}, Line: Lang{14, 16}, Tracking: Lang{0.04, 0}, Weight: 500, Mono: false, Relative: false}
+	// TextCode: Monospace fields: rewrite rules, prompts, addresses. Chinese line height 19.
 	TextCode = TextStyle{Name: "code", Size: Lang{12, 12}, Line: Lang{19, 19}, Tracking: Lang{0, 0}, Weight: 400, Mono: true, Relative: false}
 	// TextCodeInline: Code inside body text, inline or in a block.
 	TextCodeInline = TextStyle{Name: "code-inline", Size: Lang{0.86, 0.86}, Line: Lang{1.6, 1.6}, Tracking: Lang{0, 0}, Weight: 400, Mono: true, Relative: true}
 )
 
 // TextStyles lists every interface text style.
-var TextStyles = []TextStyle{TextDisplay, TextDisplayCompact, TextTitle, TextBody, TextBodyProse, TextLabel, TextMeta, TextMetaStrong, TextCaption, TextCode, TextCodeInline}
+var TextStyles = []TextStyle{TextDisplay, TextDisplayCompact, TextTitle, TextBody, TextLabel, TextMeta, TextMetaStrong, TextCaption, TextCode, TextCodeInline}
 
-// ReadingStyle is a style of the article: Size in DIPs at the default reading size, Line a multiple of the size,
-// Tracking in em.
+// ReadingStyle is a style of the article at Medium, Standard: Size in DIPs, Line a multiple of the size, Tracking
+// in em.
 type ReadingStyle struct {
 	Size           float32
 	Line, Tracking Lang
@@ -788,9 +782,13 @@ type ReadingStyle struct {
 
 // The reading scale.
 var (
+	// ReadingBody: Article body at Medium, Standard; prose color; Chinese line height 1.85.
 	ReadingBody = ReadingStyle{Size: 16, Line: Lang{1.7, 1.85}, Tracking: Lang{0, 0}, Weight: 400, Mono: false}
-	ReadingH2   = ReadingStyle{Size: 19, Line: Lang{1.35, 1.5}, Tracking: Lang{-0.01, 0}, Weight: 600, Mono: false}
-	ReadingH3   = ReadingStyle{Size: 16, Line: Lang{1.4, 1.5}, Tracking: Lang{0, 0}, Weight: 600, Mono: false}
+	// ReadingH2: Article h2, interface font.
+	ReadingH2 = ReadingStyle{Size: 19, Line: Lang{1.35, 1.5}, Tracking: Lang{-0.01, 0}, Weight: 600, Mono: false}
+	// ReadingH3: Article h3, interface font.
+	ReadingH3 = ReadingStyle{Size: 16, Line: Lang{1.4, 1.5}, Tracking: Lang{0, 0}, Weight: 600, Mono: false}
+	// ReadingCode: Code blocks in an article.
 	ReadingCode = ReadingStyle{Size: 13, Line: Lang{1.6, 1.6}, Tracking: Lang{0, 0}, Weight: 400, Mono: true}
 )
 
@@ -813,15 +811,14 @@ const (
 	PunctuationCompression = -0.5
 )
 
-// Motion: durations of the fixed curves named beside them, and the scale a popup opens from.
+// Motion: durations, with the curve beside each, and the scale a popup opens from.
 const (
-	// MotionFast: Hover, press and chosen fills and text color; row actions fading in; a popup or menu scaling from
-	// popup-scale with a fade.
-	MotionFast = 120 * time.Millisecond // EaseOut
-	// MotionBase: Folding a folder or a collapsed group open and shut; a toast coming and going.
-	MotionBase = 200 * time.Millisecond // EaseOut
-	// Spin: One turn of the busy spinner.
-	Spin = 900 * time.Millisecond // Linear
-	// PopupScale: The scale a popup or menu starts from.
-	PopupScale = 0.97
+	// MotionFast: Small things: color and opacity of hover and press, every exit, the star turning on.
+	MotionFast = 120 * time.Millisecond // cubic-bezier(0.2, 0, 0, 1)
+	// MotionBase: Large things: a popup or sheet arriving, a folder opening in the pane, the reader replacing its entry.
+	MotionBase = 200 * time.Millisecond // cubic-bezier(0.2, 0, 0, 1)
+	// MotionSpin: One turn of the spinner while fetching or extracting.
+	MotionSpin = 900 * time.Millisecond // linear
+	// MotionPop: The scale a popup opens from, with a fade, out of the control that opened it. Nothing slides.
+	MotionPop = 0.97
 )
