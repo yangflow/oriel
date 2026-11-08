@@ -37,7 +37,7 @@ type findSig struct {
 	n, gen                int
 }
 
-// find is the find row of the reader: see docs/design.md "Find in the article".
+// find is the find row of the reader.
 type find struct {
 	open  bool
 	query string

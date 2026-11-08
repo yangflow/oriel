@@ -11,36 +11,30 @@ Merging it creates a draft release with that section as its notes and the tag `v
 `.github/workflows/release.yml`: the checks, then one build per platform that signs and uploads its installers and
 updates to the draft, then publishing the release once every platform uploaded. Installed copies check the latest
 published release of `yangflow/oriel` once a day and from "Check for Updates…" in the app menu, and install nothing
-before the user confirms in the update window, which shows the version's section of `CHANGELOG.md`. The update mechanism is MyGo's
-([auto-updates](https://github.com/egoist/mygo/blob/v0.7.4/docs/updates.md),
-[GitHub Actions](https://github.com/egoist/mygo/blob/v0.7.4/docs/github-actions.md)).
+before the user confirms in the update window, which shows the version's section of `CHANGELOG.md`. The update
+mechanism is MyGo's
+([auto-updates](https://github.com/egoist/mygo/blob/main/docs/updates.md),
+[GitHub Actions](https://github.com/egoist/mygo/blob/main/docs/github-actions.md)).
 
-## Container image (proposal, not active)
+## Container image
 
 The `docker` job of `full.yml` (on every push to `main`, daily, and on pull requests that change the image's inputs)
-builds the `Dockerfile` for `linux/amd64` and `linux/arm64` and runs it for the CI machine until Docker calls it
-healthy (`scripts/docker_smoke.sh`). It pushes nothing and uses no secrets. Publishing the image sends it to an
-external registry, so it waits for the maintainer's confirmation. Proposed, once confirmed:
-
-- Registry: GitHub Container Registry, `ghcr.io/yangflow/oriel`, public. It needs no extra secret, because the
-  workflow's own `GITHUB_TOKEN` can push with `packages: write`.
-- A job in `release.yml`, after the platform builds and before the draft is published, in the environment `release`
-  and only on `v*` tags: log in with `GITHUB_TOKEN`, build both architectures with `docker buildx build --push` and
-  tag the image `X.Y.Z` and `latest` (a pre-release tag gets no `latest`).
-- A failed image build stops the release before it is published, as a failed platform does.
-- If a registry other than GHCR is chosen, its credentials are secrets of the environment `release`, set like the
-  others, never in files.
-
-Until then, `deploy/compose.yaml` builds the image from the checkout.
+builds the `Dockerfile` for `linux/amd64` and `linux/arm64` and runs it until Docker calls it healthy
+(`scripts/docker_smoke.sh`). It pushes nothing and uses no secrets; the image is not published to a registry, and
+`deploy/compose.yaml` builds it from the checkout. Publishing it would send it to an external service, which needs
+the maintainer's confirmation.
 
 ## One-time setup
+
+Credentials go only into the secrets of the environment `release`, never into files, logs, issues or pull requests.
+The environment lets only tags `v*` deploy, so a workflow on a branch or a pull request never sees them. Set each
+secret with `gh secret set NAME --env release`, from a file or the prompt, never with the value on the command line.
 
 **Release App.** release-please acts as a GitHub App, because a tag or pull request made with the workflow's own
 `GITHUB_TOKEN` starts no workflows: the tag would not start `release.yml`, and CI would not run on the release pull
 request. Create a GitHub App owned by the maintainer, with no webhook, repository permissions Contents and Pull
-requests set to Read and write and nothing else, installed on `yangflow/oriel` only (the App made for idset can be
-installed here too). Then store its client ID and a private key generated on the App's page as repository secrets
-(not in the environment `release`, which only tags may use):
+requests set to Read and write and nothing else, installed on `yangflow/oriel` only. Then store its client ID and a private key generated on the App's page as
+repository secrets (not in the environment `release`, which only tags may use):
 
 ```sh
 gh secret set RELEASE_APP_CLIENT_ID --repo yangflow/oriel
@@ -48,10 +42,6 @@ gh secret set RELEASE_APP_PRIVATE_KEY --repo yangflow/oriel < <the downloaded .p
 ```
 
 Delete the `.pem` afterwards; a new key can be generated on the App's page.
-
-Credentials go only into the secrets of the environment `release`, never into files, logs, issues or pull requests.
-The environment lets only tags `v*` deploy, so a workflow on a branch or a pull request never sees them. Set each
-secret with `gh secret set NAME --env release`, from a file or the prompt, never with the value on the command line.
 
 **Update key.** On the maintainer's machine:
 
@@ -76,16 +66,16 @@ for the notary service (Users and Access, Integrations, Team Keys; the `.p8` dow
 The signing identity stays a secret so that the name on the certificate is not in the repository. Notarization is
 added to the configuration only in the workflow; local builds are signed ad hoc and never submitted.
 
-**Windows.** Builds are not signed yet, so SmartScreen warns on first launch.
+**Windows.** Builds are not signed, so SmartScreen warns on first launch.
 
 **Linux.** Nothing to set up; the `.deb` and the archives are not signed beyond the update signature.
 
 ## Each release
 
 1. Make sure the titles merged since the last release say what changed for users: the `feat`, `refactor`, `fix` and
-   `perf` titles become the release notes and the text of the update window. To change the wording, edit `CHANGELOG.md`
-   on the release pull request's branch before merging; release-please keeps the edit until a new commit reaches `main`,
-   and then writes the section again.
+   `perf` titles become the release notes and the text of the update window. To change the wording, edit
+   `CHANGELOG.md` on the release pull request's branch before merging; release-please keeps the edit until a new
+   commit reaches `main`, and then writes the section again.
 2. Squash-merge the release pull request once CI passes. The tag and the draft release follow; watch `release.yml`
    on the Actions page.
 

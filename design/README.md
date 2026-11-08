@@ -1,10 +1,12 @@
 # Design
 
-Design values and the product icon for Oriel's native UI. The design language is
-[docs/design.md](../docs/design.md); the values it uses are in [tokens.json](tokens.json) and
-[layout.json](layout.json), explained in [tokens.md](tokens.md). The screens themselves are drawn outside the
-repository, in two claude.ai Design artifacts kept by the maintainer. Mockups approximate the result; the app running
-on a real device is what counts.
+Design values and the product icon for Oriel's native UI. The values are in [tokens.json](tokens.json) and
+[layout.json](layout.json), explained in [tokens.md](tokens.md). The screens are drawn outside the repository, in two
+claude.ai Design artifacts kept by the maintainer.
+
+The screens canvas is the source of truth for how a screen looks: its layout, controls, copy and states. No document
+in the repository describes a screen's look. Mockups approximate the result; the app running on a real device is what
+counts.
 
 ## Layout
 
@@ -25,8 +27,7 @@ on a real device is what counts.
 
 The artifacts are private to the maintainer until shared. The canvas draws each state in Simplified Chinese, in the
 light scheme unless the artboard says dark, at the default window size unless it says narrow; English, the other
-scheme and the minimum and wide sizes follow from the tokens and the rules in `docs/design.md`, and are checked in the
-app.
+scheme and the minimum and wide sizes follow from the tokens and are checked in the app.
 
 ## Screens
 
@@ -37,23 +38,23 @@ Each screen's artboards are on the `4 页面` page, titled `4 页面：<screen> 
 | Connect | 连接服务端 | `internal/ui/connect/` |
 | Timeline | 时间线, 社交, 视频, 图片, the empty states, 离线, 筛选订阅, 侧栏收起, 窄窗口 | `internal/ui/timeline/` |
 | Reader | 阅读器, 沉浸阅读, 看图 | `internal/ui/reader/` |
-| Subscriptions | 设置 订阅, 添加订阅, 编辑订阅, 确认退订 | `internal/ui/subscriptions/` |
-| Settings | 设置 外观, 抓取, AI, 活动与存储, 导入 | `internal/ui/settings/` |
+| Subscriptions | 设置 订阅, 设置 订阅 多选, 设置 订阅 一个订阅, 添加订阅, 编辑订阅, 确认退订 | `internal/ui/subscriptions/` |
+| Settings | 设置 外观 界面, 外观 阅读, 外观 字号和行距, 外观 深色, 设置 设备, 抓取, 抓取 RSSHub 实例, 规则, 添加规则, AI, 活动与存储, 导入和导出, 导入进行中, 从别的阅读器导入, 确认框 | `internal/ui/settings/` |
 
 ## Changing the UI
 
 A UI change starts from the screens canvas; the maintainer confirms the visual direction before UI code is written.
 
 1. Draw the change on the screens canvas (every state it touches, the longer translation if layout is at risk), and
-   update `tokens.json`, `layout.json`, `tokens.md` and `docs/design.md` if a value or rule changes. A changed value
+   update `tokens.json`, `layout.json` and `tokens.md` if a value or rule changes. A changed value
    is published to the design system too.
 2. The maintainer confirms the visual direction.
 3. Write the native view in `internal/ui/<screen>/` with theme roles and `Space`/`Rem` sizes, localized copy and
-   accessible names, plus tests. On a screen that has moved to the tokens (#522), use only the token names.
-4. Run `scripts/check.sh`, then the design acceptance checklist in `docs/design.md` on real devices. A headless test
-   is not device acceptance.
+   accessible names, plus tests. Sizes and colors come from the token names in `internal/ui/theme/tokens`.
+4. Run `scripts/check.sh`, then compare the app on real devices with the artboards, in both schemes and both
+   languages, by keyboard and with a screen reader. A headless test is not device acceptance.
 
-Design notes and code go in the same pull request; the pull request body links the canvas artboards it follows and
+Token changes and code go in the same pull request; the pull request body links the canvas artboards it follows and
 carries the screenshots.
 
 ## Icons

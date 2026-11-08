@@ -183,7 +183,7 @@ type Screen struct {
 	retrying bool // a request to get the full text again is under way
 	feedText int  // 0 shows the full text, 1 what the feed carries, when the entry has both
 
-	// Footnotes and tables, see docs/design.md "阅读器": the block a link within the page last led to, the block of the
+	// Footnotes and tables: the block a link within the page last led to, the block of the
 	// reference last followed by footnote, the scroll of each table wider than the text by its block, the blocks
 	// drawn now, and the width each table was last seen to scroll, to draw it again when that changes.
 	landing landing
@@ -1111,7 +1111,7 @@ func (s *Screen) divider(c *ui.Context) {
 }
 
 // overflow is how many of the toolbar's read and open buttons move into More in a main column this wide: open below
-// 440, and mark read too below 380. See docs/design.md, Reader.
+// 440, and mark read too below 380.
 func overflow(column float32) int {
 	switch {
 	case column < 380:
@@ -2146,7 +2146,7 @@ func (s *Screen) follow(c *ui.Context, b block, sp span) {
 }
 
 // table is a table of the text: a grid in a frame that scrolls sideways when it is wider than the text, with a fade
-// where cells are cut off and a bar for the place; see docs/design.md "阅读器".
+// where cells are cut off and a bar for the place.
 func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 	t := c.Theme()
 	g := b.table
@@ -2295,8 +2295,7 @@ const (
 // picture is a picture of the text. Until it arrives it is a box on the Surface color, as the page declares it or a
 // flat 180 high; once it has, the real size decides, the whole picture at its own ratio and no wider than the column,
 // fading in. One that fails keeps the box and says so, with the alt text and Try again; one declared under 48 is
-// decoration and is left out. avail is the width of the column, as the last frame had it, 0 until known. See
-// docs/design.md "Pictures in the text".
+// decoration and is left out. avail is the width of the column, as the last frame had it, 0 until known.
 func (s *Screen) picture(c *ui.Context, b block, avail float32) {
 	t := c.Theme()
 	bitmap, failed := s.bitmap(b.src)

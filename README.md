@@ -7,11 +7,10 @@ English | [中文](README.zh-CN.md)
 
 A personal mixed-timeline reader for RSS and RSSHub, written in pure Go with native UI.
 
-Articles, videos, social posts, images and community threads arrive from different places, and most readers either flatten them into
-one list of links or push you into a cloud account. Oriel keeps one timeline for all five, on your own machine, in
-a native app without a browser engine inside. One Go program is both the app and its server: on a desktop it opens
-a window and serves only itself; on a home server or a VPS it runs without a window and other Oriel clients connect
-to it. Your data stays in a SQLite file you own. There are no accounts, no recommendations and no social
+Articles, videos, social posts, images and community threads arrive from different places. Oriel puts all five in one
+timeline, on your own machine, in a native app with no browser engine inside. One Go program is both the app and its
+server: on a desktop it opens a window and serves only itself; on a home server or a VPS it runs without a window and
+other Oriel clients connect to it. Your data is one SQLite file you own. No accounts, no recommendations, no social
 features of its own.
 
 ```text
@@ -25,91 +24,66 @@ features of its own.
 
 ## Features
 
-Working now:
+### Reading
 
-- **Scheduled fetching.** A few workers keep fetching due subscriptions, with conditional requests (ETag and
-  Last-Modified), backoff after failures and a limit on concurrent requests to one host. RSS, Atom and JSON Feed
-  are supported, as well as RSSHub routes, which fall back to the next RSSHub instance in your list when one
-  fails.
-- **Full text for articles.** Article pages are reduced to their main content with Readability, including the
-  linked post of a Discourse topic. Links found in feeds cannot reach loopback or private addresses.
-- **Retention.** Unstarred entries older than a chosen number of days are pruned hourly; 0 keeps everything.
-- **Starred copies.** Starring an entry keeps a local copy of its full text and pictures (up to 30, 8 MiB each) in the
-  database, so it survives its original page going away and is included in a database backup; unstarring removes the
-  copies.
-- **Subscription API.** Add, list, edit, pause, delete and refresh subscriptions, one or all at
-  once, over HTTP, with validation and duplicate detection.
-- **Timeline API.** Page through all entries newest first, filter by source, kind, unread or starred, search
-  the full text, and mark entries read or starred. Mute keywords, per source or for every source, hide
-  matching entries without deleting them, and rules star or mark read new entries that match.
-- **Timeline screen.** All subscriptions in one list, newest first, each kind in its own layout: article rows
-  with a thumbnail, video covers with their duration, social posts with their pictures, a masonry wall for images,
-  and a three-pane layout for community threads. Each kind can be shown in another way, such as a grid or compact rows. A list of kinds and a list of subscriptions, grouped in folders, narrow it; Unread, Starred, a time range and
-  search (phrases, exclusions, `from:`, `kind:`, `after:`, `before:`) narrow it further. An entry can come back
-  later with "Remind me", and foreign-language titles can show translated. Keys move, open, star and mark entries, N jumps to the next unread one, and ? lists every key; marking
-  all read can be undone. A setting chooses when entries count as read: when opened, after a short stay in the
-  reader, after scrolling past, or never automatically. New entries wait behind a "N new" button instead of moving the list. An article that several subscriptions carry shows once, with a chip that lists the other
-  sources (a setting turns this off). Each subscription shows its
-  site's icon. Pictures open in an in-app viewer; videos open in the browser, and each subscription can choose
-  where its entries open.
-- **Article reader.** An article opens in place of the list, drawn natively: headings, paragraphs, lists,
-  quotes, code, links and pictures. It shows the full text when it was extracted, and otherwise what the feed
-  carries, with a note saying so and a link to the original. Keys go to the next article, star, mark read and
-  return to the list. Find in the article, copy its link, export it as Markdown, see what changed when it is
-  updated, read it immersive in the whole window, and choose a sepia or mist page and the line width.
-- **Subscription screen.** Add a subscription from a feed address, an RSSHub route, or a YouTube, Bilibili, X,
-  GitHub, Telegram or Weibo link, which is turned into its feed or route; the kind and the check interval (Auto
-  by default, worked out from how often the feed publishes) are chosen in the same dialog. Edit, pause, refresh and
-  delete a subscription from the sidebar's right-click menu or the pencil in the toolbar; deleting can be undone.
-  Pasting a website address finds its feed or its RSSHub route, with a preview. Each subscription can set its own
-  check interval, retention, pace, daily cap, mute keywords, full-text rules, request headers and proxy, and
-  subscription health points out dead, failing, moved and noisy feeds. "Refresh All" (Subscriptions menu, Cmd/Ctrl+R or the command palette) checks every active
-  subscription now, shows progress in the sidebar and ends in a toast. "Manage subscriptions…" (Subscriptions menu
-  or the command palette) selects several at once to pause, resume, change their settings or delete them, with undo.
-- **Settings.** From the gear beside the server bar or "Settings…" (Cmd/Ctrl+,): appearance, reading, the RSSHub
-  instances (an ordered list, with each one's success rate and latency), retention, the fetch proxy, rules that star
-  or mark read new entries, recent fetches and database size, and a diagnostics file without secrets. Server
-  settings are kept on the server, so every device connected to it shares them. Signed in to
-  a server with a password, see each device signed in and sign out the ones you no longer use.
-- **AI summaries and translation.** Through your own OpenAI-compatible endpoint, such as OpenAI or a local
-  Ollama, set up in Settings with presets for Ollama and LM Studio and a connection check that says what is wrong
-  (address, key, model name, context size); the API key is kept on the server and never shown again. The
-  reader summarizes or translates the open article on demand, cancellable, and keeps the result for next time; a
-  subscription can summarize or translate its new entries by itself and use its own prompts, and one with foreign-language titles can show them translated, the original under each.
-- **OPML import and export.** Import subscriptions from another reader, nested groups included, by file or by
-  dropping it on the window, and see which could not be added and why; import subscriptions, stars and read state
-  from Miniflux and FreshRSS; export them all to a file that keeps each source's kind and RSSHub path.
-- **Back up and restore.** Save everything (subscriptions, entries, read and starred state, AI results, settings) to
-  one `.oriel-backup` file from Settings or with `oriel backup`, and bring it back from Settings, the empty timeline
-  or `oriel restore`. Sign-in sessions and the AI API key stay out of the file.
-- **Automatic backup.** Turn it on in Settings to save a backup to a folder every day or week; the server keeps the
-  newest few (7 by default) and removes only older files it wrote itself.
-- **Two run modes.** A desktop app that serves only the loopback interface, and `oriel serve` for a headless host
-  with password sign-in and per-device sessions.
-- **Connect to a remote server.** The desktop app can switch to an `oriel serve` on another machine from
-  "Connect to server…" in the app menu. Only the session token is kept, readable by you alone; the password is
-  never saved.
-- **One storage file.** SQLite with full-text search through a pure Go driver; no cgo in production code. The
-  window reads and writes only through the HTTP API, so desktop and headless behave the same.
-- **Desktop integration.** In Settings, Appearance, open Oriel at login, add an icon to the menu bar (macOS) or the tray
-  (Windows, Linux) that shows the unread count and keeps Oriel updating after the window is closed, and show the
-  unread count on the Dock icon (macOS).
-- **Two languages.** The interface is in English and Simplified Chinese.
+- **One timeline, five kinds.** Article rows, video covers, social posts with their pictures, a masonry wall for
+  images and three panes for community threads; each kind can also show as a grid or compact rows.
+- **Narrow it down.** Kinds, subscriptions and folders, Unread, Starred, a time range, and search with phrases,
+  exclusions, `from:`, `kind:`, `after:` and `before:`.
+- **Keyboard first.** Keys move, open, star and mark entries; N jumps to the next unread one, ? lists every key, and a
+  command palette finds actions by name. Marking all read can be undone.
+- **Native reader.** Full text when it could be extracted, the feed's content otherwise. Find in the article, export
+  it as Markdown, see what changed in an update, read immersive, and choose a sepia or mist page and the line width.
+- **Calm timeline.** New entries wait behind an "N new" button, an article several subscriptions carry shows once,
+  entries can come back later with "Remind me", and you choose when an entry counts as read.
 
-Planned work is in the [milestones](https://github.com/yangflow/oriel/milestones) (rules in the
-[roadmap](docs/roadmap.md), in Chinese).
+### Subscriptions and fetching
 
-Status: early development; releases are on the [releases page](https://github.com/yangflow/oriel/releases). The
-window has the connect screen, the timeline, the subscription dialogs, the article reader and the settings.
-Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on amd64 and arm64. Linux builds need glibc, also when running headless.
+- **Add from almost anything.** A feed address, an RSSHub route, a website (its feed or route is found), or a YouTube,
+  Bilibili, X, GitHub, Telegram or Weibo link.
+- **Scheduled fetching.** RSS, Atom, JSON Feed and RSSHub, with conditional requests, backoff, a per-host limit,
+  WebSub push and fallback to the next RSSHub instance. The check interval is worked out from how often a feed
+  publishes.
+- **Per-subscription control.** Check interval, retention, pace, daily cap, mute keywords, full-text rules, request
+  headers and proxy. Subscription health points out dead, failing, moved and noisy feeds.
+- **Rules.** Star or mark read new entries that match, and hide entries with mute keywords without deleting them.
 
-Releases are built and published from a version tag ([docs/release.md](docs/release.md)).
-Installed copies will update themselves from them after you confirm in the update window. The macOS app is signed
-and notarized. The Windows installers are not signed yet, so SmartScreen warns on first launch.
+### AI
 
-## Quick start
+- **Summaries and translation** through your own OpenAI-compatible endpoint, such as OpenAI, Ollama or LM Studio. On
+  demand in the reader, or automatically for a subscription's new entries, with translated titles for foreign-language
+  feeds. The API key stays on the server.
 
-Build from source with the Go version in `.go-version` and Python 3:
+### Your data
+
+- **One SQLite file** with full-text search, through a pure Go driver.
+- **Starred copies.** A starred entry keeps its full text and pictures, so it survives the original page going away.
+- **Import and export.** OPML in and out; subscriptions, stars and read state from Miniflux and FreshRSS.
+- **Backups.** One `.oriel-backup` file from Settings or `oriel backup`, restored from Settings or `oriel restore`,
+  and scheduled backups to a folder. Sessions and the AI key stay out of the file.
+- **Diagnostics** without secrets, for bug reports.
+
+### Running it
+
+- **Desktop app** serving only the loopback interface, or **`oriel serve`** headless with password sign-in and
+  per-device sessions; the desktop app can connect to a remote server.
+- **Desktop integration.** Open at login, an unread count in the menu bar or tray and on the Dock, and updating after
+  the window is closed.
+- **English and Simplified Chinese** interface.
+
+Planned work is in the [milestones](https://github.com/yangflow/oriel/milestones).
+
+## Status
+
+Early development. Releases are on the [releases page](https://github.com/yangflow/oriel/releases) and installed
+copies update themselves after you confirm. The macOS app is signed and notarized; the Windows installers are not
+signed yet, so SmartScreen warns on first launch.
+
+Targets: macOS 12+, Windows 10/11 and Linux with GTK 3, on amd64 and arm64. Linux builds need glibc, also headless.
+
+## Build from source
+
+You need the Go version in `.go-version` and Python 3:
 
 ```bash
 git clone https://github.com/yangflow/oriel
@@ -118,58 +92,56 @@ go tool mygo dev           # run the desktop app
 go tool mygo build         # package it into build/
 ```
 
-## Usage
-
-Run the server without a window:
+## Run headless
 
 ```bash
 ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
 ```
 
-Without `ORIEL_PASSWORD` the server listens on `127.0.0.1` only. The password is read from the environment only,
-so it never appears in the process list. `-data` defaults to the user data directory.
-Behind a reverse proxy, pass `-trusted-proxy <ip-or-cidr,...>` so the login throttle reads `X-Forwarded-For` for requests
-that come from those addresses; it is off by default. List only your proxies, never client networks or `0.0.0.0/0` (a `/0` range is refused).
+- Without `ORIEL_PASSWORD` the server listens on `127.0.0.1` only. The password is read from the environment only,
+  so it never appears in the process list.
+- `-data` defaults to the user data directory.
+- Behind a reverse proxy, pass `-trusted-proxy <ip-or-cidr,...>` so the login throttle reads `X-Forwarded-For` from
+  those addresses. List only your proxies; a `/0` range is refused.
 
 ### Docker or systemd
 
-`oriel serve` also runs as a container or a system service; the files are in [`deploy/`](deploy/) and the details (data
-directory, port, reverse proxy and HTTPS, health check, backups, upgrading) in [docs/product.md](docs/product.md)
-("部署", in Chinese). The image is not published to a registry yet (planned); build it from a checkout, for
-`linux/amd64` and `linux/arm64`:
+The files are in [`deploy/`](deploy/); the details (data directory, port, reverse proxy and HTTPS, health check,
+backups, upgrading) are in [docs/product.md](docs/product.md) ("部署", in Chinese). The image is built from a
+checkout, not pulled from a registry, for `linux/amd64` and `linux/arm64`:
 
 ```bash
 echo 'ORIEL_PASSWORD=<password>' > deploy/.env && chmod 600 deploy/.env
 docker compose -f deploy/compose.yaml up -d --build
 ```
 
-The example publishes the port on `127.0.0.1` of the host only (edit `ports` to open it to other devices, preferably
-behind an HTTPS reverse proxy). The password is required in a container: without `ORIEL_PASSWORD` the server listens on `127.0.0.1` inside the container
-only, and nothing outside reaches it. The image runs as a non-root user, keeps its data in the volume `/data` and
-answers Docker's health check with `oriel healthcheck`, which asks the local `/health` and exits 0 or 1. For systemd,
-install `deploy/oriel.service` with the password in a `0600` environment file; it runs the server as a dynamic user
-with its data in `/var/lib/oriel`.
+- The example publishes the port on the host's `127.0.0.1` only; edit `ports` to open it, preferably behind an HTTPS
+  reverse proxy.
+- In a container the password is required: without it the server listens only inside the container.
+- The image runs as a non-root user, keeps its data in the volume `/data`, and answers Docker's health check with
+  `oriel healthcheck`.
+- For systemd, install `deploy/oriel.service` with the password in a `0600` environment file; it runs as a dynamic
+  user with its data in `/var/lib/oriel`.
 
 ## Development
 
 ```bash
-scripts/check.sh                  # what a pull request runs: gofmt, go mod tidy, vet, tests, script tests, -race on the concurrent packages
+scripts/check.sh                  # what a pull request runs: gofmt, go mod tidy, vet, tests, -race on the concurrent packages
 scripts/check.sh --cross --race   # everything, as CI runs it on main and daily: -race on all packages, six targets
 ```
 
 | Topic | Where |
 |---|---|
-| Behavior, data model, fetching, HTTP and sign-in (in Chinese) | [docs/product.md](docs/product.md) |
-| Design language: layout, color, type, components, accessibility | [docs/design.md](docs/design.md) |
-| Design tokens, design system and screen mockups | [design/README.md](design/README.md) |
-| Roadmap rules and milestones (in Chinese) | [docs/roadmap.md](docs/roadmap.md) |
+| Behavior, data model, API, fetching and sign-in (in Chinese) | [docs/product.md](docs/product.md) |
+| Screens canvas, design system and tokens | [design/README.md](design/README.md) |
 | Architecture decisions | [docs/adr/](docs/adr/README.md) |
+| Releases | [docs/release.md](docs/release.md) |
 | Repository rules for people and agents | [AGENTS.md](AGENTS.md) |
 
 ## Contributing
 
-Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately as
-described in [SECURITY.md](SECURITY.md).
+Issues and pull requests are welcome in English or Chinese; see [CONTRIBUTING.md](CONTRIBUTING.md). Report
+vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
