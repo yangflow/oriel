@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
@@ -113,6 +114,7 @@ func (s *shell) build() {
 		Fonts:       func() []string { return s.fonts },
 		ReadingFont: func() string { return s.face },
 		Change:      s.change,
+		ResetDevice: s.resetDevice,
 		Desktop:     s.files.Desktop,
 		Subscriptions: func() settings.Subscriptions {
 			if p := s.home.Subscriptions(); p != nil {
@@ -504,6 +506,32 @@ func (s *shell) useLocal() {
 	s.session, s.showing = nil, false
 	s.write(nil)
 	s.use()
+}
+
+// resetDevice takes this device back to how it first opened. The local state goes at once; telling the server is best
+// effort in the background, so a server that cannot be reached does not keep the reset from happening. The image cache
+// of a remote server is shared with its other devices and stays.
+func (s *shell) resetDevice() {
+	session, local := s.session, s.local
+	s.session, s.showing = nil, false
+	s.write(nil)
+	s.save(prefs.Default(), true)
+	s.use()
+	s.goAsync(func() func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var err error
+		if session != nil {
+			err = session.Logout(ctx)
+		} else {
+			err = local.ClearImageCache(ctx)
+		}
+		return func() {
+			if err != nil {
+				slog.Warn("Could not finish resetting this device on the server", "error", err)
+			}
+		}
+	})
 }
 
 // write saves the session, or removes the file for none, in the background.

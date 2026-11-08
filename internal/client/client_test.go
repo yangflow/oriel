@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -819,5 +820,26 @@ func TestMoveSuggestionAPI(t *testing.T) {
 	}
 	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
 		t.Errorf("requests %q", seen)
+	}
+}
+
+func TestRenameDeviceAndLogout(t *testing.T) {
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		got = append(got, r.Method+" "+r.URL.Path+" "+strings.TrimSpace(string(body)))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	session := Session{Server: srv.URL}
+	if err := session.RenameDevice(context.Background(), 7, "Office"); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Logout(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{`PATCH /api/sessions/7 {"name":"Office"}`, "POST /auth/logout "}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %q", got)
 	}
 }

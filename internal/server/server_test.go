@@ -141,6 +141,26 @@ func TestSessionLifecycle(t *testing.T) {
 		}
 	}
 
+	if w := do(s, "PATCH", "/api/sessions/"+phoneID, `{"name":"  Office phone  "}`, bearer(laptop)); w.Code != http.StatusNoContent {
+		t.Fatalf("rename: %d %s", w.Code, w.Body)
+	}
+	for _, item := range decode(t, do(s, "GET", "/api/sessions", "", bearer(laptop)))["sessions"].([]any) {
+		if session := item.(map[string]any); session["userAgent"] == "phone" && session["name"] != "Office phone" {
+			t.Fatalf("renamed session: %v", session)
+		}
+	}
+	for _, name := range []string{strings.Repeat("x", 65), "a\\u0007b"} {
+		if w := do(s, "PATCH", "/api/sessions/"+phoneID, `{"name":"`+name+`"}`, bearer(laptop)); w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_device_name" {
+			t.Fatalf("bad name %q: %d %s", name, w.Code, w.Body)
+		}
+	}
+	if w := do(s, "PATCH", "/api/sessions/99999", `{"name":"x"}`, bearer(laptop)); w.Code != http.StatusNotFound {
+		t.Fatalf("rename missing: %d", w.Code)
+	}
+	if w := do(s, "PATCH", "/api/sessions/"+phoneID, `{"name":""}`, bearer(laptop)); w.Code != http.StatusNoContent {
+		t.Fatalf("clear name: %d %s", w.Code, w.Body)
+	}
+
 	if w := do(s, "DELETE", "/api/sessions/"+phoneID, "", bearer(laptop)); w.Code != http.StatusNoContent {
 		t.Fatalf("revoke: %d %s", w.Code, w.Body)
 	}

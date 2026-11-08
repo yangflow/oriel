@@ -20,6 +20,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/yangflow/oriel/internal/ai"
 	"github.com/yangflow/oriel/internal/autobackup"
@@ -159,6 +161,7 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("POST /auth/login", s.login)
 	mux.HandleFunc("POST /auth/logout", s.authed(s.logout))
 	mux.HandleFunc("GET /api/sessions", s.authed(s.sessions))
+	mux.HandleFunc("PATCH /api/sessions/{id}", s.authed(s.renameSession))
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.authed(s.revoke))
 	mux.HandleFunc("GET /websub/{key}", s.websub)
 	mux.HandleFunc("POST /websub/{key}", s.websub)
@@ -446,15 +449,51 @@ func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 	type item struct {
 		ID         int64  `json:"id"`
 		UserAgent  string `json:"userAgent"`
+		Name       string `json:"name"`
 		CreatedAt  int64  `json:"createdAt"`
 		LastSeenAt int64  `json:"lastSeenAt"`
 		Current    bool   `json:"current"`
 	}
 	items := make([]item, len(list))
 	for i, session := range list {
-		items[i] = item{session.ID, session.UserAgent, session.CreatedAt.UnixMilli(), session.LastSeenAt.UnixMilli(), session.ID == current}
+		items[i] = item{session.ID, session.UserAgent, session.Name, session.CreatedAt.UnixMilli(), session.LastSeenAt.UnixMilli(), session.ID == current}
 	}
 	reply(w, http.StatusOK, map[string]any{"sessions": items})
+}
+
+// renameSession names a device; an empty name goes back to the name its User-Agent gives.
+func (s *Server) renameSession(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+	}
+	if !readBody(w, r, &body) {
+		return
+	}
+	name := strings.TrimSpace(body.Name)
+	if !validDeviceName(name) {
+		fail(w, http.StatusBadRequest, "invalid_device_name")
+		return
+	}
+	switch err := s.store.RenameSession(r.Context(), id, name); {
+	case errors.Is(err, store.ErrNotFound):
+		fail(w, http.StatusNotFound, "not_found")
+	case err != nil:
+		internal(w, err)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// validDeviceName is whether a trimmed name can be kept: valid text of at most 64 characters, without control characters.
+func validDeviceName(name string) bool {
+	if !utf8.ValidString(name) || utf8.RuneCountInString(name) > 64 {
+		return false
+	}
+	return !strings.ContainsFunc(name, unicode.IsControl)
 }
 
 func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {

@@ -7,7 +7,7 @@ HTTP 约定和订阅、时间线、设置、图片代理、活动和存储的接
 - 只用标准库 `net/http`。JSON 字段用 camelCase。
 - 出错时返回 `{ "error": "<代码>" }`，代码是稳定的小写英文，界面据此显示本地化文案。
 - `GET /health` 不要鉴权，返回版本、是否要求口令、数据库是否可用。每次请求只做一次读（`SELECT 1`），不拿写锁；写入能力的探测结果缓存 10 秒，期间的请求共用同一次探测，所以轮询不会和抓取、标已读抢写锁。探测拿不到写锁（忙或超时，最多等 5 秒）算可写，返回 200；只有真正的写失败（只读文件、磁盘错误）和读不了才 503，`database` 为 `unwritable`。还没有任何探测结果时（刚启动），同时到达的请求等第一次探测结束；有了结果之后，探测进行中的请求不等，直接返回上一次的结果。
-- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，标出当前会话）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「规则接口」「设置接口」「OPML 接口」「备份与恢复」「导入其他阅读器接口」「AI 摘要和翻译」「图片代理」「活动和存储接口」「诊断文件」各节的路由，和 `GET|POST /websub/{key}`（WebSub 回调，不要会话，见[「WebSub 推送」](fetching.md#websub-推送)）。新路由写进它所属的那一节。
+- 已有的路由：`POST /auth/login`、`POST /auth/logout`、`GET /api/sessions`（列出未过期的会话，带 `name`，标出当前会话）、`PATCH /api/sessions/{id}`（改设备名：`{ "name": "…" }`，去掉首尾空白后最多 64 个字符，不能有控制字符，否则 400 `invalid_device_name`；空字符串清掉名字，回到从 User-Agent 推出的名字；成功 204，不存在 404）、`DELETE /api/sessions/{id}`，以及「订阅接口」「时间线接口」「规则接口」「设置接口」「OPML 接口」「备份与恢复」「导入其他阅读器接口」「AI 摘要和翻译」「图片代理」「活动和存储接口」「诊断文件」各节的路由，和 `GET|POST /websub/{key}`（WebSub 回调，不要会话，见[「WebSub 推送」](fetching.md#websub-推送)）。新路由写进它所属的那一节。
 - 请求体是 JSON，最大 64 KiB；坏 JSON、多出未知字段或类型不对返回 400 `invalid_body`。
 
 ## 订阅接口

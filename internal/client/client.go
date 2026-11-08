@@ -544,6 +544,7 @@ type AIResults struct {
 type Device struct {
 	ID         int64  `json:"id"`
 	UserAgent  string `json:"userAgent"`
+	Name       string `json:"name"` // empty when the reader has not named it
 	CreatedAt  int64  `json:"createdAt"`
 	LastSeenAt int64  `json:"lastSeenAt"`
 	Current    bool   `json:"current"`
@@ -1260,6 +1261,17 @@ func (s Session) Devices(ctx context.Context) ([]Device, error) {
 // RevokeDevice signs a session out of the server.
 func (s Session) RevokeDevice(ctx context.Context, id int64) error {
 	return s.call(ctx, http.MethodDelete, "/api/sessions/"+strconv.FormatInt(id, 10), nil, nil)
+}
+
+// RenameDevice names a session; an empty name goes back to the name its User-Agent gives.
+func (s Session) RenameDevice(ctx context.Context, id int64, name string) error {
+	body := map[string]string{"name": name}
+	return s.call(ctx, http.MethodPatch, "/api/sessions/"+strconv.FormatInt(id, 10), body, nil)
+}
+
+// Logout ends this session on the server.
+func (s Session) Logout(ctx context.Context) error {
+	return s.call(ctx, http.MethodPost, "/auth/logout", nil, nil)
 }
 
 // StartOPMLImport starts the import of an OPML file, at most MaxOPML bytes, and returns the job. The file is checked

@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -716,5 +717,48 @@ func TestShellPollUnreadDropsAnswerOfLeftSession(t *testing.T) {
 	shown := sys.trays[0].shown
 	if got := shown[len(shown)-1]; got.Unread == "8 unread" {
 		t.Errorf("the count of the server left was shown: %+v", got)
+	}
+}
+
+func TestShellResetDevice(t *testing.T) {
+	var logouts, clears atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /auth/logout", func(w http.ResponseWriter, r *http.Request) {
+		logouts.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("DELETE /api/storage/image-cache", func(w http.ResponseWriter, r *http.Request) {
+		clears.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	s, tt, path := newTestShell(t)
+	s.local.Server = srv.URL
+	remote := client.Session{Server: srv.URL, Token: "t1"}
+	s.session = &remote
+	p := s.prefs
+	p.Theme = prefs.ThemeDark
+	s.change(p)
+	s.setting = true
+	s.write(&remote)
+
+	s.resetDevice()
+	tt.Frame()
+	file := filepath.Join(filepath.Dir(path), prefs.File)
+	if s.session != nil || s.setting || s.prefs != prefs.Default() || prefs.Load(file) != prefs.Default() {
+		t.Fatalf("session %v, setting %v, prefs %v", s.session, s.setting, s.prefs)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("session file: %v", err)
+	}
+	if logouts.Load() != 1 || clears.Load() != 0 {
+		t.Fatalf("logouts %d, clears %d: a remote server's image cache is shared", logouts.Load(), clears.Load())
+	}
+
+	s.resetDevice() // on this computer's own server
+	if logouts.Load() != 1 || clears.Load() != 1 {
+		t.Fatalf("logouts %d, clears %d", logouts.Load(), clears.Load())
 	}
 }
