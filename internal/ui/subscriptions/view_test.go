@@ -176,6 +176,9 @@ func (f *fake) UpdateSource(ctx context.Context, id int64, patch client.SourcePa
 			if patch.TranslateTitles != nil {
 				src.TranslateTitles = *patch.TranslateTitles
 			}
+			if patch.FullText != nil {
+				src.FullText = *patch.FullText
+			}
 			if patch.Proxy != nil {
 				// The server drops the stored sign-in when the proxy changes.
 				if *patch.Proxy != src.Proxy {

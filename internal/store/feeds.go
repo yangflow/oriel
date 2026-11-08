@@ -41,6 +41,8 @@ type FeedSource struct {
 	WebSubUntil time.Time
 	// TranslateTitles queues the titles of the fetch's new entries for translation (see SaveFeed).
 	TranslateTitles bool
+	// SkipFullText leaves the new entries of an article source without extraction.
+	SkipFullText bool
 	// KeepDays is the source's own keep period: 0 follows the global retention, -1 keeps forever, else days.
 	KeepDays int
 	// Proxy is the source's own fetch proxy.
@@ -76,6 +78,8 @@ type NewSource struct {
 	FolderID int64
 	// TranslateTitles adds the source with the title translation on.
 	TranslateTitles bool
+	// SkipFullText adds the source with fetching the full text off.
+	SkipFullText bool
 	// DailyCap adds the source with a daily cap (0 for none).
 	DailyCap int
 }
@@ -86,7 +90,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		SELECT id, url, rsshub_path, kind, etag, last_modified, fetch_interval_sec, fetch_interval_auto, last_success_at IS NULL, consecutive_failures,
 			auto_summary, auto_translate, site_url, icon_url, icon_checked_site, websub_hub, websub_topic,
 			CASE WHEN websub_state = 'active' THEN websub_expires_at END, keep_days, COALESCE(last_success_at, created_at), proxy, proxy_user, proxy_password, moved_url, moved_seen, moved_dismissed,
-			fetch_user_agent, fetch_referer, translate_titles
+			fetch_user_agent, fetch_referer, translate_titles, full_text = 0
 		FROM sources WHERE paused = 0 AND deleted_at IS NULL AND next_fetch_at <= ? ORDER BY next_fetch_at, id LIMIT ?`,
 		now.UnixMilli(), limit)
 	if err != nil {
@@ -103,7 +107,7 @@ func (s *Store) DueSources(ctx context.Context, now time.Time, limit int) ([]Fee
 		if err := rows.Scan(&src.ID, &src.URL, &src.RSSHubPath, &src.Kind, &src.ETag, &src.LastModified,
 			&interval, &src.FetchIntervalAuto, &src.FirstSuccess, &src.ConsecutiveFailures, &summary, &translate, &src.SiteURL, &src.IconURL,
 			&src.IconCheckedSite, &src.WebSubHub, &src.WebSubTopic, &until, &src.KeepDays, &since, &src.Proxy.URL, &src.Proxy.User, &src.Proxy.Password, &src.MovedURL, &src.MovedSeen, &src.MovedDismissed,
-			&src.UserAgent, &src.Referer, &src.TranslateTitles); err != nil {
+			&src.UserAgent, &src.Referer, &src.TranslateTitles, &src.SkipFullText); err != nil {
 			return nil, err
 		}
 		if until.Valid {
@@ -239,7 +243,7 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 	}
 	defer tx.Rollback()
 	extract := "skipped"
-	if src.Kind == "article" {
+	if src.Kind == "article" && !src.SkipFullText {
 		extract = "pending"
 	}
 	created := 0

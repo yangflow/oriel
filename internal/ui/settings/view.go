@@ -39,6 +39,7 @@ var catalog []byte
 type copy struct {
 	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Lead, Fetching, OPML, Devices, RSSHub                          string
 	RSSHubHelp, RSSHubPlaceholder, Save, Saved, Unsaved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp string
+	FetchEvery, FetchEveryHelp, FetchAuto, FetchMinutes, FetchHours, FetchDays, FullText, FullTextHelp, FetchDefaultSaved  string
 	InvalidBaseAny, TooManyBase                                                                                            string
 	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp         string
 	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed                string
@@ -119,6 +120,9 @@ func MenuLabel(systemLocale string) string { return translations[locale.Language
 func DiagnosticsMenuLabel(systemLocale string) string {
 	return translations[locale.Language(systemLocale)].DiagnosticsMenu
 }
+
+// fetchIntervals are the default intervals the picker offers in seconds, 0 for automatic.
+var fetchIntervals = []int64{0, 900, 1800, 3600, 10800, 21600, 43200, 86400}
 
 // retentions are the days entries are kept that the picker offers, 0 for forever.
 var retentions = []int{0, 7, 30, 90, 180, 365}
@@ -311,7 +315,11 @@ type Screen struct {
 	typing      bool // a text field has the focus, as of the last frame
 	blur        bool // the next frame moves the focus to the back button
 	retention   int
-	keeping     bool // the retention is being saved
+	keeping     bool  // the retention is being saved
+	every       int64 // the default fetch interval in the picker
+	savingEvery bool  // the default fetch interval is being saved
+	savingFull  bool  // the full-text default is being saved
+	fetchStatus status
 	keepStatus  status
 	devices     []client.Device
 	deviceState int
@@ -510,6 +518,7 @@ func (s *Screen) TrayFailed() { s.trayFailed = true }
 // Open loads the settings and the devices again, as the screen is shown.
 func (s *Screen) Open() {
 	s.baseStatus, s.keepStatus, s.invalid, s.revoking = status{}, status{}, false, false
+	s.fetchStatus = status{}
 	s.dropCopy = false
 	s.aiStatus, s.promptStatus, s.aiInvalid, s.aiChecks = status{}, status{}, false, nil
 	s.proxyStatus, s.proxyInvalid, s.proxyDrop = status{}, false, false
@@ -571,6 +580,7 @@ func (s *Screen) loadSettings() {
 			}
 			s.state, s.settings = loaded, settings
 			s.base, s.retention = strings.Join(settings.RSSHubBaseURLs, "\n"), settings.RetentionDays
+			s.every = settings.FetchIntervalSec
 			s.aiBase, s.aiModel, s.aiKey, s.aiLanguage = settings.AIBaseURL, settings.AIModel, "", settings.AILanguage
 			s.aiLimits = savedLimits(settings)
 			s.proxy, s.proxyUser, s.proxyPass = settings.ProxyURL, "", ""
@@ -714,6 +724,58 @@ func (s *Screen) saveRetention() {
 				s.keepStatus = status{ok: true, text: s.text.RetentionSaved}
 			}
 			s.announce = s.keepStatus.text
+		}
+	})
+}
+
+// saveFetchInterval saves the default fetch interval as soon as it is chosen, and goes back when the server refuses.
+func (s *Screen) saveFetchInterval() {
+	if s.api == nil {
+		return
+	}
+	every := s.every
+	s.savingEvery, s.fetchStatus = true, status{}
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		settings, err := api.SetSettings(context.Background(), client.SettingsPatch{FetchInterval: &every})
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			s.savingEvery = false
+			if err != nil {
+				s.every = s.settings.FetchIntervalSec
+				s.fetchStatus = status{text: s.text.SaveFailed}
+			} else {
+				s.settings.FetchIntervalSec, s.every = settings.FetchIntervalSec, settings.FetchIntervalSec
+				s.fetchStatus = status{ok: true, text: s.text.FetchDefaultSaved}
+			}
+			s.announce = s.fetchStatus.text
+		}
+	})
+}
+
+// saveFullText saves whether new subscriptions fetch the full text. The switch moves at once and goes back when the
+// server refuses.
+func (s *Screen) saveFullText(on bool) {
+	if s.api == nil || s.savingFull {
+		return
+	}
+	s.savingFull, s.fetchStatus = true, status{}
+	s.settings.FullTextDefault = on
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		_, err := api.SetSettings(context.Background(), client.SettingsPatch{FullText: &on})
+		return func() {
+			if gen != s.gen || s.expired(err) {
+				return
+			}
+			s.savingFull = false
+			if err != nil {
+				s.settings.FullTextDefault = !on
+				s.fetchStatus = status{text: s.text.SaveFailed}
+				s.announce = s.fetchStatus.text
+			}
 		}
 	})
 }
@@ -1744,6 +1806,19 @@ func (s *Screen) groupName(g int) string {
 	return s.text.Fetching
 }
 
+// everyName names a default fetch interval in seconds, 0 being automatic.
+func (s *Screen) everyName(sec int64) string {
+	switch {
+	case sec == 0:
+		return s.text.FetchAuto
+	case sec%(24*3600) == 0:
+		return locale.Count(s.text.FetchDays, "n", int(sec/(24*3600)))
+	case sec%3600 == 0:
+		return locale.Count(s.text.FetchHours, "n", int(sec/3600))
+	}
+	return locale.Count(s.text.FetchMinutes, "n", int((sec+30)/60))
+}
+
 // keep names a retention in days.
 func (s *Screen) keep(days int) string {
 	switch days {
@@ -2387,6 +2462,20 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 	t := c.Theme()
 	s.watchHealth()
 	card(c, func() {
+		labeled(c, icons.Clock, s.text.FetchEvery, s.text.FetchEveryHelp, func() { s.everySelect(c) })
+		statusLine(c, s.fetchStatus)
+	}, func() {
+		labeled(c, icons.CalendarDays, s.text.Retention, s.text.RetentionHelp, func() { s.retentionSelect(c) })
+		statusLine(c, s.keepStatus)
+	}, func() {
+		labeled(c, icons.FileText, s.text.FullText, s.text.FullTextHelp, func() {
+			on := s.settings.FullTextDefault
+			ui.Switch(c, &on).Label(s.text.FullText).Description(s.text.FullTextHelp).Disabled(s.state != loaded || s.savingFull)
+			if on != s.settings.FullTextDefault {
+				s.saveFullText(on)
+			}
+		})
+	}, func() {
 		setting(c, icons.Rss, false, s.text.RSSHub, func() {
 			coded(c, s.text.RSSHubHelp, "{route}", "/github/issue/golang/go")
 		}, nil)
@@ -2408,9 +2497,6 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 			}
 		})
 		s.healthBlock(c)
-	}, func() {
-		labeled(c, icons.CalendarDays, s.text.Retention, s.text.RetentionHelp, func() { s.retentionSelect(c) })
-		statusLine(c, s.keepStatus)
 	})
 	s.proxyCard(c)
 }
@@ -2590,6 +2676,37 @@ func (s *Screen) baseField(c *ui.Context) {
 	}
 	if s.base != before {
 		s.invalid, s.baseStatus = false, status{}
+	}
+}
+
+func (s *Screen) everySelect(c *ui.Context) {
+	t := c.Theme()
+	options := fetchIntervals
+	if !slices.Contains(options, s.every) {
+		options = append(slices.Clone(options), s.every)
+		slices.Sort(options)
+	}
+	sel := ui.SelectBase(c, &s.every)
+	selectTrigger(t, sel.Trigger).MaxWidth(theme.Px(t, tokens.SheetWidth)).Label(s.text.FetchEvery).Disabled(s.savingEvery)
+	trigger(c, sel.Trigger)
+	sel.Trigger.Children(func() {
+		ui.Text(c, s.everyName(s.every)).Grow(1).MinWidth(0).SingleLine()
+		ui.Icon(c, icons.ChevronDown).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+	})
+	sel.Popup(func(panel ui.Element) {
+		menu(c, panel)
+		for _, v := range options {
+			item := menuItem(t, sel.Item(v))
+			item.Children(func() {
+				ui.Text(c, s.everyName(v)).Grow(1).NoWrap()
+				if v == s.every {
+					ui.Icon(c, icons.Check).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
+				}
+			})
+		}
+	})
+	if sel.Trigger.Changed() {
+		s.saveFetchInterval()
 	}
 }
 

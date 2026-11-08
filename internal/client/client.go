@@ -361,6 +361,7 @@ type Source struct {
 	// FolderID is the folder the subscription is in, 0 for none.
 	FolderID        int64  `json:"folderId"`
 	TranslateTitles bool   `json:"translateTitles"`
+	FullText        bool   `json:"fullText"`
 	ExtractSelector string `json:"extractSelector"`
 	ExtractReferer  string `json:"extractReferer"`
 	OpenTarget      string `json:"openTarget"`
@@ -417,6 +418,8 @@ type SourcePatch struct {
 	FolderID *int64 `json:"folderId,omitempty"`
 	// TranslateTitles queues the titles of new entries for translation into the AI language.
 	TranslateTitles *bool `json:"translateTitles,omitempty"`
+	// FullText switches extracting the full text of new entries.
+	FullText *bool `json:"fullText,omitempty"`
 	// ExtractSelector, ExtractReferer and ExtractRewrites are the source's extraction rules; an empty string clears one.
 	ExtractSelector *string `json:"extractSelector,omitempty"`
 	ExtractReferer  *string `json:"extractReferer,omitempty"`
@@ -443,6 +446,8 @@ type Settings struct {
 	RSSHubBaseURL          string   `json:"rsshubBaseUrl"`
 	RSSHubBaseURLs         []string `json:"rsshubBaseUrls"`
 	RetentionDays          int      `json:"retentionDays"`
+	FetchIntervalSec       int64    `json:"fetchIntervalSec"` // the default fetch interval, 0 for automatic
+	FullTextDefault        bool     `json:"fullTextDefault"`  // whether new subscriptions fetch the full text
 	AIBaseURL              string   `json:"aiBaseUrl"`
 	AIModel                string   `json:"aiModel"`
 	AIAPIKeySet            bool     `json:"aiApiKeySet"`
@@ -490,6 +495,8 @@ type SettingsPatch struct {
 	RSSHubBaseURL   *string   `json:"rsshubBaseUrl,omitempty"`
 	RSSHubBaseURLs  *[]string `json:"rsshubBaseUrls,omitempty"`
 	RetentionDays   *int      `json:"retentionDays,omitempty"`
+	FetchInterval   *int64    `json:"fetchIntervalSec,omitempty"`
+	FullText        *bool     `json:"fullTextDefault,omitempty"`
 	AIBaseURL       *string   `json:"aiBaseUrl,omitempty"`
 	AIModel         *string   `json:"aiModel,omitempty"`
 	AIAPIKey        *string   `json:"aiApiKey,omitempty"`

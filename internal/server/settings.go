@@ -65,6 +65,9 @@ type settingsJSON struct {
 	AutoBackupError     string `json:"autoBackupError"`
 	// The muted keywords of every source, one per line.
 	MuteKeywords string `json:"muteKeywords"`
+	// The default fetch interval in seconds, 0 for automatic, and whether new subscriptions fetch the full text.
+	FetchIntervalSec int64 `json:"fetchIntervalSec"`
+	FullTextDefault  bool  `json:"fullTextDefault"`
 	// The global fetch proxy and whether it has a user name and password; those are never listed.
 	ProxyURL     string `json:"proxyUrl"`
 	ProxyAuthSet bool   `json:"proxyAuthSet"`
@@ -85,6 +88,16 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	days, err := strconv.Atoi(raw)
 	if err != nil || days < 0 || days > fetch.MaxRetentionDays {
 		days = 0
+	}
+	globalInterval, err := fetch.GlobalInterval(r.Context(), s.store)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	fullText, err := fetch.FullTextDefault(r.Context(), s.store)
+	if err != nil {
+		internal(w, err)
+		return
 	}
 	group, err := s.store.GroupSameLink(r.Context())
 	if err != nil {
@@ -133,7 +146,7 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		AIAutoDailyLimit: cfg.AutoDailyLimit, AIAutoFetchLimit: cfg.AutoFetchLimit,
 		DefaultAIAutoDailyLimit: ai.DefaultAutoDaily, DefaultAIAutoFetchLimit: ai.DefaultAutoFetch,
 		AIAutoCallsToday: calls, AIEndpointLocal: ai.IsLocalEndpoint(cfg.BaseURL),
-		RSSHubBaseURLs: instances, RSSHubBaseURL: primary, RetentionDays: days, GroupSameLink: group, WebSubBaseURL: websub, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
+		RSSHubBaseURLs: instances, RSSHubBaseURL: primary, RetentionDays: days, FetchIntervalSec: int64(globalInterval / time.Second), FullTextDefault: fullText, GroupSameLink: group, WebSubBaseURL: websub, AIBaseURL: cfg.BaseURL, AIModel: cfg.Model,
 		AIAPIKeySet: cfg.APIKey != "", AILanguage: cfg.Language,
 		AISummaryLimit: cfg.SummaryLimit, AIChunkLimit: cfg.ChunkLimit, DefaultAISummaryLimit: ai.DefaultSummary,
 		DefaultAIChunkLimit: ai.DefaultChunk, PromptSummary: cfg.PromptSummary,
@@ -165,6 +178,8 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 		RSSHubBaseURLs  *[]string `json:"rsshubBaseUrls"`
 		RSSHubBaseURL   *string   `json:"rsshubBaseUrl"`
 		RetentionDays   *int      `json:"retentionDays"`
+		FetchInterval   *int64    `json:"fetchIntervalSec"`
+		FullText        *bool     `json:"fullTextDefault"`
 		GroupSameLink   *bool     `json:"groupSameLink"`
 		WebSubBaseURL   *string   `json:"websubBaseUrl"`
 		AIBaseURL       *string   `json:"aiBaseUrl"`
@@ -253,6 +268,21 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		changes = append(changes, [2]string{fetch.RetentionSetting, strconv.Itoa(days)})
+	}
+	if body.FetchInterval != nil {
+		sec := *body.FetchInterval
+		if sec != 0 && (sec < int64(minInterval/time.Second) || sec > int64(maxInterval/time.Second)) {
+			fail(w, http.StatusBadRequest, "invalid_interval")
+			return
+		}
+		changes = append(changes, [2]string{fetch.IntervalSetting, strconv.FormatInt(sec, 10)})
+	}
+	if body.FullText != nil {
+		value := "0"
+		if *body.FullText {
+			value = "1"
+		}
+		changes = append(changes, [2]string{fetch.FullTextSetting, value})
 	}
 	if body.GroupSameLink != nil {
 		value := "0"

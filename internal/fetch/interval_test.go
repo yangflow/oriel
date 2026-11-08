@@ -195,3 +195,37 @@ func TestPollSuggestsNothingForPlainArticles(t *testing.T) {
 		t.Fatal("suggested a kind for plain articles")
 	}
 }
+
+// An automatic source follows a fixed global interval and works its own out again when that goes back to automatic; a
+// source with its own interval stays out of it.
+func TestPollFollowsGlobalInterval(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	auto := f.add(store.NewSource{URL: serve(t, datedFeed(f.now, 8, 3*time.Hour, "")), FetchIntervalAuto: true})
+	fixed := f.add(store.NewSource{URL: serve(t, datedFeed(f.now, 9, 3*time.Hour, "")), FetchInterval: 20 * time.Minute})
+	f.store.SetSetting(ctx, IntervalSetting, "1800")
+	f.poller.fetchDue(ctx)
+	if interval, next := f.schedule(auto); interval != 1800 || next != f.now.Add(30*time.Minute).UnixMilli() {
+		t.Fatalf("automatic source: interval %d s, next %d", interval, next)
+	}
+	if interval, _ := f.schedule(fixed); interval != 20*60 {
+		t.Fatalf("source with its own interval: %d s", interval)
+	}
+	f.store.SetSetting(ctx, IntervalSetting, "0")
+	f.now = f.now.Add(time.Hour)
+	f.poller.fetchDue(ctx)
+	if interval, _ := f.schedule(auto); interval != 3*3600 {
+		t.Fatalf("back to automatic: %d s", interval)
+	}
+}
+
+func TestGlobalIntervalIgnoresBadValues(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	for raw, want := range map[string]time.Duration{"": 0, "0": 0, "soon": 0, "5": 0, "9999999": 0, "3600": time.Hour} {
+		f.store.SetSetting(ctx, IntervalSetting, raw)
+		if got, err := GlobalInterval(ctx, f.store); err != nil || got != want {
+			t.Errorf("%q: %v, %v", raw, got, err)
+		}
+	}
+}

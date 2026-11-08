@@ -183,6 +183,12 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 	if patch.GroupSameLink != nil {
 		f.settings.GroupSameLink = *patch.GroupSameLink
 	}
+	if patch.FetchInterval != nil {
+		f.settings.FetchIntervalSec = *patch.FetchInterval
+	}
+	if patch.FullText != nil {
+		f.settings.FullTextDefault = *patch.FullText
+	}
 	if patch.AutoBackupEnabled != nil {
 		f.settings.AutoBackupEnabled = *patch.AutoBackupEnabled
 	}

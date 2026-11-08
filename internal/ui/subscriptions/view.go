@@ -55,6 +55,7 @@ type copy struct {
 	FolderCreated, FolderMoved, FolderUnfiled, FolderRenamed, FolderDeleted                                                                             string
 	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                     string
 	Undo, Dismiss, UndoFailed                                                                                                                           string
+	FullText, FullTextHelp                                                                                                                              string
 	AIGroup, AutoSummary, AutoTranslate, AutoHelp, TranslateTitles, TranslateTitlesHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff       string
 	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, SuggestForum, UseKind                     string
 	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                  string
@@ -255,6 +256,7 @@ type editing struct {
 	known     bool
 	auto      [2]bool   // summarize and translate new entries
 	titles    bool      // translate the titles of new entries
+	fullText  bool      // extract the full text of new entries
 	prompts   [2]string // the summary and translation prompts of the subscription, "" for the ones in the settings
 	aiOff     bool      // the settings have no AI endpoint, so the switches do nothing yet
 	primary   string    // the first RSSHub instance of the settings, "" until they are loaded
@@ -701,7 +703,7 @@ func editingOf(src client.Source) editing {
 		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
 		headers: src.FetchUserAgent != "" || src.FetchReferer != "", agent: src.FetchUserAgent, fetchRef: src.FetchReferer,
 		proxyMode: proxyChoice(src.Proxy), proxyURL: ownProxy(src.Proxy),
-		auto: [2]bool{src.AutoSummary, src.AutoTranslate}, titles: src.TranslateTitles,
+		auto: [2]bool{src.AutoSummary, src.AutoTranslate}, titles: src.TranslateTitles, fullText: src.FullText,
 		prompts: [2]string{src.PromptSummary, src.PromptTranslate}}
 }
 

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/yangflow/oriel/internal/diag"
+	"github.com/yangflow/oriel/internal/fetch"
 	"github.com/yangflow/oriel/internal/importer"
 	"github.com/yangflow/oriel/internal/store"
 )
@@ -277,6 +278,10 @@ func (s *Server) writeSnapshot(ctx context.Context, job *importJob, snap *import
 	res := &importResult{Skipped: []importSkipped{}, DroppedLabels: []importDropped{}}
 	spread := min(importSpreadMax, time.Duration(len(snap.Feeds))*importSpreadEach)
 	ids := map[string]int64{}
+	fullText, err := fetch.FullTextDefault(ctx, s.store)
+	if err != nil {
+		return nil, err
+	}
 	idx, err := s.store.DuplicateIndex(ctx)
 	if err != nil {
 		return nil, err
@@ -285,7 +290,7 @@ func (s *Server) writeSnapshot(ctx context.Context, job *importJob, snap *import
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		src := store.NewSource{Kind: "article", URL: strings.TrimSpace(f.URL), FetchInterval: defaultInterval, FetchIntervalAuto: true}
+		src := store.NewSource{Kind: "article", URL: strings.TrimSpace(f.URL), FetchInterval: defaultInterval, FetchIntervalAuto: true, SkipFullText: !fullText}
 		title := strings.TrimSpace(f.Title)
 		if title == src.URL {
 			title = ""

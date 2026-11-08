@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestSettings(t *testing.T) {
 		body["rsshubBaseUrl"] != "" || len(body["rsshubBaseUrls"].([]any)) != 0 || body["retentionDays"] != 0.0 || body["aiBaseUrl"] != "" || body["aiModel"] != "" ||
 		body["aiApiKeySet"] != true || body["aiLanguage"] != "zh-Hans" || body["promptSummary"] != ai.DefaultPromptSummary ||
 		body["promptTranslate"] != ai.DefaultPromptTranslate || body["defaultPromptSummary"] != ai.DefaultPromptSummary ||
-		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 34 || body["proxyUrl"] != "" || body["proxyAuthSet"] != false || body["groupSameLink"] != true || body["websubBaseUrl"] != "" || body["aiSummaryLimit"] != 24000.0 ||
+		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 36 || body["proxyUrl"] != "" || body["proxyAuthSet"] != false || body["groupSameLink"] != true || body["websubBaseUrl"] != "" || body["aiSummaryLimit"] != 24000.0 ||
 		body["aiChunkLimit"] != 6000.0 || body["defaultAiSummaryLimit"] != 24000.0 || body["defaultAiChunkLimit"] != 6000.0 {
 		t.Fatalf("defaults: %d %s", w.Code, w.Body)
 	}
@@ -266,5 +267,47 @@ func TestSettingsProxy(t *testing.T) {
 	}
 	if body := decode(t, do(s, "PATCH", "/api/settings", `{"proxyUrl":""}`, bearer(token))); body["proxyUrl"] != "" || body["proxyAuthSet"] != false {
 		t.Fatalf("cleared: %v", body)
+	}
+}
+
+// The global fetch defaults are read and written through the settings, and a new subscription takes the full-text one.
+func TestFetchDefaults(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	body := decode(t, do(s, "GET", "/api/settings", "", bearer(token)))
+	if body["fetchIntervalSec"] != 0.0 || body["fullTextDefault"] != true {
+		t.Fatalf("defaults: %v", body)
+	}
+	for _, bad := range []string{"30", "604801", "-1"} {
+		if w := do(s, "PATCH", "/api/settings", `{"fetchIntervalSec":`+bad+`}`, bearer(token)); w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "invalid_interval") {
+			t.Fatalf("%s: %d %s", bad, w.Code, w.Body)
+		}
+	}
+	add := func(address string) map[string]any {
+		t.Helper()
+		w := do(s, "POST", "/api/sources", `{"url":"`+address+`","kind":"article"}`, bearer(token))
+		if w.Code != http.StatusCreated {
+			t.Fatalf("create: %d %s", w.Code, w.Body)
+		}
+		return decode(t, w)
+	}
+	first := add("https://a.example/feed")
+	if first["fullText"] != true {
+		t.Fatalf("new subscription: %v", first)
+	}
+	body = decode(t, do(s, "PATCH", "/api/settings", `{"fetchIntervalSec":1800,"fullTextDefault":false}`, bearer(token)))
+	if body["fetchIntervalSec"] != 1800.0 || body["fullTextDefault"] != false {
+		t.Fatalf("patch: %v", body)
+	}
+	if second := add("https://b.example/feed"); second["fullText"] != false {
+		t.Fatalf("new subscription with the default off: %v", second)
+	}
+	w := do(s, "GET", "/api/sources/"+strconv.Itoa(int(first["id"].(float64))), "", bearer(token))
+	if got := decode(t, w); got["fullText"] != true {
+		t.Fatalf("the default changed a subscription already there: %v", got)
+	}
+	w = do(s, "PATCH", "/api/sources/"+strconv.Itoa(int(first["id"].(float64))), `{"fullText":false}`, bearer(token))
+	if got := decode(t, w); w.Code != http.StatusOK || got["fullText"] != false {
+		t.Fatalf("patch source: %d %v", w.Code, got)
 	}
 }

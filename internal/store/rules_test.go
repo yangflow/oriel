@@ -555,6 +555,8 @@ func TestMigrationMovesTheSourceOfARuleToTheJoinTable(t *testing.T) {
 		"DROP TABLE folders",
 		"ALTER TABLE sources DROP COLUMN noisy_dismissed",
 		"ALTER TABLE sources DROP COLUMN translate_titles",
+		"DROP TRIGGER entries_star_full_text",
+		"ALTER TABLE sources DROP COLUMN full_text",
 		"PRAGMA user_version = 28",
 	} {
 		if _, err := db.Exec(stmt); err != nil {

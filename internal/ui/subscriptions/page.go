@@ -171,6 +171,7 @@ func (e *editing) adopt(src client.Source) {
 	follow(&e.proxyURL, was.proxyURL, now.proxyURL)
 	follow(&e.auto, was.auto, now.auto)
 	follow(&e.titles, was.titles, now.titles)
+	follow(&e.fullText, was.fullText, now.fullText)
 	follow(&e.prompts, was.prompts, now.prompts)
 	e.src = src
 }
@@ -224,6 +225,9 @@ func (e *editing) choices() (client.SourcePatch, bool) {
 	if e.titles != src.TranslateTitles {
 		p.TranslateTitles, changed = new(e.titles), true
 	}
+	if e.fullText != src.FullText {
+		p.FullText, changed = new(e.fullText), true
+	}
 	return p, changed
 }
 
@@ -254,7 +258,7 @@ func (s *Screen) apply() {
 				now := editingOf(pg.e.src)
 				pg.e.kind, pg.e.folder, pg.e.interval, pg.e.target, pg.e.keep = now.kind, now.folder, now.interval, now.target, now.keep
 				pg.e.pace, pg.e.dailyCap, pg.e.paused, pg.e.hide = now.pace, now.dailyCap, now.paused, now.hide
-				pg.e.auto, pg.e.titles = now.auto, now.titles
+				pg.e.auto, pg.e.titles, pg.e.fullText = now.auto, now.titles, now.fullText
 				if was.proxyMode != proxyCustom {
 					pg.e.proxyMode = now.proxyMode
 				}
@@ -355,7 +359,9 @@ func (s *Screen) page(c *ui.Context) {
 			s.pageSwitch(c, "hide", &e.hide, s.text.HideLabel, s.text.HideHelp)
 		})
 		pageTitle(c, s.text.PageFetching, theme.Px(t, tokens.Space6))
-		pageCard(c, func() { s.selectRow(c, s.everyRow) }, func() { s.extractRow(c) }, when(e.src.URL != "", func() {
+		pageCard(c, func() { s.selectRow(c, s.everyRow) }, when(kinds[e.kind] == "article", func() {
+			s.pageSwitch(c, "fulltext", &e.fullText, s.text.FullText, s.text.FullTextHelp)
+		}), func() { s.extractRow(c) }, when(e.src.URL != "", func() {
 			s.headersRow(c)
 		}), func() { s.proxyRow(c) })
 		pageTitle(c, s.text.PageTimeline, theme.Px(t, tokens.Space6))
