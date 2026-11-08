@@ -2349,7 +2349,7 @@ func (s *Screen) crumb() string {
 // and the text color under the pointer, over the subscription's name in display.
 func (s *Screen) crumbTitle(c *ui.Context, name string) {
 	t := c.Theme()
-	back := ui.ButtonBase(c).Row().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).
+	back := ui.ButtonBase(c).Row().AlignSelf(ui.Start).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).
 		Radius(theme.Px(t, tokens.RadiusXS)).Label(s.text.BackList)
 	ink := t.TextMuted
 	if back.Hovered() {

@@ -95,6 +95,9 @@ func TestSubscriptionsCrumb(t *testing.T) {
 		tt.HasText(s.text.SubscriptionsLead) || tt.HasText(s.text.AddSubscription) {
 		t.Fatalf("texts %v", tt.Texts())
 	}
+	if link, ok := tt.Find(s.text.BackList); !ok || link.W > 120 {
+		t.Fatalf("the link is %v wide, found %v; it fits its text", link.W, ok)
+	}
 	if err := tt.Click(s.text.BackList); err != nil {
 		t.Fatal(err)
 	}
