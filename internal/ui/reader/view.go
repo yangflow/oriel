@@ -1451,9 +1451,9 @@ func (s *Screen) embedRow(c *ui.Context, b block) {
 	frame(row).Label(strings.ReplaceAll(s.text.EmbedName, "{what}", label))
 	switch {
 	case row.Pressed():
-		row.Background(theme.Surface(t).Mix(t.Text, 0.12))
+		row.Background(theme.Surface(t).Mix(t.Text, theme.PressMix(t)))
 	case row.Hovered():
-		row.Background(theme.Surface(t).Mix(t.Text, 0.08))
+		row.Background(theme.Surface(t).Mix(t.Text, theme.HoverMix(t)))
 	default:
 		row.Background(theme.Surface(t))
 	}
@@ -1533,7 +1533,7 @@ func glyph(c *ui.Context, name string, icon *ui.Bitmap) {
 	tile := theme.Px(t, tokens.TileS)
 	ui.Box(c).Size(tile, tile).Radius(theme.Px(t, tokens.RadiusXS)).Clip().Children(func() {
 		ui.Image(c, icon).Fit(ui.Cover).Fill()
-		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, tokens.RadiusXS)).Border(0.5, theme.Ink(t, 0.2))
+		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, tokens.RadiusXS)).Border(0.5, theme.Rule(t))
 	})
 }
 
@@ -1771,7 +1771,7 @@ func (s *Screen) blocks(c *ui.Context, blocks []block) {
 		}
 		run := blocks[start:i]
 		ui.Column(c).Key(start).FillWidth().Margin(gap(t, blocks, start, s.scale()), 0, 0, 0).Padding(0, 0, 0, theme.Px(t, tokens.ReadingBody.Size)*s.scale()).
-			BorderWidth(0, 0, 0, tokens.FocusRing).BorderColor(theme.Ink(t, 0.16)).Children(func() {
+			BorderWidth(0, 0, 0, tokens.FocusRing).BorderColor(theme.Rule(t)).Children(func() {
 			for k := range run {
 				s.block(c, run, k, start, theme.Text2(t))
 			}
@@ -2212,7 +2212,7 @@ func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 				}
 			})
 		})
-		ui.Box(c).Absolute().Fill().Radius(radius).Border(0.5, theme.Ink(t, 0.1)).PassThrough()
+		ui.Box(c).Absolute().Fill().Radius(radius).Border(0.5, theme.LineStrong(t)).PassThrough()
 		if wide && st.X > 0.5 {
 			ui.Box(c).Absolute().Top(0).Bottom(0).Left(0).Width(theme.Px(t, tokens.Space8)).PassThrough().
 				LinearGradient(ui.LinearGradient{From: t.Background, To: t.Background.Alpha(0), Angle: 90})
@@ -2227,7 +2227,7 @@ func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 		ui.Row(c).FillWidth().Height(theme.Px(t, scrollTrack)).Margin(theme.Px(t, tokens.Space1_5), 0, 0, 0).Radius(theme.Px(t, tokens.RadiusXS)).Background(theme.Track(t)).
 			Children(func() {
 				ui.Box(c).Grow(max(st.X, 0)).Basis(0)
-				ui.Box(c).Grow(seen).Basis(0).Height(theme.Px(t, scrollTrack)).Radius(theme.Px(t, tokens.RadiusXS)).Background(theme.Ink(t, 0.28))
+				ui.Box(c).Grow(seen).Basis(0).Height(theme.Px(t, scrollTrack)).Radius(theme.Px(t, tokens.RadiusXS)).Background(t.Scrollbar)
 				ui.Box(c).Grow(max(st.MaxX-st.X, 0)).Basis(0)
 			})
 	}
@@ -2295,7 +2295,7 @@ func (s *Screen) style(c *ui.Context, e ui.Element, sp span) {
 		e.Italic()
 	}
 	if sp.mono {
-		e.Font("monospace").FontSize(theme.Px(t, tokens.TextCodeInline.Size.En*tokens.ReadingBody.Size) * s.scale()).TextColor(t.Text).TextBackground(theme.Ink(t, 0.055))
+		e.Font("monospace").FontSize(theme.Px(t, tokens.TextCodeInline.Size.En*tokens.ReadingBody.Size) * s.scale()).TextColor(t.Text).TextBackground(theme.Surface(t))
 	}
 	if sp.gone {
 		e.Strikethrough()
@@ -2384,7 +2384,7 @@ func (s *Screen) picture(c *ui.Context, b block, avail float32) {
 		case failed:
 			s.pictureFailed(c, b, strip)
 		}
-		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, tokens.RadiusCard)).Border(0.5, theme.Ink(t, 0.1)).PassThrough()
+		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, tokens.RadiusCard)).Border(0.5, theme.LineStrong(t)).PassThrough()
 	})
 }
 
@@ -2421,9 +2421,9 @@ func (s *Screen) pictureFailed(c *ui.Context, b block, strip bool) {
 			Label(s.text.PicRetry)
 		switch {
 		case button.Pressed():
-			button.Background(theme.Track(t).Mix(t.Text, 0.16))
+			button.Background(theme.Track(t).Mix(t.Text, theme.PressMix(t)))
 		case button.Hovered():
-			button.Background(theme.Track(t).Mix(t.Text, 0.1))
+			button.Background(theme.Track(t).Mix(t.Text, theme.HoverMix(t)))
 		default:
 			button.Background(theme.Track(t))
 		}

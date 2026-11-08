@@ -2779,7 +2779,7 @@ func trigger(c *ui.Context, e ui.Element) {
 	t := c.Theme()
 	fill := theme.Track(t)
 	if e.Hovered() {
-		fill = fill.Mix(theme.Ink(t, 1), 0.06)
+		fill = fill.Mix(theme.Ink(t, 1), theme.HoverMix(t))
 	}
 	e.Background(fill)
 	if c.Preferences().HighContrast {
@@ -3947,7 +3947,7 @@ func (s *Screen) importProgress(c *ui.Context) {
 func (s *Screen) resultBox(c *ui.Context) {
 	t := c.Theme()
 	r := s.result
-	fill, icon, iconColor, color := theme.Ink(t, 0.045), icons.Check, t.Success, t.Text
+	fill, icon, iconColor, color := theme.Track(t), icons.Check, t.Success, t.Text
 	switch r.tone {
 	case partly:
 		fill, icon, iconColor = theme.Soft(t, t.Warning), icons.TriangleAlert, t.Warning

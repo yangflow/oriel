@@ -45,8 +45,8 @@ func Apply(c *ui.Context, p prefs.Preferences) {
 // strengthen applies the high contrast rules that are not alphas: line is fg at 55%, muted moves 40% toward fg and
 // focus is opaque.
 func strengthen(t *ui.Theme) {
-	t.Border = t.Text.Alpha(0.55)
-	t.TextMuted = t.TextMuted.Mix(t.Text, 0.4)
+	t.Border = t.Text.Alpha(tokens.OpacityHighLine)
+	t.TextMuted = t.TextMuted.Mix(t.Text, tokens.OpacityHighMuted)
 	t.Focus.A = 255
 }
 
@@ -71,7 +71,7 @@ func mainColors(s *tokens.Scheme) colors {
 func paneColors(s *tokens.Scheme) colors {
 	// The pane has no surface, float or raised of its own: things on it take its fill.
 	return colors{opaque(s.PaneFill), s.PaneFg2, s.PaneFg, s.PaneFill, s.PaneFill, s.PaneFill,
-		s.PaneFill, s.PaneSelected, opaque(s.PaneFill).Alpha(0.16), s.PaneFaint, tokens.SchemeDark.Star, tokens.SchemeDark.Soft}
+		s.PaneFill, s.PaneSelected, opaque(s.PaneFill).Alpha(tokens.OpacityPaneRule), s.PaneFaint, tokens.SchemeDark.Star, tokens.SchemeDark.Soft}
 }
 
 func presetColors(p *tokens.Preset, s *tokens.Scheme) colors {
@@ -132,9 +132,9 @@ func PaneTheme(main *ui.Theme) *ui.Theme {
 	// The meaning colors and the inverse are the dark scheme's: the pane is dark in both.
 	tokens.SchemeDark.SetRoles(&t)
 	s.SetPaneRoles(&t)
-	t.AccentHover, t.AccentPressed = s.PaneAccent.Mix(t.Text, 0.15), s.PaneAccent.Mix(t.Background, 0.15)
-	t.Selection, t.Focus = t.Accent.Alpha(0.3), t.Accent.Alpha(0.7)
-	t.Scrollbar = opaque(s.PaneFill).Alpha(0.3)
+	t.AccentHover, t.AccentPressed = s.PaneAccent.Mix(t.Text, tokens.OpacityAccentMix), s.PaneAccent.Mix(t.Background, tokens.OpacityAccentMix)
+	t.Selection, t.Focus = t.Accent.Alpha(tokens.OpacityPaneSelection), t.Accent.Alpha(alphaOf(s.Focus))
+	t.Scrollbar = opaque(s.PaneFill).Alpha(tokens.OpacityPaneScrollbar)
 	if highContrast(main) {
 		ink := opaque(s.PaneFill)
 		t.SurfaceHover = ink.Alpha(tokens.HighContrast.Hover)
@@ -306,7 +306,7 @@ func Capsule(c *ui.Context, e ui.Element, hover bool) ui.Element {
 		tint = raised
 	}
 	if hover {
-		tint = tint.Mix(Ink(t, 1), 0.08)
+		tint = tint.Mix(Ink(t, 1), HoverMix(t))
 	}
 	return e.Material(glass.Glass{Tint: tint})
 }
@@ -360,7 +360,7 @@ func ToolFill(t *ui.Theme, b ui.Element, st ToolState) ui.Color {
 		}
 		fill := Soft(t, tint)
 		if b.Hovered() || b.Pressed() {
-			fill = fill.Mix(tint, 0.12)
+			fill = fill.Mix(tint, HoverMix(t))
 		}
 		b.Background(fill)
 		return tint
@@ -416,6 +416,25 @@ func Monogram(c *ui.Context, name string, size float32) {
 
 // tileLetter is the size of a monogram's letter against its tile.
 const tileLetter = 0.58
+
+func schemeOf(t *ui.Theme) *tokens.Scheme {
+	if t.Dark {
+		return &tokens.SchemeDark
+	}
+	return &tokens.SchemeLight
+}
+
+// Rule is the line of a quote and the rim of a small tile: ink at the rule alpha of t's scheme.
+func Rule(t *ui.Theme) ui.Color { return Ink(t, alphaOf(schemeOf(t).Rule)) }
+
+// Underline is the accent at the alpha of a link's underline, for a thin accent line.
+func Underline(t *ui.Theme) ui.Color { return t.Accent.Alpha(alphaOf(schemeOf(t).LinkUnderline)) }
+
+// HoverMix is how far a fill moves toward ink under the pointer, the hover alpha of t.
+func HoverMix(t *ui.Theme) float32 { return alphaOf(t.SurfaceHover) }
+
+// PressMix is how far a fill moves toward ink while pressed, the pressed alpha of t.
+func PressMix(t *ui.Theme) float32 { return alphaOf(t.SurfacePressed) }
 
 // Pill is the corner radius of a pill or a circle of the given height: half of it. It is the one radius that is
 // not a tier of design/tokens.md, because it follows the shape it rounds.

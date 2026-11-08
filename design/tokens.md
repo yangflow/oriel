@@ -103,9 +103,11 @@ Narrow ×0.85, Wide ×1.2. Between Han and Latin text sits a 0.25em gap.
   `radius-pill` capsules and dots.
 - **Elevation**: `elevation-raised` the chosen segment, `elevation-popup` menus, `elevation-dialog` dialogs. Each is a
   shadow plus a 0.5 rim in `line2`.
-- **Opacity** has four tokens and no others: `opacity-faded` (0.55) for a row still there that has stepped back,
-  `opacity-separator` (0.7) for the dot of a meta line, `opacity-tint` (0.14) for a status pill's fill in its own
-  meaning color, and `opacity-wash` (0.08) for a status strip's fill over paper. A disabled control does not fade: its
+- **Opacity** is taken only from the `opacity-*` tokens, and no others: `opacity-faded` (0.55) for a row still there
+  that has stepped back, `opacity-separator` (0.7) for the dot of a meta line, `opacity-tint` (0.14) for a status pill's
+  fill in its own meaning color, `opacity-wash` (0.08) for a status strip's fill over paper, and the single-role ones
+  listed in `design/tokens.json` (find matches, the inverse tile, high contrast, the pane, accent mixes, the picture viewer). Hover and
+  press on a fill mix toward ink by the `hover` and `pressed` alphas. A disabled control does not fade: its
   glyph takes `faint` and its label stays `muted`, so the label keeps 4.5:1.
 
 ## Layout
@@ -143,6 +145,6 @@ step with the design system are in [README.md](README.md#icons).
 
 ## Guard
 
-`TestViewsUseTokens` in `internal/ui/theme/tokens` fails when a guarded screen writes a color in place or passes a bare
+`TestViewsUseTokens` in `internal/ui/theme/tokens` fails when a screen writes a color, an opacity or a duration in place or passes a bare
 number as a size. Geometry the canvas leaves to one screen, such as a breakpoint or a sentinel, is a named constant in
 that screen's package; a size more than one place shares is a token.

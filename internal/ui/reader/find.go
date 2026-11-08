@@ -292,9 +292,9 @@ func (s *Screen) mark(c *ui.Context, e ui.Element, state int) {
 	t := c.Theme()
 	switch state {
 	case 1:
-		e.TextColor(t.Text).TextBackground(t.Warning.Alpha(0.25))
+		e.TextColor(t.Text).TextBackground(t.Warning.Alpha(tokens.OpacityFindMatch))
 	case 2:
-		e.TextColor(t.Text).TextBackground(t.Warning.Alpha(0.4)).Underline()
+		e.TextColor(t.Text).TextBackground(t.Warning.Alpha(tokens.OpacityFindCurrent)).Underline()
 	}
 }
 

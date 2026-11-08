@@ -3480,11 +3480,11 @@ func (s *Screen) sourceTools(c *ui.Context) {
 			Padding(0, theme.Px(t, tokens.Space1), 0, theme.Px(t, fieldInset)).Radius(theme.Px(t, tokens.RadiusControl)).AlignItems(ui.Center)
 		switch {
 		case s.filtering:
-			box.Background(theme.Ink(t, 0.085)).Shadow(0, 0, 0, 2, t.Focus)
+			box.Background(theme.Chosen(t)).Shadow(0, 0, 0, 2, t.Focus)
 		case box.Hovered():
-			box.Background(theme.Ink(t, 0.085))
+			box.Background(theme.Chosen(t))
 		default:
-			box.Background(theme.Ink(t, 0.055))
+			box.Background(t.SurfaceHover)
 		}
 		theme.Fade(box)
 		var input ui.Element
@@ -3774,7 +3774,7 @@ func (s *Screen) glyph(c *ui.Context, name, icon string, size float32) {
 	radius := float32(tokens.RadiusXS)
 	ui.Box(c).Size(theme.Px(t, size), theme.Px(t, size)).Radius(radius).Clip().Children(func() {
 		ui.Image(c, bitmap).Fit(ui.Cover).Fill()
-		ui.Box(c).Absolute().Fill().Radius(radius).Border(0.5, theme.Ink(t, 0.2))
+		ui.Box(c).Absolute().Fill().Radius(radius).Border(0.5, theme.Rule(t))
 	})
 }
 
@@ -4820,7 +4820,7 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 			s.glyph(c, e.SourceTitle, s.iconOf(e.SourceID), 15)
 			ui.Text(c, e.SourceTitle).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).SingleLine().MinWidth(0).Shrink(1).
 				TextColor(source)
-			ui.Text(c, "·").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted).Opacity(0.7)
+			ui.Text(c, "·").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted).Opacity(tokens.OpacitySeparator)
 			ui.Text(c, s.when(e, now)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(muted).NoWrap()
 			if !lead {
 				s.alsoChip(c, e, muted)
@@ -4829,7 +4829,7 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 				s.revisedMark(c, muted)
 			}
 			if reading := s.readLabel(e); reading != "" {
-				ui.Text(c, "·").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted).Opacity(0.7)
+				ui.Text(c, "·").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted).Opacity(tokens.OpacitySeparator)
 				ui.Text(c, reading).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(muted).NoWrap()
 			}
 			if e.Starred {
@@ -4842,7 +4842,7 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 				ui.Icon(c, icons.Upload).FontSize(theme.IconSmall(t)).TextColor(muted)
 			}
 			if platform && e.Platform != "" {
-				ui.Text(c, "·").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted).Opacity(0.7)
+				ui.Text(c, "·").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted).Opacity(tokens.OpacitySeparator)
 				ui.Icon(c, icons.Play).FontSize(theme.IconSmall(t)).TextColor(muted)
 				ui.Text(c, e.Platform).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).SingleLine().MinWidth(0).Shrink(1).TextColor(muted)
 			}
@@ -5071,7 +5071,7 @@ func (s *Screen) marked(c *ui.Context, text string, color ui.Color) []ui.Span {
 	at := 0
 	fill, thickness := theme.Soft(t, t.Warning), theme.Px(t, markUnderline)
 	if c.Preferences().HighContrast {
-		fill, thickness = t.Warning.Alpha(0.16), theme.Px(t, tokens.Space0_5)
+		fill, thickness = t.Warning.Alpha(tokens.OpacityMarkHigh), theme.Px(t, tokens.Space0_5)
 	}
 	ink := color
 	if color == t.TextMuted {
@@ -5163,9 +5163,9 @@ func (s *Screen) divide(c *ui.Context, newer int) {
 	}
 	b.Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
-			ui.Box(c).Grow(1).Height(tokens.Hairline).Background(t.Accent.Alpha(0.3))
+			ui.Box(c).Grow(1).Height(tokens.Hairline).Background(theme.Underline(t))
 			ui.Text(c, label).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(500).TextColor(color).NoWrap()
-			ui.Box(c).Grow(1).Height(tokens.Hairline).Background(t.Accent.Alpha(0.3))
+			ui.Box(c).Grow(1).Height(tokens.Hairline).Background(theme.Underline(t))
 		})
 	})
 	if b.Clicked() {
@@ -5611,7 +5611,7 @@ func (s *Screen) pictureOf(c *ui.Context, address string, load bool, radius, mar
 		if over != nil {
 			over()
 		}
-		ui.Box(c).Fill().Absolute().Radius(radius).PassThrough().Border(0.5, theme.Ink(t, 0.10))
+		ui.Box(c).Fill().Absolute().Radius(radius).PassThrough().Border(0.5, theme.LineStrong(t))
 	})
 }
 
@@ -5743,9 +5743,9 @@ func (s *Screen) viewPictures(c *ui.Context) {
 			}
 			switch {
 			case b.Pressed():
-				b.Background(theme.Ink(p, 0.085))
+				b.Background(theme.Chosen(p))
 			case b.Hovered():
-				b.Background(theme.Ink(p, 0.055))
+				b.Background(p.SurfaceHover)
 			}
 			if b.FocusVisible() {
 				b.Shadow(0, 0, 0, 2, p.Focus)
@@ -5760,7 +5760,7 @@ func (s *Screen) viewPictures(c *ui.Context) {
 		}
 		ui.Row(c).Absolute().Left(0).Right(0).Top(0).Height(theme.Px(t, viewerBar)).AlignItems(ui.Center).Justify(ui.End).
 			Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space3)).Children(func() {
-			browser := ui.ButtonBase(c).Height(theme.Px(t, tokens.Space8)).Background(theme.Ink(p, 0.10))
+			browser := ui.ButtonBase(c).Height(theme.Px(t, tokens.Space8)).Background(theme.Ink(p, tokens.OpacityViewerControl))
 			if width < 760 {
 				browser.Width(theme.Px(t, tokens.Space8))
 			}
@@ -5801,13 +5801,13 @@ func (s *Screen) viewPictures(c *ui.Context) {
 					holder.Right(theme.Px(t, bannerInset))
 				}
 				holder.Children(func() {
-					b := ui.ButtonBase(c).Size(theme.Px(t, viewerHit), theme.Px(t, viewerHit)).Center().Background(theme.Ink(p, 0.10)).
+					b := ui.ButtonBase(c).Size(theme.Px(t, viewerHit), theme.Px(t, viewerHit)).Center().Background(theme.Ink(p, tokens.OpacityViewerControl)).
 						Disabled(off)
 					color := p.Text
 					if off {
 						color = theme.Disabled(p)
 					} else if b.Hovered() {
-						b.Background(theme.Ink(p, 0.18))
+						b.Background(theme.Ink(p, tokens.OpacityViewerControlHover))
 					}
 					if button(b, label, theme.Px(t, paneHit), true) {
 						s.page(to)
@@ -5840,7 +5840,7 @@ func (s *Screen) viewPictures(c *ui.Context) {
 				shown.Children(func() { ui.Image(c, bitmap).Fill() })
 			default:
 				w := min(fitW, fitH*4/3, theme.Px(t, viewerMax))
-				ui.Box(c).Size(w, w*3/4).Center().Radius(tokens.RadiusControl).Background(theme.Ink(p, 0.06)).Children(func() {
+				ui.Box(c).Size(w, w*3/4).Center().Radius(tokens.RadiusControl).Background(theme.Ink(p, tokens.OpacityViewerEmpty)).Children(func() {
 					ui.Spinner(c)
 				})
 			}
