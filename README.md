@@ -107,8 +107,8 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
 ### Docker or systemd
 
 The files are in [`deploy/`](deploy/); the details (data directory, port, reverse proxy and HTTPS, health check,
-backups, upgrading) are in [docs/product.md](docs/product.md) ("部署", in Chinese). The image is not published to a
-registry yet; build it from a checkout, for `linux/amd64` and `linux/arm64`:
+backups, upgrading) are in [docs/product.md](docs/product.md) ("部署", in Chinese). The image is built from a
+checkout, not pulled from a registry, for `linux/amd64` and `linux/arm64`:
 
 ```bash
 echo 'ORIEL_PASSWORD=<password>' > deploy/.env && chmod 600 deploy/.env

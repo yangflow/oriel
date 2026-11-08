@@ -84,7 +84,7 @@ ORIEL_PASSWORD=<口令> go run . serve -data ./data -port 7470
 
 ### Docker 或 systemd
 
-文件在 [`deploy/`](deploy/)，数据目录、端口、反向代理和 HTTPS、健康检查、备份、升级的细节在 [docs/product.md](docs/product.md)「部署」一节。镜像还没有发布到注册表，先从源码目录构建，支持 `linux/amd64` 和 `linux/arm64`：
+文件在 [`deploy/`](deploy/)，数据目录、端口、反向代理和 HTTPS、健康检查、备份、升级的细节在 [docs/product.md](docs/product.md)「部署」一节。镜像从源码目录构建，不从注册表拉取，支持 `linux/amd64` 和 `linux/arm64`：
 
 ```bash
 echo 'ORIEL_PASSWORD=<口令>' > deploy/.env && chmod 600 deploy/.env

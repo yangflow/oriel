@@ -52,7 +52,7 @@ A UI change starts from the screens canvas; the maintainer confirms the visual d
    is published to the design system too.
 2. The maintainer confirms the visual direction.
 3. Write the native view in `internal/ui/<screen>/` with theme roles and `Space`/`Rem` sizes, localized copy and
-   accessible names, plus tests. On a screen that has moved to the tokens (#522), use only the token names.
+   accessible names, plus tests. Sizes and colors come from the token names in `internal/ui/theme/tokens`.
 4. Run `scripts/check.sh`, then the design acceptance checklist in `docs/design.md` on real devices. A headless test
    is not device acceptance.
 

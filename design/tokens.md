@@ -110,12 +110,8 @@ Narrow ×0.85, Wide ×1.2. Between Han and Latin text sits a 0.25em gap.
 
 One window, two frames: the ink pane on the left (`pane-width` 216, 184 below 760) and a toolbar bar 52 high. The
 content is one centered column at most `column` wide (`column-social` 720 for social timelines). The default window
-is `window-w` × `window-h`. The pane hides with 隐藏侧栏 at the end of its traffic-light row (⌘\\); then
-the main area takes the whole window, and its bar starts with the lights' room and 显示侧栏. The lights' row in the
-pane is centered on the toolbar's line, so the lights never move. A settings page opens with its head in the
-column: the page's icon in a `soft` square and its name in `display`; its groups follow
-`space-8` apart, each named for what it holds, never repeating the page. Dialogs are built like the window: a body
-and a `surface` sill that holds the buttons.
+is `window-w` × `window-h`, the smallest `window-min-w` × `window-min-h`. How each screen arranges these is drawn on
+the screens canvas ([README.md](README.md)).
 
 `layout.json` holds the rules and the named patterns every assembly uses, from a mark beside its words up to the
 window; `layout.css` is generated from it for the canvas, and the screens follow the same file. The patterns: `pair`,
