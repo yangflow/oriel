@@ -217,6 +217,8 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("POST /api/storage/vacuum", s.authed(s.startVacuum))
 	mux.HandleFunc("DELETE /api/storage/premigrate", s.authed(s.deletePreMigrate))
 	mux.HandleFunc("DELETE /api/storage/image-cache", s.authed(s.clearImageCache))
+	mux.HandleFunc("GET /api/storage/read-entries", s.authed(s.readEntryCount))
+	mux.HandleFunc("DELETE /api/storage/read-entries", s.authed(s.deleteReadEntries))
 	mux.HandleFunc("GET /api/diagnostics", s.authed(s.diagnostics))
 	mux.HandleFunc("GET /api/discover", s.authed(s.findFeeds))
 	mux.HandleFunc("GET /api/routes", s.authed(s.findRoutes))

@@ -41,6 +41,18 @@ func (f *fake) ClearImageCache(context.Context) error {
 	return f.clearErr
 }
 
+func (f *fake) ReadEntryCount(context.Context) (int64, error) { return f.readCount, f.purgeErr }
+
+func (f *fake) DeleteReadEntries(context.Context) (int64, error) {
+	f.purged++
+	if f.purgeErr != nil {
+		return 0, f.purgeErr
+	}
+	n := f.readCount
+	f.readCount = 0
+	return n, nil
+}
+
 func (f *fake) Diagnostics(context.Context) ([]byte, error) { return f.diag, f.diagErr }
 
 // activityData is two subscriptions with attempts, one of them being fetched now.
@@ -442,7 +454,7 @@ func TestPreMigrateCopyRow(t *testing.T) {
 		s.OpenPage("activity")
 		tt.Frame()
 		f.settle(tt)
-		if tt.HasText(s.text.PreMigrate) || tt.HasText(s.text.DeletePreMigrate) {
+		if tt.HasText(s.text.PreMigrate) || tt.HasText(s.text.DeletePreMigrateTitle) {
 			t.Fatalf("%s: a row without a copy: %v", language, tt.Texts())
 		}
 
@@ -450,7 +462,7 @@ func TestPreMigrateCopyRow(t *testing.T) {
 		press(t, tt, s.text.Refresh)
 		f.settle(tt)
 		version := s.fill(s.fill(s.text.PreMigrateVersion, "{size}", "3.0 MB"), "{version}", "17")
-		if !tt.HasText(s.text.PreMigrate) || !tt.HasText(version) || !tt.HasText(s.text.DeletePreMigrate) {
+		if !tt.HasText(s.text.PreMigrate) || !tt.HasText(version) || !tt.HasText(s.text.DeletePreMigrateTitle) {
 			t.Fatalf("%s: no row in %v", language, tt.Texts())
 		}
 
@@ -523,6 +535,55 @@ func TestClearImageCache(t *testing.T) {
 		f.settle(tt)
 		if f.cleared != 2 {
 			t.Fatalf("%s: an empty cache was cleared again", language)
+		}
+	}
+}
+
+func TestDeleteReadEntries(t *testing.T) {
+	for _, language := range []string{"en", "zh-Hans"} {
+		s, f, tt := setup(t, language, false)
+		f.activity, f.storage = activityData()
+		tt.SetSize(1000, 2400)
+		s.OpenPage("activity")
+		tt.Frame()
+		f.settle(tt)
+
+		// With nothing to delete there is no confirmation.
+		press(t, tt, s.text.DeleteReadTitle)
+		f.settle(tt)
+		if !tt.HasText(s.text.DeleteReadNone) || f.purged != 0 {
+			t.Fatalf("%s: none: purged %d, %v", language, f.purged, tt.Texts())
+		}
+
+		// Escape deletes nothing; the confirmation names the number.
+		f.readCount = 12
+		body := locale.Count(s.text.DeleteReadBody, "n", 12)
+		press(t, tt, s.text.DeleteReadTitle)
+		f.settle(tt)
+		if !tt.HasText(body) {
+			t.Fatalf("%s: no dialog in %v", language, tt.Texts())
+		}
+		tt.Key(0, ui.KeyEscape)
+		if f.purged != 0 || tt.HasText(body) || f.back != 0 {
+			t.Fatalf("%s: purged %d, back %d", language, f.purged, f.back)
+		}
+
+		refreshed := f.refreshed
+		press(t, tt, s.text.DeleteReadTitle)
+		f.settle(tt)
+		press(t, tt, s.text.DeleteReadConfirm)
+		f.settle(tt)
+		if f.purged != 1 || !tt.HasText(locale.Count(s.text.DeleteReadDone, "n", 12)) || f.refreshed != refreshed+1 {
+			t.Fatalf("%s: purged %d, refreshed %d, %v", language, f.purged, f.refreshed, tt.Texts())
+		}
+
+		// A failure says so.
+		f.purgeErr = errors.New("offline")
+		tt.Frame()
+		press(t, tt, s.text.DeleteReadTitle)
+		f.settle(tt)
+		if !tt.HasText(s.text.DeleteReadFailed) {
+			t.Fatalf("%s: no failure in %v", language, tt.Texts())
 		}
 	}
 }

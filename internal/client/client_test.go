@@ -447,6 +447,10 @@ func TestActivityAndStorageAPI(t *testing.T) {
 			w.Write([]byte(`{"vacuum":{"state":"running","startedAt":7}}`))
 		case "DELETE /api/storage/premigrate", "DELETE /api/storage/image-cache":
 			w.WriteHeader(http.StatusNoContent)
+		case "GET /api/storage/read-entries":
+			w.Write([]byte(`{"count":9}`))
+		case "DELETE /api/storage/read-entries":
+			w.Write([]byte(`{"deleted":8}`))
 		}
 	}))
 	defer srv.Close()
@@ -483,8 +487,15 @@ func TestActivityAndStorageAPI(t *testing.T) {
 	if err := session.ClearImageCache(ctx); err != nil {
 		t.Errorf("ClearImageCache: %v", err)
 	}
+	if n, err := session.ReadEntryCount(ctx); n != 9 || err != nil {
+		t.Errorf("ReadEntryCount = %d, %v", n, err)
+	}
+	if n, err := session.DeleteReadEntries(ctx); n != 8 || err != nil {
+		t.Errorf("DeleteReadEntries = %d, %v", n, err)
+	}
 	want := []string{"GET /api/activity Bearer tok", "GET /api/storage Bearer tok", "POST /api/storage/vacuum Bearer tok", "POST /api/storage/vacuum Bearer tok",
-		"DELETE /api/storage/premigrate Bearer tok", "DELETE /api/storage/image-cache Bearer tok"}
+		"DELETE /api/storage/premigrate Bearer tok", "DELETE /api/storage/image-cache Bearer tok",
+		"GET /api/storage/read-entries Bearer tok", "DELETE /api/storage/read-entries Bearer tok"}
 	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
 		t.Errorf("requests:\n%s", strings.Join(seen, "\n"))
 	}

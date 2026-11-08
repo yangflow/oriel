@@ -123,6 +123,7 @@ func (s *Screen) activityPage(c *ui.Context) {
 	s.diagnosticsCard(c)
 	s.fetchingNowCard(c)
 	s.recentCard(c)
+	s.dangerCard(c)
 }
 
 func (s *Screen) storageCard(c *ui.Context) {
@@ -199,6 +200,87 @@ func (s *Screen) clearImageCache() {
 			s.actLoads++ // a read that began before the clear would bring the old figures back
 			s.actBusy, s.actAt = false, time.Time{}
 			s.toast = s.text.ImagesCleared
+		}
+	})
+}
+
+// dangerCard is the actions that cannot be undone.
+func (s *Screen) dangerCard(c *ui.Context) {
+	sectionTitle(c, s.text.Danger, 0)
+	cardOf(c, []cardRow{{key: "delete-read", draw: func() {
+		setting(c, icons.Trash2, true, s.text.DeleteRead, func() { meta(c, s.text.DeleteReadHelp) }, func() {
+			b := theme.Button{Style: theme.Danger, Small: true, Disabled: s.purging, Busy: s.purging, Text: s.text.DeleteReadButton,
+				Label: s.text.DeleteReadTitle}.Draw(c)
+			if b.Clicked() {
+				s.countReadEntries()
+			}
+		})
+	}}})
+}
+
+// countReadEntries reads how many entries would go, so that the confirmation can name the number.
+func (s *Screen) countReadEntries() {
+	if s.api == nil || s.purging {
+		return
+	}
+	s.purging = true
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		count, err := api.ReadEntryCount(context.Background())
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			s.purging = false
+			switch {
+			case s.expired(err):
+			case err != nil:
+				s.toast = s.text.DeleteReadFailed
+			case count == 0:
+				s.toast = s.text.DeleteReadNone
+			default:
+				s.purgeCount, s.askPurge = count, true
+			}
+		}
+	})
+}
+
+// deleteReadDialog asks before deleting. Escape cancels; nothing is deleted until Delete is chosen.
+func (s *Screen) deleteReadDialog(c *ui.Context) {
+	if !s.askPurge {
+		return
+	}
+	body := locale.Count(s.text.DeleteReadBody, "n", int(s.purgeCount))
+	if ui.AlertDialog(c, &s.askPurge, s.text.DeleteReadTitle, body, s.text.Cancel, s.text.DeleteReadConfirm) == 1 {
+		s.deleteReadEntries()
+	}
+}
+
+// deleteReadEntries has the server delete the read entries, then refreshes the figures and the timeline behind.
+func (s *Screen) deleteReadEntries() {
+	if s.api == nil || s.purging {
+		return
+	}
+	s.purging = true
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		deleted, err := api.DeleteReadEntries(context.Background())
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			s.purging = false
+			if s.expired(err) {
+				return
+			}
+			if err != nil {
+				s.toast = s.text.DeleteReadFailed
+				return
+			}
+			s.actLoads++ // a read that began before the delete would bring the old figures back
+			s.actBusy, s.actAt = false, time.Time{}
+			s.toast = locale.Count(s.text.DeleteReadDone, "n", int(deleted))
+			s.deps.Imported()
 		}
 	})
 }

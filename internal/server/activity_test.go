@@ -192,6 +192,45 @@ func TestClearImageCache(t *testing.T) {
 	}
 }
 
+func TestDeleteReadEntriesRoute(t *testing.T) {
+	ctx := context.Background()
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	for _, method := range []string{"GET", "DELETE"} {
+		if w := do(s, method, "/api/storage/read-entries", "", nil); w.Code != http.StatusUnauthorized {
+			t.Fatalf("%s without session: %d", method, w.Code)
+		}
+	}
+	src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/s", Kind: "social", FetchInterval: time.Hour}, "", c.t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "social"}, "", "", []store.FeedEntry{{GUID: "1", Title: "a"}, {GUID: "2", Title: "b"}}, "", time.Time{}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.store.Entries(ctx, store.EntryFilter{}, 10)
+	if err != nil || len(list) != 2 {
+		t.Fatalf("entries %v, %v", list, err)
+	}
+	read := true
+	if _, err := s.store.UpdateEntry(ctx, list[0].ID, store.EntryPatch{IsRead: &read}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	if body := decode(t, do(s, "GET", "/api/storage/read-entries", "", bearer(token))); body["count"] != 1.0 {
+		t.Fatalf("count: %v", body)
+	}
+	w := do(s, "DELETE", "/api/storage/read-entries", "", bearer(token))
+	if body := decode(t, w); w.Code != http.StatusOK || body["deleted"] != 1.0 {
+		t.Fatalf("delete: %d %v", w.Code, body)
+	}
+	if left, err := s.store.Entries(ctx, store.EntryFilter{}, 10); err != nil || len(left) != 1 || left[0].ID != list[1].ID {
+		t.Fatalf("left %v, %v", left, err)
+	}
+	if body := decode(t, do(s, "DELETE", "/api/storage/read-entries", "", bearer(token))); body["deleted"] != 0.0 {
+		t.Errorf("second delete: %v", body)
+	}
+}
+
 func TestStorageWithoutImageCache(t *testing.T) {
 	s, _ := newServer(t, "")
 	body := decode(t, do(s, "GET", "/api/storage", "", nil))

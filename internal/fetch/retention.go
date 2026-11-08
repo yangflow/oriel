@@ -65,6 +65,9 @@ func (p *Poller) prune(ctx context.Context) {
 		slog.Info("Pruned expired entries", "count", deleted)
 	}
 	p.maintain(ctx, deleted)
+	if err := p.store.PruneRemovedEntries(ctx, now); err != nil && ctx.Err() == nil {
+		slog.Error("Cannot forget removed entries", "error", err)
+	}
 	purged, entries, err := p.store.PurgeDeletedSources(ctx, now)
 	if err != nil {
 		if ctx.Err() == nil {

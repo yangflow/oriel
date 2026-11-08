@@ -184,6 +184,32 @@ func (s *Server) clearImageCache(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// readEntryCount answers GET /api/storage/read-entries: how many entries deleting the read ones would remove.
+func (s *Server) readEntryCount(w http.ResponseWriter, r *http.Request) {
+	count, err := s.store.ReadEntryCount(r.Context())
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	reply(w, http.StatusOK, map[string]any{"count": count})
+}
+
+// deleteReadEntries answers DELETE /api/storage/read-entries (docs/product/data.md, "删除所有已读条目"), then gives
+// the space back in the background, as a large prune does.
+func (s *Server) deleteReadEntries(w http.ResponseWriter, r *http.Request) {
+	deleted, err := s.store.DeleteReadEntries(r.Context(), s.now())
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	go diag.Guard("maintenance after deleting read entries", func() {
+		if err := s.store.Maintain(context.Background(), deleted); err != nil && !errors.Is(err, store.ErrVacuumRunning) {
+			slog.Error("Cannot maintain the database", "error", err)
+		}
+	})
+	reply(w, http.StatusOK, map[string]any{"deleted": deleted})
+}
+
 func (s *Server) vacuumNow() vacuumState {
 	s.vacuumMu.Lock()
 	defer s.vacuumMu.Unlock()
