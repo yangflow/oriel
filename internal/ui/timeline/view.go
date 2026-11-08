@@ -910,10 +910,10 @@ func (s *Screen) viewerSet() viewerSet {
 type layout int
 
 const (
-	columnLayout layout = iota // one column of rows
-	gridLayout                 // the Videos grid of covers
-	squareLayout               // the Images grid of squares
-	wallLayout                 // the Images wall
+	columnLayout  layout = iota // one column of rows
+	gridLayout                  // the Videos grid of covers
+	pictureLayout               // the Images grid of 3:2 pictures
+	wallLayout                  // the Images wall
 )
 
 // layout tells how the list is laid out. The grid and the wall are used only where a grid is offered (see gridable)
@@ -927,7 +927,7 @@ func (s *Screen) layout() layout {
 	case s.scope.kind == "video":
 		return gridLayout
 	case s.views().ImageViewer == prefs.ViewGrid:
-		return squareLayout
+		return pictureLayout
 	}
 	return wallLayout
 }
@@ -984,7 +984,7 @@ func (s *Screen) switchGrid() {
 // Images wall, which keep their place differently from the column of rows.
 func (s *Screen) grids() bool {
 	l := s.layout()
-	return l == gridLayout || l == squareLayout
+	return l == gridLayout || l == pictureLayout
 }
 func (s *Screen) walls() bool { return s.layout() == wallLayout }
 
@@ -1128,7 +1128,7 @@ func (s *Screen) movesMarker() bool {
 // onTop tells whether the first entry was drawn whole in the last frame, or the grid or wall is at its top.
 func (s *Screen) onTop() bool {
 	switch s.layout() {
-	case gridLayout, squareLayout, wallLayout:
+	case gridLayout, pictureLayout, wallLayout:
 		return !s.holdsTop()
 	}
 	return s.fullyShown(0)
@@ -1172,7 +1172,7 @@ func (s *Screen) look(c *ui.Context) {
 // which a first frame, drawn before the list has its place, is not.
 func (s *Screen) scrolled() bool {
 	switch s.layout() {
-	case gridLayout, squareLayout, wallLayout:
+	case gridLayout, pictureLayout, wallLayout:
 		return s.holdsTop()
 	}
 	_, drawn := s.rects[0]
@@ -2508,9 +2508,9 @@ func fade(e client.Entry, now time.Time) float32 {
 }
 
 // readLabel is "6 min read" for an entry that is read and takes a minute or more; podcasts and videos, which have a
-// duration of their own, and entries with no estimate have none.
+// duration of their own, pictures and entries with no estimate have none.
 func (s *Screen) readLabel(e client.Entry) string {
-	if e.ReadingSec < 60 || e.DurationSec > 0 || e.Kind == "video" {
+	if e.ReadingSec < 60 || e.DurationSec > 0 || e.Kind == "video" || e.Kind == "image" {
 		return ""
 	}
 	return s.format(s.text.ReadingTime, e.ReadingSec/60)
@@ -3446,7 +3446,6 @@ const (
 	whenColWide        = 84  // the time and the actions in a compact row
 	socialThumb        = 184 // a video's picture in a social row
 	socialThumbNarrow  = 136 // the same in a narrow window
-	gridWide           = 520 // the most a picture grid grows
 	stripCell          = 40  // the count cell after a picture strip
 	stripPicture       = 56  // a picture in a strip
 	cardMin            = 200 // the narrowest video card
@@ -4468,7 +4467,7 @@ func (s *Screen) content(c *ui.Context, now time.Time, compact bool) {
 			}
 		case s.layout() == gridLayout:
 			s.cells(c, now, compact, false)
-		case s.layout() == squareLayout:
+		case s.layout() == pictureLayout:
 			s.cells(c, now, compact, true)
 		case s.layout() == wallLayout:
 			s.wallOf(c, now, compact)
@@ -5127,9 +5126,10 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 	} else if i := s.index(s.pin); s.pin != 0 && i >= 0 {
 		s.list.ScrollTo(i, ui.Start)
 	}
-	maxWidth := theme.Px(t, tokens.Column)
+	maxWidth, inset := theme.Px(t, tokens.Column), theme.Px(t, tokens.Space2)
 	if s.scope.kind == "social" {
-		maxWidth = theme.Px(t, tokens.ColumnSocial)
+		inset = theme.Px(t, tokens.Space8)
+		maxWidth = theme.Px(t, tokens.ColumnSocial) + 2*inset
 	}
 	n := len(s.entries)
 	if s.hasFooter() || tail {
@@ -5137,8 +5137,8 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 	}
 	s.divider = s.dividerAt()
 	ui.List(c, &s.list, n, func(i int) {
-		// The row is 16 wider than the column on each side, so its text lines up with the toolbar's.
-		ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto).PaddingX(theme.Px(t, tokens.Space2)).Children(func() {
+		// Outside the social timeline the row is 16 wider than the column on each side, so its text lines up with the toolbar's.
+		ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto).PaddingX(inset).Children(func() {
 			for _, g := range folds[min(i, len(s.entries))] {
 				s.foldRow(c, g)
 			}
@@ -5195,12 +5195,16 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	e := s.entries[i]
 	v := s.views()
 	oneLine := e.Kind == "article" && v.ArticleViewer == prefs.ViewCompact
+	card := e.Kind == "social" && v.SocialViewer != prefs.ViewCompact
 	var r ui.Element
 	switch {
 	case oneLine:
 		r = ui.Row(c).Key(e.ID).FillWidth().Height(s.dense(t, 36, 30)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
 			Padding(0, theme.Px(t, tokens.Space3), 0, theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
-	case e.Kind == "social" && v.SocialViewer == prefs.ViewCompact:
+	case card:
+		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 12, 10)).
+			Padding(s.dense(t, 12, 10)).Radius(theme.Px(t, tokens.RadiusCard))
+	case e.Kind == "social":
 		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 12, 10)).
 			Padding(s.dense(t, 12, 8), theme.Px(t, tokens.Space3), s.dense(t, 12, 8), theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
 	default:
@@ -5239,7 +5243,7 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 		} else {
 			dot.Top(theme.Px(t, tokens.Space3+(tokens.TextTitle.Line.En-tokens.Dot)/2))
 		}
-		if !e.IsRead {
+		if !e.IsRead && !card { // a post has its dot at the end of its meta line
 			dot.Background(t.Accent)
 		}
 		at := inMeta
@@ -5436,32 +5440,67 @@ func (s *Screen) videoRow(c *ui.Context, e client.Entry, now time.Time, compact 
 	})
 }
 
+// socialRow is a post: as a card, the tile of its source beside the meta line, up to six lines of text and its
+// pictures, or in the Compact viewer a brief one.
 func (s *Screen) socialRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color, brief bool) {
 	t := c.Theme()
-	color, author := t.Text, t.Text
-	if e.IsRead {
-		color, author = muted, theme.Text2(t)
-	}
 	if brief {
+		color, author := t.Text, t.Text
+		if e.IsRead {
+			color, author = muted, theme.Text2(t)
+		}
 		s.briefPost(c, e, now, muted, color, author)
 		return
 	}
-	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
-		s.meta(c, e, now, false, theme.Px(t, metaField), muted, false)
-		if e.Author != "" || e.Platform != "" {
-			ui.RichText(c, ui.Span{Text: e.Author, Weight: 500, Color: author},
-				ui.Span{Text: " " + e.Platform, Color: muted}).FontSize(theme.Px(t, tokens.TextBody.Size.En)).SingleLine()
-		}
+	s.glyph(c, e.SourceTitle, s.iconOf(e.SourceID), tokens.TileL)
+	ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+		s.postMeta(c, e, now, muted)
 		text := strings.TrimSpace(e.Summary)
 		if text == "" {
 			text = title(e)
 		}
-		body := ui.RichText(c, s.marked(c, text, color)...).FontSize(theme.Px(t, tokens.TextBody.Size.En)).MaxLines(6).Wrap().LineHeight(1.55)
+		body := ui.RichText(c, s.marked(c, text, theme.Prose(t))...).FontSize(theme.Px(t, tokens.TextBody.Size.En)).MaxLines(6).Wrap().LineHeight(1.55)
 		if theme.Han(text) {
 			body.LineHeight(1.7)
 		}
 		s.gallery(c, e)
 		s.alsoList(c, e, now, muted)
+	})
+}
+
+// postMeta is the meta line of a post card: who wrote it, the account, the time and the entry's marks, and at the end
+// the dot of an unread post. A feed that names no author shows its source instead.
+func (s *Screen) postMeta(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
+	t := c.Theme()
+	size := theme.Px(t, tokens.TextMeta.Size.En)
+	name := e.Author
+	if name == "" {
+		name = e.SourceTitle
+	}
+	ui.Row(c).FillWidth().Height(theme.Px(t, chipH)).MinWidth(0).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+		ui.Text(c, name).FontSize(size).FontWeight(500).SingleLine().MinWidth(0).Shrink(1).TextColor(t.Text)
+		if e.Platform != "" {
+			ui.Text(c, e.Platform).FontSize(size).SingleLine().MinWidth(0).Shrink(1).TextColor(muted)
+		}
+		ui.Text(c, "·").FontSize(size).TextColor(muted).Opacity(tokens.OpacitySeparator)
+		ui.Text(c, s.when(e, now)).FontSize(size).FontFeatures("tnum").TextColor(muted).NoWrap()
+		s.alsoChip(c, e, muted)
+		if e.RevisedAt != 0 {
+			s.revisedMark(c, muted)
+		}
+		if e.Starred {
+			ui.Icon(c, icons.Star).FontSize(theme.IconSmall(t)).TextColor(theme.Star(t))
+		}
+		if e.RemindAt > 0 {
+			ui.Icon(c, icons.Clock).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
+		}
+		if s.waitingFor(e.ID) >= 0 {
+			ui.Icon(c, icons.Upload).FontSize(theme.IconSmall(t)).TextColor(muted)
+		}
+		ui.Box(c).Grow(1)
+		if !e.IsRead {
+			ui.Box(c).Size(theme.Px(t, tokens.Dot), theme.Px(t, tokens.Dot)).Radius(theme.Pill(theme.Px(t, tokens.Dot))).Background(t.Accent)
+		}
 	})
 }
 
@@ -5521,7 +5560,7 @@ func (s *Screen) strip(c *ui.Context, e client.Entry) {
 		})
 }
 
-// gallery is the grid of the pictures of a post, never taller than one row of them: one picture fills the width at 3:2,
+// gallery is the grid of the pictures of a post, one row of them: one picture fills the width at 3:2,
 // two sit side by side, and three or more are the first three as squares, the third saying how many more there are.
 func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 	n := len(e.Images)
@@ -5530,22 +5569,15 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 	}
 	t := c.Theme()
 	shown := min(n, 3)
-	grid := ui.Grid(c).Columns(shown).Gap(tokens.Space1).Radius(theme.Px(t, tokens.RadiusCard)).Clip().Margin(theme.Px(t, tokens.Space2), 0, 0, 0).
-		Label(s.format(s.text.Pictures, n)).Role(ui.RoleImage)
-	switch {
-	case s.scope.kind == "social":
-		grid.MaxWidth(theme.Px(t, gridWide))
-	default:
-		grid.MaxWidth(theme.Px(t, tokens.Dialog))
-	}
-	grid.Children(func() {
+	ui.Grid(c).Columns(shown).Gap(theme.Px(t, tokens.Space0_5)).Radius(theme.Px(t, tokens.RadiusSm)).Clip().
+		Label(s.format(s.text.Pictures, n)).Role(ui.RoleImage).Children(func() {
 		for k, img := range e.Images[:shown] {
 			var over func()
 			if k == shown-1 && n > shown {
 				more := s.format(s.text.MorePictures, n-shown)
 				over = func() {
 					ui.Box(c).Fill().Absolute().Center().Background(theme.Badge(t)).Label(more).Children(func() {
-						ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(600).
+						ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(theme.Px(t, tokens.TextLabel.Size.En)).FontWeight(500).
 							FontFeatures("tnum").TextColor(theme.OnInverse(t))
 					})
 				}
@@ -5583,12 +5615,12 @@ func firstPicture(e client.Entry) string {
 	return e.ThumbnailURL
 }
 
-// aspect is the width over the height of the first picture of an image entry, 4:3 when it does not say.
+// aspect is the width over the height of the first picture of an image entry, 3:2 when it does not say.
 func aspect(e client.Entry) float32 {
 	if len(e.Images) > 0 && e.Images[0].Width > 0 && e.Images[0].Height > 0 {
 		return min(max(float32(e.Images[0].Width)/float32(e.Images[0].Height), 0.4), 3)
 	}
-	return 4.0 / 3
+	return 3.0 / 2
 }
 
 // picture is a picture on the Track color, which shows until it loads or when it fails, with a muted image icon on it
@@ -5879,8 +5911,8 @@ func columns(c *ui.Context, compact bool, minWidth, gap, most float32) (int, flo
 	return n, (width - gap*float32(n-1)) / float32(n)
 }
 
-// cells is the Videos tab, a grid of covers, or with square the Images tab as a grid of square pictures.
-func (s *Screen) cells(c *ui.Context, now time.Time, compact, square bool) {
+// cells is the Videos tab, a grid of covers, or with pictures the Images tab as a grid of 3:2 pictures.
+func (s *Screen) cells(c *ui.Context, now time.Time, compact, pictures bool) {
 	t := c.Theme()
 	s.grid.Key = func(i int) any { return s.entries[i].ID }
 	s.grid.Label = func(i int) string { return s.label(s.entries[i], now) }
@@ -5890,26 +5922,26 @@ func (s *Screen) cells(c *ui.Context, now time.Time, compact, square bool) {
 		s.grid.ScrollTo(i, ui.Start)
 	}
 	gap, minWidth := s.dense(t, 14, 10), theme.Px(t, cardMin)
-	if square {
+	if pictures {
 		minWidth = theme.Px(t, cardMinNarrow)
 	}
 	// The cells are as wide as the grid lays them out, its own space-2 apart, not gap: a narrower guess leaves the
-	// rows too short for a square and squeezes it.
+	// rows too short for a picture and squeezes it.
 	_, cell := columns(c, compact, minWidth, t.Space(2), 0)
 	height := cell*9/16 + theme.Px(t, tokens.TextLabel.Line.En)*2 + theme.Px(t, tokens.Tag) + t.Space(3) + theme.Px(t, chipH)
-	if square {
-		height = cell + theme.Px(t, tokens.TextBody.Size.En)*1.5 + theme.Px(t, chipH) + t.Space(3)
+	if pictures {
+		height = cell*2/3 + theme.Px(t, tokens.TextBody.Size.En)*1.5 + theme.Px(t, chipH) + t.Space(3)
 	}
 	ui.GridView(c, &s.grid, len(s.entries), minWidth, height, func(i int) {
 		e := s.entries[i]
 		card := ui.Column(c).Fill().Gap(theme.Px(t, tokens.Space2)).Radius(theme.Px(t, tokens.RadiusCard))
-		if square {
+		if pictures {
 			card.Gap(theme.Px(t, tokens.Space1))
 		}
 		hovered, chosen := s.item(c, card, i, now, true)
 		card.Children(func() {
-			if square {
-				s.square(c, e)
+			if pictures {
+				s.pictureCell(c, e)
 			} else {
 				s.cover(c, e, true, hovered).FillWidth()
 				s.titleText(c, e, 13, t.TextMuted)
@@ -5919,7 +5951,7 @@ func (s *Screen) cells(c *ui.Context, now time.Time, compact, square bool) {
 				s.actions(c, i, onCard)
 			}
 		})
-	}).TrackScroll(&s.scrolls[1]).Grow(1).FillWidth().Gap(gap).Padding(s.top()+t.Space(4), theme.Px(t, tokens.Space6), t.Space(6), theme.Px(t, tokens.Space6)).
+	}).TrackScroll(&s.scrolls[1]).Grow(1).FillWidth().Gap(gap).Padding(s.top()+theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space6), t.Space(6), theme.Px(t, tokens.Space6)).
 		ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName())
 	s.edge = s.scrolls[1].Y > 0
 	if s.hasFooter() {
@@ -5927,9 +5959,9 @@ func (s *Screen) cells(c *ui.Context, now time.Time, compact, square bool) {
 	}
 }
 
-// square is the picture of an entry in the Images grid, square before it arrives, with the count of its pictures
+// pictureCell is the picture of an entry in the Images grid, 3:2 and cropped to it, with the count of its pictures
 // when there are several, and the title in one line under it.
-func (s *Screen) square(c *ui.Context, e client.Entry) {
+func (s *Screen) pictureCell(c *ui.Context, e client.Entry) {
 	t := c.Theme()
 	label := title(e)
 	var over func()
@@ -5945,7 +5977,7 @@ func (s *Screen) square(c *ui.Context, e client.Entry) {
 			})
 		}
 	}
-	s.zoom(s.picture(c, firstPicture(e), true, theme.Px(t, tokens.RadiusCard), over), s.index(e.ID), 0).FillWidth().AspectRatio(1).
+	s.zoom(s.picture(c, firstPicture(e), true, theme.Px(t, tokens.RadiusCard), over), s.index(e.ID), 0).FillWidth().AspectRatio(3.0 / 2).
 		Label(label).Role(ui.RoleImage)
 	color, weight := t.Text, 600
 	if e.IsRead {
@@ -5982,7 +6014,7 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 		tops[k] = append(tops[k], heights[k])
 		heights[k] += width/aspect(e) + caption
 	}
-	top := s.top() + t.Space(4)
+	top := s.top() + theme.Px(t, tokens.Space2)
 	if i := s.index(s.pin); s.pin != 0 && !s.toTop && i >= 0 {
 		for k := range cols {
 			if j := slices.Index(cols[k], i); j >= 0 {

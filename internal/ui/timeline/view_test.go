@@ -3808,6 +3808,30 @@ func TestViewerCompactArticle(t *testing.T) {
 	}
 }
 
+// A post card names the author and the account in its meta line, not the source or a reading time.
+func TestSocialCardMeta(t *testing.T) {
+	p := prefs.Default()
+	_, f, tt := viewing(t, &p)
+	pick(t, f, tt, "Social")
+	if !tt.HasText("@gopher") {
+		t.Fatal("the account is not in the meta line")
+	}
+	if tt.HasText("min read") {
+		t.Fatal("a post card shows a reading time")
+	}
+}
+
+// An image entry shows no reading time, and the wall gives a picture of no known size the 3:2 of the design.
+func TestPictureFacts(t *testing.T) {
+	s := &Screen{}
+	if got := s.readLabel(client.Entry{Kind: "image", ReadingSec: 300}); got != "" {
+		t.Fatalf("an image entry reads %q", got)
+	}
+	if got := aspect(client.Entry{Kind: "image"}); got != 1.5 {
+		t.Fatalf("a picture of no known size is %v", got)
+	}
+}
+
 // A compact social post has no pictures of its own in the row beyond a small strip, and is lower than a card.
 func TestViewerCompactSocial(t *testing.T) {
 	p := prefs.Default()
@@ -3852,17 +3876,17 @@ func TestViewerVideoListNoGrid(t *testing.T) {
 	}
 }
 
-// The square grid shows the Images scope as squares, with the count of pictures in the name of a cell.
+// The picture grid shows the Images scope as 3:2 pictures, with the count of pictures in the name of a cell.
 func TestViewerImageGrid(t *testing.T) {
 	p := prefs.Default()
 	p.ImageViewer = prefs.ViewGrid
 	s, f, tt := viewing(t, &p)
 	pick(t, f, tt, "Images")
-	if s.layout() != squareLayout || !s.grids() {
+	if s.layout() != pictureLayout || !s.grids() {
 		t.Fatalf("Images is laid out as %v", s.layout())
 	}
 	r := rowRect(t, tt, "Harbor at dawn, 3 pictures")
-	if r.W < 100 || r.H < r.W-1 || r.H > r.W+1 {
+	if r.W < 100 || r.H < r.W*2/3-1 || r.H > r.W*2/3+1 {
 		t.Fatalf("the cell is %vx%v", r.W, r.H)
 	}
 	// The mixed timeline keeps cards.
@@ -3884,7 +3908,7 @@ func TestViewerImageCard(t *testing.T) {
 	rowRect(t, tt, "Photos, Harbor at dawn, 3 days ago, Unread")
 }
 
-// The keys move through the square grid one picture at a time, and the picture chosen is the one with the focus.
+// The keys move through the picture grid one picture at a time, and the picture chosen is the one with the focus.
 func TestViewerImageGridKeys(t *testing.T) {
 	p := prefs.Default()
 	p.ImageViewer = prefs.ViewGrid
@@ -4000,7 +4024,7 @@ func TestGridSwitchOffered(t *testing.T) {
 }
 
 // The switch turns the Images scope from the wall to the list of cards and back, and keeps the choice in the
-// preferences; a subscription's list becomes the wall, or the square grid when that is the Images viewer.
+// preferences; a subscription's list becomes the wall, or the picture grid when that is the Images viewer.
 func TestGridSwitchImages(t *testing.T) {
 	p := prefs.Default()
 	s, f, tt := viewing(t, &p)
@@ -4028,7 +4052,7 @@ func TestGridSwitchImages(t *testing.T) {
 	}
 	p.ImageViewer = prefs.ViewGrid
 	tt.Frame()
-	if s.layout() != squareLayout {
+	if s.layout() != pictureLayout {
 		t.Fatalf("with the Grid viewer: %v", s.layout())
 	}
 	rowRect(t, tt, "Harbor at dawn, 3 pictures")
@@ -4110,7 +4134,7 @@ func TestGridSwitchSourceKeys(t *testing.T) {
 	}
 	chooseSource(t, s, f, tt, "image", 4)
 	clickSwitch(t, f, tt, "Show as grid")
-	if s.layout() != squareLayout || len(s.entries) < 8 {
+	if s.layout() != pictureLayout || len(s.entries) < 8 {
 		t.Fatalf("layout %v, %d pictures", s.layout(), len(s.entries))
 	}
 	tt.Key(0, ui.KeyJ)
@@ -6043,7 +6067,7 @@ func TestSocialOnePicture(t *testing.T) {
 	entries[2].Images = entries[2].Images[:1]
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New("en", f.deps())
-	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 1400)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
