@@ -278,14 +278,3 @@ func (s *Screen) folderName(id int64) string {
 	}
 	return s.text.NoFolder
 }
-
-// folderField is the folder select of the edit dialog, beside Show as. The dialog leaves it out while there are no
-// folders.
-func (s *Screen) folderField(c *ui.Context) {
-	e := s.form
-	options := []int64{0}
-	for _, f := range s.folders() {
-		options = append(options, f.ID)
-	}
-	s.choiceSelect(c, &e.folder, options, s.text.Folder, s.folderName(e.folder), s.folderName, e.busy, e.folder == 0)
-}

@@ -37,7 +37,7 @@ type copy struct {
 	LabelVideos, LabelDynamic, LabelPosts, LabelActivities, LabelAnswers, LabelColumn, LabelTopic, LabelCollection, LabelQuestion                                                  string
 	LabelChannel, LabelPlaylist                                                                                                                                                    string
 	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, NotChecked, NextIn                                                                             string
-	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, MoreSettings, MoreSettingsSub, Mute, MuteHelp, DeleteTitle, DeleteBody                                                  string
+	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, Mute, MuteHelp, DeleteTitle, DeleteBody                                                                                 string
 	ServedBy, ServedByBackup, ServedByBackupHint, MuteHidden, MuteNone                                                                                                             string
 	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                                                                string
 	Extract, ExtractHelp, ExtractSelector, ExtractSelectorHelp, ExtractSelectorPlaceholder, ExtractSelectorInvalid                                                                 string
@@ -69,6 +69,7 @@ type copy struct {
 	PauseHelp, EveryHelp, ExtractRowHelp, HeadersRowHelp, ProxyRowHelp, Automatic, None, Custom, Prompts, UsingSettings                                 string
 	DeleteSubscription, DeleteSubscriptionHelp, DeleteSource, Saved, SaveTitle, SaveExtract, SaveHeaders, SaveProxy, SaveMute                           string
 	SavePrompts, StatusOk, StatusFailed, StatusGone, StatusGoneSub, StatusPausedSub, StatusUpdated, StripTried, StripTriedOnly, LastSuccess             string
+	FailedRow, OpenInSettings                                                                                                                           string
 	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed string
 	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, Apply, DeleteManyTitle, DeleteManyBody                          string
 }
@@ -147,7 +148,7 @@ type Deps struct {
 	OpenSettings func()
 	// OpenRSSHub opens the settings on the group of the RSSHub instances.
 	OpenRSSHub func()
-	// OpenSettingsPage opens the settings on the group called page, as More settings does on "subscriptions".
+	// OpenSettingsPage opens the settings on the group called page, as Open in Settings does on "subscriptions".
 	OpenSettingsPage func(page string)
 	// Folders are the folders the timeline has; Refiled tells it to load them and the subscriptions again.
 	Folders func() []client.Folder
@@ -258,7 +259,7 @@ type editing struct {
 	aiOff     bool      // the settings have no AI endpoint, so the switches do nothing yet
 	primary   string    // the first RSSHub instance of the settings, "" until they are loaded
 	formErr   string
-	more      bool   // More settings was pressed: once saved, the dialog leads to the subscription's page
+	more      bool   // Open in Settings was pressed: once saved, the dialog leads to the subscription's page
 	movedErr  string // why the move could not be taken, shown in the moved card
 	busy      bool
 	focus     bool
@@ -745,6 +746,9 @@ func (s *Screen) save() {
 	if hide := e.hide; hide != e.src.HideFromAll {
 		patch.HideFromAll, changed = &hide, true
 	}
+	if dailyCap := int(e.dailyCap); dailyCap != e.src.DailyCap {
+		patch.DailyCap, changed = &dailyCap, true
+	}
 	if !changed {
 		e.open = false
 		s.afterEdit(e.src)
@@ -776,7 +780,7 @@ func (s *Screen) save() {
 	})
 }
 
-// openMore is the More settings row of the edit dialog: it saves what changed, then, unless the server refused it,
+// openMore is the Open in Settings button of the edit dialog: it saves what changed, then, unless the server refused it,
 // closes the dialog and opens Settings → Subscriptions on the subscription's page.
 func (s *Screen) openMore() {
 	if s.edit.busy {
@@ -786,7 +790,7 @@ func (s *Screen) openMore() {
 	s.save()
 }
 
-// afterEdit follows a closed edit dialog of src to its page when More settings closed it.
+// afterEdit follows a closed edit dialog of src to its page when Open in Settings closed it.
 func (s *Screen) afterEdit(src client.Source) {
 	if !s.edit.more {
 		return
@@ -2243,7 +2247,11 @@ func (s *Screen) selectTrigger(c *ui.Context, value *int64, options []int64, lab
 	})
 }
 
+// editDialog is the edit dialog of design BDialogEdit: the subscription's name and address, how its fetching goes,
+// a card with its name, kind and folder, the Fetching card with its daily cap and pause, and Open in Settings for
+// the rest of its settings.
 func (s *Screen) editDialog(c *ui.Context) {
+	t := c.Theme()
 	e := &s.edit
 	s.form = e
 	where := e.src.URL
@@ -2251,33 +2259,39 @@ func (s *Screen) editDialog(c *ui.Context) {
 		where = e.src.RSSHubPath
 	}
 	s.dialog(c, &e.open, &e.form, tokens.DialogWide, s.text.EditTitle, func() {
-		s.header(c, head{open: &e.open, lead: func() { s.glyph(c, kinds[e.kind], e.src) }, title: s.text.EditTitle, sub: where, mono: true})
+		s.header(c, head{open: &e.open, lead: func() { s.glyph(c, kinds[e.kind], e.src) }, title: Name(e.src), sub: where, mono: true})
 	}, func() {
 		s.health(c)
 		s.servedBy(c)
 		s.movedCard(c)
 		focus := e.focus
 		e.focus = false
-		ui.Column(c).FillWidth().Gap(theme.Px(c.Theme(), tokens.Space1)).Children(func() {
-			s.titleField(c, &e.title, e.busy, focus, s.save)
-		})
-		if len(s.folders()) == 0 {
-			ui.Column(c).FillWidth().Gap(theme.Px(c.Theme(), tokens.Space1)).Children(func() { s.kindSelect(c) })
-		} else {
-			s.pair(c, func() { s.kindSelect(c) }, func() { s.folderField(c) })
-		}
+		pageCard(c, func() { s.nameRow(c, focus) }, func() { s.selectRow(c, bare(s.kindRow)) }, when(len(s.folders()) > 0, func() {
+			s.selectRow(c, bare(s.folderRow))
+		}))
 		s.kindSuggestion(c)
-		s.editSwitches(c)
-		s.moreRow(c)
+		ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Children(func() {
+			ui.Text(c, s.text.PageFetching).FontSize(theme.Px(t, tokens.TextLabel.Size.En)).FontWeight(tokens.TextLabel.Weight).
+				TextColor(theme.Text2(t)).Margin(0, 0, 0, theme.Px(t, tokens.Space1)).Role(ui.RoleHeading).Level(3)
+			pageCard(c, func() { s.selectRow(c, bare(s.capRow)) }, func() {
+				s.pageSwitch(c, "pause", &e.paused, s.text.PauseLabel, "")
+			})
+		})
 		if e.formErr != "" {
 			errorLine(c, e.formErr, "")
 		}
 	}, func() {
-		remove := theme.Button{Style: theme.Danger, Disabled: e.busy, Icon: icons.Trash2, Text: s.text.Delete}.Draw(c)
+		remove := theme.Button{Style: theme.Danger, Disabled: e.busy, Text: s.text.Unsubscribe, Label: s.fill(s.text.DeleteSource, Name(e.src))}.Draw(c)
 		if remove.Clicked() {
 			s.AskDelete(e.src)
 		}
 		ui.Box(c).Grow(1)
+		more, color := theme.ToolButton(c, theme.ToolState{Disabled: e.busy})
+		more.Key("more").Label(s.text.OpenInSettings).Tooltip(s.text.OpenInSettings)
+		more.Children(func() { ui.Icon(c, icons.Settings).FontSize(theme.IconMedium(t)).TextColor(color) })
+		if more.Clicked() {
+			s.openMore()
+		}
 		cancel := theme.Button{Style: theme.Secondary, Text: s.text.Cancel}.Draw(c)
 		if cancel.Clicked() {
 			e.open = false
@@ -2293,55 +2307,33 @@ func (s *Screen) editDialog(c *ui.Context) {
 	})
 }
 
-// kindSelect is the Show as select of the edit dialog, with the icon of the kind chosen.
-func (s *Screen) kindSelect(c *ui.Context) {
-	e := s.form
-	value := int64(e.kind)
-	options := make([]int64, len(kinds))
-	for i := range kinds {
-		options[i] = int64(i)
+// bare is the select row of, without its help: the rows of the edit dialog have none.
+func bare(of func() pick) func() pick {
+	return func() pick {
+		p := of()
+		p.help = ""
+		return p
 	}
-	label(c, s.text.ShowAs)
-	s.selectTrigger(c, &value, options, s.text.ShowAs, s.kindName(kinds[e.kind]), func(i int64) string { return s.kindName(kinds[i]) },
-		kindIcon(kinds[e.kind]), e.busy, false)
-	e.kind = int(value)
 }
 
-// editSwitches are the Pause fetching and Hide from All switches of the edit dialog, between two hairlines.
-func (s *Screen) editSwitches(c *ui.Context) {
+// nameRow is the Name row of the edit dialog: its box at the right, as wide as the selects under it. Return saves.
+func (s *Screen) nameRow(c *ui.Context, focus bool) {
 	t := c.Theme()
 	e := s.form
-	ui.Column(c).FillWidth().Children(func() {
-		ui.Box(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).Background(t.Border)
-		ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space3+tokens.Space0_5)).PaddingY(theme.Px(t, tokens.Space3)).Children(func() {
-			s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, "")
-			s.switchRow(c, "hide", &e.hide, s.text.HideLabel, s.text.HideHelp)
+	s.row(c, s.text.Title, "", func() {
+		ui.Box(c).Width(theme.Px(t, tokens.MenuMin+tokens.Space12)).Shrink(0).Children(func() {
+			box(c, "title", nil, false, func() {
+				in := ui.TextInputBase(c, &e.title).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.Title).
+					Placeholder(Name(e.src)).Description(s.text.TitleHelp).Disabled(e.busy)
+				if focus {
+					in.Focus()
+				}
+				if in.Submitted() {
+					s.save()
+				}
+			}).FillWidth()
 		})
-		ui.Box(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).Background(t.Border)
 	})
-}
-
-// moreRow leads from the edit dialog to the subscription's page, where the rest of its settings are.
-func (s *Screen) moreRow(c *ui.Context) {
-	t := c.Theme()
-	row := ui.ButtonBase(c).Key("more").FillWidth().MinHeight(theme.Px(t, tokens.Space12)).AlignItems(ui.Center).
-		Gap(theme.Px(t, tokens.Space3)).Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).
-		Radius(theme.Px(t, tokens.RadiusControl)).Background(theme.Surface(t)).Label(s.text.MoreSettings).
-		Description(s.text.MoreSettingsSub).Disabled(s.form.busy)
-	if row.Hovered() || row.Pressed() {
-		row.Background(t.SurfaceHover)
-	}
-	row.Children(func() {
-		ui.Icon(c, icons.SlidersHorizontal).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
-		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
-			label(c, s.text.MoreSettings)
-			ui.Text(c, s.text.MoreSettingsSub).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).SingleLine()
-		})
-		ui.Icon(c, icons.ChevronRight).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-	})
-	if row.Clicked() {
-		s.openMore()
-	}
 }
 
 // healthText says how the fetching of src goes, and whether it is failing.
@@ -2421,50 +2413,34 @@ func (s *Screen) movedCard(c *ui.Context) {
 	})
 }
 
+// health is how the fetching of the subscription goes, as design BDialogEdit has it: a failing or removed one gets a
+// banner in its meaning color with Try again; a healthy or paused one a quiet line.
 func (s *Screen) health(c *ui.Context) {
 	t := c.Theme()
 	src := s.form.src
-	text, bad := s.healthText(src, s.deps.Now())
-	icon, tone := icons.CircleCheckBig, t.Success
-	switch {
-	case src.Paused:
-		icon, tone = icons.Pause, theme.Text2(t)
-	case bad:
-		icon, tone = icons.CircleAlert, t.Warning
-	}
-	b := theme.Banner{Icon: icon, Tone: tone, Title: text, Actions: func() {
-		if src.Paused {
-			return
+	h := healthOf(src)
+	tag, sub, _, _ := s.statusLine(t, src)
+	if h == healthFailing || h == healthGone {
+		icon, tone, title := icons.TriangleAlert, t.Warning, s.count(s.text.FailedRow, max(1, src.ConsecutiveFailures))
+		if h == healthGone {
+			icon, tone, title = icons.CircleAlert, t.Danger, tag
 		}
-		refresh := theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.refreshText(src)}.Draw(c)
-		if refresh.Clicked() {
-			s.Refresh(src)
-		}
-	}}.Draw(c)
-	b.Label(text)
-	if bad && src.LastError != "" {
-		b.Tooltip(FailureDetail(s.lang, src, text)).Description(src.LastError)
-	}
-}
-
-// switchRow is a row of design CSettingRow with a switch: the name in body over its help in meta muted, which turn
-// it too, and the switch at the end; help may be empty.
-func (s *Screen) switchRow(c *ui.Context, key string, value *bool, text, helpText string) {
-	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
-		column := ui.Column(c).Key(key).Grow(1).MinWidth(0).Children(func() {
-			ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(tokens.TextMetaStrong.Weight)
-			if helpText != "" {
-				help(c, helpText)
+		b := theme.Banner{Icon: icon, Tone: tone, Title: title, Text: sub, Actions: func() {
+			retry := theme.Button{Small: true, Text: s.text.Retry}.Draw(c)
+			if retry.Clicked() {
+				s.Refresh(src)
 			}
-		})
-		if column.Clicked() && !s.form.busy {
-			*value = !*value
-		}
-		sw := ui.Switch(c, value).Label(text).Disabled(s.form.busy)
-		if helpText != "" {
-			sw.Description(helpText)
-		}
+		}}.Draw(c)
+		b.Role(ui.RoleStatus).Label(title + s.text.Separator + sub).Tooltip(FailureDetail(s.lang, src, sub)).Description(src.LastError)
+		return
+	}
+	icon, ink := icons.CircleCheckBig, t.Success
+	if h == healthPaused {
+		icon, ink, sub = icons.Pause, theme.Text2(t), s.text.PausedMark+s.text.Separator+sub
+	}
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Role(ui.RoleStatus).Label(sub).Children(func() {
+		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(ink)
+		ui.Text(c, sub).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Shrink(1).SingleLine()
 	})
 }
 

@@ -2697,10 +2697,10 @@ func TestSubscriptions(t *testing.T) {
 	if err := tt.Click("Edit subscription"); err != nil {
 		t.Fatal(err)
 	}
-	if !s.subs.Open() || !tt.HasText("Paused. Nothing is fetched until you resume.") {
+	if !s.subs.Open() || !tt.HasText("Paused · Not fetched until you resume") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
-	if err := tt.Click("Delete…"); err != nil {
+	if err := tt.Click("Unsubscribe…"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("Delete"); err != nil {

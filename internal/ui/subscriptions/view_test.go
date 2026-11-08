@@ -13,6 +13,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
@@ -829,7 +830,7 @@ func TestEdit(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	s.Edit(f.sources[0])
 	tt.Frame()
-	for _, text := range []string{"Edit subscription", "https://go.dev/blog/feed.atom", "Checked 3 min ago · next in 12 min"} {
+	for _, text := range []string{"Edit subscription", "Go Blog", "https://go.dev/blog/feed.atom", "Updated 3 min ago"} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
@@ -847,9 +848,8 @@ func TestEdit(t *testing.T) {
 	s.Edit(f.sources[0])
 	tt.Frame()
 	tt.Type(" weekly")
-	if err := tt.Click("Pause fetching"); err != nil {
-		t.Fatal(err)
-	}
+	s.edit.paused = true // as the switch does
+	tt.Frame()
 	if err := tt.Click("Save"); err != nil {
 		t.Fatal(err)
 	}
@@ -865,16 +865,18 @@ func TestEdit(t *testing.T) {
 	}
 }
 
-// TestEditDialogLayout is the edit dialog of docs/design.md: the title, Show as (beside Folder when there are
-// folders), the two switches and More settings, and none of what lives only on the page.
+// TestEditDialogLayout is the edit dialog of design BDialogEdit: the subscription's name over its address, the quiet
+// line of a healthy one, the card with Name and Show as (and Folder when there are folders), the Fetching card with
+// the daily cap and Pause fetching, then Unsubscribe…, Cancel and Save; none of what lives only on the page.
 func TestEditDialogLayout(t *testing.T) {
 	for _, lang := range []string{"en", "zh-Hans"} {
 		s, f, tt := setup(t, lang)
 		s.Edit(f.sources[0])
 		tt.Frame()
 		f.settle(tt)
-		want := []string{s.text.Title, s.text.ShowAs, s.text.PauseLabel, s.text.HideLabel, s.text.HideHelp,
-			s.text.MoreSettings, s.text.MoreSettingsSub, s.text.Delete, s.text.Cancel, s.text.Save}
+		updated := strings.ReplaceAll(s.text.StatusUpdated, "{t}", locale.Ago(s.lang, now, time.UnixMilli(f.sources[0].LastFetchedAt)))
+		want := []string{"Go Blog", f.sources[0].URL, updated, s.text.Title, s.text.ShowAs, s.text.PageFetching, s.text.Cap,
+			s.text.PauseLabel, s.text.Unsubscribe, s.text.Cancel, s.text.Save}
 		at := 0
 		for _, text := range tt.Texts() {
 			if at < len(want) && text == want[at] {
@@ -884,21 +886,91 @@ func TestEditDialogLayout(t *testing.T) {
 		if at < len(want) {
 			t.Fatalf("%s: order stopped at %q in %v", lang, want[at], tt.Texts())
 		}
-		for _, gone := range []string{s.text.Folder, s.text.PauseHelp, s.text.Every, s.text.Extract, s.text.Proxy, s.text.Keep,
-			s.text.Pace, s.text.Cap, s.text.Mute, s.text.OpenTarget, s.text.AIGroup, s.text.FolderHelp} {
+		for _, gone := range []string{s.text.Folder, s.text.PauseHelp, s.text.HideLabel, s.text.Every, s.text.Extract, s.text.Proxy,
+			s.text.Keep, s.text.Pace, s.text.Mute, s.text.OpenTarget, s.text.AIGroup, s.text.FolderHelp, s.text.Retry} {
 			if slices.Contains(tt.Texts(), gone) {
 				t.Fatalf("%s: the dialog shows %q: %v", lang, gone, tt.Texts())
 			}
 		}
+		if _, ok := tt.Find(s.text.OpenInSettings); !ok {
+			t.Fatalf("%s: no %q", lang, s.text.OpenInSettings)
+		}
+		f.folders = []client.Folder{{ID: 7, Name: "Tech"}}
+		tt.Frame()
+		f.settle(tt)
+		if !slices.Contains(tt.Texts(), s.text.Folder) {
+			t.Fatalf("%s: no Folder with folders: %v", lang, tt.Texts())
+		}
 	}
 }
 
-// More settings with nothing changed closes the dialog and opens the subscription's page in Settings, sending nothing.
+// TestEditDialogHealth is the head of the edit dialog for each state: a failing subscription's warning banner, how
+// many times in a row and why, with Try again, which fetches it; a removed one's banner; a paused one's quiet line.
+func TestEditDialogHealth(t *testing.T) {
+	for _, lang := range []string{"en", "zh-Hans"} {
+		s, f, tt := setup(t, lang)
+		src := &f.sources[0]
+		src.LastError, src.ConsecutiveFailures = "status 503", 5
+		src.LastFetchedAt = now.Add(-3 * time.Minute).UnixMilli()
+		s.Edit(*src)
+		tt.Frame()
+		ago := locale.Ago(s.lang, now, now.Add(-3*time.Minute))
+		why := FailureReason(s.lang, *src, s.text.Blocked, s.text.BlockedPublic, s.text.FeedRemoved)
+		for _, text := range []string{s.count(s.text.FailedRow, 5), why + s.text.Separator + ago, s.text.Retry} {
+			if !slices.Contains(tt.Texts(), text) {
+				t.Fatalf("%s: no %q in %v", lang, text, tt.Texts())
+			}
+		}
+		mustClick(t, tt, s.text.Retry)
+		f.settle(tt)
+		if !slices.Equal(f.fetched, []int64{src.ID}) {
+			t.Fatalf("%s: fetched %v", lang, f.fetched)
+		}
+
+		gone := *src
+		gone.LastErrorKind = "gone"
+		s.edit.open = false
+		tt.Frame()
+		s.Edit(gone)
+		tt.Frame()
+		if !slices.Contains(tt.Texts(), s.text.StatusGone) || !slices.Contains(tt.Texts(), s.text.StatusGoneSub+s.text.Separator+ago) {
+			t.Fatalf("%s: no removed banner in %v", lang, tt.Texts())
+		}
+
+		paused := *src
+		paused.LastError, paused.LastErrorKind, paused.Paused = "", "", true
+		s.edit.open = false
+		tt.Frame()
+		s.Edit(paused)
+		tt.Frame()
+		if !slices.Contains(tt.Texts(), s.text.PausedMark+s.text.Separator+s.text.StatusPausedSub) || slices.Contains(tt.Texts(), s.text.Retry) {
+			t.Fatalf("%s: no paused line in %v", lang, tt.Texts())
+		}
+	}
+}
+
+// TestEditDailyCap sends the daily cap chosen in the dialog with Save, alone.
+func TestEditDailyCap(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.Edit(f.sources[0])
+	tt.Frame()
+	mustClick(t, tt, s.capName(int64(f.sources[0].DailyCap)))
+	mustClick(t, tt, s.capName(caps[1]))
+	mustClick(t, tt, s.text.Save)
+	f.settle(tt)
+	p := f.patches[1]
+	if len(p) != 1 || p[0].DailyCap == nil || int64(*p[0].DailyCap) != caps[1] || p[0].Title != nil || p[0].Paused != nil {
+		t.Fatalf("patches %+v", p)
+	}
+}
+
+// Open in Settings with nothing changed closes the dialog and opens the subscription's page in Settings, sending
+// nothing.
 func TestEditMoreSettings(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	s.Edit(f.sources[0])
 	tt.Frame()
-	if err := tt.Click(s.text.MoreSettings); err != nil {
+	if err := tt.Click(s.text.OpenInSettings); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -910,13 +982,13 @@ func TestEditMoreSettings(t *testing.T) {
 	}
 }
 
-// More settings with changes saves them first, as Save does, then opens the page of what the server answered.
+// Open in Settings with changes saves them first, as Save does, then opens the page of what the server answered.
 func TestEditMoreSettingsSavesFirst(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	s.Edit(f.sources[0])
 	tt.Frame()
 	tt.Type(" weekly")
-	if err := tt.Click(s.text.MoreSettings); err != nil {
+	if err := tt.Click(s.text.OpenInSettings); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.pages) != 0 || !s.Open() {
@@ -939,7 +1011,7 @@ func TestEditMoreSettingsRefused(t *testing.T) {
 	tt.Frame()
 	tt.Type(" weekly")
 	f.updateErr = fmt.Errorf("put: %w", client.ErrUnreachable)
-	if err := tt.Click(s.text.MoreSettings); err != nil {
+	if err := tt.Click(s.text.OpenInSettings); err != nil {
 		t.Fatal(err)
 	}
 	f.settle(tt)
@@ -1294,7 +1366,8 @@ func TestTryAgain(t *testing.T) {
 	tt.Key(0, ui.KeyEscape)
 	s.Edit(f.sources[0])
 	tt.Frame()
-	if _, ok := tt.Find("Refresh"); !ok || tt.HasText("Try again") {
+	// A healthy one has only its quiet line, with no button, as in design BDialogEdit.
+	if _, ok := tt.Find("Refresh"); ok || tt.HasText("Try again") || !tt.HasText("Updated 3 min ago") {
 		t.Fatalf("a healthy subscription reads %v", tt.Texts())
 	}
 }
@@ -1327,7 +1400,7 @@ func TestChinese(t *testing.T) {
 	s.add.open = false
 	s.Edit(f.sources[0])
 	tt.Frame()
-	if !tt.HasText(s.text.EditTitle) || !tt.HasText("3 分钟前检查过 · 12 分钟后再查") {
+	if !tt.HasText(s.text.EditTitle) || !tt.HasText("3 分钟前更新") || !tt.HasText("在设置中打开") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 }
