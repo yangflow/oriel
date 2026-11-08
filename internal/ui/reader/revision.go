@@ -9,6 +9,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // What changed when an article was updated, see docs/product/data.md "条目的修订" and docs/product/screens.md "阅读器": a notice under the title says
@@ -144,11 +145,11 @@ func (s *Screen) revisedLine(c *ui.Context, e client.Entry) {
 // words and with − or +, so that color is not all that tells them apart.
 func (s *Screen) changeList(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Margin(theme.Px(t, 8), 0, 0, 0).Role(ui.RoleList).Label(s.text.Changes).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Margin(theme.Px(t, tokens.Space2), 0, 0, 0).Role(ui.RoleList).Label(s.text.Changes).Children(func() {
 		for i, ch := range s.rev.changes {
 			if ch.kind == kept {
 				label := locale.Count(s.text.Unchanged, "n", ch.n)
-				ui.Text(c, label).Key(i).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Margin(theme.Px(t, 2), 0, theme.Px(t, 2), theme.Px(t, 14)).
+				ui.Text(c, label).Key(i).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Margin(theme.Px(t, tokens.Space0_5), 0, theme.Px(t, tokens.Space0_5), theme.Px(t, tokens.IconS)).
 					Role(ui.RoleListItem)
 				continue
 			}
@@ -159,12 +160,12 @@ func (s *Screen) changeList(c *ui.Context) {
 			if ch.title {
 				word += " · " + s.text.TitleLabel
 			}
-			ui.Row(c).Key(i).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Padding(theme.Px(t, 8), theme.Px(t, 12)).Radius(theme.Px(t, 10)).
+			ui.Row(c).Key(i).FillWidth().AlignItems(ui.Start).Gap(t.Space(2)).Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusCard)).
 				Background(theme.Soft(t, color)).Role(ui.RoleListItem).Label(word + ": " + ch.text).Children(func() {
-				ui.Text(c, sign).FontSize(theme.Px(t, 13)).FontWeight(600).TextColor(color).NoWrap().Width(theme.Px(t, 12))
-				ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Px(t, 2)).Children(func() {
-					ui.Text(c, word).FontSize(theme.Px(t, 11)).FontWeight(600).TextColor(color).NoWrap()
-					ui.Text(c, ch.text).FontSize(theme.Px(t, 13)).TextColor(t.Text).Wrap()
+				ui.Text(c, sign).FontSize(theme.Px(t, tokens.TextBody.Size.En)).FontWeight(600).TextColor(color).NoWrap().Width(theme.Px(t, tokens.Space3))
+				ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
+					ui.Text(c, word).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(600).TextColor(color).NoWrap()
+					ui.Text(c, ch.text).FontSize(theme.Px(t, tokens.TextBody.Size.En)).TextColor(t.Text).Wrap()
 				})
 			})
 		}
