@@ -2,8 +2,13 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +23,7 @@ type cachedImages struct {
 }
 
 func (c cachedImages) CacheStats() (int, int64) { return c.count, c.bytes }
+func (c cachedImages) ClearCache()              {}
 
 func TestActivityRoute(t *testing.T) {
 	s, c := newServer(t, "secret")
@@ -123,6 +129,66 @@ func TestStorageRouteAndVacuum(t *testing.T) {
 	w = do(s, "POST", "/api/storage/vacuum", "", bearer(token))
 	if w.Code != http.StatusConflict || decode(t, w)["error"] != "vacuum_running" {
 		t.Fatalf("while running: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestClearImageCache(t *testing.T) {
+	ctx := context.Background()
+	s, c := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	if w := do(s, "DELETE", "/api/storage/image-cache", "", nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("without session: %d", w.Code)
+	}
+	if w := do(s, "DELETE", "/api/storage/image-cache", "", bearer(token)); w.Code != http.StatusNoContent {
+		t.Fatalf("without a cache: %d", w.Code)
+	}
+
+	// A starred entry with a copy of its picture, and one picture in the cache.
+	src, err := s.store.CreateSource(ctx, store.NewSource{URL: "https://example.org/s", Kind: "social", FetchInterval: time.Hour}, "", c.t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.store.SaveFeed(ctx, store.FeedSource{ID: src.ID, Kind: "social"}, "", "", []store.FeedEntry{{GUID: "1", Title: "post"}}, "", time.Time{}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.store.Entries(ctx, store.EntryFilter{}, 10)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("entries %v, %v", list, err)
+	}
+	star := true
+	if _, err := s.store.UpdateEntry(ctx, list[0].ID, store.EntryPatch{Starred: &star}, c.t); err != nil {
+		t.Fatal(err)
+	}
+	address := "https://gone.example/a.png"
+	if err := s.store.SaveImageCopy(ctx, list[0].ID, address, "image/png", []byte("COPY"), c.t); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(t.TempDir(), "image-cache")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cached := fmt.Sprintf("image/png\n%d\nPNG", c.t.UnixNano())
+	if err := os.WriteFile(filepath.Join(dir, strings.Repeat("a", 64)), []byte(cached), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.images = fetch.NewImages("test", dir)
+	if body := decode(t, do(s, "GET", "/api/storage", "", bearer(token))); body["images"] != 1.0 || body["imageBytes"] != float64(len(cached)) {
+		t.Fatalf("before clearing: %v", body)
+	}
+
+	if w := do(s, "DELETE", "/api/storage/image-cache", "", bearer(token)); w.Code != http.StatusNoContent {
+		t.Fatalf("clear: %d %s", w.Code, w.Body)
+	}
+	body := decode(t, do(s, "GET", "/api/storage", "", bearer(token)))
+	if body["images"] != 0.0 || body["imageBytes"] != 0.0 || body["copies"] != 1.0 || body["copyBytes"] != 4.0 {
+		t.Fatalf("after clearing: %v", body)
+	}
+	if left, err := os.ReadDir(dir); err != nil || len(left) != 0 {
+		t.Errorf("files left: %v, %v", left, err)
+	}
+	w := do(s, "GET", "/api/image?url="+url.QueryEscape(address), "", bearer(token))
+	if w.Code != http.StatusOK || w.Body.String() != "COPY" {
+		t.Errorf("starred copy after clearing = %d %q", w.Code, w.Body.String())
 	}
 }
 

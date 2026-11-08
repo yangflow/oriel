@@ -935,6 +935,11 @@ func (s Session) DeletePreMigrate(ctx context.Context) error {
 	return s.call(ctx, http.MethodDelete, "/api/storage/premigrate", nil, nil)
 }
 
+// ClearImageCache deletes every picture in the server's image cache. Starred copies stay.
+func (s Session) ClearImageCache(ctx context.Context) error {
+	return s.call(ctx, http.MethodDelete, "/api/storage/image-cache", nil, nil)
+}
+
 // Storage asks the server how big its database and image cache are.
 func (s Session) Storage(ctx context.Context) (Storage, error) {
 	var storage Storage

@@ -124,6 +124,18 @@ func (c *imageCache) remove(key string) bool {
 	return true
 }
 
+// clear deletes every stored picture. A file that cannot be deleted stays in the index, as with remove, and goes
+// on a later clear or eviction. A put already under way still stores its picture once the download ends; temp
+// files are left alone so that its rename does not fail.
+func (c *imageCache) clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.scan()
+	for key := range c.entries {
+		c.remove(key)
+	}
+}
+
 // disk runs the test hook, if any, just before a piece of disk work that must happen outside mu.
 func (c *imageCache) disk(op string) {
 	if c.beforeDisk != nil {

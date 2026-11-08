@@ -70,6 +70,8 @@ type fake struct {
 	vacuums     int // how many times a compaction was started
 	dropped     int // how many times the copy before the update was deleted
 	dropErr     error
+	cleared     int // how many times the image cache was cleared
+	clearErr    error
 
 	model string        // the model that answers a test
 	check client.AITest // what else the test finds; its Model is model

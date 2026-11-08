@@ -131,10 +131,7 @@ func (s *Screen) storageCard(c *ui.Context) {
 	rows := []cardRow{
 		{key: "db", draw: func() { s.keyValue(c, icons.Database, s.text.DBSize, s.bytes(st.DatabaseBytes)) }},
 		{key: "entries", draw: func() { s.keyValue(c, icons.Inbox, s.text.Entries, strconv.FormatInt(st.Entries, 10)) }},
-		{key: "images", draw: func() {
-			s.keyValue(c, icons.Image, s.text.Images,
-				s.fill(locale.Count(s.text.ImagesValue, "n", st.Images), "{size}", s.bytes(st.ImageBytes)))
-		}},
+		{key: "images", draw: func() { s.imageCacheRow(c) }},
 		{key: "copies", draw: func() {
 			s.keyValue(c, icons.Layers, s.text.Copies,
 				s.fill(locale.Count(s.text.CopiesValue, "n", st.Copies), "{size}", s.bytes(st.CopyBytes)))
@@ -160,6 +157,50 @@ func (s *Screen) storageCard(c *ui.Context) {
 		statusLine(c, s.vacuumStatus())
 	}})
 	cardOf(c, rows)
+}
+
+// imageCacheRow shows how many pictures the server's image cache holds and the button that clears it. Clearing asks
+// nothing: the cache refills on demand and the starred copies are not in it.
+func (s *Screen) imageCacheRow(c *ui.Context) {
+	st := s.storage
+	value := s.fill(locale.Count(s.text.ImagesValue, "n", st.Images), "{size}", s.bytes(st.ImageBytes))
+	setting(c, icons.Image, false, s.text.Images, func() { meta(c, value).FontFeatures("tnum") }, func() {
+		empty := st.Images == 0 && st.ImageBytes == 0
+		clear := theme.Button{Small: true, Disabled: s.clearing || empty, Busy: s.clearing, Text: s.text.ClearImages,
+			Label: s.text.ClearImagesLabel}.Draw(c)
+		if clear.Clicked() {
+			s.clearImageCache()
+		}
+	})
+}
+
+// clearImageCache has the server delete its cached pictures, then reads the storage again.
+func (s *Screen) clearImageCache() {
+	if s.api == nil || s.clearing {
+		return
+	}
+	s.clearing = true
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		err := api.ClearImageCache(context.Background())
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			s.clearing = false
+			if s.expired(err) {
+				return
+			}
+			if err != nil {
+				s.toast = s.text.ClearImagesFailed
+				return
+			}
+			s.storage.Images, s.storage.ImageBytes = 0, 0
+			s.actLoads++ // a read that began before the clear would bring the old figures back
+			s.actBusy, s.actAt = false, time.Time{}
+			s.toast = s.text.ImagesCleared
+		}
+	})
 }
 
 // preMigrateRow shows the copy of the database made before the last update with its size and the version it was made

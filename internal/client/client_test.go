@@ -445,7 +445,7 @@ func TestActivityAndStorageAPI(t *testing.T) {
 			}
 			w.WriteHeader(http.StatusAccepted)
 			w.Write([]byte(`{"vacuum":{"state":"running","startedAt":7}}`))
-		case "DELETE /api/storage/premigrate":
+		case "DELETE /api/storage/premigrate", "DELETE /api/storage/image-cache":
 			w.WriteHeader(http.StatusNoContent)
 		}
 	}))
@@ -480,8 +480,11 @@ func TestActivityAndStorageAPI(t *testing.T) {
 	if err := session.DeletePreMigrate(ctx); err != nil {
 		t.Errorf("DeletePreMigrate: %v", err)
 	}
+	if err := session.ClearImageCache(ctx); err != nil {
+		t.Errorf("ClearImageCache: %v", err)
+	}
 	want := []string{"GET /api/activity Bearer tok", "GET /api/storage Bearer tok", "POST /api/storage/vacuum Bearer tok", "POST /api/storage/vacuum Bearer tok",
-		"DELETE /api/storage/premigrate Bearer tok"}
+		"DELETE /api/storage/premigrate Bearer tok", "DELETE /api/storage/image-cache Bearer tok"}
 	if strings.Join(seen, "\n") != strings.Join(want, "\n") {
 		t.Errorf("requests:\n%s", strings.Join(seen, "\n"))
 	}
