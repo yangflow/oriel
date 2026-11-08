@@ -8,6 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
@@ -718,7 +719,7 @@ func TestListLabelsAndAnnouncements(t *testing.T) {
 	f.sources[2].LastError, f.sources[2].ConsecutiveFailures = "status 503", 3
 	f.sources[3].HideFromAll = true
 	tt.Frame()
-	if !tt.HasText(s.failingOf(f.sources[2])) || !strings.HasPrefix(s.failingOf(f.sources[2]), "Failed 3 times · ") {
+	if !slices.Contains(tt.Texts(), "Failed 3 times") || !strings.HasPrefix(s.failingOf(f.sources[2]), "Failed 3 times · ") {
 		t.Fatalf("failing line %q in %v", s.failingOf(f.sources[2]), tt.Texts())
 	}
 	choose(t, tt, "Alpha")
@@ -948,6 +949,48 @@ func TestListRunCancelledByUse(t *testing.T) {
 	for i, ctx := range f.updateCtx {
 		if ctx.Err() == nil {
 			t.Fatalf("request %d of the run was not cancelled", i)
+		}
+	}
+}
+
+// TestListStatusColumn is the status column of each row, in Chinese: a healthy subscription's Healthy with when it was
+// updated, the pills of a failing, a removed and a paused one, and their lines.
+func TestListStatusColumn(t *testing.T) {
+	s, f, tt := listing6(t, "zh-Hans")
+	f.sources[0].LastFetchedAt = now.Add(-3 * time.Minute).UnixMilli()
+	f.sources[1].Paused = true
+	f.sources[2].LastError, f.sources[2].ConsecutiveFailures = "status 503", 3
+	f.sources[2].LastFetchedAt = now.Add(-3 * time.Minute).UnixMilli()
+	f.sources[3].LastError, f.sources[3].LastErrorKind = "status 410", "gone"
+	tt.Frame()
+	ago := locale.Ago(s.lang, now, now.Add(-3*time.Minute))
+	for _, text := range []string{"正常", strings.ReplaceAll(s.text.StatusUpdated, "{t}", ago), "已暂停", "恢复之前不抓取",
+		"失败 3 次", "已移除", "共 6 个订阅"} {
+		if !slices.Contains(tt.Texts(), text) {
+			t.Fatalf("no %q in %v", text, tt.Texts())
+		}
+	}
+	why := FailureReason(s.lang, f.sources[2], s.text.Blocked, s.text.BlockedPublic, s.text.FeedRemoved)
+	if !slices.Contains(tt.Texts(), why+s.text.Separator+ago) || !tt.HasText(s.text.StatusGoneSub) {
+		t.Fatalf("no failure lines in %v", tt.Texts())
+	}
+	if healthOf(f.sources[4]) != healthOk || healthOf(f.sources[1]) != healthPaused || healthOf(f.sources[2]) != healthFailing ||
+		healthOf(f.sources[3]) != healthGone {
+		t.Fatal("health of the rows")
+	}
+	if !slices.Contains(tt.Texts(), s.text.NotChecked) {
+		t.Fatalf("an unchecked subscription has no line in %v", tt.Texts())
+	}
+}
+
+// TestListSelectionToolbar is the bar of a selection, in Chinese: how many are chosen, Change…, Pause, Refresh and
+// Delete…, then the x that clears the selection.
+func TestListSelectionToolbar(t *testing.T) {
+	_, _, tt := listing6(t, "zh-Hans")
+	choose(t, tt, "Alpha", "Bravo")
+	for _, text := range []string{"已选 2 个", "修改…", "暂停", "更新", "删除…"} {
+		if !slices.Contains(tt.Texts(), text) {
+			t.Fatalf("no %q in %v", text, tt.Texts())
 		}
 	}
 }

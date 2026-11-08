@@ -85,13 +85,13 @@ func TestSubscriptionsGroupMissing(t *testing.T) {
 	}
 }
 
-// TestSubscriptionsCrumb is a subscription's page: its name after "‹ Subscriptions /", which goes back to the list,
+// TestSubscriptionsCrumb is a subscription's page: its name under a "‹ Subscriptions" link back to the list,
 // with no lead and no Add subscription.
 func TestSubscriptionsCrumb(t *testing.T) {
 	s, _, p, tt := openSubs(t)
 	p.crumb = "Example Blog"
 	tt.Frame()
-	if !tt.HasText("Example Blog") || !tt.HasText("/") || !tt.HasText("the page") ||
+	if !tt.HasText("Example Blog") || !tt.HasText(s.text.SubscriptionsGroup) || !tt.HasText("the page") ||
 		tt.HasText(s.text.SubscriptionsLead) || tt.HasText(s.text.AddSubscription) {
 		t.Fatalf("texts %v", tt.Texts())
 	}

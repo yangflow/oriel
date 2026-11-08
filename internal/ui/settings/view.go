@@ -2069,7 +2069,7 @@ func (s *Screen) head(c *ui.Context, compact bool, room float32) {
 				}
 			})
 			if s.group == subscriptions && s.crumb() == "" {
-				add := theme.Button{Style: theme.Primary, Small: true, Icon: icons.Plus, Text: s.text.AddSubscription}.Draw(c)
+				add := theme.Button{Style: theme.Primary, Icon: icons.Plus, Text: s.text.AddSubscription}.Draw(c)
 				if add.Clicked() {
 					s.subs().Add()
 				}
@@ -2107,20 +2107,25 @@ func (s *Screen) crumb() string {
 	return crumb
 }
 
-// crumbTitle is the title of a subscription's page: a quiet "‹ Subscriptions" button back to the list, a muted "/"
-// and the subscription's name.
+// crumbTitle is the title of a subscription's page: a quiet "‹ Subscriptions" link back to the list in meta, muted
+// and the text color under the pointer, over the subscription's name in display.
 func (s *Screen) crumbTitle(c *ui.Context, name string) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		back := theme.Button{Style: theme.Plain, Small: true, Icon: icons.ChevronLeft, Text: s.text.SubscriptionsGroup,
-			Label: s.text.BackList}.Draw(c)
-		if back.Clicked() {
-			s.subs().Back()
-		}
-		ui.Text(c, "/").FontSize(theme.Px(t, tokens.TextTitle.Size.En)).TextColor(t.TextMuted)
-		ui.Text(c, name).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
-			SingleLine().MinWidth(0).Shrink(1).Role(ui.RoleHeading).Level(1)
+	back := ui.ButtonBase(c).Row().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).
+		Radius(theme.Px(t, tokens.RadiusXS)).Label(s.text.BackList)
+	ink := t.TextMuted
+	if back.Hovered() {
+		ink = t.Text
+	}
+	back.Children(func() {
+		ui.Icon(c, icons.ChevronLeft).FontSize(theme.IconSmall(t)).TextColor(ink)
+		ui.Text(c, s.text.SubscriptionsGroup).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(ink).NoWrap()
 	})
+	if back.Clicked() {
+		s.subs().Back()
+	}
+	ui.Text(c, name).FontSize(theme.Px(t, tokens.TextDisplay.Size.En)).FontWeight(tokens.TextDisplay.Weight).
+		SingleLine().MinWidth(0).Role(ui.RoleHeading).Level(1)
 }
 
 // lead is the sentence under the page's name: what the page is for.

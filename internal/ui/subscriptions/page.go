@@ -4,10 +4,12 @@ import (
 	"cmp"
 	"context"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
@@ -767,32 +769,38 @@ func (s *Screen) promptsRow(c *ui.Context) {
 	})
 }
 
-// pageHead is the head card: the glyph, the name over the address, Refresh, and the health line under them, with the
-// RSSHub instance line and the moved card.
+// pageHead is the head card on surface, radius-card and space-4 inside: the tile-l glyph, the name over the address
+// and Refresh, or Try again with rotate-ccw while fetching fails. Under them a failing or removed subscription has its
+// strip; a healthy or paused one its health line. The RSSHub instance line and the moved card follow.
 func (s *Screen) pageHead(c *ui.Context) {
 	t := c.Theme()
 	e := s.form
 	src := e.src
 	where := cmp.Or(src.URL, src.RSSHubPath)
-	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space4)).Radius(theme.Px(t, tokens.RadiusCard)).
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space4)).Padding(theme.Px(t, tokens.Space4)).Radius(theme.Px(t, tokens.RadiusCard)).
 		Background(theme.Surface(t)).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
-			s.rowGlyph(c, src, tokens.Control+tokens.Space2)
-			ui.Column(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space4)).Children(func() {
+			s.rowGlyph(c, src, tokens.TileL)
+			ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
 				ui.Text(c, Name(src)).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).SingleLine().
 					Role(ui.RoleHeading).Level(2)
 				ui.Column(c).FillWidth().Selectable().Children(func() {
 					ui.Text(c, where).Font("monospace").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).SingleLine()
 				})
 			})
-			if !src.Paused && (theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.refreshText(src), Key: "page-refresh"}).Draw(c).Clicked() {
+			icon := icons.RefreshCw
+			if src.LastError != "" {
+				icon = icons.RotateCcw
+			}
+			if !src.Paused && (theme.Button{Icon: icon, Text: s.refreshText(src), Key: "page-refresh"}).Draw(c).Clicked() {
 				s.Refresh(src)
 			}
 		})
-		text, bad := s.healthText(src, s.deps.Now())
-		if bad {
-			errorLine(c, FailureDetail(s.lang, src, text), "")
-		} else {
+		switch health := healthOf(src); health {
+		case healthFailing, healthGone:
+			s.failStrip(c, src, health)
+		default:
+			text, _ := s.healthText(src, s.deps.Now())
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).Label(text).Children(func() {
 				icon := icons.Check
 				if src.Paused {
@@ -804,5 +812,45 @@ func (s *Screen) pageHead(c *ui.Context) {
 		}
 		s.servedBy(c)
 		s.movedCard(c)
+	})
+}
+
+// failStrip is the strip of a failing or removed subscription, on its meaning color at the wash alpha over paper:
+// the pill, why with when it was tried and will be again, and when it last succeeded in muted. A screen reader hears
+// it whole, with the server's own words.
+func (s *Screen) failStrip(c *ui.Context, src client.Source, health health) {
+	t := c.Theme()
+	now := s.deps.Now()
+	ago := func(ms int64) string { return locale.Ago(s.lang, now, time.UnixMilli(ms)) }
+	tag, _, ink, _ := s.statusLine(t, src)
+	icon := icons.TriangleAlert
+	if health == healthGone {
+		icon = icons.CircleAlert
+	}
+	why := FailureReason(s.lang, src, s.text.Blocked, s.text.BlockedPublic, s.text.FeedRemoved)
+	if src.LastFetchedAt != 0 {
+		tried := strings.ReplaceAll(s.text.StripTriedOnly, "{t}", ago(src.LastFetchedAt))
+		if in := time.UnixMilli(src.NextFetchAt).Sub(now); health == healthFailing && in >= time.Minute {
+			tried = strings.NewReplacer("{t}", ago(src.LastFetchedAt), "{next}", s.span(in)).Replace(s.text.StripTried)
+		}
+		why += s.text.Separator + tried
+	}
+	last := ""
+	if src.LastSuccessAt != 0 {
+		last = strings.ReplaceAll(s.text.LastSuccess, "{t}", ago(src.LastSuccessAt))
+	}
+	label := tag + s.text.Separator + FailureDetail(s.lang, src, why)
+	if last != "" {
+		label += s.text.Separator + last
+	}
+	size := theme.Px(t, tokens.TextMeta.Size.En)
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+		Padding(theme.Px(t, tokens.Space3), theme.Px(t, tokens.Space4)).Radius(theme.Px(t, tokens.RadiusControl)).
+		Background(ink.Alpha(tokens.OpacityWash).Over(t.Background)).Role(ui.RoleStatus).Label(label).Children(func() {
+		statusPill(c, icon, tag, ink)
+		ui.Text(c, why).FontSize(size).Grow(1).Basis(0).MinWidth(0).Wrap()
+		if last != "" {
+			ui.Text(c, last).FontSize(size).TextColor(t.TextMuted).Shrink(0).NoWrap()
+		}
 	})
 }

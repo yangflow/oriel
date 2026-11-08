@@ -102,9 +102,10 @@ Narrow ×0.85, Wide ×1.2. Between Han and Latin text sits a 0.25em gap.
   `radius-pill` capsules and dots.
 - **Elevation**: `elevation-raised` the chosen segment, `elevation-popup` menus, `elevation-dialog` dialogs. Each is a
   shadow plus a 0.5 rim in `line2`.
-- **Opacity** has two tokens and no others: `opacity-faded` (0.55) for a row still there that has stepped back, and
-  `opacity-separator` (0.7) for the dot of a meta line. A disabled control does not fade: its glyph takes `faint` and
-  its label stays `muted`, so the label keeps 4.5:1.
+- **Opacity** has four tokens and no others: `opacity-faded` (0.55) for a row still there that has stepped back,
+  `opacity-separator` (0.7) for the dot of a meta line, `opacity-tint` (0.14) for a status pill's fill in its own
+  meaning color, and `opacity-wash` (0.08) for a status strip's fill over paper. A disabled control does not fade: its
+  glyph takes `faint` and its label stays `muted`, so the label keeps 4.5:1.
 
 ## Layout
 

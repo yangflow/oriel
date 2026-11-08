@@ -2,10 +2,13 @@ package subscriptions
 
 import (
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
@@ -166,5 +169,41 @@ func TestPageOpenListCloses(t *testing.T) {
 	tt.Frame()
 	if s.pg.open || !tt.HasText("6 subscriptions") {
 		t.Fatalf("page %v", s.pg.open)
+	}
+}
+
+// TestPageHeadStrip is the head card of a failing subscription: its strip with the pill, why with when it was tried
+// and will be again, and when it last succeeded; Try again fetches it now. A removed one has its own pill and no next
+// try, and a healthy one has no strip at all.
+func TestPageHeadStrip(t *testing.T) {
+	s, f, tt := paging6(t)
+	if tt.HasText("Failed") || tt.HasText(s.text.StatusGone) {
+		t.Fatalf("a healthy subscription has a strip: %v", tt.Texts())
+	}
+	src := &f.sources[1]
+	src.LastError, src.ConsecutiveFailures = "status 503", 5
+	src.LastFetchedAt = now.Add(-3 * time.Minute).UnixMilli()
+	src.NextFetchAt = now.Add(27 * time.Minute).UnixMilli()
+	src.LastSuccessAt = now.Add(-48 * time.Hour).UnixMilli()
+	tt.Frame()
+	ago := func(d time.Duration) string { return locale.Ago(s.lang, now, now.Add(-d)) }
+	why := FailureReason(s.lang, *src, s.text.Blocked, s.text.BlockedPublic, s.text.FeedRemoved)
+	tried := strings.NewReplacer("{t}", ago(3*time.Minute), "{next}", s.span(27*time.Minute)).Replace(s.text.StripTried)
+	for _, text := range []string{"Failed 5 times", why + s.text.Separator + tried,
+		strings.ReplaceAll(s.text.LastSuccess, "{t}", ago(48*time.Hour)), s.text.Retry} {
+		if !slices.Contains(tt.Texts(), text) {
+			t.Fatalf("no %q in %v", text, tt.Texts())
+		}
+	}
+	mustClick(t, tt, s.text.Retry)
+	f.settle(tt)
+	if !slices.Equal(f.fetched, []int64{2}) {
+		t.Fatalf("fetched %v", f.fetched)
+	}
+	src.LastErrorKind = "gone"
+	tt.Frame()
+	gone := s.text.FeedRemoved + s.text.Separator + strings.ReplaceAll(s.text.StripTriedOnly, "{t}", ago(3*time.Minute))
+	if !slices.Contains(tt.Texts(), s.text.StatusGone) || !slices.Contains(tt.Texts(), gone) {
+		t.Fatalf("no removed strip in %v", tt.Texts())
 	}
 }

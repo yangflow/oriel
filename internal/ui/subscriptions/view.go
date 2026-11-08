@@ -69,7 +69,7 @@ type copy struct {
 	RefreshedMany, PartialRefresh, On, Off, ProxyFollowShort, PageGeneral, PageFetching, PageTimeline, PageDelete, TitleHelp                                                            string
 	PauseHelp, EveryHelp, ExtractRowHelp, HeadersRowHelp, ProxyRowHelp, Automatic, None, Custom, Prompts, UsingSettings                                                                 string
 	DeleteSubscription, DeleteSubscriptionHelp, DeleteSource, Saved, SaveTitle, SaveExtract, SaveHeaders, SaveProxy, SaveMute                                                           string
-	SavePrompts                                                                                                                                                                         string
+	SavePrompts, StatusOk, StatusFailed, StatusGone, StatusGoneSub, StatusPausedSub, StatusUpdated, StripTried, StripTriedOnly, LastSuccess                                             string
 	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed                                 string
 	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, Apply, DeleteManyTitle, DeleteManyBody                                                          string
 }

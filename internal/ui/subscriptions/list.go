@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
+	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/theme"
 	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
@@ -376,6 +377,86 @@ func (s *Screen) rowGlyph(c *ui.Context, src client.Source, side float32) {
 	})
 }
 
+// health is how a subscription stands, as its row's status column and its page's head show it.
+type health int
+
+const (
+	healthOk health = iota
+	healthFailing
+	healthGone
+	healthPaused
+)
+
+func healthOf(src client.Source) health {
+	switch {
+	case src.Paused:
+		return healthPaused
+	case src.LastError != "" && src.LastErrorKind == "gone":
+		return healthGone
+	case src.LastError != "":
+		return healthFailing
+	}
+	return healthOk
+}
+
+// statusLine is the status of src in words: the pill's or the dot's text, the line under it and the color of that line.
+func (s *Screen) statusLine(t *ui.Theme, src client.Source) (tag, sub string, ink, subInk ui.Color) {
+	ago := func(ms int64) string { return locale.Ago(s.lang, s.deps.Now(), time.UnixMilli(ms)) }
+	switch healthOf(src) {
+	case healthPaused:
+		return s.text.PausedMark, s.text.StatusPausedSub, theme.Text2(t), t.TextMuted
+	case healthGone:
+		return s.text.StatusGone, s.text.StatusGoneSub + s.text.Separator + ago(src.LastFetchedAt), t.Danger, t.Danger
+	case healthFailing:
+		why := FailureReason(s.lang, src, s.text.Blocked, s.text.BlockedPublic, s.text.FeedRemoved)
+		return s.count(s.text.StatusFailed, max(1, src.ConsecutiveFailures)), why + s.text.Separator + ago(src.LastFetchedAt), t.Warning, t.Warning
+	}
+	sub = s.text.NotChecked
+	if src.LastFetchedAt != 0 {
+		sub = strings.ReplaceAll(s.text.StatusUpdated, "{t}", ago(src.LastFetchedAt))
+	}
+	return s.text.StatusOk, sub, theme.Text2(t), t.TextMuted
+}
+
+// statusPill is the capsule of a status that calls for a look: its icon and words in ink, on ink at the tint alpha.
+func statusPill(c *ui.Context, icon *ui.SVG, text string, ink ui.Color) {
+	t := c.Theme()
+	h := theme.Px(t, tokens.ControlSmall)
+	ui.Row(c).Height(h).Shrink(0).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).PaddingX(theme.Px(t, tokens.Space2)).
+		Radius(theme.Pill(h)).Background(ink.Alpha(tokens.OpacityTint)).Children(func() {
+		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(ink)
+		ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(tokens.TextMetaStrong.Weight).TextColor(ink).NoWrap()
+	})
+}
+
+// statusColumn is the 176 wide status of a row: a success dot and Healthy, or the pill of a failing, removed or
+// paused subscription, with a line under it.
+func (s *Screen) statusColumn(c *ui.Context, src client.Source) {
+	t := c.Theme()
+	tag, sub, ink, subInk := s.statusLine(t, src)
+	ui.Column(c).Width(theme.Px(t, tokens.Space12*3+tokens.Space8)).Shrink(0).AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1)).Children(func() {
+		switch healthOf(src) {
+		case healthOk:
+			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+				dot := theme.Px(t, tokens.Dot)
+				ui.Box(c).Size(dot, dot).Radius(theme.Pill(dot)).Background(t.Success)
+				ui.Text(c, tag).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(ink).NoWrap()
+			})
+		case healthPaused:
+			statusPill(c, icons.Pause, tag, ink)
+		case healthGone:
+			statusPill(c, icons.CircleAlert, tag, ink)
+		default:
+			statusPill(c, icons.TriangleAlert, tag, ink)
+		}
+		size := theme.Px(t, tokens.TextMeta.Size.En)
+		line := ui.Text(c, sub).FontSize(size).TextColor(subInk).SingleLine().MaxWidth(theme.Px(t, tokens.Space12*3+tokens.Space8))
+		if theme.Cut(c, line, sub, size, 0, 1) {
+			theme.Tip(c, line, sub)
+		}
+	})
+}
+
 func (s *Screen) listRow(c *ui.Context, rows []client.Source, src client.Source, last, locked bool) {
 	t := c.Theme()
 	m := &s.manage
@@ -387,16 +468,16 @@ func (s *Screen) listRow(c *ui.Context, rows []client.Source, src client.Source,
 	if failed {
 		row.Description(f.detail)
 	}
-	row.FillWidth().MinHeight(theme.Px(t, tokens.Space12+tokens.Space2)).Padding(theme.Px(t, tokens.Space2+tokens.Space0_5), theme.Px(t, tokens.Space4)).
-		Gap(theme.Px(t, tokens.Space3)).AlignItems(ui.Center)
+	row.FillWidth().MinHeight(theme.Px(t, tokens.Space12+tokens.Space2)).Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).
+		Gap(theme.Px(t, tokens.Space3)).AlignItems(ui.Center).Radius(theme.Px(t, tokens.RadiusControl))
 	switch {
 	case sel:
-		row.Background(theme.Soft(t, t.Accent))
+		row.Background(theme.Chosen(t))
 	case row.Hovered() && !locked:
 		row.Background(t.SurfaceHover)
 	}
 	if locked {
-		row.Opacity(0.55)
+		row.Opacity(tokens.OpacityFaded)
 	}
 	if row.Focused() {
 		m.cursor = id
@@ -418,10 +499,19 @@ func (s *Screen) listRow(c *ui.Context, rows []client.Source, src client.Source,
 				s.toggle(id)
 			}
 		}
-		s.rowGlyph(c, src, tokens.Row)
+		glyph := ui.Box(c).Shrink(0)
+		if src.Paused {
+			glyph.Opacity(tokens.OpacityFaded)
+		}
+		glyph.Children(func() { s.rowGlyph(c, src, tokens.TileL) })
 		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
-				ui.Text(c, Name(src)).FontSize(theme.Px(t, tokens.TextBody.Size.En)).FontWeight(500).SingleLine().Shrink(1).MinWidth(0)
+				ink := t.Text
+				if src.Paused {
+					ink = t.TextMuted
+				}
+				ui.Text(c, Name(src)).FontSize(theme.Px(t, tokens.TextLabel.Size.En)).FontWeight(tokens.TextLabel.Weight).TextColor(ink).
+					SingleLine().Shrink(1).MinWidth(0)
 				if src.Paused {
 					ui.Icon(c, icons.Pause).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted).Tooltip(s.text.PausedMark)
 				}
@@ -435,19 +525,15 @@ func (s *Screen) listRow(c *ui.Context, rows []client.Source, src client.Source,
 					ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Danger)
 					ui.Text(c, f.reason).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.Danger).Shrink(1).Wrap()
 				})
-			case src.LastError != "" && !src.Paused:
-				ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).Children(func() {
-					ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Danger)
-					ui.Text(c, s.failingOf(src)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.Danger).SingleLine().Shrink(1).MinWidth(0)
-				})
 			default:
 				ui.Text(c, s.settingsOf(src)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).SingleLine()
 			}
 		})
-		ui.Icon(c, icons.ChevronRight).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+		s.statusColumn(c, src)
+		ui.Icon(c, icons.ChevronRight).FontSize(theme.IconSmall(t)).TextColor(theme.Disabled(t))
 	})
 	if !last && !sel && !m.selected[nextID(rows, id)] {
-		ui.Box(c).FillWidth().Height(tokens.Hairline).Background(t.Border).Margin(0, theme.Px(t, tokens.Space4))
+		ui.Box(c).FillWidth().Height(tokens.Hairline).Background(t.Border)
 	}
 	clicked := row.Clicked()
 	if locked {
@@ -517,7 +603,7 @@ func (s *Screen) listPage(c *ui.Context) {
 	}
 	locked := m.run != nil
 	m.typing = false
-	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Children(func() {
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space3)).Children(func() {
 		s.actionBar(c, rows)
 		if m.band != "" {
 			s.band(c)
@@ -527,7 +613,7 @@ func (s *Screen) listPage(c *ui.Context) {
 			all = len(s.deps.Sources())
 		}
 		list := ui.Column(c).FillWidth().Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Surface(t)).Clip().
-			Padding(theme.Px(t, tokens.Space1), 0).Role(ui.RoleList).Label(s.text.ListName).FocusGroup(ui.Vertical)
+			Padding(theme.Px(t, tokens.Space1)).Role(ui.RoleList).Label(s.text.ListName).FocusGroup(ui.Vertical)
 		list.Children(func() {
 			switch {
 			case all == 0:
@@ -541,7 +627,7 @@ func (s *Screen) listPage(c *ui.Context) {
 		})
 		if all > 0 {
 			ui.Text(c, s.count(s.text.OfN, all)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(t.TextMuted).
-				Margin(0, theme.Px(t, tokens.Space1))
+				Margin(0, 0, 0, theme.Px(t, tokens.Space4))
 		}
 	})
 	if m.sheet.open {
@@ -642,14 +728,18 @@ func (s *Screen) selectAllButton(c *ui.Context, rows []client.Source) {
 	}
 }
 
-// actionBar is the 40 high tools row, which turns into the action bar with a selection and into the progress of a run.
+// actionBar is the 48 high tools row, which turns into the action bar on soft with a selection and into the progress
+// of a run.
 func (s *Screen) actionBar(c *ui.Context, rows []client.Source) {
 	t := c.Theme()
 	m := &s.manage
 	sel := s.selection(rows)
 	n := len(sel)
-	bar := ui.Row(c).Key("mbar").FillWidth().Height(theme.Px(t, tokens.Control+tokens.Space2)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
-		Padding(0, theme.Px(t, tokens.Space2), 0, theme.Px(t, tokens.Space4)).Radius(theme.Px(t, tokens.RadiusControl))
+	bar := ui.Row(c).Key("mbar").FillWidth().Height(theme.Px(t, tokens.Control+tokens.Space4)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+		Padding(0, theme.Px(t, tokens.Space2), 0, theme.Px(t, tokens.Space4)).Radius(theme.Px(t, tokens.RadiusCard))
+	if m.run == nil && n == 0 {
+		bar.Gap(theme.Px(t, tokens.Space3)).PaddingX(theme.Px(t, tokens.Space4))
+	}
 	switch {
 	case m.run != nil:
 		j := m.run
@@ -671,32 +761,33 @@ func (s *Screen) actionBar(c *ui.Context, rows []client.Source) {
 		anyLive := slices.ContainsFunc(sel, func(src client.Source) bool { return !src.Paused })
 		bar.Background(theme.Soft(t, t.Accent)).Role(ui.RoleToolbar).Label(s.count(s.text.BarLabel, n)).Children(func() {
 			s.selectAllButton(c, rows)
-			ui.Text(c, s.count(s.text.SelectedN, n)).FontSize(theme.Px(t, tokens.TextBody.Size.En)).FontWeight(500).FontFeatures("tnum").
-				Grow(1).MinWidth(0).SingleLine()
-			if (theme.Button{Small: true, Icon: icons.SlidersHorizontal, Text: s.text.ChangeN, Key: "mchange",
+			ui.Text(c, s.count(s.text.SelectedN, n)).FontSize(theme.Px(t, tokens.TextLabel.Size.En)).FontWeight(tokens.TextLabel.Weight).
+				FontFeatures("tnum").Margin(0, 0, 0, theme.Px(t, tokens.Space1)).Grow(1).MinWidth(0).SingleLine()
+			if (theme.Button{Text: s.text.ChangeN, Key: "mchange",
 				Label: s.count(s.text.ChangeNLabel, n)}).Draw(c).Clicked() {
 				m.sheet = changing{open: true, kind: unchanged, folder: unchanged, every: unchanged, target: unchanged, keep: unchanged,
 					proxy: unchanged, pause: unchanged, hide: unchanged}
 			}
-			if anyLive && (theme.Button{Small: true, Icon: icons.Pause, Text: s.text.Pause, Key: "mpause",
+			if anyLive && (theme.Button{Icon: icons.Pause, Text: s.text.Pause, Key: "mpause",
 				Label: s.count(s.text.PauseNLabel, len(pending(sel, true)))}).Draw(c).Clicked() {
 				s.startJob(jobPause, client.SourcePatch{Paused: new(true)}, ids(pending(sel, true)), false)
 			}
-			if anyPaused && (theme.Button{Small: true, Icon: icons.Play, Text: s.text.Resume, Key: "mresume",
+			if anyPaused && (theme.Button{Icon: icons.Play, Text: s.text.Resume, Key: "mresume",
 				Label: s.count(s.text.ResumeNLabel, len(pending(sel, false)))}).Draw(c).Clicked() {
 				s.startJob(jobResume, client.SourcePatch{Paused: new(false)}, ids(pending(sel, false)), false)
 			}
 			live := pending(sel, true)
-			if (theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.text.Refresh, Key: "mrefresh", Disabled: len(live) == 0,
+			if (theme.Button{Icon: icons.RefreshCw, Text: s.text.Refresh, Key: "mrefresh", Disabled: len(live) == 0,
 				Label: s.count(s.text.RefreshNLabel, len(live))}).Draw(c).Clicked() {
 				s.startJob(jobRefresh, client.SourcePatch{}, ids(live), false)
 			}
-			if (theme.Button{Style: theme.Danger, Small: true, Icon: icons.Trash2, Text: s.text.DeleteMany, Key: "mdelete",
+			if (theme.Button{Style: theme.Danger, Text: s.text.DeleteMany, Key: "mdelete",
 				Label: s.count(s.text.DeleteNLabel, n)}).Draw(c).Clicked() {
 				m.confirm = true
 			}
+			ui.Box(c).Size(tokens.Hairline, theme.Px(t, tokens.Space4)).Margin(0, theme.Px(t, tokens.Space1)).Background(theme.LineStrong(t)).Role(ui.RoleNone)
 			x, color := theme.ToolButton(c, theme.ToolState{})
-			x.Key("mclear").Size(theme.Px(t, tokens.Row), theme.Px(t, tokens.Row)).Label(s.text.ClearSelection).Tooltip(s.text.ClearSelection)
+			x.Key("mclear").Size(theme.Px(t, tokens.Control), theme.Px(t, tokens.Control)).Label(s.text.ClearSelection).Tooltip(s.text.ClearSelection)
 			x.Children(func() { ui.Icon(c, icons.X).FontSize(theme.IconMedium(t)).TextColor(color) })
 			if x.Clicked() {
 				s.clearSelection()
