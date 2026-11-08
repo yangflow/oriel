@@ -232,6 +232,13 @@ func TestTimelineAPI(t *testing.T) {
 				"name":"Issues","namespace":"github","namespaceName":"GitHub","example":"","unknown":1,
 				"parameters":[{"name":"user","description":"User","optional":false},{"name":"repo","description":"","optional":true}],
 				"values":{"user":"rsshub"}}]}`))
+		case "/api/feeds/preview":
+			if r.URL.Query().Get("url") == "https://private.example/" {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				w.Write([]byte(`{"error":"address_not_public"}`))
+				return
+			}
+			w.Write([]byte(`{"url":"https://blog.example/rss.xml","title":"Blog","format":"RSS 2.0","updatedAt":1700000000000,"perDay":1.5,"entries":[{"title":"One","url":"https://blog.example/1","publishedAt":null}]}`))
 		case "/api/routes/preview":
 			if r.URL.Query().Get("path") == "/gone" {
 				w.WriteHeader(http.StatusBadGateway)
@@ -347,6 +354,14 @@ func TestTimelineAPI(t *testing.T) {
 	if _, err := session.PreviewRoute(ctx, "/gone"); !errors.As(err, &apiErr) || apiErr.Code != "route_not_found" {
 		t.Errorf("PreviewRoute gone: %v", err)
 	}
+	peek, err := session.PreviewFeed(ctx, "https://blog.example/rss.xml")
+	if err != nil || peek.Title != "Blog" || peek.Format != "RSS 2.0" || peek.UpdatedAt == nil || *peek.UpdatedAt != 1700000000000 ||
+		peek.PerDay == nil || *peek.PerDay != 1.5 || len(peek.Entries) != 1 || peek.Entries[0].Title != "One" {
+		t.Errorf("PreviewFeed = %+v, %v", peek, err)
+	}
+	if _, err := session.PreviewFeed(ctx, "https://private.example/"); !errors.As(err, &apiErr) || apiErr.Code != "address_not_public" {
+		t.Errorf("PreviewFeed private: %v", err)
+	}
 	if _, err := session.AddSource(ctx, NewSource{RSSHubPath: "/x/y", Kind: "social", AllowDuplicate: true}); err != nil {
 		t.Errorf("AddSource: %v", err)
 	}
@@ -401,6 +416,8 @@ func TestTimelineAPI(t *testing.T) {
 		"GET /api/routes?q=github+issues&refresh=1 ",
 		"GET /api/routes/preview?path=%2Fgithub%2Fissue%2Frsshub%2Frsshub ",
 		"GET /api/routes/preview?path=%2Fgone ",
+		"GET /api/feeds/preview?url=https%3A%2F%2Fblog.example%2Frss.xml ",
+		"GET /api/feeds/preview?url=https%3A%2F%2Fprivate.example%2F ",
 		`POST /api/sources {"rsshubPath":"/x/y","kind":"social","allowDuplicate":true}`,
 		`PATCH /api/sources/5 {"title":"New","paused":true,"keepDays":90}`,
 		`POST /api/sources/5/muted-count {"muteKeywords":"ad\nspam"}`,

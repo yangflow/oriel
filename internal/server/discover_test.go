@@ -17,6 +17,10 @@ func (f finder) Discover(_ context.Context, address string) ([]fetch.Candidate, 
 	return f(address)
 }
 
+func (f finder) Preview(context.Context, string) (fetch.FeedPreview, error) {
+	return fetch.FeedPreview{}, fetch.ErrPageUnavailable
+}
+
 func TestDiscover(t *testing.T) {
 	s, _ := newServer(t, "")
 	s.discover = finder(func(address string) ([]fetch.Candidate, error) {
@@ -80,5 +84,52 @@ func TestDiscoverNeedsASession(t *testing.T) {
 	s, _ := newServer(t, "secret")
 	if w := do(s, "GET", "/api/discover?url="+url.QueryEscape("https://blog.example/"), "", nil); w.Code != http.StatusUnauthorized {
 		t.Errorf("without a session = %d", w.Code)
+	}
+}
+
+type previewer struct {
+	finder
+	preview func(address string) (fetch.FeedPreview, error)
+}
+
+func (p previewer) Preview(_ context.Context, address string) (fetch.FeedPreview, error) {
+	return p.preview(address)
+}
+
+func TestPreviewFeed(t *testing.T) {
+	s, _ := newServer(t, "")
+	s.discover = previewer{preview: func(address string) (fetch.FeedPreview, error) {
+		switch address {
+		case "https://blog.example/rss.xml":
+			return fetch.FeedPreview{URL: address, Title: "Blog", Format: "RSS 2.0", Entries: []fetch.PreviewEntry{{Title: "One"}}}, nil
+		case "https://private.example/rss.xml":
+			return fetch.FeedPreview{}, fmt.Errorf("dial: %w", fetch.ErrBlockedAddress)
+		case "https://page.example/":
+			return fetch.FeedPreview{}, fmt.Errorf("parse: %w", fetch.ErrNotFeed)
+		}
+		return fetch.FeedPreview{}, fetch.ErrPageUnavailable
+	}}
+	get := func(address string) *httptest.ResponseRecorder {
+		return do(s, "GET", "/api/feeds/preview?url="+url.QueryEscape(address), "", nil)
+	}
+	w := get("https://blog.example/rss.xml")
+	got := decode(t, w)
+	if w.Code != http.StatusOK || got["title"] != "Blog" || got["format"] != "RSS 2.0" || got["updatedAt"] != nil || got["perDay"] != nil {
+		t.Fatalf("preview = %d %s", w.Code, w.Body.String())
+	}
+	for _, c := range []struct {
+		address string
+		status  int
+		code    string
+	}{
+		{"ftp://blog.example/", http.StatusBadRequest, "invalid_url"},
+		{"https://private.example/rss.xml", http.StatusUnprocessableEntity, "address_not_public"},
+		{"https://page.example/", http.StatusBadGateway, "not_a_feed"},
+		{"https://gone.example/", http.StatusBadGateway, "page_unavailable"},
+	} {
+		w := get(c.address)
+		if w.Code != c.status || decode(t, w)["error"] != c.code {
+			t.Errorf("%s = %d %s, want %d %s", c.address, w.Code, w.Body.String(), c.status, c.code)
+		}
 	}
 }

@@ -10,6 +10,9 @@ import (
 	"reflect"
 	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/yangflow/oriel/internal/store"
 )
 
 const rssBody = `<rss version="2.0"><channel><title>Notes</title><link>https://x.example/</link></channel></rss>`
@@ -207,5 +210,57 @@ func TestDiscoverRuleNeedsNoRequest(t *testing.T) {
 	got, err := NewDiscoverer("test").Discover(context.Background(), "https://space.bilibili.com/2267573")
 	if err != nil || len(got) != 2 {
 		t.Errorf("got %+v, %v", got, err)
+	}
+}
+
+func TestPreviewFeed(t *testing.T) {
+	feed := `<?xml version="1.0"?><rss version="2.0"><channel><title>Blog</title>
+		<item><title>Oldest</title><guid>1</guid><pubDate>Sat, 01 Jun 2024 00:00:00 GMT</pubDate></item>
+		<item><title>Newest</title><guid>4</guid><pubDate>Thu, 11 Jul 2024 00:00:00 GMT</pubDate></item>
+		<item><title>Middle</title><guid>2</guid><pubDate>Fri, 21 Jun 2024 00:00:00 GMT</pubDate></item>
+		<item><title>Later</title><guid>3</guid><pubDate>Mon, 01 Jul 2024 00:00:00 GMT</pubDate></item>
+		</channel></rss>`
+	srv, _ := pages(t, map[string]string{"/feed.xml": feed, "/page": "<html><body>Not a feed</body></html>"})
+	got, err := discoverer().Preview(context.Background(), srv.URL+"/feed.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := []string{}
+	for _, e := range got.Entries {
+		titles = append(titles, e.Title)
+	}
+	if got.Title != "Blog" || got.Format != "RSS 2.0" || !reflect.DeepEqual(titles, []string{"Newest", "Later", "Middle"}) {
+		t.Errorf("preview = %+v, titles %v", got, titles)
+	}
+	if got.UpdatedAt == nil || *got.UpdatedAt != time.Date(2024, 7, 11, 0, 0, 0, 0, time.UTC).UnixMilli() {
+		t.Errorf("updated at %v", got.UpdatedAt)
+	}
+	if got.PerDay == nil || *got.PerDay != 0.075 { // three gaps over forty days
+		t.Errorf("per day %v", got.PerDay)
+	}
+	if _, err := discoverer().Preview(context.Background(), srv.URL+"/page"); !errors.Is(err, ErrNotFeed) {
+		t.Errorf("a page: %v", err)
+	}
+	if _, err := discoverer().Preview(context.Background(), srv.URL+"/gone"); !errors.Is(err, ErrPageUnavailable) {
+		t.Errorf("a missing feed: %v", err)
+	}
+	if _, err := NewDiscoverer("test").Preview(context.Background(), srv.URL+"/feed.xml"); !errors.Is(err, ErrBlockedAddress) {
+		t.Errorf("a loopback address: %v", err)
+	}
+	if _, err := discoverer().Preview(context.Background(), "ftp://example.com/"); !errors.Is(err, ErrInvalidAddress) {
+		t.Errorf("not a web address: %v", err)
+	}
+}
+
+func TestPreviewOfTells(t *testing.T) {
+	got := previewOf(parsed{format: "Atom", entries: []store.FeedEntry{{Title: "Undated"}, {Title: ""}}}, "https://a.example/")
+	if got.UpdatedAt != nil || got.PerDay != nil || len(got.Entries) != 1 {
+		t.Errorf("undated = %+v", got)
+	}
+	day := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	got = previewOf(parsed{entries: []store.FeedEntry{{Title: "A", PublishedAt: day}, {Title: "B", PublishedAt: day.Add(-time.Hour)},
+		{Title: "C", PublishedAt: day.Add(-2 * time.Hour)}}}, "https://a.example/")
+	if got.PerDay == nil || *got.PerDay != 2 {
+		t.Errorf("a burst shorter than a day is %v a day", got.PerDay)
 	}
 }

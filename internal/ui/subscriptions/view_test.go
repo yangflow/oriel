@@ -42,12 +42,15 @@ type fake struct {
 	found       []client.Candidate
 	lateBy      time.Duration // how far the clock is past now
 
-	searched   []string // the queries FindRoutes was asked for
-	routes     client.Routes
-	routesErr  error
-	previewed  []string // the paths PreviewRoute was asked for
-	preview    client.RoutePreview
-	previewErr error
+	searched    []string // the queries FindRoutes was asked for
+	routes      client.Routes
+	routesErr   error
+	previewed   []string // the paths PreviewRoute was asked for
+	peeked      []string // the addresses PreviewFeed was asked for
+	feedPreview client.FeedPreview
+	peekErr     error
+	preview     client.RoutePreview
+	previewErr  error
 
 	moved, dismissed []string // the addresses MoveSource and DismissMove were given
 	moveErr          error
@@ -287,6 +290,11 @@ func (f *fake) FindRoutes(_ context.Context, query string, _ bool) (client.Route
 func (f *fake) PreviewRoute(_ context.Context, path string) (client.RoutePreview, error) {
 	f.previewed = append(f.previewed, path)
 	return f.preview, f.previewErr
+}
+
+func (f *fake) PreviewFeed(_ context.Context, address string) (client.FeedPreview, error) {
+	f.peeked = append(f.peeked, address)
+	return f.feedPreview, f.peekErr
 }
 
 func (f *fake) deps() Deps {
@@ -1848,5 +1856,72 @@ func TestMovedChinese(t *testing.T) {
 		if !slices.Contains(tt.Texts(), want) {
 			t.Errorf("no %q in %v", want, tt.Texts())
 		}
+	}
+}
+
+func TestFeedPreview(t *testing.T) {
+	const address = "https://blog.example/rss.xml"
+	updated, perDay := now.Add(-3*time.Hour).UnixMilli(), 13.6
+	s, f, tt := setup(t, "zh-Hans")
+	f.feedPreview = client.FeedPreview{URL: address, Title: "少数派", Format: "RSS 2.0", UpdatedAt: &updated, PerDay: &perDay,
+		Entries: []client.PreviewEntry{{Title: "第一篇"}, {Title: "第二篇"}}}
+	open(t, s, f, tt)
+	tt.Type(address)
+	tt.Frame()
+	if len(f.queue) != 0 || !tt.HasText(address) {
+		t.Fatalf("asked before the pause: queue %d, %v", len(f.queue), tt.Texts())
+	}
+	f.lateBy = lookAfter
+	tt.Frame()
+	f.settle(tt)
+	tt.Frame()
+	f.settle(tt)
+	if !slices.Equal(f.peeked, []string{address}) {
+		t.Fatalf("previewed %v", f.peeked)
+	}
+	for _, text := range []string{"少数派", "RSS 2.0 · 3 小时前 · 约 14 条/天", "第一篇", "第二篇"} {
+		if !tt.HasText(text) {
+			t.Errorf("no %q in %v", text, tt.Texts())
+		}
+	}
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if len(f.added) != 1 || f.added[0].URL != address {
+		t.Fatalf("added %+v", f.added)
+	}
+}
+
+func TestFeedPreviewFailureStillAdds(t *testing.T) {
+	const address = "http://10.0.0.5/rss.xml"
+	s, f, tt := setup(t, "en")
+	f.peekErr = &client.APIError{Status: 422, Code: "address_not_public"}
+	open(t, s, f, tt)
+	tt.Type(address)
+	f.lateBy = lookAfter
+	tt.Frame()
+	f.settle(tt)
+	tt.Frame()
+	f.settle(tt)
+	if len(f.peeked) != 1 || !tt.HasText(address) {
+		t.Fatalf("previewed %v, %v", f.peeked, tt.Texts())
+	}
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if len(f.added) != 1 || f.added[0].URL != address {
+		t.Fatalf("added %+v", f.added)
+	}
+}
+
+func TestRoutesAreNotPreviewedAsFeeds(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	open(t, s, f, tt)
+	tt.Type("https://x.com/golang")
+	f.lateBy = lookAfter
+	tt.Frame()
+	f.settle(tt)
+	tt.Frame()
+	f.settle(tt)
+	if len(f.peeked) != 0 {
+		t.Fatalf("previewed %v", f.peeked)
 	}
 }

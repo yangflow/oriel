@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -27,7 +28,23 @@ var (
 	ErrInvalidAddress = errors.New("not a web address")
 	// ErrPageUnavailable reports a page that could not be fetched and no feed was found elsewhere on the site.
 	ErrPageUnavailable = errors.New("the page could not be fetched")
+	// ErrNotFeed reports an address that answered with something other than a feed.
+	ErrNotFeed = errors.New("the address is not a feed")
 )
+
+// previewTitles is how many of the latest titles a preview of a feed carries.
+const previewTitles = 3
+
+// FeedPreview is what a feed address holds, read without subscribing. UpdatedAt is the newest entry's date in Unix
+// milliseconds and PerDay the entries a day the dates in the feed work out to; each is nil when the feed cannot tell.
+type FeedPreview struct {
+	URL       string         `json:"url"`
+	Title     string         `json:"title"`
+	Format    string         `json:"format"`
+	UpdatedAt *int64         `json:"updatedAt"`
+	PerDay    *float64       `json:"perDay"`
+	Entries   []PreviewEntry `json:"entries"`
+}
 
 // commonPaths are tried on the site's root when a page declares no feed.
 var commonPaths = []string{"/feed", "/rss", "/atom.xml", "/index.xml", "/feed.json"}
@@ -67,6 +84,77 @@ func (d *Discoverer) Discover(ctx context.Context, address string) ([]Candidate,
 		}
 	}
 	return found, err
+}
+
+// Preview reads the feed at address without storing anything. It returns ErrInvalidAddress, ErrBlockedAddress when
+// the address is not a public one, ErrPageUnavailable or ErrNotFeed.
+func (d *Discoverer) Preview(ctx context.Context, address string) (FeedPreview, error) {
+	address = strings.TrimSpace(address)
+	u, err := url.Parse(address)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		return FeedPreview{}, ErrInvalidAddress
+	}
+	ctx, cancel := context.WithTimeout(ctx, discoverTimeout)
+	defer cancel()
+	body, kind, final, err := d.get(ctx, address)
+	if errors.Is(err, ErrBlockedAddress) {
+		return FeedPreview{}, err
+	}
+	if err != nil {
+		return FeedPreview{}, fmt.Errorf("%w: %v", ErrPageUnavailable, err)
+	}
+	feed, err := parse(body, kind, final)
+	if err != nil {
+		return FeedPreview{}, fmt.Errorf("%w: %v", ErrNotFeed, err)
+	}
+	return previewOf(feed, final.String()), nil
+}
+
+// previewOf reduces a parsed feed to its preview: its latest titled entries, newest first when every entry is dated
+// and in the feed's own order otherwise, and the pace its dates work out to. A burst shorter than a day counts as a day.
+func previewOf(feed parsed, address string) FeedPreview {
+	out := FeedPreview{URL: address, Title: feed.title, Format: feed.format, Entries: []PreviewEntry{}}
+	entries := slices.Clone(feed.entries)
+	var newest, oldest time.Time
+	dated := 0
+	for _, e := range entries {
+		if e.PublishedAt.IsZero() {
+			continue
+		}
+		dated++
+		if newest.IsZero() || e.PublishedAt.After(newest) {
+			newest = e.PublishedAt
+		}
+		if oldest.IsZero() || e.PublishedAt.Before(oldest) {
+			oldest = e.PublishedAt
+		}
+	}
+	if dated == len(entries) {
+		slices.SortStableFunc(entries, func(a, b store.FeedEntry) int { return b.PublishedAt.Compare(a.PublishedAt) })
+	}
+	if dated > 0 {
+		ms := newest.UnixMilli()
+		out.UpdatedAt = &ms
+	}
+	if span := newest.Sub(oldest); dated >= 2 && span > 0 {
+		perDay := float64(dated-1) / max(span.Hours()/24, 1)
+		out.PerDay = &perDay
+	}
+	for _, e := range entries {
+		if e.Title == "" {
+			continue
+		}
+		entry := PreviewEntry{Title: e.Title, URL: e.URL}
+		if !e.PublishedAt.IsZero() {
+			ms := e.PublishedAt.UnixMilli()
+			entry.PublishedAt = &ms
+		}
+		out.Entries = append(out.Entries, entry)
+		if len(out.Entries) == previewTitles {
+			break
+		}
+	}
+	return out
 }
 
 func (d *Discoverer) discover(ctx context.Context, address string) ([]Candidate, error) {
