@@ -10,8 +10,8 @@ import (
 	"testing"
 )
 
-// guarded lists the screens whose views take every size and color from the tokens; a new screen joins when it is clean.
-var guarded = []string{"timeline"}
+// guarded lists the packages whose views take every size, color and motion from the tokens.
+var guarded = []string{"timeline", "reader", "settings", "subscriptions", "connect", "theme"}
 
 // sized are the element methods whose arguments are sizes, and px the helper that scales one.
 var sized = map[string]bool{
@@ -25,8 +25,26 @@ func bare(expr ast.Expr) bool {
 	if u, ok := expr.(*ast.UnaryExpr); ok {
 		expr = u.X
 	}
+	// A number added to or taken from a size is one too; halving or doubling a token is not.
+	if b, ok := expr.(*ast.BinaryExpr); ok && (b.Op == token.ADD || b.Op == token.SUB) {
+		return bare(b.X) || bare(b.Y)
+	}
+	if p, ok := expr.(*ast.ParenExpr); ok {
+		return bare(p.X)
+	}
 	lit, ok := expr.(*ast.BasicLit)
 	return ok && (lit.Kind == token.INT || lit.Kind == token.FLOAT) && strings.Trim(lit.Value, "0.") != ""
+}
+
+// literalTime reports whether expr is a duration written in place, such as 140 * time.Millisecond.
+func literalTime(expr ast.Expr) bool {
+	b, ok := expr.(*ast.BinaryExpr)
+	if !ok || b.Op != token.MUL {
+		return false
+	}
+	_, x := b.X.(*ast.BasicLit)
+	_, y := b.Y.(*ast.BasicLit)
+	return x || y
 }
 
 // TestViewsUseTokens fails on a number written as a size, or a color written in place, in a guarded screen.
@@ -51,13 +69,29 @@ func TestViewsUseTokens(t *testing.T) {
 				t.Fatal(err)
 			}
 			ast.Inspect(file, func(n ast.Node) bool {
+				if kv, ok := n.(*ast.KeyValueExpr); ok {
+					if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "Duration" && literalTime(kv.Value) {
+						t.Errorf("%s: a duration written in place; use a motion token", fset.Position(kv.Pos()))
+					}
+					return true
+				}
 				call, ok := n.(*ast.CallExpr)
 				if !ok {
 					return true
 				}
+				if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "Px" {
+					for _, arg := range call.Args {
+						if bare(arg) {
+							t.Errorf("%s: Px with a bare number; use a token or a named constant", fset.Position(call.Pos()))
+						}
+					}
+				}
 				sel, ok := call.Fun.(*ast.SelectorExpr)
 				if !ok {
 					return true
+				}
+				if sel.Sel.Name == "Loop" && len(call.Args) > 1 && literalTime(call.Args[1]) {
+					t.Errorf("%s: a duration written in place; use a motion token", fset.Position(call.Pos()))
 				}
 				if x, ok := sel.X.(*ast.Ident); ok && x.Name == "ui" && (sel.Sel.Name == "Hex" || sel.Sel.Name == "RGBA") {
 					t.Errorf("%s: a color written in place; use a token", fset.Position(call.Pos()))

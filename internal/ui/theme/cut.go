@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // measureKey names one measurement: the text with the font and size it is drawn in, wrapped at width (0 for none).
@@ -83,8 +84,8 @@ func Tip(c *ui.Context, el ui.Element, text string) {
 	}
 	ui.TooltipBase(c, el, func(tip ui.Element) {
 		tip.MaxWidth(t.Space(80)).Padding(t.Space(1.25), t.Space(2)).Radius(t.Space(1.5)).
-			Background(fill).TextColor(ink).FontSize(Px(t, 12))
-		tip.Shadow(0, 2, 8, 0, ui.RGBA(0, 0, 0, 0.2))
+			Background(fill).TextColor(ink).FontSize(Px(t, tokens.TextMeta.Size.En))
+		tip.Shadow(0, Px(t, tokens.Space0_5), Px(t, tokens.Space2), 0, Elevation(t).Popup.Color)
 		tip.Children(func() { ui.Text(c, text) })
 		tip.AttachTo(el, ui.AnchorTop, ui.AnchorBottom).Margin(0, 0, t.Space(1.5), 0)
 	})

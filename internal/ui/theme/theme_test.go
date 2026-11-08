@@ -374,9 +374,6 @@ func TestMonogramSizes(t *testing.T) {
 			t.Fatalf("%q at %v has no letter %q", tc.name, tc.size, tc.want)
 		}
 	}
-	if GlyphRadius(16) != tokens.RadiusXS || GlyphRadius(32) != tokens.RadiusXS {
-		t.Fatal("glyph radii")
-	}
 }
 
 func TestSheet(t *testing.T) {

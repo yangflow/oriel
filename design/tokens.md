@@ -33,7 +33,7 @@ Colors come in layers, and each layer only sits on the one below it.
 | Layer | Tokens | Use |
 | --- | --- | --- |
 | Region | `paper`, `pane` | The window and the reader's page, the ink pane. |
-| Surface | `surface`, `float`, `raised` | Code blocks, notes, fields; popups and dialogs; the chosen segment. |
+| Surface | `surface`, `float`, `raised`, `glass` | Code blocks, notes, fields; popups and dialogs; the chosen segment; the tint of a toolbar capsule. |
 | State | `fill` < `hover` < `selected` < `pressed` | Ink at rising alpha over whatever is beneath. One ladder for every control. |
 | Role | `accent`, `accent-hover`, `accent-pressed`, `on-accent`, `soft` | The single teal and its tinted ground. |
 | Text | `fg`, `prose`, `fg2`, `muted`, `faint` | Strongest to weakest. `faint` is for disabled and decoration only. |
