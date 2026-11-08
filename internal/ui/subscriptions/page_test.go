@@ -30,6 +30,31 @@ func paging6(t *testing.T) (*Screen, *fake, *ui.Tester) {
 	return s, f, tt
 }
 
+// paged opens the page of setup's subscription i, after change, if any, made it so on the server, in a window tall
+// enough for the whole page.
+func paged(t *testing.T, language string, i int, change func(*client.Source)) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	s, f, _ := setup(t, language)
+	if change != nil {
+		change(&f.sources[i])
+	}
+	s.OpenSource(f.sources[i])
+	tt := pageTester(s)
+	f.settle(tt)
+	return s, f, tt
+}
+
+// pageTester draws the page of s, with its dialogs and toasts over it, in a window tall enough for all of it.
+func pageTester(s *Screen) *ui.Tester {
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() { s.Page(c) })
+		s.View(c)
+		theme.Toasts(c)
+	}, 1000, 2800)
+	tt.Frame()
+	return tt
+}
+
 // TestPageShows is the page of a subscription: its head, then General, Fetching, Timeline, Summaries and
 // translations and Delete, with no list under it.
 func TestPageShows(t *testing.T) {

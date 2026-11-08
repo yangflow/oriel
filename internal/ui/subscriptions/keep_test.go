@@ -1,76 +1,46 @@
 package subscriptions
 
-import "testing"
+import (
+	"testing"
 
-func TestEditKeep(t *testing.T) {
-	s, f, tt := setup(t, "en")
-	tt.SetSize(1000, 1400)
-	s.Edit(f.sources[0])
-	tt.Frame()
-	f.settle(tt)
-	if s.edit.keep != 0 || !tt.HasText("Follow settings · 1 month") || !tt.HasText(s.text.KeepHelp) {
-		t.Fatalf("keep %d, texts %v", s.edit.keep, tt.Texts())
+	"github.com/yangflow/oriel/internal/client"
+)
+
+// The Keep select of the page applies at once and sends only the keep period.
+func TestPageKeep(t *testing.T) {
+	s, f, tt := paged(t, "en", 0, nil)
+	if s.pg.e.keep != 0 || !tt.HasText("Follow settings · 1 month") || !tt.HasText(s.text.KeepHelp) {
+		t.Fatalf("keep %d, texts %v", s.pg.e.keep, tt.Texts())
 	}
-	if err := tt.Click("Follow settings · 1 month"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("3 months"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
-	}
+	mustClick(t, tt, "Follow settings · 1 month")
+	mustClick(t, tt, "3 months")
 	f.settle(tt)
 	p := f.patches[1]
 	if len(p) != 1 || p[0].KeepDays == nil || *p[0].KeepDays != 90 || p[0].Title != nil {
 		t.Fatalf("patches %+v", p)
 	}
+}
 
-	// A number of days the menu does not list shows as it is and can go back to following the settings.
-	src := f.sources[1]
-	src.KeepDays = 45
-	s.Edit(src)
-	tt.Frame()
-	f.settle(tt)
+// A number of days the menu does not list shows as it is and can go back to following the settings.
+func TestPageKeepUnlisted(t *testing.T) {
+	s, f, tt := paged(t, "en", 1, func(src *client.Source) { src.KeepDays = 45 })
 	if !tt.HasText("45 d") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
-	if err := tt.Click("45 d"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("Follow settings"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
-	}
+	mustClick(t, tt, "45 d")
+	mustClick(t, tt, "Follow settings · 1 month")
 	f.settle(tt)
-	p = f.patches[2]
-	if len(p) != 1 || p[0].KeepDays == nil || *p[0].KeepDays != 0 {
+	p := f.patches[2]
+	if len(p) != 1 || p[0].KeepDays == nil || *p[0].KeepDays != 0 || s.pg.e.keep != 0 {
 		t.Fatalf("patches %+v", p)
-	}
-
-	// Untouched, the keep period is not sent.
-	src.KeepDays = -1
-	s.Edit(src)
-	tt.Frame()
-	if !tt.HasText("Forever") {
-		t.Fatalf("texts %v", tt.Texts())
-	}
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
-	}
-	if len(f.patches[2]) != 1 {
-		t.Fatalf("saving without a change sent %v", f.patches[2])
 	}
 }
 
-func TestEditKeepFollowsForeverSettings(t *testing.T) {
-	s, f, tt := setup(t, "zh-Hans")
+func TestPageKeepFollowsForeverSettings(t *testing.T) {
+	s, f, _ := setup(t, "zh-Hans")
 	f.settings.RetentionDays = 0
-	tt.SetSize(1000, 1400)
-	s.Edit(f.sources[0])
-	tt.Frame()
+	s.OpenSource(f.sources[0])
+	tt := pageTester(s)
 	f.settle(tt)
 	if !tt.HasText("跟随设置 · 永久") {
 		t.Fatalf("texts %v", tt.Texts())

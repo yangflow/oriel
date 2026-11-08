@@ -70,6 +70,7 @@ type fake struct {
 	marked   []int64
 	older    [][2]int64 // subscription and days of each "Mark older than"
 	opened   int        // the AI settings
+	pages    []string   // the pages of Settings opened
 	rsshub   int        // the RSSHub instances in the settings
 	expired  int
 }
@@ -142,10 +143,37 @@ func (f *fake) UpdateSource(ctx context.Context, id int64, patch client.SourcePa
 				src.FetchIntervalAuto = *patch.FetchIntervalAuto
 			}
 			if patch.FetchIntervalSec != nil {
-				src.FetchIntervalSec = *patch.FetchIntervalSec
+				src.FetchIntervalSec, src.FetchIntervalAuto = *patch.FetchIntervalSec, false // as the server does
 			}
 			if patch.KeepDays != nil {
 				src.KeepDays = *patch.KeepDays
+			}
+			if patch.OpenTarget != nil {
+				src.OpenTarget = *patch.OpenTarget
+			}
+			if patch.PaceSec != nil {
+				src.PaceSec = *patch.PaceSec
+			}
+			if patch.DailyCap != nil {
+				src.DailyCap = *patch.DailyCap
+			}
+			if patch.MuteKeywords != nil {
+				src.MuteKeywords = *patch.MuteKeywords
+			}
+			if patch.ExtractSelector != nil {
+				src.ExtractSelector, src.ExtractReferer, src.ExtractRewrites = *patch.ExtractSelector, *patch.ExtractReferer, *patch.ExtractRewrites
+			}
+			if patch.FetchUserAgent != nil {
+				src.FetchUserAgent, src.FetchReferer = *patch.FetchUserAgent, *patch.FetchReferer
+			}
+			if patch.AutoSummary != nil {
+				src.AutoSummary = *patch.AutoSummary
+			}
+			if patch.AutoTranslate != nil {
+				src.AutoTranslate = *patch.AutoTranslate
+			}
+			if patch.TranslateTitles != nil {
+				src.TranslateTitles = *patch.TranslateTitles
 			}
 			if patch.Proxy != nil {
 				// The server drops the stored sign-in when the proxy changes.
@@ -280,12 +308,13 @@ func (f *fake) deps() Deps {
 			f.sources = append(f.sources, src)
 			slices.SortFunc(f.sources, func(a, b client.Source) int { return int(a.ID - b.ID) })
 		},
-		Show:         func(id int64) { f.shown = append(f.shown, id) },
-		MarkRead:     func(src client.Source) { f.marked = append(f.marked, src.ID) },
-		MarkOlder:    func(src client.Source, days int) { f.older = append(f.older, [2]int64{src.ID, int64(days)}) },
-		OpenSettings: func() { f.opened++ },
-		OpenRSSHub:   func() { f.rsshub++ },
-		Expired:      func() { f.expired++ },
+		Show:             func(id int64) { f.shown = append(f.shown, id) },
+		MarkRead:         func(src client.Source) { f.marked = append(f.marked, src.ID) },
+		MarkOlder:        func(src client.Source, days int) { f.older = append(f.older, [2]int64{src.ID, int64(days)}) },
+		OpenSettings:     func() { f.opened++ },
+		OpenSettingsPage: func(page string) { f.pages = append(f.pages, page) },
+		OpenRSSHub:       func() { f.rsshub++ },
+		Expired:          func() { f.expired++ },
 	}
 	d.Bulk = func(changed []client.Source, removed []int64, restored []client.Source) {
 		f.bulks++
@@ -800,8 +829,7 @@ func TestEdit(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	s.Edit(f.sources[0])
 	tt.Frame()
-	for _, text := range []string{"Edit subscription", "https://go.dev/blog/feed.atom",
-		"Checked 3 min ago · next in 12 min", "Auto · 15 min"} {
+	for _, text := range []string{"Edit subscription", "https://go.dev/blog/feed.atom", "Checked 3 min ago · next in 12 min"} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
@@ -828,11 +856,103 @@ func TestEdit(t *testing.T) {
 	f.settle(tt)
 	p := f.patches[1]
 	if len(p) != 1 || p[0].Title == nil || *p[0].Title != "Go Blog weekly" || p[0].Paused == nil || !*p[0].Paused ||
-		p[0].Kind != nil || p[0].FetchIntervalSec != nil || p[0].MuteKeywords != nil {
+		p[0].Kind != nil || p[0].HideFromAll != nil || p[0].FolderID != nil || p[0].FetchIntervalSec != nil ||
+		p[0].MuteKeywords != nil || p[0].Proxy != nil || p[0].KeepDays != nil || p[0].AutoSummary != nil {
 		t.Fatalf("patches %+v", p)
 	}
 	if s.Open() || len(f.changed) != 1 || f.changed[0].Title != "Go Blog weekly" {
 		t.Fatalf("changed %v", f.changed)
+	}
+}
+
+// TestEditDialogLayout is the edit dialog of docs/design.md: the title, Show as (beside Folder when there are
+// folders), the two switches and More settings, and none of what lives only on the page.
+func TestEditDialogLayout(t *testing.T) {
+	for _, lang := range []string{"en", "zh-Hans"} {
+		s, f, tt := setup(t, lang)
+		s.Edit(f.sources[0])
+		tt.Frame()
+		f.settle(tt)
+		want := []string{s.text.Title, s.text.ShowAs, s.text.PauseLabel, s.text.HideLabel, s.text.HideHelp,
+			s.text.MoreSettings, s.text.MoreSettingsSub, s.text.Delete, s.text.Cancel, s.text.Save}
+		at := 0
+		for _, text := range tt.Texts() {
+			if at < len(want) && text == want[at] {
+				at++
+			}
+		}
+		if at < len(want) {
+			t.Fatalf("%s: order stopped at %q in %v", lang, want[at], tt.Texts())
+		}
+		for _, gone := range []string{s.text.Folder, s.text.PauseHelp, s.text.Every, s.text.Extract, s.text.Proxy, s.text.Keep,
+			s.text.Pace, s.text.Cap, s.text.Mute, s.text.OpenTarget, s.text.AIGroup, s.text.FolderHelp} {
+			if slices.Contains(tt.Texts(), gone) {
+				t.Fatalf("%s: the dialog shows %q: %v", lang, gone, tt.Texts())
+			}
+		}
+	}
+}
+
+// More settings with nothing changed closes the dialog and opens the subscription's page in Settings, sending nothing.
+func TestEditMoreSettings(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.Edit(f.sources[0])
+	tt.Frame()
+	if err := tt.Click(s.text.MoreSettings); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if s.Open() || len(f.patches[1]) != 0 {
+		t.Fatalf("open %v, patches %v", s.Open(), f.patches)
+	}
+	if !slices.Equal(f.pages, []string{"subscriptions"}) || !s.pg.open || s.pg.e.src.Title != "Go Blog" {
+		t.Fatalf("pages %v, page %+v", f.pages, s.pg)
+	}
+}
+
+// More settings with changes saves them first, as Save does, then opens the page of what the server answered.
+func TestEditMoreSettingsSavesFirst(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.Edit(f.sources[0])
+	tt.Frame()
+	tt.Type(" weekly")
+	if err := tt.Click(s.text.MoreSettings); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.pages) != 0 || !s.Open() {
+		t.Fatal("the page opened before the save")
+	}
+	f.settle(tt)
+	p := f.patches[1]
+	if len(p) != 1 || p[0].Title == nil || *p[0].Title != "Go Blog weekly" {
+		t.Fatalf("patches %+v", p)
+	}
+	if s.Open() || !slices.Equal(f.pages, []string{"subscriptions"}) || !s.pg.open || s.pg.e.src.Title != "Go Blog weekly" {
+		t.Fatalf("open %v, pages %v, page %+v", s.Open(), f.pages, s.pg)
+	}
+}
+
+// A refused save keeps the dialog open with its error, and Save afterwards does not go to the page.
+func TestEditMoreSettingsRefused(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	s.Edit(f.sources[0])
+	tt.Frame()
+	tt.Type(" weekly")
+	f.updateErr = fmt.Errorf("put: %w", client.ErrUnreachable)
+	if err := tt.Click(s.text.MoreSettings); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if !s.Open() || len(f.pages) != 0 || !tt.HasText(s.text.Unreachable) {
+		t.Fatalf("open %v, pages %v, texts %v", s.Open(), f.pages, tt.Texts())
+	}
+	f.updateErr = nil
+	if err := tt.Click(s.text.Save); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(tt)
+	if s.Open() || len(f.pages) != 0 || s.pg.open {
+		t.Fatalf("open %v, pages %v, page %v", s.Open(), f.pages, s.pg.open)
 	}
 }
 
@@ -871,13 +991,13 @@ func TestEditServedBy(t *testing.T) {
 	}
 }
 
-func TestEditAI(t *testing.T) {
-	s, f, tt := setup(t, "en")
+// The AI card of the page: its switches apply at once, its prompts wait for Save prompts.
+func TestPageAI(t *testing.T) {
+	s, f, _ := setup(t, "en")
 	f.settings.AIBaseURL, f.settings.AIModel = "https://api.example.com/v1", "small"
 	f.sources[0].PromptTranslate, f.sources[0].AutoTranslate = "Translate plainly.", true
-	tt.SetSize(1000, 2400)
-	s.Edit(f.sources[0])
-	tt.Frame()
+	s.OpenSource(f.sources[0])
+	tt := pageTester(s)
 	f.settle(tt)
 	for _, text := range []string{s.text.AIGroup, s.text.AutoSummary, s.text.AutoHelp, s.text.AutoTranslate,
 		s.text.PromptSummary, s.text.PromptTranslate} {
@@ -885,30 +1005,32 @@ func TestEditAI(t *testing.T) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
 	}
-	if tt.HasText(s.text.AIOff) || s.edit.prompts != [2]string{"", "Translate plainly."} || !s.edit.auto[1] {
-		t.Fatalf("texts %v, edit %+v", tt.Texts(), s.edit)
+	if tt.HasText(s.text.AIOff) || s.pg.e.prompts != [2]string{"", "Translate plainly."} || !s.pg.e.auto[1] {
+		t.Fatalf("texts %v, page %+v", tt.Texts(), s.pg.e)
 	}
-	if err := tt.Click(s.text.AutoHelp); err != nil {
-		t.Fatal(err)
-	}
-	s.edit.prompts = [2]string{"  Summarize in one line.  ", ""}
-	if err := tt.Click(s.text.Save); err != nil {
-		t.Fatal(err)
-	}
+	s.pg.e.auto[0] = true // as the switch does
+	tt.Frame()
 	f.settle(tt)
 	p := f.patches[1]
-	if len(p) != 1 || p[0].AutoSummary == nil || !*p[0].AutoSummary || p[0].AutoTranslate != nil ||
-		p[0].PromptSummary == nil || *p[0].PromptSummary != "Summarize in one line." ||
-		p[0].PromptTranslate == nil || *p[0].PromptTranslate != "" || p[0].Title != nil {
+	if len(p) != 1 || p[0].AutoSummary == nil || !*p[0].AutoSummary || p[0].AutoTranslate != nil || p[0].PromptSummary != nil {
+		t.Fatalf("patches %+v", p)
+	}
+
+	s.pg.e.prompts = [2]string{"  Summarize in one line.  ", ""}
+	tt.Frame()
+	mustClick(t, tt, s.text.SavePrompts)
+	f.settle(tt)
+	p = f.patches[1]
+	if len(p) != 2 || p[1].PromptSummary == nil || *p[1].PromptSummary != "Summarize in one line." ||
+		p[1].PromptTranslate == nil || *p[1].PromptTranslate != "" || p[1].AutoSummary != nil || p[1].Title != nil {
 		t.Fatalf("patches %+v", p)
 	}
 }
 
-func TestEditAIOff(t *testing.T) {
-	s, f, tt := setup(t, "zh-Hans")
-	tt.SetSize(1000, 2400)
-	s.Edit(f.sources[0])
-	tt.Frame()
+func TestPageAIOff(t *testing.T) {
+	s, f, _ := setup(t, "zh-Hans")
+	s.OpenSource(f.sources[0])
+	tt := pageTester(s)
 	if tt.HasText(s.text.AIOff) {
 		t.Fatal("the warning shows before the settings load")
 	}
@@ -916,16 +1038,14 @@ func TestEditAIOff(t *testing.T) {
 	if !tt.HasText(s.text.AIOff) {
 		t.Fatalf("no warning in %v", tt.Texts())
 	}
-	if err := tt.Click(s.text.OpenSettings); err != nil {
-		t.Fatal(err)
-	}
-	if f.opened != 1 || s.Open() || len(f.patches[1]) != 0 {
-		t.Fatalf("opened %d, open %v", f.opened, s.Open())
+	mustClick(t, tt, s.text.OpenSettings)
+	if f.opened != 1 || len(f.patches[1]) != 0 {
+		t.Fatalf("opened %d, patches %v", f.opened, f.patches)
 	}
 
 	// Settings that do not load say nothing of AI; the server queues nothing without it all the same.
 	f.settingsErr = errors.New("offline")
-	s.Edit(f.sources[0])
+	s.OpenSource(f.sources[0])
 	f.settle(tt)
 	if tt.HasText(s.text.AIOff) {
 		t.Fatal("the warning shows without the settings")
@@ -1212,39 +1332,23 @@ func TestChinese(t *testing.T) {
 	}
 }
 
-func TestEditAutoInterval(t *testing.T) {
-	s, f, tt := setup(t, "en")
-	s.Edit(f.sources[0])
-	tt.Frame()
-	if s.edit.interval != 0 {
-		t.Fatalf("interval choice %d for an automatic subscription", s.edit.interval)
+// The Every select of the page: a fixed interval leaves Auto, and Auto goes back to it, each sent alone.
+func TestPageAutoInterval(t *testing.T) {
+	s, f, tt := paged(t, "en", 0, nil)
+	if s.pg.e.interval != 0 {
+		t.Fatalf("interval choice %d for an automatic subscription", s.pg.e.interval)
 	}
-	if err := tt.Click("Auto · 15 min"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("6 h"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
-	}
+	mustClick(t, tt, "Auto · 15 min")
+	mustClick(t, tt, "6 h")
 	f.settle(tt)
 	p := f.patches[1]
 	if len(p) != 1 || p[0].FetchIntervalSec == nil || *p[0].FetchIntervalSec != 6*3600 || p[0].FetchIntervalAuto != nil {
 		t.Fatalf("patches %+v", p)
 	}
 
-	s.Edit(f.sources[1])
-	tt.Frame()
-	if err := tt.Click("1 h"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("Auto"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
-	}
+	s, f, tt = paged(t, "en", 1, nil)
+	mustClick(t, tt, "1 h")
+	mustClick(t, tt, "Auto")
 	f.settle(tt)
 	p = f.patches[2]
 	if len(p) != 1 || p[0].FetchIntervalAuto == nil || !*p[0].FetchIntervalAuto || p[0].FetchIntervalSec != nil {
@@ -1305,7 +1409,7 @@ func TestEditSuggestionChinese(t *testing.T) {
 	src.SuggestedKind = "image"
 	s.Edit(src)
 	tt.Frame()
-	for _, text := range []string{"这个订阅的条目大多是图片。", "显示为图片", "自动 · 15 分钟"} {
+	for _, text := range []string{"这个订阅的条目大多是图片。", "显示为图片"} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}

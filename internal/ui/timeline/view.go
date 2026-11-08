@@ -401,6 +401,7 @@ func New(systemLocale string, deps Deps) *Screen {
 				deps.OpenSettingsPage("fetching")
 			}
 		},
+		OpenSettingsPage: deps.OpenSettingsPage,
 		Expired: func() {
 			s.gen++
 			s.pics.Stop()

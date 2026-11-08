@@ -37,7 +37,7 @@ func TestEditFolderPicker(t *testing.T) {
 	s.Edit(f.sources[0])
 	tt.Frame()
 	f.settle(tt)
-	if !tt.HasText("Folder") || !tt.HasText("Reading") || !tt.HasText(s.text.FolderHelp) {
+	if !tt.HasText("Folder") || !tt.HasText("Reading") || tt.HasText(s.text.FolderHelp) {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	if err := tt.Click("Save"); err != nil {

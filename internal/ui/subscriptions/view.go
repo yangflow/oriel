@@ -3,7 +3,6 @@
 package subscriptions
 
 import (
-	"cmp"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -38,40 +37,40 @@ type copy struct {
 	LabelVideos, LabelDynamic, LabelPosts, LabelActivities, LabelAnswers, LabelColumn, LabelTopic, LabelCollection, LabelQuestion                                                  string
 	LabelChannel, LabelPlaylist                                                                                                                                                    string
 	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, NotChecked, NextIn                                                                             string
-	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, Mute, MuteHelp, DeleteTitle, DeleteBody                                                                                 string
+	NextSoon, FailedOnce, FailedTimes, Paused, PauseLabel, MoreSettings, MoreSettingsSub, Mute, MuteHelp, DeleteTitle, DeleteBody                                                  string
 	ServedBy, ServedByBackup, ServedByBackupHint, MuteHidden, MuteNone                                                                                                             string
 	Keep, KeepFollow, KeepFollowing, KeepForever, KeepWeek, KeepMonth, KeepMonths3, KeepMonths6, KeepYear, KeepHelp                                                                string
 	Extract, ExtractHelp, ExtractSelector, ExtractSelectorHelp, ExtractSelectorPlaceholder, ExtractSelectorInvalid                                                                 string
 	ExtractReferer, ExtractRefererHelp, ExtractRefererPlaceholder, ExtractRefererInvalid                                                                                           string
 	Headers, HeaderUa, HeaderUaHelp, HeaderReferer, HeaderRefererHelp, HeadersNote, HeaderUaError, HeaderRefererError,
-	Proxy, ProxyMode, ProxyFollow, ProxyDirect, ProxyCustom, ProxyFollowHelp, ProxyDirectHelp, ProxyAddress, ProxyAddressHelp,
+	Proxy, ProxyFollow, ProxyDirect, ProxyCustom, ProxyAddress, ProxyAddressHelp,
 	ProxyUser, ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyAuthHelp, ProxyError string
-	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                                            string
-	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                                                     string
-	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                                                              string
-	Cap, CapOff, CapN, CapHelp, HealthNoisy, NoisySlow, NoisySlowSource, NoisyDismissSource, NoisySlowed, NoisyDismissed                                                                string
-	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                                                        string
-	MoveToFolder, NoFolder, NewFolderItem, Folder, FolderHelp, FolderNewTitle, FolderRenameTitle, FolderName, FolderNamePlaceholder, FolderCreate                                       string
-	FolderRename, FolderDelete, FolderDeleteTitle, FolderDeleteBody, FolderNameError, FolderExists, FolderGone                                                                          string
-	FolderCreated, FolderMoved, FolderUnfiled, FolderRenamed, FolderDeleted                                                                                                             string
-	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                                                     string
-	Undo, Dismiss, UndoFailed                                                                                                                                                           string
-	GroupShow, GroupFetch, GroupTimeline, AIGroup, AutoSummary, AutoTranslate, AutoHelp, TranslateTitles, TranslateTitlesHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff string
-	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, SuggestForum, UseKind                                                     string
-	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                                                  string
-	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                                               string
-	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                                                          string
-	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                                                  string
-	FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN                                                              string
-	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, LabelSep, SelectedMark, PausedMark                                                                                           string
-	AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore                                                                                                      string
-	AllKinds, KindFilter, ListName, NoSubscriptions, HiddenMark, RowFailed, Applying, RefreshNLabel, DeleteMany, AnnounceRefresh                                                        string
-	RefreshedMany, PartialRefresh, On, Off, ProxyFollowShort, PageGeneral, PageFetching, PageTimeline, PageDelete, TitleHelp                                                            string
-	PauseHelp, EveryHelp, ExtractRowHelp, HeadersRowHelp, ProxyRowHelp, Automatic, None, Custom, Prompts, UsingSettings                                                                 string
-	DeleteSubscription, DeleteSubscriptionHelp, DeleteSource, Saved, SaveTitle, SaveExtract, SaveHeaders, SaveProxy, SaveMute                                                           string
-	SavePrompts, StatusOk, StatusFailed, StatusGone, StatusGoneSub, StatusPausedSub, StatusUpdated, StripTried, StripTriedOnly, LastSuccess                                             string
-	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed                                 string
-	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, Apply, DeleteManyTitle, DeleteManyBody                                                          string
+	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                            string
+	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                     string
+	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                              string
+	Cap, CapOff, CapN, CapHelp, HealthNoisy, NoisySlow, NoisySlowSource, NoisyDismissSource, NoisySlowed, NoisyDismissed                                string
+	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                        string
+	MoveToFolder, NoFolder, NewFolderItem, Folder, FolderHelp, FolderNewTitle, FolderRenameTitle, FolderName, FolderNamePlaceholder, FolderCreate       string
+	FolderRename, FolderDelete, FolderDeleteTitle, FolderDeleteBody, FolderNameError, FolderExists, FolderGone                                          string
+	FolderCreated, FolderMoved, FolderUnfiled, FolderRenamed, FolderDeleted                                                                             string
+	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                     string
+	Undo, Dismiss, UndoFailed                                                                                                                           string
+	AIGroup, AutoSummary, AutoTranslate, AutoHelp, TranslateTitles, TranslateTitlesHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff       string
+	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, SuggestForum, UseKind                     string
+	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                  string
+	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                               string
+	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                          string
+	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                  string
+	FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN                              string
+	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, LabelSep, SelectedMark, PausedMark                                                           string
+	AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore                                                                      string
+	AllKinds, KindFilter, ListName, NoSubscriptions, HiddenMark, RowFailed, Applying, RefreshNLabel, DeleteMany, AnnounceRefresh                        string
+	RefreshedMany, PartialRefresh, On, Off, ProxyFollowShort, PageGeneral, PageFetching, PageTimeline, PageDelete, TitleHelp                            string
+	PauseHelp, EveryHelp, ExtractRowHelp, HeadersRowHelp, ProxyRowHelp, Automatic, None, Custom, Prompts, UsingSettings                                 string
+	DeleteSubscription, DeleteSubscriptionHelp, DeleteSource, Saved, SaveTitle, SaveExtract, SaveHeaders, SaveProxy, SaveMute                           string
+	SavePrompts, StatusOk, StatusFailed, StatusGone, StatusGoneSub, StatusPausedSub, StatusUpdated, StripTried, StripTriedOnly, LastSuccess             string
+	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed string
+	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, Apply, DeleteManyTitle, DeleteManyBody                          string
 }
 
 var translations = func() map[string]copy {
@@ -148,6 +147,8 @@ type Deps struct {
 	OpenSettings func()
 	// OpenRSSHub opens the settings on the group of the RSSHub instances.
 	OpenRSSHub func()
+	// OpenSettingsPage opens the settings on the group called page, as More settings does on "subscriptions".
+	OpenSettingsPage func(page string)
 	// Folders are the folders the timeline has; Refiled tells it to load them and the subscriptions again.
 	Folders func() []client.Folder
 	Refiled func()
@@ -242,7 +243,6 @@ type editing struct {
 	agent     string // the User-Agent and the Referer sent to the subscription's own host
 	fetchRef  string
 	headerErr [2]bool // the server refused the User-Agent, the Referer
-	proxyOpen bool    // the Proxy group is open
 	proxyMode int64   // how the subscription connects: proxyFollow, proxyDirect or proxyCustom
 	proxyURL  string  // the address of its own proxy as typed
 	proxyUser string  // the sign-in as typed; the one saved is never sent back
@@ -258,6 +258,7 @@ type editing struct {
 	aiOff     bool      // the settings have no AI endpoint, so the switches do nothing yet
 	primary   string    // the first RSSHub instance of the settings, "" until they are loaded
 	formErr   string
+	more      bool   // More settings was pressed: once saved, the dialog leads to the subscription's page
 	movedErr  string // why the move could not be taken, shown in the moved card
 	busy      bool
 	focus     bool
@@ -698,7 +699,7 @@ func editingOf(src client.Source) editing {
 		extract:  src.ExtractSelector != "" || src.ExtractReferer != "" || src.ExtractRewrites != "",
 		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
 		headers: src.FetchUserAgent != "" || src.FetchReferer != "", agent: src.FetchUserAgent, fetchRef: src.FetchReferer,
-		proxyOpen: src.Proxy != "", proxyMode: proxyChoice(src.Proxy), proxyURL: ownProxy(src.Proxy),
+		proxyMode: proxyChoice(src.Proxy), proxyURL: ownProxy(src.Proxy),
 		auto: [2]bool{src.AutoSummary, src.AutoTranslate}, titles: src.TranslateTitles,
 		prompts: [2]string{src.PromptSummary, src.PromptTranslate}}
 }
@@ -735,26 +736,8 @@ func (s *Screen) save() {
 	if kind := kinds[e.kind]; kind != e.src.Kind {
 		patch.Kind, changed = &kind, true
 	}
-	if interval := e.interval; interval != intervalChoice(e.src) {
-		if interval == 0 {
-			auto := true
-			patch.FetchIntervalAuto = &auto
-		} else {
-			patch.FetchIntervalSec = &interval
-		}
-		changed = true
-	}
-	if keep := int(e.keep); keep != e.src.KeepDays {
-		patch.KeepDays, changed = &keep, true
-	}
-	if target := openTargets[e.target]; target != cmp.Or(e.src.OpenTarget, openTargets[0]) {
-		patch.OpenTarget, changed = &target, true
-	}
-	if pace := int(e.pace); pace != e.src.PaceSec {
-		patch.PaceSec, changed = &pace, true
-	}
-	if dailyCap := int(e.dailyCap); dailyCap != e.src.DailyCap {
-		patch.DailyCap, changed = &dailyCap, true
+	if folder := e.folder; folder != e.src.FolderID {
+		patch.FolderID, changed = &folder, true
 	}
 	if paused := e.paused; paused != e.src.Paused {
 		patch.Paused, changed = &paused, true
@@ -762,69 +745,12 @@ func (s *Screen) save() {
 	if hide := e.hide; hide != e.src.HideFromAll {
 		patch.HideFromAll, changed = &hide, true
 	}
-	if folder := e.folder; folder != e.src.FolderID {
-		patch.FolderID, changed = &folder, true
-	}
-	if mute := e.mute; mute != e.src.MuteKeywords {
-		patch.MuteKeywords, changed = &mute, true
-	}
-	if selector := strings.TrimSpace(e.selector); selector != e.src.ExtractSelector {
-		patch.ExtractSelector, changed = &selector, true
-	}
-	if referer := strings.TrimSpace(e.referer); referer != e.src.ExtractReferer {
-		patch.ExtractReferer, changed = &referer, true
-	}
-	if rewrites := strings.TrimSpace(e.rewrites); rewrites != e.src.ExtractRewrites {
-		patch.ExtractRewrites, changed = &rewrites, true
-	}
-	if agent := strings.TrimSpace(e.agent); agent != e.src.FetchUserAgent {
-		patch.FetchUserAgent, changed = &agent, true
-	}
-	if referer := strings.TrimSpace(e.fetchRef); referer != e.src.FetchReferer {
-		patch.FetchReferer, changed = &referer, true
-	}
-	proxy := e.proxyValue()
-	if e.proxyMode == proxyCustom && proxy == "" {
-		e.proxyOpen, e.proxyErr = true, true
-		s.announce = s.text.ProxyError
-		return
-	}
-	if proxy != e.src.Proxy {
-		patch.Proxy, changed = &proxy, true
-	}
-	if e.proxyMode == proxyCustom {
-		user, pass := e.proxyUser, e.proxyPass
-		if e.proxyDrop && e.proxyAuthSaved() {
-			patch.ProxyUser, patch.ProxyPassword, changed = new(string), new(string), true
-		}
-		if user != "" {
-			patch.ProxyUser, changed = &user, true
-		}
-		if pass != "" {
-			patch.ProxyPassword, changed = &pass, true
-		}
-	}
-	if auto := e.auto[0]; auto != e.src.AutoSummary {
-		patch.AutoSummary, changed = &auto, true
-	}
-	if auto := e.auto[1]; auto != e.src.AutoTranslate {
-		patch.AutoTranslate, changed = &auto, true
-	}
-	if e.titles != e.src.TranslateTitles {
-		titles := e.titles
-		patch.TranslateTitles, changed = &titles, true
-	}
-	if prompt := strings.TrimSpace(e.prompts[0]); prompt != e.src.PromptSummary {
-		patch.PromptSummary, changed = &prompt, true
-	}
-	if prompt := strings.TrimSpace(e.prompts[1]); prompt != e.src.PromptTranslate {
-		patch.PromptTranslate, changed = &prompt, true
-	}
 	if !changed {
 		e.open = false
+		s.afterEdit(e.src)
 		return
 	}
-	e.busy, e.formErr, e.headerErr, e.proxyErr = true, "", [2]bool{}, false
+	e.busy, e.formErr = true, ""
 	gen, api, id := s.gen, s.api, e.src.ID
 	s.deps.Go(func() func() {
 		src, err := api.UpdateSource(context.Background(), id, patch)
@@ -837,24 +763,39 @@ func (s *Screen) save() {
 			case err == nil:
 				s.edit.open = false
 				s.deps.Changed(src)
+				s.afterEdit(src)
+				return
 			case code(err) == "not_found":
 				s.gone(id)
-			case code(err) == "invalid_fetch_user_agent" || code(err) == "invalid_fetch_referer":
-				s.edit.headers = true
-				s.edit.headerErr = [2]bool{code(err) == "invalid_fetch_user_agent", code(err) == "invalid_fetch_referer"}
-				s.announce = s.text.HeaderUaError
-				if s.edit.headerErr[1] {
-					s.announce = s.text.HeaderRefererError
-				}
-			case code(err) == "invalid_proxy":
-				s.edit.proxyOpen, s.edit.proxyErr = true, true
-				s.announce = s.text.ProxyError
 			default:
 				s.edit.formErr = s.saveProblem(err)
 				s.announce = s.edit.formErr
 			}
+			s.edit.more = false
 		}
 	})
+}
+
+// openMore is the More settings row of the edit dialog: it saves what changed, then, unless the server refused it,
+// closes the dialog and opens Settings → Subscriptions on the subscription's page.
+func (s *Screen) openMore() {
+	if s.edit.busy {
+		return
+	}
+	s.edit.more = true
+	s.save()
+}
+
+// afterEdit follows a closed edit dialog of src to its page when More settings closed it.
+func (s *Screen) afterEdit(src client.Source) {
+	if !s.edit.more {
+		return
+	}
+	s.edit.more = false
+	if s.deps.OpenSettingsPage != nil {
+		s.deps.OpenSettingsPage("subscriptions")
+		s.OpenSource(src)
+	}
 }
 
 // The ways a subscription connects, in the order of the select.
@@ -2106,30 +2047,6 @@ func (s *Screen) keepName(days int64) string {
 	return s.count(s.text.Days, int(days))
 }
 
-// keepField is the keep period of the subscription's entries, with the line that says what it does. Chosen as
-// following the settings it shows the period the settings have, as in "Follow settings · 3 months".
-func (s *Screen) keepField(c *ui.Context) {
-	t := c.Theme()
-	e := s.form
-	options := keeps
-	if !slices.Contains(options, e.keep) {
-		options = slices.Insert(slices.Clone(options), len(options)-1, e.keep)
-		slices.SortFunc(options[1:len(options)-1], func(a, b int64) int { return int(a - b) })
-	}
-	shown := s.keepName(e.keep)
-	if e.keep == 0 {
-		global := s.text.KeepForever
-		if e.global > 0 {
-			global = s.keepName(int64(e.global))
-		}
-		shown = strings.ReplaceAll(s.text.KeepFollowing, "{keep}", global)
-	}
-	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		s.choiceSelect(c, &e.keep, options, s.text.Keep, shown, s.keepName, e.busy, false)
-		help(c, s.text.KeepHelp)
-	})
-}
-
 // openName names a choice of openTargets.
 func (s *Screen) openName(i int64) string {
 	switch openTargets[i] {
@@ -2139,16 +2056,6 @@ func (s *Screen) openName(i int64) string {
 		return s.text.OpenBrowser
 	}
 	return s.text.OpenFollow
-}
-
-// openField is where a click on the subscription's entries goes, with the line that says so.
-func (s *Screen) openField(c *ui.Context) {
-	t := c.Theme()
-	e := s.form
-	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		s.choiceSelect(c, &e.target, []int64{0, 1, 2}, s.text.OpenTarget, s.openName(e.target), s.openName, e.busy, false)
-		help(c, s.text.OpenTargetHelp)
-	})
 }
 
 // paceName names a pace in seconds: 0 is off, the presets by name and any other number as hours or days.
@@ -2166,71 +2073,12 @@ func (s *Screen) paceName(sec int64) string {
 	return s.every(sec)
 }
 
-// paceField is the pace of the subscription, with the line that says what it does.
-func (s *Screen) paceField(c *ui.Context) {
-	t := c.Theme()
-	e := s.form
-	options := paces
-	if !slices.Contains(options, e.pace) {
-		options = append(slices.Clone(options), e.pace)
-		slices.Sort(options[1:])
-	}
-	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		s.choiceSelect(c, &e.pace, options, s.text.Pace, s.paceName(e.pace), s.paceName, e.busy, false)
-		help(c, s.text.PaceHelp)
-	})
-}
-
 // capName names a daily cap in entries: 0 is off.
 func (s *Screen) capName(n int64) string {
 	if n == 0 {
 		return s.text.CapOff
 	}
 	return s.count(s.text.CapN, int(n))
-}
-
-// capField is how many entries a day of the subscription stay out of the fold, with the line that says what it does.
-func (s *Screen) capField(c *ui.Context) {
-	t := c.Theme()
-	e := s.form
-	options := caps
-	if !slices.Contains(options, e.dailyCap) {
-		options = append(slices.Clone(options), e.dailyCap)
-		slices.Sort(options[1:])
-	}
-	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		s.choiceSelect(c, &e.dailyCap, options, s.text.Cap, s.capName(e.dailyCap), s.capName, e.busy, false)
-		help(c, s.text.CapHelp)
-	})
-}
-
-// extractGroup is the Extraction disclosure: the content selector, the Referer and the link rewrites that steer the
-// full text of the subscription. It is closed unless a rule is set, and an empty field leaves the automatic behavior.
-func (s *Screen) extractGroup(c *ui.Context) {
-	t := c.Theme()
-	e := s.form
-	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		head := ui.ButtonBase(c).Key("extract").AlignSelf(ui.Start).Height(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).
-			Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Extract).Role(ui.RoleDisclosure).Expanded(e.extract)
-		if head.Hovered() {
-			head.Background(t.SurfaceHover)
-		}
-		theme.Fade(head)
-		head.Children(func() {
-			chevron := icons.ChevronRight
-			if e.extract {
-				chevron = icons.ChevronDown
-			}
-			ui.Icon(c, chevron).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			ui.Text(c, s.text.Extract).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500)
-		})
-		if head.Clicked() {
-			e.extract = !e.extract
-		}
-		if e.extract {
-			s.extractFields(c)
-		}
-	})
 }
 
 // extractFields are the fields of the Extraction group.
@@ -2254,39 +2102,6 @@ func (s *Screen) extractFields(c *ui.Context) {
 	})
 }
 
-// headersGroup is the Request headers disclosure: the User-Agent and Referer sent to the subscription's own site. It
-// is closed unless one is set, and not shown for a route, which RSSHub instances serve and not the subscription's own
-// site.
-func (s *Screen) headersGroup(c *ui.Context) {
-	t := c.Theme()
-	e := s.form
-	if e.src.URL == "" {
-		return
-	}
-	ui.Column(c.Key("headers")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		head := ui.ButtonBase(c).Key("headers-head").AlignSelf(ui.Start).Height(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).
-			Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Headers).Role(ui.RoleDisclosure).Expanded(e.headers)
-		if head.Hovered() {
-			head.Background(t.SurfaceHover)
-		}
-		theme.Fade(head)
-		head.Children(func() {
-			chevron := icons.ChevronRight
-			if e.headers {
-				chevron = icons.ChevronDown
-			}
-			ui.Icon(c, chevron).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			ui.Text(c, s.text.Headers).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500)
-		})
-		if head.Clicked() {
-			e.headers = !e.headers
-		}
-		if e.headers {
-			s.headerFields(c)
-		}
-	})
-}
-
 // headerFields are the fields of the Request headers group.
 func (s *Screen) headerFields(c *ui.Context) {
 	t := c.Theme()
@@ -2297,49 +2112,6 @@ func (s *Screen) headerFields(c *ui.Context) {
 		s.headerInput(c, "fetch-referer", &e.fetchRef, e.headerErr[1], s.text.HeaderReferer, "https://example.com/",
 			s.text.HeaderRefererHelp, s.text.HeaderRefererError)
 		help(c, s.text.HeadersNote)
-	})
-}
-
-// proxyGroup is the Proxy disclosure: whether the subscription follows the proxy of the settings, connects directly
-// or uses a proxy of its own. It is closed while the subscription follows the settings.
-func (s *Screen) proxyGroup(c *ui.Context) {
-	t := c.Theme()
-	e := s.form
-	ui.Column(c.Key("proxy")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		head := ui.ButtonBase(c).Key("proxy-head").AlignSelf(ui.Start).Height(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).
-			Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Proxy).Role(ui.RoleDisclosure).Expanded(e.proxyOpen)
-		if head.Hovered() {
-			head.Background(t.SurfaceHover)
-		}
-		theme.Fade(head)
-		head.Children(func() {
-			chevron := icons.ChevronRight
-			if e.proxyOpen {
-				chevron = icons.ChevronDown
-			}
-			ui.Icon(c, chevron).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			ui.Text(c, s.text.Proxy).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500)
-		})
-		if head.Clicked() {
-			e.proxyOpen = !e.proxyOpen
-		}
-		if !e.proxyOpen {
-			return
-		}
-		names := map[int64]string{proxyFollow: s.text.ProxyFollow, proxyDirect: s.text.ProxyDirect, proxyCustom: s.text.ProxyCustom}
-		ui.Column(c.Key("proxy-mode")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-			s.choiceSelect(c, &e.proxyMode, []int64{proxyFollow, proxyDirect, proxyCustom}, s.text.ProxyMode, names[e.proxyMode],
-				func(v int64) string { return names[v] }, e.busy, false)
-			switch e.proxyMode {
-			case proxyFollow:
-				help(c, s.text.ProxyFollowHelp)
-			case proxyDirect:
-				help(c, s.text.ProxyDirectHelp)
-			}
-		})
-		if e.proxyMode == proxyCustom {
-			s.proxyFields(c)
-		}
 	})
 }
 
@@ -2426,12 +2198,12 @@ func (s *Screen) extractInput(c *ui.Context, key string, value *string, labelTex
 // for the current value.
 func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, busy, muted bool) {
 	label(c, labelText)
-	s.selectTrigger(c, value, options, labelText, shown, name, busy, muted)
+	s.selectTrigger(c, value, options, labelText, shown, name, nil, busy, muted)
 }
 
-// selectTrigger is the select of choiceSelect without its label, named labelText for a screen reader; it fills the
-// width it is given.
-func (s *Screen) selectTrigger(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, busy, muted bool) {
+// selectTrigger is the select of choiceSelect without its label, named labelText for a screen reader, with icon, if
+// any, before the value; it fills the width it is given.
+func (s *Screen) selectTrigger(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, icon *ui.SVG, busy, muted bool) {
 	t := c.Theme()
 	sel := ui.SelectBase(c, value)
 	sel.Trigger.FillWidth().MinWidth(theme.Px(t, tokens.MenuMin)).Height(theme.Px(t, tokens.Control)).
@@ -2444,6 +2216,9 @@ func (s *Screen) selectTrigger(c *ui.Context, value *int64, options []int64, lab
 		sel.Trigger.Background(t.SurfaceHover)
 	}
 	sel.Trigger.Children(func() {
+		if icon != nil {
+			ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+		}
 		shownText := ui.Text(c, shown).Grow(1).MinWidth(0).SingleLine()
 		if muted {
 			shownText.TextColor(t.TextMuted)
@@ -2483,25 +2258,17 @@ func (s *Screen) editDialog(c *ui.Context) {
 		s.movedCard(c)
 		focus := e.focus
 		e.focus = false
-		groupTitle(c, icons.Eye, s.text.GroupShow)
-		s.titleField(c, &e.title, e.busy, focus, s.save)
-		s.kindPicker(c, &e.kind)
+		ui.Column(c).FillWidth().Gap(theme.Px(c.Theme(), tokens.Space1)).Children(func() {
+			s.titleField(c, &e.title, e.busy, focus, s.save)
+		})
+		if len(s.folders()) == 0 {
+			ui.Column(c).FillWidth().Gap(theme.Px(c.Theme(), tokens.Space1)).Children(func() { s.kindSelect(c) })
+		} else {
+			s.pair(c, func() { s.kindSelect(c) }, func() { s.folderField(c) })
+		}
 		s.kindSuggestion(c)
-		groupTitle(c, icons.RefreshCw, s.text.GroupFetch)
-		s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, "")
-		s.intervalSelect(c, &e.interval, e.src.FetchIntervalSec, e.busy)
-		s.extractGroup(c)
-		s.headersGroup(c)
-		s.proxyGroup(c)
-		groupTitle(c, icons.ListFilter, s.text.GroupTimeline)
-		s.switchRow(c, "hide", &e.hide, s.text.HideLabel, s.text.HideHelp)
-		s.folderField(c)
-		s.openField(c)
-		s.keepField(c)
-		s.paceField(c)
-		s.capField(c)
-		s.muteField(c)
-		s.aiGroup(c)
+		s.editSwitches(c)
+		s.moreRow(c)
 		if e.formErr != "" {
 			errorLine(c, e.formErr, "")
 		}
@@ -2524,6 +2291,57 @@ func (s *Screen) editDialog(c *ui.Context) {
 			s.save()
 		}
 	})
+}
+
+// kindSelect is the Show as select of the edit dialog, with the icon of the kind chosen.
+func (s *Screen) kindSelect(c *ui.Context) {
+	e := s.form
+	value := int64(e.kind)
+	options := make([]int64, len(kinds))
+	for i := range kinds {
+		options[i] = int64(i)
+	}
+	label(c, s.text.ShowAs)
+	s.selectTrigger(c, &value, options, s.text.ShowAs, s.kindName(kinds[e.kind]), func(i int64) string { return s.kindName(kinds[i]) },
+		kindIcon(kinds[e.kind]), e.busy, false)
+	e.kind = int(value)
+}
+
+// editSwitches are the Pause fetching and Hide from All switches of the edit dialog, between two hairlines.
+func (s *Screen) editSwitches(c *ui.Context) {
+	t := c.Theme()
+	e := s.form
+	ui.Column(c).FillWidth().Children(func() {
+		ui.Box(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).Background(t.Border)
+		ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space3+tokens.Space0_5)).PaddingY(theme.Px(t, tokens.Space3)).Children(func() {
+			s.switchRow(c, "pause", &e.paused, s.text.PauseLabel, "")
+			s.switchRow(c, "hide", &e.hide, s.text.HideLabel, s.text.HideHelp)
+		})
+		ui.Box(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).Background(t.Border)
+	})
+}
+
+// moreRow leads from the edit dialog to the subscription's page, where the rest of its settings are.
+func (s *Screen) moreRow(c *ui.Context) {
+	t := c.Theme()
+	row := ui.ButtonBase(c).Key("more").FillWidth().MinHeight(theme.Px(t, tokens.Space12)).AlignItems(ui.Center).
+		Gap(theme.Px(t, tokens.Space3)).Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).
+		Radius(theme.Px(t, tokens.RadiusControl)).Background(theme.Surface(t)).Label(s.text.MoreSettings).
+		Description(s.text.MoreSettingsSub).Disabled(s.form.busy)
+	if row.Hovered() || row.Pressed() {
+		row.Background(t.SurfaceHover)
+	}
+	row.Children(func() {
+		ui.Icon(c, icons.SlidersHorizontal).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
+		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
+			label(c, s.text.MoreSettings)
+			ui.Text(c, s.text.MoreSettingsSub).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).SingleLine()
+		})
+		ui.Icon(c, icons.ChevronRight).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
+	})
+	if row.Clicked() {
+		s.openMore()
+	}
 }
 
 // healthText says how the fetching of src goes, and whether it is failing.
@@ -2633,10 +2451,9 @@ func (s *Screen) health(c *ui.Context) {
 // it too, and the switch at the end; help may be empty.
 func (s *Screen) switchRow(c *ui.Context, key string, value *bool, text, helpText string) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().MinHeight(theme.Px(t, tokens.RowCompact)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
-		PaddingY(theme.Px(t, tokens.Space2)).Children(func() {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
 		column := ui.Column(c).Key(key).Grow(1).MinWidth(0).Children(func() {
-			ui.Text(c, text)
+			ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(tokens.TextMetaStrong.Weight)
 			if helpText != "" {
 				help(c, helpText)
 			}
@@ -2647,75 +2464,6 @@ func (s *Screen) switchRow(c *ui.Context, key string, value *bool, text, helpTex
 		sw := ui.Switch(c, value).Label(text).Disabled(s.form.busy)
 		if helpText != "" {
 			sw.Description(helpText)
-		}
-	})
-}
-
-// groupTitle opens a group of the edit dialog: a small icon and the name, as a level 3 heading.
-func groupTitle(c *ui.Context, icon *ui.SVG, text string) {
-	t := c.Theme()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Margin(theme.Px(t, tokens.Space1_5), 0, 0, 0).Children(func() {
-		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-		ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(tokens.TextMetaStrong.Weight).
-			TextColor(t.TextMuted).Role(ui.RoleHeading).Level(3)
-	})
-}
-
-// aiGroup is the subscription's summaries and translations: switches that queue new entries, and prompts that
-// replace the ones in the settings; while AI is not set up it says so and leads to the settings.
-func (s *Screen) aiGroup(c *ui.Context) {
-	t := c.Theme()
-	e := s.form
-	groupTitle(c, icons.Sparkles, s.text.AIGroup)
-	if e.aiOff {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusCard)).
-			Background(theme.Surface(t)).Children(func() {
-			ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
-			ui.Text(c, s.text.AIOff).Grow(1).Shrink(1).MinWidth(0).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Wrap().
-				Role(ui.RoleStatus)
-			open := theme.Button{Small: true, Text: s.text.OpenSettings}.Draw(c)
-			if open.Clicked() {
-				if e == &s.edit {
-					e.open = false
-				}
-				if s.deps.OpenSettings != nil {
-					s.deps.OpenSettings()
-				}
-			}
-		})
-	}
-	s.switchRow(c, "summary", &e.auto[0], s.text.AutoSummary, s.text.AutoHelp)
-	s.switchRow(c, "translate", &e.auto[1], s.text.AutoTranslate, "")
-	s.switchRow(c, "titles", &e.titles, s.text.TranslateTitles, s.text.TranslateTitlesHelp)
-	for i, text := range [2]string{s.text.PromptSummary, s.text.PromptTranslate} {
-		ui.Column(c.Key(text)).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-			label(c, text)
-			area := ui.TextArea(c, &e.prompts[i]).FillWidth().Lines(3, 8).Font("monospace").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).
-				Label(text).Placeholder(s.text.PromptPlaceholder).Disabled(e.busy)
-			if area.Focused() {
-				area.Background(theme.RaisedFill(t))
-			}
-		})
-	}
-}
-
-func (s *Screen) muteField(c *ui.Context) {
-	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		label(c, s.text.Mute)
-		area := ui.TextArea(c, &s.form.mute).FillWidth().Lines(2, 6).Label(s.text.Mute).Description(s.text.MuteHelp).
-			Disabled(s.form.busy)
-		if area.Focused() {
-			area.Background(theme.RaisedFill(t))
-		}
-		help(c, s.text.MuteHelp)
-		s.syncMuted()
-		if e := s.form; e.known {
-			text := s.text.MuteNone
-			if e.hidden > 0 {
-				text = s.count(s.text.MuteHidden, e.hidden)
-			}
-			ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(t.TextMuted).Wrap().Role(ui.RoleStatus)
 		}
 	})
 }
