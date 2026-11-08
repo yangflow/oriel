@@ -55,9 +55,9 @@ func ScrimFor(t *ui.Theme, high bool) ui.Color {
 	}
 	switch {
 	case t.Dark && high:
-		return opaque(s).Alpha(0.6)
+		return opaque(s).Alpha(tokens.OpacityScrimHighDark)
 	case high:
-		return opaque(s).Alpha(0.5)
+		return opaque(s).Alpha(tokens.OpacityScrimHigh)
 	}
 	return s
 }

@@ -620,7 +620,7 @@ func (s *Screen) readerFailure(c *ui.Context) {
 // noteBox is a tinted box of lines with the icon of its tone, as the results under Import and Export are.
 func (s *Screen) noteBox(c *ui.Context, tone int, lines []string) {
 	t := c.Theme()
-	fill, icon, iconColor, color := theme.Ink(t, 0.045), icons.Check, t.Success, t.Text
+	fill, icon, iconColor, color := theme.Track(t), icons.Check, t.Success, t.Text
 	switch tone {
 	case partly:
 		fill, icon, iconColor = theme.Soft(t, t.Warning), icons.TriangleAlert, t.Warning

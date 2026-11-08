@@ -57,7 +57,7 @@ func Toasts(c *ui.Context) {
 				action := p.ActionButton().Row().AlignItems(ui.Center).Gap(Px(t, tokens.Space1_5)).
 					Height(Px(t, tokens.Row)).PaddingX(Px(t, tokens.Space2)).Radius(Px(t, tokens.RadiusControl))
 				if action.Hovered() {
-					action.Background(text.Alpha(0.16))
+					action.Background(text.Alpha(tokens.OpacityInverseFill))
 				}
 				action.Children(func() {
 					label := ui.Text(c, ts.Action).FontWeight(600).SingleLine()
@@ -65,7 +65,7 @@ func Toasts(c *ui.Context) {
 						label.Underline()
 					}
 					if look.Keys != "" {
-						ui.Text(c, look.Keys).FontSize(Px(t, tokens.TextMeta.Size.En)).TextColor(text.Alpha(0.6)).SingleLine()
+						ui.Text(c, look.Keys).FontSize(Px(t, tokens.TextMeta.Size.En)).TextColor(text.Alpha(tokens.OpacityInverseMuted)).SingleLine()
 					}
 				})
 				if look.Close == "" {
@@ -74,10 +74,10 @@ func Toasts(c *ui.Context) {
 				close := p.CloseButton().Label(look.Close).Tooltip(look.Close).Size(Px(t, tokens.Row), Px(t, tokens.Row)).
 					Center().Radius(Px(t, tokens.RadiusControl))
 				if close.Hovered() {
-					close.Background(text.Alpha(0.16))
+					close.Background(text.Alpha(tokens.OpacityInverseFill))
 				}
 				close.Children(func() {
-					ui.Icon(c, icons.X).FontSize(IconSmall(t)).TextColor(text.Alpha(0.7))
+					ui.Icon(c, icons.X).FontSize(IconSmall(t)).TextColor(text.Alpha(tokens.OpacityInverseMuted))
 				})
 			})
 			if cut {

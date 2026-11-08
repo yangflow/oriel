@@ -60,14 +60,14 @@ func ReadingTheme(main *ui.Theme, name string) *ui.Theme {
 	t := *main
 	t.Background, t.Surface, t.Text, t.TextMuted = p.Page, v.colors.fill, p.Fg, p.Muted
 	t.Accent, t.AccentText = p.Accent, p.OnAccent
-	t.AccentHover, t.AccentPressed = p.Accent.Mix(p.Fg, 0.15), p.Accent.Mix(p.Fg, 0.3)
+	t.AccentHover, t.AccentPressed = p.Accent.Mix(p.Fg, tokens.OpacityAccentMix), p.Accent.Mix(p.Fg, tokens.OpacityAccentMixStrong)
 	t.Danger, t.Success, t.Warning = p.Danger, p.Success, p.Warning
 	t.SurfaceHover = p.Ink.Alpha(alphaOf(s.Hover))
 	t.SurfacePressed = p.Ink.Alpha(alphaOf(s.Pressed))
 	t.Border = p.Ink.Alpha(alphaOf(s.Line))
 	t.Selection = p.Accent.Alpha(alphaOf(s.Selection))
 	// The presets' grounds are darker than paper, so the ring is a step stronger to keep 3:1 on their surface.
-	t.Focus = p.Accent.Alpha(0.8)
+	t.Focus = p.Accent.Alpha(tokens.OpacityFocusPreset)
 	t.Scrollbar = p.Ink.Alpha(alphaOf(s.Scrollbar))
 	if highContrast(main) {
 		t.SurfaceHover = p.Ink.Alpha(tokens.HighContrast.Hover)

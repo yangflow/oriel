@@ -627,6 +627,42 @@ const (
 	// OpacityWash: A status strip's fill: its meaning color at this alpha over paper, as the failure strip on a
 	// subscription's page.
 	OpacityWash = 0.08
+	// OpacityFindMatch: A match of the find bar in the text, in warning.
+	OpacityFindMatch = 0.25
+	// OpacityFindCurrent: The match the find bar is on, in warning.
+	OpacityFindCurrent = 0.4
+	// OpacityInverseFill: A control on the inverse tile, in on-inverse: a toast's action and close button, hovered.
+	OpacityInverseFill = 0.16
+	// OpacityInverseMuted: Secondary marks on the inverse tile, in on-inverse: a toast's key hint and close icon.
+	OpacityInverseMuted = 0.7
+	// OpacityScrimHigh: The scrim with high contrast on, in light.
+	OpacityScrimHigh = 0.5
+	// OpacityScrimHighDark: The scrim with high contrast on, in dark.
+	OpacityScrimHighDark = 0.6
+	// OpacityPaneRule: The strong line of the pane, in pane fill's ink.
+	OpacityPaneRule = 0.16
+	// OpacityPaneSelection: Selected text in the pane, in pane accent.
+	OpacityPaneSelection = 0.3
+	// OpacityPaneScrollbar: The scrollbar on the pane, in pane fill's ink.
+	OpacityPaneScrollbar = 0.3
+	// OpacityFocusPreset: The focus ring on a reading preset: a step above focus, to keep 3:1 on the presets' surface.
+	OpacityFocusPreset = 0.8
+	// OpacityMarkHigh: A search mark in the timeline with high contrast on, in warning.
+	OpacityMarkHigh = 0.16
+	// OpacityHighLine: line with high contrast on, in fg.
+	OpacityHighLine = 0.55
+	// OpacityHighMuted: How far muted moves toward fg with high contrast on.
+	OpacityHighMuted = 0.4
+	// OpacityAccentMix: How far a derived accent moves toward its text for hover or press.
+	OpacityAccentMix = 0.15
+	// OpacityAccentMixStrong: How far a preset's accent moves toward its fg when pressed.
+	OpacityAccentMixStrong = 0.3
+	// OpacityViewerControl: A control over a picture in the viewer, in ink.
+	OpacityViewerControl = 0.1
+	// OpacityViewerControlHover: That control under the pointer.
+	OpacityViewerControlHover = 0.18
+	// OpacityViewerEmpty: The placeholder of a picture the viewer could not show, in ink.
+	OpacityViewerEmpty = 0.06
 )
 
 // Spacing, in DIPs at the default text size and density.

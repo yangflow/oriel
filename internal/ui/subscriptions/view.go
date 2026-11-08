@@ -1476,7 +1476,7 @@ func (s *Screen) glyph(c *ui.Context, kind string, src client.Source) {
 	side := theme.Px(t, tokens.TileL)
 	ui.Box(c).Size(side, side).Shrink(0).Radius(theme.Px(t, tokens.RadiusXS)).Clip().Children(func() {
 		ui.Image(c, icon).Fit(ui.Cover).Fill()
-		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, tokens.RadiusXS)).Border(0.5, theme.Ink(t, 0.2))
+		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, tokens.RadiusXS)).Border(0.5, theme.Rule(t))
 	})
 }
 
@@ -1919,7 +1919,7 @@ func (s *Screen) kindPicker(c *ui.Context, value *int) {
 					switch {
 					case i == *value:
 						if t.Dark {
-							b.Background(theme.Ink(t, 0.12))
+							b.Background(t.SurfacePressed)
 						} else {
 							theme.Raised(t, b)
 						}

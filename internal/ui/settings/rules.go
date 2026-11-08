@@ -270,7 +270,7 @@ func (s *Screen) ruleRow(c *ui.Context, r client.Rule, id string) {
 		text := ui.ButtonBase(c).Grow(1).Shrink(1).MinWidth(0).Column().AlignItems(ui.Start).
 			Radius(theme.Px(t, tokens.RadiusSm)).Label(summary)
 		if !r.Enabled {
-			text.Opacity(0.55)
+			text.Opacity(tokens.OpacityFaded)
 		}
 		text.Children(func() {
 			ui.Text(c, summary).Wrap()

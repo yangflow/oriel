@@ -36,6 +36,23 @@ func bare(expr ast.Expr) bool {
 	return ok && (lit.Kind == token.INT || lit.Kind == token.FLOAT) && strings.Trim(lit.Value, "0.") != ""
 }
 
+// alphaArg is the argument of a call that says an opacity or a mix amount, or nil.
+func alphaArg(name string, call *ast.CallExpr) ast.Expr {
+	switch {
+	case (name == "Alpha" || name == "Opacity") && len(call.Args) == 1:
+		return call.Args[0]
+	case (name == "Mix" || name == "Ink") && len(call.Args) == 2:
+		return call.Args[1]
+	}
+	return nil
+}
+
+// one reports whether expr is the number 1: all of a color, not an opacity.
+func one(expr ast.Expr) bool {
+	lit, ok := expr.(*ast.BasicLit)
+	return ok && lit.Value == "1"
+}
+
 // literalTime reports whether expr is a duration written in place, such as 140 * time.Millisecond.
 func literalTime(expr ast.Expr) bool {
 	b, ok := expr.(*ast.BinaryExpr)
@@ -89,6 +106,9 @@ func TestViewsUseTokens(t *testing.T) {
 				sel, ok := call.Fun.(*ast.SelectorExpr)
 				if !ok {
 					return true
+				}
+				if amount := alphaArg(sel.Sel.Name, call); amount != nil && bare(amount) && !one(amount) {
+					t.Errorf("%s: an opacity written in place; use a token", fset.Position(call.Pos()))
 				}
 				if sel.Sel.Name == "Loop" && len(call.Args) > 1 && literalTime(call.Args[1]) {
 					t.Errorf("%s: a duration written in place; use a motion token", fset.Position(call.Pos()))
