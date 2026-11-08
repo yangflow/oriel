@@ -351,34 +351,34 @@ func (s *Screen) page(c *ui.Context) {
 	ui.Column(c).Key(e.src.ID).FillWidth().Children(func() {
 		s.pageHead(c)
 		pageTitle(c, s.text.PageGeneral, theme.Px(t, tokens.Space6+tokens.Space1))
-		pageCard(c, func() { s.titleRow(c) }, func() { s.selectRow(c, s.kindRow) }, when(len(s.folders()) > 0, func() {
-			s.selectRow(c, s.folderRow)
+		pageCard(c, func() { s.titleRow(c) }, func() { s.selectRow(c, chipped(s.kindRow, icons.Newspaper, s.text.PageShowAs)) }, when(len(s.folders()) > 0, func() {
+			s.selectRow(c, chipped(s.folderRow, icons.Folder, ""))
 		}), func() {
-			s.pageSwitch(c, "pause", &e.paused, s.text.PauseLabel, s.text.PauseHelp)
+			s.pageSwitch(c, "pause", icons.Pause, &e.paused, s.text.PauseLabel, s.text.PauseHelp)
 		}, func() {
-			s.pageSwitch(c, "hide", &e.hide, s.text.HideLabel, s.text.HideHelp)
+			s.pageSwitch(c, "hide", icons.EyeOff, &e.hide, s.text.HideLabel, s.text.HideHelp)
 		})
 		pageTitle(c, s.text.PageFetching, theme.Px(t, tokens.Space6))
-		pageCard(c, func() { s.selectRow(c, s.everyRow) }, when(kinds[e.kind] == "article", func() {
-			s.pageSwitch(c, "fulltext", &e.fullText, s.text.FullText, s.text.FullTextHelp)
+		pageCard(c, func() { s.selectRow(c, chipped(s.everyRow, icons.Clock, "")) }, when(kinds[e.kind] == "article", func() {
+			s.pageSwitch(c, "fulltext", icons.FileText, &e.fullText, s.text.FullText, s.text.FullTextHelp)
 		}), func() { s.extractRow(c) }, when(e.src.URL != "", func() {
 			s.headersRow(c)
 		}), func() { s.proxyRow(c) })
 		pageTitle(c, s.text.PageTimeline, theme.Px(t, tokens.Space6))
-		pageCard(c, func() { s.selectRow(c, s.openRow) }, func() { s.selectRow(c, s.keepRow) }, func() { s.selectRow(c, s.paceRow) },
-			func() { s.selectRow(c, s.capRow) }, func() { s.muteRow(c) })
+		pageCard(c, func() { s.selectRow(c, chipped(s.openRow, icons.ExternalLink, "")) }, func() { s.selectRow(c, chipped(s.keepRow, icons.CalendarDays, "")) }, func() { s.selectRow(c, chipped(s.paceRow, icons.Signpost, "")) },
+			func() { s.selectRow(c, chipped(s.capRow, icons.ListFilter, "")) }, func() { s.muteRow(c) })
 		pageTitle(c, s.text.AIGroup, theme.Px(t, tokens.Space6))
 		pageCard(c, when(e.aiOff, func() { s.aiOffRow(c) }), func() {
-			s.pageSwitch(c, "summary", &e.auto[0], s.text.AutoSummary, s.text.AutoHelp)
+			s.pageSwitch(c, "summary", icons.Sparkles, &e.auto[0], s.text.AutoSummary, s.text.AutoHelp)
 		}, func() {
-			s.pageSwitch(c, "translate", &e.auto[1], s.text.AutoTranslate, s.text.AutoHelp)
+			s.pageSwitch(c, "translate", icons.Languages, &e.auto[1], s.text.AutoTranslate, s.text.AutoHelp)
 		}, func() {
-			s.pageSwitch(c, "titles", &e.titles, s.text.TranslateTitles, s.text.TranslateTitlesHelp)
+			s.pageSwitch(c, "titles", icons.Languages, &e.titles, s.text.TranslateTitles, s.text.TranslateTitlesHelp)
 		}, func() { s.promptsRow(c) })
 		pageTitle(c, s.text.PageDelete, theme.Px(t, tokens.Space6))
 		pageCard(c, func() {
-			s.row(c, s.text.DeleteSubscription, s.text.DeleteSubscriptionHelp, func() {
-				if (theme.Button{Style: theme.Danger, Small: true, Text: s.text.Delete, Disabled: e.busy,
+			s.setting(c, icons.Trash2, true, s.text.DeleteSubscription, s.text.DeleteSubscriptionHelp, func() {
+				if (theme.Button{Style: theme.Danger, Text: s.text.Delete, Disabled: e.busy,
 					Label: s.fill(s.text.DeleteSource, Name(e.src))}).Draw(c).Clicked() {
 					s.AskDelete(e.src)
 				}
@@ -412,7 +412,7 @@ func pageCard(c *ui.Context, rows ...func()) {
 				}
 				first = false
 				ui.Column(c).FillWidth().MinHeight(theme.Px(t, tokens.RowCompact)).Justify(ui.Center).
-					PaddingY(theme.Px(t, tokens.Space3)).Children(row)
+					PaddingY(theme.Px(t, tokens.Space2)).Children(row)
 			})
 		}
 	})
@@ -440,6 +440,34 @@ func (s *Screen) row(c *ui.Context, name, helpText string, control func()) {
 	})
 }
 
+// setting is a row of the subscription page, design CSettingRow: the icon chip, the name in body over its help in meta,
+// and the control at the end.
+func (s *Screen) setting(c *ui.Context, icon *ui.SVG, danger bool, name, helpText string, control func()) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
+		theme.RowChip(c, icon, danger)
+		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
+			ui.Text(c, name).Wrap()
+			if helpText != "" {
+				help(c, helpText)
+			}
+		})
+		control()
+	})
+}
+
+// chipped is a select row with its chip on the page, under another name when name is set.
+func chipped(of func() pick, icon *ui.SVG, name string) func() pick {
+	return func() pick {
+		p := of()
+		p.chip = icon
+		if name != "" {
+			p.name = name
+		}
+		return p
+	}
+}
+
 // pick is a select row of the page: its name, help, value and choices.
 type pick struct {
 	value   *int64
@@ -450,17 +478,23 @@ type pick struct {
 	names   func(int64) string
 	muted   bool
 	icon    *ui.SVG // before the value, as the kind's icon
+	chip    *ui.SVG // the row's chip on the page; without one the row is the dialog's
 	done    func()  // takes the value chosen, for a value that is not an int64 of the form
 }
 
 func (s *Screen) selectRow(c *ui.Context, of func() pick) {
 	t := c.Theme()
 	p := of()
-	s.row(c, p.name, p.help, func() {
+	control := func() {
 		ui.Box(c).Width(theme.Px(t, tokens.MenuMin+tokens.Space12)).Shrink(0).Children(func() {
 			s.selectTrigger(c, p.value, p.options, p.name, p.shown, p.names, p.icon, s.form.busy, p.muted)
 		})
-	})
+	}
+	if p.chip != nil {
+		s.setting(c, p.chip, false, p.name, p.help, control)
+	} else {
+		s.row(c, p.name, p.help, control)
+	}
 	if p.done != nil {
 		p.done()
 	}
@@ -569,13 +603,18 @@ func sortedWith(options []int64, v int64) []int64 {
 }
 
 // pageSwitch is a switch row of the page, which applies at once.
-func (s *Screen) pageSwitch(c *ui.Context, key string, value *bool, name, helpText string) {
-	s.row(c.Key(key), name, helpText, func() {
+func (s *Screen) pageSwitch(c *ui.Context, key string, icon *ui.SVG, value *bool, name, helpText string) {
+	control := func() {
 		sw := ui.Switch(c, value).Label(name).Disabled(s.form.busy)
 		if helpText != "" {
 			sw.Description(helpText)
 		}
-	})
+	}
+	if icon != nil {
+		s.setting(c.Key(key), icon, false, name, helpText, control)
+	} else {
+		s.row(c.Key(key), name, helpText, control)
+	}
 }
 
 // saveButton is the Save of a text part: quiet until the part changed, primary after.
@@ -601,9 +640,8 @@ func (s *Screen) typed(el ui.Element) {
 func (s *Screen) titleRow(c *ui.Context) {
 	t := c.Theme()
 	e := s.form
-	ui.Column(c.Key("title-row")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		label(c, s.text.Title)
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
+	s.setting(c.Key("title-row"), icons.Pencil, false, s.text.Title, s.text.TitleHelp, func() {
+		ui.Row(c).Basis(theme.Px(t, tokens.SheetWidth)).Shrink(1).MinWidth(0).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
 			b := box(c, "title", nil, false, func() {
 				in := ui.TextInputBase(c, &e.title).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.Title).
 					Placeholder(Name(e.src)).Description(s.text.TitleHelp).Disabled(e.busy)
@@ -615,20 +653,22 @@ func (s *Screen) titleRow(c *ui.Context) {
 			s.typed(b)
 			s.saveButton(c, partTitle, s.text.SaveTitle)
 		})
-		help(c, s.text.TitleHelp)
 	})
 }
 
 // disclosure is a row that opens the fields under it: the name and help at the left, the value and a chevron at the
 // right.
-func (s *Screen) disclosure(c *ui.Context, key string, open *bool, name, helpText, value string) {
+func (s *Screen) disclosure(c *ui.Context, key string, icon *ui.SVG, open *bool, name, helpText, value string) {
 	t := c.Theme()
 	head := theme.Fade(ui.ButtonBase(c).Key(key).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
 		Role(ui.RoleDisclosure).Expanded(*open).Label(name).Description(helpText))
 	head.Children(func() {
+		theme.RowChip(c, icon, false)
 		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
-			ui.Text(c, name).FontSize(theme.Px(t, tokens.TextLabel.Size.En)).FontWeight(tokens.TextLabel.Weight)
-			help(c, helpText)
+			ui.Text(c, name).Wrap()
+			if helpText != "" {
+				help(c, helpText)
+			}
 		})
 		ui.Text(c, value).FontSize(theme.Px(t, tokens.TextBody.Size.En)).TextColor(t.TextMuted).SingleLine().Shrink(1)
 		chevron := icons.ChevronRight
@@ -657,7 +697,7 @@ func (s *Screen) extractRow(c *ui.Context) {
 	if e.src.ExtractSelector != "" || e.src.ExtractReferer != "" || e.src.ExtractRewrites != "" {
 		value = s.text.Custom
 	}
-	s.disclosure(c, "extract", &e.extract, s.text.Extract, s.text.ExtractRowHelp, value)
+	s.disclosure(c, "extract", icons.FileText, &e.extract, s.text.Extract, "", value)
 	if !e.extract {
 		return
 	}
@@ -679,7 +719,7 @@ func (s *Screen) headersRow(c *ui.Context) {
 	if e.src.FetchUserAgent != "" || e.src.FetchReferer != "" {
 		value = s.text.Custom
 	}
-	s.disclosure(c, "headers", &e.headers, s.text.Headers, s.text.HeadersRowHelp, value)
+	s.disclosure(c, "headers", icons.Server, &e.headers, s.text.Headers, "", value)
 	if !e.headers {
 		return
 	}
@@ -697,7 +737,7 @@ func (s *Screen) proxyRow(c *ui.Context) {
 	names := map[int64]string{proxyFollow: s.text.ProxyFollow, proxyDirect: s.text.ProxyDirect, proxyCustom: s.text.ProxyCustom}
 	s.selectRow(c, func() pick {
 		return pick{value: &e.proxyMode, options: []int64{proxyFollow, proxyDirect, proxyCustom}, name: s.text.Proxy,
-			help: s.text.ProxyRowHelp, shown: names[e.proxyMode], names: func(v int64) string { return names[v] }}
+			help: s.text.ProxyRowHelp, chip: icons.Globe, shown: names[e.proxyMode], names: func(v int64) string { return names[v] }}
 	})
 	if e.proxyMode != proxyCustom {
 		return
@@ -713,26 +753,23 @@ func (s *Screen) proxyRow(c *ui.Context) {
 func (s *Screen) muteRow(c *ui.Context) {
 	t := c.Theme()
 	e := s.form
-	ui.Column(c.Key("mute-row")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		label(c, s.text.Mute)
-		area := ui.TextArea(c, &e.mute).FillWidth().Lines(2, 6).Label(s.text.Mute).Description(s.text.MuteHelp).Disabled(e.busy)
-		if area.Focused() {
-			area.Background(theme.RaisedFill(t))
-			s.pg.typing = true
+	s.syncMuted()
+	note := s.text.MuteHelp
+	if e.known && strings.TrimSpace(e.mute) != "" {
+		status := s.text.MuteNone
+		if e.hidden > 0 {
+			status = s.count(s.text.MuteHidden, e.hidden)
 		}
-		help(c, s.text.MuteHelp)
-		s.syncMuted()
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
-			text := ""
-			if e.known && strings.TrimSpace(e.mute) != "" {
-				text = s.text.MuteNone
-				if e.hidden > 0 {
-					text = s.count(s.text.MuteHidden, e.hidden)
-				}
+		note = put(put(s.text.MuteNote, "help", note), "status", status)
+	}
+	ui.Column(c.Key("mute-row")).FillWidth().Gap(theme.Px(t, tokens.Space2)).Children(func() {
+		s.setting(c, icons.EyeOff, false, s.text.Mute, note, func() { s.saveButton(c, partMute, s.text.SaveMute) })
+		ui.Column(c).FillWidth().Padding(0, 0, theme.Px(t, tokens.Space1), theme.Px(t, tokens.Control+tokens.Space3)).Children(func() {
+			area := ui.TextArea(c, &e.mute).FillWidth().Lines(2, 6).Label(s.text.Mute).Placeholder(s.text.MuteHint).Description(note).Disabled(e.busy)
+			if area.Focused() {
+				area.Background(theme.RaisedFill(t))
+				s.pg.typing = true
 			}
-			ui.Text(c, text).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(t.TextMuted).Grow(1).
-				MinWidth(0).Wrap().Role(ui.RoleStatus)
-			s.saveButton(c, partMute, s.text.SaveMute)
 		})
 	})
 }
@@ -756,7 +793,7 @@ func (s *Screen) promptsRow(c *ui.Context) {
 	if e.src.PromptSummary != "" || e.src.PromptTranslate != "" {
 		value = s.text.Custom
 	}
-	s.disclosure(c, "prompts", &s.pg.prompts, s.text.Prompts, "", value)
+	s.disclosure(c, "prompts", icons.MessageCircle, &s.pg.prompts, s.text.Prompts, "", value)
 	if !s.pg.prompts {
 		return
 	}

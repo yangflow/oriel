@@ -45,34 +45,34 @@ type copy struct {
 	Headers, HeaderUa, HeaderUaHelp, HeaderReferer, HeaderRefererHelp, HeadersNote, HeaderUaError, HeaderRefererError,
 	Proxy, ProxyFollow, ProxyDirect, ProxyCustom, ProxyAddress, ProxyAddressHelp,
 	ProxyUser, ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyAuthHelp, ProxyError string
-	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                            string
-	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                     string
-	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                              string
-	Cap, CapOff, CapN, CapHelp, HealthNoisy, NoisySlow, NoisySlowSource, NoisyDismissSource, NoisySlowed, NoisyDismissed                                string
-	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                        string
-	MoveToFolder, NoFolder, NewFolderItem, Folder, FolderHelp, FolderNewTitle, FolderRenameTitle, FolderName, FolderNamePlaceholder, FolderCreate       string
-	FolderRename, FolderDelete, FolderDeleteTitle, FolderDeleteBody, FolderNameError, FolderExists, FolderGone                                          string
-	FolderCreated, FolderMoved, FolderUnfiled, FolderRenamed, FolderDeleted                                                                             string
-	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                     string
-	Undo, Dismiss, UndoFailed                                                                                                                           string
-	FullText, FullTextHelp                                                                                                                              string
-	AIGroup, AutoSummary, AutoTranslate, AutoHelp, TranslateTitles, TranslateTitlesHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff       string
-	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, SuggestForum, UseKind                     string
-	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                  string
-	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                               string
-	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                          string
-	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                  string
-	FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN                              string
-	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, LabelSep, SelectedMark, PausedMark                                                           string
-	AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore                                                                      string
-	AllKinds, KindFilter, ListName, NoSubscriptions, HiddenMark, RowFailed, Applying, RefreshNLabel, DeleteMany, AnnounceRefresh                        string
-	RefreshedMany, PartialRefresh, On, Off, ProxyFollowShort, PageGeneral, PageFetching, PageTimeline, PageDelete, TitleHelp                            string
-	PauseHelp, EveryHelp, ExtractRowHelp, HeadersRowHelp, ProxyRowHelp, Automatic, None, Custom, Prompts, UsingSettings                                 string
-	DeleteSubscription, DeleteSubscriptionHelp, DeleteSource, Saved, SaveTitle, SaveExtract, SaveHeaders, SaveProxy, SaveMute                           string
-	SavePrompts, StatusOk, StatusFailed, StatusGone, StatusGoneSub, StatusPausedSub, StatusUpdated, StripTried, StripTriedOnly, LastSuccess             string
-	FailedRow, OpenInSettings                                                                                                                           string
-	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed string
-	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, Apply, DeleteManyTitle, DeleteManyBody                          string
+	ExtractRewrites, ExtractRewritesHelp, ExtractRewritesPlaceholder, ExtractRewritesInvalid                                                                 string
+	OpenTarget, OpenFollow, OpenReader, OpenBrowser, OpenTargetHelp                                                                                          string
+	Hide, Unhide, HideLabel, HideHelp, HiddenNow, ShownNow                                                                                                   string
+	Cap, CapOff, CapN, CapHelp, HealthNoisy, NoisySlow, NoisySlowSource, NoisyDismissSource, NoisySlowed, NoisyDismissed                                     string
+	Pace, PaceOff, PaceBreaking, PaceDaily, PaceWeekly, PaceHelp                                                                                             string
+	MoveToFolder, NoFolder, NewFolderItem, Folder, FolderHelp, FolderNewTitle, FolderRenameTitle, FolderName, FolderNamePlaceholder, FolderCreate            string
+	FolderRename, FolderDelete, FolderDeleteTitle, FolderDeleteBody, FolderNameError, FolderExists, FolderGone                                               string
+	FolderCreated, FolderMoved, FolderUnfiled, FolderRenamed, FolderDeleted                                                                                  string
+	Deleted, PausedNow, Resumed, Queued, ResumeFirst, Gone, ActionFailed, Separator                                                                          string
+	Undo, Dismiss, UndoFailed                                                                                                                                string
+	FullText, FullTextHelp                                                                                                                                   string
+	AIGroup, AutoSummary, AutoTranslate, AutoHelp, TranslateTitles, TranslateTitlesHelp, PromptSummary, PromptTranslate, PromptPlaceholder, AIOff            string
+	OpenSettings, MarkRead, MarkOlder1, MarkOlder7, MarkOlder30, Auto, AutoEvery, SuggestVideo, SuggestImage, SuggestForum, UseKind                          string
+	HealthTitle, HealthSub, HealthChecking, HealthError, HealthOk, HealthSilent, HealthDead, HealthFailing, HealthRare                                       string
+	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                    string
+	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                               string
+	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                       string
+	FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN                                   string
+	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, LabelSep, SelectedMark, PausedMark                                                                string
+	AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore                                                                           string
+	AllKinds, KindFilter, ListName, NoSubscriptions, HiddenMark, RowFailed, Applying, RefreshNLabel, DeleteMany, AnnounceRefresh                             string
+	RefreshedMany, PartialRefresh, On, Off, ProxyFollowShort, PageGeneral, PageShowAs, MuteNote, MuteHint, PageFetching, PageTimeline, PageDelete, TitleHelp string
+	PauseHelp, EveryHelp, ProxyRowHelp, Automatic, None, Custom, Prompts, UsingSettings                                                                      string
+	DeleteSubscription, DeleteSubscriptionHelp, DeleteSource, Saved, SaveTitle, SaveExtract, SaveHeaders, SaveProxy, SaveMute                                string
+	SavePrompts, StatusOk, StatusFailed, StatusGone, StatusGoneSub, StatusPausedSub, StatusUpdated, StripTried, StripTriedOnly, LastSuccess                  string
+	FailedRow, OpenInSettings                                                                                                                                string
+	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed      string
+	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, Apply, DeleteManyTitle, DeleteManyBody                               string
 }
 
 var translations = func() map[string]copy {
@@ -2239,7 +2239,7 @@ func (s *Screen) editDialog(c *ui.Context) {
 			ui.Text(c, s.text.PageFetching).FontSize(theme.Px(t, tokens.TextLabel.Size.En)).FontWeight(tokens.TextLabel.Weight).
 				TextColor(theme.Text2(t)).Margin(0, 0, 0, theme.Px(t, tokens.Space1)).Role(ui.RoleHeading).Level(3)
 			pageCard(c, func() { s.selectRow(c, bare(s.capRow)) }, func() {
-				s.pageSwitch(c, "pause", &e.paused, s.text.PauseLabel, "")
+				s.pageSwitch(c, "pause", nil, &e.paused, s.text.PauseLabel, "")
 			})
 		})
 		if e.formErr != "" {

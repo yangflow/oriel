@@ -1781,9 +1781,9 @@ func (s *Screen) blocks(c *ui.Context, blocks []block) {
 
 // Sizes only the reader uses. Ems are of the text size; the rest are DIPs.
 const (
-	h3Above       = 1.6
-	h3Below       = 0.5
-	blockGap      = 1.4
+	h3Above       = 1
+	h3Below       = 0.4
+	ruleGap       = 1.2
 	listIndent    = 1.4
 	notesRule     = 96
 	landingAbove  = 96
@@ -1819,15 +1819,15 @@ func gap(t *ui.Theme, blocks []block, i int, scale float32) float32 {
 	case b.notes && before.notes:
 		return theme.Px(t, tokens.TextBody.Size.En/2) * scale
 	case b.kind == rule || before.kind == rule:
-		return theme.Px(t, tokens.Space6)
+		return theme.Px(t, ruleGap*tokens.ReadingBody.Size)
 	case b.kind == table || before.kind == table:
-		return theme.Px(t, blockGap*tokens.ReadingBody.Size) * scale
+		return theme.Px(t, tokens.ReadingParagraph*tokens.ReadingBody.Size) * scale
 	case b.kind == caption && before.kind == picture:
 		return theme.Px(t, tokens.Space1_5)
 	case b.kind == caption && before.kind == embed:
 		return theme.Px(t, tokens.Space1_5)
 	case b.kind == picture || before.kind == picture || before.kind == caption || b.kind == embed || before.kind == embed:
-		return theme.Px(t, blockGap*tokens.ReadingBody.Size) * scale
+		return theme.Px(t, tokens.ReadingParagraph*tokens.ReadingBody.Size) * scale
 	case b.depth > 0 && before.depth > 0:
 		return theme.Px(t, tokens.ReadingListItem*tokens.ReadingBody.Size) * scale
 	}
@@ -2245,25 +2245,18 @@ func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 }
 
 // cell is a cell of a table, in row r: padded, with a divider above it unless it is in the first row, the header
-// row on the Surface color in Text at weight 600. unit and base say where its text begins in the text the table is
+// row at weight 600. unit and base say where its text begins in the text the table is
 // searched as, and lit that the match the find bar has just gone to is to be shown: when it is in this cell, the
 // cell is scrolled into view, the table sideways with it.
 func (s *Screen) cell(c *ui.Context, cl cell, r int, size float32, key, unit, base int, lit bool) {
 	t := c.Theme()
 	box := ui.Column(c).Key(key).ColumnSpan(cl.span).MinWidth(theme.Px(t, tokens.Space12)).MaxWidth(theme.Px(t, cellMax)).
-		Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3))
-	if cl.head {
-		box.Background(theme.Surface(t))
-	}
+		Padding(theme.Px(t, tokens.Space1_5), theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space1_5), 0)
 	if r > 0 {
-		box.BorderWidth(0.5, 0, 0, 0).BorderColor(t.Border)
+		box.BorderWidth(tokens.Hairline, 0, 0, 0).BorderColor(theme.Rule(t))
 	}
 	box.Children(func() {
-		color := theme.Prose(t)
-		if cl.head {
-			color = t.Text
-		}
-		e := s.inline(c, block{spans: cl.spans}, unit, base, color, size).FontSize(size).LineHeight(1.5).FillWidth()
+		e := s.inline(c, block{spans: cl.spans}, unit, base, theme.Prose(t), size).FontSize(size).LineHeight(tokens.TextBody.Line.En / tokens.TextBody.Size.En).FillWidth()
 		if lit && s.find.within(unit, base, cellLen(cl)) {
 			e.ScrollIntoView()
 		}

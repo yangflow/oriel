@@ -22,7 +22,7 @@ func focusField(t *testing.T, tt *ui.Tester, label string) {
 // The Extraction row of the page opens its boxes, which wait for Save extraction and send only themselves.
 func TestPageExtraction(t *testing.T) {
 	s, f, tt := paged(t, "en", 0, nil)
-	if !tt.HasText(s.text.Extract) || !tt.HasText(s.text.ExtractRowHelp) || tt.HasText("Content selector") {
+	if !tt.HasText(s.text.Extract) || tt.HasText("Content selector") {
 		t.Fatalf("closed row: %v", tt.Texts())
 	}
 	mustClick(t, tt, s.text.Extract)
