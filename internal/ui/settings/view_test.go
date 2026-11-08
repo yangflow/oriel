@@ -531,76 +531,132 @@ func TestLoadFails(t *testing.T) {
 	}
 }
 
-func TestSaveBase(t *testing.T) {
+// openInstances opens the page of the RSSHub instances from the Fetching group.
+func openInstances(t *testing.T, tt *ui.Tester) {
+	t.Helper()
+	press(t, tt, "RSSHub instances")
+	tt.Frame()
+}
+
+func TestInstancesPage(t *testing.T) {
 	s, f, tt := setup(t, "en", true)
-	if err := tt.Click(s.text.Save); err != nil {
-		t.Fatal(err)
+	if !tt.HasText(s.text.RSSHub) || tt.HasText(s.text.AddInstance) {
+		t.Fatalf("texts %v", tt.Texts())
 	}
-	f.settle(tt)
-	if len(f.set) != 0 {
-		t.Fatalf("saved an unchanged list: %v", f.set)
+	openInstances(t, tt)
+	if !tt.HasText(s.text.AddInstance) || !tt.HasText(s.text.MainBadge) || !tt.HasText("rsshub.example.com") {
+		t.Fatalf("texts %v", tt.Texts())
 	}
-	// Enter in the field is a new line, not a save; a repeat, a blank line and a trailing slash are tidied.
-	edit(tt, func() {
-		s.base = "https://rsshub.example.com/\n\nhttps://backup.example.com/\nHTTPS://RSSHUB.EXAMPLE.COM"
-	})
+	// Escape goes back to the Fetching group, then to the timeline.
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if s.instances || f.back != 0 {
+		t.Fatalf("open %v, back %d", s.instances, f.back)
+	}
+	tt.Key(0, ui.KeyEscape)
+	if f.back != 1 {
+		t.Fatalf("back %d", f.back)
+	}
+}
+
+func TestAddInstance(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	openInstances(t, tt)
+	// Typing sends nothing; Enter adds the tidied address at the end, and the field empties.
+	edit(tt, func() { s.adding, s.focusBase = " https://backup.example.com/ ", true })
+	tt.Frame()
 	if len(f.set) != 0 {
 		t.Fatalf("saved while typing: %v", f.set)
 	}
-	press(t, tt, s.text.Save)
+	tt.Key(0, ui.KeyEnter)
 	f.settle(tt)
+	tt.Frame()
 	if len(f.set) != 1 || f.set[0].RSSHubBaseURL != nil || !slices.Equal(*f.set[0].RSSHubBaseURLs,
 		[]string{"https://rsshub.example.com", "https://backup.example.com"}) {
 		t.Fatalf("set %+v", f.set)
 	}
-	if !tt.HasText(s.text.Saved) || s.base != "https://rsshub.example.com\nhttps://backup.example.com" {
-		t.Fatalf("texts %v, base %q", tt.Texts(), s.base)
+	if !tt.HasText(s.text.Saved) || s.adding != "" || !tt.HasText(s.text.Standby) {
+		t.Fatalf("texts %v, adding %q", tt.Texts(), s.adding)
 	}
-
-	// Emptying the field saves an empty list.
-	edit(tt, func() { s.base = "" })
-	press(t, tt, s.text.Save)
+	// One already in the list is only cleared.
+	edit(tt, func() { s.adding, s.focusBase = "HTTPS://RSSHUB.EXAMPLE.COM", true })
+	tt.Frame()
+	tt.Key(0, ui.KeyEnter)
 	f.settle(tt)
-	if len(f.set) != 2 || f.set[1].RSSHubBaseURLs == nil || len(*f.set[1].RSSHubBaseURLs) != 0 {
-		t.Fatalf("set %+v", f.set)
+	if len(f.set) != 1 || s.adding != "" {
+		t.Fatalf("set %+v, adding %q", f.set, s.adding)
+	}
+}
+
+func TestInstanceMenu(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	f.settings.RSSHubBaseURLs = []string{"https://a.example", "https://b.example", "https://c.example"}
+	s.Open()
+	f.settle(tt)
+	tt.Frame()
+	f.settle(tt)
+	openInstances(t, tt)
+	f.set = nil
+	last := func() []string { return *f.set[len(f.set)-1].RSSHubBaseURLs }
+	choose := func(host, item string) {
+		t.Helper()
+		press(t, tt, s.fill(s.text.InstanceMore, "{name}", host))
+		if err := tt.ChooseMenuItem(item); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		f.settle(tt)
+	}
+	choose("c.example", s.text.MakeMain)
+	tt.Frame()
+	if got := last(); !slices.Equal(got, []string{"https://c.example", "https://a.example", "https://b.example"}) {
+		t.Fatalf("made main: %v", got)
+	}
+	choose("c.example", s.text.RemoveInstance)
+	tt.Frame()
+	if got := last(); !slices.Equal(got, []string{"https://a.example", "https://b.example"}) || tt.HasText("c.example") {
+		t.Fatalf("removed: %v, texts %v", got, tt.Texts())
 	}
 }
 
 func TestInvalidBase(t *testing.T) {
 	s, f, tt := setup(t, "en", true)
-	// A line that is not an address is named by its number and nothing is sent.
-	edit(tt, func() { s.base = "https://rsshub.example.com\n\nrsshub.example" })
-	press(t, tt, s.text.Save)
+	openInstances(t, tt)
+	// What is not an address is refused here and nothing is sent.
+	edit(tt, func() { s.adding, s.focusBase = "rsshub.example", true })
+	tt.Frame()
+	tt.Key(0, ui.KeyEnter)
 	f.settle(tt)
 	tt.Frame()
-	line3 := strings.ReplaceAll(s.text.InvalidBase, "{n}", "3")
-	if len(f.set) != 0 || !tt.HasText(line3) || !tt.Focused(s.text.RSSHub) {
+	if len(f.set) != 0 || !tt.HasText(s.text.InvalidBase) || !tt.Focused(s.text.AddInstance) {
 		t.Fatalf("set %v, texts %v", f.set, tt.Texts())
 	}
 	tt.Type("x")
-	if tt.HasText(line3) {
+	if tt.HasText(s.text.InvalidBase) {
 		t.Fatal("the error stays after typing")
 	}
 
 	// A refusal from the server shows too, and a failure to reach it is a different message.
-	edit(tt, func() { s.base = "https://a.example\nhttps://b.example" })
+	submit := func() {
+		edit(tt, func() { s.adding, s.focusBase = "https://b.example", true })
+		tt.Frame()
+		tt.Key(0, ui.KeyEnter)
+		f.settle(tt)
+		tt.Frame()
+	}
 	f.setErr = &client.APIError{Status: 400, Code: "invalid_rsshub_base_url"}
-	press(t, tt, s.text.Save)
-	f.settle(tt)
-	tt.Frame()
-	if !tt.HasText(s.text.InvalidBaseAny) {
+	submit()
+	if !tt.HasText(s.text.InvalidBase) {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	f.setErr = &client.APIError{Status: 400, Code: "too_many_rsshub_base_urls"}
-	press(t, tt, s.text.Save)
-	f.settle(tt)
+	submit()
 	if !tt.HasText(s.text.TooManyBase) {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	f.setErr = errors.New("offline")
-	press(t, tt, s.text.Save)
-	f.settle(tt)
-	if !tt.HasText(s.text.SaveFailed) {
+	submit()
+	if !tt.HasText(s.text.SaveFailed) || s.adding == "" {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 }
@@ -2417,7 +2473,7 @@ func TestEscapeUnsaved(t *testing.T) {
 	}
 	for name, change := range map[string]func(s *Screen){
 		"prompt": func(s *Screen) { s.prompts[0] = "mine" },
-		"rsshub": func(s *Screen) { s.base += "\nhttps://hub.example.com" },
+		"rsshub": func(s *Screen) { s.adding = "https://hub.example.com" },
 		"muted":  func(s *Screen) { s.rules.muted = "spoiler" },
 	} {
 		s, f, tt := openAI(t, "en", true)

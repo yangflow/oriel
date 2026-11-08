@@ -24,8 +24,7 @@ func openProxy(t *testing.T, language string, saved client.Settings) (*Screen, *
 	return s, f, tt
 }
 
-// submitProxy presses Enter in the address box. The page has a Save for each card, so the text alone does not name
-// the Save of the proxy.
+// submitProxy presses Enter in the address box.
 func submitProxy(tt *ui.Tester, s *Screen) {
 	s.focusProxy = true
 	tt.Frame()
@@ -35,13 +34,13 @@ func submitProxy(tt *ui.Tester, s *Screen) {
 func TestProxyShows(t *testing.T) {
 	for _, language := range []string{"en", "zh-Hans"} {
 		s, _, tt := openProxy(t, language, client.Settings{})
-		for _, text := range []string{s.text.Proxy, s.text.ProxyAddress, s.text.ProxyAuth, s.text.KeyUnset, s.text.Save} {
+		for _, text := range []string{s.text.Proxy, s.text.ProxyAddress, s.text.ProxyAuth, s.text.KeyUnset} {
 			if !tt.HasText(text) {
 				t.Errorf("%s: no %q in %v", language, text, tt.Texts())
 			}
 		}
-		if tt.HasText(s.text.ProxyRemoveAuth) || tt.HasText(s.text.ProxyChanged) {
-			t.Errorf("%s: a sign-in to remove or a warning with none stored: %v", language, tt.Texts())
+		if tt.HasText(s.text.ProxyChanged) {
+			t.Errorf("%s: a warning with no sign-in stored: %v", language, tt.Texts())
 		}
 	}
 }
@@ -69,7 +68,7 @@ func TestSaveProxy(t *testing.T) {
 	if f.settings.ProxyURL != "socks5://127.0.0.1:1080" || !f.settings.ProxyAuthSet {
 		t.Fatalf("saved %+v", f.settings)
 	}
-	if !tt.HasText(s.text.ProxySaved) || !tt.HasText(s.text.KeySet) || !tt.HasText(s.text.ProxyRemoveAuth) ||
+	if !tt.HasText(s.text.ProxySaved) || !tt.HasText(s.text.KeySet) ||
 		!slices.Contains(tt.Announcements(), s.text.ProxySaved) {
 		t.Fatalf("texts %v", tt.Texts())
 	}
@@ -87,7 +86,7 @@ func TestProxyPasswordNotShown(t *testing.T) {
 			t.Fatalf("%q shown in %v", secret, tt.Texts())
 		}
 	}
-	if s.proxyUser != "" || s.proxyPass != "" || !tt.HasText(s.text.KeySet) || !tt.HasText(s.text.ProxyRemoveAuth) {
+	if s.proxyUser != "" || s.proxyPass != "" || !tt.HasText(s.text.KeySet) {
 		t.Fatalf("user %q, password %q, texts %v", s.proxyUser, s.proxyPass, tt.Texts())
 	}
 	// Saving only the address sends neither the user name nor the password, so the server keeps what it has.
@@ -123,7 +122,7 @@ func TestProxyAddressChangeClearsSignIn(t *testing.T) {
 	if len(f.set) != 1 || f.set[0].ProxyUser != nil || f.set[0].ProxyPassword != nil || *f.set[0].ProxyURL != "http://other.example:3128" {
 		t.Fatalf("patch %+v", f.set)
 	}
-	if s.settings.ProxyAuthSet || tt.HasText(s.text.ProxyRemoveAuth) || tt.HasText(s.text.ProxyChanged) || !tt.HasText(s.text.KeyUnset) {
+	if s.settings.ProxyAuthSet || tt.HasText(s.text.ProxyChanged) || !tt.HasText(s.text.KeyUnset) {
 		t.Fatalf("sign-in kept: %v", tt.Texts())
 	}
 
@@ -136,31 +135,63 @@ func TestProxyAddressChangeClearsSignIn(t *testing.T) {
 	}
 }
 
-// TestRemoveProxySignIn shows Remove sign-in waits for Save: it sends nothing, the badge, the placeholder and the
-// button show the removal is pending, and Save, now primary, sends the empty user name and password.
+// TestRemoveProxySignIn shows that removing the sign-in sends the empty user name and password at once.
 func TestRemoveProxySignIn(t *testing.T) {
 	s, f, tt := openProxy(t, "en", client.Settings{ProxyURL: "http://proxy.example:8080", ProxyAuthSet: true})
 	f.set = nil
-	if s.proxyDirty() || !tt.HasText(s.text.KeySet) {
-		t.Fatalf("texts %v", tt.Texts())
+	press(t, tt, s.fill(s.text.InstanceMore, "{name}", s.text.ProxyAuth))
+	if err := tt.ChooseMenuItem(s.text.ProxyRemoveAuth); err != nil {
+		t.Fatal(err)
 	}
-	press(t, tt, s.text.ProxyRemoveAuth)
+	tt.Frame()
 	f.settle(tt)
-	if len(f.set) != 0 || !s.proxyDrop || !s.proxyDirty() || !s.unsaved() {
-		t.Fatalf("sent %+v, drop %v", f.set, s.proxyDrop)
-	}
-	if tt.HasText(s.text.KeySet) || !tt.HasText(s.text.KeyUnset) || tt.HasText(s.text.ProxyRemoveAuth) {
-		t.Fatalf("a pending removal is not shown: %v", tt.Texts())
-	}
-	submitProxy(tt, s)
-	f.settle(tt)
+	tt.Frame()
 	if len(f.set) != 1 || f.set[0].ProxyURL != nil || f.set[0].ProxyUser == nil || *f.set[0].ProxyUser != "" ||
 		f.set[0].ProxyPassword == nil || *f.set[0].ProxyPassword != "" {
 		t.Fatalf("patch %+v", f.set)
 	}
-	if s.settings.ProxyAuthSet || s.proxyDrop || s.settings.ProxyURL != "http://proxy.example:8080" || !tt.HasText(s.text.ProxyAuthRemoved) ||
-		tt.HasText(s.text.ProxyRemoveAuth) || !tt.HasText(s.text.KeyUnset) {
+	if s.settings.ProxyAuthSet || s.proxyDrop || !tt.HasText(s.text.ProxyAuthRemoved) || !tt.HasText(s.text.KeyUnset) {
 		t.Fatalf("settings %+v, texts %v", s.settings, tt.Texts())
+	}
+}
+
+// TestProxySavedOnLeaving shows the address is saved when the field loses the focus, and once.
+func TestProxySavedOnLeaving(t *testing.T) {
+	s, f, tt := openProxy(t, "en", client.Settings{})
+	f.set = nil
+	edit(tt, func() { s.proxy, s.focusProxy = "http://proxy.example:8080", true })
+	tt.Frame()
+	if len(f.set) != 0 {
+		t.Fatalf("saved while typing: %+v", f.set)
+	}
+	s.blur = true
+	tt.Frame()
+	f.settle(tt)
+	tt.Frame()
+	if len(f.set) != 1 || *f.set[0].ProxyURL != "http://proxy.example:8080" || !tt.HasText(s.text.ProxySaved) {
+		t.Fatalf("patch %+v, texts %v", f.set, tt.Texts())
+	}
+}
+
+// TestProxySignInDialog shows the dialog saves the sign-in, closes, and forgets what was typed when cancelled.
+func TestProxySignInDialog(t *testing.T) {
+	s, f, tt := openProxy(t, "en", client.Settings{ProxyURL: "http://proxy.example:8080"})
+	edit(tt, func() { s.proxyForm = true })
+	tt.Frame()
+	edit(tt, func() { s.proxyUser, s.proxyPass = "alice", "hunter2" })
+	press(t, tt, s.text.Cancel)
+	tt.Frame()
+	if s.proxyForm || s.proxyUser != "" || s.proxyPass != "" {
+		t.Fatalf("open %v, typed %q %q", s.proxyForm, s.proxyUser, s.proxyPass)
+	}
+	f.set = nil
+	edit(tt, func() { s.proxyForm, s.proxyUser, s.proxyPass = true, "alice", "hunter2" })
+	tt.Frame()
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	tt.Frame()
+	if len(f.set) != 1 || *f.set[0].ProxyUser != "alice" || s.proxyForm || !tt.HasText(s.text.KeySet) {
+		t.Fatalf("patch %+v, open %v, texts %v", f.set, s.proxyForm, tt.Texts())
 	}
 }
 

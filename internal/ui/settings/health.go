@@ -23,7 +23,7 @@ func (s *Screen) watchHealth() {
 }
 
 // fetchHealth reads the health of the RSSHub instances in the background. A result a newer request has passed is
-// dropped. A failed read hides the block, with no error and no retry: it is a hint beside the setting, not the setting.
+// dropped. A failed read leaves the figures out, with no error and no retry: they are a hint beside the setting.
 func (s *Screen) fetchHealth() {
 	if s.api == nil {
 		return
@@ -43,34 +43,66 @@ func (s *Screen) fetchHealth() {
 	})
 }
 
-// healthBlock is the success rate and speed of each saved RSSHub instance, under the field of the addresses. It is
-// not drawn when there is no instance or the server did not answer.
-func (s *Screen) healthBlock(c *ui.Context) {
-	if !s.healthShown || len(s.health.Instances) == 0 || !s.healthSaved() {
-		return
-	}
+// instancesRow is the row of the Fetching group that opens the page of the RSSHub instances.
+func (s *Screen) instancesRow(c *ui.Context) {
 	t := c.Theme()
-	data := false
-	for _, in := range s.health.Instances {
-		data = data || in.Requests > 0
-	}
-	ui.Box(c).FillWidth().Height(theme.Px(t, tokens.Hairline)).Background(t.Border).
-		Margin(theme.Px(t, tokens.Space3), 0)
-	ui.Column(c).Key("health").FillWidth().Role(ui.RoleGroup).Label(s.text.Health).Children(func() {
-		help := s.text.HealthEmpty
-		if data {
-			help = s.fill(s.text.HealthHelp, "{keep}", strconv.Itoa(s.health.Keep), "{days}", strconv.Itoa(s.health.Days))
-		}
-		setting(c, icons.HeartPulse, false, s.text.Health, func() { meta(c, help) }, nil)
-		ui.Box(c).Height(theme.Px(t, tokens.Space2))
-		if !data {
-			return
-		}
-		now := s.deps.Now()
-		for i, in := range s.health.Instances {
-			s.instanceRow(c, i, in, now)
-		}
+	count := s.fill(s.text.InstanceCount, "{n}", strconv.Itoa(len(s.settings.RSSHubBaseURLs)))
+	row := ui.ButtonBase(c).Row().FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+		Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.RSSHub)
+	row.Children(func() {
+		chip(c, icons.Rss, false)
+		ui.Text(c, s.text.RSSHub).Grow(1).Shrink(1).MinWidth(0).Wrap()
+		ui.Text(c, count).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
+		ui.Icon(c, icons.ChevronRight).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 	})
+	if row.Clicked() {
+		s.instances, s.baseStatus = true, status{}
+	}
+}
+
+// instancesPage lists the RSSHub instances in order, each with how its latest requests went, over the row that adds one.
+func (s *Screen) instancesPage(c *ui.Context) {
+	sectionHead(c, s.text.Instances, s.text.RSSHubHelp, 0)
+	list := s.settings.RSSHubBaseURLs
+	rows := make([]cardRow, 0, len(list)+1)
+	for i, address := range list {
+		rows = append(rows, cardRow{key: address, draw: func() { s.instanceRow(c, i, address) }})
+	}
+	rows = append(rows, cardRow{key: "add", draw: func() { s.addInstanceRow(c) }})
+	cardOf(c, rows)
+}
+
+// addInstanceRow is the field that adds an instance; Enter adds what is typed.
+func (s *Screen) addInstanceRow(c *ui.Context) {
+	t := c.Theme()
+	before := s.adding
+	labeled(c, icons.Plus, s.text.AddInstance, s.text.InstanceLimit, func() {
+		s.watch(field(c, "base", &s.adding, theme.Px(t, tokens.SheetWidth), s.invalid, func(in ui.Element) {
+			in.Label(s.text.AddInstance).Placeholder(s.text.RSSHubPlaceholder).Disabled(s.saving || len(s.settings.RSSHubBaseURLs) >= maxInstances)
+			if s.invalid {
+				in.Error(s.baseStatus.text)
+			}
+			if s.focusBase {
+				in.Focus()
+				s.focusBase = false
+			}
+			if in.Submitted() {
+				s.addInstance()
+			}
+		}))
+	})
+	statusLine(c, s.baseStatus)
+	if s.adding != before {
+		s.invalid, s.baseStatus = false, status{}
+	}
+}
+
+// instanceHealth is what the server last said about the saved instance at i; false before it has said anything.
+func (s *Screen) instanceHealth(i int) (client.InstanceHealth, bool) {
+	if !s.healthShown || !s.healthSaved() {
+		return client.InstanceHealth{}, false
+	}
+	return s.health.Instances[i], true
 }
 
 // healthSaved reports whether the health read is of the instances saved, which it is not for the moment between a
@@ -87,50 +119,77 @@ func (s *Screen) healthSaved() bool {
 	return true
 }
 
-// instanceRow is one instance: its address, a badge on the first, and how its latest requests went.
-func (s *Screen) instanceRow(c *ui.Context, i int, in client.InstanceHealth, now time.Time) {
+// instanceRow is one instance: its host, how its latest requests went, what it is in the list and its menu.
+func (s *Screen) instanceRow(c *ui.Context, i int, address string) {
 	t := c.Theme()
-	indent := theme.Px(t, tokens.Control+tokens.Space3)
-	ui.Column(c).Key(i).FillWidth().Padding(theme.Px(t, tokens.Space1), 0, theme.Px(t, tokens.Space1), indent).Children(func() {
-		ui.Row(c).FillWidth().MinHeight(theme.Px(t, tokens.RowDense)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
-			Children(func() {
-				addr := ui.Row(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2))
-				addr.Children(func() {
-					ui.Text(c, hostOf(in.URL)).Font("monospace").FontSize(theme.Px(t, tokens.TextCode.Size.En)).SingleLine().
-						MinWidth(0).Shrink(1)
-					if i == 0 {
-						tag(c, "", s.text.MainBadge, true)
-					}
-				})
-				theme.Tip(c, addr, in.URL)
-				color := theme.Text2(t)
-				if in.Requests == 0 {
-					color = t.TextMuted
-				}
-				ui.Text(c, s.figures(in)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(color).
-					NoWrap()
-			})
-		if in.CoolingUntil != nil {
-			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).
-				Margin(theme.Px(t, tokens.Space0_5), 0, 0, 0).Children(func() {
-				ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning).Margin(theme.Px(t, tokens.Hairline), 0, 0, 0)
-				ui.Text(c, s.cooling(*in.CoolingUntil, now)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).Wrap().Grow(1).
-					MinWidth(0)
-			})
+	host := hostOf(address)
+	health, known := s.instanceHealth(i)
+	cooling := known && health.CoolingUntil != nil
+	figures := ""
+	if known {
+		figures = s.figures(health, s.deps.Now())
+	}
+	setting(c, icons.Server, cooling, host, func() {
+		if figures != "" {
+			line := meta(c, figures).FontFeatures("tnum")
+			if cooling {
+				line.TextColor(t.Danger)
+			}
+		}
+	}, func() {
+		switch {
+		case cooling:
+			pill(c, s.text.CoolingTag, theme.Soft(t, t.Danger), t.Danger)
+		case i == 0:
+			pill(c, s.text.MainBadge, theme.Soft(t, t.Accent), t.Accent)
+		default:
+			ui.Text(c, s.text.Standby).TextColor(theme.Text2(t)).NoWrap()
+		}
+		s.instanceMore(c, i, host)
+	})
+}
+
+// instanceMore is the ellipsis of an instance's row, whose menu orders and removes it.
+func (s *Screen) instanceMore(c *ui.Context, i int, host string) {
+	t := c.Theme()
+	last := len(s.settings.RSSHubBaseURLs) - 1
+	more, color := theme.ToolButton(c, theme.ToolState{})
+	label := s.fill(s.text.InstanceMore, "{name}", host)
+	more.Label(label).Tooltip(label)
+	more.Children(func() { ui.Icon(c, icons.Ellipsis).FontSize(theme.IconMedium(t)).TextColor(color) })
+	more.Menu(func(m *ui.Menu) {
+		if i > 0 && m.Item(s.text.MakeMain).Chosen() {
+			s.moveInstance(i, 0)
+		}
+		if i > 1 && m.Item(s.text.MoveUp).Chosen() {
+			s.moveInstance(i, i-1)
+		}
+		if i < last && m.Item(s.text.MoveDown).Chosen() {
+			s.moveInstance(i, i+1)
+		}
+		if m.Item(s.text.RemoveInstance).Chosen() {
+			s.removeInstance(i)
 		}
 	})
 }
 
-// figures is the line at the right of an instance: success rate, median latency and how many requests they count.
-func (s *Screen) figures(in client.InstanceHealth) string {
+// figures says how an instance's latest requests went: how many, the success rate and median latency or that nothing
+// answered, and when a cooling instance is tried again.
+func (s *Screen) figures(in client.InstanceHealth, now time.Time) string {
 	if in.Requests == 0 || in.SuccessRate == nil {
 		return s.text.NoData
 	}
-	speed := s.text.NoAnswer
-	if in.MedianMs != nil {
-		speed = latency(*in.MedianMs)
+	parts := []string{s.fill(s.text.LastN, "{n}", strconv.Itoa(in.Requests))}
+	if in.MedianMs == nil {
+		parts = append(parts, s.text.NoAnswer)
+	} else {
+		parts = append(parts, s.fill(s.text.HealthRate, "{rate}", percent(*in.SuccessRate)),
+			s.fill(s.text.HealthMedian, "{time}", s.latency(*in.MedianMs)))
 	}
-	return percent(*in.SuccessRate) + " · " + speed + " · " + s.fill(s.text.LastN, "{n}", strconv.Itoa(in.Requests))
+	if in.CoolingUntil != nil {
+		parts = append(parts, s.cooling(*in.CoolingUntil, now))
+	}
+	return strings.Join(parts, " · ")
 }
 
 // cooling says when a cooling instance is tried again, in whole minutes rounded up.
@@ -154,11 +213,11 @@ func percent(rate float64) string {
 }
 
 // latency is a duration in milliseconds below a second, and in seconds with one decimal from there.
-func latency(ms int64) string {
+func (s *Screen) latency(ms int64) string {
 	if ms < 1000 {
-		return strconv.FormatInt(ms, 10) + " ms"
+		return s.fill(s.text.Milliseconds, "{n}", strconv.FormatInt(ms, 10))
 	}
-	return strconv.FormatFloat(float64(ms)/1000, 'f', 1, 64) + " s"
+	return s.fill(s.text.Seconds, "{n}", strconv.FormatFloat(float64(ms)/1000, 'f', 1, 64))
 }
 
 // hostOf is an instance address without its scheme.
