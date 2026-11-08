@@ -5991,3 +5991,22 @@ func TestRevisedMark(t *testing.T) {
 		})
 	}
 }
+
+// A post with one picture shows it across the width of the text at 3:2, cropped to fill, as the screens canvas draws it.
+func TestSocialOnePicture(t *testing.T) {
+	sources, entries := sample()
+	entries[2].Images = entries[2].Images[:1]
+	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
+	s := New("en", f.deps())
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	s.Use(f, "")
+	tt.Frame()
+	f.settle(t, tt)
+	r := rowRect(t, tt, "1 picture")
+	if r.H <= 0 || math.Abs(float64(r.W)/float64(r.H)-1.5) > 0.02 {
+		t.Fatalf("one picture is %vx%v, want 3:2", r.W, r.H)
+	}
+	if r.W <= 384 {
+		t.Errorf("one picture is %v wide, held to the old 384", r.W)
+	}
+}

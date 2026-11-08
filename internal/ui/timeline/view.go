@@ -5470,8 +5470,8 @@ func (s *Screen) strip(c *ui.Context, e client.Entry) {
 		})
 }
 
-// gallery is the grid of the pictures of a post, never taller than one row of them: one picture keeps its shape, two
-// sit side by side, and three or more are the first three as squares, the third saying how many more there are.
+// gallery is the grid of the pictures of a post, never taller than one row of them: one picture fills the width at 3:2,
+// two sit side by side, and three or more are the first three as squares, the third saying how many more there are.
 func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 	n := len(e.Images)
 	if n == 0 {
@@ -5482,8 +5482,6 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 	grid := ui.Grid(c).Columns(shown).Gap(4).Radius(theme.Px(t, 12)).Clip().Margin(theme.Px(t, 8), 0, 0, 0).
 		Label(s.format(s.text.Pictures, n)).Role(ui.RoleImage)
 	switch {
-	case shown == 1:
-		grid.MaxWidth(theme.Px(t, 384))
 	case s.scope.kind == "social":
 		grid.MaxWidth(theme.Px(t, 520))
 	default:
@@ -5504,7 +5502,7 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 			p := s.zoom(s.picture(c, img.URL, true, 0, over), s.index(e.ID), k)
 			switch shown {
 			case 1:
-				p.AspectRatio(16.0 / 10).MaxHeight(theme.Px(t, 240))
+				p.AspectRatio(3.0 / 2)
 			case 2:
 				p.AspectRatio(4.0 / 3)
 			default:
