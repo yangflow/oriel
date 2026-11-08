@@ -2694,9 +2694,16 @@ func TestSubscriptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.settle(t, tt)
-	if err := tt.Click("Edit subscription"); err != nil {
-		t.Fatal(err)
+	if _, ok := tt.Find("Edit subscription"); ok {
+		t.Fatal("the toolbar has an edit button")
 	}
+	i := slices.IndexFunc(s.paletteItems(), func(it paletteItem) bool { return it.name == "Edit subscription" })
+	if i < 0 {
+		t.Fatal("the palette cannot edit the chosen subscription")
+	}
+	s.paletteItems()[i].run()
+	tt.Frame()
+	tt.Frame()
 	if !s.subs.Open() || !tt.HasText("Paused · Not fetched until you resume") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
@@ -3048,6 +3055,9 @@ func TestTooltips(t *testing.T) {
 			t.Errorf("%q has a tooltip", text)
 		}
 	}
+	s.openSourceFilter()
+	tt.Frame()
+	tt.Frame()
 	for _, text := range []string{"Add subscription", "Unread first", "Hide sidebar"} {
 		if !tipShows(t, tt, text) {
 			t.Errorf("%q has no tooltip", text)
@@ -4465,6 +4475,9 @@ func TestSourceFilter(t *testing.T) {
 			if tt.HasText(none) {
 				t.Fatal("the empty line shows before any filter")
 			}
+			s.openSourceFilter()
+			tt.Frame()
+			tt.Frame()
 			if err := tt.Click(s.text.FilterSources); err != nil {
 				t.Fatal(err)
 			}
@@ -4502,6 +4515,9 @@ func TestSourceFilter(t *testing.T) {
 func TestSourceFilterKeys(t *testing.T) {
 	p := prefs.Default()
 	s, _, tt := crowded(t, "en", &p)
+	s.openSourceFilter()
+	tt.Frame()
+	tt.Frame()
 	if err := tt.Click(s.text.FilterSources); err != nil {
 		t.Fatal(err)
 	}
@@ -4524,6 +4540,9 @@ func TestSourceFilterKeys(t *testing.T) {
 	if !tt.Focused("Go Blog") || s.filtering {
 		t.Fatal("Down does not reach the first match")
 	}
+	s.openSourceFilter()
+	tt.Frame()
+	tt.Frame()
 	if err := tt.Click(s.text.FilterSources); err != nil {
 		t.Fatal(err)
 	}
@@ -4543,6 +4562,9 @@ func TestSourceSort(t *testing.T) {
 	if got := sourceOrder(t, tt, crowdNames...); !slices.Equal(got, []string{"Go Blog", "Talks", "Photos", "Second Blog", "Zeta Blog", "少数派", "数据周刊"}) {
 		t.Fatalf("the default order is %v", got)
 	}
+	s.openSourceFilter()
+	tt.Frame()
+	tt.Frame()
 	if err := tt.Click(s.text.UnreadFirst); err != nil {
 		t.Fatal(err)
 	}
@@ -4554,6 +4576,9 @@ func TestSourceSort(t *testing.T) {
 	if got := sourceOrder(t, tt, crowdNames...); !slices.Equal(got, want) {
 		t.Fatalf("unread first shows %v, want %v", got, want)
 	}
+	s.openSourceFilter()
+	tt.Frame()
+	tt.Frame()
 	if err := tt.Click(s.text.FilterSources); err != nil {
 		t.Fatal(err)
 	}
@@ -4631,9 +4656,23 @@ func BenchmarkSidebarList(b *testing.B) {
 // TestSourceToolsHidden has no filter while there is nothing to filter.
 func TestSourceToolsHidden(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	if _, ok := tt.Find(s.text.FilterSources); !ok {
-		t.Fatal("no filter with subscriptions")
+	if _, ok := tt.Find(s.text.FilterSources); ok {
+		t.Fatal("the filter shows before it is summoned")
 	}
+	tt.Key(0, ui.KeyF)
+	tt.Frame()
+	tt.Frame()
+	if !tt.Focused(s.text.FilterSources) {
+		t.Fatal("the summoned filter does not have the focus")
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	tt.Frame()
+	if _, ok := tt.Find(s.text.FilterSources); ok {
+		t.Fatal("the empty filter stays after the focus left")
+	}
+	s.openSourceFilter()
+	tt.Frame()
 	f.sources = nil
 	s.Use(f, "")
 	tt.Frame()
@@ -4988,7 +5027,7 @@ func TestRunCommands(t *testing.T) {
 		t.Fatalf("marked %v", f.marked)
 	}
 	name, items := TimelineMenu("en")
-	if name != "Timeline" || len(items) != 7 || items[3].Label != "Mark all as read" {
+	if name != "Timeline" || len(items) != 8 || items[3].Label != "Mark all as read" {
 		t.Fatalf("menu %q %v", name, items)
 	}
 	if name, _ := TimelineMenu("zh-Hans"); name != "时间线" {
@@ -5756,6 +5795,9 @@ func TestSidebarTrailingButtonsShareALine(t *testing.T) {
 		s.Use(f, "")
 		tt.Frame()
 		f.settle(t, tt)
+		s.openSourceFilter()
+		tt.Frame()
+		tt.Frame()
 		for _, name := range []string{"Hide sidebar", "Add subscription", "Unread first", "Settings"} {
 			r, ok := tt.Find(name)
 			if !ok {
@@ -5787,6 +5829,9 @@ func TestSmallButtonsAreBigTargets(t *testing.T) {
 	p := prefs.Default()
 	s, _, tt := crowded(t, "en", &p)
 	target(t, tt, s.text.AddSource)
+	s.openSourceFilter()
+	tt.Frame()
+	tt.Frame()
 	if err := tt.Click(s.text.FilterSources); err != nil {
 		t.Fatal(err)
 	}

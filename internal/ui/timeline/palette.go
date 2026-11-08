@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/subscriptions"
 	"github.com/yangflow/oriel/internal/ui/theme"
@@ -107,6 +108,13 @@ func (s *Screen) paletteItems() []paletteItem {
 		add(paletteItem{group: groupActions, name: s.text.PaletteShowAll, icon: icons.CircleDot, keys: []string{"A"}, run: func() { s.setFilter(everything) }})
 	} else {
 		add(paletteItem{group: groupActions, name: s.text.PaletteUnreadOnly, icon: icons.CircleDot, keys: []string{"U"}, run: func() { s.setFilter(unread) }})
+	}
+	if len(s.sources) > 0 && !s.immersive {
+		add(paletteItem{group: groupActions, name: s.text.FilterSources, icon: icons.ListFilter, keys: []string{"F"}, run: s.openSourceFilter})
+	}
+	if i := slices.IndexFunc(s.sources, func(src client.Source) bool { return src.ID == s.scope.source }); s.scope.source != 0 && i >= 0 {
+		src := s.sources[i]
+		add(paletteItem{group: groupActions, name: s.text.EditSource, icon: icons.Pencil, run: func() { s.subs.Edit(src) }})
 	}
 	add(paletteItem{group: groupActions, name: s.text.PaletteRange, icon: icons.CalendarDays, keys: []string{"T"}, run: s.cycleRange})
 	add(paletteItem{group: groupActions, name: s.text.PaletteOpenSettings, icon: icons.Settings, keys: []string{cmd, ","},
