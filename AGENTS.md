@@ -8,15 +8,21 @@ runs the server headless. MIT licensed.
 
 Sources of truth:
 
-- `docs/product.md`: product behavior, data model, flows. New rules go into the docs first, then into code.
-- `docs/design.md`: the design language: layout, color, type, components, accessibility, localization.
+- The screens canvas (`design/README.md`): how every screen looks, meaning its layout, controls, copy and visual
+  states, with one artboard per state. It is the only description of a screen's look; the docs do not repeat it.
+- `docs/product.md`: product behavior, data model, API and flows, with no layout or copy. New rules go into the
+  docs first, then into code.
+- `docs/design.md`: the rules every screen shares: spacing, color, type, components, accessibility, motion,
+  localization.
 - `design/tokens.md`: spacing, size and color values, mapped to MyGo theme roles.
-- `design/README.md`: the two claude.ai Design artifacts: the design system and the screens canvas, one artboard per
-  state of each screen.
 - GitHub milestones and issues: the plan and its order. `docs/roadmap.md` holds only the rules and finished history.
 - `docs/release.md`: the release workflow, its secrets and the steps of a release.
 - `docs/adr/0002-standalone-client-and-server.md`: the client reads and writes only through the HTTP API and never
   touches storage directly; without authentication configured the server listens on `127.0.0.1` only.
+
+When the canvas and the docs disagree about how a screen looks, the canvas wins: build from the canvas and fix or
+remove the doc text in the same pull request. Docs can be out of date; never build a screen from them against the
+canvas.
 
 When docs and code disagree, decide which side is wrong: if the docs record a changed decision, fix the code; if
 the docs still hold and the code quietly gave way, fix the code; fix the docs only when they would lead someone to
@@ -95,7 +101,8 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
   acceptance.
 - Do not split files just because they are long. Leave no temporary scripts, debug output or commented-out code.
 - A UI change starts from the screens canvas (design/README.md); the maintainer confirms the visual direction before
-  UI code is written. `docs/design.md`, the tokens and code go in the same pull request, whose body links the
+  UI code is written. A change to a shared rule or token goes into `docs/design.md` and the tokens in the same pull
+  request as the code; a screen's own layout and copy stay on the canvas only. The pull request body links the
   artboards it follows; screenshots go in the pull request body, not into the repository.
 - Keep `README.md` and `README.zh-CN.md` in sync; list only merged features, and mark plans as plans.
 - Commit messages and PR titles use Conventional Commits:

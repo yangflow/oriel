@@ -3,8 +3,11 @@
 Design values and the product icon for Oriel's native UI. The design language is
 [docs/design.md](../docs/design.md); the values it uses are in [tokens.json](tokens.json) and
 [layout.json](layout.json), explained in [tokens.md](tokens.md). The screens themselves are drawn outside the
-repository, in two claude.ai Design artifacts kept by the maintainer. Mockups approximate the result; the app running
-on a real device is what counts.
+repository, in two claude.ai Design artifacts kept by the maintainer.
+
+The screens canvas is the source of truth for how a screen looks: its layout, controls, copy and states. The docs do
+not describe a screen's look; where older doc text still does and it disagrees with the canvas, the canvas wins and
+the doc is fixed. Mockups approximate the result; the app running on a real device is what counts.
 
 ## Layout
 
@@ -37,8 +40,8 @@ Each screen's artboards are on the `4 页面` page, titled `4 页面：<screen> 
 | Connect | 连接服务端 | `internal/ui/connect/` |
 | Timeline | 时间线, 社交, 视频, 图片, the empty states, 离线, 筛选订阅, 侧栏收起, 窄窗口 | `internal/ui/timeline/` |
 | Reader | 阅读器, 沉浸阅读, 看图 | `internal/ui/reader/` |
-| Subscriptions | 设置 订阅, 添加订阅, 编辑订阅, 确认退订 | `internal/ui/subscriptions/` |
-| Settings | 设置 外观, 抓取, AI, 活动与存储, 导入 | `internal/ui/settings/` |
+| Subscriptions | 设置 订阅, 设置 订阅 多选, 设置 订阅 一个订阅, 添加订阅, 编辑订阅, 确认退订 | `internal/ui/subscriptions/` |
+| Settings | 设置 外观 界面, 外观 阅读, 外观 字号和行距, 外观 深色, 设置 设备, 抓取, 抓取 RSSHub 实例, 规则, 添加规则, AI, 活动与存储, 导入和导出, 导入进行中, 从别的阅读器导入, 确认框 | `internal/ui/settings/` |
 
 ## Changing the UI
 

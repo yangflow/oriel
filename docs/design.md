@@ -1,7 +1,8 @@
 # Oriel design language
 
-This is the design language of Oriel: the rules every screen follows, and the place to record where a screen
-departs from them. Oriel is a single-user reader that mixes RSS and RSSHub subscriptions into one timeline of
+This is the design language of Oriel: the rules every screen shares. How each screen looks, its layout, copy and
+states, is drawn on the screens canvas (below), which is the authority on screens; this document is the authority on
+the shared rules. Oriel is a single-user reader that mixes RSS and RSSHub subscriptions into one timeline of
 articles, videos, social posts and images (see [product.md](product.md), in Chinese). The same program is the
 desktop app and, with `oriel serve`, a headless server; only the desktop app has a UI, and that UI reads and writes
 through the HTTP API.
@@ -16,7 +17,8 @@ server, the timeline in `internal/ui/timeline/`, which is home, the subscription
 `internal/ui/subscriptions/`, the reader in `internal/ui/reader/`, which takes the list's place for an article, and the
 settings in `internal/ui/settings/`, which take the whole window. Each is drawn on its page of the screens canvas, the
 [Oriel 设计稿](https://claude.ai/artifact/M1YW6F7vwnQm2Ze8BJnYcb) Design artifact: its `4 页面` page holds one artboard
-per state of each screen, and its `5 桌面` page the window on each platform. "Drawn in the `timeline` page, `dense`"
+per state of each screen, and its `5 桌面` page the window on each platform, the menu bar menu, the app menu and the
+startup failure. "Drawn in the `timeline` page, `dense`"
 below names a page and an artboard there.
 
 Related files: [design/README.md](../design/README.md) (the design artifacts and how a UI change is made),
@@ -60,19 +62,20 @@ Oriel's values form one system, kept in `design/tokens.json` and `design/layout.
   needs changing, the view uses MyGo's own method with a token name (`Padding`, `Gap`, `Height`, `Width`, `MaxWidth`).
   A value no token has is added to the JSON first, never written in a view.
 - **Adoption.** Screens move to the system one pull request at a time (timeline, reader, subscriptions, settings,
-  connect; #522). Until a screen has moved, the sections below describe what it draws; once it has, `tokens.json` wins
-  where they differ.
+  connect; #522). Until a screen has moved, its artboards on the screens canvas show what it draws; once it has,
+  `tokens.json` wins where they differ.
 
 ## Contents
 
 1. [Principles](#principles)
-2. [Layout and spacing](#layout-and-spacing)
+2. [Layout and spacing](#layout-and-spacing), with [Screens](#screens)
 3. [Color and dark mode](#color-and-dark-mode)
 4. [Typography](#typography)
 5. [Chinese typesetting](#chinese-typesetting)
 6. [Icons and images](#icons-and-images)
 7. [Component guide](#component-guide)
-8. [Windows, menus and navigation](#windows-menus-and-navigation)
+8. [Windows, menus and navigation](#windows-menus-and-navigation): window, menus, navigation and toolbars, keyboard
+   and focus, screen readers, platforms
 9. [Accessibility checklist](#accessibility-checklist)
 10. [Motion](#motion)
 11. [Localization](#localization)
@@ -101,8 +104,9 @@ Oriel's values form one system, kept in `design/tokens.json` and `design/layout.
 - **The UI thread draws.** A frame is built from in-memory state. No disk, network or other blocking work in a view,
   including calls to Oriel's own HTTP API and decoding images; start that work in the background and change the state
   back on the UI thread (see [Views](https://github.com/egoist/mygo/blob/v0.7.4/docs/ui/views.md)).
-- **Spec before code.** Every screen is specified on the screens canvas and in this document before it is written.
-  Only `design/`, the two design artifacts it lists and this document count as the design reference for Oriel.
+- **Spec before code.** Every screen is drawn on the screens canvas before it is written, and follows the shared rules
+  of this document. Only `design/`, the two design artifacts it lists and this document count as the design reference
+  for Oriel.
 
 ## Layout and spacing
 
@@ -125,586 +129,24 @@ Layout uses flexbox in device-independent pixels (DIPs); see
   [scroll view](https://github.com/egoist/mygo/blob/v0.7.4/docs/ui/scroll.md). The timeline is a
   [list](https://github.com/egoist/mygo/blob/v0.7.4/docs/ui/list.md), which builds only the rows in view and lets rows
   of different kinds have different heights.
-- **The connect screen.** Design BConnect: a sheet at most `sheet-width` (320) wide, centered in a scroll view with
-  outer padding `space-6`, its parts `space-4` apart. On top the product icon at 64 (the mark on the ivory tile, drawn
-  from design/icon.svg without its shadows) and the title in `title`, `space-3` apart, with `space-2` more under them;
-  a session that ran out adds a `meta` line under the title, a clock in `TextMuted` and the server's host in 500.
-  Then two fields, each with its name above in `meta-strong` `Text2`, `space-1-5` apart (a click on the name focuses
-  the field; screen readers hear the input's own name): the address, with `https://oriel.example.com` as placeholder
-  and, once the server answered, a check in `Success` named "Server found" at its end; and the password, "Leave empty
-  if none", with the eye toggle at its end (`row-dense` square, radius-sm, icon-s, the tool button fills): its name
-  stays "Show password" and its pressed state says whether the password shows, while its icon flips between eye and
-  eye-off. Fields are CField wells, `control` high: the fill, radius-control, padding `space-3`, the raised fill and
-  the focus ring while focused, a `Danger` hairline when refused. A problem sits under the field it is about, or under
-  both when it is about neither, as a quiet danger CBanner: its icon-s glyph in `Danger`, the words in `meta` `Text2`.
-  Then Connect, a primary `theme.Button` across the sheet, with its arrow after the text or a spinner while it
-  connects, and under it, `space-3` below, the muted link "Use this computer" with the laptop icon.
-- **The timeline.** An ink pane and the main column. The pane is 216 wide (184 below a 760 wide window), an opaque
-  pane of ink (warm charcoal in light, deep teal in dark) floating 8 from the window's top, bottom and left edges, radius 14, with no divider; it is drawn with its
-  own light-on-dark theme (see [Glass and ink](#windows-menus-and-navigation)); its first 40 are left to the window
-  buttons. Then the kinds (All, Articles, Videos, Social, Images, Community) as 30 high rows, each an icon, its name and its
-  unread count (11 type, tabular; above 999 it reads "999+", so the column never grows past that text and is not fixed, and the full number stays in the row's accessible description; `many-feeds` shows one); then the subscriptions of the chosen kind, 30 high rows, their counts capped the same way; at the bottom the server bar, 40 high. The main
-  column is the paper: `Background`. It has a 52 high toolbar row on a solid `Background` bar (see Glass and ink), with no divider at the top and a hairline once the list has scrolled under it, design BToolbar: the title (`title`) and its unread count (`meta`
-  `muted`) at the leading end, then pushed to the trailing end the Everything/Unread/Starred segments (`CSegmented`: a
-  `fill` groove, `control` high, padding `space-0_5`, the chosen segment `raised` in `fg`, the others `fg2`), and a
-  group of bare icon buttons `space-1` apart (the time-range button, the grid switch (only where it applies), mark all
-  as read, whose name and tooltip say its scope: "Mark all in “Videos” as read"; right click opens its menu, see
-  Components), with search last, at the far right. The parts are `space-2` apart; the entries scroll under the bar,
-  not through it. Search is a `control` square magnifier until it is used: clicked, or with /, it opens into a field
-  (`sheet-width` 320 wide, `control` high, `radius-control`, the `fill` well, `float` with the focus ring while
-  focused) that takes the focus, and it closes again when it loses the focus with no text in it. Under a 736 wide main
-  column (the column, not the window, so hiding the sidebar gives room back) the open field takes the room of the
-  segments and the buttons. Under 580 the segments are their icons and the unread count is left out; the title is then cut with an
-  ellipsis, 40 wide at least; the buttons never shrink, so mark all as read is always inside the window. The Tab order is the visual one:
-  the sidebar button, the segments, the buttons, search. The time-range button is a bare 32 square calendar-days icon right of the capsule, named "Time range: any time"; its
-  menu lists Any time (the default), Today and Last 24 hours, each a 28 high radio row with a check on the current
-  one. It is not a segment because the segments are about the state of an entry and the bar has no room for a
-  fourth. With a range chosen it becomes a capsule: `control-small` high, a pill, `Soft(Accent)` fill, the icon and
-  "Today" or "24 h" in `Accent` (a button that opens the menu, named "Time range: Today"), then an x that clears the
-  range ("Clear time range"); in a tight column it keeps only the icon and the x. It is a view filter that marks nothing and hides the title's unread count, but mark all as read and
-  its variants stay enabled and mark only what the range holds. The list order has no button of its own, at any
-  width: "Newest first" and "Oldest first" are the last two rows of the time-range menu, under a hairline, with a
-  check on the current one; choosing one announces its name. While it is oldest first the calendar gets the same
-  `Soft(Accent)` fill and `Accent` icon as a pressed toolbar button, and its name adds ". Oldest first: new entries appear at the end of the list". The
-  menu is native and its rows have one line, so under the two orders sits a disabled row with that same sentence
-  (muted by the system, wrapping to two lines in a narrow menu), and the sentence is also the button's tooltip; the
-  "N new" pill never shows in this order and the note is why. The list goes back to its top, the oldest entry, and
-  new entries appear when paging reaches the end. The order is kept per device. In a main column under 700 there is
-  no room for another button at every text size, so the time-range button shows only while a range is on or the
-  order is oldest first; T, the palette and the Timeline menu reach the range and the order otherwise. When the range
-  leaves nothing the list shows the empty state (BEmpty, below) with a calendar, "Nothing new today" (or "Nothing
-  new in the last 24 hours") and "Any time", which clears the range. The range is kept per server with
-  the scope and the filter. T cycles it and is on the key sheet. There is no reading-time filter: the estimate is
-  shown on rows and in the reader only. Drawn in the `timeline` page of the screens canvas, `range-menu`, `range-today`,
-  `range-24h`, `range-empty`, `order-oldest`. An entry with a reminder (Remind me later) is read and carries, in its meta line after
-  the reading time, a 14 `Accent` clock icon and its time in 12 `Accent` ("Tomorrow 09:00"), named "reminder on
-  Tomorrow 09:00" for screen readers; it goes away when the reminder fires or is cancelled. Drawn in
-  the `timeline` page of the screens canvas, `reminded`. An entry of a subscription that translates titles shows the translation
-  as its title; on an article row and a video row the original sits under it as one 12 `TextMuted` line with an
-  ellipsis, and a compact article row, a card and a grid cell show the translation alone. An image row shows the
-  translation alone and a social post has no title; the original is part of the name screen readers read ("translation,
-  original"). Entries without a translation look as before, with no second line. Drawn in the `timeline` page of the screens canvas,
-  `translated-titles`. Compact list density (Settings,
-  Appearance, Timeline) tightens only the spacing of rows, grid cells and wall tiles, by the values in
-  `design/tokens.md`; no content is dropped. Drawn in the `timeline` page of the screens canvas, `dense`. When a background check fails after the list loaded, a banner (`CBanner`) sits at the top of the column, lined
-  up with the list: the `wifi-off` glyph in `Warning` on its `fill` square, "Can't reach the server" over "Last updated
-  10:42 AM", and a small secondary "Try again" at its end; while a check runs the button turns its loader and reads
-  "Retrying…", disabled. It is a polite status, announced once ("Can't reach the server · last updated 10:42 AM"), and
-  goes away on the next successful check. A star or read change made while the server is out of reach stays on the row and is not rolled back; until it is sent, the row's meta line carries a 14 `TextMuted` upload icon after the star, named "Waiting to save". The queue lives in memory only and is lost on quit. Drawn in the `timeline` page of the screens canvas, `offline`, `offline-retrying`, `offline-pending`. Loading the first page of a list (a switch of scope, filter or kind, a reload) draws the skeleton only after 300 ms; an answer that comes sooner shows no loading state, so switching never flashes bars. An empty list is design BEmpty, centered under the bar at most `dialog-wide`
-  wide: the icon (`icon-l`, `fg2`) on a `surface` disc twice `tile-l`, `space-6` above a `display` title saying what is
-  missing, a `body` `fg2` fact only where the title cannot carry it, and the one thing to do next as a secondary button
-  `space-6` below: "Couldn't load" with "The server didn't answer." and Try again; "All caught up" with "Show read";
-  "Nothing matches “…”" with "Clear search"; "Nothing new today" with "Any time"; "No starred entries" and "Nothing
-  here yet" keep a short fact and offer nothing. With no subscriptions the title "No subscriptions yet" sits over a
-  `surface` card (`radius-card`) of three ways in, one row each: a `control` square of `fill` for the icon, a `label`
-  title, what it takes in `meta` `fg2`, and a small button: Add a subscription (RSS · RSSHub · YouTube…, "Add…", the
-  only primary, which opens the add dialog), Import (OPML · Miniflux · FreshRSS, "Import…") and Restore (Oriel backup
-  file, "Restore…"), both of which open Settings on Import and export. Drawn in the `timeline` page of the screens canvas, `no-subscriptions`. While an OPML file is dragged over the window from Finder or Explorer, this empty state becomes a drop zone: the list area inset 16 gets a dashed 1.5 `Accent` outline with radius 14 and a `Soft(Accent)` fill, the tile turns to `Soft(Accent)` with an `Accent` upload icon, and the heading and hint become "Drop to import" and "Release an OPML file to add its subscriptions." (15 semibold and 13 `Text2`); the buttons give way. The outline and the words, not the color alone, say the zone is live; it is a polite status. It goes back as soon as the file leaves or drops. Drawn in the `timeline` page of the screens canvas, `no-subscriptions-drop`. Files dropped anywhere else in the window are not highlighted; they open Settings on Import and export and import there. While a dialog is open on the timeline the drop is refused with a toast, "Busy. Close the open window and try again." Article, social and mixed rows sit in one column at most 680 wide (720 for Social), centered, padded 24
-  at the sides; a row is as high as its text, padded 16 with 14 between its parts, radius 12 when it has a fill, and
-  an article's thumbnail, at most 96 by 64, radius 8, starts under the meta line and never makes the row taller. A
-  row reads, top to bottom: the meta line (20 high: the site icon, the source name, a dot, the time, the reading
-  time "6 min read" in `TextMuted` (after a dot, only when the estimate is a minute or more and the entry is read, not
-  watched), the kind mark; the row actions at its right), the title, the summary or the text, the pictures. An article that has an
-  AI summary shows it in place of the feed summary, in the same size, color and two-line clamp, led by the `sparkles` icon
-  (13, `TextMuted`, labelled "AI summary") so it reads as generated; Social, Videos, Images and the Compact viewer, which
-  show no feed summary, are unchanged. Rows are separated by a
-  hairline only, which hover and selection hide. The toolbar keeps its 12 inset in a wide window, so the segments stay centered in the main column. Pictures in a social post share a grid at
-  most 440 wide (520 in Social): one picture keeps its aspect ratio, at most 384 wide and 240 high; two sit side by
-  side at 4:3; three or more show the first three as squares in one row, the third covered by "+N" for the rest
-  (labelled "N more pictures"), so a post is never taller than one row of pictures. Videos are a grid of cards at least
-  200 wide, 16:9 covers; Images are a masonry wall of up to three columns at least 170 wide, each picture at its own
-  aspect ratio. These are the defaults; the View as preference (the next bullet) changes them. Below a 760 wide window the segments show icons only. Sizes taken from the mockup are written
-  `px(t, n)`, which is `t.Rem(n / 13)`, so they follow the text size. The pane's section header, 22 high, ends in a 22
-  square + button that adds a subscription; it shows even when there are none. The label starts where the row icons
-  do (10 in) and the button's 14 icon ends where the row counts do (10 in), so the button is centered on the pane line (`pane-line` and `pane-add` in the tokens), 6 in from the row
-  highlight's edge and level with the label's middle; drawn in the `timeline` page of the screens canvas. A paused subscription has its name in
-  `TextMuted`, a pause mark instead of the failure mark, and no count. A subscription set to Hide from All keeps its
-  row and its own count and gets a 14 `eye-off` in `TextMuted` after the name, named "Hidden from All" for a screen
-  reader, which reads the row as "{name}, hidden from All" (`hidden-source` in the `timeline` page of the screens canvas,
-  `edit-hidden` and `menu-hidden` in the `subscriptions` page of the screens canvas). With one subscription chosen, a pencil button
-  after the count edits it. A row is chosen with a fill (ink 6.5%) and the selection marker; see
-  [States](#color-and-dark-mode).
-- **Search syntax and matches** (product.md, Search syntax). Drawn in the `timeline` page of the screens canvas: `search-syntax`
-  (the hint), `search` (highlights) and `search-operators` (a query that uses the syntax).
-  - *Syntax hint.* No help page and no chips. While the search field has the focus and is empty, one line sits under
-    the toolbar in the place of the "Only titles and summaries" notice, in the same strip: 12 `Text2` on a `Track` fill
-    (not the `Warning` soft fill, it is information, not a caution), radius 12, 7 by 14 padding, a 14 `TextMuted`
-    info icon, then the syntax as text: `from:name  kind:video  after:2026-01-01  "exact phrase"  -exclude`. The
-    operator words are 12 medium `Text`, the rest 12 regular `Text2`, 12 apart, and the line wraps to two lines in a
-    narrow column instead of cutting. It is tied to the field with `aria-describedby` (read with the field's name,
-    never announced on its own) and goes away on the first character typed, and when the field loses the focus. The
-    field keeps the placeholder "Search"; 200 wide has no room for the syntax. When the field is drawn as the 32
-    square button, the hint still shows once the field is open.
-  - *No chips.* The parsed filters are not drawn as tags. The text stays in the field exactly as typed, so the
-    query reads, edits and copies as one string (and is what #76 will save). Chips would add controls to the Tab
-    order, take width the 200 field does not have, and need a second place to say a token was not understood, which
-    the grammar says is never an error.
-  - *Highlights.* The words and phrases the query asks for (not the excluded ones, not `from:`, `kind:` or dates) are
-    marked in the row's title and in its summary or text, at most 8 pieces in each. A piece is drawn with the
-    `Warning` soft fill (radius 4, 1 padding either side) **and** a 1.5 underline in the text's own color, 2 below
-    the baseline, so it does not depend on color: the fill alone is only 1.1:1 against the ground and is not a cue by
-    itself. The text keeps its size and weight and does not move. Its color is `Text` in a title, `Text2` in a
-    summary; in a read row, where titles and summaries are `TextMuted`, a marked piece uses `Text2`, because
-    `TextMuted` falls to 4.4 / 4.3 on the soft fill (light / dark) and `Text2` holds 6.6 / 6.3 (6.2 / 5.9 on
-    `Surface`); `Text` holds 13.7 / 10.6. All are over 4.5:1 in light and dark; check them with high contrast on, where
-    the underline becomes 2 and the fill 16%.
-  - *Screen readers.* A highlight is paint only: it is not its own element, it takes no focus and is not announced, and
-    it does not split the row's name, which stays the title, the source and the state, as without a search. Copying
-    and selecting give the plain text. Compact rows, cards and grid cells mark their title the same way; a picture
-    result has no text to mark.
-- **"Last looked" divider.** A mark of design BListMarks. In the column of rows only, a `row-compact` high row of
-  its own between two entries, in the row column (at most 680, the same side padding): the label in `meta-strong`
-  `Accent` between faded `Accent` hairlines, `space-3` from each, tabular numerals: "12 new since you
-  last looked" / "上次看到这里 · 新增 12 条" ("50+" over 50). It is a button, named by its label (the accessible
-  name is the label); hover steps the label to `AccentHover`, the keyboard ring is the row's, and a click closes it with
-  no animation, the list below keeping its place. It has no fill and no actions, and the hairline stands in for the
-  separator of the row below. Drawn in the `timeline` page of the screens canvas, `last-looked`.
-- **Viewers (View as).** Each kind has a viewer the reader chooses in Settings, Appearance (the settings row is
-  described under Settings below; the rule for which entries use it is in `docs/product.md`, Viewers). The default of
-  each kind is the look described in the timeline bullet above (Articles List, Videos Grid, Social Card, Images Wall, Community Panes); the others are:
-  **Article, Compact.** A row 36 high, in the column (680 wide), padded 0 16 0 28 like a row, radius 10, parted by the
-  same hairline; the unread dot sits at its left, centered. Left to right: the site icon (16), the source name in a
-  128 wide field (96 below a 760 wide window; 12 medium `Text2`, one line, ellipsis), a 12 gap, the title (13
-  semibold `Text`, one line, ellipsis, taking the rest; read: 500 `TextMuted`), the star mark when starred, and the
-  time (12 `TextMuted`, tabular figures, right-aligned, 56 wide at least). The reading time is left out, the summary
-  and the thumbnail too. The row actions replace the time while the pointer rests on the row or it is chosen or
-  focused (centered vertically, no longer in the meta band because there is none).
-  **Social, Compact.** A row padded 12 16 12 28 with 4 between its parts: the meta line (author, handle, time), the
-  text at 13 `Text` clamped to 2 lines (6 in the default viewer), then the pictures shrunk to thumbnails. One picture
-  is a 56 square, radius 8, at the right of the text, starting under the meta line (as an article's thumbnail does);
-  two or more are a strip under the text, 8 below it, of at most four 40 squares, radius 6, 4 apart, the fourth
-  covered by "+N" (11 semibold white on ink 50%) when more follow; the strip never wraps. Failed thumbnails show the
-  `Track` fill and a 16 image mark.
-  **Video, Large cover.** A row of the column's width (the 28 gutter stays for the unread dot): the cover fills the
-  row's content width at 16:9, radius 12 with the 0.5 DIP outline, the play mark (a 44 disc of ink 40% with a 16
-  white triangle) always shown, the duration badge at the bottom right, then 8 below the cover the title (15
-  semibold, two lines at most, ellipsis), then the meta line (source, time, the platform with the video mark). The row
-  actions sit at the right of the meta line. The cover is at most 640 wide (360 high) and stays left-aligned with the text; in a narrower column it is just the column's width. In the 680 column it is about 620 by 350, so a screen shows two
-  to three entries; it is for people who want the picture first.
-  **Video, List** and **Image, Card** are the rows the other scopes draw today, now also in Videos and Images: the
-  video row (a 16:9 thumbnail with the duration, the meta line and the title beside it) and the image card (the
-  3:2 picture); the grid and the wall are not used for that kind.
-  **Image, Grid.** Used by default only in the Images scope without a search, as the wall is. It is the Videos grid with square
-  pictures, so it follows the same layout: the grid fills the column, padded 16 at the top, 24 at the sides and 32 at the
-  bottom, cells at least 170 wide (the wall's column width) sharing the width, 16 across and 24 down, aligned
-  at the top. A cell: a square picture (radius 10, 0.5 outline, centered and cropped), 4 below it the title in 13
-  semibold on one line with an ellipsis, then the meta line with the inline unread dot. The cell is square before the
-  picture arrives, so a late picture moves nothing; the stored width and height are not used. An entry with more than
-  one picture shows the count in a badge at the top right, a dark pill (11 medium white on ink 62%, radius 4, 6 in
-  from the corner) with an 11 images mark and the number ("3 pictures" as the picture's name). Like a video card, the
-  cell has no fill, chosen ring or focus ring of its own; hover, the actions and the keyboard are as the Videos grid
-  has them. Keyboard and the V rule treat a row of cells whole, as the Videos grid does.
-  **Hover, in the grid and the wall.** As today's cards: the video card's play mark appears, the row actions appear
-  at the cell's bottom right (`bottom -2, right -4`), and the meta line gives way 84 on its right so the actions never
-  cover it. Nothing else changes: the time and the star stay.
-  **Unread dot.** A grid card, a wall tile and the square image cell carry the 7 `Accent` dot inline at the start of
-  the meta line. A row, including the Large cover and the video row, carries it in the 28 left gutter, level with the top of
-  the row's first line (on the Large cover, with the top of the cover).
-  **Community, Panes.** In the Community scope (or one community subscription) with a main column at least 800 wide,
-  three panes sit side by side: the ink sidebar, a list pane 320 wide and the reader pane filling the rest (at least
-  480). The list pane draws Article rows. Its toolbar floats over it and keeps the scope title with the unread count
-  (title above the count, so both fit 320 in either language), the filter as icons only (the segments keep their names for
-  the screen reader), the time range and search; Mark all as read is not drawn there, it stays
-  on its keys and in the List fallback. The reader pane is the reader itself, without its own sidebar: its toolbar is the
-  reader's (Summarize and Translate, then Star, mark read or unread, Open in browser and
-  More), without Back and without the previous and next arrows, since J and K step and the list is beside it; the
-  actions work from the pane. Until a post is open the pane has no toolbar and shows the empty state (BEmpty) "Choose a post", with
-  no hint. A hairline separates the panes. The chosen row keeps its
-  chosen fill while its post is open, so the list shows where you are; opening marks it read, so it carries no unread
-  dot. Below 800 (or with the Community viewer set to List) the kind falls back to List, open, back, like Articles. Drawn
-  in the `timeline` page of the screens canvas as `forum-panes`, `forum-panes-empty` and `forum-narrow`.
-  **Where each applies.** Grid, Wall and the square Grid by default only in the Videos or Images scope with no search; in All,
-  Articles, Social, a single subscription and a search the kind draws its row or card, so a subscription starts as
-  a column. The grid switch (below) can turn the grid on for one video or image subscription. Compact and Large cover apply wherever the kind appears, so a Compact
-  article row, a Large cover video and a Compact social post can sit one under another in All. Drawn in
-  the `timeline` page of the screens canvas: `article-compact`, `social-compact`, `video-cover`, `video-list`, `image-grid`,
-  `image-card` and `mixed-viewers`; with no state, `scope=video` and `scope=image` are the defaults, the grid and the
-  wall.
-  **Grid switch.** A bare 32 square icon button right of the time-range button, shown only in the Videos and Images
-  scopes and in a single video or image subscription, never while searching. It is one toggle: while the list shows it
-  draws the layout-grid icon, named and tooltipped "Show as grid"; while the grid shows it draws the list icon, named
-  "Show as list". Same states as the other bare tool buttons (hover fill, focus ring), 16 icon in `TextMuted`. It does
-  not show a pressed state, since its icon already says which look comes next. At the minimum width it stays. The grid it asks for is the kind's: the cover grid for videos, the wall for images, or the
-  square grid when the Images viewer is Grid; the list is the kind's other look. The choice belongs to the scope it was
-  made in, overrides the viewer of Settings there, and is kept on this device. The app never suggests the grid. Drawn in
-  the `timeline` page of the screens canvas: `image-switch` (Images switched to the list, so the switch shows the grid icon) and
-  `source-grid` (one image subscription as a grid, so the switch shows the list icon); every other state of Images and
-  Videos shows the list icon.
-- **The subscription dialogs.** Dialogs of design CDialog over the timeline on the `theme.Scrim` backdrop:
-  `dialog-wide` 560 to add, to edit and for health, `dialog` 440 for a folder and to confirm a delete, `theme.Sheet`
-  at the Dialog level (`radius-pane`, `float`, `elevation-dialog`), at most the window's height less `space-8`. The
-  head leads with an `icon-l` glyph on a square of `control` plus `space-2` (`radius-card`, `Soft(Accent)` with the
-  `Accent`: `plus` to add, `folder-plus`, `heart-pulse`) or the subscription's `tile-l`, then the title in `title` over
-  a `meta` `muted` line (the address in monospace when editing), and the close `x` as the toolbar icon button. The
-  body scrolls when the window is too low while the head and the sill stay (a `line` hairline appears under the head
-  once it is scrolled), padded `space-6` with `space-4` between its parts. The sill is a `surface` band padded
-  `space-4` `space-6` with the buttons at the end, `space-2` apart; in the edit dialog "Delete…" sits alone at the
-  start, in `Danger` without a fill. Fields are design CField: a `fill` well with no border, `radius-control`,
-  `control` 32 high, inset `space-3`, `hover` under the pointer, `raised` with the 2 `focus` ring when focused and a
-  hairline `Danger` rim when invalid; the label above is `label`, the help under it `meta` `muted`. A select is design
-  CSelect: the secondary button's `fill`, its value at the start, at least `menu-min` 160 wide, a `muted`
-  `chevron-down` at the end. A switch row is design CSettingRow without its icon: the name in `body` over the help in
-  `meta` `muted`, the switch at the end, at least `row-compact` 36 high. Cards inside a dialog (what the address was
-  recognized as, the candidates, the warnings, the moved card, the route preview) are `surface` with `radius-card`.
-  Deleting a subscription or a folder asks in a CDialog of its own: the `trash2` glyph in `Danger` on a `surface`
-  chip, the title and the consequence in `body` `fg2`, and in the sill Cancel, which has the focus so Return does
-  nothing harmful, then Delete in `Danger`; Escape or a click outside cancels. The two dialogs hold only what is decided while
-  adding or glancing at one subscription; every other setting of a subscription lives on its page in Settings →
-  Subscriptions (below), so neither dialog has groups, disclosures or a long scroll. The add dialog has the address, then
-  "Show as" and "Folder" side by side (two selects of equal width, 12 gap, each with its 12 medium label above; "Show
-  as" shows the kind's 14 icon before its name), then one muted 12 line: the title comes from the feed and the interval
-  is set on its own, both changed later in More settings. "Folder" is absent while no folder exists, and "Show as" then
-  takes the row alone. There is no title field and no interval in the add dialog (`add`). Under the address, one line at a time: the error, the help, the RSSHub instance card (a warning card, below) or what
-  the address was recognized as: a `surface` card padded `space-4`, the kind's icon in `Accent` on a `tile-l` of
-  `fill`, the name in `label` over the address in monospace `meta` `muted`, and `circle-check-big` in `Success` at the end. An address that is a web page is looked up
-  half a second after typing stops: the line reads "Looking for feeds…" with a spinning loader at 14 and Add is held. Every feed
-  found is a radio row on one `surface` card (`radius-card`, rows inset `space-4`, a `line` hairline between them, each
-  at least `row-compact` 36 high): the 16 radio, the RSS icon in `Accent`, the title or site and what it carries in
-  `label` over the address in monospace `meta` `muted`, under a `meta` `muted` line "Found n feeds. Choose one."; the
-  chosen row's radio is the `Accent` with an `AccentText` dot, the others a `line2` ring. The first row is chosen, a click chooses another, and a single
-  result is the one card as for a recognized link. When nothing was found a 12 muted line says so and Add tries the address
-  as typed. A feed that a subscription already follows is a row with no radio, its icon `muted` and a `meta` `muted` tag "Subscribed" at the end,
-  and it is a button: pressing it closes the dialog and shows that subscription; the chosen row is the first one not followed yet. The
-  "already followed" notice under the address is a CBanner with the `layers` glyph in `Warning` and two small buttons,
-  "Show it" (plain) and "Add anyway" (secondary), the latter repeating the attempt with the
-  duplicate allowed and shown only when the address is written differently from the subscription it duplicates (the server refuses an identical spelling anyway). Mockup states `add-searching`, `add-found-list`, `add-found-subscribed`, `add-exists` and `add-none-found`. A name, or a link that has no feed, is
-  looked up in the RSSHub instance's route catalog the same way: the line reads "Looking for RSSHub routes…", and every
-  matching route is a row like the feeds above (RSS icon, route name, the route template in monospace), at most 10. Under the
-  chosen row sit its parameters, one 32 high field each with the name as a 12 medium label ("(optional)" after it for a
-  parameter that may be left out) and the description as placeholder; the fields filled from a link look like typed ones.
-  A secondary "Preview" button with a 14 eye icon follows the fields and is held until the route is complete; its result is a
-  `surface` card, `radius-card`, padded `space-3`, listing the first 5 entries, the title on one line and the date at the right in 12 muted,
-  under a 12 muted line with the feed's title, and a failure is the error line below the button. Without a catalog a 12
-  muted line says to type the route, as for a route typed with a slash, and there is no error. Mockup states
-  `add-routes`, `add-route-params`, `add-route-preview` and `add-no-catalog`. A full address of the public rsshub.app
-  gets a warning card (`surface`, `radius-card`, padded `space-3`, as the RSSHub-address card) under the field in
-  place of the lookup: a 16 triangle in `Warning` with one sentence in `label` ink and a small secondary button under it, "Use my RSSHub instance"
-  (an instance is set; it rewrites the field to the route only when pressed) or "Open settings" (none is set). Mockup
-  states `add-public` and `add-public-no-instance`. When the site's bot protection turned a fetch away, the failure
-  text (health line, sidebar tooltip, toast) is one localized sentence in place of the raw HTTP text (`edit-blocked`). Other known failures (timeout, name not found, certificate, no connection, 401/403, 404/410, 429, 5xx, not a feed) read as a short phrase in the same places in place of the English text the server stores (`edit-failing`); the raw text is in the tooltip of the health line, the sidebar mark and the health list ("Original: …") and in the description a screen reader reads. Text it does not know is shown as it is. No new element: the line is the same, only its words and its tooltip change.
-  The edit dialog, `dialog-wide`, keeps to the same few things, top to bottom: the health line, a CBanner whose glyph
-  says the state (`circle-check-big` in `Success`, `pause` in `fg2` while paused, `circle-alert` in `Warning` while
-  fetches fail) with a small Refresh button, Try again while fetches fail;
-  for a route that has been fetched, a muted 12 line under it naming the RSSHub instance that served the last fetch
-  (host only, "Served by fallback address {host}" with a second muted line saying the first address did not answer, when it is not the first of the list);
-  when the site has moved the feed for good (the server saw a permanent redirect to the same new address three times)
-  the moved card: `surface` fill, `radius-card`, `space-3` padding, `space-2` between its parts,
-  12 type. The head is a 14 `signpost` icon in `Accent` and "This subscription has moved to" in 12 medium `Text`; under it
-  the new address in 12 monospace on `Text`, wrapping anywhere and selectable; then two small buttons, "Update address"
-  (primary) and "Dismiss" (secondary). Neither belongs to the form: they act at once and Save does not carry them. If
-  the new address is already another subscription, a 12 `Danger` error line with `circle-alert` sits between the address and the buttons and the
-  card stays (`edit-moved-exists`). After Update address the card is gone and the toast says "Address updated" (`edit-moved`).
-  Then the Title field on a row of its own, then "Show as" and "Folder" side by side as in the add dialog (`edit-folder`
-  with the folder list open). When the first fetch found the feed to look like another kind, a line in the style of the
-  health line sits under that pair with the kind's icon, one sentence and a small button "Show as Videos"; it only
-  chooses the kind in the dialog (`edit-suggest`). Then the two switches, between two `Border` hairlines with 12 above
-  and below and 14 between them: "Pause fetching" (no help line, the label says it; `edit-paused`) and "Hide from All"
-  with the help "Only seen when you open this subscription. Search and Starred still show it." (`edit-hidden`). A
-  switch is the app-wide switch row, the label at the left in 12 medium and the switch at the right; a field or a select
-  has its 12 medium label above with `Space(1)` between. The form ends with the "More settings" row: full width, at
-  least 48 high, 8 12 padding, 10 radius, `Surface` fill (a slightly darker fill on hover), a 16 `sliders-horizontal`
-  in `TextMuted`, "More settings" in 13 medium over a muted 12 line that names what is there, "Interval, extraction,
-  proxy, keywords, summaries" (one line, cut with an ellipsis), and a 14 `chevron-right`. It is a button: it closes the
-  dialog, keeping nothing unsaved (when the form has changes, it saves them first, as Save would, and stays open on a
-  refusal), and opens Settings → Subscriptions on this subscription's page. The footer has "Delete…" alone at the left,
-  in `Danger` without a fill, then Cancel and Save. Drawn in the `subscriptions` page of the screens canvas, `edit`,
-  `edit-failing`, `edit-blocked`, `edit-paused`, `edit-hidden`, `edit-folder`, `edit-suggest`, `edit-moved` and
-  `edit-moved-exists`.
-- **Subscription health.** A `dialog-wide` dialog like the edit dialog opened from the command palette action
-  "Subscription health…"; the sidebar has no entry for it. Header: the `heart-pulse` icon, the title and a muted line,
-  "Sources that need a decision. Nothing changes until you choose." Body, one state at a time: loading is a muted line
-  with a spinning `loader-circle`, "Checking…"; an error is an `errorLine` with a small "Try again"; empty is a centered
-  `circle-check-big` in `Success` over "All your subscriptions look healthy"; otherwise the list, scrolling inside the
-  dialog. A row has the source's glyph (16, as in the sidebar) and name (13 medium, one line) at the left, under it the reason in 12 on
-  `Warning` (`dead` and `failing`) or `TextMuted` (`noisy`, `rarelyRead` and `moved`) with a 14 icon (`circle-alert`, `triangle-alert`,
-  `eye`, `volume-2` for a noisy source, and `signpost` in `TextMuted` for a moved source), and a second muted 12 tabular line with the last 30 days' numbers; at the right two small buttons, "Pause"
-  (`pause`, quiet) and "Unsubscribe…" (`trash2`, `Danger` text, no fill). Rows are separated by a hairline, 12 high
-  paddings, no card around them. A moved row's reason reads "Moved to {address}" (one line, truncated) and its buttons are
-  "Update address" and "Dismiss" in place of Pause and Unsubscribe… (`health`, the fourth row). A noisy row's reason reads "{n} a day, you read {p}%" and its buttons are "Slow down" (`clock`, sets the pace to
-  Breaking, hidden when the pace is already that fast or faster), "Pause" and "Dismiss" in place of Unsubscribe…
-  (`health-noisy`). A failing reason shows the last error on a second line, one line truncated. A row
-  leaves the list as soon as its action succeeds; the footer has one "Close" button. Unsubscribe opens the same
-  confirmation as Delete. Drawn in the `subscriptions` page of the screens canvas, `health`, `health-loading`, `health-error`,
-  `health-empty`. Accessibility: the dialog is labeled by its title, each row is a list item named by the source and
-  its reason, the buttons carry the source's name ("Pause {name}", "Unsubscribe {name}"), and the loaded count is
-  announced with `Announce`.
-- **Fold row.** A mark of design BListMarks. In All and Unread, the entries over a subscription's daily cap are
-  drawn as one `row-compact` line where the first of them would have been: a muted `CLink`, "{n} more from {name}" with
-  a `chevron-down` after it, centered on the column. It is a button: Enter, Space or a click opens it, the entries take their places in the list and the row goes
-  away, with the announcement "Showed {n} entries". It is not part of j and k, "next unread" or "mark visible"; Tab
-  reaches it. Its accessible name is "{n} more from {name}, show". Drawn in the `timeline` page of the screens canvas, `folded`
-  and `folded-focus`; the grid and wall layouts do not fold.
-- **Settings → Subscriptions.** The second group of Settings (`list-checks` icon), after Appearance: every
-  subscription of the server, and the one place where all of a subscription's settings are. A form page in width (600).
-  It has two levels in the same column: the list, and one subscription's page opened from it.
-  *The list.* The lead line ("Every subscription on this server. Open one to change all of its settings, or select
-  several to change them together.") shares its row with a small primary "Add subscription" (`plus`), which opens the
-  add dialog over the settings. Under it, a 40 high tools row, 16 left and 8 right padding: the select-all checkbox, a
-  32 high filter field ("Filter by name or address", a 14 `search`, `Raised` with the edge hairline, filling the
-  row) and a kinds select ("All kinds", then each kind). Under it the list is one card, a multi-selectable listbox:
-  rows at least 56 high, 10 16 padding, 12 gap, a hairline between rows as in every settings card: the checkbox, the
-  glyph (28 square, 7 radius, the monogram on `Track`), the name (13 medium, one line, followed by a 13 `pause` for a
-  paused subscription and a 13 `eye-off` for one hidden from All, both `TextMuted`, with tooltips) over a 12 muted
-  meta line, "Articles · Reading · Auto · 6 h" (kind, folder or "No folder", interval); a failing subscription's
-  meta line is `Danger` with a 13 `circle-alert` and the failure, "Failed 3 times · the site answered 503". A 14
-  `chevron-right` in `TextMuted` closes the row. Under the card a 12 muted line counts them, "18 subscriptions". The
-  checkbox is 16, radius 5, a 1 `EdgeLine` ring on `Raised`; checked it is filled `Accent` with a 12 `check`, partly
-  checked (select-all over a partial selection) an 8 wide bar. A selected row is filled `AccentSoft`, with no hairline
-  next to it. The filter and the kinds select work locally; rows that go out of view are unselected, so an action only
-  ever touches visible subscriptions (`subs`).
-  Selecting: a click on the checkbox toggles the row; a click elsewhere on the row, or Enter on it, opens its page.
-  Cmd/Ctrl+click toggles a row and Shift+click selects the range from the last clicked row. From the keyboard the list
-  is one tab stop; Up and Down move the focus, Home and End go to the ends, Space toggles the focused row, Shift+Up and
-  Shift+Down extend the range from the anchor, Cmd/Ctrl+A selects every visible row, and Escape clears the selection
-  before it does anything else. Down in the filter field moves the focus to the list.
-  With a selection the tools row turns into the action bar, in the same 40 slot: `AccentSoft` band, 10 radius, 8 gaps;
-  the tri-state checkbox, "3 selected" (13 medium, tabular), the small buttons "Change…" (`sliders-horizontal`),
-  "Pause" (`pause`; "Resume" with `play` when every selected one is paused, both for a mixed selection), "Refresh"
-  (`refresh-cw`) and "Delete…" (`trash2`, `Danger` text, no fill), and at the far right a 28 square quiet `x` that
-  clears the selection (`subs-selected`). The buttons sit on `Raised` with the edge hairline so they read on the band.
-  "Change…" opens a sheet over the settings, 520 wide, the Dialog level as the add dialog: header "Change 3
-  subscriptions" and the muted line "Only the items you change are applied; the rest stay as each subscription has
-  them."; then eight selects in two columns (12 gap): "Show as", "Folder", "Check every", "Opens in", "Keep
-  entries", "Proxy" (Follow settings or Direct connection; a custom address is set on one subscription's page),
-  "Pause fetching" and "Hide from All" (the two switches as selects: Leave as is, On, Off). Each starts on "Leave as
-  is" in `TextMuted`; a changed one shows its value in `Text`. "Apply" is primary and disabled until something
-  changed; Cancel sends nothing (`subs-change`, with Folder changed). Running, the bar keeps its checkbox and count and shows a spinning `loader-circle` with "Applying
-  to 3 subscriptions…" in place of the buttons; the list, the filter and the bar are disabled and Escape does nothing
-  (`subs-working`). A partial failure puts a result band between the bar and the list: `Surface`, 10 radius, a 14
-  `triangle-alert` in `Warning`, one line naming what failed and why ("Changed 2 of 3. Daring Fireball could not be
-  saved: the server did not answer."), and a small "Try again" for the failed ones; the failed rows stay selected, the
-  others are unselected (`subs-partial`). The band stays until the selection changes or another action runs. Delete
-  uses the standard delete alert, "Delete 3 subscriptions?" with the danger tile, the usual body and Cancel and Delete
-  (`subs-delete`); when it is done the rows leave the list and the toast "Deleted 3 subscriptions" with Undo and close
-  sits at the bottom of the window, drawn like the single-delete toast (`subs-deleted`). Accessibility: the list is a
-  multi-selectable listbox named "Subscriptions", each row an option named "{title}, {kind}, {folder}, {interval}",
-  with "paused", "hidden from All" or the failure appended; the action bar is a toolbar named by the count; the count
-  (after the selection settles for half a second), progress and result are announced with `Announce`; the result band
-  is an alert. The checkbox is never the only way, and a selected row is told by its state, not by the fill alone.
-  *A subscription's page.* The toolbar title becomes a crumb, a quiet "‹ Subscriptions" button, a `/` in `TextMuted`
-  and the subscription's name; the button and Escape (under the usual Escape rule of Settings) go back to the list
-  with the row focused. The page opens from a row, from "More settings" in the edit dialog and from the palette
-  action of the focused subscription; it never opens a dialog. It is the cards of a settings page, each under an 11
-  section title, and every row is the settings row: a select, a switch or a field in the row style of the other pages.
-  First a head card, 28 below it: the glyph at 40 (10 radius, 16 monogram), the name in 15 semibold over the address
-  in 12 monospace `TextMuted` (selectable), a small "Refresh" (`refresh-cw`; "Try again" while failing) at the right,
-  and under them the health line in 12: `TextMuted` with a 14 `check` ("Checked 5 min ago · next in 10 min"), or the
-  `Danger` error line with the full failure while fetches fail (`sub-error`); the RSSHub instance line and the moved
-  card of the edit dialog sit here too, under the same rules. Then four cards:
-  "General": Title (a field with the help "Empty uses the title from the feed."), "Show as" (with the kind's icon),
-  "Folder" ("A subscription is in one folder at most.", absent while no folder exists), "Pause fetching" ("Keeps its
-  entries; nothing new arrives until you resume.") and "Hide from All".
-  "Fetching": "Check every" (Auto first; an automatic subscription reads "Auto · 6 h" with the interval in use; the
-  help says Auto follows how often the feed publishes, between 15 minutes and a day), "Extraction", "Request headers"
-  and "Proxy". "Extraction" and "Request headers" are disclosure rows: the label and its one-line help at the left,
-  the current value in `TextMuted` at the right ("Automatic", "None", or what is set) and a 14 chevron that turns
-  from right to down; opened, their fields follow under a hairline, 14 above and below. Extraction holds a muted 12
-  line saying an empty field uses automatic extraction, then "Content selector", "Referer" and "Link rewrites"
-  (monospace, three lines that grow to eight, one `from => to` per line), each with a one-line help; a refusal from the
-  server shows under the field it concerns in the error style. Request headers holds a "User-Agent" box (placeholder
-  `Oriel/{version}`, the one Oriel sends; help: also used for its entry pages) and a "Referer" box (placeholder
-  `https://example.com/`), and the help says cookies and sign-in are not supported and the headers go only to this
-  site (`sub-headers`). A subscription kept as an RSSHub route only has no Request headers row. "Proxy" is a select at
-  the right of its row, for every subscription: "Follow settings · Off" (the global proxy after the dot; the default),
-  "Direct connection" and "Custom address"; the help says it uses the proxy from Settings → Fetching unless another
-  is chosen. Custom opens a "Proxy address" box (monospace) under the row, then a "User name" and a "Password" box (the
-  password masked) with the muted note that they are kept on the server and never shown again, and a small "Remove
-  sign-in" while one is stored; the boxes read "Set" while a sign-in is stored and "Optional" otherwise, and changing
-  the address drops a stored sign-in unless new ones are typed. A refused address takes the `Danger` outline and the
-  error line (`sub-proxy`).
-  "Timeline": "Opens in" ("Follow the kind", "In the reader", "In the browser"; the help says where a click on its
-  entries goes), "Keep entries" ("Follow settings · 3 months" with the global period after the dot, then 1 week to 1
-  year and Forever, and an "N d" row when the stored number is none of those; starred entries are always kept),
-  "Pace" (Off, Breaking 3 h, Daily 2 days, Weekly 7 days, and an "N h" or "N d" row for another stored number; unread
-  entries fade after a while, then leave All and Unread), "At most per day" (No limit, 5, 10, 20, 50, and an "N
-  entries" row; extra entries fold into one row in All and Unread until it is opened) and "Mute keywords": a box two
-  lines high that grows with its content up to six, the help "One per line; starred entries stay visible.", and under
-  it one row with the count at the left and Save at the right. The count is a 12 `TextMuted` status (tabular): "{n}
-  hidden now." (「现在隐藏了 {n} 条。」) or "Nothing hidden now." (「现在没有隐藏的条目。」); it follows the box as keywords
-  are typed, after a short pause, the old number staying until the new one arrives, with no spinner, and it is not
-  drawn with no keywords or when the count cannot be read (`sub-edited`, with Cancel beside Save).
-  "Summaries and translations": while AI is not set up a first row holds the note "AI isn’t set up, so nothing is
-  summarized or translated yet." (`sparkles`) with a small "Set up AI" (`sub-ai-off`); then the switches "Summarize
-  new entries" and "Translate new entries" (help: only entries that arrive after it is turned on) and "Translate
-  titles" ("Translate new titles into your language; the original stays under it."), then the "Custom prompts"
-  disclosure (value "Using Settings"; two monospace prompt boxes, three lines that grow to eight, whose placeholder
-  says the empty box uses the prompt in Settings → AI).
-  Last, a "Delete" card with one row: "Delete subscription", the help "Its entries are deleted too; starred entries
-  stay." and a small "Delete…" in `Danger` text, which opens the standard delete alert and then goes back to the list.
-  Saving follows the other settings pages: a select or a switch applies at once (one `PATCH` with that field); a text
-  box (Title, Extraction, Request headers, the proxy boxes, Mute keywords, the prompts) carries a Save in its own row
-  or disclosure, quiet until it changed and primary after, so the unsaved-changes rule of Settings covers each of them.
-  Drawn in the `settings` page of the screens canvas, `subs`, `subs-selected`, `subs-change`, `subs-working`,
-  `subs-partial`, `subs-delete`, `subs-deleted`, `sub`, `sub-headers`, `sub-proxy`, `sub-edited`, `sub-error` and
-  `sub-ai-off`.
-- **Hiding the sidebar.** The button sits in the pane's top 40, at its right end, centered on the pane line (25 from the pane's edge, like the add, Unread first and settings buttons) and on the toolbar row's middle line,
-  level with the window buttons at the left; it is a bare 32 square icon button with
-  the Lucide `panel-left` icon (16, `toolFill` colors, radius 8), named "Hide sidebar" while the pane shows and "Show
-  sidebar" while it is hidden (that name is also its tooltip; no shortcut in the tooltip, as no other tooltip carries
-  one). Cmd+\ on macOS and Ctrl+\ elsewhere does the same, from the timeline and the reader, which share one key
-  handler, and it is in the key sheet under "Anywhere". Hidden means the pane is gone, with no icon rail, and the main
-  column takes the whole window width, so the reading area keeps its width at the 640 minimum; the failing-sources hint and
-  the add button go with the pane (1 to 5 still switch kinds; H or Left expand the pane first, then focus it). The
-  window buttons sat over the pane, so with it hidden the timeline's toolbar row's left padding grows by `TitleBar().Left`, and the
-  reader's row gives way only as far as the column's edge leaves them too little room (below), and the sidebar button moves to the toolbar's leading edge, right after them,
-  before the title, on the same line as before; it stays at that fixed position whatever the title is. The pane does not animate in or out. The choice is a device
-  preference and is remembered.
-- **The reader.** It takes the main column's place; the pane stays. A 52 high toolbar row (`Toolbar`) over the article,
-  design `BReaderBar`, every button a bare icon button (`ToolButton`, `Control` square, `IconM` glyph, named and
-  tooltipped with its key, never a word beside it), `Space1` apart. In order: back (chevron-left, "Back to {scope}",
-  Esc), previous and next (chevron-up and chevron-down, K and J); then, pushed to the right, Full text | Feed when the
-  article has both (the small `CSegmented`, a hairline after it), Summarize (sparkles) and Translate (languages), a
-  hairline, star (`Star` tint when starred), the read toggle (circle-dot, in `Accent` while the entry is unread, as the
-  timeline's unread dot), Open in browser (external-link) and More (ellipsis). Beside the list (the pane) back,
-  previous and next are not drawn. More is the platform's own text menu: the buttons moved out of the row, Copy link,
-  Full text and Feed as checked items when the switch does not fit, then Immersive reading and Find…, then Copy as
-  Markdown and Save as Markdown…. Below a 440 wide main column Open in browser moves into More, below 380 the read
-  toggle too. Summarize and Translate are toggles: pressed, they sit on `Soft(Accent)` in `Accent` and their names
-  become "Hide the summary" and "Show the original"; a translation the article cannot use stays in place, disabled,
-  named by the reason, which its tooltip shows. The order is fixed, the same in every article. In a wide window the
-  toolbar lines up with the article column, centered in the whole main column as the article is: the first glyph
-  stands on the text's left edge and the last on its right one (`Space6` inset, `Space2` below a 760 wide window). The
-  window buttons over a hidden pane (above) move the row only where the column's edge leaves them too little room: the
-  row then pads that side more and keeps its width, so in a wide window it does not move at all. Under the toolbar the
-  article scrolls, a column at most 680 wide at Medium and Standard width (680 times the Reading text size scale and
-  the Line width factor 0.85 / 1 / 1.2: 578, 680 and 816 at Medium, tokens.md; the window can limit it further),
-  centered, padded `Space6` below the toolbar, `Space8` at the sides and `Space12` at the end (`Space4`, `Space4` and
-  `Space8` below a 760 wide window); its parts stand `Space6` apart. The head, design `BReaderHead`, stacks `Space3`
-  apart: the source's monogram (`TileS`), name in `TextMetaStrong` `Text2`, the full date and the reading time ("6
-  min read") in `TextMeta` `TextMuted`, separated by dots; the title in `TextDisplay` (`TextDisplayCompact` below a
-  760 wide window) in `Text`; the lines on other copies and on a revision (below); and the note on where the text comes
-  from, a `CBanner`: file-text in `Warning`, "Not the full text" over "Showing what the feed carries" when the text is
-  the feed's, with a small Try again button when the full text failed; a turning loader, "Getting the full text" over
-  "Showing what the feed carries until then" while it is being got. The text follows. The body is set in the Reading font (the interface font unless the reader chose a serif or a family, tokens.md) at 16 and line height 1.7 (1.85 in
-  Chinese) by default, in `theme.Prose`; the Reading font, text size and Line spacing preferences change it, the text size and the Line width change the column's width, the Reading appearance changes the colors of the whole content area (Color and dark mode, Reading appearance), and h2, h3, the
-  gaps between paragraphs and list items and code scale in step with the size. The Reading font sets the body only: h2 and h3 use the interface font,
-  19 and 16 semibold, 1.9em and 1.3em above, 0.6em below; 1.05em between paragraphs, 0.3em between list items, a 22
-  wide marker column; quotes behind a 2 DIP ink 16% line in `Text2`; code on `Surface` at 13 monospace, radius 12,
-  scrolling sideways, inline code on an ink 5.5% fill, radius 4; links in `Accent` with a 1 DIP underline 3 below in
-  `Accent` at 38%; pictures radius 12 with a 0.5 DIP ink 10% outline, sized as in Pictures in the text below,
-  captions 12 in `TextMuted`. Loading is a skeleton of `Surface` bars. The empty states, design `BEmpty`, stand in for the text under the head:
-  the icon in `Text2` on a `Surface` disc twice `TileL`, a `TextDisplay` title saying what is missing, a body fact in
-  `Text2` only when the title cannot carry it (at most `Dialog` wide), and one button, the one thing to do next.
-  Getting the text: a turning loader, "Getting the full text", Open the original. No text: "No text to show", the
-  fact that the page could not be extracted and the feed carries none, and Try again (it runs the extraction again and
-  shows the getting state meanwhile) when the extraction failed, else Open the original. Can't load: wifi-off,
-  "Couldn't load this entry", "The server didn't answer.", Try again.
-  **Media and embeds.** The reader plays nothing and loads no embedded page, but it says what it left out (docs/product.md, the reader's text). Each iframe, video, audio, object and embed is one row in the text, in its place, with the paragraph spacing (1.4em above and below, like a picture): `Surface` fill, radius 10, a 0.5 DIP ink 10% outline, at least 40 high, padded 10 by 12, 10 between its parts. First a 16 icon in `TextMuted` by kind (play for a video, volume-2 for audio, app-window for an iframe, object or embed), then the words in 13 `Text2` on one line ("There's a video here", "There's audio here", "There's embedded content here"; an ellipsis if the column is too narrow for them), then at the end "Open in browser" in 12 medium `Accent` with the external icon (14). The whole row is one button: hover darkens the fill (ink 8%), the focus ring is 2 DIP `Focus` with 1 offset, a press opens the entry's link in the system browser. It is named "{words}. Open in browser" ("这里有一个视频。在浏览器中打开"); when the element has a `title` attribute the title joins the name only, "{words}: {title}. Open in browser", and is never drawn (the visible words stay fixed, so the row has one look); no announcement when the text is laid out. With no link on the entry the row is the same without the trailing action, is not a button and takes no focus. Hidden elements get no row. Rows follow one another without being merged, and are never selected or searched; a figure's caption stays under its row.
-  When the text is nothing but these rows, the entry is "only embedded content" and the reader shows the empty state under the title in place of "No text to show": the `BEmpty` disc with the kind's icon (play, volume-2 or app-window), the heading ("Only a video here", "Only audio here" or "Only embedded content here" for a mix or an embedded page), the fact "The reader doesn't play video or audio." and one button "Open in browser" (external icon), which opens the entry's link; with no link there is no button. No "Try again" and no warning note: nothing failed. The toolbar's own Open in browser stays. Strings: `copy.json` of the reader, `en` and `zh-Hans`. Mockup: the `reader` page of the screens canvas, `embeds` (a video, an audio player and an embedded page among text), `embed-only` and `embed-only-audio`.
-  **Superscript, subscript and footnotes.** Marks are set in the same line and size as the text, as the Unicode superscript and subscript characters (10⁶, 2¹⁰, H₂O); MyGo cannot shift a baseline, and a mark with a character that has no such form (letters beyond a few, an expression) is drawn at body size as `^(i+1)` or `_(max)`, never smaller than the five tiers. No Chinese spacing is added beside a mark. A footnote reference is the mark in `Accent` without an underline (it is a link, named "Footnote N" to screen readers); clicking it scrolls the note to about 96 below the top of the article and fills the note with `Soft(Accent)`, radius 6, for about 1.6 seconds (no fade with Reduce motion); the note's own back arrow (or, when the page has none, one Oriel adds after the note's text, `Accent`, named "Back to the text") returns to the reference the same way. The notes (`role="doc-endnotes"` or class `footnotes`) sit under a 96 wide hairline at 0.8125em in `Text2`. A link to `#top` or `#` goes to the top; an in-page link whose target is not on the page stays plain text.
-  **Tables.** A table of at least two rows and two columns whose cells hold only inline content is a data table: a frame of radius 12 with a 0.5 DIP ink 10% outline, cells at 0.8125em in `Prose` padded 8 by 12 with 0.5 DIP `Border` dividers between rows only, the header row (a `thead`, or a first row of `th`) on `Surface` in `Text` at weight 600, set apart by its bottom divider. A column is as wide as its widest cell, at most 240 (longer text wraps) and at least 48; a table narrower than the text column keeps that width, left aligned, and its frame hugs it. Cells align left, or as the `align` attribute says; a column of only numbers aligns right with tabular figures. A `caption` goes below the frame at 12 in `TextMuted`. A table wider than the column scrolls sideways inside the column, as code blocks do: a 32 wide fade of `Background` on each side where cells are cut off, a 3 high position bar (`Track` with a thumb of ink 28%, radius 4) 6 under the frame, and the frame takes the keyboard focus (arrow keys scroll, the focus ring is drawn around the frame); it is read as "Table, N columns, M rows". `colspan` is honored; `rowspan` is not (the covered cell stays empty). A table that is not a data table (one row or one column, or blocks inside the cells) stays as lines of text with the cells set apart by a dot.
-  The whole text is one selection.
-  **Pictures in the text.** What the page declares only reserves room; the real picture, once decoded, decides. A picture never
-  leaves the text and is never cropped (`Fit(Contain)` in a box of its own ratio).
-  - *Declared size.* Before the picture arrives, the box is the declared ratio on `Surface`, at most the declared width. Once
-    decoded, the real ratio and the real width (never more than the column) replace both, so a thumbnail size written on a
-    full-size picture ends up whole and at the width of the column, not cropped and not small. Same ratio: nothing changes.
-  - *No declared size.* The box is a flat 180 high (the 16:9 height when the column is under 320 wide) at the column's width, on
-    `Surface`, with no icon, so the body under it is laid out once and the picture arrives into room that was held.
-    Download and place first was not chosen: it would hold every picture back.
-  - *Settling.* The picture fades in over 140 ms (opacity only). The box takes its real height at once, with no moving
-    animation (Motion). Reading position: if the box lies wholly above the line at the top of the viewport, the scroll offset
-    moves by the same change in height, so the text being read does not move; on screen or below, the text under it moves
-    once and nothing else does. Selection and focus stay.
-  - *Failed.* The box keeps the size it had (declared ratio, or the 180 above) so nothing moves, on `Surface` with the usual
-    outline, and holds, centered with 8 between: the image-off icon (24, `IconLarge`, `TextMuted`), the alt text (13 `Text2`, at
-    most 3 lines and 360 wide, ellipsis at the end), under it "This picture can't be shown" (12 `TextMuted`; with no alt it
-    is the 13 `Text2` line and the alt line is left out), and a small secondary button "Try again" (rotate-ccw 14, 32 high,
-    4 above). Try again asks for that picture at once, drops the failed mark and shows the loading box; it is how a
-    picture that gave up after the automatic retries (`pictures.Retry`, `pictures.Tries`) is asked again. A box under 140 high
-    takes one row instead, 8 padding and 10 between: icon (16, `IconMedium`), the alt text or the line in one line with an
-    ellipsis, and the button at the end; a box under 48 high is raised to 48. A picture declared under 48 in width or
-    height is decoration (icons, spacers): when it fails it is left out as before, with no box. Failing again after Try again
-    shows the box again, with no toast. If the retry succeeds the box fills as above.
-  - *Names.* A picture is an image named by its alt text. A failed picture is a group named "{alt}. This picture can't be shown"
-    ("Picture. It can't be shown" with no alt), and its button "Try loading the picture again"; nothing is announced when a
-    picture fails, since a page can have many. Tab reaches each Try again in reading order. The failed state does not
-    rely on color: the icon and the words say it. Strings: `copy.json` of the reader, `en` and `zh-Hans`
-    ("This picture can't be shown" / "这张图片无法显示", "Try again" / "重试", the two names, "Try loading the picture
-    again" / "重新加载这张图片").
-  - Mockup: the `reader` page of the screens canvas, `image-failed` (with alt, without alt, the one-row strip), `image-unsized` (the
-    180 boxes), `image-settled` (the same article decoded, each picture at its own ratio), `image-wrong-size` (declared 16:9,
-    really 4:3, shown whole).
-- **Immersive reading.** Z (plain, not with Cmd/Ctrl) in the reader hides the sidebar and the toolbar so the article has the whole window;
-  Z again or Escape leaves (Escape closes the find bar first, then the selection card, then leaves immersive reading, and only then goes back to the list).
-  Entering changes nothing vertically: the 52 high band at the top stays, empty and in the page's `Background` (the preset's, when a Reading appearance is chosen) (the window buttons sit in it, so text is
-  never under them, and it is the drag area), the article keeps its own column (`MaxWidth` 680 at Medium and Standard width, following the Text size and the Line width), now centered in the
-  whole window, and the scroll position, selection and focus stay. Pointer in that band shows the toolbar over it (no animation, no
-  shift of the text, the hairline shown); it hides when the pointer leaves, unless the keyboard focus is in the toolbar or a menu from it is open.
-  The hidden toolbar is only transparent, not removed, so Tab reaches its buttons and a button taking the focus shows it. The toolbar's ends stay at the article column, but no
-  closer than 640 wide in all, so the buttons do not fold early in a wide window; below that the narrow-window steps apply as in the normal reader.
-  Shown, the toolbar holds one button only, "Exit immersive reading" (Lucide `minimize-2`, tooltip "Exit immersive reading (Z)") at its right
-  end; the keys do the rest. It is entered by the key, More's "Immersive reading" item, the palette's "Immersive reading" action (reader only) and a
-  Timeline menu item of the same name without accelerator (it does nothing unless the reader shows) do. J, K, N, S, M and O work as ever, so nothing needs the pointer.
-  Cmd/Ctrl+\ leaves it too instead of toggling the sidebar; immersive reading never changes the device preference of the sidebar: leaving shows the sidebar as the preference says.
-  It ends with the reader (back to the list, a lost session) and is not remembered across restarts. Resizing the window keeps it; the system's full screen is
-  separate and untouched. Accessibility: entering announces "Immersive reading on" and leaving "Immersive reading off" with `Announce`, and the focus stays on the
-  article (a focused toolbar button that disappears hands the focus to the article). Drawn in the `reader` page of the screens canvas, `immersive` and `immersive-bar`.
-- **Find in the article.** Cmd/Ctrl+F in the reader opens a find row; it does nothing while the article is still loading or has failed (no text to search), and it
-  never leaves the reader; More's "Find…" opens it too. The row is `ui.FindBar` (field, count, Previous, Next, Done), `Control` high, in a
-  floating panel under the toolbar at its right, `Space4` from the column's edge (`Space2` from both edges below a 760 wide window), at most `Dialog`
-  wide: `Raised` fill, `RadiusCard`, `Space1` padding and the popup shadow. It floats over the text, so the article does not move; a match it
-  steps to is scrolled clear of it. In immersive reading the panel shows in the same place without bringing the toolbar. The field is `Soft` ink fill, radius 8, search icon, placeholder "Find" (the toolkit's own word),
-  the Focus ring while focused; the count is 12 tabular muted ("2 of 4"), "No matches" in `Danger` (the field and the buttons stay, Previous and Next disabled);
-  Previous and Next are icon buttons (`chevron-up`, `chevron-down`) and Done is a text button. States: empty (field focused, no count, no highlight), typing
-  (every match highlighted, the first match of the text is current, the view scrolls just enough to show it, count "n of m"), no matches, closed.
-  Highlight: all matches `Warning` at 25% over `Background`; the current one `Warning` at 40% plus a 1.5 `Text` underline, so it is not told apart by color alone (the toolkit draws no outline round text).
-  Text inside a match is always `Text` (links, muted and code color give way), which keeps at least 5.8:1 on the 40% fill in both schemes (prose, the accent and
-  the muted color fall under 4.5:1 there). Keys: Enter or Cmd+G / F3 goes to the next match and Shift+Enter or Shift+Cmd+G / Shift+F3 to the previous, both
-  wrapping; typing updates the matches as it goes; reopening selects the last query. Escape or Done closes the row, clears the highlight and returns the focus to
-  the article body. It searches only the text shown (the original, the translation or the summary card, whichever is on), case and diacritics ignored,
-  locally and without a request, the cells and the caption of a data table included (a match never runs from one cell into the next; it is highlighted in the cell like any other, and stepping to it scrolls the table sideways, as far as the cell needs, as well as the page), and when the view changes (original, translation) or another article opens it runs again on the new text (a new article closes it). Counting stops at 1000 and reads "1 of 1000".
-  Accessibility: the row is a toolbar named "Find in article", the field is labeled by it, the count is announced as it changes ("2 of 4", "No matches")
-  with `Announce`, and no pointer is needed. Drawn in the `reader` page of the screens canvas, `find-empty`, `find`, `find-none`, `find-translation` and `immersive-find`.
-- **Summary and translation in the reader.** Each is a card under the head, design `BAICard`: `Surface`, `RadiusCard`,
-  padded `Space3` by `Space4`; its head (`RowDense`) the icon in `Accent` (sparkles, languages) and the title in
-  `TextLabel`, the state at its end in `TextMeta` `TextMuted`; what it holds comes `Space2` below. The summary card is
-  headed "Summary": while it is made, a turning loader, "Working…" and a muted Cancel link; done, "By {model}" at the
-  end and the summary below in `TextBody` at line height 1.65 (1.75 in Chinese); failed, the reason in one line with a
-  Try again link (when the daily cap on automatic work stopped it, the reason says so and points to Settings; state
-  `summary-cap` in the mockup). While AI is not set up, the card is headed "AI isn't set up" with a muted Close link,
-  "Summaries and translations need an AI endpoint." and an Open settings link. The translation replaces the title and
-  text in place; its card is headed by the language it is made in: while it is made, the original stays, with
-  "Translating…" and Cancel; done, "Translated by {model}" and the small segmented Translation | Original switch
-  (named "Text shown"), and the translated text is plain paragraphs, pictures and links staying in the original;
-  failed, the original stays with the reason and Try again. Cancel only stops waiting; leaving the article does the same.
-- **Selection card in the reader.** A selection in the article opens the system context menu with Copy and Select All
-  and, after a separator, "Translate selection" and "Explain selection" (only while text is selected). Choosing one pins
-  a card to the bottom of the reader column, `Space4` above the window edge, floating over the text: the width of the text
-  column at most, the `BAICard` on `Raised` with the popup shadow, padded `Space3` by `Space4`. The head: the
-  `languages` or `sparkles` icon in `Accent`, the task name, then the first 40 characters of the selection in
-  `TextMuted` in curly quotes with an ellipsis, and a muted Close link at the end. Below it the result in `TextBody`
-  at line height 1.65 (1.75 in Chinese), selectable, scrolling inside the card from 40% of the window height, and a
-  small "Copy" button (copying announces "Copied" to screen readers) with "By {model}" in `TextMuted` beside it.
-  Loading is a turning loader with "Working…"; failed is the reason with Try again; AI off says "Translating and
-  explaining need an AI endpoint." with an Open settings link; a selection over 2000 characters shows "Select less
-  text" with the limit and no button. Escape closes the card before it goes back to the list. The card has the group role named after the task, and the result is announced when it arrives.
-- **The lightbox.** The pictures of a social or image entry, over the whole window (`ui.DialogBase`, drawn in
-  the `timeline` page of the screens canvas, `lightbox`, `lightbox-failed`, with `size=min` for 640). A solid
-  layer of `RGB(20,17,13)` covers the window in both appearances, opaque so nothing of the list or the sidebar shows
-  through (a picture reads best on a dark ground, so this is the one place the light scheme is dark), sidebar and
-  corners included. Everything on it is `ChromeText` and `ChromeMuted`
-  with the pane's state fills (ink 5.5% hover, 8.5% pressed), never `Raised`. The picture is fitted: scaled down to the
-  largest size that fits between the bars and the side buttons, centered, never above its natural size, radius 8 and
-  no border or shadow. Top bar, 56 high, padded 12 to the sides: the counter, "3 / 12", centered, 13 medium in
-  `ChromeText` with tabular figures (nothing with one picture); at the right "Open in browser" (a 32 high text button:
-  the external-link icon and the label, 13 medium; the icon alone below a 760 wide window), "Open picture in browser"
-  (a 32 square bare icon, the image icon) and Close (32 square, the x icon), 8 apart. Previous and next are 44 round
-  buttons (chevron-left, chevron-right, 24 icons) in ink 10% on the dim layer, 20 from the window's sides and centered
-  vertically; the one with nowhere to go is dimmed to `Disabled` and stays in place, and neither shows with one picture.
-  A one-line caption sits under the picture, centered, 12 in `ChromeMuted`: the author and handle of a post, the title of
-  an image. While a picture loads its box keeps a 4:3 shape of ink 6% with a spinner; a picture that fails shows the same
-  box, now opaque (`RGB(42,38,33)`, 60% of the stage, at most 480 wide), with the muted image-off icon, 24, and "This picture can't be shown" in 13
-  `ChromeMuted` under it; paging and both browser buttons stay enabled (the original address may open where the proxy could not fetch it). Below 760 the bar and the side buttons keep their
-  sizes and the picture gets the rest, never less than the window's width less 144. The layer opens, closes and changes
-  pictures at once, with no motion.
-  Keys: left and right page, Home and End jump, O opens the entry in the browser, Escape or a click on the dim layer
-  closes (a click on the picture does nothing). Tab order, which is also the reading order: Open in browser, Open
-  picture in browser, Close, Previous, Next (the picture area is last, and Tab wraps within the dialog). The dialog opens with the focus on its own picture area, so the arrow keys
-  work at once and no ring is drawn there; the buttons take the focus ring (`Focus`, 2, offset 1) when reached by Tab.
-  Closing returns the focus to the row that opened it. Names: the dialog "Pictures from “{title}”"; the picture
-  "Picture {n} of {total}" (plus the caption); the buttons "Previous picture", "Next picture", "Open in browser", "Open
-  picture in browser", "Close". Opening and each page announce "Picture {n} of {total}" with `Announce`.
+- **Sizes follow the text size.** A size taken from a mockup is written `px(t, n)`, which is `t.Rem(n / 13)`, so it
+  grows and shrinks with the text size.
+- **Narrow hides, never removes.** A control that gives way in a narrow window or column stays reachable through its
+  key, the command palette or a menu.
+- **Late content moves nothing it need not.** Room for a picture is held before it arrives, at the declared ratio or a
+  fixed height when none is declared, so the text under it is laid out once and a late picture moves nothing. When a
+  decoded picture changes the height of a box that lies wholly above the top of the viewport, the scroll offset moves
+  by the same amount, so the text being read stays where it is; selection and focus stay too. A picture fades in over
+  140 ms, opacity only.
+- **Loading.** A list's loading state shows only after 300 ms; an answer that comes sooner shows none, so switching
+  never flashes.
+
+### Screens
+
+Each screen's layout, copy and states are drawn on the
+[screens canvas](https://claude.ai/artifact/M1YW6F7vwnQm2Ze8BJnYcb), page `4 页面`: one artboard per state, titled
+`4 页面：<screen> <state>`. [design/README.md](../design/README.md) maps the screens to their artboards and to the code.
+The canvas is the authority on how a screen looks; this document holds the rules every screen shares.
 
 ## Color and dark mode
 
@@ -1021,7 +463,7 @@ What Oriel uses today:
 | `c.ToastAction` | Deleting a subscription (the `deleted` artboard on the `subscriptions` page): "Deleted “Go Blog”" with Undo and a close button, in the `Trash2` icon, for 8 seconds; announced, takes no focus; Undo restores the subscription with its entries and all that went with it, and a toast "Can’t undo this any more" says when the server no longer has it. "Mark all as read", "Mark above as read", "Mark subscription as read", "Mark older than … as read" and the V key act at once and offer Undo here, with a close button, one Undo shared by all, shown for 8 seconds, announced by screen readers and never taking the focus, and none when more than 10000 entries were marked (`marked-older`: "Marked 7 entries in “All” older than 1 week as read"); when no unread entry is that old a plain toast without Undo says so (`marked-older-none`); Cmd/Ctrl+Z undoes it while the toast shows. The toast is centered at the bottom as an `Inverse` tile with `InverseText`. |
 | Command palette | Cmd/Ctrl+K, from the timeline and the reader. `ui.DialogBase` drawn like the key sheet (`theme.Scrim`, then `theme.Sheet` at the Dialog level: `Raised`, radius 16, rim and shadow) but anchored 15% from the top, 560 wide at most (the window width less the margins when narrower). Top: a 32 high search field (search icon, label and placeholder "Go to…") with the Focus ring, focused on open. Below it the list, at most 60% of the window high, scrolling inside: small muted group headers (Actions, Kinds, Subscriptions, Settings) over rows 32 high with radius 6 and 13 type. A row has its icon (the sidebar's kind icon, the subscription's glyph, the action's or page's icon), its name, and at the right a muted tabular unread count (subscriptions and kinds; above 999 it reads "999+") or the action's existing shortcut as key chips like the key sheet's. While the reader shows, the Actions group has one more row, "Immersive reading" (the `maximize-2` icon, chip Z), named "Exit immersive reading" while it is on (`minimize-2`). The highlight is a `Chosen` fill and starts on the first row; Up and Down move it and wrap, it scrolls into view, Return or a click runs the row and closes the palette, Escape or Cmd/Ctrl+K closes it. Typing filters and ranks (prefix, word start, substring, then scattered letters; case and spaces ignored) over the loaded names only, with no request; at most 50 rows, and the matches are one ranked list without headers, each row naming its group in muted text after its name. No match: one muted line, "No matches". Accessibility: the field is labeled "Go to…", rows are list items named by their group and name, the highlighted one is announced with `Announce`, and the result count is announced as the query changes. Drawn in the `timeline` page of the screens canvas, `palette`, `palette-query`, `palette-none`. |
 | `ui.DialogBase` (key sheet) | The keyboard shortcut sheet, drawn like the subscription dialogs: two columns (timeline, reader) and an "Anywhere" group below (the Reader column lists "Find in article" Cmd/Ctrl+F, "Immersive reading" Z and "Leave immersive reading" Esc before "Back to the list" Esc), each key a small chip; one column below a 760 wide window. Escape or Close dismisses it. |
-| `ui.DialogBase` (lightbox) | The pictures of a social or image entry, full window, see "The lightbox" in Layout and spacing. A click on a picture in a row opens it on that picture, Space on a chosen row on the first; the title and text still open the browser. It uses the dialog's focus return, Escape and key blocking, with its own paging keys; the pictures come through the image proxy and the decode cache like the rows' do. No video. Drawn in the `timeline` page of the screens canvas, `lightbox`, `lightbox-failed`. |
+| `ui.DialogBase` (lightbox) | The pictures of a social or image entry, full window; its keys and names are under Keyboard and focus and Screen readers. A click on a picture in a row opens it on that picture, Space on a chosen row on the first; the title and text still open the browser. It uses the dialog's focus return, Escape and key blocking, with its own paging keys; the pictures come through the image proxy and the decode cache like the rows' do. No video. Drawn in the `timeline` page of the screens canvas, `lightbox`, `lightbox-failed`. |
 
 **Tooltips.**
 
@@ -1130,363 +572,212 @@ Overlays share focus and Escape behavior; see
 
 ## Windows, menus and navigation
 
-- **Windows.** One main window; set `Title`, `Width`, `Height`, and `MinWidth`/`MinHeight` so content never clips.
-  Oriel's window is 960×640 with a minimum of 640×480. `StateKey` (`oriel-main`) remembers size, position and the maximized state between runs, in `window-state.json` in the
-  user data directory, a client-side file next to `preferences.json`. A saved position that no longer shows on a
-  connected display falls back to a centered window on the primary display, at the saved size as far as that display
-  allows. A second launch brings the existing
-  window to the front. See
-  [Windows with native UI](https://github.com/egoist/mygo/blob/v0.7.4/docs/ui/windows.md) and the
+How the window looks on each platform, the menu bar menu, the app menu and the startup failure are drawn on the
+`5 桌面` page of the [screens canvas](https://claude.ai/artifact/M1YW6F7vwnQm2Ze8BJnYcb). This section holds what a
+drawing cannot show: the menus' items and shortcuts, how the window behaves, the keyboard and the focus, and where the
+platforms differ.
+
+### Window
+
+- **Size and state.** One main window; set `Title`, `Width`, `Height`, and `MinWidth`/`MinHeight` so content never
+  clips. Oriel's window is 960×640 with a minimum of 640×480. `StateKey` (`oriel-main`) remembers size, position and
+  the maximized state between runs, in `window-state.json` in the user data directory, a client-side file next to
+  `preferences.json`. A saved position that no longer shows on a connected display falls back to a centered window on
+  the primary display, at the saved size as far as that display allows. A second launch brings the existing window to
+  the front. See [Windows with native UI](https://github.com/egoist/mygo/blob/v0.7.4/docs/ui/windows.md) and the
   [window options](https://github.com/egoist/mygo/blob/v0.7.4/docs/windows.md).
 - **Title bar.** No title bar: `TitleBarStyle: mygo.TitleBarHidden`, the macOS window buttons placed with
-  `TrafficLightPosition` so they sit over the sidebar's top, centered in the 52 high toolbar row. The view then owns
-  the room the window controls take (`c.TitleBar()`: on Windows the caption buttons at the right, which the toolbar
-  leaves free) and the draggable area: the toolbar row's empty space and the sidebar's top (the sidebar button apart) call `DragWindow`. The
+  `TrafficLightPosition` over the sidebar's top, level with the toolbar row. The view owns the room the window
+  controls take (`c.TitleBar()`: on Windows the caption buttons at the right, which the toolbar leaves free) and the
+  draggable area: the toolbar row's empty space and the sidebar's top (its buttons apart) call `DragWindow`. The
   window's name stays set (`Title`) for the Window menu, the Dock and screen readers. With the sidebar hidden the
-  macOS buttons sit over the toolbar row, which pads its left by `TitleBar().Left` (see Hiding the sidebar).
-- **Glass and ink.** Oriel draws its toolbar controls in glass (the [glass
-  plugin](https://github.com/egoist/mygo/blob/v0.7.4/docs/plugins/glass.md)) and its sidebar as an ink pane. The pane
-  is not glass: it is a plain floating view with an opaque `Background` of ink (warm charcoal `#37332e` in light, deep teal `#1a2422`
-  in dark; at 92 to 96% opacity glass added only softness and a muddy mix with the backdrop), radius 14, a 0.5 DIP
-  inner rim in the pane ink, in light-on-dark roles of its own (tokens.md): the root view takes them from
-  `theme.PaneTheme`, calls `c.SetTheme(paneTheme)` before building the sidebar and sets the main theme back after. The
-  toolbar has one glass capsule (a 32 high pill, tint rgba(255, 254, 251, 0.66) in light and rgba(58, 63, 62, 0.52) in
-  dark, radius 16, 0.5 DIP rim): Summarize and Translate in the reader. The timeline's segments are a `CSegmented`
-  groove, not glass.
-  The toolbar row is a solid bar: `Background`, 52 high, over the content and under the controls, in the timeline, the
-  reader and Settings alike (`theme.Edge` draws it; `glass.ScrollEdge{}` is not used). At the top of the content it has no edge; once the content has
-  scrolled under it a 0.5 DIP `Border` hairline shows along its bottom, which fades in over 120 ms. A fade, even a tall and opaque one, let text show through
-  behind the icons; the bar does not.
-  Content stays on opaque `Background`; glass is for chrome only, never for entries, the article, dialogs, search or
-  bare toolbar icons. Text on glass keeps AA contrast, and with high contrast glass becomes opaque (the capsule
-  `Surface`, the pane is already opaque) with a `Border` rim (MyGo reports no Reduce Transparency setting, so high
-  contrast is the one switch). The plugin draws the same glass on Windows and Linux, so the look is one on every
-  platform; no system vibrancy is used.
-- **Menus.** The macOS menu bar belongs to the app. Oriel's menu has an app menu (About, check for updates, Quit),
-  the Edit menu (`RoleEditMenu`, so copy and paste work), the Timeline menu (the commands that have a single key:
-  show unread only, show all entries, show starred only, mark all as read, load new entries, and, immersive reading (it does something only while the reader shows); no accelerators, see
-  Timeline keys), a Subscriptions menu with "Refresh All" (Cmd/Ctrl+R) and the Window menu (`RoleWindowMenu`); "Connect to
-  Server…" in the app menu opens the connect screen and "Settings…" (Cmd/Ctrl+,) the settings. Use roles
-  (`RoleAbout`, `RoleQuit` and the others) for standard items: they carry the right label and shortcut, and items
-  that only macOS has are left out elsewhere. Give custom items an accelerator with `CmdOrCtrl`. Every command
-  reachable by a toolbar button should also be in a menu. See
+  macOS buttons sit over the toolbar row, which pads its leading edge by `TitleBar().Left`; in immersive reading they
+  sit in the empty band at the top, so text is never under them and the band stays the drag area.
+- **Sidebar.** Hiding the sidebar removes the pane, with no icon rail and no animation. The choice is a device
+  preference and is remembered. Immersive reading hides it for the reader only and never changes that preference.
+- **Glass and ink.** Glass (the [glass plugin](https://github.com/egoist/mygo/blob/v0.7.4/docs/plugins/glass.md)) is
+  for chrome only, never for entries, the article, dialogs, search or bare toolbar icons; content stays on opaque
+  `Background`. The sidebar is not glass but an opaque ink pane in light-on-dark roles of its own: the root view takes
+  them from `theme.PaneTheme`, calls `c.SetTheme(paneTheme)` before building the sidebar and sets the main theme back
+  after. The toolbar row is a solid bar over the content, drawn by `theme.Edge` (`glass.ScrollEdge{}` is not used); once
+  the content has scrolled under it a hairline fades in along its bottom over 120 ms. Text on glass keeps AA contrast,
+  and with high contrast glass becomes opaque with a `Border` rim (MyGo reports no Reduce Transparency setting, so high
+  contrast is the one switch).
+- **Close and quit.** As docs/product.md says: with the menu bar or tray icon on, closing the window only hides it and
+  Oriel keeps running; Quit in the tray menu or the app menu ends it. Without the icon, closing the last window quits.
+  The Dock badge alone does not change this. Opened at login with the icon on, Oriel shows only the icon and no window.
+- **Tray and Dock.** The tray menu is the system's own menu, not drawn by Oriel. Its items, top to bottom: a disabled
+  "N unread" line ("No unread" at 0), a separator, Open Oriel, Refresh all, a separator, Quit, in the interface
+  language. The Dock badge and the macOS menu bar title show the unread count, `999+` above 999, and nothing at 0. A
+  headless server has no window, tray, badge or login item.
+- **Leaving the app.** Video and social entries have no embedded player; opening them hands the link to the system
+  browser. Say so in the control ("Open in browser"), not only with an icon.
+- **Notifications.** Use system notifications only for events the user would want when the app is in the background.
+
+### Menus
+
+- **Menu bar.** The macOS menu bar belongs to the app. Oriel's menu has an app menu (About, check for updates,
+  "Connect to Server…", which opens the connect screen, "Settings…" (Cmd/Ctrl+,), Quit), the Edit menu
+  (`RoleEditMenu`, so copy and paste work), the Timeline menu, a Subscriptions menu with "Refresh All" (Cmd/Ctrl+R),
+  the Window menu (`RoleWindowMenu`) and the Help menu with "Keyboard shortcuts" and "Export Diagnostics…" (which opens
+  Activity and storage in Settings and starts the export).
+- **Timeline menu.** The commands that have a single key: show unread only, show all entries, show starred only, mark
+  all as read, load new entries, and immersive reading (it does something only while the reader shows). None has an
+  accelerator: single keys cannot be menu accelerators, as they would fire while a field has the focus, so the key
+  sheet and the command palette show the keys.
+- **Roles and accelerators.** Use roles (`RoleAbout`, `RoleQuit` and the others) for standard items: they carry the
+  right label and shortcut, and items that only macOS has are left out elsewhere. Give custom items an accelerator with
+  `CmdOrCtrl`. Every command reachable by a toolbar button should also be in a menu. See
   [Menus](https://github.com/egoist/mygo/blob/v0.7.4/docs/menus.md).
+
+### Navigation and toolbars
+
 - **Navigation.** Choose the lightest structure that fits: a single screen;
   [tabs](https://github.com/egoist/mygo/blob/v0.7.4/docs/ui/tabs.md) for a few peer views; a
   [sidebar](https://github.com/egoist/mygo/blob/v0.7.4/docs/ui/sidebar.md) with a
   [router](https://github.com/egoist/mygo/blob/v0.7.4/docs/ui/navigation.md) for several top-level sections (timeline,
   subscriptions, settings). A router gives back/forward keys, state restored per page and focus handling. Give every
   page a `Title`.
-- **Leaving the app.** Video and social entries have no embedded player; opening them hands the link to the system
-  browser. Say so in the control ("Open in browser"), not only with an icon.
-- **Toolbar.** Frequent window-level commands, in order of importance; controls that do not fit overflow into a menu.
-  One glass capsule at most per toolbar; everything else is a bare icon, a segmented groove or the search field. Search is last, at the far right.
-- **Toolbar buttons.** One spec for every bare icon button in a toolbar, in the timeline and the reader alike: 32 by 32, a 16
-  icon, radius 8, 4 between neighbors. No fill at rest; hovered `SurfaceHover`, pressed `SurfacePressed`; the icon is
-  `TextMuted`, `Text` when hovered or pressed; disabled keeps no fill and the icon turns `Disabled`; an on button (the
-  time range while one is chosen, a pressed toggle) sits on `Soft(Accent)` in `Accent`, and a starred one is `Star`. A button that does not apply to the
-  current article is disabled, never hidden, so the toolbar keeps its shape; it keeps its place and its label, greyed, and its
-  tooltip and accessible name give the reason (Translate on an article already in the target language still reads
-  "Translate"; the tooltip and name say "Already in Simplified Chinese"). It takes no focus or click. The glass capsule is a pill (radius 16) of its own; the open search field is `radius-control`. The row actions on a row
-  (`row-dense` squares, `radius-sm`, on their `float` plate) are their own smaller spec; on the plate their hover fill is
-  `SurfaceHover` and pressed `SurfacePressed`. In a narrow main column the end buttons of the reader move into More in a
-  fixed order, open in browser first, then read/unread (below 440 and 380 wide); the menu then lists them first, above
-  Copy link.
-- **Notifications.** Use system notifications only for events the user would want when the app is in the background.
+- **Toolbar.** Frequent window-level commands, in order of importance; controls that do not fit overflow into a menu
+  in a fixed order, listed first in it. One glass capsule at most per toolbar; everything else is a bare icon, a
+  segmented groove or the search field. Search is last, at the far right.
+- **Toolbar buttons.** Every icon-only toolbar button has a name and a tooltip. A button that does not apply to the
+  current article is disabled, never hidden, so the toolbar keeps its shape: it keeps its place and its label, takes no
+  focus or click, and its tooltip and accessible name give the reason (Translate on an article already in the target
+  language says "Already in Simplified Chinese"). A toggle says its state in its name as well as its fill (Summarize
+  pressed is "Hide the summary", Translate pressed is "Show the original").
+
+### Keyboard and focus
+
+- **Order.** Tab follows the visual order. In the timeline's toolbar: the sidebar button, the segments, the buttons,
+  search. Every entry is a focusable element with its own name, so Tab reaches it.
 - **Timeline keys.** J or Down and K or Up move between entries, N goes to the next unread entry below the chosen one
-  (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in the
-  reader, anything else in the browser) and marks it read, Space opens the pictures of a chosen social or image entry in the lightbox, S stars it, M toggles read, V marks the entries fully in view as
-  read and scrolls the first one below them to the top (see "Mark visible" below), `/` and Cmd/Ctrl+F go to search while the list shows (in the reader Cmd/Ctrl+F opens find in the article instead and does not go back), Escape clears it. The list keys are
-  window-wide but stop while the search field has the focus or a dialog is open, so typing never moves the list.
-  Cmd/Ctrl+K opens the command palette (see Components), which goes to any subscription, kind or Settings page and runs the common actions. Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+R refreshes all subscriptions (see "Refresh all" below), Cmd/Ctrl+Z undoes the last "mark as read" action while its toast shows, and `?` or Cmd/Ctrl+/
-  opens the key sheet, which the Help menu also lists as "Keyboard shortcuts".
-  Four more keys act on the list, under the same rules (not while the search field has the focus, a dialog is open
-  or the reader shows): U shows unread only, A shows all entries, `*` (Shift+8) shows starred only, Shift+A marks
+  (loading the next page when needed, with a toast when there is none), O or Enter opens the chosen one (an article in
+  the reader, anything else in the browser) and marks it read, Space opens the pictures of a chosen social or image
+  entry in the lightbox, S stars it, M toggles read, V marks the entries fully in view as read (below), T cycles the
+  time range, `/` and Cmd/Ctrl+F go to search while the list shows (in the reader Cmd/Ctrl+F opens find in the article
+  instead), Escape clears it. The search field opens with `/` and closes again when it loses the focus with no text in
+  it. The list keys are window-wide but stop while the search field has the focus or a dialog is open, so typing never
+  moves the list. Cmd/Ctrl+K opens the command palette, which goes to any subscription, kind or Settings page and runs
+  the common actions. Cmd/Ctrl+N adds a subscription, Cmd/Ctrl+R refreshes all subscriptions, Cmd/Ctrl+Z undoes the
+  last "mark as read" action while its toast shows, and `?` or Cmd/Ctrl+/ opens the key sheet, which the Help menu also
+  lists as "Keyboard shortcuts".
+  Five more keys act on the list, under the same rules (not while the search field has the focus, a dialog is open or
+  the reader shows): U shows unread only, A shows all entries, `*` (Shift+8) shows starred only, Shift+A marks
   everything in the scope as read, with the same toast and Cmd/Ctrl+Z undo as the toolbar button (inert where the
   button is disabled), and R loads the entries the "N new" pill offers and goes to the top (inert when there is no
-  pill). Single keys cannot be menu accelerators, as they would fire while a field has the focus, so each of the five
-  commands is an item without accelerator in the Timeline menu, and the key sheet and the command palette show the
-  keys. The key sheet's Timeline column lists them after "Mark visible as read".
-  Every entry is also a focusable element with its own name, so Tab reaches it.
-- **Refresh all.** One command asks the server to check every active subscription now: the Subscriptions menu item
-  "Refresh All", Cmd/Ctrl+R (also in the reader, but not while a dialog, the palette or the lightbox is open; a key
-  sheet row "Refresh all subscriptions" under Anywhere) and the palette action of the same name with the
-  keys as chips. There is no button of its own: the heading already holds the failing count and the add button. While it
-  runs, the heading's failing count (`Warning`) gives way to a muted progress link with the loader icon turning at 14
-  and "3/12" in 11 medium, named "Refreshing, 3 of 12 checked" (no tooltip: the "3/12" is the visible text), and a screen reader hears "Refreshing
-  12 subscriptions" once; pressing the command again does nothing. It is not a spinner on the list: the list stays
-  where it is. When every subscription has been checked a plain toast, the `circle-check` icon on the `Inverse` tile,
-  says "Checked 12 subscriptions", or, with the `circle-alert` icon, "Checked 12 subscriptions, 2 failed"; the
-  failing count returns in the heading. After a timeout the toast says "Checked 5 of 12 subscriptions, the rest will
-  follow". With nothing active to refresh it says "No subscriptions to refresh", and when the request fails "Can't
-  refresh now. Try again later." States `refreshing`, `refreshed`, `refreshed-failed`, `refreshed-part` and
-  `refresh-none` in the `timeline` page of the screens canvas.
-- **Marked by scrolling.** With Mark as read set to After scrolling past, the rows that left the top of the list are marked once the scrolling has stopped for about half a second, and the usual 8 second toast appears at the bottom of the list, in the same markup as "Marked visible": "Marked {n} scrolled-past entries as read", Undo, the Cmd/Ctrl+Z hint and a close button. It shares the one undo with the other batch marks. No toast when nothing was marked. The dwell option has no toast: the reader's read button simply turns to read and the screen reader says "Marked as read". Drawn in the `timeline` page of the screens canvas, `marked-scrolled`.
-- **Mark visible (V).** One key clears a screenful: it marks the entries fully inside the list area as read, then
-  scrolls so the first entry below them is at the top, chosen and focused. "Fully inside" counts a row (a card in the video
-  grid, a tile in the picture wall) that lies wholly between the bottom of the toolbar, which the list scrolls under, and
-  the bottom of the window; a row cut by either edge is not marked and, at the bottom, is the one scrolled to the top. The
-  range runs in list order from the first entry fully in view to the last one before the first entry that is not; in a
-  grid the cards of a row count whole, and in the picture wall, whose columns differ in height, that is the entries up
-  to the first tile not wholly in view (the square picture grid counts as the video grid does). Entries already
-  read inside the range stay as they are and are not counted. With no unread in the range V only scrolls and shows no
-  toast, so it also pages; at the end of the list it marks and stays. If the last loaded entry is wholly in view but
-  another page is to come, it is left unread and becomes the one scrolled to, while the page loads. The scroll is
-  immediate (MyGo's `ListState.ScrollTo` and `GridState.ScrollTo` do not glide) and not undone by Undo. V works in All and
-  Unread without a search, like "Mark all as read", and does nothing under Starred or a search. The toast is the shared
-  one: "Marked 5 visible entries as read" with Undo and the close button (`marked-visible` in the mockup). The toast is
-  announced, and the new chosen entry is then read by its own name; there is no extra announcement. The trackpad swipe is
-  not possible in MyGo 0.7.4 (no gesture callback) and is left out.
-- **Folders.** A subscription is in at most one folder, and folders do not nest. Under a kind, the list shows the
-  folders that hold a subscription of that kind, in name order, each with its members indented 22 under it, then the
-  unfiled subscriptions; under All it shows every folder, an empty one too. A folder row is 30 high: a 22 by 30
-  chevron button at the left ("Collapse {name}" or "Expand {name}", turning with the state) and the row button with a
-  `folder` icon, the name cut with an ellipsis, and the unread count of the current scope in the count column. Pressing
-  the row reads the folder as one timeline, scoped to the current kind plus the folder, with the folder name as the
-  title (`folder-timeline`); pressing a kind leaves the folder. A folded folder hides its members, and the fold is
-  remembered on this computer for each server; it is ignored while the filter field has text, and the open
-  subscription stays visible (`folders-collapsed`). The section header gets a 22 square `folder-plus` button,
-  "New folder", before the + button, with the same 6 gap. The folder's context menu has Rename… and Delete folder…
-  (`menu-folder`). New folder and Rename folder are small dialogs, 400 wide, with one name field (at most 60
-  characters, focused, Return saves) and Cancel and Create or Save; an empty name or one already used shows the
-  `Danger` line "There is already a folder with this name." under the field and keeps the dialog open
-  (`folder-new`, `folder-new-error`, `folder-rename` in the `subscriptions` page of the screens canvas). Delete folder asks in
-  an alert, "Delete the folder “{name}”?", saying its subscriptions stay and become unfiled (`folder-delete`). A
-  subscription's context menu has "Move to folder" after Hide from All: a submenu with No folder, each folder with a
-  check on the current one, and under a hairline "New folder…", which names a folder and puts the subscription in it
-  (`menu-move`, `menu-feed-move`). The add and edit dialogs have a Folder select beside Show as, and a subscription's page in
-  Settings → Subscriptions has it in General, with the help "A subscription is in one folder at most."; it is shown only
-  when there are folders (`edit-folder`).
-- **Sidebar filter and sort.** Under the Subscriptions heading, above the list, one row 28 high with a 4 gap, inset 3 at the
-  right so the toggle sits on the pane line: the filter field, which grows, and the Unread first toggle (`side-filter`, `side-filter-none` and
-  `side-unread-first` in the mockup). The field is a flat fill of the pane's hover (pane ink 5.5%, 8.5% under the
-  pointer and while it has the focus, which adds the 2 DIP focus ring of the pane),
-  radius 8, 10 left padding, a 14 magnifier in `TextMuted`, the input at 13 in `Text` with the placeholder "Filter
-  subscriptions" in `TextMuted`, and from the first character a 20 square clear button ("Clear filter", an x at 12) at
-  the right. The toggle is a 28 square icon button, radius 8, with the arrow-up-down icon at 14 in `TextMuted` (hover:
-  `SurfaceHover` fill, `Text2` icon); while on it is a `Chosen` fill with the icon in `Accent`, as a chosen item is. Its
-  label and tooltip are "Unread first"; the state is exposed as on or off to a screen reader, never by color alone
-  (the fill and the icon change, and the label stays). It is a toggle in the row, not an entry of a menu, so it can be
-  seen and found by keyboard; the heading already holds the failing count and the add button, and a third control
-  there would cut the name at the narrow width. The row is always there while there are subscriptions and is hidden
-  with none. The field matches the name, ignoring case, anywhere in it; it filters the list of the chosen kind (and
-  the failing ones when Show all is offered), and the list is shown from the first character, with no pause. When
-  nothing matches, the rows give way to one muted line, "No matching subscriptions" (「没有匹配的订阅」), 13 type, 10
-  inset, a status for a screen reader. The filter is not kept: the field is empty on the next start, and choosing a
-  kind or a subscription leaves it as it is. The order is by name (the store's order) or, with Unread first on, by
-  unread count descending and then by name, ignoring case; a paused subscription counts as none. The choice is kept
-  on this device in the preferences (`sourceSort`). Keys: Tab reaches the field and then the toggle before the list;
-  in the field Escape clears the text and, when it is empty, gives the focus to the chosen item of the sidebar; Down or
-  Enter gives it to the first match. While the field has the focus the keys of the list and sidebar (J K O S M N V,
-  H L, 1 to 5) type into it instead, as in the search field.
-- **Waiting for a first fetch.** After a subscription is added or refreshed its row in the sidebar swaps the warning
-  mark (if any) for a 13 `Spinner` in `TextMuted` before the unread count, and the row's name for a screen reader gains
-  ", fetching" (`fetching` in the mockup). When the fetch is done the spinner goes and one plain toast (a check-circle
-  icon, or the circle-alert in `Warning` on failure; no Undo) says the result: "Fetched 12 entries from “Go Blog”" (or "“Go Blog” fetched, but has no entries yet"),
-  "“Go Blog” has 3 new entries", "“Go Blog” has nothing new", or "Couldn't fetch “Go Blog”: reason" (`fetched`,
-  `fetched-failed` in the mockup). It is announced like any toast. The wait ends silently after 60 seconds.
+  pill). The key sheet's Timeline column lists them after "Mark visible as read".
+- **Mark visible (V).** It marks the entries fully inside the list area as read, then scrolls so the first entry below
+  them is at the top, chosen and focused. A row, card or tile cut by the toolbar or the window's bottom is not marked;
+  in a grid a row of cards counts whole. With no unread in the range V only scrolls and shows no toast, so it also
+  pages. The scroll is immediate (MyGo's `ListState.ScrollTo` and `GridState.ScrollTo` do not glide) and not undone by
+  Undo. V works in All and Unread without a search, and does nothing under Starred or a search. The toast is announced,
+  and the new chosen entry is then read by its own name; there is no extra announcement. The trackpad swipe is not
+  possible in MyGo 0.7.4 (no gesture callback) and is left out.
+- **Fold row.** The row that shows a subscription's folded entries is a button: Enter, Space or a click opens it, and
+  "Showed {n} entries" is announced. Tab reaches it; it is not part of J and K, "next unread" or "mark visible".
+- **Refresh all.** Cmd/Ctrl+R works in the timeline and the reader, but not while a dialog, the palette or the lightbox
+  is open; it is a key sheet row under Anywhere and a palette action. Pressing it again while it runs does nothing.
 - **Sidebar keys.** 1 to 5 switch to All and the four kinds, in the sidebar's order, from anywhere in the timeline. H or
-  Left (expanding the sidebar first if it is hidden) moves the focus to the chosen item of the sidebar (the kind, or the subscription when the scope is one), Up and
-  Down walk its kinds, which choose as the focus passes, and its subscriptions, which wait for Enter (one vertical
-  focus group each, so Tab still goes through the sidebar in two stops, and Left and Right are not the groups' but go
-  back to the list); the focus stays on the item chosen, and L, Right or Escape gives the focus back to the list, the chosen entry
-  focused. While the sidebar has the focus by the keyboard (H, Left, Tab, the arrows) the entry keys (J K O S M N V,
-  Up and Down) do not touch the entries; `/` still goes to search. A click on a kind or subscription does not count:
-  the entry keys keep acting on the list. Shift+F10 or the Menu key opens the context menu of the focused subscription
-  or entry, which MyGo does natively for an element with `ContextMenu`; a Mac keyboard has no Menu key, so the key
-  sheet lists Shift+F10 alone there. All of these are off while the search field has the focus, a dialog is open or the reader shows. A
-  scope switched from the keyboard is announced with `c.Announce` ("Videos, 12 unread"), the focus staying where it was.
-  The focus ring on a sidebar item is 2 DIPs of the pane's own accent at 70% (`sidebar-focus` in the mockup).
+  Left (expanding the sidebar first if it is hidden) moves the focus to the chosen item of the sidebar (the kind, or the
+  subscription when the scope is one), Up and Down walk its kinds, which choose as the focus passes, and its
+  subscriptions, which wait for Enter (one vertical focus group each, so Tab still goes through the sidebar in two
+  stops, and Left and Right are not the groups' but go back to the list); the focus stays on the item chosen, and L,
+  Right or Escape gives the focus back to the list, the chosen entry focused. While the sidebar has the focus by the
+  keyboard (H, Left, Tab, the arrows) the entry keys (J K O S M N V, Up and Down) do not touch the entries; `/` still
+  goes to search. A click on a kind or subscription does not count: the entry keys keep acting on the list. Shift+F10 or
+  the Menu key opens the context menu of the focused subscription or entry, which MyGo does natively for an element
+  with `ContextMenu`. All of these are off while the search field has the focus, a dialog is open or the reader shows.
+  Cmd+\ on macOS and Ctrl+\ elsewhere hides and shows the sidebar, from the timeline and the reader, and is in the key
+  sheet under Anywhere.
+- **Sidebar filter.** Tab reaches the filter field and then the Unread first toggle before the list. In the field
+  Escape clears the text and, when it is empty, gives the focus to the chosen item of the sidebar; Down or Enter gives
+  it to the first match. While the field has the focus the keys of the list and sidebar (J K O S M N V, H L, 1 to 5)
+  type into it instead, as in the search field.
 - **Reader keys.** While the reader shows, J and K go to the next and previous article, N to the next unread one (a
-  toast when there is none, staying on this article), S stars, M toggles read, O
-  opens the original in the browser, Z enters immersive reading (see above), Cmd/Ctrl+F opens find in the article (see above; Enter and Shift+Enter step through the matches) and Escape goes back to the list, the entry it opened from focused. Escape works in this order: the find row, the selection card, immersive reading, then back, one step per press. The article
-  takes the focus when it opens, so the arrows, Space, Page Up/Down and Home/End scroll it, and Tab goes through its
-  links. Every icon-only toolbar button names its key in the tooltip; the back button carries its name as text and has no
-  tooltip, its key is in the key sheet.
-- **Settings.** The settings take the whole window, in place of the timeline: their own sidebar has "Back to the
-  timeline" on top, one item per group (Appearance, Subscriptions, Fetching, Rules, Import and export, AI, Devices, Activity and storage) and the server bar, which says whose
-  settings these are and does not open the connect screen. They open from the gear beside the timeline's server bar
-  or "Settings…" in the app menu; the back button and Escape return to the timeline as it was. Escape never throws typing away: with a text field focused it only takes the focus off the field (to the back button; the text stays), and with text not saved (AI endpoint, model, key, language and limits, the prompts, the RSSHub instances, the muted keywords) it does not leave and the page does not change, it only announces "Some changes are not saved" with `Announce` (no new dialog or visual; the Save button already turns primary); otherwise it returns. The back button always returns. A MyGo text field does not consume Escape (the headless test shows it reaches the window shortcut), so the page decides. The page's toolbar title lines up with the left edge
-  of its content column. **Page width.** A page is one column centered in the room beside the sidebar, its width
-  taken from the page and the room, not from the window: a form page (Appearance, Subscriptions, Fetching, Rules, Import and export, Activity and storage) keeps
-  a column at most 600 wide, padding included, for a readable line; Devices is a list and widens to 880 once the room
-  is 656 wide (a window of 880); AI splits in two columns, 1040 wide at most with a 24 gap, once the room is 976 wide
-  (a window of 1200). Below those widths a page is the single 600 column, padded 32 (20 below a 760 wide window).
-  Text outside a card (the lead line) never runs past 600. The RSSHub instances are an ordered list in one
-  multi-line monospace text input (as the prompts and mute words), one address per line, the first the primary; Enter
-  breaks the line, so only Save sends it. A line that is not an http or https address with a host name is named under
-  the field ("Line 2 is not ..."), the field takes the `Danger` outline, nothing is sent and the focus stays. Five
-  addresses at most. Under the field and its Save button, in the same card, an "Instance health" block (a row with the
-  heart-pulse chip, the label and a meta line: "The latest 50 requests at most, none older than 7 days. Counted again when the
-  Oriel server restarts.", the numbers from the API) lists the saved instances, not the unsaved text, one 32 high row
-  each, in the order of the field: the address without its scheme in 12 monospace, cut with an ellipsis (the full
-  address in a tooltip), the first one followed by an 11 "Main" badge (the `Accent` soft badge of the devices page),
-  and at the right 12 tabular `TextSecondary` figures, "98% · 420 ms · last 50": the share of requests answered
-  (rounded down, so only a perfect run reads 100%), the median time, and how many requests that covers ("No answer"
-  where no request was answered). The figures take no color from the rate: the page states facts and does not judge.
-  Where the address and the figures do not fit on one line the figures wrap to a second line under the address, so nothing is squeezed or cut.
-  An instance cooling down adds a second 12 line under its row, a 14 triangle in `Warning` and "Cooling down, about 4
-  minutes to retry" in `Text`. An instance without a request shows "No data yet" in `TextMuted` at the right; when no
-  instance has any request the block keeps its title and the 12 `TextMuted` line "No data yet. The success rate and
-  speed of each instance appear after an RSSHub subscription has been fetched." and lists nothing. With no instance
-  set the block is absent, and it is also absent when the health could not be read (no error, no retry: it is extra
-  information and must not get in the way of editing the instances). It is read when the group opens and after the
-  instances are saved, and never refreshes by itself. Drawn in the `settings` page of the screens canvas, `health` (three
-  instances: healthy, answering about two thirds of the time and slowly, and cooling down) and `health-empty`.
-  Under it the page has a second card, "Proxy" (an 11 section title like the other groups, with no lead line under it),
-  with its own Save button: a monospace "Proxy address" box with a help line (the schemes, a host name and a port, empty
-  means a direct connection, applies from the next fetch, a subscription can follow it, connect directly or use its own,
-  AI does not use it), then below a hairline a "Sign-in" row with a badge (Configured or Not configured, the badge of
-  the AI key), a help line (kept on the server, never shown again) and two boxes side by side, "User name" and
-  "Password" (the password is masked). The server never returns the user name or the password, so while a sign-in is
-  stored both boxes are empty and their placeholder reads "Set"; with none stored it reads "Optional". A small button
-  "Remove sign-in" sits under the boxes while one is stored. It waits for Save, like the one on a subscription's page: pressing it sends
-  nothing, the badge turns to Not configured, the placeholders to "Optional", the button goes away and Save becomes
-  primary; leaving the page without saving drops the removal (the unsaved-changes prompt covers it). Changing the
-  address while a sign-in is stored adds a warning line (14 triangle in `Warning`, 12 `Text`): saving another address
-  also deletes the stored sign-in unless a new one is typed here. Save is quiet until the address, a box or a pending
-  removal changed. A refused address takes the `Danger` outline and a 12 `Danger` line under the field that says what an
-  address looks like; nothing is lost and the focus stays. Drawn in the `settings` page of the screens canvas, `proxy-empty`,
-  `proxy-set`, `proxy-removed` (the removal pending), `proxy-edited` and `proxy-invalid`.
-  A setting is saved
-  where it is changed: the RSSHub instances with their Save button, the retention as soon as another is
-  chosen; the line under it says it was saved, or why not, and a refused value keeps the focus in its field. OPML
-  files are chosen and saved with the system's file dialogs, read and sent in the background; the result stays
-  under the button, with the subscriptions that could not be added and why, until dismissed. An OPML file dragged over the window can also be dropped on the Import row: while it is over the row (on this page only), the row takes a dashed 1.5 `Accent` outline with radius 10, a `Soft(Accent)` fill, 8 off the card's sides, and its help line reads "Drop the OPML file here to add its subscriptions." in `Accent`; the button stays and the separator below it hides (`opml-drop`). Words and outline carry it, not color alone. Files dropped elsewhere in the window (another page, the timeline, the reader) reach this page, where the result shows, without lighting anything. While a file is being imported, backed up or restored, or a dialog is open, a drop is not taken and a toast says so: "Busy. Try again when the current import finishes." The connect screen takes no drop. Several files dropped at once give one warning result, "Imported 3 files: 14 added, 3 already subscribed, 2 not added.", whose list holds the subscriptions that could not be added and the files that could not be imported, each with its reason (`imported-several`). While a file is imported, under the button a polite status with the loader turning at 14 and "Importing feeds.opml…" (12 `TextMuted`; with several files "Importing work.opml (file 2 of 3)…"), then a 4 high progress bar (the track and `Accent` fill of the dialog's bar, radius 2, full width of the row, `progressbar` role with its value) and under it "Processed 136 of 340" in 12 `TextMuted` with tabular figures; the total is the number of subscriptions the server found in the file, so the bar is exact (`importing`, `importing-several`). The bar and the figures move with every poll (about four times a second) but are not live regions: the status line is announced once when the import starts, and the count is announced only when it passes a quarter (25, 50 and 75 percent, and only for files of 20 or more subscriptions), then the result is announced; the bar's value is there for a screen reader that reads the bar itself. There is no Cancel: an import is local writes that end in seconds, and a cancel would leave the same half-added list as letting it finish. The button and the other rows' buttons stay disabled while it runs. When it is done and at least one subscription was added, the result head carries a quiet text button, "View subscriptions", between the text and the close button (12 `Accent` weight 500, 22 high, 8 padding, radius 6, hover fill like "Try again" on the timeline; it comes before the close button in the tab order and shows the focus ring of the other buttons). It is there in the success result (`imported-ok`), the one with failures (`imported`) and the merged one (`imported-several`), and not when nothing was added. It goes back to the timeline on all subscriptions, with the sidebar shown if it was hidden and the focus on the sidebar's selected item; the result stays on this page until dismissed. If the server stops partway (`import-stopped`) the result is a warning that says how many were added before it stopped, with the same button when some were; if the connection drops while following (`import-lost`) it is a warning, "Lost the connection while importing feeds.opml. The server may still be adding subscriptions; check the list in a moment.", without the button. Below the OPML row,
-  "From another reader" with an "Import from Reader…" button opens the 560 wide settings dialog (its header, scrolling
-  body and footer are described under Parts below). Step one: a Service pair of small toggle buttons (Miniflux, FreshRSS), the server address in a
-  field with a `https://miniflux.example.com` placeholder, for FreshRSS a User name field, and the credential in a
-  masked field (API token, or API password for FreshRSS) with a 12 `TextMuted` line saying it is used for this import only
-  and kept in memory; Connect is disabled until all are filled, and an address that is not http or https is named under
-  its field with the `Danger` outline. Then a polite status with a turning loader, the stage ("Reading starred
-  entries…") and a 6 high progress bar with "300 so far" or "204 of 340"; Cancel stops at once. The preview lists
-  Subscriptions, Starred entries, Read entries and Folders with tabular figures in one soft card, the folders
-  row with a 12 `TextMuted` note that each becomes a folder and a subscription with several labels goes into the
-  first, and says nothing has been added; Import is the
-  primary button. The result is a warning-toned box when anything was left out, else plain, with one line per figure
-  (added, already there, marked read, read entries not in Oriel, folders created, and for FreshRSS how many
-  subscriptions had more than one label), a list "Labels not used" (title, address, and the folder it went into with
-  the labels left out) and the list of what was not imported with the reason, as for OPML. A failure is a `Danger`
-  box with a reason one can act on (the server turned the credential down, cannot be reached, asked to slow down,
-  ...), with Try again. The credential is never shown again after Connect. Closing the dialog while it works cancels. Drawn in the `settings` page of the screens canvas, states
-  `reader` to `reader-failed`. Last on the page are two rows like the OPML ones, "Back up" and "Restore": a label, a 12 `TextMuted` help line (what a backup holds, and that sessions and the AI API key are left out; that restoring replaces what is here), and a secondary button, "Back up…" (database icon) and "Restore from backup…" (counter-clockwise arrow). Both use the system's file dialogs, filtered to `.oriel-backup`, and work
-  in the background; while one runs the buttons are disabled and a polite status with a turning 14 loader reads
-  "Backing up…" or "Restoring…". The result stays under the buttons until dismissed: a plain box for "Backed up to …"
-  and "Restored 12 subscriptions and 480 entries", a `Danger` box with a reason one can act on for a failure, and
-  the line that the data is as it was for a refused restore. After choosing a file, "Replace your data with this
-  backup?" is an alert dialog (the one that confirms deleting a subscription): the body says the subscriptions,
-  entries and settings now here are replaced and this cannot be undone, the focus starts on Cancel, and the
-  confirming button, "Replace data", is the `Danger` one. Drawn in the `settings` page of the screens canvas, states
-  `backup`, `restore-confirm`, `restoring`, `restored` and `restore-failed`. The last row, "Back up automatically", is a
-  label, a 12 `TextMuted` help line and a switch (off by default); below it, always shown and parted by a hairline,
-  three 32 high lines with a 96 wide label: Folder (the path in 13 mono, cut with an ellipsis, or "No folder chosen
-  yet" in `TextMuted`, and a small "Choose…" button with a folder icon that opens the system's folder dialog), How
-  often (a segmented control, Every day and Every week) and Keep (a 64 wide number field and "backups" in 12
-  `TextMuted`), then a 12 status line: the last success ("Last backup: Today 03:00, Oriel-….oriel-backup"), "No backup
-  yet", or, after a failed try, the warning-toned "Last backup failed: …. Trying again within the hour." with the
-  alert icon. On a remote server the folder is not on this computer, so it is a text field instead of the button,
-  with a 12 `TextMuted` note that the path must exist on the server's machine. A refused value is named under its line
-  in `Danger` and the control goes back to the server's value. States `auto-off`, `auto-on`, `auto-failed` and
-  `auto-remote`. Signing a device out asks
-  first; the current device is marked and cannot be signed out. In the wide column Devices is a table in one card:
-  a header row 36 high (11 medium, `TextMuted`, 12 in Chinese) over rows 48 high parted by the inset hairline, columns
-  Device (a 28 glyph tile, the client's name at 13 medium and the "This device" badge), Platform and Signed in
-  (`TextMuted`, 88 and 96 wide), Last used (116 wide, right-aligned, `Text`, tabular figures) and a 96 wide last column
-  that holds "Sign out…" (the small danger button), empty on the current device. The first column takes the rest and
-  its text is cut with an ellipsis; the gap between columns is 16. Below the table's room the rows are the stacked
-  ones (name and badge over "Signed in … · last used …", Sign out at the right). It is a `ui.Grid` with column tracks,
-  not `ui.Table`: the devices are few and sit in the page's own scroll, in the card's style. The AI page
-  is a "Connection" card (endpoint, model, API key, output language, Test and Save) and a "Prompts" card, each under
-  its own title; each field, the model's too, has its label above and takes the card's width, and in two columns the
-  prompt boxes are 120 high. The key field is always empty; a badge says "Configured" or "Not configured", a new key replaces the old one and "Remove key" deletes it.
-  The card opens with a Preset row: a "Preset" label and two small buttons, Ollama and LM Studio. Choosing one fills the
-  endpoint (unsaved) and swaps the model field's placeholder for that runtime's usual name; it never touches a model name
-  or key already typed, and the button matching the current address is shown pressed (`Accent` soft fill). The model
-  placeholder is a hint, not a value. After the language row come two number fields side by side, "Summary limit" and
-  "Chunk size" (characters; the placeholder is the default, 24000 and 6000), monospace like the endpoint, with a one-line
-  help and an error line under a refused value. Under the endpoint a 12 `TextMuted` line says where the text goes: it
-  leaves this device for the endpoint's host, or, for localhost and loopback addresses, stays on this computer
-  (`ai-local`). A second pair of number fields, "Automatic requests a day" and "New entries per fetch" (defaults 200
-  and 10), follows with a one-line help that your own requests are not counted; under it a 12 `TextMuted` status line
-  shows today's count, and once the day's cap is reached an alert icon in `Warning` with the line in `Text`
-  (`ai-cap-reached`).
-  Test sends a short request with the saved settings, so it is disabled while there are unsaved edits; its result
-  stays beside the buttons. A success is the "Connected" line with a check; under it, one 12 line per further result
-  (check and "Success" color for "The model is in the endpoint's list" and "The context holds the limits"; the alert
-  icon in `Warning` and the text in `Text`, since `Warning` is never text, for a context too small for the limits, which is a hint, not a failure). A result the
-  endpoint cannot give is not drawn at all. A failure is one `Danger` line that says what to do: cannot connect (check the
-  address; start the server if it is on this computer), the key was turned down, no such model (check the model name), or
-  too slow. Errors never show the key. Each prompt has "Restore default", disabled while it is the default; it acts at once, puts the default in the box (still unsaved) and offers Undo in a toast, "Summary prompt restored to default", with a close button (`prompt-restored` in the mockup). Undo puts back exactly the text that was there, and does nothing if the box was edited again since. The Activity and storage group (icon: database) is four cards in the 600 column, each under its own title, and is the only page that refreshes by itself: every 5 seconds while it is shown (every 2 while a vacuum runs), and with a small "Refresh" button at the right of the page lead. The "Storage" card has a row each for Database size, Entries, Cached images ("N images, X") and Starred copies ("N images, X"; the pictures kept for starred entries, which live in the database), label left and figure right in tabular numerals; when a copy made before the last update is on disk, one more row, "Copy before update" with "{size}, database version {N}" (just the size when the version is unknown) and a small `Danger` text button "Delete…" at its end, which asks "Delete the copy made before the update?" in an alert (the copy is a full copy of the database with sessions and API keys, and without it you cannot go back to the older version; Cancel and Delete, Escape cancels) and after deleting removes the row and shows the toast "The copy is deleted." (no copy, no row; a failure keeps the row and says "Could not delete the copy. Try again."); under them a hairline and the "Compact database" button (secondary, 32 high) with a 12 `TextMuted` note beside or under it, "Rewrites the database file to give back unused space. It can take a while and runs in the background; Oriel stays usable, and new fetches wait until it is done. About X can be freed." Pressed, the button becomes busy (spinner, "Compacting…") and cannot be pressed again; when it ends a status line shows a check and "Compacted. Freed X" in `Success`, or the alert icon in `Warning` with the reason, and the button is usable again. There is no confirmation, since nothing is lost. The "Diagnostics" card, second, has the "Export diagnostics…" button (secondary, 32 high, download icon) with a 12 `TextMuted` note beside or under it: "Saves the version, the system, the recent errors, the end of the log and the host name and failures of each subscription as a text file. It has no password, keys, full addresses or article text, and it stays on this computer. The log itself is in the logs folder of the data directory, on the computer that runs the server." Pressed, it asks where to save with the system save dialog (default name `Oriel-diagnostics.txt`) and the button is busy ("Exporting…") while the file is fetched and written; then a status line shows a check and "Exported to {file}." in `Success`, or the alert icon in `Warning` with "Couldn't export. Check the connection and try again." (or "{file} could not be saved."); cancelling the dialog shows nothing. The Help menu has the same action, "Export Diagnostics…", which opens this page and starts the export. The "Fetching now" card lists the sources being fetched, one 36 high row each with the source's glyph and name; none shows one muted line ("Nothing is being fetched right now."). The "Recent fetches" card has one row per source, 44 high: the result of the newest attempt as an icon (check in `Success`, alert in `Danger`), the name at 13 medium, a 12 `TextMuted` summary ("3 min ago · 2 new" or "3 min ago · failed") and a chevron that turns when the row is open. A row opens in place to its attempts, at most 10, one 28 high line each (result icon, time ago, then status, duration and new count in 12 tabular figures), and a failed attempt carries its reason on a second 12 `Danger` line; only one row is open at a time and only the open row builds its attempts. A note under the list says how many attempts are kept per source. With no attempts yet the card shows one muted line. Loading uses the page skeleton and a failure the usual "Could not load" with Retry. Drawn in the `settings` page of the screens canvas, `activity`, `activity-open`, `activity-empty`, `vacuum-running`, `vacuum-done`, `vacuum-failed`, `premigrate`, `premigrate-confirm`, `premigrate-deleted`, `diagnostics-exported`, `diagnostics-failed`.
-  The Rules group, after Fetching (icon `list-filter`), has a lead line (a rule runs once, when an entry first
-  arrives, and never changes the entries you already have; muted keywords work on every entry at any time) and two
-  cards. The first holds one row per rule: the condition as a sentence on top (13 type, medium, "Title or summary has
-  “a”, “b” · Not “c”", "By “name”", or "Every new entry" when nothing narrows it; wrapped, never cut), and under it a
-  12 `TextMuted` line, the scope (the subscription names joined with commas, "3 subscriptions" from the third on, or
-  "All subscriptions"; then the kind when one is set), an arrow, the action's icon and name ("Star", "Mark as read",
-  "Star + Mark as read"). At the right a Switch (applied at once; an off rule dims its text to 55% and shows an "Off"
-  badge) and a 28 square ⋯ button that opens a menu (Edit…, Delete in `Danger`) anchored under it, right edges
-  aligned, on `Raised`, `theme.Sheet` at the Popup level (the settings CMenu, rows 28 high with radius 6). The last row of the
-  card holds the "Add rule…" button at the right. No rules: one row with the list-filter icon, "No rules yet." and a
-  `TextMuted` example line. The second card is "Muted keywords": a help line, a multi-line monospace text input (one
-  keyword per line, as the RSSHub instances), a 12 tabular `TextMuted` line "Hides {n} entries right now" that follows
-  the typing (asked of the server after a short pause, never on the drawing path), and a Save button that is primary
-  while the text is edited and disabled otherwise. A refused list keeps the focus in its field, takes the `Danger`
-  outline and says "At most 200 lines, up to 100 characters each." under it. Add and Edit open the 560 wide settings dialog (the
-  sheet of the Reader import dialog, the form scrolling when the window is low): a medium line "New entries that match" and under it a 12 `TextMuted` line
-  "Everything you fill in has to match; several keywords match if any one does. Fill in at least one.", then
-  Subscription, a multi-select: a select-style button (32 high, full width) that reads "All subscriptions" when none
-  is ticked, the name when one is, and the count ("2 subscriptions") when two or more are; it opens a popover list
-  under it (the settings CMenu, at least 240 wide, rows 28 high, at most 320 high and scrolling) of
-  Checkboxes, "All subscriptions" first and a hairline under it, then one row per subscription. Ticking a subscription
-  clears "All subscriptions"; ticking "All subscriptions" or clearing the last tick means every subscription. The list
-  stays open while ticking and closes with Esc, a click outside or the button, with the focus back on the button. Then
-  Shown as (the same name as the subscription edit dialog; "Any" first, then Articles, Videos, Social, Images, Community),
-  Keywords (a 12 `TextMuted` hint "One per line. In the title or summary." right under its label, then a multi-line
-  input that starts two lines high and grows with the text up to 6) and Author (a single line, a part of the name),
-  with Not containing (the same multi-line input as Keywords, with a hint "One per line. Skipped when the title or
-  summary has any of these. Not enough on its own.") between Keywords and Author. Under the Author field a 12 tabular
-  `TextMuted` line, "{n} of your existing entries match the conditions as they are now", follows the typing and the
-  other conditions (asked of the server after a short pause, never on the drawing path; counting only, nothing is
-  changed); it is hidden while no condition is filled in. Every control is as wide as the form, none is half width.
-  Then a medium line "Automatically" with two Checkboxes (Star, Mark as read; 16 box, radius 5, `Accent` fill with a
-  check when on, 30 high rows) and, right under them in the normal size and `Text2`, the note that only entries that
-  arrive from now on are affected and the ones you already have stay as they are. The two titles read as one sentence:
-  "New entries that match … Automatically …". Save is always enabled; pressing it with no condition or no action names
-  the problem under the Author field ("Fill in at least one condition.") and under the checkboxes ("Pick at least one
-  action."), with `Danger` outlines on the empty inputs and the boxes, and the focus stays. A server refusal (more
-  than 50 rules, more than 50 subscriptions, a subscription that is gone) is one `Danger` line above the buttons.
-  Deleting acts at once and shows a toast "Rule deleted" with Undo, which puts the rule back; the rows below move up.
-  If the rules cannot be loaded the page shows the page error pattern, "Rules did not load" with Retry. Drawn in
-  the `settings` page of the screens canvas, `rules`, `rules-empty`, `rule-menu`, `rule-add`, `rule-invalid`, `rule-edit`,
-  `rule-multi` (three subscriptions, an exclude list and the count), `rule-subs` (the subscription list open),
-  `rule-deleted`, `muted-edited`, `muted-invalid`, `rules-error`.
-  The Appearance group, first in the list, is
-  different: it is kept on this device, not on the server, and a line at the top of its page says so ("These apply only
-  to this device."), where the other pages say settings are kept on the server. One card holds a row each for Theme
-  (segmented: System, Light, Dark), Interface language (a menu: System, 简体中文, English, each language name in its own
-  language; chosen, it applies at once and the screens are rebuilt), Interface font (a button that opens the font picker
-  below: "System font" and the current family first, then the installed families, each set in its own face) and, in a second card titled "Reading", Reading font
-  (a button like Interface font that opens the same font picker, with "Follow interface" (the default) and "Serif" pinned above a hairline, each drawn in its own face, then the current family if it is one, then the installed families; its value shows the current choice in its own face), Text size
-  (segmented: Small, Medium, Large, Extra large), Line spacing (segmented: Compact, Standard, Relaxed), Line width (segmented: Narrow, Standard, Wide; default Standard; help "How wide a line of text runs. Wide shows more per line, Narrow fewer."), Reading appearance (segmented: Follow theme, Sepia, Mist; default Follow theme; help "The paper and ink of the reader. Sepia and Mist follow Light and Dark.") and Chinese typesetting (a switch, on by default; see Chinese typesetting). A second card, titled "Timeline" under the Reading card, has two rows. List density (segmented: Comfortable, Compact; default Comfortable), with the help "How tight the rows sit. Compact keeps everything and only tightens the spacing.", then Mark as read (a popup menu like Interface language: When opened (default), After a short stay, After scrolling past, Never automatically; a device setting; the help under it follows the choice: "Opening an entry marks it as read.", "An article opened in the reader is marked as read after the time below; one opened in the browser is marked at once.", "An entry is marked as read when it scrolls off the top of the list; opening it does not.", "Nothing is marked automatically. Only you mark: the read button, M, V or Mark all as read."), and, only while After a short stay is chosen, a Stay time row (segmented: 3 s, 5 s, 10 s; default 5 s) with the help "How long an article stays open before it counts as read.", and under it Show an article once (a switch, on by default, a setting of the server rather than of this device), with the help "When several subscriptions carry the same article, the timeline shows one row." Drawn in the `settings` page of the screens canvas, `appearance`, `density`, `mark-read` and `mark-read-scroll`. A third card, titled "View as" under the Timeline card, has one row per kind, each a segmented control of its own values (Articles: List, Compact; Videos: Grid, Large cover, List; Social: Card, Compact; Images: Wall, Grid, Card; Community: Panes, List), the default first, each row just the kind's name and its control; the last row of the card is a note in 12 `TextMuted` that says "Grid and Wall are used in Videos and Images. Elsewhere those entries appear as rows or cards." The segments are 26 high in a 32 high capsule, as in Theme, so a row never needs a popup. Drawn in the `settings` page of the screens canvas, `viewers`. A fourth card, titled "Desktop" under the View as card, has one switch row each (the same row as Chinese typesetting: label, help in 12 `TextMuted` and the switch, all off by default): Open at login, Menu bar icon and, on macOS only, Unread badge on the Dock icon. On Windows and Linux the card has Open at login and Tray icon (the help says "tray" instead of "menu bar"); the badge row is not shown there, and no row is shown disabled. The card appears in the desktop app only, never in a headless server's page. When the tray icon cannot start (Linux without libayatana-appindicator3) its switch returns to off and an error line, a `.status.error` row (14 alert icon, `Danger` text, 12) at the end of the card, says "This system can’t show a tray icon. Install libayatana-appindicator3 and try again."; when the login item cannot change, its switch returns and the same kind of row, right under the Open at login row, says "Couldn’t change opening at login."; on macOS, when Oriel does not run from an app bundle, the Open at login help says "Only the installed Oriel app can open at login." and its switch is disabled. The Open at login help is one fixed sentence that does not change with the icon switch: "Opens Oriel after you sign in to the computer. While the menu bar icon is on, only the icon appears and no window opens." ("tray" instead of "menu bar" on Windows and Linux) The tray menu is the system's own menu, not drawn by Oriel; the mockup shows it only to fix the items and their order: a disabled line "N unread" ("No unread" at 0), a separator, Open Oriel, Refresh all, a separator, Quit, in the interface language. The Dock badge and the macOS menu bar title show the unread count, `999+` above 999, and nothing at 0. The tray icon is a one-colour template image on macOS and the app icon elsewhere. Drawn in the `settings` page of the screens canvas, `desktop`, `desktop-on`, `desktop-error`, `desktop-login-error` and `desktop-tray-menu`, with `os=mac|win|linux`. A sample paragraph under them shows the result, set in the chosen Reading font on the chosen Reading appearance (under Sepia or Mist the sample box takes the preset's `Background` with a `LineStrong` hairline and its `Prose`; under Follow theme it stays a `Surface`), its text capped at 320 wide times the Line width factor (272 / 320 / 384) and centered, so the width step shows. Drawn in the `settings` page of the screens canvas, `reading-font`, `reading-font-open`, `reading-cjk-off`, `reading-appearance` (Sepia chosen, the sample on it) and `reading-width-wide`, and in the `reader` page of the screens canvas with `textsize`, `font`, `cjk`, `preset` and `width`. Every control
-  is saved and applied as soon as it is chosen; there is no Save button. The page starts 32 below the toolbar; rows are padded 16 by 20, help
-  sits 2 under its label (design CSettingRow); cards and section titles are 24 apart.
-  **Parts (design system).** Each page opens with a fixed head: the group's icon in a 32 chip (radius 8, the
-  `Background` fill), the group name in the display style and under it the page's lead line in the meta style; a
-  hairline under the head appears only once the page is scrolled. The sidebar's items, "Back to the timeline" among
-  them, are row high (28). A card is a `Surface` plate with radius 12 and 4 by 16 padding, its rows at least 36 high,
-  padded 12 above and below and parted by hairlines. A row is CSettingRow: a 32 icon chip (its glyph in `Danger` for a
-  destructive row), the label and a meta help line, the control at the right, 12 apart. Section titles above cards are
-  in the title style. A text field is a CField well: `Track` fill, radius 8, turning `RaisedFill` with a 2 focus ring
-  while focused and taking a 1 `Danger` outline when refused; multi-line inputs use the code size. A select is CSelect,
-  control high and as wide as its label, and opens a CMenu (`Raised`, `theme.Sheet` at the Popup level, 4 padding, at
-  least 160 wide, rows 28 high with radius 6). Badges are 18 high pills in the caption style. Status and help lines are
-  the meta style in `TextMuted`. Dialogs (Import from Reader, Add or Edit rule) are 560 wide on `theme.Sheet` at the
-  Dialog level: a header with an icon chip, the title in the title style and a close tool button, a hairline under the
-  header once the body is scrolled, the body padded 24 with 16 between groups, and the buttons in a footer on the
-  `Surface` band padded 16 by 24. Activity and storage puts its figures in one card of rows (database, entries,
-  images, copies; then the pre-migration copy and Compact with a "Compact" button) whose values are `Text2` tabular
-  figures, then a Diagnostics file row with a "Save as…" button, the fetching-now rows with a turning loader, and the
-  recent attempts as full-width rows 48 high.
+  toast when there is none, staying on this article), S stars, M toggles read, O opens the original in the browser,
+  Z (plain, not with Cmd/Ctrl) enters and leaves immersive reading, Cmd/Ctrl+F opens find in the article, and Escape
+  goes back to the list, the entry it opened from focused. Escape works in this order, one step per press: the find
+  row, the selection card, immersive reading, then back. The article takes the focus when it opens, so the arrows,
+  Space, Page Up/Down and Home/End scroll it, and Tab goes through its links. Every icon-only toolbar button names its
+  key in the tooltip; the back button carries its name as text and has no tooltip, its key is in the key sheet.
+- **Immersive reading.** Cmd/Ctrl+\ leaves it instead of toggling the sidebar. J, K, N, S, M and O work as ever, so
+  nothing needs the pointer. The hidden toolbar is only transparent, not removed, so Tab reaches its buttons and a
+  button taking the focus shows it; it also shows while a menu from it is open. A focused toolbar button that
+  disappears hands the focus to the article. It ends with the reader and is not remembered across restarts; the
+  system's full screen is separate and untouched.
+- **Find in the article.** Cmd/Ctrl+F does nothing while the article is still loading or has failed. Enter or Cmd+G /
+  F3 goes to the next match and Shift+Enter or Shift+Cmd+G / Shift+F3 to the previous, both wrapping; reopening
+  selects the last query. Escape or Done closes the row, clears the highlight and returns the focus to the article
+  body. A match it steps to is scrolled clear of the row, and a match in a table scrolls the table sideways as well.
+- **In the article.** A table wider than the column takes the keyboard focus and its arrow keys scroll it. A footnote
+  reference scrolls to its note and marks it for about 1.6 seconds (no fade with Reduce motion); the note's back arrow
+  returns the same way. Tab reaches each Try again of a failed picture in reading order.
+- **Lightbox.** Left and Right page, Home and End jump, O opens the entry in the browser, Escape or a click on the dim
+  layer closes (a click on the picture does nothing). Tab order, which is also the reading order: Open in browser,
+  Open picture in browser, Close, Previous, Next, then the picture area; Tab wraps within the dialog. It opens with the
+  focus on its own picture area, so the arrow keys work at once and no ring is drawn there. Closing returns the focus
+  to the row that opened it.
+- **Dialogs.** Escape or a click outside closes a dialog and the focus goes back where it was. A confirmation of
+  something destructive (deleting a subscription, restoring a backup) starts with the focus
+  on Cancel, so Return does nothing harmful. A one-field dialog (a folder's name) opens with the field focused and
+  Return saves. A popover list (the subscriptions of a rule) stays open while ticking and closes with Escape, a click
+  outside or its button, with the focus back on the button.
+- **Settings.** The back button and Escape return to the timeline as it was. Escape never throws typing away: with a
+  text field focused it only takes the focus off the field (to the back button; the text stays), and with text not
+  saved it does not leave and the page does not change, it only announces "Some changes are not saved". A MyGo text
+  field does not consume Escape, so the page decides. A select or a switch applies at once; a text box carries its own
+  Save, quiet until it changed and primary after. In a multi-line box Enter breaks the line, so only Save sends it. A
+  refused value keeps the focus in its field.
+- **Settings → Subscriptions.** The list is one tab stop. A click on the checkbox toggles a row; a click elsewhere on
+  it, or Enter, opens its page. Cmd/Ctrl+click toggles a row and Shift+click selects the range from the last clicked
+  row. Up and Down move the focus, Home and End go to the ends, Space toggles the focused row, Shift+Up and Shift+Down
+  extend the range from the anchor, Cmd/Ctrl+A selects every visible row, and Escape clears the selection before it
+  does anything else. Down in the filter field moves the focus to the list. While a batch action runs Escape does
+  nothing. On a subscription's page the crumb button and Escape go back to the list with the row focused.
+
+### Screen readers
+
+- **Names.** A row's name carries what the eye reads beside it: a translated title adds the original ("translation,
+  original"); a reminder reads "reminder on {time}"; a subscription hidden from All reads "{name}, hidden from All", one
+  being fetched adds ", fetching"; a capped unread count ("999+") keeps the full number in its description. A search
+  highlight is paint only: it is not its own element, takes no focus, is not announced and does not split the row's
+  name. The search hint is tied to the field with a description and never announced on its own. The password eye
+  keeps the name "Show password" and says by its pressed state whether the password shows. A toggle such as Unread
+  first exposes on or off, not only its fill.
+- **Names in the reader.** A footnote reference is named "Footnote N". A row standing for a video, audio or embed is
+  named "{words}. Open in browser", with the element's title joining the name only; without a link it is not a button
+  and takes no focus. A data table is read as "Table, N columns, M rows". A failed picture is a group named "{alt}.
+  This picture can't be shown" and its button "Try loading the picture again". The find row is a toolbar named "Find
+  in article"; the selection card has the group role named after its task.
+- **Names in dialogs and lists.** The subscription health dialog is labeled by its title, each row a list item named
+  by the source and its reason, its buttons carry the source's name ("Pause {name}"). The subscriptions list in
+  Settings is a multi-selectable listbox named "Subscriptions", each row an option named "{title}, {kind}, {folder},
+  {interval}" with "paused", "hidden from All" or the failure appended; the action bar is a toolbar named by the
+  count; a result band is an alert; the checkbox is never the only way, and a selected row is told by its state, not
+  by the fill alone. The lightbox is named "Pictures from “{title}”", its picture "Picture {n} of {total}".
+- **Announcements.** With `c.Announce`: a scope switched from the keyboard ("Videos, 12 unread", the focus staying
+  where it was); a list order chosen, by its name; immersive reading on and off; the find count as it changes ("2 of
+  4", "No matches"); a selection card's result when it arrives, and "Copied"; "Picture {n} of {total}" when the
+  lightbox opens and pages; the loaded count of the health dialog; the selection count in Settings → Subscriptions
+  after it settles for half a second, with the progress and result of a batch action; "Refreshing 12 subscriptions"
+  once when refresh all starts. A failed picture is not announced, since a page can have many, nor is a media row. A
+  status that stays (the offline banner, an import's progress line, a drop zone) is polite and announced once; an
+  import's count is announced only as it passes a quarter, for files of 20 or more subscriptions.
+- **Not by color alone.** A drop zone is told by its outline and words; a search highlight and the current find
+  match by an underline as well as the fill; a failed picture by its icon and words.
+
+### Platforms
+
+- **One look.** One view serves macOS, Windows and Linux. The glass plugin draws the same glass on every platform; no
+  system vibrancy is used.
+- **Keys.** Shortcuts use `CmdOrCtrl`. A Mac keyboard has no Menu key, so the key sheet lists Shift+F10 alone there.
+- **Desktop settings.** On macOS the Desktop card has Open at login, Menu bar icon and Unread badge on the Dock icon; on
+  Windows and Linux it has Open at login and Tray icon, the help saying "tray" instead of "menu bar", and no row is
+  shown disabled. The card appears in the desktop app only. The tray icon is a one-colour template image on macOS and
+  the app icon elsewhere. On Linux without libayatana-appindicator3 the tray icon cannot start: its switch returns to
+  off with an error line. On macOS, when Oriel does not run from an app bundle, Open at login is disabled and its help
+  says only the installed app can open at login.
 
 ## Accessibility checklist
 
