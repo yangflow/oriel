@@ -28,7 +28,7 @@ func oneRule() []client.Rule {
 func TestRulesList(t *testing.T) {
 	s, _, tt := openRules(t, "en", append(oneRule(),
 		client.Rule{ID: 2, Author: "Ann", MarkRead: true, Kind: "video"}))
-	for _, text := range []string{s.text.RulesLead, "Title or summary has “release”, “beta”", "Go Blog",
+	for _, text := range []string{s.text.RulesTitle, s.text.RulesDesc, "Title or summary has “release”, “beta”", "Go Blog",
 		"By “Ann”", s.text.ActStar, s.text.ActRead, s.text.RuleOffBadge, s.text.AddRule, s.text.MutedTitle} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())

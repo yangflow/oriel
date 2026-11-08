@@ -229,6 +229,7 @@ func (s *Screen) action(r client.Rule) (*ui.SVG, string) {
 func (s *Screen) rulesPage(c *ui.Context) {
 	t := c.Theme()
 	p := &s.rules
+	sectionHead(c, s.text.RulesTitle, s.text.RulesDesc, 0)
 	plate(c).Children(func() {
 		if len(p.list) == 0 {
 			ui.Column(c).Key("none").FillWidth().Children(func() {

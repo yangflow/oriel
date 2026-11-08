@@ -105,7 +105,7 @@ func TestActivityShows(t *testing.T) {
 			t.Fatalf("%s: group %d, %d reads", language, s.group, f.reads)
 		}
 		for _, text := range []string{
-			s.text.ActivityLead, s.text.Refresh, s.text.Storage, s.text.DBSize, "5.0 MB", s.text.Entries, "1234", s.text.Images,
+			s.text.Refresh, s.text.Storage, s.text.DBSize, "5.0 MB", locale.Count(s.text.EntriesValue, "n", 1234), s.text.Images,
 			s.fill(locale.Count(s.text.ImagesValue, "n", 3), "{size}", "2 KB"), s.text.Copies, s.fill(locale.Count(s.text.CopiesValue, "n", 7), "{size}", "3.0 MB"), s.text.Compact,
 			s.fill(s.text.CompactHelp, "{size}", "1.0 MB"), s.text.FetchingNow, "Dispatch", s.text.Recent,
 			s.fill(s.text.FetchingAttempt, "{n}", "1"), s.fill(s.text.FetchingElapsed, "{n}", "3"), s.fill(s.text.FetchingElapsed, "{n}", "12"),

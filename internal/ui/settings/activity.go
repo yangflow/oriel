@@ -120,7 +120,6 @@ func (s *Screen) startVacuum() {
 // activityPage is the storage, what is being fetched now and how the recent fetches went.
 func (s *Screen) activityPage(c *ui.Context) {
 	s.storageCard(c)
-	s.diagnosticsCard(c)
 	s.fetchingNowCard(c)
 	s.recentCard(c)
 	s.dangerCard(c)
@@ -130,11 +129,12 @@ func (s *Screen) storageCard(c *ui.Context) {
 	st := s.storage
 	sectionTitle(c, s.text.Storage, 0)
 	rows := []cardRow{
-		{key: "db", draw: func() { s.keyValue(c, icons.Database, s.text.DBSize, s.bytes(st.DatabaseBytes)) }},
-		{key: "entries", draw: func() { s.keyValue(c, icons.Inbox, s.text.Entries, strconv.FormatInt(st.Entries, 10)) }},
+		{key: "db", draw: func() {
+			s.keyValue(c, icons.Database, s.text.DBSize, locale.Count(s.text.EntriesValue, "n", int(st.Entries)), s.bytes(st.DatabaseBytes))
+		}},
 		{key: "images", draw: func() { s.imageCacheRow(c) }},
 		{key: "copies", draw: func() {
-			s.keyValue(c, icons.Layers, s.text.Copies,
+			s.keyValue(c, icons.Star, s.text.Copies, "",
 				s.fill(locale.Count(s.text.CopiesValue, "n", st.Copies), "{size}", s.bytes(st.CopyBytes)))
 		}},
 	}
@@ -156,7 +156,7 @@ func (s *Screen) storageCard(c *ui.Context) {
 			}
 		})
 		statusLine(c, s.vacuumStatus())
-	}})
+	}}, cardRow{key: "diagnostics", draw: func() { s.diagnosticsRow(c) }})
 	cardOf(c, rows)
 }
 
@@ -317,7 +317,7 @@ func (s *Screen) preMigrateRow(c *ui.Context) {
 	if copyInfo.Version > 0 {
 		value = s.fill(s.fill(s.text.PreMigrateVersion, "{size}", value), "{version}", strconv.Itoa(copyInfo.Version))
 	}
-	setting(c, icons.RotateCcw, false, s.text.PreMigrate, func() { meta(c, value).FontFeatures("tnum") }, func() {
+	setting(c, icons.Layers, false, s.text.PreMigrate, func() { meta(c, value).FontFeatures("tnum") }, func() {
 		drop := theme.Button{Style: theme.Danger, Small: true, Disabled: s.dropping, Text: s.text.DeletePreMigrate,
 			Label: s.text.DeletePreMigrateTitle}.Draw(c)
 		if drop.Clicked() {
@@ -382,24 +382,19 @@ func (s *Screen) vacuumStatus() status {
 	return status{}
 }
 
-// diagnosticsCard exports the diagnostics file: what it holds, the button and how the last export went.
-func (s *Screen) diagnosticsCard(c *ui.Context) {
-	t := c.Theme()
-	sectionTitle(c, s.text.Diagnostics, gap(t))
-	card(c, func() {
-		setting(c, icons.FileText, false, s.text.DiagnosticsFile, func() { meta(c, s.text.DiagnosticsHelp) }, func() {
-			label := s.text.Export
-			if s.diagBusy {
-				label = s.text.ExportingDiagnostics
-			}
-			export := theme.Button{Disabled: s.diagBusy, Icon: icons.Download, Text: label, Label: s.text.ExportDiagnostics,
-				Busy: s.diagBusy}.Draw(c)
-			if export.Clicked() {
-				s.exportDiagnostics()
-			}
-		})
-		statusLine(c, s.diagStatus)
+// diagnosticsRow exports the diagnostics file: what it leaves out, the button and how the last export went.
+func (s *Screen) diagnosticsRow(c *ui.Context) {
+	setting(c, icons.FileText, false, s.text.DiagnosticsFile, func() { meta(c, s.text.DiagnosticsHelp) }, func() {
+		label := s.text.DiagnosticsButton
+		if s.diagBusy {
+			label = s.text.ExportingDiagnostics
+		}
+		export := theme.Button{Disabled: s.diagBusy, Text: label, Label: s.text.ExportDiagnostics, Busy: s.diagBusy}.Draw(c)
+		if export.Clicked() {
+			s.exportDiagnostics()
+		}
 	})
+	statusLine(c, s.diagStatus)
 }
 
 // ExportDiagnostics starts the export from outside the page, the Help menu; the shell shows the page first.
@@ -442,10 +437,11 @@ func (s *Screen) exportDiagnostics() {
 	})
 }
 
-// keyValue is a setting row that shows a value, in Text2 with tabular figures, where a control would be.
-func (s *Screen) keyValue(c *ui.Context, icon *ui.SVG, label, value string) {
+// keyValue is a setting row with help under its name, if any, that shows a value, in Text2 with tabular figures, where
+// a control would be.
+func (s *Screen) keyValue(c *ui.Context, icon *ui.SVG, label, help, value string) {
 	t := c.Theme()
-	setting(c, icon, false, label, nil, func() {
+	labeled(c, icon, label, help, func() {
 		ui.Text(c, value).SingleLine().TextColor(theme.Text2(t)).FontFeatures("tnum")
 	})
 }

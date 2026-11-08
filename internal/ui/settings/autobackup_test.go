@@ -25,15 +25,15 @@ func openAuto(t *testing.T, language string, local bool) (*Screen, *fake, *ui.Te
 	return s, f, tt
 }
 
-// toggleAuto clicks the switch, which sits just right of the label column, centered on the label and its help.
+// toggleAuto clicks the switch, at the end of its row, under the end of the frequency's segments.
 func toggleAuto(t *testing.T, s *Screen, tt *ui.Tester) {
 	t.Helper()
-	label, ok := tt.Find(s.text.AutoLabel)
-	help, ok2 := tt.Find(s.text.AutoHelp)
+	label, ok := tt.Find(s.text.AutoEnable)
+	end, ok2 := tt.Find(s.text.AutoWeekly)
 	if !ok || !ok2 {
 		t.Fatalf("no switch in %v", tt.Texts())
 	}
-	tt.ClickAt(label.X+label.W+20, (label.Y+help.Y+help.H)/2)
+	tt.ClickAt(end.X+end.W, label.Y+label.H/2)
 	tt.Frame()
 }
 
