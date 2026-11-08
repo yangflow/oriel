@@ -87,7 +87,10 @@ func TestSelectionAnswer(t *testing.T) {
 		f.settle(tt)
 		f.selReply = "  An answer.  "
 		askAbout(t, tt, w.translate)
-		expect(t, tt, "“Faster builds”")
+		expect(t, tt, "“Faster builds”", s.text.Translating)
+		if !slices.Contains(tt.Announcements(), s.text.Translating) {
+			t.Errorf("%s: announced %v while translating", w.language, tt.Announcements())
+		}
 		if len(f.queue) != 1 {
 			t.Fatalf("%s: %d jobs queued", w.language, len(f.queue))
 		}
@@ -111,6 +114,8 @@ func TestSelectionAnswer(t *testing.T) {
 		}
 
 		askAbout(t, tt, w.explain)
+		expect(t, tt, s.text.Explaining)
+		absent(t, tt, s.text.Translating)
 		f.settle(tt)
 		if !strings.HasPrefix(f.selected[1], "explain: ") || !slices.Contains(tt.Announcements(), w.ready) {
 			t.Errorf("%s: asked %v, announced %v", w.language, f.selected, tt.Announcements())

@@ -61,6 +61,7 @@ func (s *Screen) ask(task, text string) {
 		return
 	}
 	sel.working = true
+	s.announce = s.working(task)
 	gen, ticket, api, title := s.gen, sel.ticket, s.api, s.article.Entry.Title
 	s.deps.Go(func() func() {
 		answer, model, err := api.Selection(context.Background(), task, text, title)
@@ -88,6 +89,14 @@ func (s *Screen) ask(task, text string) {
 			}
 		}
 	})
+}
+
+// working is what the card says while the answer to task is coming.
+func (s *Screen) working(task string) string {
+	if task == "explain" {
+		return s.text.Explaining
+	}
+	return s.text.Translating
 }
 
 // closeSelection closes the card, and drops the answer still to come.
@@ -136,7 +145,7 @@ func (s *Screen) selectionCard(c *ui.Context) {
 			switch {
 			case sel.working:
 				ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
-					s.status(c, s.text.Summarizing, true)
+					s.status(c, s.working(sel.task), true)
 				})
 			case sel.failed:
 				s.failure(c, sel.code, func() { s.ask(sel.task, sel.text) })
