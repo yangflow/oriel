@@ -1770,8 +1770,8 @@ func (s *Screen) blocks(c *ui.Context, blocks []block) {
 			i++
 		}
 		run := blocks[start:i]
-		ui.Column(c).Key(start).FillWidth().Margin(gap(t, blocks, start, s.scale()), 0, 0, 0).Padding(0, 0, 0, theme.Px(t, 18)).
-			BorderWidth(0, 0, 0, 2).BorderColor(theme.Ink(t, 0.16)).Children(func() {
+		ui.Column(c).Key(start).FillWidth().Margin(gap(t, blocks, start, s.scale()), 0, 0, 0).Padding(0, 0, 0, theme.Px(t, tokens.ReadingBody.Size)*s.scale()).
+			BorderWidth(0, 0, 0, tokens.FocusRing).BorderColor(theme.Ink(t, 0.16)).Children(func() {
 			for k := range run {
 				s.block(c, run, k, start, theme.Text2(t))
 			}
@@ -1779,8 +1779,25 @@ func (s *Screen) blocks(c *ui.Context, blocks []block) {
 	}
 }
 
+// Sizes only the reader uses. Ems are of the text size; the rest are DIPs.
+const (
+	h3Above       = 1.6
+	h3Below       = 0.5
+	blockGap      = 1.4
+	listIndent    = 1.4
+	notesRule     = 96
+	landingAbove  = 96
+	landingTall   = 4000
+	scrollTrack   = 3
+	cellMax       = 240
+	pictureNarrow = 320
+	pictureFlat   = 180
+	pictureStrip  = 140
+	pictureAlt    = 360
+)
+
 // gap is the space above the block at i, as the margins of the mockup's prose collapse: em margins of the body (16)
-// and of h2 and h3 (19 and 16) follow the text size, the rule's 24 does not.
+// and of h2 and h3 follow the text size, the rule's does not.
 func gap(t *ui.Theme, blocks []block, i int, scale float32) float32 {
 	if i == 0 {
 		return 0
@@ -1788,33 +1805,33 @@ func gap(t *ui.Theme, blocks []block, i int, scale float32) float32 {
 	b, before := blocks[i], blocks[i-1]
 	switch {
 	case b.kind == heading && b.level == 2:
-		return theme.Px(t, 1.9*19) * scale
+		return theme.Px(t, tokens.ReadingH2Above*tokens.ReadingH2.Size) * scale
 	case b.kind == heading:
-		return theme.Px(t, 1.6*16) * scale
+		return theme.Px(t, h3Above*tokens.ReadingH3.Size) * scale
 	case before.kind == heading && before.level == 2:
-		return theme.Px(t, 0.6*19) * scale
+		return theme.Px(t, tokens.ReadingH2Below*tokens.ReadingH2.Size) * scale
 	case before.kind == heading:
-		return theme.Px(t, 0.5*16) * scale
+		return theme.Px(t, h3Below*tokens.ReadingH3.Size) * scale
 	case b.kind == rule && b.notes:
-		return theme.Px(t, 2*13) * scale
+		return theme.Px(t, 2*tokens.TextBody.Size.En) * scale
 	case before.kind == rule && before.notes:
-		return theme.Px(t, 13) * scale
+		return theme.Px(t, tokens.TextBody.Size.En) * scale
 	case b.notes && before.notes:
-		return theme.Px(t, 0.5*13) * scale
+		return theme.Px(t, tokens.TextBody.Size.En/2) * scale
 	case b.kind == rule || before.kind == rule:
-		return theme.Px(t, 24)
+		return theme.Px(t, tokens.Space6)
 	case b.kind == table || before.kind == table:
-		return theme.Px(t, 1.4*16) * scale
+		return theme.Px(t, blockGap*tokens.ReadingBody.Size) * scale
 	case b.kind == caption && before.kind == picture:
-		return theme.Px(t, 8)
+		return theme.Px(t, tokens.Space1_5)
 	case b.kind == caption && before.kind == embed:
-		return theme.Px(t, 8)
+		return theme.Px(t, tokens.Space1_5)
 	case b.kind == picture || before.kind == picture || before.kind == caption || b.kind == embed || before.kind == embed:
-		return theme.Px(t, 1.4*16) * scale
+		return theme.Px(t, blockGap*tokens.ReadingBody.Size) * scale
 	case b.depth > 0 && before.depth > 0:
-		return theme.Px(t, 0.3*16) * scale
+		return theme.Px(t, tokens.ReadingListItem*tokens.ReadingBody.Size) * scale
 	}
-	return theme.Px(t, 1.05*16) * scale
+	return theme.Px(t, tokens.ReadingParagraph*tokens.ReadingBody.Size) * scale
 }
 
 func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Color) {
@@ -1825,15 +1842,15 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 	b := blocks[i]
 	scale := s.scale()
 	top := gap(t, blocks, i, scale)
-	indent := theme.Px(t, 18) * float32(max(0, b.quote-1))
+	indent := theme.Px(t, tokens.ReadingBody.Size) * scale * float32(max(0, b.quote-1))
 	if b.depth > 0 {
-		indent += theme.Px(t, 22) * float32(b.depth-1)
+		indent += theme.Px(t, listIndent*tokens.ReadingBody.Size) * scale * float32(b.depth-1)
 	}
 	unit := unitBlocks + base + i
 	box := ui.Column(c).Key(i).FillWidth().Margin(top, 0, 0, indent)
 	notes := b.notes && b.kind != rule
 	if notes {
-		box.Padding(theme.Px(t, 2), theme.Px(t, 6))
+		box.Padding(theme.Px(t, tokens.Space0_5), theme.Px(t, tokens.Space1_5))
 	}
 	// The block a link led to is lit for a moment; it fades in and out, unless the desktop asks for less motion.
 	arrived := !s.landing.at.IsZero() && b.ix == s.landing.ix && !s.translating()
@@ -1841,7 +1858,7 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 		if s.landing.on {
 			box.Background(theme.Soft(t, t.Accent))
 		}
-		box.Radius(theme.Px(t, 6))
+		box.Radius(theme.Px(t, tokens.RadiusSm))
 		if !c.Preferences().ReduceMotion {
 			theme.Fade(box)
 		}
@@ -1852,16 +1869,16 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 			// The block is scrolled to about 96 below the top: the sentinel is 96 above it and taller than the window,
 			// and a region taller than the window is shown from its start.
 			s.landing.scroll = false
-			ui.Box(c).Key(-1).Absolute().Top(-theme.Px(t, 96)).Left(0).Width(1).Height(theme.Px(t, 4000)).PassThrough().
+			ui.Box(c).Key(-1).Absolute().Top(-theme.Px(t, landingAbove)).Left(0).Width(tokens.Hairline).Height(theme.Px(t, landingTall)).PassThrough().
 				ScrollIntoView()
 		}
 		switch b.kind {
 		case rule:
 			width := float32(0)
 			if b.notes {
-				width = theme.Px(t, 96)
+				width = theme.Px(t, notesRule)
 			}
-			hair := ui.Box(c).Height(1).Background(t.Border)
+			hair := ui.Box(c).Height(tokens.Hairline).Background(t.Border)
 			if width > 0 {
 				hair.Width(width)
 			} else {
@@ -1874,7 +1891,7 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 		case embed:
 			s.embedRow(c, b)
 		case code:
-			ui.ScrollHorizontal(c).FillWidth().Radius(theme.Px(t, 12)).Background(theme.Surface(t)).Children(func() {
+			ui.ScrollHorizontal(c).FillWidth().Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Surface(t)).Children(func() {
 				text := ui.Text(c, b.text)
 				if marks := s.find.marks(unit, 0, len([]rune(b.text))); len(marks) > 0 {
 					text = ui.RichText(c).Children(func() {
@@ -1883,13 +1900,13 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 						}
 					})
 				}
-				text.Font("monospace").FontSize(theme.Px(t, 13)*scale).LineHeight(1.6).NoWrap().TextColor(t.Text).
-					Padding(theme.Px(t, 14), theme.Px(t, 16))
+				text.Font("monospace").FontSize(theme.Px(t, tokens.ReadingCode.Size)*scale).LineHeight(tokens.ReadingCode.Line.En).NoWrap().TextColor(t.Text).
+					Padding(theme.Px(t, tokens.Space3), theme.Px(t, tokens.Space4))
 			})
 		case heading:
-			size, line, tracking := theme.Px(t, 19)*scale, s.leading(1.35, 1.5), float32(-0.01)
+			size, line, tracking := theme.Px(t, tokens.ReadingH2.Size)*scale, s.leading(tokens.ReadingH2.Line.En, tokens.ReadingH2.Line.Zh), tokens.ReadingH2.Tracking.En
 			if b.level == 3 {
-				size, line, tracking = theme.Px(t, 16)*scale, s.leading(1.4, 1.5), 0
+				size, line, tracking = theme.Px(t, tokens.ReadingH3.Size)*scale, s.leading(tokens.ReadingH3.Line.En, tokens.ReadingH3.Line.Zh), tokens.ReadingH3.Tracking.En
 			}
 			if s.han {
 				tracking = 0
@@ -1900,13 +1917,13 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 			s.inline(c, b, unit, 0, color, size).FontSize(size).FontWeight(600).LineHeight(line).LetterSpacing(tracking * size).
 				Role(ui.RoleHeading).Level(b.level)
 		case caption:
-			s.inline(c, b, unit, 0, t.TextMuted, theme.Px(t, 12)).FontSize(theme.Px(t, 12)).LineHeight(1.5)
+			s.inline(c, b, unit, 0, t.TextMuted, theme.Px(t, tokens.TextMeta.Size.En)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).LineHeight(tokens.TextMeta.Line.En / tokens.TextMeta.Size.En)
 		default:
 			line := float32(s.reading().Leading(s.han))
-			body := theme.Px(t, 16) * scale
+			body := theme.Px(t, tokens.ReadingBody.Size) * scale
 			size := body
 			if b.notes {
-				size = theme.Px(t, 13) * scale
+				size = theme.Px(t, tokens.TextBody.Size.En) * scale
 				if b.quote == 0 {
 					color = theme.Text2(t)
 				}
@@ -1916,7 +1933,7 @@ func (s *Screen) block(c *ui.Context, blocks []block, i, base int, color ui.Colo
 				return
 			}
 			ui.Row(c).FillWidth().AlignItems(ui.Start).Children(func() {
-				marker := ui.Text(c, b.marker).Width(theme.Px(t, 22) * scale).Shrink(0).FontSize(size).LineHeight(line).
+				marker := ui.Text(c, b.marker).Width(theme.Px(t, listIndent*tokens.ReadingBody.Size) * scale).Shrink(0).FontSize(size).LineHeight(line).
 					TextColor(t.TextMuted)
 				if face := s.face(); face != "" {
 					marker.Font(face)
@@ -2155,7 +2172,7 @@ func tableName(text string, cols, rows int) string {
 func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 	t := c.Theme()
 	g := b.table
-	size := theme.Px(t, 13) * s.scale()
+	size := theme.Px(t, tokens.TextBody.Size.En) * s.scale()
 	if s.tables == nil {
 		s.tables, s.seen = map[int]*ui.ScrollState{}, map[int][2]float32{}
 	}
@@ -2170,7 +2187,7 @@ func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 		c.Invalidate()
 	}
 	wide := st.MaxX > 0.5
-	radius := theme.Px(t, 12)
+	radius := theme.Px(t, tokens.RadiusCard)
 	label := tableName(s.text.TableName, g.cols, len(g.rows))
 	frame := ui.Box(c).AlignSelf(ui.Start).MaxWidth(math.MaxFloat32).Radius(radius).Clip()
 	var view ui.Element
@@ -2197,26 +2214,26 @@ func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 		})
 		ui.Box(c).Absolute().Fill().Radius(radius).Border(0.5, theme.Ink(t, 0.1)).PassThrough()
 		if wide && st.X > 0.5 {
-			ui.Box(c).Absolute().Top(0).Bottom(0).Left(0).Width(theme.Px(t, 32)).PassThrough().
+			ui.Box(c).Absolute().Top(0).Bottom(0).Left(0).Width(theme.Px(t, tokens.Space8)).PassThrough().
 				LinearGradient(ui.LinearGradient{From: t.Background, To: t.Background.Alpha(0), Angle: 90})
 		}
 		if wide && st.X < st.MaxX-0.5 {
-			ui.Box(c).Absolute().Top(0).Bottom(0).Right(0).Width(theme.Px(t, 32)).PassThrough().
+			ui.Box(c).Absolute().Top(0).Bottom(0).Right(0).Width(theme.Px(t, tokens.Space8)).PassThrough().
 				LinearGradient(ui.LinearGradient{From: t.Background.Alpha(0), To: t.Background, Angle: 90})
 		}
 	})
 	if wide {
 		seen := view.Bounds().W
-		ui.Row(c).FillWidth().Height(theme.Px(t, 3)).Margin(theme.Px(t, 6), 0, 0, 0).Radius(theme.Px(t, 4)).Background(theme.Track(t)).
+		ui.Row(c).FillWidth().Height(theme.Px(t, scrollTrack)).Margin(theme.Px(t, tokens.Space1_5), 0, 0, 0).Radius(theme.Px(t, tokens.RadiusXS)).Background(theme.Track(t)).
 			Children(func() {
 				ui.Box(c).Grow(max(st.X, 0)).Basis(0)
-				ui.Box(c).Grow(seen).Basis(0).Height(theme.Px(t, 3)).Radius(theme.Px(t, 4)).Background(theme.Ink(t, 0.28))
+				ui.Box(c).Grow(seen).Basis(0).Height(theme.Px(t, scrollTrack)).Radius(theme.Px(t, tokens.RadiusXS)).Background(theme.Ink(t, 0.28))
 				ui.Box(c).Grow(max(st.MaxX-st.X, 0)).Basis(0)
 			})
 	}
 	if len(g.caption) > 0 {
-		s.inline(c, block{spans: g.caption}, unit, gridLen(g), t.TextMuted, theme.Px(t, 12)).FontSize(theme.Px(t, 12)).LineHeight(1.5).
-			Margin(theme.Px(t, 8), 0, 0, 0)
+		s.inline(c, block{spans: g.caption}, unit, gridLen(g), t.TextMuted, theme.Px(t, tokens.TextMeta.Size.En)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).LineHeight(tokens.TextMeta.Line.En/tokens.TextMeta.Size.En).
+			Margin(theme.Px(t, tokens.Space1_5), 0, 0, 0)
 	}
 }
 
@@ -2226,8 +2243,8 @@ func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 // cell is scrolled into view, the table sideways with it.
 func (s *Screen) cell(c *ui.Context, cl cell, r int, size float32, key, unit, base int, lit bool) {
 	t := c.Theme()
-	box := ui.Column(c).Key(key).ColumnSpan(cl.span).MinWidth(theme.Px(t, 48)).MaxWidth(theme.Px(t, 240)).
-		Padding(theme.Px(t, 8), theme.Px(t, 12))
+	box := ui.Column(c).Key(key).ColumnSpan(cl.span).MinWidth(theme.Px(t, tokens.Space12)).MaxWidth(theme.Px(t, cellMax)).
+		Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3))
 	if cl.head {
 		box.Background(theme.Surface(t))
 	}
@@ -2278,7 +2295,7 @@ func (s *Screen) style(c *ui.Context, e ui.Element, sp span) {
 		e.Italic()
 	}
 	if sp.mono {
-		e.Font("monospace").FontSize(theme.Px(t, 16*0.86) * s.scale()).TextColor(t.Text).TextBackground(theme.Ink(t, 0.055))
+		e.Font("monospace").FontSize(theme.Px(t, tokens.TextCodeInline.Size.En*tokens.ReadingBody.Size) * s.scale()).TextColor(t.Text).TextBackground(theme.Ink(t, 0.055))
 	}
 	if sp.gone {
 		e.Strikethrough()
@@ -2316,10 +2333,10 @@ func (s *Screen) picture(c *ui.Context, b block, avail float32) {
 		state, ratio, limit = pictureLoaded, float32(w)/float32(h), float32(w)
 	case b.width > 0 && b.height > 0:
 		ratio = float32(b.width) / float32(b.height)
-	case avail > 0 && avail < theme.Px(t, 320):
+	case avail > 0 && avail < theme.Px(t, pictureNarrow):
 		ratio = 16.0 / 9
 	default:
-		fixed = theme.Px(t, 180)
+		fixed = theme.Px(t, pictureFlat)
 	}
 	if failed {
 		state = pictureFailed
@@ -2334,10 +2351,10 @@ func (s *Screen) picture(c *ui.Context, b block, avail float32) {
 	}
 	least := float32(0)
 	if failed {
-		least = theme.Px(t, 48)
+		least = theme.Px(t, tokens.Space12)
 		height = max(height, least)
 	}
-	strip := failed && height < theme.Px(t, 140)
+	strip := failed && height < theme.Px(t, pictureStrip)
 	name := b.alt
 	if failed {
 		name = strings.ReplaceAll(s.text.PicFailedName, "{alt}", b.alt)
@@ -2345,7 +2362,7 @@ func (s *Screen) picture(c *ui.Context, b block, avail float32) {
 			name = s.text.PicFailedNoAlt
 		}
 	}
-	box := ui.Box(c).FillWidth().Radius(theme.Px(t, 12)).Background(theme.Surface(t)).Clip().Label(name)
+	box := ui.Box(c).FillWidth().Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Surface(t)).Clip().Label(name)
 	if ratio > 0 {
 		box.AspectRatio(ratio)
 	} else {
@@ -2367,7 +2384,7 @@ func (s *Screen) picture(c *ui.Context, b block, avail float32) {
 		case failed:
 			s.pictureFailed(c, b, strip)
 		}
-		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, 12)).Border(0.5, theme.Ink(t, 0.1)).PassThrough()
+		ui.Box(c).Absolute().Fill().Radius(theme.Px(t, tokens.RadiusCard)).Border(0.5, theme.Ink(t, 0.1)).PassThrough()
 	})
 }
 
@@ -2400,7 +2417,7 @@ func (s *Screen) compensate(box ui.Element, n int, now settle, avail float32) {
 func (s *Screen) pictureFailed(c *ui.Context, b block, strip bool) {
 	t := c.Theme()
 	retry := func() {
-		button := ui.ButtonBase(c).Height(theme.Px(t, 32)).Gap(t.Space(1.5)).PaddingX(theme.Px(t, 10)).Radius(theme.Px(t, 8)).
+		button := ui.ButtonBase(c).Height(theme.Px(t, tokens.Control)).Gap(t.Space(1.5)).PaddingX(theme.Px(t, tokens.Space2)).Radius(theme.Px(t, tokens.RadiusControl)).
 			Label(s.text.PicRetry)
 		switch {
 		case button.Pressed():
@@ -2412,7 +2429,7 @@ func (s *Screen) pictureFailed(c *ui.Context, b block, strip bool) {
 		}
 		button.Children(func() {
 			ui.Icon(c, icons.RotateCcw).FontSize(theme.IconSmall(t)).TextColor(t.Text)
-			ui.Text(c, s.text.Retry).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(t.Text)
+			ui.Text(c, s.text.Retry).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).NoWrap().TextColor(t.Text)
 		})
 		if button.Clicked() {
 			s.pics.Again(b.src)
@@ -2421,25 +2438,25 @@ func (s *Screen) pictureFailed(c *ui.Context, b block, strip bool) {
 		}
 	}
 	if strip {
-		ui.Row(c).Fill().AlignItems(ui.Center).Gap(theme.Px(t, 10)).Padding(theme.Px(t, 8), theme.Px(t, 12)).Children(func() {
+		ui.Row(c).Fill().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).Children(func() {
 			ui.Icon(c, icons.ImageOff).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
 			line := s.text.PicFailed
 			if b.alt != "" {
 				line = b.alt
 			}
-			ui.Text(c, line).FontSize(theme.Px(t, 13)).TextColor(theme.Text2(t)).MaxLines(1).Grow(1).Shrink(1).MinWidth(0)
+			ui.Text(c, line).FontSize(theme.Px(t, tokens.TextBody.Size.En)).TextColor(theme.Text2(t)).MaxLines(1).Grow(1).Shrink(1).MinWidth(0)
 			retry()
 		})
 		return
 	}
-	ui.Column(c).Fill().Center().Gap(theme.Px(t, 8)).Padding(theme.Px(t, 16)).Children(func() {
+	ui.Column(c).Fill().Center().Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space4)).Children(func() {
 		ui.Icon(c, icons.ImageOff).FontSize(theme.IconLarge(t)).TextColor(t.TextMuted)
 		if b.alt != "" {
-			ui.Text(c, b.alt).FontSize(theme.Px(t, 13)).MaxWidth(theme.Px(t, 360)).MaxLines(3).TextAlign(ui.Center).
+			ui.Text(c, b.alt).FontSize(theme.Px(t, tokens.TextBody.Size.En)).MaxWidth(theme.Px(t, pictureAlt)).MaxLines(3).TextAlign(ui.Center).
 				TextColor(theme.Text2(t))
-			ui.Text(c, s.text.PicFailed).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted)
+			ui.Text(c, s.text.PicFailed).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
 		} else {
-			ui.Text(c, s.text.PicFailed).FontSize(theme.Px(t, 13)).TextColor(theme.Text2(t))
+			ui.Text(c, s.text.PicFailed).FontSize(theme.Px(t, tokens.TextBody.Size.En)).TextColor(theme.Text2(t))
 		}
 		retry()
 	})
