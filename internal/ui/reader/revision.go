@@ -1,7 +1,6 @@
 package reader
 
 import (
-	"strconv"
 	"strings"
 	"time"
 
@@ -148,7 +147,7 @@ func (s *Screen) changeList(c *ui.Context) {
 	ui.Column(c).FillWidth().Gap(theme.Px(t, 6)).Margin(theme.Px(t, 8), 0, 0, 0).Role(ui.RoleList).Label(s.text.Changes).Children(func() {
 		for i, ch := range s.rev.changes {
 			if ch.kind == kept {
-				label := strings.ReplaceAll(s.text.Unchanged, "{n}", strconv.Itoa(ch.n))
+				label := locale.Count(s.text.Unchanged, "n", ch.n)
 				ui.Text(c, label).Key(i).FontSize(theme.Px(t, 12)).TextColor(t.TextMuted).Margin(theme.Px(t, 2), 0, theme.Px(t, 2), theme.Px(t, 14)).
 					Role(ui.RoleListItem)
 				continue
