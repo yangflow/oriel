@@ -197,7 +197,7 @@ func TestShellConnectFromMenu(t *testing.T) {
 	s, tt, path := newTestShell(t)
 	s.openConnect()
 	tt.Frame()
-	if !tt.HasText("Connect to a server") {
+	if !tt.HasText("Connect to Oriel") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	tt.Type(server.URL)
@@ -214,7 +214,7 @@ func TestShellConnectFromMenu(t *testing.T) {
 	}
 	s.openConnect()
 	tt.Frame()
-	if !s.showing || !tt.Focused("Server address") {
+	if !s.showing || !tt.Focused("Address") {
 		t.Fatal("the connect screen did not open again")
 	}
 }
@@ -241,7 +241,7 @@ func TestShellSettings(t *testing.T) {
 	s.openConnect()
 	s.openSettings()
 	tt.Frame()
-	if s.setting || !tt.HasText("Connect to a server") {
+	if s.setting || !tt.HasText("Connect to Oriel") {
 		t.Fatal("the settings opened over the connect screen")
 	}
 }
@@ -340,7 +340,7 @@ func TestShellSettingsPage(t *testing.T) {
 	s.openConnect()
 	s.openSettingsPage("ai")
 	tt.Frame()
-	if s.setting || !tt.HasText("Connect to a server") {
+	if s.setting || !tt.HasText("Connect to Oriel") {
 		t.Fatal("the settings opened over the connect screen")
 	}
 }
@@ -432,7 +432,7 @@ func TestShellSettingsExpire(t *testing.T) {
 	s.connected(client.Session{Server: server.URL, Token: "old"})
 	s.openSettings()
 	tt.Frame()
-	if s.setting || !s.showing || !tt.HasText("Connect to a server") {
+	if s.setting || !s.showing || !tt.HasText("Connect to Oriel") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 }

@@ -387,12 +387,11 @@ func (s *Screen) errorLine(c *ui.Context, f field) {
 func (s *Screen) actions(c *ui.Context, busy bool) {
 	t := c.Theme()
 	ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
-		label, icon := s.text.Connect, icons.ArrowRight
+		label := s.text.Connect
 		if busy {
-			label, icon = s.text.Connecting, nil
+			label = s.text.Connecting
 		}
-		primary := theme.Button{Style: theme.Primary, Disabled: busy, Busy: busy, IconAfter: !busy, Icon: icon,
-			Text: label}.Draw(c)
+		primary := theme.Button{Style: theme.Primary, Disabled: busy, Busy: busy, Text: label}.Draw(c)
 		primary.FillWidth()
 		if primary.Clicked() {
 			s.connect()

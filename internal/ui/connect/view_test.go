@@ -67,7 +67,7 @@ func setup(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 
 func TestSignIn(t *testing.T) {
 	s, f, tt := setup(t, "en")
-	if !tt.Focused("Server address") {
+	if !tt.Focused("Address") {
 		t.Fatal("the address field does not have the focus")
 	}
 	tt.Type("home.lan")
@@ -120,8 +120,8 @@ func TestEmptyAddressDoesNothing(t *testing.T) {
 	if err := tt.Click("Connect"); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.queue) != 0 || !tt.Focused("Server address") {
-		t.Fatalf("queued %d, address focused %v", len(f.queue), tt.Focused("Server address"))
+	if len(f.queue) != 0 || !tt.Focused("Address") {
+		t.Fatalf("queued %d, address focused %v", len(f.queue), tt.Focused("Address"))
 	}
 }
 
@@ -131,13 +131,13 @@ func TestErrors(t *testing.T) {
 		message      string
 		focus        string
 	}{
-		{client.ErrUnreachable, nil, "Can’t reach this address", "Server address"},
-		{client.ErrNotOriel, nil, "Not an Oriel server", "Server address"},
-		{client.ErrUnwritable, nil, "The server can’t open its data", "Server address"},
+		{client.ErrUnreachable, nil, "Can’t reach this address", "Address"},
+		{client.ErrNotOriel, nil, "Not an Oriel server", "Address"},
+		{client.ErrUnwritable, nil, "The server can’t open its data", "Address"},
 		{nil, client.ErrPasswordRequired, "Password required", "Password"},
 		{nil, client.ErrWrongPassword, "Wrong password", "Password"},
 		{nil, client.ErrTooManyAttempts, "Too many attempts. Try again in a moment", "Password"},
-		{nil, errors.New("login: status 500"), "Couldn’t sign in", "Server address"},
+		{nil, errors.New("login: status 500"), "Couldn’t sign in", "Address"},
 	} {
 		t.Run(tc.message, func(t *testing.T) {
 			s, f, tt := setup(t, "en")
@@ -174,8 +174,8 @@ func TestExpired(t *testing.T) {
 	s, f, tt := setup(t, "zh-Hans")
 	s.Open("https://home.example:7470", client.ErrUnauthorized)
 	tt.Frame()
-	if s.address != "https://home.example:7470" || !tt.Focused("口令") {
-		t.Fatalf("address %q, password focused %v", s.address, tt.Focused("口令"))
+	if s.address != "https://home.example:7470" || !tt.Focused("密码") {
+		t.Fatalf("address %q, password focused %v", s.address, tt.Focused("密码"))
 	}
 	if !tt.HasText("home.example:7470 的登录已失效") {
 		t.Fatalf("the expired server is not named: %v", tt.Texts())
@@ -193,7 +193,7 @@ func TestOpenWithError(t *testing.T) {
 	s, _, tt := setup(t, "en")
 	s.Open("http://home.lan:7470", client.ErrUnreachable)
 	tt.Frame()
-	if !tt.HasText("Can’t reach this address") || !tt.Focused("Server address") {
+	if !tt.HasText("Can’t reach this address") || !tt.Focused("Address") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 }
@@ -261,7 +261,7 @@ func TestAppearance(t *testing.T) {
 	tt.SetDark(true)
 	tt.SetPreferences(ui.Preferences{HighContrast: true, TextScale: 2})
 	tt.SetSize(640, 480)
-	if !tt.HasText("Connect to a server") {
+	if !tt.HasText("Connect to Oriel") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	// At twice the text size the form is taller than the window and scrolls: a click outside the window misses.
