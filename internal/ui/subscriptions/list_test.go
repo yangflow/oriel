@@ -13,8 +13,8 @@ import (
 
 var names = []string{"Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot"}
 
-// managing opens the manage dialog over six subscriptions: Alpha to Foxtrot, with the IDs 1 to 6.
-func managing6(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
+// listing6 shows the list of Settings → Subscriptions over six subscriptions: Alpha to Foxtrot, with the IDs 1 to 6.
+func listing6(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
 	s, f, _ := setup(t, language)
 	f.sources = nil
@@ -22,9 +22,12 @@ func managing6(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
 		f.sources = append(f.sources, client.Source{ID: int64(i + 1), Title: name, URL: "https://" + strings.ToLower(name) + ".example/feed",
 			Kind: "article", FetchIntervalSec: 900, FetchIntervalAuto: true})
 	}
-	tt := ui.NewTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1000, 760)
-	tt.Frame()
-	s.Manage()
+	s.OpenList()
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() { s.Page(c) })
+		s.View(c)
+		theme.Toasts(c)
+	}, 1000, 900)
 	tt.Frame()
 	return s, f, tt
 }
@@ -41,7 +44,7 @@ func chosen(s *Screen) []int64 {
 func mustClick(t *testing.T, tt *ui.Tester, text string) {
 	t.Helper()
 	if err := tt.Click(text); err != nil {
-		t.Fatal(err)
+		t.Fatalf("%v in %v", err, tt.Texts())
 	}
 }
 
@@ -59,21 +62,34 @@ func wantChosen(t *testing.T, s *Screen, want ...int64) {
 	}
 }
 
-func TestManageNeedsSubscriptions(t *testing.T) {
-	s, f, _ := setup(t, "en")
+// choose selects the rows named, as Cmd+click does.
+func choose(t *testing.T, tt *ui.Tester, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		mustClickWith(t, tt, ui.Super, name)
+	}
+}
+
+func TestListHasSources(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	if !s.HasSources() {
+		t.Fatal("no HasSources with two")
+	}
 	f.sources = nil
 	if s.HasSources() {
 		t.Fatal("HasSources with none")
 	}
-	s.Manage()
-	if s.Open() {
-		t.Fatal("opened without subscriptions")
+	s.OpenList()
+	tt = ui.NewTester(func(c *ui.Context) { s.Page(c) }, 1000, 760)
+	tt.Frame()
+	if !tt.HasText(s.text.NoSubscriptions) || tt.HasText(s.count(s.text.OfN, 0)) {
+		t.Fatalf("texts %v", tt.Texts())
 	}
 }
 
-func TestManageOpens(t *testing.T) {
-	s, _, tt := managing6(t, "en")
-	if !s.Open() || !tt.HasText(s.text.ManageTitle) || !tt.HasText(s.text.ManageSub) || !tt.HasText("6 subscriptions") {
+func TestListShows(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	if !tt.HasText("6 subscriptions") || !tt.HasText(s.text.FilterLabel) || !tt.HasText(s.text.AllKinds) {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	for _, name := range names {
@@ -81,18 +97,40 @@ func TestManageOpens(t *testing.T) {
 			t.Fatalf("no row %q", name)
 		}
 	}
-	if !tt.Focused(s.text.FilterLabel) {
-		t.Fatal("the filter does not have the focus")
+	if want := "Articles · No folder · Auto · 15 min"; s.settingsOf(f.sources[0]) != want || !tt.HasText(want) {
+		t.Fatalf("meta line %q, texts %v", s.settingsOf(f.sources[0]), tt.Texts())
+	}
+	if s.Crumb() != "" || s.Open() {
+		t.Fatal("the list is not where it starts")
 	}
 }
 
-func TestManageClickSelection(t *testing.T) {
-	s, _, tt := managing6(t, "en")
-	mustClick(t, tt, "Bravo")
-	wantChosen(t, s, 2)
-	mustClick(t, tt, "Delta")
-	wantChosen(t, s, 4)
+// TestListClickOpensPage is a click on a row: it opens the subscription's page and leaves the selection alone; Back
+// returns to the list with the row focused.
+func TestListClickOpensPage(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	choose(t, tt, "Alpha")
+	mustClick(t, tt, "Charlie")
+	f.settle(tt)
+	if s.Crumb() != "Charlie" || !s.pg.open {
+		t.Fatalf("crumb %q", s.Crumb())
+	}
+	wantChosen(t, s, 1)
+	if s.Open() {
+		t.Fatal("the page counts as a dialog")
+	}
+	s.Back()
+	tt.Frame()
+	if s.Crumb() != "" || !tt.Focused(s.rowLabel(f.sources[2], false)) {
+		t.Fatalf("crumb %q, the row is not focused", s.Crumb())
+	}
+}
+
+func TestListModifierSelection(t *testing.T) {
+	s, _, tt := listing6(t, "en")
 	mustClickWith(t, tt, ui.Super, "Alpha")
+	wantChosen(t, s, 1)
+	mustClickWith(t, tt, ui.Ctrl, "Delta")
 	wantChosen(t, s, 1, 4)
 	mustClickWith(t, tt, ui.Ctrl, "Echo")
 	wantChosen(t, s, 1, 4, 5)
@@ -100,21 +138,26 @@ func TestManageClickSelection(t *testing.T) {
 	wantChosen(t, s, 1, 5)
 	mustClickWith(t, tt, ui.Shift, "Foxtrot")
 	wantChosen(t, s, 4, 5, 6)
-	mustClick(t, tt, "Bravo")
-	mustClickWith(t, tt, ui.Shift, "Delta")
-	wantChosen(t, s, 2, 3, 4)
 	mustClickWith(t, tt, ui.Shift, "Alpha")
-	wantChosen(t, s, 1, 2)
+	wantChosen(t, s, 1, 2, 3, 4)
+	if s.pg.open {
+		t.Fatal("a click with a modifier opened the page")
+	}
 }
 
-func TestManageCheckbox(t *testing.T) {
-	s, _, tt := managing6(t, "en")
-	clickBox(t, tt, s, 3)
+func TestListCheckbox(t *testing.T) {
+	s, _, tt := listing6(t, "en")
+	clickBox(t, tt, s, 3, 0)
 	wantChosen(t, s, 3)
-	clickBox(t, tt, s, 5)
+	clickBox(t, tt, s, 5, 0)
 	wantChosen(t, s, 3, 5)
-	clickBox(t, tt, s, 3)
+	clickBox(t, tt, s, 3, 0)
 	wantChosen(t, s, 5)
+	clickBox(t, tt, s, 2, ui.Shift)
+	wantChosen(t, s, 2, 3)
+	if s.pg.open {
+		t.Fatal("a click on a check box opened the page")
+	}
 }
 
 // press clicks a button of the action bar, by the label it has for the selection there is.
@@ -122,12 +165,13 @@ func press(t *testing.T, tt *ui.Tester, s *Screen, what string) {
 	t.Helper()
 	sel := s.selection(s.visible())
 	label := map[string]string{
-		"pause":  s.count(s.text.PauseNLabel, len(pending(sel, true))),
-		"resume": s.count(s.text.ResumeNLabel, len(pending(sel, false))),
-		"change": s.count(s.text.ChangeNLabel, len(sel)),
-		"delete": s.count(s.text.DeleteNLabel, len(sel)),
-		"clear":  s.text.ClearSelection,
-		"all":    s.text.SelectAll,
+		"pause":   s.count(s.text.PauseNLabel, len(pending(sel, true))),
+		"resume":  s.count(s.text.ResumeNLabel, len(pending(sel, false))),
+		"refresh": s.count(s.text.RefreshNLabel, len(pending(sel, true))),
+		"change":  s.count(s.text.ChangeNLabel, len(sel)),
+		"delete":  s.count(s.text.DeleteNLabel, len(sel)),
+		"clear":   s.text.ClearSelection,
+		"all":     s.text.SelectAll,
 	}[what]
 	mustClick(t, tt, label)
 }
@@ -143,35 +187,40 @@ func hasButton(tt *ui.Tester, s *Screen, what string) bool {
 	return ok
 }
 
-// clickBox clicks the check box of the row of the subscription id.
-func clickBox(t *testing.T, tt *ui.Tester, s *Screen, id int64) {
+// clickBox clicks the check box of the row of the subscription id, with mods held.
+func clickBox(t *testing.T, tt *ui.Tester, s *Screen, id int64, mods ui.Modifiers) {
 	t.Helper()
-	i := indexOf(s.visible(), id)
-	src := s.visible()[i]
+	src := s.visible()[indexOf(s.visible(), id)]
 	r, ok := tt.Find(s.rowLabel(src, s.manage.selected[id]))
 	if !ok {
 		t.Fatalf("no row for %d", id)
 	}
-	tt.ClickAt(r.X+12+8, r.Y+r.H/2)
+	if mods == 0 {
+		tt.ClickAt(r.X+16+8, r.Y+r.H/2)
+	} else {
+		tt.ClickAtWith(mods, r.X+16+8, r.Y+r.H/2)
+	}
+	tt.Frame()
 }
 
-func TestManageSelectAll(t *testing.T) {
-	s, _, tt := managing6(t, "en")
+func TestListSelectAll(t *testing.T) {
+	s, _, tt := listing6(t, "en")
 	press(t, tt, s, "all")
 	wantChosen(t, s, 1, 2, 3, 4, 5, 6)
 	if !tt.HasText("6 selected") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
-	mustClick(t, tt, "Bravo")
-	mustClickWith(t, tt, ui.Ctrl, "Charlie")
+	press(t, tt, s, "clear")
+	choose(t, tt, "Bravo", "Charlie")
 	press(t, tt, s, "all")
 	wantChosen(t, s, 1, 2, 3, 4, 5, 6)
 	press(t, tt, s, "all")
 	wantChosen(t, s)
 }
 
-func TestManageKeyboard(t *testing.T) {
-	s, _, tt := managing6(t, "en")
+func TestListKeyboard(t *testing.T) {
+	s, _, tt := listing6(t, "en")
+	mustClick(t, tt, s.text.FilterLabel)
 	tt.Key(0, ui.KeyDown)
 	tt.Frame()
 	if !tt.Focused(s.rowLabel(s.visible()[0], false)) {
@@ -186,7 +235,10 @@ func TestManageKeyboard(t *testing.T) {
 	wantChosen(t, s, 1, 2)
 	tt.Key(ui.Super, ui.KeyA)
 	wantChosen(t, s, 1, 2, 3, 4, 5, 6)
-	tt.Key(0, ui.KeyEscape)
+	if !s.Escape() {
+		t.Fatal("Escape did not take the selection")
+	}
+	tt.Frame()
 	wantChosen(t, s)
 	tt.Key(0, ui.KeyEnd)
 	tt.Key(0, ui.KeySpace)
@@ -196,71 +248,125 @@ func TestManageKeyboard(t *testing.T) {
 	wantChosen(t, s, 1, 6)
 	tt.Key(ui.Ctrl, ui.KeyA)
 	wantChosen(t, s, 1, 2, 3, 4, 5, 6)
+	s.Escape()
+	tt.Frame()
+	// With nothing selected the tools row is back, and Shift+Tab reaches its filter.
 	tt.Key(ui.Shift, ui.KeyTab)
 	tt.Frame()
 	if !tt.Focused(s.text.FilterLabel) {
 		t.Fatal("Shift+Tab did not return to the filter")
 	}
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if s.Crumb() != "Alpha" {
+		t.Fatalf("Enter opened %q", s.Crumb())
+	}
 }
 
-func TestManageEscapeOrder(t *testing.T) {
-	s, f, tt := managing6(t, "en")
-	f.failOn = map[int64]error{2: &client.APIError{Status: 500, Code: "server"}}
-	mustClick(t, tt, "Alpha")
-	mustClickWith(t, tt, ui.Ctrl, "Bravo")
-	mustClick(t, tt, s.text.Delete)
+// TestListEscape is Escape after a field gave up the focus: a run holds it, a page with nothing typed goes back to
+// the list, a selection is cleared, and with none of these Settings goes on with its own rule.
+func TestListEscape(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	if s.Escape() {
+		t.Fatal("Escape took nothing")
+	}
+	choose(t, tt, "Alpha", "Bravo")
+	mustClick(t, tt, s.text.DeleteMany)
 	tt.Frame()
+	if !s.Open() {
+		t.Fatal("the confirmation is not a dialog")
+	}
 	tt.Key(0, ui.KeyEscape)
-	if s.manage.confirm || !s.manage.open {
-		t.Fatalf("escape on the confirmation: confirm %v open %v", s.manage.confirm, s.manage.open)
+	tt.Frame()
+	if s.manage.confirm || s.Open() {
+		t.Fatal("escape did not close the confirmation")
 	}
 	wantChosen(t, s, 1, 2)
-	mustClick(t, tt, s.text.ChangeN)
-	tt.Frame()
-	if !s.manage.sheet.open {
+	press(t, tt, s, "change")
+	if !s.manage.sheet.open || !s.Open() {
 		t.Fatal("no change sheet")
 	}
 	tt.Key(0, ui.KeyEscape)
-	if s.manage.sheet.open || !s.manage.open {
-		t.Fatal("escape did not close the sheet only")
+	tt.Frame()
+	if s.manage.sheet.open {
+		t.Fatal("escape did not close the sheet")
 	}
 	wantChosen(t, s, 1, 2)
-	tt.Key(0, ui.KeyEscape)
-	wantChosen(t, s)
-	if !s.manage.open {
-		t.Fatal("escape with a selection closed the dialog")
+	press(t, tt, s, "pause")
+	if !s.Escape() || s.manage.run == nil {
+		t.Fatal("Escape stopped a run, or went on to Settings")
 	}
-	tt.Key(0, ui.KeyEscape)
-	if s.manage.open || s.Open() {
-		t.Fatal("escape did not close the dialog")
+	f.settle(tt)
+	choose(t, tt, "Alpha")
+	if !s.Escape() || len(chosen(s)) != 0 {
+		t.Fatal("Escape did not clear the selection")
+	}
+	mustClick(t, tt, "Alpha")
+	f.settle(tt)
+	s.pg.e.title = "Changed"
+	if s.Escape() || !s.Unsaved() || s.Crumb() != "Alpha" {
+		t.Fatal("Escape left a page with text not saved")
+	}
+	s.pg.e.title = "Alpha"
+	if !s.Escape() || s.Crumb() != "" {
+		t.Fatal("Escape did not go back to the list")
 	}
 }
 
-func TestManageFilter(t *testing.T) {
-	s, _, tt := managing6(t, "en")
-	mustClick(t, tt, "Bravo")
+func TestListFilter(t *testing.T) {
+	s, _, tt := listing6(t, "en")
 	mustClick(t, tt, s.text.FilterLabel)
 	tt.Type("char")
 	tt.Frame()
+	if !s.Typing() {
+		t.Fatal("the filter does not count as typing")
+	}
 	if tt.HasText("Bravo") || !tt.HasText("Charlie") || tt.HasText("Alpha") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
-	wantChosen(t, s)
 	press(t, tt, s, "all")
+	wantChosen(t, s, 3)
+	s.manage.filter = "nothing like it"
+	tt.Frame()
+	if !tt.HasText(s.text.NoMatch) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+// TestListFilterDropsHiddenRows unselects the rows the filter hides, so an action only touches what shows.
+func TestListFilterDropsHiddenRows(t *testing.T) {
+	s, _, tt := listing6(t, "en")
+	choose(t, tt, "Bravo", "Charlie")
+	s.manage.filter = "char"
+	tt.Frame()
 	wantChosen(t, s, 3)
 }
 
-func TestManagePauseAndResume(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListKindFilter(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	f.sources[1].Kind = "video"
+	choose(t, tt, "Alpha")
+	s.manage.kind = int64(slices.Index(kinds, "video") + 1)
+	tt.Frame()
+	if !tt.HasText("Bravo") || tt.HasText("Alpha") || !tt.HasText(s.kindName("video")) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	wantChosen(t, s)
+}
+
+func TestListPauseAndResume(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	f.sources[1].Paused = true
 	tt.Frame()
-	mustClick(t, tt, "Alpha")
+	choose(t, tt, "Alpha")
 	mustClickWith(t, tt, ui.Shift, "Charlie")
 	press(t, tt, s, "pause")
 	if len(f.queue) != 2 {
 		t.Fatalf("%d requests started, want the 2 that are not paused", len(f.queue))
 	}
-	if !tt.HasText("Pausing… 0 of 2") {
+	if !tt.HasText("Applying to 2 subscriptions…") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	f.settle(tt)
@@ -289,22 +395,43 @@ func TestManagePauseAndResume(t *testing.T) {
 	}
 }
 
-func TestManagePauseOnlyForLive(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListPauseOnlyForLive(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	f.sources[0].Paused = true
 	tt.Frame()
-	mustClick(t, tt, "Alpha")
+	choose(t, tt, "Alpha")
 	if hasButton(tt, s, "pause") || !hasButton(tt, s, "resume") {
 		t.Fatal("an all paused selection offers Pause or no Resume")
 	}
-	mustClickWith(t, tt, ui.Ctrl, "Bravo")
+	choose(t, tt, "Bravo")
 	if !hasButton(tt, s, "pause") || !hasButton(tt, s, "resume") {
 		t.Fatal("a mixed selection should offer both")
 	}
 }
 
-func TestManageParallelAndProgress(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+// TestListRefresh asks the server to fetch the selected subscriptions that are not paused, and says so in a toast;
+// the timeline's list does not change.
+func TestListRefresh(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	f.sources[1].Paused = true
+	tt.Frame()
+	choose(t, tt, "Alpha", "Bravo", "Charlie")
+	if _, ok := tt.Find("Refresh 2 subscriptions"); !ok {
+		t.Fatalf("no refresh button for the 2 not paused: %v", tt.Texts())
+	}
+	press(t, tt, s, "refresh")
+	f.settle(tt)
+	if !slices.Equal(f.fetched, []int64{1, 3}) || f.bulks != 0 {
+		t.Fatalf("fetched %v, bulks %d", f.fetched, f.bulks)
+	}
+	if !tt.HasText("2 subscriptions will fetch now") || !slices.Contains(tt.Announcements(), "Refreshing 2 subscriptions") {
+		t.Fatalf("texts %v, announcements %v", tt.Texts(), tt.Announcements())
+	}
+	wantChosen(t, s, 2)
+}
+
+func TestListParallelAndProgress(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	press(t, tt, s, "all")
 	press(t, tt, s, "pause")
 	if len(f.queue) != manageParallel {
@@ -313,15 +440,11 @@ func TestManageParallelAndProgress(t *testing.T) {
 	f.queue[0]()()
 	f.queue = f.queue[1:]
 	tt.Frame()
-	if len(f.queue) != manageParallel || !tt.HasText("Pausing… 1 of 6") {
+	if len(f.queue) != manageParallel || !tt.HasText("Applying to 6 subscriptions…") {
 		t.Fatalf("queue %d, texts %v", len(f.queue), tt.Texts())
 	}
 	if !slices.Contains(tt.Announcements(), "Pausing 6 subscriptions") {
 		t.Fatalf("announcements %v", tt.Announcements())
-	}
-	tt.Key(0, ui.KeyEscape)
-	if s.manage.run == nil || !s.manage.open {
-		t.Fatal("escape stopped a run")
 	}
 	f.settle(tt)
 	if s.manage.run != nil || len(f.patches) != 6 {
@@ -329,21 +452,12 @@ func TestManageParallelAndProgress(t *testing.T) {
 	}
 }
 
-func TestManageChangeSendsOnlyChanged(t *testing.T) {
-	s, f, tt := managing6(t, "en")
-	mustClick(t, tt, "Bravo")
-	mustClickWith(t, tt, ui.Ctrl, "Delta")
+func TestListChangeSendsOnlyChanged(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	choose(t, tt, "Bravo", "Delta")
 	press(t, tt, s, "change")
-	if !tt.HasText("Change settings for 2 subscriptions") {
+	if !tt.HasText("Change 2 subscriptions") || !tt.HasText(s.text.ChangeSub) || !tt.HasText(s.text.KeepAsIs) {
 		t.Fatalf("texts %v", tt.Texts())
-	}
-	if !tt.HasText(s.text.KeepAsIs) {
-		t.Fatalf("texts %v", tt.Texts())
-	}
-	apply := func() {
-		t.Helper()
-		mustClick(t, tt, s.text.Apply)
-		f.settle(tt)
 	}
 	// Apply waits for a change.
 	mustClick(t, tt, s.text.Apply)
@@ -351,7 +465,8 @@ func TestManageChangeSendsOnlyChanged(t *testing.T) {
 		t.Fatal("Apply without a change sent something")
 	}
 	s.manage.sheet.kind = 2
-	apply()
+	mustClick(t, tt, s.text.Apply)
+	f.settle(tt)
 	if len(f.patches[2]) != 1 || len(f.patches[4]) != 1 {
 		t.Fatalf("patches %v", f.patches)
 	}
@@ -367,8 +482,25 @@ func TestManageChangeSendsOnlyChanged(t *testing.T) {
 	}
 }
 
-func TestManageChangeIntervalAndKeep(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+// TestListChangeEveryField sends each of the eight fields of the change sheet as chosen.
+func TestListChangeEveryField(t *testing.T) {
+	sh := changing{kind: 1, folder: 7, every: 0, target: 2, keep: -1, proxy: proxyDirect, pause: 1, hide: 0}
+	p, ok := sh.patch()
+	if !ok || *p.Kind != kinds[1] || *p.FolderID != 7 || !*p.FetchIntervalAuto || p.FetchIntervalSec != nil ||
+		*p.OpenTarget != openTargets[2] || *p.KeepDays != -1 || *p.Proxy != "direct" || !*p.Paused || *p.HideFromAll {
+		t.Fatalf("patch %+v", p)
+	}
+	sh = changing{kind: unchanged, folder: unchanged, every: 3600, target: unchanged, keep: unchanged, proxy: proxyFollow,
+		pause: unchanged, hide: unchanged}
+	p, ok = sh.patch()
+	if !ok || p.Kind != nil || p.FolderID != nil || p.FetchIntervalAuto != nil || *p.FetchIntervalSec != 3600 ||
+		*p.Proxy != "" || p.Paused != nil || p.HideFromAll != nil {
+		t.Fatalf("patch %+v", p)
+	}
+}
+
+func TestListChangeIntervalAndKeep(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	press(t, tt, s, "all")
 	press(t, tt, s, "change")
 	s.manage.sheet.every, s.manage.sheet.keep = 0, -1
@@ -389,24 +521,10 @@ func TestManageChangeIntervalAndKeep(t *testing.T) {
 	}
 }
 
-func TestManageChangeChoices(t *testing.T) {
-	s, f, tt := managing6(t, "en")
-	f.sources[0].Kind = "video"
-	mustClick(t, tt, "Alpha")
-	mustClickWith(t, tt, ui.Ctrl, "Bravo")
-	press(t, tt, s, "change")
-	if got := strings.Count(strings.Join(tt.Texts(), "|"), s.text.NowMixed); got < 1 {
-		t.Fatalf("no mixed note in %v", tt.Texts())
-	}
-	if !tt.HasText(put(s.text.NowOne, "x", s.every(0))) {
-		t.Fatalf("no common interval in %v", tt.Texts())
-	}
-}
-
-func TestManagePartialFailureAndRetry(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListPartialFailureAndRetry(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	f.failOn = map[int64]error{2: &client.APIError{Status: 500, Code: "server"}, 3: client.ErrUnreachable}
-	mustClick(t, tt, "Alpha")
+	choose(t, tt, "Alpha")
 	mustClickWith(t, tt, ui.Shift, "Delta")
 	press(t, tt, s, "pause")
 	f.settle(tt)
@@ -420,7 +538,7 @@ func TestManagePartialFailureAndRetry(t *testing.T) {
 	if !slices.Contains(tt.Announcements(), s.manage.band) {
 		t.Fatalf("announcements %v", tt.Announcements())
 	}
-	if f.sources[0].Paused != true || f.sources[1].Paused {
+	if !f.sources[0].Paused || f.sources[1].Paused {
 		t.Fatal("sources wrong")
 	}
 	f.failOn = nil
@@ -438,11 +556,10 @@ func TestManagePartialFailureAndRetry(t *testing.T) {
 	wantChosen(t, s)
 }
 
-func TestManageAllFailed(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListAllFailed(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	f.failOn = map[int64]error{1: client.ErrUnreachable, 2: client.ErrUnreachable}
-	mustClick(t, tt, "Alpha")
-	mustClickWith(t, tt, ui.Ctrl, "Bravo")
+	choose(t, tt, "Alpha", "Bravo")
 	press(t, tt, s, "pause")
 	f.settle(tt)
 	if s.manage.band != "Nothing was done and nothing changed. Couldn’t reach the server." {
@@ -456,10 +573,10 @@ func TestManageAllFailed(t *testing.T) {
 	wantChosen(t, s, 1, 2)
 }
 
-func TestManageGoneRows(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListGoneRows(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	f.failOn = map[int64]error{2: &client.APIError{Status: 404, Code: "not_found"}}
-	mustClick(t, tt, "Alpha")
+	choose(t, tt, "Alpha")
 	mustClickWith(t, tt, ui.Shift, "Bravo")
 	press(t, tt, s, "pause")
 	f.settle(tt)
@@ -473,21 +590,20 @@ func TestManageGoneRows(t *testing.T) {
 	}
 }
 
-func TestManageExpired(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListExpired(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	f.failOn = map[int64]error{1: client.ErrUnauthorized}
-	mustClick(t, tt, "Alpha")
+	choose(t, tt, "Alpha")
 	press(t, tt, s, "pause")
 	f.settle(tt)
-	if f.expired != 1 || s.manage.open || s.Open() {
-		t.Fatalf("expired %d open %v", f.expired, s.manage.open)
+	if f.expired != 1 || s.manage.run != nil || len(chosen(s)) != 0 {
+		t.Fatalf("expired %d, run %v, selected %v", f.expired, s.manage.run, chosen(s))
 	}
 }
 
-func TestManageDeleteAndUndo(t *testing.T) {
-	s, f, tt := managing6(t, "en")
-	mustClick(t, tt, "Bravo")
-	mustClickWith(t, tt, ui.Ctrl, "Delta")
+func TestListDeleteAndUndo(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	choose(t, tt, "Bravo", "Delta")
 	press(t, tt, s, "delete")
 	tt.Frame()
 	if !tt.HasText("Delete 2 subscriptions?") || !tt.HasText(s.text.DeleteManyBody) {
@@ -521,10 +637,10 @@ func TestManageDeleteAndUndo(t *testing.T) {
 	wantChosen(t, s, 2, 4)
 }
 
-func TestManageDeletePartialRetryAndUndo(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListDeletePartialRetryAndUndo(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	f.failOn = map[int64]error{3: &client.APIError{Status: 500, Code: "server"}}
-	mustClick(t, tt, "Alpha")
+	choose(t, tt, "Alpha")
 	mustClickWith(t, tt, ui.Shift, "Charlie")
 	press(t, tt, s, "delete")
 	tt.Frame()
@@ -553,11 +669,10 @@ func TestManageDeletePartialRetryAndUndo(t *testing.T) {
 	}
 }
 
-func TestManageDeleteGoneCountsAsDeleted(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListDeleteGoneCountsAsDeleted(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	f.failOn = map[int64]error{1: &client.APIError{Status: 404, Code: "not_found"}}
-	mustClick(t, tt, "Alpha")
-	mustClickWith(t, tt, ui.Ctrl, "Bravo")
+	choose(t, tt, "Alpha", "Bravo")
 	press(t, tt, s, "delete")
 	tt.Frame()
 	mustClick(t, tt, s.text.ConfirmDelete)
@@ -577,9 +692,9 @@ func TestManageDeleteGoneCountsAsDeleted(t *testing.T) {
 	}
 }
 
-func TestManageRestoreFails(t *testing.T) {
-	s, f, tt := managing6(t, "en")
-	mustClick(t, tt, "Alpha")
+func TestListRestoreFails(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	choose(t, tt, "Alpha")
 	press(t, tt, s, "delete")
 	tt.Frame()
 	mustClick(t, tt, s.text.ConfirmDelete)
@@ -597,12 +712,16 @@ func TestManageRestoreFails(t *testing.T) {
 	}
 }
 
-func TestManageLabelsAndAnnouncements(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListLabelsAndAnnouncements(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	f.sources[1].Paused = true
-	f.sources[2].LastError = "boom"
+	f.sources[2].LastError, f.sources[2].ConsecutiveFailures = "status 503", 3
+	f.sources[3].HideFromAll = true
 	tt.Frame()
-	mustClick(t, tt, "Alpha")
+	if !tt.HasText(s.failingOf(f.sources[2])) || !strings.HasPrefix(s.failingOf(f.sources[2]), "Failed 3 times · ") {
+		t.Fatalf("failing line %q in %v", s.failingOf(f.sources[2]), tt.Texts())
+	}
+	choose(t, tt, "Alpha")
 	tt.Advance(heardAfter + time.Millisecond)
 	tt.Frame()
 	if !slices.Contains(tt.Announcements(), "1 selected") {
@@ -612,14 +731,14 @@ func TestManageLabelsAndAnnouncements(t *testing.T) {
 	if !strings.HasPrefix(selected, "Alpha") || !strings.HasSuffix(selected, s.text.SelectedMark) {
 		t.Fatalf("selected row label %q", selected)
 	}
-	for id, mark := range map[int]string{0: selected, 1: s.text.PausedMark, 2: s.text.FailingMark} {
+	for id, mark := range map[int]string{0: s.text.SelectedMark, 1: s.text.PausedMark, 2: s.failingOf(f.sources[2]), 3: s.text.HiddenMark} {
 		label := s.rowLabel(f.sources[id], id == 0)
 		if _, ok := tt.Find(label); !ok || !strings.Contains(label, mark) {
 			t.Fatalf("no row labeled %q in %v", label, tt.Texts())
 		}
 	}
-	for _, label := range []string{s.text.SelectAll, "Pause 1 subscription", "Change settings of 1 subscription", "Delete 1 subscription",
-		"Actions for 1 selected subscription"} {
+	for _, label := range []string{s.text.SelectAll, s.text.ListName, "Pause 1 subscription", "Change 1 subscription",
+		"Refresh 1 subscription", "Delete 1 subscription", "Actions for 1 selected subscription"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Fatalf("no %q in %v", label, tt.Texts())
 		}
@@ -632,11 +751,9 @@ func TestManageLabelsAndAnnouncements(t *testing.T) {
 	}
 }
 
-func TestManageAnnouncementWaitsForTheEnd(t *testing.T) {
-	_, _, tt := managing6(t, "en")
-	mustClick(t, tt, "Alpha")
-	mustClickWith(t, tt, ui.Ctrl, "Bravo")
-	mustClickWith(t, tt, ui.Ctrl, "Charlie")
+func TestListAnnouncementWaitsForTheEnd(t *testing.T) {
+	_, _, tt := listing6(t, "en")
+	choose(t, tt, "Alpha", "Bravo", "Charlie")
 	tt.Advance(heardAfter + time.Millisecond)
 	tt.Frame()
 	var heard []string
@@ -650,48 +767,67 @@ func TestManageAnnouncementWaitsForTheEnd(t *testing.T) {
 	}
 }
 
-func TestManageChinese(t *testing.T) {
-	s, _, tt := managing6(t, "zh-Hans")
-	if !tt.HasText(s.text.ManageTitle) || s.text.ManageTitle != "管理订阅" {
+func TestListChinese(t *testing.T) {
+	s, _, tt := listing6(t, "zh-Hans")
+	if !tt.HasText("共 6 个订阅") || !tt.HasText("全部形态") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
-	mustClick(t, tt, "Alpha")
+	choose(t, tt, "Alpha")
 	if !tt.HasText("已选 1 个") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
-	for _, label := range []string{"暂停 1 个订阅", "修改 1 个订阅的设置", "删除 1 个订阅"} {
+	for _, label := range []string{"暂停 1 个订阅", "修改 1 个订阅", "更新 1 个订阅", "删除 1 个订阅"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Fatalf("no %q in %v", label, tt.Texts())
 		}
 	}
+	press(t, tt, s, "change")
+	if !tt.HasText("修改 1 个订阅") || !tt.HasText("保持原样") {
+		t.Fatalf("texts %v", tt.Texts())
+	}
 }
 
-func TestManageLockedWhileRunning(t *testing.T) {
-	s, f, tt := managing6(t, "en")
-	mustClick(t, tt, "Alpha")
+func TestListLockedWhileRunning(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	choose(t, tt, "Alpha")
 	press(t, tt, s, "pause")
 	tt.Frame()
-	if err := tt.Click("Bravo"); err == nil && len(chosen(s)) != 1 {
-		t.Fatal("a row took a click while a run was going")
-	}
-	if len(chosen(s)) != 1 {
-		t.Fatalf("selection changed during a run: %v", chosen(s))
+	_ = tt.ClickWith(ui.Super, "Bravo")
+	_ = tt.Click("Charlie")
+	if len(chosen(s)) != 1 || s.pg.open {
+		t.Fatalf("a row took a click while a run was going: %v, page %v", chosen(s), s.pg.open)
 	}
 	f.settle(tt)
 }
 
-func TestManageClosedByDeps(t *testing.T) {
-	s, f, tt := managing6(t, "en")
-	mustClick(t, tt, "Alpha")
-	s.Use(f)
+// TestListOpenListResets is the list as the sidebar or the menu opens it: nothing selected, no band, no page.
+func TestListOpenListResets(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	f.failOn = map[int64]error{1: client.ErrUnreachable}
+	choose(t, tt, "Alpha", "Bravo")
+	press(t, tt, s, "pause")
+	f.settle(tt)
+	mustClick(t, tt, "Charlie")
+	f.settle(tt)
+	s.OpenList()
 	tt.Frame()
-	if s.manage.open || s.Open() {
-		t.Fatal("Use left the dialog open")
+	if len(chosen(s)) != 0 || s.manage.band != "" || s.pg.open {
+		t.Fatalf("selected %v, band %q, page %v", chosen(s), s.manage.band, s.pg.open)
 	}
 }
 
-func TestManageRowsDoNotAliasTheTimelineList(t *testing.T) {
-	s, f, _ := managing6(t, "en")
+func TestListResetByUse(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	choose(t, tt, "Alpha")
+	s.Use(f)
+	tt.Frame()
+	if len(chosen(s)) != 0 || s.Open() {
+		t.Fatal("Use left the selection")
+	}
+}
+
+func TestListRowsDoNotAliasTheTimelineList(t *testing.T) {
+	s, f, _ := listing6(t, "en")
 	rows := s.visible()
 	f.sources = slices.DeleteFunc(f.sources, func(src client.Source) bool { return src.ID == 1 })
 	if len(rows) != 6 || rows[0].ID != 1 || rows[5].ID != 6 {
@@ -699,19 +835,24 @@ func TestManageRowsDoNotAliasTheTimelineList(t *testing.T) {
 	}
 }
 
-func TestManageShiftRangeWhenTheAnchorIsFilteredAway(t *testing.T) {
-	s, _, tt := managing6(t, "en")
+func TestListShiftRangeWhenTheAnchorIsFilteredAway(t *testing.T) {
+	s, _, tt := listing6(t, "en")
 	mustClick(t, tt, s.text.FilterLabel)
-	tt.Type("o")
+	tt.Type("o") // Bravo, Echo and Foxtrot
 	tt.Frame()
-	s.manage.selected, s.manage.anchor = map[int64]bool{5: true}, 1 // Alpha is not in the list now
 	tt.Key(0, ui.KeyDown)
-	tt.Key(ui.Shift, ui.KeyDown)
+	tt.Frame()
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	tt.Key(0, ui.KeySpace)
+	wantChosen(t, s, 5)
+	s.manage.anchor = 1 // Alpha is not in the list now
+	tt.Key(ui.Shift, ui.KeyUp)
 	wantChosen(t, s, 2, 5)
 }
 
-func TestManageBulkTellsTheTimelineOnce(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListBulkTellsTheTimelineOnce(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	press(t, tt, s, "all")
 	press(t, tt, s, "pause")
 	f.settle(tt)
@@ -728,16 +869,15 @@ func TestManageBulkTellsTheTimelineOnce(t *testing.T) {
 	}
 }
 
-func TestManageUndoPressedDuringARunWaits(t *testing.T) {
-	s, f, tt := managing6(t, "en")
-	mustClick(t, tt, "Alpha")
-	mustClickWith(t, tt, ui.Ctrl, "Bravo")
+func TestListUndoPressedDuringARunWaits(t *testing.T) {
+	s, f, tt := listing6(t, "en")
+	choose(t, tt, "Alpha", "Bravo")
 	press(t, tt, s, "delete")
 	tt.Frame()
 	mustClick(t, tt, s.text.ConfirmDelete)
 	f.settle(tt)
 	tt.Frame()
-	mustClick(t, tt, "Charlie")
+	choose(t, tt, "Charlie")
 	press(t, tt, s, "pause")
 	if s.manage.run == nil {
 		t.Fatal("no run")
@@ -753,8 +893,8 @@ func TestManageUndoPressedDuringARunWaits(t *testing.T) {
 	}
 }
 
-func TestManageBulkDeleteReplacesSingleDeleteToasts(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListBulkDeleteReplacesSingleDeleteToasts(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	single := f.sources[5]
 	s.deleted = append(s.deleted, &deletion{src: single})
 	tt.Frame()
@@ -762,7 +902,7 @@ func TestManageBulkDeleteReplacesSingleDeleteToasts(t *testing.T) {
 	if !tt.HasText(want) {
 		t.Fatalf("no toast of the single delete: %v", tt.Texts())
 	}
-	mustClick(t, tt, "Alpha")
+	choose(t, tt, "Alpha")
 	press(t, tt, s, "delete")
 	tt.Frame()
 	mustClick(t, tt, s.text.ConfirmDelete)
@@ -773,27 +913,28 @@ func TestManageBulkDeleteReplacesSingleDeleteToasts(t *testing.T) {
 	}
 }
 
-func TestManageClosesWhenTheLastSubscriptionIsGone(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+// TestListEmptiedByDelete shows No subscriptions yet once every one is deleted, and Undo brings them back.
+func TestListEmptiedByDelete(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	press(t, tt, s, "all")
 	press(t, tt, s, "delete")
 	tt.Frame()
 	mustClick(t, tt, s.text.ConfirmDelete)
 	f.settle(tt)
 	tt.Frame()
-	if s.manage.open || s.Open() {
-		t.Fatal("the dialog stayed over an empty list")
+	if !tt.HasText(s.text.NoSubscriptions) || s.Open() {
+		t.Fatalf("texts %v", tt.Texts())
 	}
 	mustClick(t, tt, s.text.Undo)
 	f.settle(tt)
 	tt.Frame()
-	if len(f.sources) != 6 {
+	if len(f.sources) != 6 || !tt.HasText("Alpha") {
 		t.Fatalf("sources %d", len(f.sources))
 	}
 }
 
-func TestManageRunCancelledByUse(t *testing.T) {
-	s, f, tt := managing6(t, "en")
+func TestListRunCancelledByUse(t *testing.T) {
+	s, f, tt := listing6(t, "en")
 	press(t, tt, s, "all")
 	press(t, tt, s, "pause")
 	for _, work := range f.queue {

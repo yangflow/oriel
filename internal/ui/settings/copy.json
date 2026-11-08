@@ -456,7 +456,11 @@
     "MutedMany": "Hides {n} {n:entry|entries} right now",
     "MutedInvalid": "At most 200 lines, up to 100 characters each.",
     "RulesError": "Rules did not load",
-    "RulesErrorHint": "The server did not answer. Check the connection and try again."
+    "RulesErrorHint": "The server did not answer. Check the connection and try again.",
+    "SubscriptionsGroup": "Subscriptions",
+    "SubscriptionsLead": "Every subscription on this server. Open one to change all of its settings, or select several to change them together.",
+    "AddSubscription": "Add subscription",
+    "BackList": "Back to the subscriptions"
   },
   "zh-Hans": {
     "Menu": "设置…",
@@ -466,7 +470,7 @@
     "ServerNote": "这些设置属于这个服务端",
     "Lead": "设置保存在服务端，连到它的每台设备都一样。",
     "Proxy": "代理",
-        "ProxyAddress": "代理地址",
+    "ProxyAddress": "代理地址",
     "ProxyHelp": "以 http://、https://、socks5:// 或 socks5h:// 开头，后面是主机名和端口，例如 {address}。留空就直接连接。从下一次抓取起生效。每个订阅可以跟随这里的设置、直接连接，或者用自己的代理。AI 摘要和翻译不走这个代理。",
     "ProxyPlaceholder": "socks5://127.0.0.1:1080",
     "ProxyExample": "http://127.0.0.1:7890",
@@ -915,6 +919,10 @@
     "MutedMany": "现在隐藏 {n} 条",
     "MutedInvalid": "最多 200 行，每行最多 100 个字符。",
     "RulesError": "规则加载不出来",
-    "RulesErrorHint": "服务端没有响应。检查一下连接再试。"
+    "RulesErrorHint": "服务端没有响应。检查一下连接再试。",
+    "SubscriptionsGroup": "订阅",
+    "SubscriptionsLead": "这台服务端上的所有订阅。点开一个修改它的全部设置，或选中几个一起改。",
+    "AddSubscription": "添加订阅",
+    "BackList": "回到订阅列表"
   }
 }

@@ -229,9 +229,8 @@ func TestPaletteActions(t *testing.T) {
 	t.Run("manage", func(t *testing.T) {
 		s, f, tt := setup(t, "en")
 		run(t, s, tt, "manage subscriptions")
-		f.settle(t, tt)
-		if s.pal.open || !s.subs.Open() || !s.subs.HasSources() {
-			t.Fatalf("palette %v, subscriptions %v", s.pal.open, s.subs.Open())
+		if s.pal.open || len(f.pages) != 1 || f.pages[0] != "subscriptions" {
+			t.Fatalf("palette %v, pages %v", s.pal.open, f.pages)
 		}
 	})
 	t.Run("no manage without subscriptions", func(t *testing.T) {
@@ -271,7 +270,7 @@ func TestPaletteActions(t *testing.T) {
 	})
 	t.Run("pages", func(t *testing.T) {
 		s, f, tt := setup(t, "en")
-		for _, tc := range []struct{ query, page string }{{"appearance", "appearance"}, {"fetching", "fetching"},
+		for _, tc := range []struct{ query, page string }{{"appearance", "appearance"}, {"subscriptions", "subscriptions"}, {"fetching", "fetching"},
 			{"import", "opml"}, {"ai", "ai"}, {"devices", "devices"}, {"activity", "activity"}} {
 			run(t, s, tt, tc.query)
 			if got := f.pages; len(got) == 0 || got[len(got)-1] != tc.page {

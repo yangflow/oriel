@@ -14,6 +14,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/connect"
 	"github.com/yangflow/oriel/internal/ui/locale"
 	"github.com/yangflow/oriel/internal/ui/settings"
+	"github.com/yangflow/oriel/internal/ui/subscriptions"
 	"github.com/yangflow/oriel/internal/ui/theme"
 	"github.com/yangflow/oriel/internal/ui/timeline"
 )
@@ -31,7 +32,7 @@ type home interface {
 	ShowKeys()
 	Run(cmd timeline.Command)
 	RefreshAll()
-	Manage()
+	Subscriptions() *subscriptions.Screen
 	HasSources() bool
 	Check()
 	DropBusy() bool
@@ -113,6 +114,12 @@ func (s *shell) build() {
 		ReadingFont: func() string { return s.face },
 		Change:      s.change,
 		Desktop:     s.files.Desktop,
+		Subscriptions: func() settings.Subscriptions {
+			if p := s.home.Subscriptions(); p != nil {
+				return p
+			}
+			return nil
+		},
 	})
 	s.connect = connect.New(language, connect.Deps{
 		Probe:     client.Probe,
@@ -394,12 +401,9 @@ func (s *shell) tellSources() {
 	s.hasSources = has
 }
 
-// manage opens the dialog that changes several subscriptions at once, from the menu, when the timeline shows.
+// manage opens the list of the subscriptions in the settings, from the menu, unless the connect screen shows.
 func (s *shell) manage() {
-	if s.showing || s.setting {
-		return
-	}
-	s.home.Manage()
+	s.openSettingsPage("subscriptions")
 }
 
 // openSettings shows the settings, from the menu or the timeline, unless the connect screen shows.
@@ -413,7 +417,11 @@ func (s *shell) openSettings() {
 
 // openAISettings shows the settings on the AI group, from an entry point of summaries and translations.
 func (s *shell) openAISettings() {
-	if s.showing || s.setting {
+	if s.showing {
+		return
+	}
+	if s.setting { // from a subscription's page in the settings
+		s.settings.ShowPage("ai")
 		return
 	}
 	s.setting = true
@@ -452,9 +460,14 @@ func (s *shell) dropped(paths []string) {
 	s.settings.ImportFiles(paths)
 }
 
-// openSettingsPage shows the settings on the group called page, from the command palette of the timeline.
+// openSettingsPage shows the settings on the group called page, from the command palette of the timeline or the
+// menu; settings already showing move to that group.
 func (s *shell) openSettingsPage(page string) {
-	if s.showing || s.setting {
+	if s.showing {
+		return
+	}
+	if s.setting {
+		s.settings.ShowPage(page)
 		return
 	}
 	s.setting = true

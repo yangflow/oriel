@@ -58,6 +58,7 @@ type copy struct {
 	ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyChanged, InvalidProxy, InvalidProxyAuth, ProxySaved, ProxyAuthRemoved,
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase string
 	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                                                                                                                                                                                                                                         string
+	SubscriptionsGroup, SubscriptionsLead, AddSubscription, BackList                                                                                                                                                                                                                                                                        string
 	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp                                                                                                                                                                                                                            string
 	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                                                                                                                                                                                                                                    string
 	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                                                                                                                                                                                                                                    string
@@ -138,6 +139,7 @@ var presets = []struct{ name, base, hint string }{
 // The groups of the sidebar.
 const (
 	appearance = iota
+	subscriptions
 	fetching
 	rules
 	opml
@@ -147,7 +149,7 @@ const (
 )
 
 // pages are the names of the groups, in the order of the constants above, as the command palette calls them.
-var pages = []string{appearance: "appearance", fetching: "fetching", rules: "rules", opml: "opml", ai: "ai", devices: "devices", activity: "activity"}
+var pages = []string{appearance: "appearance", subscriptions: "subscriptions", fetching: "fetching", rules: "rules", opml: "opml", ai: "ai", devices: "devices", activity: "activity"}
 
 // API is what the screen reads and writes on the server; client.Session is one.
 type API interface {
@@ -209,9 +211,31 @@ type Deps struct {
 	ReadingFont func() string
 	Change      func(prefs.Preferences)
 
+	// Subscriptions is the Subscriptions group: the list of the subscriptions and one subscription's page, which
+	// the timeline keeps; nil, as before a server is used, leaves the group out.
+	Subscriptions func() Subscriptions
+
 	// Desktop is what this system offers the Desktop card of the Appearance page; nil, as in a headless server's page,
 	// shows no card.
 	Desktop *Desktop
+}
+
+// Subscriptions is what the Subscriptions group draws and asks: subscriptions.Screen is one. OpenList shows the list,
+// Add opens the add dialog, Crumb names the subscription whose page shows ("" on the list) and Back goes back to the
+// list; Page draws the list or the page and View the dialogs and toasts over them. Escape takes Escape first and
+// reports whether it did something; Typing is whether a field has the focus, Unsaved whether text on the page is not
+// saved, and Open whether a dialog shows, which takes the keys.
+type Subscriptions interface {
+	OpenList()
+	Add()
+	Crumb() string
+	Back()
+	Page(c *ui.Context)
+	View(c *ui.Context)
+	Escape() bool
+	Typing() bool
+	Unsaved() bool
+	Open() bool
 }
 
 // Desktop is the desktop app on one system: which rows the Desktop card has, and whether they can be used.
@@ -257,6 +281,7 @@ type result struct {
 type Screen struct {
 	deps     Deps
 	scroll   ui.ScrollState // the page of the group shown, for the bar's edge
+	crumbWas string         // the crumb of the Subscriptions group last drawn, to scroll a new page to the top
 	text     copy
 	api      API
 	server   string // the host of the server, "" for this computer
@@ -429,13 +454,38 @@ func (s *Screen) OpenAppearance() {
 	s.Open()
 }
 
-// OpenPage opens the screen on the group called name: "appearance", "fetching", "rules", "opml", "ai", "devices" or "activity", from the
+// OpenPage opens the screen on the group called name: "appearance", "subscriptions", "fetching", "rules", "opml", "ai", "devices" or "activity", from the
 // command palette of the timeline. Any other name opens it on the group it showed last.
 func (s *Screen) OpenPage(name string) {
-	if g := slices.Index(pages, name); g >= 0 {
-		s.group = g
-	}
+	s.ShowPage(name)
 	s.Open()
+}
+
+// ShowPage moves the open screen to the group called name, as OpenPage names them, without loading it again; the
+// Subscriptions group shows its list.
+func (s *Screen) ShowPage(name string) {
+	if g := slices.Index(pages, name); g >= 0 {
+		s.choose(g)
+	}
+}
+
+// choose shows group g, the Subscriptions group on its list.
+func (s *Screen) choose(g int) {
+	if g != s.group {
+		s.healthAsked = false
+	}
+	s.group = g
+	if p := s.subs(); g == subscriptions && p != nil {
+		p.OpenList()
+	}
+}
+
+// subs is the Subscriptions group, nil when there is none.
+func (s *Screen) subs() Subscriptions {
+	if s.deps.Subscriptions == nil {
+		return nil
+	}
+	return s.deps.Subscriptions()
 }
 
 // PreferenceFailed tells the preferences could not be saved and went back to what they were.
@@ -699,13 +749,17 @@ func (s *Screen) unsaved() bool {
 	return s.aiDirty() || s.proxyDirty() || s.promptsDirty() || s.dirty() || cleanLines(s.rules.muted) != cleanLines(s.settings.MuteKeywords)
 }
 
-// escape is Escape on the page. A text field with the focus gives it up, to the back button, and nothing leaves; with
-// text not saved the page stays and says so, since going back would lose it; otherwise it goes back to the timeline.
+// escape is Escape on the page. A text field with the focus gives it up, to the back button, and nothing leaves; the
+// Subscriptions group then takes it, to clear the selection or go back to the list; with text not saved the page
+// stays and says so, since going back would lose it; otherwise it goes back to the timeline.
 func (s *Screen) escape() {
+	p := s.subs()
+	shown := p != nil && s.group == subscriptions
 	switch {
-	case s.typing:
+	case s.typing || shown && p.Typing():
 		s.typing, s.blur = false, true
-	case s.state == loaded && s.unsaved():
+	case shown && p.Escape():
+	case s.state == loaded && s.unsaved() || shown && p.Unsaved():
 		s.announce = s.text.Unsaved
 	default:
 		s.deps.Back()
@@ -1668,6 +1722,8 @@ func (s *Screen) groupName(g int) string {
 	switch g {
 	case appearance:
 		return s.text.Appearance
+	case subscriptions:
+		return s.text.SubscriptionsGroup
 	case rules:
 		return s.text.Rules
 	case opml:
@@ -1705,7 +1761,12 @@ func (s *Screen) keep(days int) string {
 func (s *Screen) View(c *ui.Context) {
 	t := c.Theme()
 	s.typing = false
-	if !s.revoking && !s.dropCopy && !s.reader.open && !s.rules.dialog.open && !s.uiFont.open && !s.rdFont.open {
+	p := s.subs()
+	if s.group == subscriptions && p == nil {
+		s.group = appearance
+	}
+	if !s.revoking && !s.dropCopy && !s.reader.open && !s.rules.dialog.open && !s.uiFont.open && !s.rdFont.open &&
+		(p == nil || !p.Open()) {
 		c.OnShortcut(0, ui.KeyEscape, s.escape)
 	}
 	width, _ := c.Size()
@@ -1739,6 +1800,9 @@ func (s *Screen) View(c *ui.Context) {
 	}
 	s.restoreToast(c)
 	s.deletedToast(c)
+	if p != nil {
+		p.View(c)
+	}
 }
 
 // restoreToast shows the toast of Restore default on a prompt, with Undo.
@@ -1784,7 +1848,7 @@ func (s *Screen) room(c *ui.Context, width float32, compact bool) float32 {
 }
 
 // groupIcons are the groups' icons in the order of the groups, for the sidebar and the page head.
-var groupIcons = [...]*ui.SVG{icons.Palette, icons.RefreshCw, icons.ListFilter, icons.ArrowUpDown, icons.Sparkles,
+var groupIcons = [...]*ui.SVG{icons.Palette, icons.ListChecks, icons.RefreshCw, icons.ListFilter, icons.ArrowUpDown, icons.Sparkles,
 	icons.Laptop, icons.Database}
 
 // sidebar is the settings pane, design BSettingsNav: the window buttons' strip, Back to the timeline and the groups,
@@ -1813,7 +1877,9 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 			ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space0_5)).Padding(theme.Px(t, tokens.Space4), 0, theme.Px(t, tokens.Space2), 0).
 				Role(ui.RoleGroup).Label(s.text.Settings).Children(func() {
 				for g, icon := range groupIcons {
-					s.navItem(c, g, icon)
+					if g != subscriptions || s.subs() != nil {
+						s.navItem(c, g, icon)
+					}
 				}
 			})
 		})
@@ -1853,10 +1919,7 @@ func (s *Screen) paneItem(c *ui.Context, key any, icon *ui.SVG, name string, cho
 func (s *Screen) navItem(c *ui.Context, g int, icon *ui.SVG) {
 	item := s.paneItem(c, g, icon, s.groupName(g), g == s.group)
 	if item.Clicked() {
-		if g != s.group {
-			s.healthAsked = false
-		}
-		s.group = g
+		s.choose(g)
 	}
 }
 
@@ -1878,7 +1941,7 @@ func (s *Screen) serverBar(c *ui.Context) {
 func (s *Screen) content(c *ui.Context, compact bool, room float32) {
 	state := s.state
 	switch s.group {
-	case appearance, opml:
+	case appearance, opml, subscriptions:
 		state = loaded
 	case rules:
 		if state == loaded {
@@ -1902,6 +1965,8 @@ func (s *Screen) content(c *ui.Context, compact bool, room float32) {
 		switch s.group {
 		case appearance:
 			s.appearancePage(c)
+		case subscriptions:
+			s.subs().Page(c)
 		case rules:
 			s.rulesPage(c)
 		case opml:
@@ -1993,12 +2058,22 @@ func (s *Screen) head(c *ui.Context, compact bool, room float32) {
 				ui.Icon(c, groupIcons[s.group]).FontSize(theme.IconLarge(t)).TextColor(t.Accent)
 			})
 			ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Px(t, tokens.Space1)).Children(func() {
+				if crumb := s.crumb(); crumb != "" {
+					s.crumbTitle(c, crumb)
+					return
+				}
 				ui.Text(c, s.groupName(s.group)).FontSize(theme.Px(t, tokens.TextDisplay.Size.En)).
 					FontWeight(tokens.TextDisplay.Weight).SingleLine().MinWidth(0).Role(ui.RoleHeading).Level(1)
 				if lead := s.lead(); lead != "" {
 					ui.Text(c, lead).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Wrap()
 				}
 			})
+			if s.group == subscriptions && s.crumb() == "" {
+				add := theme.Button{Style: theme.Primary, Small: true, Icon: icons.Plus, Text: s.text.AddSubscription}.Draw(c)
+				if add.Clicked() {
+					s.subs().Add()
+				}
+			}
 			if s.group == activity && s.actState == loaded {
 				refresh := theme.Button{Small: true, Icon: icons.RefreshCw, Text: s.text.Refresh}.Draw(c)
 				if refresh.Clicked() {
@@ -2018,11 +2093,43 @@ func (s *Screen) head(c *ui.Context, compact bool, room float32) {
 	})
 }
 
+// crumb names the subscription whose page the Subscriptions group shows, "" on its list and in other groups. The
+// page scrolls back to the top when it changes.
+func (s *Screen) crumb() string {
+	p := s.subs()
+	if p == nil || s.group != subscriptions {
+		return ""
+	}
+	crumb := p.Crumb()
+	if crumb != s.crumbWas {
+		s.crumbWas, s.scroll = crumb, ui.ScrollState{}
+	}
+	return crumb
+}
+
+// crumbTitle is the title of a subscription's page: a quiet "‹ Subscriptions" button back to the list, a muted "/"
+// and the subscription's name.
+func (s *Screen) crumbTitle(c *ui.Context, name string) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).Children(func() {
+		back := theme.Button{Style: theme.Plain, Small: true, Icon: icons.ChevronLeft, Text: s.text.SubscriptionsGroup,
+			Label: s.text.BackList}.Draw(c)
+		if back.Clicked() {
+			s.subs().Back()
+		}
+		ui.Text(c, "/").FontSize(theme.Px(t, tokens.TextTitle.Size.En)).TextColor(t.TextMuted)
+		ui.Text(c, name).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+			SingleLine().MinWidth(0).Shrink(1).Role(ui.RoleHeading).Level(1)
+	})
+}
+
 // lead is the sentence under the page's name: what the page is for.
 func (s *Screen) lead() string {
 	switch s.group {
 	case appearance:
 		return s.text.AppearanceLead
+	case subscriptions:
+		return s.text.SubscriptionsLead
 	case fetching:
 		return s.text.Lead
 	case rules:
