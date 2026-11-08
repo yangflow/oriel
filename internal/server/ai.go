@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/yangflow/oriel/internal/ai"
@@ -98,9 +99,27 @@ func (s *Server) testAI(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 	default:
 		reply(w, http.StatusOK, map[string]any{
-			"reachable": true, "model": result.Model, "modelFound": result.ModelFound,
+			"reachable": true, "ok": true, "at": time.Now().UnixMilli(), "durationMs": result.Duration.Milliseconds(),
+			"model": result.Model, "modelFound": result.ModelFound,
 			"contextTokens": result.ContextTokens, "contextFits": result.ContextFits,
 		})
+	}
+}
+
+// aiModels lists the models of the saved endpoint.
+func (s *Server) aiModels(w http.ResponseWriter, r *http.Request) {
+	extendDeadlinesTo(w, aiTimeout)
+	models, err := s.ai.Models(r.Context())
+	var code ai.Code
+	switch {
+	case errors.Is(err, ai.ErrNotConfigured):
+		fail(w, http.StatusConflict, string(ai.ErrNotConfigured))
+	case errors.As(err, &code):
+		fail(w, http.StatusBadGateway, string(code))
+	case err != nil:
+		internal(w, err)
+	default:
+		reply(w, http.StatusOK, map[string]any{"models": models})
 	}
 }
 

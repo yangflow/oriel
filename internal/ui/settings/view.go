@@ -55,7 +55,7 @@ type copy struct {
 	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                     string
 	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry                             string
 	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset             string
-	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing, Tested              string
+	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing                      string
 	Proxy, ProxyAddress, ProxyHelp, ProxyPlaceholder, ProxyExample, ProxyAuth, ProxyAuthHelp, ProxyUser,
 	ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyChanged, InvalidProxy, InvalidProxyAuth, ProxySaved, ProxyAuthRemoved,
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase string
@@ -68,7 +68,7 @@ type copy struct {
 	LineWidth, LineWidthHelp, WidthNarrow, WidthStandard, WidthWide                                                                                                                                                                                                                                                                                                                                                                                                          string
 	ReadingAppearance, ReadingAppearanceHelp, PresetTheme, PresetSepia, PresetMist                                                                                                                                                                                                                                                                                                                                                                                           string
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                                                                                                                                                                                                                                                                                string
-	Preset, Limits, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                                                                                                                                                        string
+	Preset, Limits, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, TestConnection, LastPassed, LastFailed, PresetCustom, ModelChoose, ModelManual, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                                                                        string
 	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                                                                                                                                                                                                                                                                               string
 	Desktop, OpenAtLogin, OpenAtLoginHelp, OpenAtLoginHelpTray, OpenAtLoginNeedsApp, MenuBarIcon, MenuBarIconHelp                                                                                                                                                                                                                                                                                                                                                            string
 	TrayIcon, TrayIconHelp, DockBadge, DockBadgeHelp, LoginFailed, TrayFailed                                                                                                                                                                                                                                                                                                                                                                                                string
@@ -134,12 +134,18 @@ var interfaceLanguages = []struct{ code, name string }{{prefs.LanguageChinese, "
 // languages are the languages summaries and translations can be written in, each named in itself.
 var languages = []struct{ code, name string }{{"zh-Hans", "简体中文"}, {"en", "English"}}
 
-// presets are the local servers the AI group offers to fill the endpoint for, each with a model name to hint at; an
-// empty hint keeps the usual one.
+// presets are the services the AI group offers to fill the endpoint for, each with a model name to hint at; an empty
+// hint keeps the usual one.
 var presets = []struct{ name, base, hint string }{
+	{"OpenAI", "https://api.openai.com/v1", "gpt-4o-mini"},
+	{"DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat"},
+	{"OpenRouter", "https://openrouter.ai/api/v1", "openai/gpt-4o-mini"},
 	{"Ollama", "http://127.0.0.1:11434/v1", "qwen3:8b"},
 	{"LM Studio", "http://127.0.0.1:1234/v1", ""},
 }
+
+// manualModel is the value of the last item of the model menu, which turns it into a field.
+const manualModel = "\x00manual"
 
 // The groups of the sidebar.
 const (
@@ -178,6 +184,7 @@ type API interface {
 	Backup(ctx context.Context, dst io.Writer) (int64, error)
 	Restore(ctx context.Context, backup io.Reader) (client.Restored, error)
 	TestAI(ctx context.Context) (client.AITest, error)
+	AIModels(ctx context.Context) ([]client.AIModel, error)
 	StartImport(ctx context.Context, req client.ImportRequest) (client.ImportStatus, error)
 	ImportStatus(ctx context.Context) (client.ImportStatus, error)
 	ConfirmImport(ctx context.Context) (client.ImportStatus, error)
@@ -347,8 +354,10 @@ type Screen struct {
 
 	aiBase, aiModel, aiKey string // as typed; the key saved is never sent back
 	aiLanguage             string
-	aiLimits               [4]string // the summary limit, chunk size, daily cap and per-fetch cap as typed; "" follows the default
-	aiChecks               []status  // what the last test found besides the answer
+	aiLimits               [4]string        // the summary limit, chunk size, daily cap and per-fetch cap as typed; "" follows the default
+	aiModels               []client.AIModel // what the endpoint saved lists; empty shows the model as a field
+	aiManual               bool             // the model menu was turned into a field
+	modelLoads             int              // counts the lists asked for: only the newest answer is taken
 	aiSaving               bool
 	aiInvalid              bool // the server refused the endpoint
 	focusAIBase            bool
@@ -444,6 +453,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.working, s.confirming, s.backupFile = "", false, ""
 	s.autoSaving, s.autoStatus = false, status{}
 	s.grouping = false
+	s.aiModels, s.aiManual = nil, false
 	s.saving, s.keeping, s.aiSaving, s.testing, s.promptSaving = false, false, false, false, false
 	s.proxySaving, s.proxyDrop = false, false
 	s.state, s.deviceState, s.restored = loading, loading, nil
@@ -496,6 +506,9 @@ func (s *Screen) choose(g int) {
 		s.healthAsked = false
 	}
 	s.group = g
+	if g == ai {
+		s.loadModels()
+	}
 	if p := s.subs(); g == subscriptions && p != nil {
 		p.OpenList()
 	}
@@ -527,7 +540,7 @@ func (s *Screen) Open() {
 	s.baseStatus, s.keepStatus, s.invalid, s.revoking = status{}, status{}, false, false
 	s.fetchStatus = status{}
 	s.dropCopy = false
-	s.aiStatus, s.promptStatus, s.aiInvalid, s.aiChecks = status{}, status{}, false, nil
+	s.aiStatus, s.promptStatus, s.aiInvalid, s.aiManual = status{}, status{}, false, false
 	s.proxyStatus, s.proxyInvalid, s.proxyDrop = status{}, false, false
 	s.autoStatus = status{}
 	if !s.busy {
@@ -594,6 +607,28 @@ func (s *Screen) loadSettings() {
 			s.prompts = [2]string{settings.PromptSummary, settings.PromptTranslate}
 			s.autoFolder, s.autoKeep = settings.AutoBackupFolder, strconv.Itoa(settings.AutoBackupKeep)
 			s.rules.takeMuted(settings.MuteKeywords)
+			if s.group == ai {
+				s.loadModels()
+			}
+		}
+	})
+}
+
+// loadModels asks for the list of models of the endpoint saved. Any failure leaves no list, and the model a field.
+func (s *Screen) loadModels() {
+	s.modelLoads++
+	if s.api == nil || s.state != loaded || s.settings.AIBaseURL == "" {
+		s.aiModels = nil
+		return
+	}
+	gen, run, api := s.gen, s.modelLoads, s.api
+	s.deps.Go(func() func() {
+		models, err := api.AIModels(context.Background())
+		return func() {
+			if gen != s.gen || run != s.modelLoads || s.expired(err) {
+				return
+			}
+			s.aiModels = models
 		}
 	})
 }
@@ -1001,7 +1036,14 @@ func (s *Screen) saveAI(removeKey bool) {
 			s.aiSaving = false
 			switch {
 			case err == nil:
+				relist := settings.AIBaseURL != s.settings.AIBaseURL || patch.AIAPIKey != nil
+				s.settings.AILastTest = settings.AILastTest
 				s.settings.AIBaseURL, s.settings.AIModel = settings.AIBaseURL, settings.AIModel
+				if relist {
+					s.aiModels = nil
+					defer s.loadModels()
+				}
+				s.aiManual = false
 				s.settings.AIAPIKeySet, s.settings.AILanguage = settings.AIAPIKeySet, settings.AILanguage
 				s.settings.AISummaryLimit, s.settings.AIChunkLimit = settings.AISummaryLimit, settings.AIChunkLimit
 				s.settings.AIAutoDailyLimit, s.settings.AIAutoFetchLimit = settings.AIAutoDailyLimit, settings.AIAutoFetchLimit
@@ -1033,7 +1075,7 @@ func (s *Screen) test() {
 	if s.testing || s.api == nil || !s.settings.AIConfigured() || s.aiDirty() {
 		return
 	}
-	s.testing, s.aiStatus, s.aiChecks = true, status{}, nil
+	s.testing, s.aiStatus = true, status{}
 	s.announce = s.text.Testing
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
@@ -1044,32 +1086,17 @@ func (s *Screen) test() {
 			}
 			s.testing = false
 			if err == nil {
-				s.aiStatus = status{ok: true, text: s.fill(s.text.Tested, "{model}", found.Model)}
-				s.aiChecks = s.checks(found)
-			} else {
-				s.aiStatus = status{text: s.reason(code(err))}
+				s.settings.AILastTest = &found
+				s.announce = s.lastTest().text
+				return
 			}
+			if failure := code(err); failure != "" {
+				s.settings.AILastTest = &client.AITest{Error: failure}
+			}
+			s.aiStatus = status{text: s.reason(code(err))}
 			s.announce = s.aiStatus.text
 		}
 	})
-}
-
-// checks are the lines under a passed test: the model is in the endpoint's list, and its context fits the limits.
-// Whatever the endpoint did not tell is left out.
-func (s *Screen) checks(found client.AITest) []status {
-	var lines []status
-	if found.ModelFound != nil && *found.ModelFound {
-		lines = append(lines, status{ok: true, text: s.text.CheckListed})
-	}
-	if found.ContextTokens != nil && found.ContextFits != nil {
-		n := strconv.Itoa(*found.ContextTokens)
-		if *found.ContextFits {
-			lines = append(lines, status{ok: true, text: s.fill(s.text.CheckFits, "{n}", n)})
-		} else {
-			lines = append(lines, status{warn: true, text: s.fill(s.text.CheckSmall, "{n}", n)})
-		}
-	}
-	return lines
 }
 
 // reason says why the AI endpoint failed a test, from the code the server gave.
@@ -2895,6 +2922,8 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 		}
 	}
 	card(c, func() {
+		setting(c, icons.Server, false, s.text.Preset, nil, func() { s.presetSelect(c) })
+	}, func() {
 		setting(c, icons.Link, false, s.text.Endpoint, func() {
 			coded(c, s.text.EndpointHelp, "{address}", s.text.EndpointPlaceholder)
 			if line := s.destination(); line != "" {
@@ -2917,19 +2946,6 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 		if s.aiInvalid {
 			statusLine(c, status{text: s.text.InvalidAIBase})
 		}
-		s.presetRow(c)
-	}, func() {
-		hint := s.text.ModelPlaceholder
-		if i := s.preset(); i >= 0 && presets[i].hint != "" {
-			hint = presets[i].hint
-		}
-		setting(c, icons.Sparkles, false, s.text.Model, nil, nil)
-		ui.Row(c).FillWidth().Margin(below(t), 0, 0, 0).Children(func() {
-			s.watch(field(c, "model", &s.aiModel, 0, false, func(in ui.Element) {
-				in.Font("monospace").Label(s.text.Model).Placeholder(hint).Disabled(s.aiSaving)
-				submit(in)
-			}))
-		})
 	}, func() {
 		setting(c, icons.KeyRound, false, s.text.APIKey, func() { meta(c, s.text.KeyHelp) }, func() {
 			tag(c, s.text.KeyUnset, s.text.KeySet, s.settings.AIAPIKeySet)
@@ -2952,24 +2968,29 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 			}
 		})
 	}, func() {
+		s.modelSetting(c, submit)
+	}, func() {
 		labeled(c, icons.Languages, s.text.Language, s.text.LanguageHelp, func() { s.languageSelect(c) })
 	}, func() {
 		s.limitFields(c)
 	}, func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
-			dirty := s.aiDirty()
-			st := s.aiStatus
-			switch {
-			case s.testing:
-				st = status{spin: true, text: s.text.Testing}
-			case st.text == "" && dirty && !s.aiInvalid && s.settings.AIConfigured():
-				st = status{muted: true, text: s.text.TestFirst}
-			}
-			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).Children(func() {
+		dirty := s.aiDirty()
+		st := s.aiStatus
+		switch {
+		case s.testing:
+			st = status{spin: true, text: s.text.Testing}
+		case st.text == "" && dirty && !s.aiInvalid && s.settings.AIConfigured():
+			st = status{muted: true, text: s.text.TestFirst}
+		case st.text == "" && !dirty:
+			st = s.lastTest()
+		}
+		setting(c, icons.Plug, false, s.text.TestConnection, func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).Children(func() {
 				if st.text != "" {
 					statusText(c, st)
 				}
 			})
+		}, func() {
 			test := theme.Button{Disabled: !s.settings.AIConfigured() || dirty || s.testing || s.aiSaving, Icon: icons.Plug,
 				Text: s.text.Test}.Draw(c)
 			if test.Clicked() {
@@ -2984,32 +3005,126 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 				s.saveAI(false)
 			}
 		})
-		for _, st := range s.aiChecks {
-			statusLine(c, st)
-		}
 	})
 	if after := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage, s.aiLimits[0], s.aiLimits[1], s.aiLimits[2], s.aiLimits[3]}; after != before {
-		s.aiInvalid, s.aiStatus, s.aiChecks = s.aiInvalid && after[0] == before[0], status{}, nil
+		s.aiInvalid, s.aiStatus = s.aiInvalid && after[0] == before[0], status{}
 	}
 }
 
-// presetRow is the buttons that fill the endpoint with the address of a server on this computer. They change only
-// what is typed: the key stays, and nothing is saved until Save.
-func (s *Screen) presetRow(c *ui.Context) {
+// presetSelect fills the endpoint with the address of a service. It changes only what is typed: the key stays, and
+// nothing is saved until Save.
+func (s *Screen) presetSelect(c *ui.Context) {
+	options := []choice{}
+	for _, p := range presets {
+		options = append(options, choice{value: p.base, name: p.name})
+	}
+	options = append(options, choice{name: s.text.PresetCustom})
+	current := ""
+	if i := s.preset(); i >= 0 {
+		current = presets[i].base
+	}
+	if v, changed := s.pick(c, current, s.text.Preset, options); changed && !s.aiSaving {
+		s.aiBase, s.aiInvalid = v, false
+		s.focusAIBase = v == ""
+	}
+}
+
+// modelSetting is the model: a menu of what the endpoint lists, or a field when there is no list for the address as typed.
+func (s *Screen) modelSetting(c *ui.Context, submit func(ui.Element)) {
 	t := c.Theme()
-	picked := s.preset()
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Margin(theme.Px(t, tokens.Space2), 0, 0, 0).
-		Role(ui.RoleGroup).Label(s.text.Preset).Children(func() {
-		ui.Text(c, s.text.Preset).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).
-			Margin(0, theme.Px(t, tokens.Space1), 0, 0)
-		for i, p := range presets {
-			chosen := i == picked
-			b := theme.Button{Small: true, On: chosen, Disabled: s.aiSaving, Text: p.name, Checked: &chosen}.Draw(c)
-			if b.Clicked() {
-				s.aiBase, s.aiInvalid = p.base, false
+	listed := len(s.aiModels) > 0 && !s.aiManual && strings.TrimSuffix(strings.TrimSpace(s.aiBase), "/") == s.settings.AIBaseURL &&
+		strings.TrimSpace(s.aiKey) == ""
+	note, warning := s.modelNotes()
+	var help func()
+	if note != "" || warning.text != "" {
+		help = func() {
+			if note != "" {
+				meta(c, note)
+			}
+			if warning.text != "" {
+				statusLine(c, warning)
 			}
 		}
+	}
+	var control func()
+	if listed {
+		control = func() { s.modelSelect(c) }
+	}
+	setting(c, icons.Sparkles, false, s.text.Model, help, control)
+	if listed {
+		return
+	}
+	hint := s.text.ModelPlaceholder
+	if i := s.preset(); i >= 0 && presets[i].hint != "" {
+		hint = presets[i].hint
+	}
+	ui.Row(c).FillWidth().Margin(below(t), 0, 0, 0).Children(func() {
+		s.watch(field(c, "model", &s.aiModel, 0, false, func(in ui.Element) {
+			in.Font("monospace").Label(s.text.Model).Placeholder(hint).Disabled(s.aiSaving)
+			submit(in)
+		}))
 	})
+}
+
+// modelSelect is the menu of the models the endpoint lists; the model chosen stays among them even when it is not
+// listed, and the last item turns the menu into a field.
+func (s *Screen) modelSelect(c *ui.Context) {
+	current := strings.TrimSpace(s.aiModel)
+	options := make([]choice, 0, len(s.aiModels)+2)
+	if !slices.ContainsFunc(s.aiModels, func(m client.AIModel) bool { return m.ID == current }) {
+		name := current
+		if name == "" {
+			name = s.text.ModelChoose
+		}
+		options = append(options, choice{value: current, name: name})
+	}
+	for _, m := range s.aiModels {
+		options = append(options, choice{value: m.ID, name: m.ID})
+	}
+	options = append(options, choice{value: manualModel, name: s.text.ModelManual})
+	v, changed := s.pick(c, current, s.text.Model, options)
+	switch {
+	case !changed || s.aiSaving:
+	case v == manualModel:
+		s.aiManual = true
+	default:
+		s.aiModel = v
+	}
+}
+
+// modelNotes is what the last test found out about the model saved: a line of what is fine, and a warning when its
+// context is too small for the limits. Whatever the endpoint did not tell is left out.
+func (s *Screen) modelNotes() (string, status) {
+	last := s.settings.AILastTest
+	if last == nil || !last.OK || s.aiDirty() {
+		return "", status{}
+	}
+	var parts []string
+	var warning status
+	if last.ModelFound != nil && *last.ModelFound {
+		parts = append(parts, s.text.CheckListed)
+	}
+	if last.ContextTokens != nil && last.ContextFits != nil {
+		if *last.ContextFits {
+			parts = append(parts, s.fill(s.text.CheckFits, "{n}", strconv.Itoa(*last.ContextTokens/1000)+"K"))
+		} else {
+			warning = status{warn: true, text: s.fill(s.text.CheckSmall, "{n}", strconv.Itoa(*last.ContextTokens))}
+		}
+	}
+	return strings.Join(parts, " · "), warning
+}
+
+// lastTest is the status of the last test the server remembers for the settings saved.
+func (s *Screen) lastTest() status {
+	last := s.settings.AILastTest
+	switch {
+	case last == nil:
+		return status{}
+	case last.OK:
+		seconds := strconv.FormatFloat(float64(last.DurationMs)/1000, 'f', 1, 64)
+		return status{ok: true, text: s.fill(s.text.LastPassed, "{seconds}", seconds)}
+	}
+	return status{text: s.fill(s.text.LastFailed, "{reason}", s.reason(last.Error))}
 }
 
 // limitFields are the summary limit and the chunk size in characters, and the two caps on automatic work; empty

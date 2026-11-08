@@ -461,6 +461,7 @@ type Settings struct {
 	DefaultAIAutoDaily     int      `json:"defaultAiAutoDailyLimit"`
 	DefaultAIAutoFetch     int      `json:"defaultAiAutoFetchLimit"`
 	AIAutoCallsToday       int      `json:"aiAutoCallsToday"`
+	AILastTest             *AITest  `json:"aiLastTest"`
 	AIEndpointLocal        bool     `json:"aiEndpointLocal"`
 	PromptSummary          string   `json:"promptSummary"`
 	PromptTranslate        string   `json:"promptTranslate"`
@@ -1480,8 +1481,13 @@ func (s Session) RequestAI(ctx context.Context, id int64, task string) (AIResult
 
 // AITest is what the server's self-check of the AI endpoint found. The pointers are nil when the endpoint did not
 // say: ModelFound whether its list has the model, ContextTokens the model's context length, ContextFits whether the
-// summary limit and chunk size fit in it.
+// summary limit and chunk size fit in it. Kept by the server, it is also the settings' last test: OK or Error, the
+// code of a failure, and how long it took.
 type AITest struct {
+	OK            bool   `json:"ok"`
+	At            int64  `json:"at"`
+	DurationMs    int64  `json:"durationMs"`
+	Error         string `json:"error"`
 	Model         string `json:"model"`
 	ModelFound    *bool  `json:"modelFound"`
 	ContextTokens *int   `json:"contextTokens"`
@@ -1500,6 +1506,28 @@ func (s Session) TestAI(ctx context.Context) (AITest, error) {
 		return AITest{}, fmt.Errorf("test AI: %w", err)
 	}
 	return reply, nil
+}
+
+// AIModel is one model the endpoint offers; ContextTokens is nil when it does not say.
+type AIModel struct {
+	ID            string `json:"id"`
+	ContextTokens *int   `json:"contextTokens"`
+}
+
+// AIModels has the server list the models of the saved AI endpoint; empty when the endpoint gives no list.
+func (s Session) AIModels(ctx context.Context) ([]AIModel, error) {
+	resp, err := s.send(ctx, aiClient, http.MethodGet, "/api/ai/models", "", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var reply struct {
+		Models []AIModel `json:"models"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&reply); err != nil {
+		return nil, fmt.Errorf("list AI models: %w", err)
+	}
+	return reply.Models, nil
 }
 
 // Selection has the server translate (task "translate") or explain ("explain") a text selected while reading, and

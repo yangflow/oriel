@@ -11,7 +11,8 @@
 | `GET /api/entries/{id}/ai` | 条目的两种结果和当前的目标语言：`{ "summary": ..., "translation": ..., "targetLanguage": "zh-Hans" }`，没有的结果为 `null`。 |
 | `POST /api/entries/{id}/summary` | 要摘要，返回这一种结果。 |
 | `POST /api/entries/{id}/translation` | 要翻译，返回这一种结果。 |
-| `POST /api/ai/test` | 自检：用当前设置检查接口，成功返回 `{ "reachable": true, "model": "...", "modelFound": true \| null, "contextTokens": n \| null, "contextFits": true \| false \| null }`；没配置好时 409，失败时 502，带下面的错误码。见下面的「自检」。 |
+| `POST /api/ai/test` | 自检：用当前设置检查接口，成功返回 `{ "reachable": true, "ok": true, "at": 毫秒, "durationMs": n, "model": "...", "modelFound": true \| null, "contextTokens": n \| null, "contextFits": true \| false \| null }`；没配置好时 409，失败时 502，带下面的错误码。见下面的「自检」。 |
+| `GET /api/ai/models` | 接口的模型列表：`{ "models": [{ "id": "...", "contextTokens": n \| null }] }`。见下面的「模型列表」。 |
 | `POST /api/ai/selection` | 翻译或解释阅读器里选中的一段文字：`{ "task": "translate" \| "explain", "text": "...", "title": "..." }`，成功返回 `{ "text": "...", "model": "..." }`。见下面的「所选文字」。 |
 
 一种结果是 `{ "status", "text", "error", "model", "updatedAt" }`，`status` 是 `pending`、`ok`、`failed`，`error` 只在 `failed` 时有值。
@@ -46,6 +47,18 @@
 2. 模型存在：列表里有 `aiModel`（不分大小写，没写标签时也认 `:latest`，Ollama 的写法）时 `modelFound` 为 `true`；列表读到了却没有这个模型是 `ai_model_not_found`，不再发下一步。
 3. 发一个很短的 chat 请求；成功时 `model` 是答复的模型。上游 404 也是 `ai_model_not_found`。
 4. 上下文：模型在列表里报了上下文长度（依次认 `loaded_context_length`、`context_length`、`max_context_length`、`context_window`，单位 token）时 `contextTokens` 是它。限制放得下时 `contextFits` 为 `true`，放不下为 `false`，不知道为 `null`。放不下不是失败：HTTP 仍是 200，由界面提示调小限制。估算按每两个字符约一个 token，摘要要 `aiSummaryLimit ÷ 2 + 1000`，翻译每块要 `aiChunkLimit + 1000`（原文和译文各占一半，所以不除以 2），两个都放得下才算 `true`。
+
+上次自检的结果存在服务端的设置表里（键 `ai_last_test`），由 `GET /api/settings` 的 `aiLastTest` 下发，重开设置页、换一台设备都还在：
+
+- 记录成功和带错误码的失败，含花的时间。没配置好的 409、请求中途被取消的都不记。
+- 记录时存下当时接口地址、模型、key、摘要上限和翻译分块的指纹。读出时指纹对不上就当没有，下发 `null`：这几项任何一项改了，结果立即失效（上下文够不够取决于两个限制）。改目标语言、prompt 和自动处理的上限不影响它。
+- 新的结果覆盖旧的，只留一份。指纹不下发。
+
+模型列表（`GET /api/ai/models`）在服务端做，用已保存的接口地址和 key，只要有接口地址就能取，还没选模型时也一样：
+
+- 请求和自检第 1 步相同：`GET {aiBaseUrl}/models`，带 key（设了的话），响应最大 8 MiB（有的聚合服务列表很长）。去重，按 `id` 排序，空的 `id` 丢掉；`contextTokens` 的认法同自检第 4 步，不报时 `null`。
+- 没有接口地址时 409 `ai_not_configured`；连不上、超时、key 被拒时 502，错误码同自检。接口不给可用的列表（别的状态码、不是预期的 JSON、列表为空）时 200，`models` 为 `[]`。
+- 只用已保存的设置，从不用输入框里没保存的地址，已保存的 key 不会送到别的主机。取不到时（任何失败或空列表）客户端退回手填模型名。
 
 错误里不带 key，日志也不记 key。接口地址可以是本机，例如 `http://127.0.0.1:11434/v1`，同样走这条调用。
 

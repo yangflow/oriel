@@ -227,10 +227,95 @@ func TestAISelfCheck(t *testing.T) {
 		body["contextFits"] != false || strings.Contains(w.Body.String(), "stored-secret-value") {
 		t.Fatalf("self-check: %d %s", w.Code, w.Body)
 	}
+	settings := func() map[string]any {
+		t.Helper()
+		w := do(s, "GET", "/api/settings", "", bearer(token))
+		if strings.Contains(w.Body.String(), "fingerprint") {
+			t.Fatalf("the fingerprint is sent: %s", w.Body)
+		}
+		last, _ := decode(t, w)["aiLastTest"].(map[string]any)
+		return last
+	}
+	if last := settings(); last == nil || last["ok"] != true || last["model"] != "qwen3:8b" || last["modelFound"] != true ||
+		last["contextTokens"] != 4096.0 || last["at"].(float64) == 0 || last["error"] != "" {
+		t.Fatalf("last test: %v", last)
+	}
+
+	// A changed limit, key or model makes it stale; the language does not.
+	if w := do(s, "PATCH", "/api/settings", `{"aiLanguage":"en"}`, bearer(token)); w.Code != http.StatusOK || settings() == nil {
+		t.Fatalf("language: %d %v", w.Code, settings())
+	}
+	if w := do(s, "PATCH", "/api/settings", `{"aiSummaryLimit":2000}`, bearer(token)); w.Code != http.StatusOK || settings() != nil {
+		t.Fatalf("limit: %d %v", w.Code, settings())
+	}
+	do(s, "PATCH", "/api/settings", `{"aiSummaryLimit":24000}`, bearer(token))
+	if settings() == nil {
+		t.Fatal("the same settings again match the result")
+	}
+	if w := do(s, "PATCH", "/api/settings", `{"aiApiKey":"another-value"}`, bearer(token)); w.Code != http.StatusOK || settings() != nil {
+		t.Fatalf("key: %d %v", w.Code, settings())
+	}
+	do(s, "PATCH", "/api/settings", `{"aiApiKey":"stored-secret-value"}`, bearer(token))
+
+	// A failure is kept with its code.
 	s.store.SetSetting(ctx, ai.ModelSetting, "missing")
 	w = do(s, "POST", "/api/ai/test", "", bearer(token))
 	if w.Code != http.StatusBadGateway || decode(t, w)["error"] != "ai_model_not_found" {
 		t.Fatalf("missing model: %d %s", w.Code, w.Body)
+	}
+	if last := settings(); last == nil || last["ok"] != false || last["error"] != "ai_model_not_found" {
+		t.Fatalf("last failure: %v", last)
+	}
+	s.store.SetSetting(ctx, ai.ModelSetting, "qwen3:8b")
+	if settings() != nil {
+		t.Fatal("a result of another model is stale")
+	}
+}
+
+func TestAIModels(t *testing.T) {
+	s, _ := newServer(t, "secret")
+	token := login(t, s, "laptop")
+	ctx := context.Background()
+	if w := do(s, "GET", "/api/ai/models", "", bearer(token)); w.Code != http.StatusConflict || decode(t, w)["error"] != "ai_not_configured" {
+		t.Fatalf("no address: %d %s", w.Code, w.Body)
+	}
+	var status atomic.Int32
+	status.Store(http.StatusOK)
+	var auth atomic.Value
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth.Store(r.Header.Get("Authorization"))
+		if r.URL.Path != "/v1/models" {
+			t.Errorf("path %s", r.URL.Path)
+		}
+		w.WriteHeader(int(status.Load()))
+		w.Write([]byte(`{"data":[{"id":"zeta"},{"id":"alpha","context_length":8192},{"id":"zeta"},{"id":" "}]}`))
+	}))
+	defer upstream.Close()
+	s.store.SetSetting(ctx, ai.BaseURLSetting, upstream.URL+"/v1")
+	s.store.SetSetting(ctx, ai.APIKeySetting, "stored-secret-value")
+
+	// No model chosen yet: the list is what the user needs to choose one.
+	w := do(s, "GET", "/api/ai/models", "", bearer(token))
+	var body struct {
+		Models []struct {
+			ID            string `json:"id"`
+			ContextTokens *int   `json:"contextTokens"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil || w.Code != http.StatusOK || len(body.Models) != 2 ||
+		body.Models[0].ID != "alpha" || *body.Models[0].ContextTokens != 8192 || body.Models[1].ID != "zeta" ||
+		body.Models[1].ContextTokens != nil || auth.Load() != "Bearer stored-secret-value" {
+		t.Fatalf("models: %d %s", w.Code, w.Body)
+	}
+	status.Store(http.StatusNotFound)
+	w = do(s, "GET", "/api/ai/models", "", bearer(token))
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"models":[]`) {
+		t.Fatalf("no list: %d %s", w.Code, w.Body)
+	}
+	status.Store(http.StatusUnauthorized)
+	w = do(s, "GET", "/api/ai/models", "", bearer(token))
+	if w.Code != http.StatusBadGateway || decode(t, w)["error"] != "ai_unauthorized" {
+		t.Fatalf("key refused: %d %s", w.Code, w.Body)
 	}
 }
 

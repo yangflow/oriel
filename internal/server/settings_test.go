@@ -27,7 +27,7 @@ func TestSettings(t *testing.T) {
 		body["rsshubBaseUrl"] != "" || len(body["rsshubBaseUrls"].([]any)) != 0 || body["retentionDays"] != 0.0 || body["aiBaseUrl"] != "" || body["aiModel"] != "" ||
 		body["aiApiKeySet"] != true || body["aiLanguage"] != "zh-Hans" || body["promptSummary"] != ai.DefaultPromptSummary ||
 		body["promptTranslate"] != ai.DefaultPromptTranslate || body["defaultPromptSummary"] != ai.DefaultPromptSummary ||
-		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 36 || body["proxyUrl"] != "" || body["proxyAuthSet"] != false || body["groupSameLink"] != true || body["websubBaseUrl"] != "" || body["aiSummaryLimit"] != 24000.0 ||
+		body["defaultPromptTranslate"] != ai.DefaultPromptTranslate || len(body) != 37 || body["proxyUrl"] != "" || body["proxyAuthSet"] != false || body["groupSameLink"] != true || body["websubBaseUrl"] != "" || body["aiSummaryLimit"] != 24000.0 ||
 		body["aiChunkLimit"] != 6000.0 || body["defaultAiSummaryLimit"] != 24000.0 || body["defaultAiChunkLimit"] != 6000.0 {
 		t.Fatalf("defaults: %d %s", w.Code, w.Body)
 	}

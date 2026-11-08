@@ -2,12 +2,15 @@ package ai
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -405,6 +408,7 @@ type TestResult struct {
 	ModelFound    *bool  // whether the endpoint's list has the configured model
 	ContextTokens *int   // the context length the endpoint reports for the model
 	ContextFits   *bool  // whether the summary limit and chunk size fit that context
+	Duration      time.Duration
 }
 
 // Test checks the endpoint with the current settings: it lists the models, looks for the configured one, sends a
@@ -418,6 +422,105 @@ func (w *Worker) Test(ctx context.Context) (TestResult, error) {
 	if !cfg.Configured() {
 		return TestResult{}, ErrNotConfigured
 	}
+	start := time.Now()
+	res, err := w.check(ctx, cfg)
+	res.Duration = time.Since(start)
+	var failed Code
+	if (err == nil || errors.As(err, &failed)) && ctx.Err() == nil {
+		w.remember(ctx, cfg, res, failed, start)
+	}
+	return res, err
+}
+
+// LastTest is the last self-check of the endpoint as the server keeps it. Error is the code of a failed one.
+type LastTest struct {
+	OK            bool   `json:"ok"`
+	At            int64  `json:"at"`
+	DurationMs    int64  `json:"durationMs"`
+	Error         string `json:"error"`
+	Model         string `json:"model"`
+	ModelFound    *bool  `json:"modelFound"`
+	ContextTokens *int   `json:"contextTokens"`
+	ContextFits   *bool  `json:"contextFits"`
+}
+
+// storedTest is a LastTest with the fingerprint of the settings it checked.
+type storedTest struct {
+	LastTest
+	Fingerprint string `json:"fingerprint"`
+}
+
+// testFingerprint is what a self-check depends on: another endpoint, model, key or limit makes its result stale.
+func testFingerprint(cfg Config) string {
+	sum := sha256.Sum256([]byte(strings.Join([]string{cfg.BaseURL, cfg.Model, cfg.APIKey,
+		strconv.Itoa(cfg.SummaryLimit), strconv.Itoa(cfg.ChunkLimit)}, "\x00")))
+	return hex.EncodeToString(sum[:])
+}
+
+// remember keeps the result of a self-check; failing to is only logged, the check itself is done.
+func (w *Worker) remember(ctx context.Context, cfg Config, res TestResult, failed Code, start time.Time) {
+	last := LastTest{OK: failed == "", At: start.UnixMilli(), DurationMs: res.Duration.Milliseconds(), Error: string(failed),
+		Model: res.Model, ModelFound: res.ModelFound, ContextTokens: res.ContextTokens, ContextFits: res.ContextFits}
+	raw, err := json.Marshal(storedTest{LastTest: last, Fingerprint: testFingerprint(cfg)})
+	if err == nil {
+		err = w.store.SetSetting(context.WithoutCancel(ctx), LastTestSetting, string(raw))
+	}
+	if err != nil {
+		slog.Error("Cannot keep the result of the AI self-check", "error", err)
+	}
+}
+
+// LoadLastTest reads the result of the last self-check, nil when there is none or the settings have changed since.
+func LoadLastTest(ctx context.Context, st *store.Store, cfg Config) (*LastTest, error) {
+	raw, err := st.Setting(ctx, LastTestSetting)
+	if err != nil || raw == "" {
+		return nil, err
+	}
+	var kept storedTest
+	if json.Unmarshal([]byte(raw), &kept) != nil || kept.Fingerprint != testFingerprint(cfg) {
+		return nil, nil
+	}
+	return &kept.LastTest, nil
+}
+
+// Model is one model an endpoint offers; ContextTokens is nil when the endpoint does not report it.
+type Model struct {
+	ID            string `json:"id"`
+	ContextTokens *int   `json:"contextTokens"`
+}
+
+// Models lists the models of the saved endpoint, sorted by name and empty when it has no usable list. It needs only
+// the address, so it works before a model is chosen, and returns ErrNotConfigured without one.
+func (w *Worker) Models(ctx context.Context) ([]Model, error) {
+	cfg, err := Load(ctx, w.store)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.BaseURL == "" {
+		return nil, ErrNotConfigured
+	}
+	listed, err := w.listModels(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	models := make([]Model, 0, len(listed))
+	for _, entry := range listed {
+		id := strings.TrimSpace(entry.ID)
+		if id == "" || slices.ContainsFunc(models, func(m Model) bool { return m.ID == id }) {
+			continue
+		}
+		model := Model{ID: id}
+		if n := entry.contextTokens(); n > 0 {
+			model.ContextTokens = &n
+		}
+		models = append(models, model)
+	}
+	slices.SortFunc(models, func(a, b Model) int { return strings.Compare(a.ID, b.ID) })
+	return models, nil
+}
+
+// check runs the steps of the self-check against cfg.
+func (w *Worker) check(ctx context.Context, cfg Config) (TestResult, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, w.budget, errCallTimeout)
 	defer cancel()
 	var res TestResult
@@ -504,14 +607,14 @@ func (w *Worker) listModels(ctx context.Context, cfg Config) ([]modelEntry, erro
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return nil, nil
 	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse+1))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxModelList+1))
 	if err != nil {
 		return nil, transportError(ctx, err)
 	}
 	var list struct {
 		Data []modelEntry `json:"data"`
 	}
-	if len(raw) > maxResponse || json.Unmarshal(raw, &list) != nil || len(list.Data) == 0 {
+	if len(raw) > maxModelList || json.Unmarshal(raw, &list) != nil || len(list.Data) == 0 {
 		return nil, nil
 	}
 	return list.Data, nil
