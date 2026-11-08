@@ -6067,7 +6067,7 @@ func TestSocialOnePicture(t *testing.T) {
 	entries[2].Images = entries[2].Images[:1]
 	f := &fake{now: now, sources: sources, entries: entries, patches: map[int64][]client.EntryPatch{}}
 	s := New("en", f.deps())
-	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 800)
+	tt := newTester(func(c *ui.Context) { s.View(c); theme.Toasts(c) }, 1100, 1400)
 	s.Use(f, "")
 	tt.Frame()
 	f.settle(t, tt)
