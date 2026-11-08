@@ -28,6 +28,8 @@ func TestMigrationAllowsTheForumKind(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, stmt := range []string{
+		"DROP TRIGGER entries_star_full_text",
+		"ALTER TABLE sources DROP COLUMN full_text",
 		"PRAGMA writable_schema = ON",
 		`UPDATE sqlite_schema SET sql = replace(sql, ', ''forum''))', '))') WHERE type = 'table' AND name = 'sources'`,
 		"PRAGMA writable_schema = OFF",

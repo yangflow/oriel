@@ -17,8 +17,8 @@ import (
 const (
 	maxBody         = 64 << 10
 	defaultInterval = 900 * time.Second
-	minInterval     = time.Minute
-	maxInterval     = 7 * 24 * time.Hour
+	minInterval     = fetch.MinFixedInterval
+	maxInterval     = fetch.MaxFixedInterval
 )
 
 var kinds = map[string]bool{"article": true, "video": true, "social": true, "image": true, "forum": true}
@@ -52,6 +52,7 @@ type sourceJSON struct {
 	HideFromAll         bool   `json:"hideFromAll"`
 	FolderID            *int64 `json:"folderId"`
 	TranslateTitles     bool   `json:"translateTitles"`
+	FullText            bool   `json:"fullText"`
 	ExtractSelector     string `json:"extractSelector"`
 	ExtractReferer      string `json:"extractReferer"`
 	OpenTarget          string `json:"openTarget"`
@@ -82,7 +83,7 @@ func toJSON(src store.Source) sourceJSON {
 		LastSuccessAt: millis(src.LastSuccessAt), LastError: src.LastError, LastErrorKind: src.LastErrorKind,
 		ConsecutiveFailures: src.ConsecutiveFailures, PromptSummary: src.PromptSummary,
 		PromptTranslate: src.PromptTranslate, AutoSummary: src.AutoSummary, AutoTranslate: src.AutoTranslate,
-		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, DailyCap: src.DailyCap, HideFromAll: src.HideFromAll, FolderID: folderRef(src.FolderID), TranslateTitles: src.TranslateTitles, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, OpenTarget: src.OpenTarget, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
+		MuteKeywords: src.MuteKeywords, Paused: src.Paused, KeepDays: src.KeepDays, PaceSec: src.PaceSec, DailyCap: src.DailyCap, HideFromAll: src.HideFromAll, FolderID: folderRef(src.FolderID), TranslateTitles: src.TranslateTitles, FullText: src.FullText, ExtractSelector: src.ExtractSelector, ExtractReferer: src.ExtractReferer, ExtractRewrites: src.ExtractRewrites, FetchUserAgent: src.FetchUserAgent, FetchReferer: src.FetchReferer, OpenTarget: src.OpenTarget, RSSHubInstance: src.RSSHubInstance, Proxy: src.Proxy, ProxyAuthSet: src.ProxyAuthSet, WebSubHub: src.WebSubHub,
 		WebSubActive: src.WebSubUntil.After(time.Now()), MovedTo: src.MovedTo, UnreadCount: src.UnreadCount,
 		CreatedAt: src.CreatedAt.UnixMilli(), UpdatedAt: src.UpdatedAt.UnixMilli(),
 	}
@@ -210,6 +211,12 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, code)
 		return
 	}
+	fullText, err := fetch.FullTextDefault(r.Context(), s.store)
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	src.SkipFullText = !fullText
 	if body.FetchIntervalSec != nil {
 		if body.FetchIntervalAuto != nil && *body.FetchIntervalAuto {
 			fail(w, http.StatusBadRequest, "invalid_interval")
@@ -291,6 +298,7 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 		HideFromAll       *bool   `json:"hideFromAll"`
 		FolderID          *int64  `json:"folderId"`
 		TranslateTitles   *bool   `json:"translateTitles"`
+		FullText          *bool   `json:"fullText"`
 		ExtractSelector   *string `json:"extractSelector"`
 		ExtractReferer    *string `json:"extractReferer"`
 		ExtractRewrites   *string `json:"extractRewrites"`
@@ -307,7 +315,7 @@ func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 	patch := store.SourcePatch{
 		Kind: body.Kind, PromptSummary: body.PromptSummary, PromptTranslate: body.PromptTranslate,
 		AutoSummary: body.AutoSummary, AutoTranslate: body.AutoTranslate, Paused: body.Paused, HideFromAll: body.HideFromAll,
-		TranslateTitles: body.TranslateTitles,
+		TranslateTitles: body.TranslateTitles, FullText: body.FullText,
 	}
 	if body.Title != nil {
 		title := strings.TrimSpace(*body.Title)

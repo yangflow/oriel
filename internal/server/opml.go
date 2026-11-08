@@ -48,7 +48,7 @@ type opmlDocument struct {
 }
 
 // opmlOutline is a subscription when it has an xmlUrl or an orielRsshubPath, otherwise a group.
-// orielKind, orielRsshubPath, orielOpenTarget, orielHideFromAll, orielTranslateTitles and orielDailyCap keep what OPML has no place for.
+// orielKind, orielRsshubPath, orielOpenTarget, orielHideFromAll, orielTranslateTitles, orielFullText and orielDailyCap keep what OPML has no place for.
 type opmlOutline struct {
 	Text            string        `xml:"text,attr"`
 	Title           string        `xml:"title,attr,omitempty"`
@@ -60,6 +60,7 @@ type opmlOutline struct {
 	OpenTarget      string        `xml:"orielOpenTarget,attr,omitempty"`
 	HideFromAll     string        `xml:"orielHideFromAll,attr,omitempty"`
 	TranslateTitles string        `xml:"orielTranslateTitles,attr,omitempty"`
+	FullText        string        `xml:"orielFullText,attr,omitempty"`
 	DailyCap        string        `xml:"orielDailyCap,attr,omitempty"`
 	Outlines        []opmlOutline `xml:"outline"`
 }
@@ -68,7 +69,7 @@ type opmlOutline struct {
 // that only repeats the address counts as none, so that the next fetch fills it in.
 func (o opmlOutline) source() (store.NewSource, string) {
 	src := store.NewSource{Kind: o.Kind, OpenTarget: strings.TrimSpace(o.OpenTarget), FetchInterval: defaultInterval, FetchIntervalAuto: true,
-		HideFromAll: strings.TrimSpace(o.HideFromAll) == "1", TranslateTitles: strings.TrimSpace(o.TranslateTitles) == "1"}
+		HideFromAll: strings.TrimSpace(o.HideFromAll) == "1", TranslateTitles: strings.TrimSpace(o.TranslateTitles) == "1", SkipFullText: strings.TrimSpace(o.FullText) == "0"}
 	if n, err := strconv.Atoi(strings.TrimSpace(o.DailyCap)); err == nil && n >= 1 && n <= store.MaxDailyCap {
 		src.DailyCap = n
 	}
@@ -135,6 +136,10 @@ func (s *Server) addSources(ctx context.Context, doc opmlDocument, progress func
 	if err != nil {
 		return res, err
 	}
+	fullText, err := fetch.FullTextDefault(ctx, s.store)
+	if err != nil {
+		return res, err
+	}
 	done := 0
 	spread := min(importSpreadMax, time.Duration(countOutlines(doc.Body))*importSpreadEach)
 	// folder is the name of the outermost group the outlines are in: folders have one level.
@@ -143,6 +148,9 @@ func (s *Server) addSources(ctx context.Context, doc opmlDocument, progress func
 		for _, o := range outlines {
 			if o.XMLURL != "" || o.RSSHubPath != "" {
 				src, title := o.source()
+				if strings.TrimSpace(o.FullText) == "" {
+					src.SkipFullText = !fullText
+				}
 				switch code := checkSource(src); {
 				case code != "":
 					res.Failed = append(res.Failed, importFailure{Title: title, Address: src.URL + src.RSSHubPath, Error: code})
@@ -249,6 +257,9 @@ func (s *Server) exportOPML(w http.ResponseWriter, r *http.Request) {
 		}
 		if src.TranslateTitles {
 			o.TranslateTitles = "1"
+		}
+		if !src.FullText {
+			o.FullText = "0"
 		}
 		if src.DailyCap > 0 {
 			o.DailyCap = strconv.Itoa(src.DailyCap)

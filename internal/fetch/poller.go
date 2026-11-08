@@ -783,15 +783,22 @@ func (p *Poller) fetchFrom(ctx context.Context, src store.FeedSource, address, i
 }
 
 // recordSuccess records a fetch that reached the feed and schedules the next one. An automatic source first gets its
-// interval worked out again from the entries it holds now.
+// interval again: the global default when that is fixed, else worked out from the entries it holds now.
 func (p *Poller) recordSuccess(ctx context.Context, src store.FeedSource, etag, lastModified, instance string, now time.Time) error {
 	interval, stored := src.FetchInterval, time.Duration(0)
 	if src.FetchIntervalAuto {
-		published, err := p.store.RecentPublished(ctx, src.ID, now, AutoSample)
+		global, err := GlobalInterval(ctx, p.store)
 		if err != nil {
 			return err
 		}
-		interval = AutoInterval(published)
+		interval = global
+		if global == 0 {
+			published, err := p.store.RecentPublished(ctx, src.ID, now, AutoSample)
+			if err != nil {
+				return err
+			}
+			interval = AutoInterval(published)
+		}
 		stored = interval
 	}
 	next, err := p.nextFetch(ctx, src, interval, now)

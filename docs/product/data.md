@@ -22,6 +22,7 @@
 | `last_fetched_at`、`last_success_at`、`last_error`、`last_error_kind`、`consecutive_failures` | 抓取健康状况。`last_error_kind` 是上次失败原因的稳定代码，界面据此用用户的语言解释；空串是没有失败或没有归类，取值有 `blocked`（站点的机器人防护拦下了抓取）和 `gone`（站点答 410，订阅已被移除），见[「抓取」](fetching.md#抓取)。`last_error` 是原始的英文文字。 |
 | `fetch_interval_sec` | 现在用的抓取间隔（秒）。`fetch_interval_auto` 为 0 时是用户定的固定值；为 1 时是上一次成功抓取后算出的自动间隔，没算过时是 900。 |
 | `fetch_interval_auto` | 0 或 1，新订阅默认 1：间隔「自动」，见[「抓取」](fetching.md#抓取)。 |
+| `full_text` | 开关，默认 `1`。文章形态的源开着时新条目抽取全文，见[「抓取」](fetching.md#抓取)。新订阅的初始值来自设置 `default_full_text`。 |
 | `suggested_kind` | 第一次成功抓取后，服务端觉得订阅更像哪种形态（`video`、`image` 或 `forum`），空串表示没有建议。只是建议，不会自己改 `kind`。 |
 | `moved_url`、`moved_seen`、`moved_dismissed` | 订阅地址被永久重定向（301、308）的记录，见[「抓取」](fetching.md#抓取)的「永久重定向」：`moved_url` 是连续落到的新地址，空串表示没有；`moved_seen` 是已经连续几次落在它上面；`moved_dismissed` 是用户忽略过的新地址，空串表示没有。默认空串、0、空串。 |
 | `feed_title` | 标题上次是从订阅里取来的那个值，用来分辨标题是用户改过的还是一直跟着订阅走的，见[「抓取」](fetching.md#抓取)第 9 条。默认空串。 |
@@ -110,7 +111,7 @@
 |---|---|
 | `guid`、`title`、`url`、`author`、`published_at` | 来自订阅。`published_at` 只用来展示，会被重新发布覆盖。 |
 | `rss_summary`、`rss_content_html` | 订阅里的摘要和正文。 |
-| `extracted_html`、`extract_status`、`extract_attempts`、`next_extract_at` | 抽取的正文。状态 `pending` → `ok` / `failed`；非文章形态（含社区）为 `skipped`。`next_extract_at` 是失败后最早再试的时刻（毫秒），可为空：不再自动重试。 |
+| `extracted_html`、`extract_status`、`extract_attempts`、`next_extract_at` | 抽取的正文。状态 `pending` → `ok` / `failed`；非文章形态（含社区）和关了 `full_text` 的源为 `skipped`。`next_extract_at` 是失败后最早再试的时刻（毫秒），可为空：不再自动重试。 |
 | `copy_status`、`copy_attempts`、`next_copy_at` | 收藏的本地副本（见[「收藏的本地副本」](#收藏的本地副本)）。状态 `none`（没收藏）→ `pending` → `ok` / `failed`；`next_copy_at` 是失败后最早再试的时刻（毫秒），可为空：不再自动重试。图片副本另存在表 `entry_image_copies`。 |
 | `kind` | 所属源的 `kind` 的副本，只为让「按形态」和「未读」的时间线走索引；数据库触发器在新条目写入和源改形态时同步，不由接口读写。 |
 | `thumbnail_url`、`duration_sec`、`platform` | 视频和社交的展示信息。 |
@@ -336,7 +337,7 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
 
 存什么：
 
-- **全文**：收藏的文章条目要有抽取好的全文（见[「正文抽取」](fetching.md#正文抽取)，走同样的 `guardedClient`，不换普通 `http.Client`）。收藏时若全文抽取已失败（`extract_status` 为 `failed`），把它重置为待抽取并清零重试次数，让它再试一轮；抽取成功后的 `extracted_html` 重新抓取订阅时本来就不会被覆盖，所以一次抓取不会让收藏条目丢掉全文。全文没好之前（文章的 `extract_status` 为 `pending`）不开始复制图片，因为图片地址要从全文里取。
+- **全文**：收藏的文章条目要有抽取好的全文（见[「正文抽取」](fetching.md#正文抽取)，走同样的 `guardedClient`，不换普通 `http.Client`）。源关了 `full_text`、条目是 `skipped` 时，收藏把它改回 `pending`。收藏时若全文抽取已失败（`extract_status` 为 `failed`），把它重置为待抽取并清零重试次数，让它再试一轮；抽取成功后的 `extracted_html` 重新抓取订阅时本来就不会被覆盖，所以一次抓取不会让收藏条目丢掉全文。全文没好之前（文章的 `extract_status` 为 `pending`）不开始复制图片，因为图片地址要从全文里取。
 - **图片**：缩略图、订阅里列出的图片，以及全文和订阅正文里的 `img`（含 `data-src`），相对地址按条目链接补全，只留 http 和 https。已知的跟踪图片地址、宽或高不超过 2 像素的图、隐藏的图，和阅读界面一样不算正文，不复制（判断在 `internal/tracker` 里，阅读界面、图片代理和副本共用）。去重后按上面的顺序最多取 30 张，多的仍是指向原站的链接。
 - 每张图经「图片代理」同一个取图代码（`internal/fetch/images.go`）下载：只连公网地址、不带 `Referer`、超时 25 秒、最大 8 MiB、按内容判断类型、只放行 PNG、JPEG、GIF、WebP 和 BMP。超过大小或类型不对的图直接跳过，不影响其余的图。
 - 副本存在表 `entry_image_copies`：`(entry_id, url)` 唯一，存内容类型和图片字节，`entry_id` 外键 `ON DELETE CASCADE`。同一张图出现在两条收藏里各存一份。

@@ -12,7 +12,7 @@ HTTP 约定和订阅、时间线、设置、图片代理、活动和存储的接
 
 ## 订阅接口
 
-都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`lastErrorKind`（上次失败的稳定代码，`blocked`、`gone` 或空串，见[「抓取」](fetching.md#抓取)）、`movedTo`（站点永久搬走的新地址，等用户决定；没有建议为空串，见[「抓取」](fetching.md#抓取)的「永久重定向」）、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见[「节奏」](timeline.md#节奏)）、`hideFromAll`（布尔，见[「不在全部里出现」](timeline.md#不在全部里出现)）、`dailyCap`（`0` 是关，见[「每日上限」](timeline.md#每日上限)）、`folderId`（所在文件夹的编号，没有为 `null`，见[「文件夹」](data.md#文件夹)）、`translateTitles`（布尔，见[「AI 摘要和翻译」](ai.md#ai-摘要和翻译)的「标题翻译」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见[「正文抽取」](fetching.md#正文抽取)）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`fetchUserAgent`、`fetchReferer`（按源的抓取请求头，空串是不改，见[「抓取」](fetching.md#抓取)的「自定义请求头」）、`openTarget`（`follow`、`reader` 或 `browser`，见[「当前界面」](screens.md#当前界面)的「时间线」里的「点开时」）、`proxy`（`direct`、代理地址，或空串即跟随全局，见[「抓取」](fetching.md#抓取)的「代理」）、`proxyAuthSet`（这个源是否存了代理的用户名和密码；用户名和密码不下发）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
+都要会话（设了口令时）。源在 JSON 里是一个对象：`id`、`url`、`rsshubPath`、`title`、`siteUrl`、`iconUrl`、`kind`、`fullText`（是否抓取全文）、`fetchIntervalSec`（现在用的间隔，自动时是算出来的）、`fetchIntervalAuto`、`suggestedKind`（没有建议或已经等于 `kind` 时为空串）、`nextFetchAt`、`lastFetchedAt`、`lastSuccessAt`（从没有过为 `null`）、`lastError`、`lastErrorKind`（上次失败的稳定代码，`blocked`、`gone` 或空串，见[「抓取」](fetching.md#抓取)）、`movedTo`（站点永久搬走的新地址，等用户决定；没有建议为空串，见[「抓取」](fetching.md#抓取)的「永久重定向」）、`consecutiveFailures`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`（`0` 跟随全局，`-1` 永久，否则是天数）、`paceSec`（`0` 是关，否则是秒数，见[「节奏」](timeline.md#节奏)）、`hideFromAll`（布尔，见[「不在全部里出现」](timeline.md#不在全部里出现)）、`dailyCap`（`0` 是关，见[「每日上限」](timeline.md#每日上限)）、`folderId`（所在文件夹的编号，没有为 `null`，见[「文件夹」](data.md#文件夹)）、`translateTitles`（布尔，见[「AI 摘要和翻译」](ai.md#ai-摘要和翻译)的「标题翻译」）、`extractSelector`、`extractReferer`、`extractRewrites`（按源的抽取规则，都是字符串，空串是不用，见[「正文抽取」](fetching.md#正文抽取)）、`rsshubInstance`（上次成功抓取的 RSSHub 实例的根地址，没有为空串）、`fetchUserAgent`、`fetchReferer`（按源的抓取请求头，空串是不改，见[「抓取」](fetching.md#抓取)的「自定义请求头」）、`openTarget`（`follow`、`reader` 或 `browser`，见[「当前界面」](screens.md#当前界面)的「时间线」里的「点开时」）、`proxy`（`direct`、代理地址，或空串即跟随全局，见[「抓取」](fetching.md#抓取)的「代理」）、`proxyAuthSet`（这个源是否存了代理的用户名和密码；用户名和密码不下发）、`websubHub`（声明的 hub，没有为空串）、`websubActive`（是否在「推送中」）、`unreadCount`、`createdAt`、`updatedAt`。`etag` 和 `last_modified` 只给抓取用，不下发。
 
 | 路由 | 作用 |
 |---|---|
@@ -47,7 +47,7 @@ HTTP 约定和订阅、时间线、设置、图片代理、活动和存储的接
 - `fetchIntervalSec` 是 60 到 604800（7 天）的整数，否则 `invalid_interval`。给了它就是固定间隔；`fetchIntervalAuto` 是布尔值，缺省为 `true`，即两个都不给时间隔「自动」，起点 900。`fetchIntervalAuto` 为 `true` 又给了 `fetchIntervalSec`，返回 `invalid_interval`。
 - 同一订阅已经有了（订阅地址按「源」一节规范化后比较：末尾多一个 `/`、主机名大小写、默认端口、`http` 对 `https`、`www.`、跟踪参数、查询参数的顺序不同，或同一个上游走了 RSSHub 路由和普通地址两条路，都算已有），返回 409，`{ "error": "source_exists", "sourceId": 已有的那个订阅的编号 }`；有几个重复时取最早的。`allowDuplicate` 为 `true` 时不做这个比较，照样添加（用户看了提示仍要加第二个）；写法完全相同的地址仍然加不了，也是 409 `source_exists`。
 
-能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`、`hideFromAll`、`dailyCap`、`folderId`、`translateTitles`、`extractSelector`、`extractReferer`、`extractRewrites`、`fetchUserAgent`、`fetchReferer`、`openTarget`、`proxy`、`proxyUser`、`proxyPassword`。订阅地址不能用 `PATCH` 改：换地址只有一条路，接受服务端的搬家建议（`POST /api/sources/{id}/move`，见[「抓取」](fetching.md#抓取)的「永久重定向」）；别的换地址要删了重加。
+能改的字段：`title`、`kind`、`fetchIntervalSec`、`fetchIntervalAuto`、`fullText`、`promptSummary`、`promptTranslate`、`autoSummary`、`autoTranslate`、`muteKeywords`、`paused`、`keepDays`、`paceSec`、`hideFromAll`、`dailyCap`、`folderId`、`translateTitles`、`extractSelector`、`extractReferer`、`extractRewrites`、`fetchUserAgent`、`fetchReferer`、`openTarget`、`proxy`、`proxyUser`、`proxyPassword`。订阅地址不能用 `PATCH` 改：换地址只有一条路，接受服务端的搬家建议（`POST /api/sources/{id}/move`，见[「抓取」](fetching.md#抓取)的「永久重定向」）；别的换地址要删了重加。
 
 - `keepDays` 是 -1 到 3650 的整数，否则 `invalid_keep_days`。
 - `paceSec` 是 `0` 或 3600 到 2592000 的整数，否则 `invalid_pace`。
@@ -146,6 +146,7 @@ HTTP 约定和订阅、时间线、设置、图片代理、活动和存储的接
 - `rsshubBaseUrl`：兼容字段，等于 `rsshubBaseUrls` 的第一个，没设为空串。客户端读列表。
 - `proxyUrl`：全局抓取代理的地址，没设为空串，见[「抓取」](fetching.md#抓取)的「代理」。`proxyAuthSet`：是否存了代理的用户名和密码；用户名和密码本身只能写（`PATCH` 的 `proxyUser`、`proxyPassword`），不下发。
 - `retentionDays`：保留期限的天数，`0` 是永久。
+- `fetchIntervalSec`：默认抓取间隔的秒数，`0` 是「自动」，默认 `0`；`fullTextDefault`：新订阅是否抓取全文，默认 `true`。见[「抓取」](fetching.md#抓取)的「全局默认」。
 - `groupSameLink`：链接相同的条目在时间线上是否只显示一次，默认 `true`，见[「同一篇文章只显示一次」](data.md#同一篇文章只显示一次)。
 - `muteKeywords`：全局屏蔽词，按行分隔，没设为空串，见[「屏蔽词」](#屏蔽词)。
 - `websubBaseUrl`：WebSub 回调用的公开根地址，没设（功能关闭）为空串，见[「WebSub 推送」](fetching.md#websub-推送)。
@@ -177,6 +178,7 @@ HTTP 约定和订阅、时间线、设置、图片代理、活动和存储的接
 - `proxyUrl` 去掉首尾空白后是空串（不用代理）或带主机名和端口的代理地址（`http`、`https`、`socks5`、`socks5h`，不带路径、查询串、片段和用户信息，最长 500 个字符），不然 `invalid_proxy_url`。`proxyUser`、`proxyPassword` 各最长 255 个字节（SOCKS5 的上限），否则 `invalid_proxy_credentials`；不带就不动，空串删掉；代理地址改了，存的用户名和密码一并删掉，除非同一个请求带了新的。库里存在 `fetch_proxy`、`fetch_proxy_user`、`fetch_proxy_password`；一次 `PATCH` 的所有设置在同一个事务里写入，不会出现新地址配旧凭据的中间状态。
 - `muteKeywords` 每行去掉首尾空白、丢掉空行后存下，最多 200 行、每行最多 100 个字符，否则 `invalid_mute_keywords`。库里存在 `mute_keywords`。改了马上对时间线和未读数生效。
 - `retentionDays` 是 0 到 3650 的整数，否则 `invalid_retention_days`；不是整数时 `invalid_body`。库里存的值读不成天数时按永久处理，返回 `0`（见[「保留期限」](data.md#保留期限)）。
+- `fetchIntervalSec` 是 `0` 或 60 到 604800 的整数，否则 `invalid_interval`。`fullTextDefault` 是布尔值。库里的值读不成合法间隔时按「自动」，`default_full_text` 只有 `0` 是关。
 - `groupSameLink` 是布尔值，不是布尔值时 `invalid_body`。库里存在 `group_same_link`，`0` 是关，没存或别的值都按开处理。
 - `websubBaseUrl` 去掉首尾空白，空串表示关闭；否则必须是带主机名的 https 绝对地址，不带用户信息、查询串和片段，不然 `invalid_websub_base_url`。末尾的 `/` 去掉。库里存在 `websub_base_url`。
 - `aiBaseUrl` 去掉首尾空白，空串表示不设；否则必须是带主机名的 http 或 https 绝对地址，可以指向本机或内网（例如本机的 Ollama），不然 `invalid_ai_base_url`。末尾的 `/` 去掉。
