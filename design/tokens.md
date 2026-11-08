@@ -56,11 +56,11 @@ the window's scheme.
 and `on-inverse`, `line` Border, `scrollbar` Scrollbar; `space-1` is Spacing and `radius-control` is Radius. Every
 other token is read by name.
 
-**Contrast targets**, checked in light, dark, the pane and both presets, on every ground listed in the `audit` token family (paper, hover, selected, surface, float, a hovered
-menu row; pane, pane hover, pane selected), with alphas rounded to a byte as MyGo stores them: `fg` 10:1, `prose` 8.5:1, `fg2` 7:1, `muted` 4.5:1, `accent`, `danger`, `success` and `on-accent`
-4.5:1, `star` and `warning` 3:1 (icons), `faint` 2.6:1 (never for text that must be read). In the pane: `pane-fg` 8:1,
-`pane-fg2` 6:1, `pane-muted` 4.5:1, `pane-accent` 3:1, `pane-faint` 2.6:1. `TestContrastAudit` computes
-every one of them, and a value that misses cannot merge.
+**Contrast targets**, checked in light, dark, the pane and both presets, on every ground listed in the `audit` token
+family (paper, hover, selected, surface, float, a hovered menu row; pane, pane hover, pane selected), with alphas
+rounded to a byte as MyGo stores them: `fg` 10:1, `prose` 8.5:1, `fg2` 7:1, `muted` 4.5:1, `accent`, `danger`,
+`success` and `on-accent` 4.5:1, `star` and `warning` 3:1 (icons), `faint` 2.6:1 (never for text that must be read). In the pane: `pane-fg` 8:1,
+`pane-fg2` 6:1, `pane-muted` 4.5:1, `pane-accent` 3:1, `pane-faint` 2.6:1.
 
 **High contrast.** With the desktop's high contrast on, the state alphas rise (.06 / .08 / .12 / .16), `line` becomes
 `fg` at .55, `muted` moves 40% toward `fg`, focus is opaque accent and floating things gain a 1 DIP rim.
@@ -71,8 +71,8 @@ Three families. **Sans** is the interface: the platform's UI font (SF on macOS, 
 Linux) with PingFang SC, Microsoft YaHei or Noto Sans CJK for Chinese, or the Interface font chosen in Settings.
 **Serif** is for the reading body only, when Reading font is Serif: New York and Songti SC on macOS, Georgia and
 SimSun on Windows, Noto Serif and Noto Serif CJK SC on Linux. Titles, headings, notes and captions keep sans. **Mono**
-is the platform's own monospace, for code and addresses. A screen sets no other family. Every style has an English and a Chinese line height; Chinese lines are
-taller and carry no tracking.
+is the platform's own monospace, for code and addresses. A screen sets no other family. Every style has an English
+and a Chinese line height; Chinese lines are taller and carry no tracking.
 
 | Style | Size / line | Weight | Use |
 | --- | --- | --- | --- |
@@ -94,7 +94,8 @@ Narrow ×0.85, Wide ×1.2. Between Han and Latin text sits a 0.25em gap.
   Roomy). Gaps grow with distance in meaning: `space-1` label to control, `space-2` related controls, `space-3` inside
   a card, `space-4` between groups, `space-6` between the parts of a sheet, `space-8` between a page's parts.
 - **Heights** come in fixed steps and nothing in between: a control is `control` (32) or `control-small` (24); a row
-  is `row-dense` 24, `row` 28 (the pane's rows too) or `row-compact` 36; the toolbar is 52. A tag or badge is `tag` 18. All are on the 4 grid, except `tag`, which sits on 2.
+  is `row-dense` 24, `row` 28 (the pane's rows too) or `row-compact` 36; the toolbar is 52. A tag or badge is `tag`
+  18. All are on the 4 grid, except `tag`, which sits on 2.
 - **Widths**: `menu-min` 160 for a menu or a select, `sheet-width` 320 for a narrow form, `dialog` 440 for a dialog,
   `dialog-wide` 560 for a list dialog and the command palette, `column` 680 for reading.
 - **Radius** by role: `radius-xs` 4 tiles and badges, `radius-sm` 6 popup rows and segments, `radius-control` 8
@@ -129,18 +130,9 @@ illustration.
 
 ## Motion
 
-Oriel is for reading, so motion stays out of the way of the text. It does two jobs only:
-
-- **It keeps your place.** A popup scales out of the control that opened it, from 0.97 with a fade; a folder opens
-  where it was; the timeline and the article keep their scroll position when panes, bars or the toolbar change.
-- **It acknowledges the pointer.** State fills, text and link color, and the row actions fading in.
-
-Only color, opacity, a popup's small scale and a fold change; nothing slides, and nothing in the reading column or
-the list ever moves on its own. `motion-fast` (120 ms, ease-out) for color and opacity, `motion-base` (200 ms,
-ease-out) for a fold or a toast, nothing longer except the busy spinner, which turns once per 900 ms. No springs.
-Closing takes no longer than opening, and a change that starts mid-way starts from where the last one is. Keyboard
-actions are immediate. With reduced motion, scale and folds are immediate and only fades of 120 ms or less remain; the
-spinner keeps turning. The values are the `motion` tokens: `motion-fast`, `motion-base`, `motion-spin` and `motion-pop` (0.97).
+`motion-fast` 120 ms, ease-out, for color and opacity; `motion-base` 200 ms, ease-out, for a fold or a toast;
+`motion-spin` 900 ms, one turn of the busy spinner; `motion-pop` 0.97, the scale a popup opens from. When and how
+they are used, and the reduced-motion rules, are in [docs/design.md](../docs/design.md), Motion.
 
 ## Logo
 

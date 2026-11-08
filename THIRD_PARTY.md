@@ -30,17 +30,16 @@
 
 ## Notes
 
-The MyGo CLI is a module-pinned build tool in the same module version; it does not ship.
-Transitive modules are listed because their code ships. Directories with several
-notices keep every `LICENSE*` file the module carries; the memory logo license is omitted
-because the logo is not shipped. Go standard-library components
-retain their Go license; a copy ships under resources/ThirdPartyLicenses/go/.
-The container image (`Dockerfile`, built from source, not published) adds the runtime base
-`gcr.io/distroless/base-debian12`, a Debian 12 subset (glibc, CA certificates, tzdata and others) under its own
-packages' licenses, which the base keeps in `/usr/share/doc/<package>/copyright`; the program in it is the one above.
+- The MyGo CLI is a build tool from the same module version; it does not ship.
+- Transitive modules are listed because their code ships. Directories with several notices keep every `LICENSE*`
+  file the module carries; the memory logo license is left out because the logo does not ship.
+- Go standard-library components keep their Go license; a copy ships under `resources/ThirdPartyLicenses/go/`.
+- The container image (`Dockerfile`) adds the runtime base `gcr.io/distroless/base-debian12`, a Debian 12 subset
+  (glibc, CA certificates, tzdata and others) under its own packages' licenses, which the base keeps in
+  `/usr/share/doc/<package>/copyright`; the program in it is the one above.
 
 ## Documentation
 
-`docs/design.md` and `design/` summarize, in our own words, the UI documentation of MyGo v0.7.4 (MIT License,
-Copyright (c) egoist): <https://github.com/egoist/mygo/tree/v0.7.4/docs/ui>. No upstream text or code is shipped in
+`docs/design.md` and `design/` summarize, in our own words, the UI documentation of MyGo at the version above (MIT
+License, Copyright (c) egoist): <https://github.com/egoist/mygo/tree/main/docs/ui>. No upstream text or code ships in
 the app.

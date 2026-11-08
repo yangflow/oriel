@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-12
-- Related: [docs/product.md](../product.md), "Architecture" (架构)
+- Related: [docs/product.md](../product.md), 架构
 
 ## Context
 

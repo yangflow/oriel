@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-12
-- Related: [docs/product.md](../product.md), "Technical baseline" (技术基线)
+- Related: [docs/product.md](../product.md), 技术基线
 
 ## Context
 
