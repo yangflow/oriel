@@ -42,16 +42,17 @@ failure there opens an issue.
 - One concern per pull request. Link the issue with `Closes #<n>`.
 - The maintainer squash-merges, so the pull request title becomes the commit message. No DCO or sign-off is
   required.
-- When behavior changes, update the existing tests for that area. The `feat`, `fix` and `perf` titles become the
+- When behavior changes, update the existing tests for that area. The `feat`, `refactor`, `fix` and `perf` titles become the
   release notes (docs/release.md), so write them for users; do not edit `CHANGELOG.md`.
 - Interface strings live in each screen's `copy.json`, in English and Simplified Chinese only; change both.
   Product behavior changes start in [docs/product.md](docs/product.md).
 
 ## UI changes
 
-- A UI change starts from the screens canvas listed in [design/README.md](design/README.md) and the design language in
-  [docs/design.md](docs/design.md); the maintainer confirms the visual direction before UI code is written. Design
-  notes and code go in the same pull request.
+- A UI change starts from the screens canvas listed in [design/README.md](design/README.md), which is the source of
+  truth for how a screen looks, and follows the shared rules in [docs/design.md](docs/design.md); the maintainer
+  confirms the visual direction before UI code is written. A changed shared rule or token goes in the same pull
+  request as the code.
 - Use only MyGo native controls and theme colors. If a component is missing, specify it and all its states in the
   docs first.
 - Screenshots go in the pull request body (light and dark, one per state), not into the repository.

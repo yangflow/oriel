@@ -8,7 +8,7 @@ Oriel 只负责接收：内容只经订阅进来（RSS、Atom、JSON Feed 和 RS
 
 ## 范围
 
-计划的范围，按 [milestone](https://github.com/yangflow/oriel/milestones) 的顺序逐项落地（规则见 [roadmap](roadmap.md)）：
+计划的范围，按 [milestone](https://github.com/yangflow/oriel/milestones) 的顺序逐项落地：
 
 - 时间线混排五种形态：`article`、`video`、`social`、`image`、`forum`（社区）。形态按源决定，条目跟随源。
 - 添加订阅：博客 RSS、YouTube / 哔哩哔哩 / X / GitHub / Telegram / 微博链接，或 RSSHub 路径。
