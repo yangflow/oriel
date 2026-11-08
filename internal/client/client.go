@@ -859,6 +859,9 @@ type FetchingSource struct {
 	URL        string `json:"url"`
 	RSSHubPath string `json:"rsshubPath"`
 	Title      string `json:"title"`
+	ElapsedMs  int64  `json:"elapsedMs"`
+	Attempt    int    `json:"attempt"`
+	Instance   string `json:"instance"` // the host of the RSSHub instance being asked, empty for none
 }
 
 // Activity is what is being fetched now and how the recent fetches of each subscription went. Keep is how many

@@ -59,8 +59,11 @@ func (f *fake) Diagnostics(context.Context) ([]byte, error) { return f.diag, f.d
 func activityData() (client.Activity, client.Storage) {
 	at := func(ago time.Duration) int64 { return now.Add(-ago).UnixMilli() }
 	return client.Activity{
-		Keep:     10,
-		Fetching: []client.FetchingSource{{ID: 2, URL: "https://example.org/feed", Title: "Dispatch"}},
+		Keep: 10,
+		Fetching: []client.FetchingSource{
+			{ID: 2, URL: "https://example.org/feed", Title: "Dispatch", ElapsedMs: 3400, Attempt: 1},
+			{ID: 3, RSSHubPath: "/news", Title: "Route", ElapsedMs: 12000, Attempt: 2, Instance: "rsshub.example.com"},
+		},
 		Sources: []client.ActivitySource{
 			{ID: 1, URL: "https://blog.example/feed", Title: "Blog", Attempts: []client.FetchAttempt{
 				{At: at(2 * time.Minute), DurationMs: 1500, OK: true, Status: 200, NewEntries: 2},
@@ -105,6 +108,8 @@ func TestActivityShows(t *testing.T) {
 			s.text.ActivityLead, s.text.Refresh, s.text.Storage, s.text.DBSize, "5.0 MB", s.text.Entries, "1234", s.text.Images,
 			s.fill(locale.Count(s.text.ImagesValue, "n", 3), "{size}", "2 KB"), s.text.Copies, s.fill(locale.Count(s.text.CopiesValue, "n", 7), "{size}", "3.0 MB"), s.text.Compact,
 			s.fill(s.text.CompactHelp, "{size}", "1.0 MB"), s.text.FetchingNow, "Dispatch", s.text.Recent,
+			s.fill(s.text.FetchingAttempt, "{n}", "1"), s.fill(s.text.FetchingElapsed, "{n}", "3"), s.fill(s.text.FetchingElapsed, "{n}", "12"),
+			s.fill(s.text.FetchingAttempt, "{n}", "2") + " · " + s.fill(s.text.FetchingVia, "{host}", "rsshub.example.com"),
 			"Blog", "/dispatch/news", locale.Count(s.text.RecentKeep, "n", 10),
 			s.ago(now.Add(-2*time.Minute).UnixMilli(), now) + " · " + s.fill(s.text.NewCount, "{n}", "2"),
 			s.ago(now.Add(-10*time.Minute).UnixMilli(), now) + " · " + s.text.FailedWord,

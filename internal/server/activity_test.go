@@ -48,7 +48,9 @@ func TestActivityRoute(t *testing.T) {
 	if err := s.store.LogFetch(ctx, store.FetchAttempt{SourceID: idB, At: c.t.Add(time.Minute), Duration: 90 * time.Millisecond, Status: 503, Error: "status 503"}); err != nil {
 		t.Fatal(err)
 	}
-	s.fetching = func() []int64 { return []int64{idB, 9999} }
+	s.fetching = func() []fetch.InFlight {
+		return []fetch.InFlight{{ID: idB, Elapsed: 12 * time.Second, Attempt: 2, Instance: "rsshub.example.com"}, {ID: 9999}}
+	}
 
 	w = do(s, "GET", "/api/activity", "", bearer(token))
 	body = decode(t, w)
@@ -56,7 +58,8 @@ func TestActivityRoute(t *testing.T) {
 	if w.Code != http.StatusOK || len(fetching) != 1 {
 		t.Fatalf("fetching: %d %s", w.Code, w.Body)
 	}
-	if f := fetching[0].(map[string]any); f["id"] != float64(idB) || f["title"] != "Route" || f["rsshubPath"] != "/x/y" {
+	if f := fetching[0].(map[string]any); f["id"] != float64(idB) || f["title"] != "Route" || f["rsshubPath"] != "/x/y" ||
+		f["elapsedMs"] != 12000.0 || f["attempt"] != 2.0 || f["instance"] != "rsshub.example.com" {
 		t.Fatalf("fetching[0] = %v", f)
 	}
 	list := body["sources"].([]any)

@@ -465,7 +465,15 @@ func (s *Screen) fetchingNowCard(c *ui.Context) {
 					spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.Accent)
 					spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
 				})
-				ui.Text(c, sourceName(f.Title, f.RSSHubPath, f.URL)).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
+					ui.Text(c, sourceName(f.Title, f.RSSHubPath, f.URL)).SingleLine()
+					line := s.fill(s.text.FetchingAttempt, "{n}", strconv.Itoa(f.Attempt))
+					if f.Instance != "" {
+						line += " · " + s.fill(s.text.FetchingVia, "{host}", f.Instance)
+					}
+					meta(c, line)
+				})
+				ui.Text(c, s.fill(s.text.FetchingElapsed, "{n}", strconv.FormatInt(f.ElapsedMs/1000, 10))).NoWrap().TextColor(theme.Text2(t))
 			})
 		}}
 	}

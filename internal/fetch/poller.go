@@ -2,6 +2,7 @@
 package fetch
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -219,7 +220,7 @@ type Poller struct {
 	loaded     time.Time     // when the queue was last read from the database
 	refilling  chan struct{} // open while a refill is reading the database, closed when it is done
 	generation int           // counts resets of the queue, so a refill that began before one is dropped
-	inflight   map[int64]bool
+	inflight   map[int64]*progress
 	settled    map[int64]bool // sources whose fetch ended while a refill was reading, which that read may still list as due
 
 	setMu  sync.Mutex // guards the cached RSSHub setting; never held across a database call
@@ -242,7 +243,7 @@ func New(st *store.Store, version string) *Poller {
 		userAgent: "Oriel/" + version,
 		now:       time.Now,
 		spacing:   feedSpacing,
-		inflight:  map[int64]bool{},
+		inflight:  map[int64]*progress{},
 		vacuuming: st.Vacuuming,
 	}
 }
@@ -394,7 +395,7 @@ func (p *Poller) take(ctx context.Context) (queued, bool) {
 			continue
 		}
 		p.queue = append(p.queue[:i], p.queue[i+1:]...)
-		p.inflight[job.src.ID] = true
+		p.inflight[job.src.ID] = &progress{started: p.now()}
 		return job, true
 	}
 	return queued{}, false
@@ -424,7 +425,7 @@ func (p *Poller) readDue(ctx context.Context, now time.Time, busy int) ([]store.
 func (p *Poller) fill(sources []store.FeedSource, root string) {
 	p.queue = p.queue[:0]
 	for _, src := range sources {
-		if p.inflight[src.ID] || p.settled[src.ID] {
+		if p.inflight[src.ID] != nil || p.settled[src.ID] {
 			continue
 		}
 		var host string
@@ -454,22 +455,54 @@ func (p *Poller) rsshubSetting(ctx context.Context, now time.Time) (string, erro
 	return raw, nil
 }
 
-// Fetching returns the ids of the sources being fetched now, in order.
-func (p *Poller) Fetching() []int64 {
+// progress is how far the fetch of a source has come; p.mu guards it.
+type progress struct {
+	started  time.Time
+	attempt  int    // requests to an instance so far, 0 for a source that is not a route
+	instance string // the host of the instance being asked
+}
+
+// InFlight is a source being fetched now: how long it has been at it, which attempt this is and the host of the
+// RSSHub instance it is asking, empty when there is none.
+type InFlight struct {
+	ID       int64
+	Elapsed  time.Duration
+	Attempt  int
+	Instance string
+}
+
+// Fetching returns the sources being fetched now, in order of id.
+func (p *Poller) Fetching() []InFlight {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	ids := make([]int64, 0, len(p.inflight))
-	for id := range p.inflight {
-		ids = append(ids, id)
+	now := p.now()
+	sources := make([]InFlight, 0, len(p.inflight))
+	for id, at := range p.inflight {
+		sources = append(sources, InFlight{ID: id, Elapsed: max(now.Sub(at.started), 0), Attempt: max(at.attempt, 1), Instance: at.instance})
 	}
-	slices.Sort(ids)
-	return ids
+	slices.SortFunc(sources, func(a, b InFlight) int { return cmp.Compare(a.ID, b.ID) })
+	return sources
+}
+
+// asking notes that the fetch of a source goes on to another RSSHub instance.
+func (p *Poller) asking(id int64, base string) {
+	host := ""
+	if u, err := url.Parse(base); err == nil {
+		host = u.Host
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if at := p.inflight[id]; at != nil {
+		at.attempt++
+		at.instance = host
+	}
 }
 
 // requestInstance is fetchFrom for an RSSHub instance, counting the request in the instance's health. A request
 // that ended because ctx was canceled does not count: it says nothing about the instance. Its latency is the time
 // until the response headers arrived, so reading the body and saving the entries are not part of it.
 func (p *Poller) requestInstance(ctx context.Context, src store.FeedSource, address, base string) (int, error) {
+	p.asking(src.ID, base)
 	start := p.now()
 	var headers time.Duration
 	created, err := p.fetchFrom(context.WithValue(ctx, headersKey{}, &headers), src, address, base)

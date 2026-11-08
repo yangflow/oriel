@@ -49,13 +49,20 @@ type fetchingJSON struct {
 	URL        string `json:"url"`
 	RSSHubPath string `json:"rsshubPath"`
 	Title      string `json:"title"`
+	ElapsedMs  int64  `json:"elapsedMs"`
+	Attempt    int    `json:"attempt"`
+	Instance   string `json:"instance"`
 }
 
 // activity answers GET /api/activity: the sources being fetched now and the recent attempts of each source.
 func (s *Server) activity(w http.ResponseWriter, r *http.Request) {
-	var ids []int64
+	var inFlight []fetch.InFlight
 	if s.fetching != nil {
-		ids = s.fetching()
+		inFlight = s.fetching()
+	}
+	ids, progress := make([]int64, len(inFlight)), make(map[int64]fetch.InFlight, len(inFlight))
+	for i, f := range inFlight {
+		ids[i], progress[f.ID] = f.ID, f
 	}
 	now, err := s.store.SourceIdentities(r.Context(), ids)
 	if err != nil {
@@ -69,7 +76,9 @@ func (s *Server) activity(w http.ResponseWriter, r *http.Request) {
 	}
 	fetching := make([]fetchingJSON, len(now))
 	for i, src := range now {
-		fetching[i] = fetchingJSON{ID: src.ID, URL: src.URL, RSSHubPath: src.RSSHubPath, Title: src.Title}
+		at := progress[src.ID]
+		fetching[i] = fetchingJSON{ID: src.ID, URL: src.URL, RSSHubPath: src.RSSHubPath, Title: src.Title,
+			ElapsedMs: at.Elapsed.Milliseconds(), Attempt: at.Attempt, Instance: at.Instance}
 	}
 	sources := make([]activitySourceJSON, len(recent))
 	for i, src := range recent {
