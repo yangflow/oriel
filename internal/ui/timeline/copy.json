@@ -247,7 +247,8 @@
     "RefreshedPart": "Checked {done} of {n} {n:subscription|subscriptions}, the rest will follow",
     "RefreshNone": "No subscriptions to refresh",
     "RefreshFailed": "Can't refresh now. Try again later.",
-    "SubscriptionsMenu": "Subscriptions"
+    "SubscriptionsMenu": "Subscriptions",
+    "PageSubscriptions": "Subscriptions"
   },
   "zh-Hans": {
     "All": "全部",
@@ -497,6 +498,7 @@
     "RefreshedPart": "已查 {done}/{n} 个订阅，其余会陆续抓",
     "RefreshNone": "没有可更新的订阅",
     "RefreshFailed": "现在无法更新，请稍后再试",
-    "SubscriptionsMenu": "订阅"
+    "SubscriptionsMenu": "订阅",
+    "PageSubscriptions": "订阅"
   }
 }

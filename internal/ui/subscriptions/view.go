@@ -62,11 +62,16 @@ type copy struct {
 	HealthWhy, HealthNumbers, PauseSource, Unsubscribe, UnsubscribeSource                                                                                                               string
 	Moved, MovedUpdate, MovedDismiss, MovedExists, MovedExistsUnknown, MovedChanged, MovedDone, MovedDismissed                                                                          string
 	HealthMoved, MovedUpdateSource, MovedDismissSource                                                                                                                                  string
-	ManageTitle, ManageSub, FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN                                      string
-	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, ManageHint, EveryOf, KeepOf, KeepAll, KeepSet, LabelSep, SelectedMark, PausedMark, FailingMark                               string
-	WorkingPause, WorkingResume, WorkingChange, WorkingDelete, WorkingRestore, AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore                           string
+	FilterPlaceholder, FilterLabel, NoMatch, SelectAll, OfN, SelectedN, NothingSelected, BarLabel, ClearSelection, ChangeN                                                              string
+	PauseNLabel, ResumeNLabel, ChangeNLabel, DeleteNLabel, LabelSep, SelectedMark, PausedMark                                                                                           string
+	AnnouncePause, AnnounceResume, AnnounceChange, AnnounceDelete, AnnounceRestore                                                                                                      string
+	AllKinds, KindFilter, ListName, NoSubscriptions, HiddenMark, RowFailed, Applying, RefreshNLabel, DeleteMany, AnnounceRefresh                                                        string
+	RefreshedMany, PartialRefresh, On, Off, ProxyFollowShort, PageGeneral, PageFetching, PageTimeline, PageDelete, TitleHelp                                                            string
+	PauseHelp, EveryHelp, ExtractRowHelp, HeadersRowHelp, ProxyRowHelp, Automatic, None, Custom, Prompts, UsingSettings                                                                 string
+	DeleteSubscription, DeleteSubscriptionHelp, DeleteSource, Saved, SaveTitle, SaveExtract, SaveHeaders, SaveProxy, SaveMute                                                           string
+	SavePrompts, StatusOk, StatusFailed, StatusGone, StatusGoneSub, StatusPausedSub, StatusUpdated, StripTried, StripTriedOnly, LastSuccess                                             string
 	PausedMany, ResumedMany, ChangedMany, DeletedMany, RestoredMany, RestoredSome, PartialPause, PartialResume, PartialChange, PartialDelete, AllFailed                                 string
-	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, NowMixed, NowOne, Apply, DeleteManyTitle, DeleteManyBody                                        string
+	RetryFailed, DismissResult, RNet, RGone, RServer, ChangeTitle, ChangeSub, KeepAsIs, Apply, DeleteManyTitle, DeleteManyBody                                                          string
 }
 
 var translations = func() map[string]copy {
@@ -295,7 +300,9 @@ type Screen struct {
 	announce       string
 	toast          string
 	deleted        []*deletion // the toasts that offer to undo a delete
-	manage         managing    // the dialog that changes several subscriptions at once
+	manage         managing    // Settings → Subscriptions: the list and its bulk actions
+	pg             paging      // Settings → Subscriptions: one subscription's page
+	form           *editing    // what the form pieces draw: the edit dialog's or the page's
 	undo           *bulkUndo   // the toast that offers to undo the last bulk delete
 	pending        *bulkUndo   // an Undo pressed while a bulk run was going, started when the run is done
 	closeBulk      bool        // the toast of the bulk delete is closed at the next frame
@@ -306,7 +313,9 @@ func New(systemLocale string, deps Deps) *Screen {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
-	return &Screen{deps: deps, lang: locale.Language(systemLocale), text: translations[locale.Language(systemLocale)], muteWait: 300 * time.Millisecond}
+	s := &Screen{deps: deps, lang: locale.Language(systemLocale), text: translations[locale.Language(systemLocale)], muteWait: 300 * time.Millisecond}
+	s.form = &s.edit
+	return s
 }
 
 // SetLanguage shows the screen in the language of systemLocale, keeping what it shows.
@@ -322,7 +331,7 @@ func (s *Screen) Use(api API) {
 	s.stopRun()
 	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
 	s.folderDlg, s.deletingFolder = foldering{}, false
-	s.manage, s.undo, s.pending = managing{}, nil, nil
+	s.manage, s.pg, s.undo, s.pending = managing{}, paging{}, nil, nil
 }
 
 // stopRun cancels the requests of a bulk run under way, whose results are dropped.
@@ -334,7 +343,8 @@ func (s *Screen) stopRun() {
 
 // Open reports whether a dialog shows, which takes the keys from the timeline.
 func (s *Screen) Open() bool {
-	return s.add.open || s.edit.open || s.report.open || s.deleting || s.manage.open || s.folderDlg.open || s.deletingFolder
+	return s.add.open || s.edit.open || s.report.open || s.deleting || s.manage.sheet.open || s.manage.confirm ||
+		s.folderDlg.open || s.deletingFolder
 }
 
 // Name is what names a subscription: its title, which is empty until the first fetch, else the host of its address,
@@ -391,7 +401,7 @@ func (s *Screen) expired(err error) bool {
 	s.api = nil
 	s.add, s.edit, s.report, s.deleting = adding{}, editing{}, reporting{}, false
 	s.folderDlg, s.deletingFolder = foldering{}, false
-	s.manage, s.undo, s.pending = managing{}, nil, nil
+	s.manage, s.pg, s.undo, s.pending = managing{}, paging{}, nil, nil
 	s.deps.Expired()
 	return true
 }
@@ -676,25 +686,37 @@ func (s *Screen) Edit(src client.Source) {
 	if s.api == nil {
 		return
 	}
-	s.edit = editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
+	s.edit = editingOf(src)
+	s.edit.focus = true
+	s.loadFormSettings(&s.edit)
+}
+
+// editingOf is the form of src as the server has it.
+func editingOf(src client.Source) editing {
+	return editing{open: true, src: src, title: src.Title, kind: max(0, slices.Index(kinds, src.Kind)),
 		interval: intervalChoice(src), keep: int64(src.KeepDays), target: int64(max(0, slices.Index(openTargets, src.OpenTarget))), pace: int64(src.PaceSec), dailyCap: int64(src.DailyCap), paused: src.Paused, hide: src.HideFromAll, folder: src.FolderID, mute: src.MuteKeywords,
 		extract:  src.ExtractSelector != "" || src.ExtractReferer != "" || src.ExtractRewrites != "",
 		selector: src.ExtractSelector, referer: src.ExtractReferer, rewrites: src.ExtractRewrites,
 		headers: src.FetchUserAgent != "" || src.FetchReferer != "", agent: src.FetchUserAgent, fetchRef: src.FetchReferer,
 		proxyOpen: src.Proxy != "", proxyMode: proxyChoice(src.Proxy), proxyURL: ownProxy(src.Proxy),
 		auto: [2]bool{src.AutoSummary, src.AutoTranslate}, titles: src.TranslateTitles,
-		prompts: [2]string{src.PromptSummary, src.PromptTranslate}, focus: true}
-	gen, api, id := s.gen, s.api, src.ID
+		prompts: [2]string{src.PromptSummary, src.PromptTranslate}}
+}
+
+// loadFormSettings fills in what the form e shows from the settings: whether AI is set up, the keep period and the
+// first RSSHub instance.
+func (s *Screen) loadFormSettings(e *editing) {
+	gen, api, id := s.gen, s.api, e.src.ID
 	s.deps.Go(func() func() {
 		settings, err := api.Settings(context.Background())
 		return func() {
-			if gen != s.gen || s.expired(err) || err != nil || !s.edit.open || s.edit.src.ID != id {
+			if gen != s.gen || s.expired(err) || err != nil || !e.open || e.src.ID != id {
 				return
 			}
-			s.edit.aiOff = !settings.AIConfigured()
-			s.edit.global = settings.RetentionDays
+			e.aiOff = !settings.AIConfigured()
+			e.global = settings.RetentionDays
 			if len(settings.RSSHubBaseURLs) > 0 {
-				s.edit.primary = settings.RSSHubBaseURLs[0]
+				e.primary = settings.RSSHubBaseURLs[0]
 			}
 		}
 	})
@@ -910,6 +932,9 @@ func (s *Screen) gone(id int64) {
 	if s.edit.src.ID == id {
 		s.edit.open = false
 	}
+	if s.pg.open && s.pg.e.src.ID == id {
+		s.closePage()
+	}
 	s.dropHealth(id)
 	s.toast = s.text.Gone
 	s.deps.Removed(id)
@@ -1076,7 +1101,7 @@ func (s *Screen) actOnMove(src client.Source, movedTo string, accept bool) {
 	if s.api == nil {
 		return
 	}
-	s.edit.movedErr = ""
+	s.edit.movedErr, s.pg.e.movedErr = "", ""
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		var changed client.Source
@@ -1090,13 +1115,17 @@ func (s *Screen) actOnMove(src client.Source, movedTo string, accept bool) {
 			if gen != s.gen || s.expired(err) {
 				return
 			}
-			inDialog := s.edit.open && s.edit.src.ID == src.ID
+			form := &s.edit
+			if !form.open || form.src.ID != src.ID {
+				form = &s.pg.e
+			}
+			inDialog := form.open && form.src.ID == src.ID
 			switch {
 			case err == nil:
 				s.deps.Changed(changed)
 				s.dropHealth(src.ID)
 				if inDialog {
-					s.edit.src = changed
+					form.src = changed
 				}
 				s.announce = s.text.MovedDismissed
 				if accept {
@@ -1115,14 +1144,14 @@ func (s *Screen) actOnMove(src client.Source, movedTo string, accept bool) {
 					}
 				}
 				if inDialog {
-					s.edit.movedErr, s.announce = line, line
+					form.movedErr, s.announce = line, line
 				} else {
 					s.toast = line
 				}
 			case code(err) == "move_changed":
 				s.toast = s.text.MovedChanged
 				if inDialog {
-					s.edit.src.MovedTo = "" // the next sources the timeline loads bring the new suggestion
+					form.src.MovedTo = "" // the next sources the timeline loads bring the new suggestion
 				}
 				if s.report.open {
 					s.loadHealth()
@@ -1158,6 +1187,9 @@ func (s *Screen) remove() {
 			}
 			switch {
 			case err == nil:
+				if s.pg.open && s.pg.e.src.ID == src.ID {
+					s.Back()
+				}
 				s.deleted = append(s.deleted, &deletion{src: src})
 				if s.undo != nil {
 					s.undo, s.closeBulk = nil, true
@@ -1265,9 +1297,6 @@ func (s *Screen) View(c *ui.Context) {
 	}
 	if s.report.open && !s.deleting {
 		s.healthDialog(c)
-	}
-	if s.manage.open {
-		s.manageDialog(c)
 	}
 	if s.folderDlg.open {
 		s.folderDialog(c)
@@ -1963,7 +1992,7 @@ func (s *Screen) kindPicker(c *ui.Context, value *int) {
 // kindSuggestion is the line under the kind picker when the first fetch found the feed to look like another kind than
 // the one chosen. The button only chooses the kind in the dialog; Save stores it.
 func (s *Screen) kindSuggestion(c *ui.Context) {
-	e := &s.edit
+	e := s.form
 	i := slices.Index(kinds, e.src.SuggestedKind)
 	if i < 0 || i == e.kind {
 		return
@@ -2081,7 +2110,7 @@ func (s *Screen) keepName(days int64) string {
 // following the settings it shows the period the settings have, as in "Follow settings · 3 months".
 func (s *Screen) keepField(c *ui.Context) {
 	t := c.Theme()
-	e := &s.edit
+	e := s.form
 	options := keeps
 	if !slices.Contains(options, e.keep) {
 		options = slices.Insert(slices.Clone(options), len(options)-1, e.keep)
@@ -2115,7 +2144,7 @@ func (s *Screen) openName(i int64) string {
 // openField is where a click on the subscription's entries goes, with the line that says so.
 func (s *Screen) openField(c *ui.Context) {
 	t := c.Theme()
-	e := &s.edit
+	e := s.form
 	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		s.choiceSelect(c, &e.target, []int64{0, 1, 2}, s.text.OpenTarget, s.openName(e.target), s.openName, e.busy, false)
 		help(c, s.text.OpenTargetHelp)
@@ -2140,7 +2169,7 @@ func (s *Screen) paceName(sec int64) string {
 // paceField is the pace of the subscription, with the line that says what it does.
 func (s *Screen) paceField(c *ui.Context) {
 	t := c.Theme()
-	e := &s.edit
+	e := s.form
 	options := paces
 	if !slices.Contains(options, e.pace) {
 		options = append(slices.Clone(options), e.pace)
@@ -2163,7 +2192,7 @@ func (s *Screen) capName(n int64) string {
 // capField is how many entries a day of the subscription stay out of the fold, with the line that says what it does.
 func (s *Screen) capField(c *ui.Context) {
 	t := c.Theme()
-	e := &s.edit
+	e := s.form
 	options := caps
 	if !slices.Contains(options, e.dailyCap) {
 		options = append(slices.Clone(options), e.dailyCap)
@@ -2179,7 +2208,7 @@ func (s *Screen) capField(c *ui.Context) {
 // full text of the subscription. It is closed unless a rule is set, and an empty field leaves the automatic behavior.
 func (s *Screen) extractGroup(c *ui.Context) {
 	t := c.Theme()
-	e := &s.edit
+	e := s.form
 	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		head := ui.ButtonBase(c).Key("extract").AlignSelf(ui.Start).Height(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).
 			Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Extract).Role(ui.RoleDisclosure).Expanded(e.extract)
@@ -2198,9 +2227,17 @@ func (s *Screen) extractGroup(c *ui.Context) {
 		if head.Clicked() {
 			e.extract = !e.extract
 		}
-		if !e.extract {
-			return
+		if e.extract {
+			s.extractFields(c)
 		}
+	})
+}
+
+// extractFields are the fields of the Extraction group.
+func (s *Screen) extractFields(c *ui.Context) {
+	t := c.Theme()
+	e := s.form
+	ui.Column(c.Key("extract-fields")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		help(c, s.text.ExtractHelp)
 		s.extractInput(c, "selector", &e.selector, s.text.ExtractSelector, s.text.ExtractSelectorPlaceholder, s.text.ExtractSelectorHelp)
 		s.extractInput(c, "referer", &e.referer, s.text.ExtractReferer, s.text.ExtractRefererPlaceholder, s.text.ExtractRefererHelp)
@@ -2222,7 +2259,7 @@ func (s *Screen) extractGroup(c *ui.Context) {
 // site.
 func (s *Screen) headersGroup(c *ui.Context) {
 	t := c.Theme()
-	e := &s.edit
+	e := s.form
 	if e.src.URL == "" {
 		return
 	}
@@ -2244,9 +2281,17 @@ func (s *Screen) headersGroup(c *ui.Context) {
 		if head.Clicked() {
 			e.headers = !e.headers
 		}
-		if !e.headers {
-			return
+		if e.headers {
+			s.headerFields(c)
 		}
+	})
+}
+
+// headerFields are the fields of the Request headers group.
+func (s *Screen) headerFields(c *ui.Context) {
+	t := c.Theme()
+	e := s.form
+	ui.Column(c.Key("header-fields")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		s.headerInput(c, "agent", &e.agent, e.headerErr[0], s.text.HeaderUa, "Oriel/"+client.Version(),
 			strings.ReplaceAll(s.text.HeaderUaHelp, "{version}", client.Version()), s.text.HeaderUaError)
 		s.headerInput(c, "fetch-referer", &e.fetchRef, e.headerErr[1], s.text.HeaderReferer, "https://example.com/",
@@ -2259,7 +2304,7 @@ func (s *Screen) headersGroup(c *ui.Context) {
 // or uses a proxy of its own. It is closed while the subscription follows the settings.
 func (s *Screen) proxyGroup(c *ui.Context) {
 	t := c.Theme()
-	e := &s.edit
+	e := s.form
 	ui.Column(c.Key("proxy")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		head := ui.ButtonBase(c).Key("proxy-head").AlignSelf(ui.Start).Height(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).
 			Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Proxy).Role(ui.RoleDisclosure).Expanded(e.proxyOpen)
@@ -2292,9 +2337,17 @@ func (s *Screen) proxyGroup(c *ui.Context) {
 				help(c, s.text.ProxyDirectHelp)
 			}
 		})
-		if e.proxyMode != proxyCustom {
-			return
+		if e.proxyMode == proxyCustom {
+			s.proxyFields(c)
 		}
+	})
+}
+
+// proxyFields are the boxes of a proxy of the subscription's own: the address and the sign-in.
+func (s *Screen) proxyFields(c *ui.Context) {
+	t := c.Theme()
+	e := s.form
+	ui.Column(c.Key("proxy-fields")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		ui.Column(c.Key("proxy-address")).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 			label(c, s.text.ProxyAddress)
 			box(c, "proxy-address-box", nil, e.proxyErr, func() {
@@ -2330,7 +2383,7 @@ func (s *Screen) proxySecret(c *ui.Context, key string, value *string, labelText
 		label(c, labelText)
 		box(c, key, nil, false, func() {
 			in := ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(labelText).Placeholder(placeholder).
-				Disabled(s.edit.busy)
+				Disabled(s.form.busy)
 			if mask {
 				in.Password()
 			}
@@ -2346,7 +2399,7 @@ func (s *Screen) headerInput(c *ui.Context, key string, value *string, invalid b
 		label(c, labelText)
 		box(c, key, nil, invalid, func() {
 			ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(labelText).Description(helpText).
-				Placeholder(placeholder).Disabled(s.edit.busy)
+				Placeholder(placeholder).Disabled(s.form.busy)
 		})
 		if invalid {
 			errorLine(c, errText, "")
@@ -2362,7 +2415,7 @@ func (s *Screen) extractInput(c *ui.Context, key string, value *string, labelTex
 		label(c, labelText)
 		box(c, key, nil, false, func() {
 			ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(labelText).Description(helpText).
-				Placeholder(placeholder).Disabled(s.edit.busy)
+				Placeholder(placeholder).Disabled(s.form.busy)
 		})
 		help(c, helpText)
 	})
@@ -2372,8 +2425,14 @@ func (s *Screen) extractInput(c *ui.Context, key string, value *string, labelTex
 // secondary button with its text at the start and a muted chevron at the end. shown is what the closed select reads
 // for the current value.
 func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, busy, muted bool) {
-	t := c.Theme()
 	label(c, labelText)
+	s.selectTrigger(c, value, options, labelText, shown, name, busy, muted)
+}
+
+// selectTrigger is the select of choiceSelect without its label, named labelText for a screen reader; it fills the
+// width it is given.
+func (s *Screen) selectTrigger(c *ui.Context, value *int64, options []int64, labelText, shown string, name func(int64) string, busy, muted bool) {
+	t := c.Theme()
 	sel := ui.SelectBase(c, value)
 	sel.Trigger.FillWidth().MinWidth(theme.Px(t, tokens.MenuMin)).Height(theme.Px(t, tokens.Control)).
 		Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl)).
@@ -2411,6 +2470,7 @@ func (s *Screen) choiceSelect(c *ui.Context, value *int64, options []int64, labe
 
 func (s *Screen) editDialog(c *ui.Context) {
 	e := &s.edit
+	s.form = e
 	where := e.src.URL
 	if where == "" {
 		where = e.src.RSSHubPath
@@ -2491,7 +2551,7 @@ func (s *Screen) healthText(src client.Source, now time.Time) (string, bool) {
 // servedBy names the RSSHub instance that served the last fetch of a route, host only, and says so when it is not
 // the first of the settings, with a line that explains why. It shows nothing for a feed or a route that has not been fetched.
 func (s *Screen) servedBy(c *ui.Context) {
-	src := s.edit.src
+	src := s.form.src
 	if src.RSSHubPath == "" || src.RSSHubInstance == "" {
 		return
 	}
@@ -2499,7 +2559,7 @@ func (s *Screen) servedBy(c *ui.Context) {
 	if u, err := url.Parse(src.RSSHubInstance); err == nil && u.Host != "" {
 		host = u.Host
 	}
-	if primary := strings.TrimRight(s.edit.primary, "/"); primary != "" && !strings.EqualFold(primary, src.RSSHubInstance) {
+	if primary := strings.TrimRight(s.form.primary, "/"); primary != "" && !strings.EqualFold(primary, src.RSSHubInstance) {
 		text, hint = s.text.ServedByBackup, s.text.ServedByBackupHint
 	}
 	help(c, strings.ReplaceAll(text, "{host}", host))
@@ -2511,7 +2571,7 @@ func (s *Screen) servedBy(c *ui.Context) {
 // movedCard offers the address the site moved the feed to for good, once the server has seen it three times in a row.
 // Neither button is part of Save.
 func (s *Screen) movedCard(c *ui.Context) {
-	src := s.edit.src
+	src := s.form.src
 	if src.MovedTo == "" {
 		return
 	}
@@ -2525,8 +2585,8 @@ func (s *Screen) movedCard(c *ui.Context) {
 		ui.Column(c).FillWidth().Selectable().Children(func() {
 			ui.Text(c, src.MovedTo).Font("monospace").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).Wrap()
 		})
-		if s.edit.movedErr != "" {
-			errorLine(c, s.edit.movedErr, "")
+		if s.form.movedErr != "" {
+			errorLine(c, s.form.movedErr, "")
 		}
 		ui.Row(c).Gap(theme.Px(t, tokens.Space2)).Children(func() {
 			update := theme.Button{Small: true, Style: theme.Primary, Text: s.text.MovedUpdate,
@@ -2545,7 +2605,7 @@ func (s *Screen) movedCard(c *ui.Context) {
 
 func (s *Screen) health(c *ui.Context) {
 	t := c.Theme()
-	src := s.edit.src
+	src := s.form.src
 	text, bad := s.healthText(src, s.deps.Now())
 	icon, tone := icons.CircleCheckBig, t.Success
 	switch {
@@ -2581,10 +2641,10 @@ func (s *Screen) switchRow(c *ui.Context, key string, value *bool, text, helpTex
 				help(c, helpText)
 			}
 		})
-		if column.Clicked() && !s.edit.busy {
+		if column.Clicked() && !s.form.busy {
 			*value = !*value
 		}
-		sw := ui.Switch(c, value).Label(text).Disabled(s.edit.busy)
+		sw := ui.Switch(c, value).Label(text).Disabled(s.form.busy)
 		if helpText != "" {
 			sw.Description(helpText)
 		}
@@ -2605,7 +2665,7 @@ func groupTitle(c *ui.Context, icon *ui.SVG, text string) {
 // replace the ones in the settings; while AI is not set up it says so and leads to the settings.
 func (s *Screen) aiGroup(c *ui.Context) {
 	t := c.Theme()
-	e := &s.edit
+	e := s.form
 	groupTitle(c, icons.Sparkles, s.text.AIGroup)
 	if e.aiOff {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusCard)).
@@ -2615,7 +2675,9 @@ func (s *Screen) aiGroup(c *ui.Context) {
 				Role(ui.RoleStatus)
 			open := theme.Button{Small: true, Text: s.text.OpenSettings}.Draw(c)
 			if open.Clicked() {
-				e.open = false
+				if e == &s.edit {
+					e.open = false
+				}
 				if s.deps.OpenSettings != nil {
 					s.deps.OpenSettings()
 				}
@@ -2641,14 +2703,14 @@ func (s *Screen) muteField(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		label(c, s.text.Mute)
-		area := ui.TextArea(c, &s.edit.mute).FillWidth().Lines(2, 6).Label(s.text.Mute).Description(s.text.MuteHelp).
-			Disabled(s.edit.busy)
+		area := ui.TextArea(c, &s.form.mute).FillWidth().Lines(2, 6).Label(s.text.Mute).Description(s.text.MuteHelp).
+			Disabled(s.form.busy)
 		if area.Focused() {
 			area.Background(theme.RaisedFill(t))
 		}
 		help(c, s.text.MuteHelp)
 		s.syncMuted()
-		if e := s.edit; e.known {
+		if e := s.form; e.known {
 			text := s.text.MuteNone
 			if e.hidden > 0 {
 				text = s.count(s.text.MuteHidden, e.hidden)
@@ -2661,7 +2723,7 @@ func (s *Screen) muteField(c *ui.Context) {
 // syncMuted asks the server how many entries the keywords in the box hide, once the box has changed and stayed so
 // for muteWait. The answer of an older question is dropped. Nothing is asked for an empty box: it hides nothing.
 func (s *Screen) syncMuted() {
-	e := &s.edit
+	e := s.form
 	if e.mute == e.counted || s.api == nil {
 		return
 	}
@@ -2679,10 +2741,10 @@ func (s *Screen) syncMuted() {
 		}
 		n, err := api.MutedCount(context.Background(), id, keywords)
 		return func() {
-			if gen != s.gen || s.expired(err) || !s.edit.open || s.edit.src.ID != id || s.muteSeq.Load() != seq {
+			if gen != s.gen || s.expired(err) || !e.open || e.src.ID != id || s.muteSeq.Load() != seq {
 				return
 			}
-			s.edit.hidden, s.edit.known = n, err == nil
+			e.hidden, e.known = n, err == nil
 		}
 	})
 }

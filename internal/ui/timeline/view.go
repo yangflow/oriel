@@ -54,7 +54,7 @@ type copy struct {
 	FailingTitle, ShowAll, MarkAbove, MarkedAbove, MarkBelow, MarkedBelow, MarkedVisible, MarkedScrolled, KeyMarkVisible, KeyScope, KeySidebar, KeyMenu                                                                                              string
 	ReadingTime                                                                                                                                                                                                                                      string
 	ShowGrid, ShowList, KeyPalette, PaletteTitle, PaletteGoTo, PaletteOpenSettings, PaletteHealth, PaletteManage, PaletteActions, PaletteUnreadOnly, PaletteShowAll                                                                                  string
-	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageFetching, PageImport, PageAI, PageDevices, PageActivity, HideSidebar, ShowSidebar, KeyToggleSidebar                                                                              string
+	PaletteNone, PaletteCount, PaletteCountOne, PageAppearance, PageSubscriptions, PageFetching, PageImport, PageAI, PageDevices, PageActivity, HideSidebar, ShowSidebar, KeyToggleSidebar                                                           string
 	MarkOlder1, MarkOlder7, MarkOlder30, MarkedOlder, NoneOlder, Age1, Age7, Age30                                                                                                                                                                   string
 	FilterSources, ClearFilter, UnreadFirst, NoMatchingSources                                                                                                                                                                                       string
 	NewFolder, Collapse, Expand                                                                                                                                                                                                                      string
@@ -2929,13 +2929,9 @@ func RefreshMenuLabels(systemLocale string) (menu, refresh, manage string) {
 // HasSources reports whether there is a subscription to manage, which the menu item shows.
 func (s *Screen) HasSources() bool { return s.api != nil && s.subs.HasSources() }
 
-// Manage opens the dialog that changes several subscriptions at once, from the menu.
-func (s *Screen) Manage() {
-	if s.api == nil || s.keys || s.subs.Open() || s.pal.open || s.lb.open {
-		return
-	}
-	s.subs.Manage()
-}
+// Subscriptions is the screen of the subscriptions, whose list and pages the Subscriptions group of the settings
+// shows.
+func (s *Screen) Subscriptions() *subscriptions.Screen { return s.subs }
 
 // MenuLabels are the Help menu and its item that shows the key sheet, in the language of the system locale.
 func MenuLabels(systemLocale string) (help, keys string) {

@@ -283,7 +283,7 @@ func (s *Screen) folderName(id int64) string {
 // subscription is in none.
 func (s *Screen) folderField(c *ui.Context) {
 	t := c.Theme()
-	e := &s.edit
+	e := s.form
 	folders := s.folders()
 	if len(folders) == 0 {
 		return
