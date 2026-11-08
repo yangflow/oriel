@@ -63,6 +63,8 @@ type fake struct {
 	activityErr error
 	storageErr  error
 	vacuumErr   error
+	renamed     []string
+	renameErr   error
 	reads       int // how many times the activity was read
 	health      client.RSSHubHealth
 	healthErr   error
@@ -205,6 +207,11 @@ func (f *fake) SetSettings(_ context.Context, patch client.SettingsPatch) (clien
 }
 
 func (f *fake) Devices(context.Context) ([]client.Device, error) { return f.devices, f.devicesErr }
+
+func (f *fake) RenameDevice(_ context.Context, id int64, name string) error {
+	f.renamed = append(f.renamed, fmt.Sprintf("%d %s", id, name))
+	return f.renameErr
+}
 
 func (f *fake) RevokeDevice(_ context.Context, id int64) error {
 	f.revoked = append(f.revoked, id)
@@ -2505,5 +2512,45 @@ func TestReadingAppearanceRows(t *testing.T) {
 	press(t, tt, s.text.WidthNarrow)
 	if f.prefs.ReadingPreset != "" || f.prefs.ReadingWidth != prefs.WidthNarrow {
 		t.Fatalf("prefs %+v", f.prefs)
+	}
+}
+
+func TestRenameDevice(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	s.group = devices
+	tt.Frame()
+	id := f.devices[1].ID
+	name, _ := s.device(f.devices[1])
+	press(t, tt, s.fill(s.text.RenameTitle, "{name}", name))
+	if err := tt.ChooseMenuItem(s.text.Rename); err != nil {
+		t.Fatalf("%v in %v", err, tt.Menu())
+	}
+	tt.Frame()
+	if !s.rename.open || s.rename.device.ID != id {
+		t.Fatalf("no dialog: %+v", s.rename)
+	}
+	s.rename.name = strings.Repeat("x", 65)
+	tt.Frame()
+	s.saveRename()
+	tt.Frame()
+	if !tt.HasText(s.text.RenameTooLong) || len(f.renamed) != 0 {
+		t.Fatalf("texts %v, renamed %v", tt.Texts(), f.renamed)
+	}
+	s.rename.name = "  Office phone "
+	s.saveRename()
+	f.settle(tt)
+	if want := []string{fmt.Sprintf("%d Office phone", id)}; !slices.Equal(f.renamed, want) {
+		t.Fatalf("renamed %v", f.renamed)
+	}
+	tt.Frame()
+	if !tt.HasText("Office phone") || s.rename.open {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	s.rename = renameForm{open: true, device: f.devices[1], name: "Other"}
+	f.renameErr = errors.New("offline")
+	s.saveRename()
+	f.settle(tt)
+	if !s.rename.open || s.devices[1].Name != "Office phone" {
+		t.Fatalf("a failed rename: %+v", s.rename)
 	}
 }

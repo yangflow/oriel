@@ -207,7 +207,7 @@ func (s *Screen) clearImageCache() {
 // dangerCard is the actions that cannot be undone.
 func (s *Screen) dangerCard(c *ui.Context) {
 	sectionTitle(c, s.text.Danger, 0)
-	cardOf(c, []cardRow{{key: "delete-read", draw: func() {
+	rows := []cardRow{{key: "delete-read", draw: func() {
 		setting(c, icons.Trash2, true, s.text.DeleteRead, func() { meta(c, s.text.DeleteReadHelp) }, func() {
 			b := theme.Button{Style: theme.Danger, Small: true, Disabled: s.purging, Busy: s.purging, Text: s.text.DeleteReadButton,
 				Label: s.text.DeleteReadTitle}.Draw(c)
@@ -215,7 +215,28 @@ func (s *Screen) dangerCard(c *ui.Context) {
 				s.countReadEntries()
 			}
 		})
-	}}})
+	}}}
+	if s.deps.ResetDevice != nil {
+		rows = append(rows, cardRow{key: "reset-device", draw: func() {
+			setting(c, icons.RotateCcw, true, s.text.ResetDevice, func() { meta(c, s.text.ResetDeviceHelp) }, func() {
+				b := theme.Button{Style: theme.Danger, Small: true, Text: s.text.ResetDeviceButton, Label: s.text.ResetDeviceTitle}.Draw(c)
+				if b.Clicked() {
+					s.askReset = true
+				}
+			})
+		}})
+	}
+	cardOf(c, rows)
+}
+
+// resetDialog asks before resetting this device. Escape cancels; nothing changes until Reset is chosen.
+func (s *Screen) resetDialog(c *ui.Context) {
+	if !s.askReset {
+		return
+	}
+	if ui.AlertDialog(c, &s.askReset, s.text.ResetDeviceTitle, s.text.ResetDeviceBody, s.text.Cancel, s.text.ResetDeviceConfirm) == 1 {
+		s.deps.ResetDevice()
+	}
 }
 
 // countReadEntries reads how many entries would go, so that the confirmation can name the number.

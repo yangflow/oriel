@@ -604,3 +604,37 @@ func TestExportDiagnosticsFromTheMenu(t *testing.T) {
 		t.Fatal("menu labels")
 	}
 }
+
+func TestResetDevice(t *testing.T) {
+	s, _, tt := openActivity(t, "en")
+	resets := 0
+	s.deps.ResetDevice = func() { resets++ }
+	tt.Frame()
+	if err := tt.Click(s.text.ResetDeviceTitle); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText(s.text.ResetDeviceBody) {
+		t.Fatalf("no dialog in %v", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if resets != 0 {
+		t.Fatal("Escape reset the device")
+	}
+	if err := tt.Click(s.text.ResetDeviceTitle); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click(s.text.ResetDeviceConfirm); err != nil {
+		t.Fatal(err)
+	}
+	if resets != 1 {
+		t.Fatalf("resets %d", resets)
+	}
+}
+
+func TestResetDeviceNeedsTheShell(t *testing.T) {
+	s, _, tt := openActivity(t, "en")
+	if tt.HasText(s.text.ResetDevice) {
+		t.Fatal("reset row without a shell to do it")
+	}
+}

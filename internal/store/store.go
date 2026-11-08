@@ -239,6 +239,7 @@ func (s *Store) Writable(ctx context.Context) error {
 type Session struct {
 	ID         int64
 	UserAgent  string
+	Name       string // what the reader called the device; empty when they have not
 	CreatedAt  time.Time
 	LastSeenAt time.Time
 }
@@ -257,7 +258,7 @@ func (s *Store) CreateSession(ctx context.Context, tokenHash []byte, userAgent s
 // SessionByToken finds a session by the hash of its token.
 func (s *Store) SessionByToken(ctx context.Context, tokenHash []byte) (Session, error) {
 	return scanSession(s.db.QueryRowContext(ctx,
-		"SELECT id, user_agent, created_at, last_seen_at FROM sessions WHERE token_hash = ?", tokenHash))
+		"SELECT id, user_agent, name, created_at, last_seen_at FROM sessions WHERE token_hash = ?", tokenHash))
 }
 
 // TouchSession records that a session was used.
@@ -269,7 +270,7 @@ func (s *Store) TouchSession(ctx context.Context, id int64, now time.Time) error
 // Sessions lists sessions used at or after since, most recently used first.
 func (s *Store) Sessions(ctx context.Context, since time.Time) ([]Session, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, user_agent, created_at, last_seen_at FROM sessions WHERE last_seen_at >= ? ORDER BY last_seen_at DESC, id DESC",
+		"SELECT id, user_agent, name, created_at, last_seen_at FROM sessions WHERE last_seen_at >= ? ORDER BY last_seen_at DESC, id DESC",
 		since.UnixMilli())
 	if err != nil {
 		return nil, err
@@ -284,6 +285,20 @@ func (s *Store) Sessions(ctx context.Context, since time.Time) ([]Session, error
 		sessions = append(sessions, session)
 	}
 	return sessions, rows.Err()
+}
+
+// RenameSession names a session; an empty name goes back to the name its User-Agent gives.
+func (s *Store) RenameSession(ctx context.Context, id int64, name string) error {
+	result, err := s.db.ExecContext(ctx, "UPDATE sessions SET name = ? WHERE id = ?", name, id)
+	if err != nil {
+		return err
+	}
+	if n, err := result.RowsAffected(); err != nil {
+		return err
+	} else if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // DeleteSession revokes a session.
@@ -309,7 +324,7 @@ func (s *Store) DeleteSessionsIdleSince(ctx context.Context, cutoff time.Time) e
 func scanSession(row interface{ Scan(...any) error }) (Session, error) {
 	var session Session
 	var created, seen int64
-	if err := row.Scan(&session.ID, &session.UserAgent, &created, &seen); err != nil {
+	if err := row.Scan(&session.ID, &session.UserAgent, &session.Name, &created, &seen); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Session{}, ErrNotFound
 		}

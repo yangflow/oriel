@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
@@ -58,30 +59,30 @@ type copy struct {
 	Proxy, ProxyAddress, ProxyHelp, ProxyPlaceholder, ProxyExample, ProxyAuth, ProxyAuthHelp, ProxyUser,
 	ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyChanged, InvalidProxy, InvalidProxyAuth, ProxySaved, ProxyAuthRemoved,
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase string
-	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                                                                                                                                                                                                                                         string
-	SubscriptionsGroup, SubscriptionsLead, AddSubscription, BackList                                                                                                                                                                                                                                                                        string
-	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp                                                                                                                                                                                                                            string
-	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                                                                                                                                                                                                                                    string
-	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                                                                                                                                                                                                                                    string
-	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed                                                                                                                                                                                                                                    string
-	LineWidth, LineWidthHelp, WidthNarrow, WidthStandard, WidthWide                                                                                                                                                                                                                                                                         string
-	ReadingAppearance, ReadingAppearanceHelp, PresetTheme, PresetSepia, PresetMist                                                                                                                                                                                                                                                          string
-	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                                                                                                                                               string
-	Preset, Limits, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                       string
-	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                                                                                                                                              string
-	Desktop, OpenAtLogin, OpenAtLoginHelp, OpenAtLoginHelpTray, OpenAtLoginNeedsApp, MenuBarIcon, MenuBarIconHelp                                                                                                                                                                                                                           string
-	TrayIcon, TrayIconHelp, DockBadge, DockBadgeHelp, LoginFailed, TrayFailed                                                                                                                                                                                                                                                               string
-	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                                                                                                                                                       string
-	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewForum, ViewPanes, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                              string
-	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10 string
-	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, CompactRun, Compacting                                                                                                                                                                                                    string
-	PreMigrate, PreMigrateVersion, DeletePreMigrate, DeletePreMigrateTitle, DeletePreMigrateBody                                                                                                                                                                                                                                            string
-	DeletePreMigrateConfirm, PreMigrateDeleted, PreMigrateFailed, ClearImages, ClearImagesLabel, ImagesCleared, ClearImagesFailed, Danger, DeleteRead, DeleteReadHelp, DeleteReadButton, DeleteReadTitle, DeleteReadBody, DeleteReadConfirm, DeleteReadNone, DeleteReadDone, DeleteReadFailed                                               string
-	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                                                                                                                                                                                                                                        string
-	Health, HealthHelp, HealthEmpty, MainBadge, NoData, NoAnswer, LastN, Cooling, CoolingSoon                                                                                                                                                                                                                                               string
-	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                                                                                                                                                          string
-	Diagnostics, DiagnosticsFile, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                           string
-	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                                                                                                                                                      string
+	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                                                                                                                                                                                                                                                                                                                                                                          string
+	SubscriptionsGroup, SubscriptionsLead, AddSubscription, BackList                                                                                                                                                                                                                                                                                                                                                                                                         string
+	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp                                                                                                                                                                                                                                                                                                                                                             string
+	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                                                                                                                                                                                                                                                                                                                                                                     string
+	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                                                                                                                                                                                                                                                                                                                                                                     string
+	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed                                                                                                                                                                                                                                                                                                                                                                     string
+	LineWidth, LineWidthHelp, WidthNarrow, WidthStandard, WidthWide                                                                                                                                                                                                                                                                                                                                                                                                          string
+	ReadingAppearance, ReadingAppearanceHelp, PresetTheme, PresetSepia, PresetMist                                                                                                                                                                                                                                                                                                                                                                                           string
+	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                                                                                                                                                                                                                                                                                string
+	Preset, Limits, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                                                                                                                                                        string
+	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                                                                                                                                                                                                                                                                               string
+	Desktop, OpenAtLogin, OpenAtLoginHelp, OpenAtLoginHelpTray, OpenAtLoginNeedsApp, MenuBarIcon, MenuBarIconHelp                                                                                                                                                                                                                                                                                                                                                            string
+	TrayIcon, TrayIconHelp, DockBadge, DockBadgeHelp, LoginFailed, TrayFailed                                                                                                                                                                                                                                                                                                                                                                                                string
+	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                                                                                                                                                                                                                                                                                        string
+	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewForum, ViewPanes, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                                                                                                                                                               string
+	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10                                                                                                                                  string
+	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, CompactRun, Compacting                                                                                                                                                                                                                                                                                                                                     string
+	PreMigrate, PreMigrateVersion, DeletePreMigrate, DeletePreMigrateTitle, DeletePreMigrateBody                                                                                                                                                                                                                                                                                                                                                                             string
+	DeletePreMigrateConfirm, PreMigrateDeleted, PreMigrateFailed, ClearImages, ClearImagesLabel, ImagesCleared, ClearImagesFailed, Danger, DeleteRead, DeleteReadHelp, DeleteReadButton, DeleteReadTitle, DeleteReadBody, DeleteReadConfirm, DeleteReadNone, DeleteReadDone, DeleteReadFailed, Rename, RenameTitle, RenameHelp, RenameFailed, RenameTooLong, Renamed, ResetDevice, ResetDeviceHelp, ResetDeviceButton, ResetDeviceTitle, ResetDeviceBody, ResetDeviceConfirm string
+	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                                                                                                                                                                                                                                                                                                                                                                         string
+	Health, HealthHelp, HealthEmpty, MainBadge, NoData, NoAnswer, LastN, Cooling, CoolingSoon                                                                                                                                                                                                                                                                                                                                                                                string
+	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                                                                                                                                                                                                                                                                                           string
+	Diagnostics, DiagnosticsFile, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                                                                                                                                                            string
+	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                                                                                                                                                                                                                                                                                       string
 
 	ImportingOf, Progress, ViewSources, Stopped, Lost, ImportBusy, BusyWhy        string
 	StoppedMany, LostMany, SkippedWhy                                             string
@@ -169,6 +170,7 @@ type API interface {
 	ReadEntryCount(ctx context.Context) (int64, error)
 	DeleteReadEntries(ctx context.Context) (int64, error)
 	RevokeDevice(ctx context.Context, id int64) error
+	RenameDevice(ctx context.Context, id int64, name string) error
 	StartOPMLImport(ctx context.Context, opml []byte) (client.OPMLImport, error)
 	OPMLImportStatus(ctx context.Context) (client.OPMLImport, error)
 	ExportOPML(ctx context.Context) ([]byte, error)
@@ -221,6 +223,9 @@ type Deps struct {
 	// Subscriptions is the Subscriptions group: the list of the subscriptions and one subscription's page, which
 	// the timeline keeps; nil, as before a server is used, leaves the group out.
 	Subscriptions func() Subscriptions
+
+	// ResetDevice takes this device back to how it first opened; nil, as in a headless server's page, shows no row.
+	ResetDevice func()
 
 	// Desktop is what this system offers the Desktop card of the Appearance page; nil, as in a headless server's page,
 	// shows no card.
@@ -378,9 +383,11 @@ type Screen struct {
 	doomed   client.Device
 	// dropCopy is the dialog that asks to delete the copy made before the update; dropping is the request running.
 	dropCopy, dropping bool
-	clearing           bool  // the image cache is being cleared
-	askPurge, purging  bool  // the confirmation of deleting the read entries is open; the count or the delete is running
-	purgeCount         int64 // how many read entries the confirmation names
+	clearing           bool       // the image cache is being cleared
+	rename             renameForm // the dialog that names a device
+	askReset           bool       // the confirmation of resetting this device is open
+	askPurge, purging  bool       // the confirmation of deleting the read entries is open; the count or the delete is running
+	purgeCount         int64      // how many read entries the confirmation names
 	announce           string
 	toast              string
 
@@ -1715,6 +1722,117 @@ func (s *Screen) revoke() {
 	})
 }
 
+// renameForm is the open dialog that names a device.
+type renameForm struct {
+	open, saving, tooLong bool
+	device                client.Device
+	name                  string
+}
+
+// deviceMore is the ellipsis of a device's row, whose menu names the device.
+func (s *Screen) deviceMore(c *ui.Context, d client.Device) {
+	t := c.Theme()
+	name, _ := s.device(d)
+	more, color := theme.ToolButton(c, theme.ToolState{})
+	label := s.fill(s.text.RenameTitle, "{name}", name)
+	more.Label(label).Tooltip(label)
+	more.Children(func() { ui.Icon(c, icons.Ellipsis).FontSize(theme.IconMedium(t)).TextColor(color) })
+	more.Menu(func(m *ui.Menu) {
+		if m.Item(s.text.Rename).Chosen() {
+			s.rename = renameForm{open: true, device: d, name: d.Name}
+		}
+	})
+}
+
+// renameDialog names a device; an empty name goes back to the one its User-Agent gives. Escape cancels.
+func (s *Screen) renameDialog(c *ui.Context) {
+	f := &s.rename
+	if !f.open {
+		return
+	}
+	t := c.Theme()
+	current, _ := s.device(f.device)
+	title := s.fill(s.text.RenameTitle, "{name}", current)
+	open := true
+	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
+		theme.Scrim(c, backdrop).Padding(theme.Px(t, tokens.Space4))
+		panel.Column().Width(theme.Px(t, tokens.Dialog)).Clip().Label(title)
+		theme.Sheet(c, panel, theme.Dialog)
+		ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space3)).Padding(theme.Px(t, tokens.Space6)).Children(func() {
+			ui.Text(c, title).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+				Wrap().Role(ui.RoleHeading).Level(2)
+			field(c, "device-name", &f.name, 0, f.tooLong, func(in ui.Element) {
+				in.Label(title).AutoFocus()
+				if in.Submitted() {
+					s.saveRename()
+				}
+			})
+			if f.tooLong {
+				ui.Text(c, s.text.RenameTooLong).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.Danger).Wrap()
+			} else {
+				meta(c, s.text.RenameHelp)
+			}
+		})
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+			Padding(theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space6)).Background(theme.Surface(t)).Children(func() {
+			ui.Box(c).Grow(1)
+			if (theme.Button{Style: theme.Secondary, Text: s.text.Cancel}).Draw(c).Clicked() {
+				open = false
+			}
+			if (theme.Button{Style: theme.Primary, Disabled: f.saving, Busy: f.saving, Text: s.text.Save}).Draw(c).Clicked() {
+				s.saveRename()
+			}
+		})
+	})
+	if !open {
+		f.open = false
+	}
+}
+
+// saveRename sends the name; the list changes when the server has taken it.
+func (s *Screen) saveRename() {
+	f := &s.rename
+	if s.api == nil || f.saving {
+		return
+	}
+	name := strings.TrimSpace(f.name)
+	if utf8.RuneCountInString(name) > 64 {
+		f.tooLong = true
+		return
+	}
+	f.saving, f.tooLong = true, false
+	gen, api, id := s.gen, s.api, f.device.ID
+	s.deps.Go(func() func() {
+		err := api.RenameDevice(context.Background(), id, name)
+		return func() {
+			if gen != s.gen {
+				return
+			}
+			f.saving = false
+			if s.expired(err) {
+				return
+			}
+			switch {
+			case code(err) == "invalid_device_name":
+				f.tooLong = true
+				return
+			case err != nil && code(err) != "not_found":
+				s.toast = s.text.RenameFailed
+				return
+			}
+			f.open = false
+			if err != nil { // it is gone
+				s.devices = slices.DeleteFunc(s.devices, func(x client.Device) bool { return x.ID == id })
+				return
+			}
+			if i := slices.IndexFunc(s.devices, func(x client.Device) bool { return x.ID == id }); i >= 0 {
+				s.devices[i].Name = name
+			}
+			s.toast = s.text.Renamed
+		}
+	})
+}
+
 // device names a device by the User-Agent it signed in with, as "Oriel · macOS" or "Safari · iPhone", and chooses
 // its glyph.
 func (s *Screen) device(d client.Device) (string, *ui.SVG) {
@@ -1728,6 +1846,15 @@ func (s *Screen) device(d client.Device) (string, *ui.SVG) {
 // deviceParts is the client and the platform a device signed in with, apart; the platform is empty when the
 // User-Agent does not tell it.
 func (s *Screen) deviceParts(d client.Device) (name, platform string, icon *ui.SVG) {
+	name, platform, icon = s.agentParts(d)
+	if d.Name != "" {
+		name = d.Name
+	}
+	return name, platform, icon
+}
+
+// agentParts is deviceParts from the User-Agent alone.
+func (s *Screen) agentParts(d client.Device) (name, platform string, icon *ui.SVG) {
 	ua := strings.TrimSpace(d.UserAgent)
 	if ua == "" {
 		return s.text.UnknownDevice, "", icons.Laptop
@@ -1869,6 +1996,8 @@ func (s *Screen) View(c *ui.Context) {
 	}
 	s.dropCopyDialog(c)
 	s.deleteReadDialog(c)
+	s.resetDialog(c)
+	s.renameDialog(c)
 	s.readerDialog(c)
 	s.ruleDialog(c)
 	s.restoreDialog(c)
@@ -3818,7 +3947,7 @@ const (
 	colPlatform = 88
 	colSigned   = 96
 	colSeen     = 116
-	colRevoke   = 96
+	colRevoke   = 136 // Revoke and the ellipsis
 )
 
 // deviceTable draws the devices in columns: the device, its platform, when it signed in, when it was last used
@@ -3868,7 +3997,8 @@ func (s *Screen) deviceCells(c *ui.Context, d client.Device, now time.Time) {
 	muted(platform)
 	muted(s.date(d.CreatedAt, now))
 	muted(s.ago(d.LastSeenAt, now)).TextAlign(ui.End)
-	ui.Row(c).JustifySelf(ui.End).Children(func() {
+	ui.Row(c).JustifySelf(ui.End).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).Children(func() {
+		s.deviceMore(c, d)
 		if d.Current {
 			return
 		}
@@ -3896,6 +4026,7 @@ func (s *Screen) deviceRow(c *ui.Context, d client.Device, now time.Time) {
 			})
 			ui.Text(c, when).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).SingleLine()
 		})
+		s.deviceMore(c, d)
 		if !d.Current {
 			b := theme.Button{Style: theme.Danger, Small: true, Text: s.text.Revoke,
 				Label: s.fill(s.text.RevokeTitle, "{name}", name)}.Draw(c)

@@ -28,6 +28,7 @@ func TestMigrationAllowsTheForumKind(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, stmt := range []string{
+		"ALTER TABLE sessions DROP COLUMN name",
 		"DROP TRIGGER entries_star_full_text",
 		"ALTER TABLE sources DROP COLUMN full_text",
 		"PRAGMA writable_schema = ON",

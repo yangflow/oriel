@@ -274,7 +274,7 @@ AI 队列每 15 秒取一次待处理的结果，走一个部分索引 `entry_ai
 
 设置是键值表。API key 存在这里，接口不下发，只回「已配置 / 未配置」。抓取代理（`fetch_proxy`，代理地址；`fetch_proxy_user`、`fetch_proxy_password`，它的用户名和密码）同样存在这里，用户名和密码和 API key 一样只写不下发。
 
-会话一行一台设备：token 的 SHA-256、User-Agent、创建时间、最近使用时间。不存 token 原文。
+会话一行一台设备：token 的 SHA-256、User-Agent、用户给的名字（空着就从 User-Agent 推出）、创建时间、最近使用时间。不存 token 原文。
 
 ## 存储
 
