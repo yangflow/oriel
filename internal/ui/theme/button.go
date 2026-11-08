@@ -104,7 +104,7 @@ func (bt Button) Draw(c *ui.Context) ui.Element {
 		if bt.Text != "" {
 			label := ui.Text(c, bt.Text).NoWrap().FontWeight(500)
 			if bt.Small {
-				label.FontSize(Px(t, 12))
+				label.FontSize(Px(t, tokens.TextMeta.Size.En))
 			}
 		}
 		if bt.IconAfter {

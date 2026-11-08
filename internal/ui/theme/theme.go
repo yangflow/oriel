@@ -286,8 +286,7 @@ func Pane(c *ui.Context, e ui.Element) ui.Element {
 	return e
 }
 
-// Capsule fills a toolbar control with glass tinted rgba(255, 254, 251, 0.66) in light and rgba(58, 63, 62, 0.52) in
-// dark, a little darker under the pointer; with high contrast it is the opaque Surface with a Border rim, SurfaceHover
+// Capsule fills a toolbar control with glass in the `glass` tint, a little darker under the pointer; with high contrast it is the opaque Surface with a Border rim, SurfaceHover
 // over it under the pointer.
 func Capsule(c *ui.Context, e ui.Element, hover bool) ui.Element {
 	t := c.Theme()
@@ -297,9 +296,9 @@ func Capsule(c *ui.Context, e ui.Element, hover bool) ui.Element {
 		}
 		return e.Background(Surface(t)).Border(1, t.Border)
 	}
-	tint := ui.RGBA(255, 254, 251, 0.66)
+	tint := tokens.SchemeLight.Glass
 	if t.Dark {
-		tint = ui.RGBA(58, 63, 62, 0.52)
+		tint = tokens.SchemeDark.Glass
 	}
 	if presetOf(t) != nil {
 		raised := RaisedFill(t)
@@ -409,7 +408,7 @@ func Monogram(c *ui.Context, name string, size float32) {
 	if r, _ := utf8.DecodeRuneInString(strings.TrimLeft(name, "@#·/ ")); r != utf8.RuneError {
 		letter = strings.ToUpper(string(r))
 	}
-	radius, font := GlyphRadius(size), size*tileLetter
+	radius, font := float32(tokens.RadiusXS), size*tileLetter
 	ui.Box(c).Size(Px(t, size), Px(t, size)).Radius(radius).Center().Background(Track(t)).Children(func() {
 		ui.Text(c, letter).FontSize(Px(t, font)).FontWeight(600).TextColor(Text2(t))
 	})
@@ -418,29 +417,18 @@ func Monogram(c *ui.Context, name string, size float32) {
 // tileLetter is the size of a monogram's letter against its tile.
 const tileLetter = 0.58
 
-// GlyphRadius is the corner radius of a glyph of size, a monogram tile or a favicon: radius-xs at every size.
-func GlyphRadius(size float32) float32 { return tokens.RadiusXS }
-
 // Pill is the corner radius of a pill or a circle of the given height: half of it. It is the one radius that is
 // not a tier of design/tokens.md, because it follows the shape it rounds.
 func Pill(height float32) float32 { return height / 2 }
 
-// The three icon sizes of design/tokens.md, in mockup pixels. Every icon is drawn in one of them, through IconSmall,
-// IconMedium or IconLarge, so it follows the system text size like type does.
-const (
-	iconSmall  = tokens.IconS // inline: button and field icons, status lines, the meta line, chevrons, checks
-	iconMedium = tokens.IconM // bare icon buttons and the toolbar, leading icons of rows and fields, the menu and palette
-	iconLarge  = tokens.IconL // states: the empty-state disc, the loading and done marks of a dialog, a failed picture
-)
-
 // IconSmall is the inline icon size for t.
-func IconSmall(t *ui.Theme) float32 { return Px(t, iconSmall) }
+func IconSmall(t *ui.Theme) float32 { return Px(t, tokens.IconS) }
 
 // IconMedium is the icon size of icon buttons and leading icons for t.
-func IconMedium(t *ui.Theme) float32 { return Px(t, iconMedium) }
+func IconMedium(t *ui.Theme) float32 { return Px(t, tokens.IconM) }
 
 // IconLarge is the icon size of states, such as the tile of an empty state, for t.
-func IconLarge(t *ui.Theme) float32 { return Px(t, iconLarge) }
+func IconLarge(t *ui.Theme) float32 { return Px(t, tokens.IconL) }
 
 // Badge is the fill of a badge or overlay on a picture, the same in both schemes because it sits on the picture.
 func Badge(t *ui.Theme) ui.Color { return tokens.SchemeLight.Badge }

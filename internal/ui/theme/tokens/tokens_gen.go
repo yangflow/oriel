@@ -32,6 +32,8 @@ type Scheme struct {
 	Pressed ui.Color
 	// Raised: The chosen segment of a segmented control or capsule, lighter than its fill trough, with shadow-raised.
 	Raised ui.Color
+	// Glass: The tint of a toolbar capsule's glass.
+	Glass ui.Color
 	// Fg: Titles and primary text. Target 10:1 on every text bed.
 	Fg ui.Color
 	// Prose: The reading body, a step softer than fg for long reading. Target 8.5:1.
@@ -126,6 +128,7 @@ var SchemeLight = Scheme{
 	Selected:      ui.RGBA(37, 34, 30, 0.085),
 	Pressed:       ui.RGBA(37, 34, 30, 0.12),
 	Raised:        ui.Hex("#ffffff"),
+	Glass:         ui.RGBA(255, 254, 251, 0.66),
 	Fg:            ui.Hex("#25221e"),
 	Prose:         ui.Hex("#3a362f"),
 	Fg2:           ui.Hex("#4c4840"),
@@ -177,6 +180,7 @@ var SchemeDark = Scheme{
 	Selected:      ui.RGBA(234, 240, 238, 0.095),
 	Pressed:       ui.RGBA(234, 240, 238, 0.13),
 	Raised:        ui.Hex("#2c2f2e"),
+	Glass:         ui.RGBA(58, 63, 62, 0.52),
 	Fg:            ui.Hex("#dee2e0"),
 	Prose:         ui.Hex("#cdd2d0"),
 	Fg2:           ui.Hex("#babfbd"),
@@ -237,6 +241,8 @@ func (p *Scheme) Named(name string) (ui.Color, bool) {
 		return p.Pressed, true
 	case "raised":
 		return p.Raised, true
+	case "glass":
+		return p.Glass, true
 	case "fg":
 		return p.Fg, true
 	case "prose":

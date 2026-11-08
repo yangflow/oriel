@@ -14,6 +14,9 @@ type ToastLook struct {
 	Close string
 }
 
+// toastMin is the least height of a toast.
+const toastMin = tokens.Toolbar - 12
+
 // Toasts draws the window's toasts with Oriel's look, centered at the bottom in Inverse on InverseText. Call it once
 // in the root view, after Apply.
 func Toasts(c *ui.Context) {
@@ -31,7 +34,7 @@ func Toasts(c *ui.Context) {
 		for _, ts := range toasts {
 			look, _ := ts.Data.(ToastLook)
 			p := ui.ToastBase(c, ts)
-			box := p.Root.Row().AlignItems(ui.Center).Gap(Px(t, tokens.Space2)).MinHeight(Px(t, tokens.Toolbar-12)).
+			box := p.Root.Row().AlignItems(ui.Center).Gap(Px(t, tokens.Space2)).MinHeight(Px(t, toastMin)).
 				MaxWidth(min(Px(t, tokens.Dialog), width-t.Space(10))).Padding(Px(t, tokens.Space1_5), Px(t, tokens.Space4)).
 				Radius(Px(t, tokens.RadiusCard)).Background(fill).TextColor(text)
 			popup := Elevation(t).Popup
@@ -52,7 +55,7 @@ func Toasts(c *ui.Context) {
 					return
 				}
 				action := p.ActionButton().Row().AlignItems(ui.Center).Gap(Px(t, tokens.Space1_5)).
-					Height(Px(t, tokens.ControlSmall+4)).PaddingX(Px(t, tokens.Space2)).Radius(Px(t, tokens.RadiusControl))
+					Height(Px(t, tokens.Row)).PaddingX(Px(t, tokens.Space2)).Radius(Px(t, tokens.RadiusControl))
 				if action.Hovered() {
 					action.Background(text.Alpha(0.16))
 				}
@@ -62,13 +65,13 @@ func Toasts(c *ui.Context) {
 						label.Underline()
 					}
 					if look.Keys != "" {
-						ui.Text(c, look.Keys).FontSize(Px(t, 12)).TextColor(text.Alpha(0.6)).SingleLine()
+						ui.Text(c, look.Keys).FontSize(Px(t, tokens.TextMeta.Size.En)).TextColor(text.Alpha(0.6)).SingleLine()
 					}
 				})
 				if look.Close == "" {
 					return
 				}
-				close := p.CloseButton().Label(look.Close).Tooltip(look.Close).Size(Px(t, tokens.ControlSmall+4), Px(t, tokens.ControlSmall+4)).
+				close := p.CloseButton().Label(look.Close).Tooltip(look.Close).Size(Px(t, tokens.Row), Px(t, tokens.Row)).
 					Center().Radius(Px(t, tokens.RadiusControl))
 				if close.Hovered() {
 					close.Background(text.Alpha(0.16))

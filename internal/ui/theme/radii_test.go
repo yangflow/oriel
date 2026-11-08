@@ -16,7 +16,7 @@ import (
 // Every Radius(...) argument and every `Radius:` field is read. A literal (a bare number, Px(t, n), t.Space(k) as
 // 4k, Rem(n / 13)) must be a tier; a tokens.Radius constant is one; Pill(...) is the one radius that follows its
 // shape (a pill or a circle) and t.Radius is the theme's own 8. A non-literal argument must be one of the forms listed below, whose values are
-// checked at the places that produce them: the callers of picture and coverOf, GlyphRadius and SheetLook.
+// checked at the places that produce them: the callers of picture and coverOf and SheetLook.
 func TestRadiiAreTiers(t *testing.T) {
 	allowed := map[float64]bool{
 		4: true, 6: true, 8: true, 10: true, 12: true, 14: true, 16: true, // the tiers
@@ -24,13 +24,12 @@ func TestRadiiAreTiers(t *testing.T) {
 		0: true, // square corners
 	}
 	forms := map[string]bool{
-		"t.Radius":          true,
-		"th.Radius":         true,
-		"radius":            true, // a parameter: picture and coverOf callers and GlyphRadius, checked below
-		"h.Radius":          true, // theme.Hit: its callers are read as `Radius:` fields
-		"Px(t, l.Radius)":   true, // SheetLook, whose literals are read as `Radius:` and in the assignment below
-		"l.Radius":          true,
-		"GlyphRadius(size)": true,
+		"t.Radius":        true,
+		"th.Radius":       true,
+		"radius":          true, // a parameter: picture and coverOf callers, checked below
+		"h.Radius":        true, // theme.Hit: its callers are read as `Radius:` fields
+		"Px(t, l.Radius)": true, // SheetLook, whose literals are read as `Radius:` and in the assignment below
+		"l.Radius":        true,
 	}
 	number := regexp.MustCompile(`^[0-9]+(\.[0-9]+)?$`)
 	px := regexp.MustCompile(`^(?:theme\.)?Px\([A-Za-z.]+, ?([0-9.]+)\)$`)

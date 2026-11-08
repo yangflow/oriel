@@ -183,6 +183,9 @@ const (
 )
 
 // lookAfter is how long the address stays unchanged before the lookup starts.
+// segInset is the space around the segments of the Show as control.
+const segInset = 3
+
 const lookAfter = 600 * time.Millisecond
 
 // lookup is the search for the feeds of address, the trimmed text of the address field it was made for.
@@ -1670,7 +1673,7 @@ func (s *Screen) searching(c *ui.Context, text string) {
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, tokens.Space1_5)).Role(ui.RoleStatus).Label(text).
 		Children(func() {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(th)).TextColor(th.TextMuted)
-			spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+			spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
 			help(c, text)
 		})
 }
@@ -1906,7 +1909,7 @@ func (s *Screen) kindPicker(c *ui.Context, value *int) {
 	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
 		label(c, s.text.ShowAs)
 		seg := ui.SegmentedBase(c, value, len(kinds))
-		seg.Track.FillWidth().Padding(3).Gap(2).Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Track(t)).Label(s.text.ShowAs).
+		seg.Track.FillWidth().Padding(theme.Px(t, segInset)).Gap(theme.Px(t, tokens.Space0_5)).Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Track(t)).Label(s.text.ShowAs).
 			Children(func() {
 				for i, kind := range kinds {
 					name := s.kindName(kind)
@@ -2232,7 +2235,7 @@ func (s *Screen) selectTrigger(c *ui.Context, value *int64, options []int64, lab
 		ui.Icon(c, icons.ChevronDown).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 	})
 	sel.Popup(func(panel ui.Element) {
-		panel.Margin(4, 0, 0, 0).Padding(4).MinWidth(theme.Px(t, tokens.MenuMin))
+		panel.Margin(theme.Px(t, tokens.Space1), 0, 0, 0).Padding(theme.Px(t, tokens.Space1)).MinWidth(theme.Px(t, tokens.MenuMin))
 		theme.Sheet(c, panel, theme.Popup)
 		for _, v := range options {
 			item := sel.Item(v).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space2)).Radius(theme.Px(t, tokens.RadiusSm))
@@ -2391,7 +2394,7 @@ func (s *Screen) movedCard(c *ui.Context) {
 	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusCard)).
 		Background(theme.Surface(t)).Role(ui.RoleStatus).Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space2)).Children(func() {
-			ui.Icon(c, icons.Signpost).FontSize(theme.IconSmall(t)).TextColor(t.Accent).Margin(2, 0, 0, 0)
+			ui.Icon(c, icons.Signpost).FontSize(theme.IconSmall(t)).TextColor(t.Accent).Margin(theme.Px(t, tokens.Space0_5), 0, 0, 0)
 			ui.Text(c, s.text.Moved).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).Shrink(1).Wrap()
 		})
 		ui.Column(c).FillWidth().Selectable().Children(func() {
@@ -2560,7 +2563,7 @@ func (s *Screen) healthDialog(c *ui.Context) {
 			ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Padding(theme.Px(t, tokens.Space8), 0).Role(ui.RoleStatus).
 				Label(s.text.HealthChecking).Children(func() {
 				spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconLarge(t)).TextColor(t.TextMuted)
-				spin.Rotate(spin.Loop("spin", 900*time.Millisecond, ui.Linear) * 360)
+				spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
 				ui.Text(c, s.text.HealthChecking).TextColor(t.TextMuted)
 			})
 		case r.state == healthFailed:
@@ -2579,7 +2582,7 @@ func (s *Screen) healthDialog(c *ui.Context) {
 			ui.Column(c).FillWidth().Children(func() {
 				for i, h := range r.items {
 					if i > 0 {
-						ui.Box(c).FillWidth().Height(1).Background(t.Border)
+						ui.Box(c).FillWidth().Height(tokens.Hairline).Background(t.Border)
 					}
 					s.healthRow(c, h)
 				}
@@ -2615,7 +2618,7 @@ func (s *Screen) healthRow(c *ui.Context, h client.SourceHealth) {
 		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(theme.Px(t, tokens.Space0_5)).Children(func() {
 			ui.Text(c, name).FontWeight(500).SingleLine()
 			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
-				ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color).Margin(2, 0, 0, 0)
+				ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color).Margin(theme.Px(t, tokens.Space0_5), 0, 0, 0)
 				reason := s.healthReason(h)
 				line := ui.Text(c, reason).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(color).Shrink(1).MinWidth(0).Wrap()
 				if h.LastError != "" {

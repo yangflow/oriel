@@ -3126,7 +3126,7 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 		// The top 40 are the window buttons' at the left and the button that hides the pane at the right, centered
 		// on the toolbar row's middle line (the pane floats 8 from the top); the rest of it drags the window.
 		ui.Row(c).FillWidth().Height(paneFoot).AlignItems(ui.Start).Justify(ui.End).
-			Padding(theme.Bar/2-8-theme.Px(t, tokens.Space8)/2, theme.Px(t, paneLine-32/2), 0, 0).DragWindow().Children(func() { s.sidebarButton(c, false) })
+			Padding(theme.Bar/2-theme.Px(t, tokens.Space2)-theme.Px(t, tokens.Space8)/2, theme.Px(t, paneLine-tokens.Space8/2), 0, 0).DragWindow().Children(func() { s.sidebarButton(c, false) })
 		side := s.sidebarList()
 		list, failing := side.list, side.failing
 		s.tabs(c, s.sideFocus && !side.onSource)
@@ -3771,7 +3771,7 @@ func (s *Screen) glyph(c *ui.Context, name, icon string, size float32) {
 		theme.Monogram(c, name, size)
 		return
 	}
-	radius := theme.GlyphRadius(size)
+	radius := float32(tokens.RadiusXS)
 	ui.Box(c).Size(theme.Px(t, size), theme.Px(t, size)).Radius(radius).Clip().Children(func() {
 		ui.Image(c, bitmap).Fit(ui.Cover).Fill()
 		ui.Box(c).Absolute().Fill().Radius(radius).Border(0.5, theme.Ink(t, 0.2))

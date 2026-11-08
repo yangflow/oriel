@@ -113,7 +113,7 @@ func (s *Screen) instanceRow(c *ui.Context, i int, in client.InstanceHealth, now
 		if in.CoolingUntil != nil {
 			ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).
 				Margin(theme.Px(t, tokens.Space0_5), 0, 0, 0).Children(func() {
-				ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning).Margin(theme.Px(t, 1), 0, 0, 0)
+				ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning).Margin(theme.Px(t, tokens.Hairline), 0, 0, 0)
 				ui.Text(c, s.cooling(*in.CoolingUntil, now)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).Wrap().Grow(1).
 					MinWidth(0)
 			})

@@ -2389,7 +2389,7 @@ func (s *Screen) picture(c *ui.Context, b block, avail float32) {
 }
 
 // pictureFade is how a picture appears once decoded: its opacity only, so the box has already taken its height.
-var pictureFade = ui.ElementTransition{Duration: 140 * time.Millisecond, Enter: &ui.Motion{}}
+var pictureFade = ui.ElementTransition{Duration: tokens.MotionFast, Enter: &ui.Motion{}}
 
 // compensate keeps the text being read where it is when a picture settles: if the box lay wholly above the top of the
 // page area as the last frame drew it, the scroll offset moves by the change in height, in this same frame. A box on
