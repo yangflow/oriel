@@ -389,6 +389,8 @@ type NewSource struct {
 	Kind             string `json:"kind"`
 	Title            string `json:"title,omitempty"`
 	FetchIntervalSec int64  `json:"fetchIntervalSec,omitempty"`
+	// FolderID adds the subscription into a folder, 0 for none.
+	FolderID int64 `json:"folderId,omitempty"`
 	// AllowDuplicate adds the subscription although another one follows the same feed; the server then skips the
 	// comparison of the addresses (an identical spelling is still refused).
 	AllowDuplicate bool `json:"allowDuplicate,omitempty"`

@@ -27,7 +27,7 @@ import (
 var catalog []byte
 
 type copy struct {
-	Add, AddShort, AddContinue, Done, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs                                                        string
+	Add, AddShort, Done, Adding, Cancel, Close, Save, Saving, Address, AddressPlaceholder, AddressHelp, ShowAs                                                                     string
 	Article, Video, Social, Image, Forum, Title, TitlePlaceholder, Every, Minutes, Hours, Days, FoundFeed, FoundRoute                                                              string
 	FoundYouTubeChannel, FoundYouTubeUser, FoundYouTubePlaylist, FoundBilibili, FoundX, FoundGitHubRepo                                                                            string
 	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder, PublicNote, PublicNoInstance, UseMine, Blocked, BlockedPublic, FeedRemoved string
@@ -170,7 +170,6 @@ const (
 	noField field = iota
 	addressField
 	baseField
-	titleField
 )
 
 // The states of the lookup under the address field, which finds the feeds of a page address.
@@ -183,8 +182,6 @@ const (
 )
 
 // lookAfter is how long the address stays unchanged before the lookup starts.
-// segInset is the space around the segments of the Show as control.
-const segInset = 3
 
 const lookAfter = 600 * time.Millisecond
 
@@ -203,21 +200,20 @@ type adding struct {
 	form       ui.ScrollState
 	address    string
 	base       string // the RSSHub instance typed when the settings have none
-	title      string
-	kind       int // in kinds
-	suggested  int // the kind the address suggests, which kind follows until another is picked
-	interval   int64
+	kind       int    // in kinds
+	suggested  int    // the kind the address suggests, which kind follows until another is picked
+	folder     int64
 	settings   int
 	root       string // the RSSHub instances of the settings, one per line
 	addressErr string
 	exists     int64 // the subscription the address is already followed as, for "Show it"
 	dupe       bool  // the address error is the "already followed" notice, which offers "Add anyway"
-	dupeMore   bool  // the refused attempt was "Add and continue", which "Add anyway" repeats
+	dupeMore   bool  // the refused attempt was Cmd+Enter, which "Add anyway" repeats
 	baseErr    string
 	formErr    string
 	busy       bool
 	focus      field
-	count      int    // the subscriptions added since the dialog opened, with "Add and continue"
+	count      int    // the subscriptions added since the dialog opened, with Cmd+Enter
 	last       string // the name of the last of them
 	look       lookup
 	routes     finding
@@ -434,7 +430,7 @@ func (s *Screen) Add() {
 	if s.api == nil {
 		return
 	}
-	s.add = adding{open: true, interval: 0, focus: addressField}
+	s.add = adding{open: true, focus: addressField}
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		settings, err := api.Settings(context.Background())
@@ -603,8 +599,7 @@ func (s *Screen) addSource(more, allow bool) {
 		}
 	}
 	a.busy, a.baseErr, a.formErr = true, "", ""
-	src := client.NewSource{URL: t.URL, RSSHubPath: t.Route, Kind: kinds[a.kind], Title: strings.TrimSpace(a.title),
-		FetchIntervalSec: a.interval, AllowDuplicate: allow} // 0 is Auto
+	src := client.NewSource{URL: t.URL, RSSHubPath: t.Route, Kind: kinds[a.kind], FolderID: a.folder, AllowDuplicate: allow}
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		ctx := context.Background()
@@ -649,7 +644,7 @@ func (s *Screen) addSource(more, allow bool) {
 				}
 				a.count++
 				a.last = Name(added)
-				a.address, a.title, a.kind, a.suggested = "", "", 0, 0
+				a.address, a.kind, a.suggested = "", 0, 0
 				a.addressErr, a.exists, a.dupe, a.formErr, a.focus = "", 0, false, "", addressField
 				s.announce = s.addedLine()
 			case code(err) == "source_exists":
@@ -1509,12 +1504,9 @@ func (s *Screen) addDialog(c *ui.Context) {
 			s.addedCard(c, line)
 		}
 		s.addressField(c, t, valid)
-		s.kindPicker(c, &a.kind)
-		s.pair(c, func() {
-			s.titleField(c, &a.title, a.busy, a.focus == titleField, func() { s.submit(false) })
-		}, func() {
-			s.intervalSelect(c, &a.interval, 0, a.busy)
-		})
+		if valid && strings.TrimSpace(a.address) != "" && a.addressErr == "" && !s.listed() {
+			s.addOptions(c)
+		}
 		if a.formErr != "" {
 			errorLine(c, a.formErr, "")
 		}
@@ -1527,10 +1519,6 @@ func (s *Screen) addDialog(c *ui.Context) {
 		cancel := theme.Button{Text: done}.Draw(c)
 		if cancel.Clicked() {
 			a.open = false
-		}
-		more := theme.Button{Disabled: !s.canAdd() && !a.busy, Text: s.text.AddContinue}.Draw(c)
-		if more.Clicked() {
-			s.submit(true)
 		}
 		text := s.text.AddShort
 		if a.busy {
@@ -1547,7 +1535,6 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 	th := c.Theme()
 	a := &s.add
 	ui.Column(c).FillWidth().Gap(theme.Px(th, tokens.Space1)).Children(func() {
-		label(c, s.text.Address)
 		before := a.address
 		empty := strings.TrimSpace(a.address) == ""
 		needsBase := valid && !empty && s.needsBase(t)
@@ -1559,7 +1546,7 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 		shown := s.routeView()
 		public := !empty && valid && t.Public && !hasCand
 		looking := !empty && valid && !public && (a.look.state == lookWaiting || a.look.state == lookSearching)
-		box(c, "address", icons.Link, a.addressErr != "", func() {
+		box(c, "address", nil, a.addressErr != "", func() {
 			in := ui.TextInputBase(c, &a.address).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.Address).
 				Placeholder(s.text.AddressPlaceholder).Disabled(a.busy).
 				OnTextKey(func(k ui.TextKey) bool { // the input takes Enter itself, so the shortcut comes here
@@ -1825,7 +1812,7 @@ func (s *Screen) found(c *ui.Context, t target, what, where string) {
 	})
 }
 
-// addedCard says what "Add and continue" has added so far, a quiet line above the address for the next one.
+// addedCard says what Cmd+Enter has added so far, a quiet line above the address for the next one.
 func (s *Screen) addedCard(c *ui.Context, line string) {
 	th := c.Theme()
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, tokens.Space1_5)).Role(ui.RoleStatus).Label(line).Children(func() {
@@ -1904,38 +1891,40 @@ func (s *Screen) baseCard(c *ui.Context) {
 	})
 }
 
-func (s *Screen) kindPicker(c *ui.Context, value *int) {
+// addOptions is the card of the optional choices of the add dialog: the kind, and the folder when there are folders.
+func (s *Screen) addOptions(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		label(c, s.text.ShowAs)
-		seg := ui.SegmentedBase(c, value, len(kinds))
-		seg.Track.FillWidth().Padding(theme.Px(t, segInset)).Gap(theme.Px(t, tokens.Space0_5)).Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Track(t)).Label(s.text.ShowAs).
-			Children(func() {
-				for i, kind := range kinds {
-					name := s.kindName(kind)
-					b := theme.Fade(seg.Segment(i).Grow(1).Basis(0).Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space1_5)).Radius(theme.Px(t, tokens.RadiusSm)).
-						Label(name))
-					color, iconColor := theme.Text2(t), t.TextMuted
-					switch {
-					case i == *value:
-						if t.Dark {
-							b.Background(t.SurfacePressed)
-						} else {
-							theme.Raised(t, b)
-						}
-						color, iconColor = t.Text, t.Accent
-					case b.Hovered():
-						color, iconColor = t.Text, t.Text
-					}
-					b.Children(func() {
-						ui.Icon(c, kindIcon(kind)).FontSize(theme.IconSmall(t)).TextColor(iconColor)
-						text := ui.Text(c, name).NoWrap().TextColor(color)
-						if i == *value {
-							text.FontWeight(500)
-						}
-					})
-				}
+	a := &s.add
+	kind := int64(a.kind)
+	kindOptions := make([]int64, len(kinds))
+	for i := range kinds {
+		kindOptions[i] = int64(i)
+	}
+	folders := s.folders()
+	if !slices.ContainsFunc(folders, func(f client.Folder) bool { return f.ID == a.folder }) {
+		a.folder = 0
+	}
+	folderOptions := []int64{0}
+	for _, f := range folders {
+		folderOptions = append(folderOptions, f.ID)
+	}
+	option := func(name, shown string, value *int64, options []int64, names func(int64) string) {
+		ui.Row(c).FillWidth().Height(theme.Px(t, tokens.Control+tokens.Space4)).AlignItems(ui.Center).Children(func() {
+			s.row(c, name, "", func() {
+				ui.Box(c).Width(theme.Px(t, tokens.MenuMin+tokens.Space12)).Shrink(0).Children(func() {
+					s.selectTrigger(c, value, options, name, shown, names, nil, a.busy, false)
+				})
 			})
+		})
+	}
+	ui.Column(c).FillWidth().PaddingX(theme.Px(t, tokens.Space4)).Radius(theme.Px(t, tokens.RadiusCard)).
+		Background(theme.Surface(t)).Children(func() {
+		option(s.text.ShowAs, s.kindName(kinds[a.kind]), &kind, kindOptions, func(i int64) string { return s.kindName(kinds[i]) })
+		a.kind = int(kind)
+		if len(folders) > 0 {
+			ui.Box(c).FillWidth().Height(tokens.Hairline).Background(t.Border)
+			option(s.text.Folder, s.folderName(a.folder), &a.folder, folderOptions, s.folderName)
+		}
 	})
 }
 
@@ -1974,20 +1963,6 @@ func (s *Screen) pair(c *ui.Context, left, right func()) {
 	})
 }
 
-func (s *Screen) titleField(c *ui.Context, value *string, busy, focus bool, submit func()) {
-	label(c, s.text.Title)
-	box(c, "title", nil, false, func() {
-		in := ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.Title).
-			Placeholder(s.text.TitlePlaceholder).Disabled(busy)
-		if focus {
-			in.Focus()
-		}
-		if in.Submitted() {
-			submit()
-		}
-	})
-}
-
 // intervalChoice is the choice in the interval select that src is on: 0 for Auto, else its fixed seconds.
 func intervalChoice(src client.Source) int64 {
 	if src.FetchIntervalAuto {
@@ -2018,21 +1993,6 @@ func (s *Screen) span(d time.Duration) string {
 		return s.count(s.text.Hours, int(d/time.Hour))
 	}
 	return s.count(s.text.Days, int(d/(24*time.Hour)))
-}
-
-// intervalSelect is the select of the check interval. Chosen as Auto it shows the interval Auto works out now when
-// that is known (autoNow, seconds), as in "Auto · 6 h".
-func (s *Screen) intervalSelect(c *ui.Context, value *int64, autoNow int64, busy bool) {
-	options := intervals
-	if !slices.Contains(options, *value) {
-		options = append(slices.Clone(options), *value)
-		slices.Sort(options)
-	}
-	shown := s.every(*value)
-	if *value == 0 && autoNow > 0 {
-		shown = strings.ReplaceAll(s.text.AutoEvery, "{every}", s.every(autoNow))
-	}
-	s.choiceSelect(c, value, options, s.text.Every, shown, s.every, busy, false)
 }
 
 // keepName names a keep period in days: 0 follows the settings and -1 is forever.
