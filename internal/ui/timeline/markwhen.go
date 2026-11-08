@@ -136,7 +136,7 @@ func (s *Screen) stayTick(c *ui.Context, now time.Time, wait time.Duration) {
 	if s.stay.spent >= wait {
 		s.stay.done = true
 		s.markRead(s.entries[i])
-		s.announce = s.text.MarkRead
+		s.announce = s.text.MarkedRead
 		return
 	}
 	c.After(min(wait-s.stay.spent, stayStep))
