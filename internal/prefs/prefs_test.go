@@ -46,7 +46,7 @@ func TestChineseTypesetting(t *testing.T) {
 func TestLoadUnknownValues(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
 	os.WriteFile(path, []byte(`{"theme":"sepia","language":"fr","font":"Gone Sans","readingSize":"huge","lineSpacing":"relaxed","readingFont":"Gone Serif"}`), 0o600)
-	want := Preferences{Font: "Gone Sans", ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingWidth: WidthStandard, ReadingFont: "Gone Serif", ChineseTypesetting: true, Density: DensityComfortable,
+	want := Preferences{Font: "Gone Sans", InterfaceSize: InterfaceStandard, ReadingSize: SizeMedium, LineSpacing: SpacingRelaxed, ReadingWidth: WidthStandard, ReadingFont: "Gone Serif", ChineseTypesetting: true, Density: DensityComfortable,
 		ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, ForumViewer: ViewPanes, SourceSort: SortTitle, MarkReadWhen: MarkOnOpen, MarkReadDwellSec: 5}
 	if got := Load(path); got != want {
 		t.Errorf("got %+v, want %+v", got, want)
@@ -134,7 +134,7 @@ func TestMarkReadWhen(t *testing.T) {
 
 func TestSaveLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), File)
-	p := Preferences{Theme: ThemeDark, Language: LanguageChinese, Font: "Georgia", ReadingSize: SizeXLarge, LineSpacing: SpacingCompact, ReadingWidth: WidthWide, ReadingPreset: PresetSepia, ReadingFont: ReadingSerif, ChineseTypesetting: false,
+	p := Preferences{Theme: ThemeDark, Language: LanguageChinese, Font: "Georgia", InterfaceSize: InterfaceLarge, ReadingSize: SizeXLarge, LineSpacing: SpacingCompact, ReadingWidth: WidthWide, ReadingPreset: PresetSepia, ReadingFont: ReadingSerif, ChineseTypesetting: false,
 		ArticleViewer: ViewCompact, VideoViewer: ViewCover, SocialViewer: ViewCompact, ImageViewer: ViewGrid, ForumViewer: ViewList, SourceSort: SortUnread,
 		Density: DensityCompact, OldestFirst: true, MarkReadWhen: MarkOnScroll, MarkReadDwellSec: 10}
 	if err := Save(path, p); err != nil {
@@ -518,5 +518,13 @@ func TestColumnWidth(t *testing.T) {
 	}
 	if got := (Preferences{ReadingSize: SizeSmall, ReadingWidth: WidthWide}).Column(); got != 762 {
 		t.Errorf("small and wide: column %v, want 762", got)
+	}
+}
+
+func TestInterfaceFactor(t *testing.T) {
+	for size, want := range map[string]float64{InterfaceSmall: 12.0 / 13, InterfaceStandard: 1, InterfaceLarge: 14.0 / 13, "huge": 1} {
+		if got := (Preferences{InterfaceSize: size}).InterfaceFactor(); got != want {
+			t.Errorf("%q: got %v, want %v", size, got, want)
+		}
 	}
 }

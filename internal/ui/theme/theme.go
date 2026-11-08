@@ -20,9 +20,9 @@ import (
 const Bar = tokens.Toolbar
 
 // Apply replaces the frame's theme with Oriel's palette, light or dark as the preferences say (the system appearance
-// by default), and with the preferences' font family (the system font when it is empty). Call it first in the root
-// view of every window, each frame. The text size stays the theme's, so the desktop's text size still applies, and
-// the colors are strengthened where the desktop asks for high contrast.
+// by default), with the preferences' font family (the system font when it is empty) and scaled by their interface
+// size. Call it first in the root view of every window, each frame. The text size starts from the theme's, so the
+// desktop's text size still applies, and the colors are strengthened where the desktop asks for high contrast.
 func Apply(c *ui.Context, p prefs.Preferences) {
 	t := *c.Theme()
 	t.Dark = p.Dark(t.Dark)
@@ -33,6 +33,7 @@ func Apply(c *ui.Context, p prefs.Preferences) {
 	s.SetRoles(&t)
 	tokens.SetMetrics(&t)
 	t.Font = p.Font
+	t.FontSize *= float32(p.InterfaceFactor())
 	if c.Preferences().HighContrast {
 		ink := opaque(s.Fill)
 		t.SurfaceHover = ink.Alpha(tokens.HighContrast.Hover)

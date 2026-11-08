@@ -62,20 +62,21 @@ type copy struct {
 	UpdateTitle, RulesTitle, RulesDesc, DevicesTitle, BackupTitle, AutoEnable, AutoLastLabel, EntriesValue, ReaderBusy, DiagnosticsButton                                                                                                                                                                                                                                                                                                                                    string
 	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                                                                                                                                                                                                                                                                                                                                                                          string
 	SubscriptionsGroup, SubscriptionsLead, AddSubscription, BackList                                                                                                                                                                                                                                                                                                                                                                                                         string
-	Appearance, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp                                                                                                                                                                                                                                                                                                                                                                             string
-	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                                                                                                                                                                                                                                                                                                                                                                     string
-	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                                                                                                                                                                                                                                                                                                                                                                     string
-	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed                                                                                                                                                                                                                                                                                                                                                                     string
-	LineWidth, LineWidthHelp, WidthNarrow, WidthStandard, WidthWide                                                                                                                                                                                                                                                                                                                                                                                                          string
-	ReadingAppearance, ReadingAppearanceHelp, PresetTheme, PresetSepia, PresetMist                                                                                                                                                                                                                                                                                                                                                                                           string
+	InterfaceTitle, InterfaceSize, InterfaceStandard, TypesetTitle, TypesetDesc, TypesetAdjust, TypesetSummary, TypesetReset, TypesetDone                                                                                                                                                                                                                                                                                                                                    string
+	Appearance, Theme, ThemeSystem, ThemeLight, ThemeDark, UILanguage                                                                                                                                                                                                                                                                                                                                                                                                        string
+	ReadingFont, FollowInterface, Serif                                                                                                                                                                                                                                                                                                                                                                                                                                      string
+	SystemChoice, UIFont, SystemFont, Reading, TextSize, SizeSmall, SizeMedium                                                                                                                                                                                                                                                                                                                                                                                               string
+	SizeLarge, SizeXLarge, LineSpacing, SpacingCompact, SpacingStandard, SpacingRelaxed                                                                                                                                                                                                                                                                                                                                                                                      string
+	LineWidth, WidthNarrow, WidthStandard, WidthWide                                                                                                                                                                                                                                                                                                                                                                                                                         string
+	ReadingAppearance, PresetTheme, PresetSepia, PresetMist                                                                                                                                                                                                                                                                                                                                                                                                                  string
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                                                                                                                                                                                                                                                                                string
 	Preset, Limits, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, TestConnection, LastPassed, LastFailed, PresetCustom, ModelChoose, ModelManual, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                                                                        string
 	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                                                                                                                                                                                                                                                                               string
 	Desktop, OpenAtLogin, OpenAtLoginHelp, OpenAtLoginHelpTray, OpenAtLoginNeedsApp, MenuBarIcon, MenuBarIconHelp                                                                                                                                                                                                                                                                                                                                                            string
-	TrayIcon, TrayIconHelp, DockBadge, DockBadgeHelp, LoginFailed, TrayFailed                                                                                                                                                                                                                                                                                                                                                                                                string
+	TrayIcon, TrayIconHelp, DockBadge, LoginFailed, TrayFailed                                                                                                                                                                                                                                                                                                                                                                                                               string
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                                                                                                                                                                                                                                                                                        string
 	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewForum, ViewPanes, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                                                                                                                                                               string
-	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10                                                                                                                                  string
+	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, Seconds3, Seconds5, Seconds10                                                                                                                                                          string
 	Activity, Refresh, Storage, DBSize, Images, ImagesValue, Copies, CopiesValue, Compact, CompactRun, Compacting                                                                                                                                                                                                                                                                                                                                                            string
 	PreMigrate, PreMigrateVersion, DeletePreMigrate, DeletePreMigrateTitle, DeletePreMigrateBody                                                                                                                                                                                                                                                                                                                                                                             string
 	DeletePreMigrateConfirm, PreMigrateDeleted, PreMigrateFailed, ClearImages, ClearImagesLabel, ImagesCleared, ClearImagesFailed, Danger, DeleteRead, DeleteReadHelp, DeleteReadButton, DeleteReadTitle, DeleteReadBody, DeleteReadConfirm, DeleteReadNone, DeleteReadDone, DeleteReadFailed, Rename, RenameTitle, RenameHelp, RenameFailed, RenameTooLong, Renamed, ResetDevice, ResetDeviceHelp, ResetDeviceButton, ResetDeviceTitle, ResetDeviceBody, ResetDeviceConfirm string
@@ -299,20 +300,22 @@ type result struct {
 
 // Screen keeps the settings as loaded and the work under way.
 type Screen struct {
-	deps     Deps
-	scroll   ui.ScrollState // the page of the group shown, for the bar's edge
-	crumbWas string         // the crumb of the Subscriptions group last drawn, to scroll a new page to the top
-	text     copy
-	api      API
-	server   string // the host of the server, "" for this computer
-	signedIn bool   // the session has a token; a server without a password has no devices
-	gen      int    // counts servers used, so the results of the one before are dropped
-	loads    int    // counts loads, so a result the user moved on from is dropped
-	group    int
-	lang     string     // the language of the screen
-	uiFont   fontPicker // the picker of the Interface font
-	rdFont   fontPicker // the picker of the Reading font
-	preview  struct {
+	deps              Deps
+	scroll            ui.ScrollState // the page of the group shown, for the bar's edge
+	appearanceReading bool           // the Appearance page shows its Reading part
+	typesetOpen       bool           // the dialog of the article's text is open
+	crumbWas          string         // the crumb of the Subscriptions group last drawn, to scroll a new page to the top
+	text              copy
+	api               API
+	server            string // the host of the server, "" for this computer
+	signedIn          bool   // the session has a token; a server without a password has no devices
+	gen               int    // counts servers used, so the results of the one before are dropped
+	loads             int    // counts loads, so a result the user moved on from is dropped
+	group             int
+	lang              string     // the language of the screen
+	uiFont            fontPicker // the picker of the Interface font
+	rdFont            fontPicker // the picker of the Reading font
+	preview           struct {
 		text   string
 		pieces []typeset.Piece
 		ok     bool
@@ -2319,6 +2322,9 @@ func (s *Screen) head(c *ui.Context, compact bool, room float32) {
 				}
 			}
 		})
+		if s.group == appearance {
+			ui.Row(c).FillWidth().Padding(0, left, bottom, left).Children(func() { s.appearanceParts(c) })
+		}
 		line := t.Border.Alpha(0)
 		if s.scroll.Y > 0 {
 			line = t.Border
@@ -3263,22 +3269,51 @@ func (s *Screen) languageSelect(c *ui.Context) {
 	})
 }
 
-// appearancePage is the preferences of this device. Each choice goes to Change at once; the page reads the
-// preferences again each frame, so a choice that could not be saved shows as it was.
+// appearancePage is the preferences of this device, in two parts: the interface and reading. Each choice goes to Change
+// at once; the page reads the preferences again each frame, so a choice that could not be saved shows as it was.
 func (s *Screen) appearancePage(c *ui.Context) {
-	t := c.Theme()
 	p := s.deps.Preferences()
+	if s.appearanceReading {
+		s.readingPart(c, p)
+		s.typesetDialog(c, p)
+		return
+	}
+	s.interfacePart(c, p)
+}
+
+// appearanceParts is the switch between the two parts of the page, under its head; the page starts again from its top.
+func (s *Screen) appearanceParts(c *ui.Context) {
+	current := 0
+	if s.appearanceReading {
+		current = 1
+	}
+	if i, changed := s.segments(c, s.groupName(appearance), []string{s.text.InterfaceTitle, s.text.Reading}, current); changed {
+		s.appearanceReading, s.scroll = i == 1, ui.ScrollState{}
+	}
+}
+
+// interfacePart is the Interface and Desktop cards.
+func (s *Screen) interfacePart(c *ui.Context, p prefs.Preferences) {
+	sectionTitle(c, s.text.InterfaceTitle, 0)
 	card(c, func() {
-		labeled(c, icons.Monitor, s.text.Theme, s.text.ThemeHelp, func() {
-			themes := []string{"", prefs.ThemeLight, prefs.ThemeDark}
-			names := []string{s.text.ThemeSystem, s.text.ThemeLight, s.text.ThemeDark}
-			if i, changed := s.segments(c, s.text.Theme, names, slices.Index(themes, p.Theme)); changed {
+		labeled(c, icons.Monitor, s.text.Theme, "", func() {
+			themes := []string{prefs.ThemeLight, prefs.ThemeDark, ""}
+			names := []string{s.text.ThemeLight, s.text.ThemeDark, s.text.ThemeSystem}
+			if i, changed := s.swatches(c, s.text.Theme, names, slices.Index(themes, p.Theme), func(i int) { themeThumb(c, themes[i]) }); changed {
 				p.Theme = themes[i]
 				s.deps.Change(p)
 			}
 		})
 	}, func() {
-		labeled(c, icons.Globe, s.text.UILanguage, s.text.UILanguageHelp, func() {
+		labeled(c, icons.SlidersHorizontal, s.text.InterfaceSize, "", func() {
+			names := []string{s.text.SizeSmall, s.text.InterfaceStandard, s.text.SizeLarge}
+			if i, changed := s.segments(c, s.text.InterfaceSize, names, slices.Index(prefs.InterfaceSizes, p.InterfaceSize)); changed {
+				p.InterfaceSize = prefs.InterfaceSizes[i]
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		labeled(c, icons.Languages, s.text.UILanguage, "", func() {
 			options := []choice{{value: "", name: s.text.SystemChoice}}
 			for _, l := range interfaceLanguages {
 				options = append(options, choice{value: l.code, name: l.name})
@@ -3289,7 +3324,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		labeled(c, icons.FileText, s.text.UIFont, s.text.UIFontHelp, func() {
+		labeled(c, icons.Layers, s.text.UIFont, "", func() {
 			// The pinned rows of the Interface font: the system's, and the family in use.
 			pinned := []choice{{value: "", name: s.text.SystemFont}}
 			fonts := s.deps.Fonts()
@@ -3302,12 +3337,30 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	})
-	sectionTitle(c, s.text.Reading, gap(t))
+	if d := s.deps.Desktop; d != nil {
+		s.desktopCard(c, p, *d)
+	}
+}
+
+// readingPart is the Reading, Timeline and View as cards.
+func (s *Screen) readingPart(c *ui.Context, p prefs.Preferences) {
+	t := c.Theme()
+	sectionTitle(c, s.text.Reading, 0)
+	serif := prefs.Preferences{ReadingFont: prefs.ReadingSerif}.ReadingFace(runtime.GOOS, s.deps.Fonts(), "")
 	card(c, func() {
-		labeled(c, icons.FileText, s.text.ReadingFont, s.text.ReadingFontHelp, func() {
+		labeled(c, icons.Palette, s.text.ReadingAppearance, "", func() {
+			names := []string{s.text.PresetTheme, s.text.PresetSepia, s.text.PresetMist}
+			if i, changed := s.swatches(c, s.text.ReadingAppearance, names, slices.Index(prefs.Presets, p.ReadingPreset), func(i int) {
+				readingThumb(c, prefs.Presets[i], serif)
+			}); changed {
+				p.ReadingPreset = prefs.Presets[i]
+				s.deps.Change(p)
+			}
+		})
+	}, func() {
+		labeled(c, icons.FileText, s.text.ReadingFont, "", func() {
 			// The pinned rows of the Reading font: Follow interface, Serif in its own face, and the family in use.
 			fonts := s.deps.Fonts()
-			serif := prefs.Preferences{ReadingFont: prefs.ReadingSerif}.ReadingFace(runtime.GOOS, fonts, "")
 			pinned := []choice{{value: "", name: s.text.FollowInterface},
 				{value: prefs.ReadingSerif, name: s.text.Serif, family: serif}}
 			if p.ReadingFont != "" && p.ReadingFont != prefs.ReadingSerif &&
@@ -3320,62 +3373,15 @@ func (s *Screen) appearancePage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		labeled(c, icons.SlidersHorizontal, s.text.TextSize, s.text.TextSizeHelp, func() {
-			names := []string{s.text.SizeSmall, s.text.SizeMedium, s.text.SizeLarge, s.text.SizeXLarge}
-			if i, changed := s.segments(c, s.text.TextSize, names, slices.Index(prefs.Sizes, p.ReadingSize)); changed {
-				p.ReadingSize = prefs.Sizes[i]
-				s.deps.Change(p)
-			}
-		})
-	}, func() {
-		labeled(c, icons.List, s.text.LineSpacing, s.text.LineSpacingHelp, func() {
-			names := []string{s.text.SpacingCompact, s.text.SpacingStandard, s.text.SpacingRelaxed}
-			if i, changed := s.segments(c, s.text.LineSpacing, names, slices.Index(prefs.Spacings, p.LineSpacing)); changed {
-				p.LineSpacing = prefs.Spacings[i]
-				s.deps.Change(p)
-			}
-		})
-	}, func() {
-		labeled(c, icons.Maximize2, s.text.LineWidth, s.text.LineWidthHelp, func() {
-			names := []string{s.text.WidthNarrow, s.text.WidthStandard, s.text.WidthWide}
-			if i, changed := s.segments(c, s.text.LineWidth, names, slices.Index(prefs.Widths, p.ReadingWidth)); changed {
-				p.ReadingWidth = prefs.Widths[i]
-				s.deps.Change(p)
-			}
-		})
-	}, func() {
-		labeled(c, icons.Palette, s.text.ReadingAppearance, s.text.ReadingAppearanceHelp, func() {
-			names := []string{s.text.PresetTheme, s.text.PresetSepia, s.text.PresetMist}
-			if i, changed := s.segments(c, s.text.ReadingAppearance, names, slices.Index(prefs.Presets, p.ReadingPreset)); changed {
-				p.ReadingPreset = prefs.Presets[i]
-				s.deps.Change(p)
-			}
-		})
-	}, func() {
-		labeled(c, icons.Languages, s.text.ChineseTypesetting, s.text.ChineseTypesettingHelp, func() {
-			on := p.ChineseTypesetting
-			ui.Switch(c, &on).Label(s.text.ChineseTypesetting).Description(s.text.ChineseTypesettingHelp)
-			if on != p.ChineseTypesetting {
-				p.ChineseTypesetting = on
-				s.deps.Change(p)
-			}
-		})
-	}, func() {
-		paper := theme.ReadingTheme(t, p.ReadingPreset)
-		ui.Column(c).FillWidth().Padding(theme.Px(t, tokens.Space3), theme.Px(t, tokens.Space4)).Radius(theme.Px(t, tokens.RadiusControl)).
-			Background(paper.Background).Children(func() {
-			size := tokens.ReadingBody.Size * float32(p.Scale())
-			sample := s.sample(c, p.ChineseTypesetting && s.lang == prefs.LanguageChinese, size).FontSize(size).
-				TextColor(theme.Prose(paper)).LineHeight(float32(p.Leading(s.lang == prefs.LanguageChinese))).Wrap().
-				MaxWidth(float32(math.Round(tokens.SheetWidth*p.Scale()*p.WidthFactor()))).Margin(0, ui.Auto)
-			if face := s.deps.ReadingFont(); face != "" {
-				sample.Font(face)
+		labeled(c, icons.List, s.text.TypesetTitle, s.typesetSummary(p), func() {
+			if (theme.Button{Text: s.text.TypesetAdjust}).Draw(c).Clicked() {
+				s.typesetOpen = true
 			}
 		})
 	})
 	sectionTitle(c, s.text.Timeline, gap(t))
 	rows := []func(){func() {
-		labeled(c, icons.Layers, s.text.Density, s.text.DensityHelp, func() {
+		labeled(c, icons.List, s.text.Density, "", func() {
 			names := []string{s.text.DensityComfortable, s.text.DensityCompact}
 			if i, changed := s.segments(c, s.text.Density, names, slices.Index(prefs.Densities, p.Density)); changed {
 				p.Density = prefs.Densities[i]
@@ -3402,17 +3408,23 @@ func (s *Screen) appearancePage(c *ui.Context) {
 	if when, _ := p.MarkRead(); when == prefs.MarkAfterStay {
 		rows = append(rows, func() {
 			_, stay := p.MarkRead()
-			labeled(c, icons.Clock, s.text.Dwell, s.text.DwellHelp, func() {
+			labeled(c, icons.Clock, s.text.Dwell, "", func() {
 				names := []string{s.text.Seconds3, s.text.Seconds5, s.text.Seconds10}
-				if i, changed := s.segments(c, s.text.Dwell, names, slices.Index(prefs.DwellSeconds, int(stay/time.Second))); changed {
-					p.MarkReadDwellSec = prefs.DwellSeconds[i]
-					s.deps.Change(p)
+				options := make([]choice, len(names))
+				for i, name := range names {
+					options[i] = choice{value: strconv.Itoa(prefs.DwellSeconds[i]), name: name}
+				}
+				if v, changed := s.pick(c, strconv.Itoa(int(stay/time.Second)), s.text.Dwell, options); changed {
+					if seconds, err := strconv.Atoi(v); err == nil {
+						p.MarkReadDwellSec = seconds
+						s.deps.Change(p)
+					}
 				}
 			})
 		})
 	}
 	rows = append(rows, func() {
-		labeled(c, icons.Link, s.text.GroupSameLink, s.text.GroupSameLinkHelp, func() {
+		labeled(c, icons.Layers, s.text.GroupSameLink, s.text.GroupSameLinkHelp, func() {
 			on := s.settings.GroupSameLink
 			ui.Switch(c, &on).Label(s.text.GroupSameLink).Description(s.text.GroupSameLinkHelp).
 				Disabled(s.state != loaded || s.grouping)
@@ -3422,7 +3434,7 @@ func (s *Screen) appearancePage(c *ui.Context) {
 		})
 	})
 	card(c, rows...)
-	sectionTitle(c, s.text.ViewAs, gap(t))
+	sectionHead(c, s.text.ViewAs, s.text.ViewAsHelp, gap(t))
 	card(c, func() {
 		labeled(c, icons.Newspaper, s.text.ViewArticles, "", func() {
 			if v, changed := s.viewer(c, s.text.ViewArticles, p.ArticleViewer, prefs.ArticleViewers); changed {
@@ -3458,12 +3470,207 @@ func (s *Screen) appearancePage(c *ui.Context) {
 				s.deps.Change(p)
 			}
 		})
-	}, func() {
-		meta(c, s.text.ViewAsHelp)
 	})
-	if d := s.deps.Desktop; d != nil {
-		s.desktopCard(c, p, *d)
+}
+
+// typesetSummary is the line under Text and spacing: the size, the spacing and the width in use.
+func (s *Screen) typesetSummary(p prefs.Preferences) string {
+	size := []string{s.text.SizeSmall, s.text.SizeMedium, s.text.SizeLarge, s.text.SizeXLarge}
+	spacing := []string{s.text.SpacingCompact, s.text.SpacingStandard, s.text.SpacingRelaxed}
+	width := []string{s.text.WidthNarrow, s.text.WidthStandard, s.text.WidthWide}
+	line := s.fill(s.text.TypesetSummary, "{size}", size[max(slices.Index(prefs.Sizes, p.ReadingSize), 0)])
+	line = s.fill(line, "{spacing}", spacing[max(slices.Index(prefs.Spacings, p.LineSpacing), 0)])
+	return s.fill(line, "{width}", width[max(slices.Index(prefs.Widths, p.ReadingWidth), 0)])
+}
+
+// typesetDialog is the dialog of the article's text: a sample in the reader's paper, then the size, the spacing, the
+// width and Chinese typesetting. Each choice goes to Change at once, so Done only closes it.
+func (s *Screen) typesetDialog(c *ui.Context, p prefs.Preferences) {
+	if !s.typesetOpen {
+		return
 	}
+	t := c.Theme()
+	open := true
+	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
+		theme.Scrim(c, backdrop).Padding(theme.Px(t, tokens.Space4))
+		panel.Column().Width(theme.Px(t, tokens.DialogWide)).Clip().Label(s.text.TypesetTitle)
+		theme.Sheet(c, panel, theme.Dialog)
+		ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space6)).Padding(theme.Px(t, tokens.Space6)).Children(func() {
+			ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
+				ui.Text(c, s.text.TypesetTitle).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+					Wrap().Role(ui.RoleHeading).Level(2)
+				meta(c, s.text.TypesetDesc)
+			})
+			s.typesetSample(c, p)
+			ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space3)).Children(func() {
+				s.typesetRow(c, s.text.TextSize, func() {
+					names := []string{s.text.SizeSmall, s.text.SizeMedium, s.text.SizeLarge, s.text.SizeXLarge}
+					if i, changed := s.segments(c, s.text.TextSize, names, slices.Index(prefs.Sizes, p.ReadingSize)); changed {
+						p.ReadingSize = prefs.Sizes[i]
+						s.deps.Change(p)
+					}
+				})
+				s.typesetRow(c, s.text.LineSpacing, func() {
+					names := []string{s.text.SpacingCompact, s.text.SpacingStandard, s.text.SpacingRelaxed}
+					if i, changed := s.segments(c, s.text.LineSpacing, names, slices.Index(prefs.Spacings, p.LineSpacing)); changed {
+						p.LineSpacing = prefs.Spacings[i]
+						s.deps.Change(p)
+					}
+				})
+				s.typesetRow(c, s.text.LineWidth, func() {
+					names := []string{s.text.WidthNarrow, s.text.WidthStandard, s.text.WidthWide}
+					if i, changed := s.segments(c, s.text.LineWidth, names, slices.Index(prefs.Widths, p.ReadingWidth)); changed {
+						p.ReadingWidth = prefs.Widths[i]
+						s.deps.Change(p)
+					}
+				})
+				s.typesetRow(c, s.text.ChineseTypesetting, func() {
+					on := p.ChineseTypesetting
+					ui.Switch(c, &on).Label(s.text.ChineseTypesetting).Description(s.text.ChineseTypesettingHelp)
+					if on != p.ChineseTypesetting {
+						p.ChineseTypesetting = on
+						s.deps.Change(p)
+					}
+					ui.Text(c, s.text.ChineseTypesettingHelp).Grow(1).MinWidth(0).Wrap()
+				})
+			})
+		})
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+			Padding(theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space6)).Background(theme.Surface(t)).Children(func() {
+			if (theme.Button{Style: theme.Plain, Text: s.text.TypesetReset}).Draw(c).Clicked() {
+				d := prefs.Default()
+				p.ReadingSize, p.LineSpacing, p.ReadingWidth, p.ChineseTypesetting = d.ReadingSize, d.LineSpacing, d.ReadingWidth, d.ChineseTypesetting
+				s.deps.Change(p)
+			}
+			ui.Box(c).Grow(1)
+			if (theme.Button{Style: theme.Primary, Text: s.text.TypesetDone}).Draw(c).Clicked() {
+				open = false
+			}
+		})
+	})
+	if !open {
+		s.typesetOpen = false
+	}
+}
+
+// typesetRow is a row of the dialog: the name in a fixed column, then its control.
+func (s *Screen) typesetRow(c *ui.Context, name string, control func()) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space4)).MinHeight(theme.Px(t, tokens.Control)).Children(func() {
+		ui.Text(c, name).Width(theme.Px(t, typesetLabel)).Shrink(0).FontSize(theme.Px(t, tokens.TextLabel.Size.En)).
+			FontWeight(tokens.TextLabel.Weight).TextColor(theme.Text2(t)).Wrap()
+		control()
+	})
+}
+
+// The width of the names, and the width of the sample at the standard line width, in the dialog of the article's text.
+const (
+	typesetLabel       = 72
+	typesetSampleWidth = 400
+)
+
+// typesetSample is the sample paragraph of the dialog, in the paper, ink, face, size, spacing and width of the reader.
+func (s *Screen) typesetSample(c *ui.Context, p prefs.Preferences) {
+	t := c.Theme()
+	paper := theme.ReadingTheme(t, p.ReadingPreset)
+	ui.Column(c).FillWidth().Padding(theme.Px(t, tokens.Space4+tokens.Space1), theme.Px(t, tokens.Space6)).Radius(theme.Px(t, tokens.RadiusCard)).
+		Background(paper.Background).Border(tokens.Hairline, theme.LineStrong(t)).Children(func() {
+		size := tokens.ReadingBody.Size * float32(p.Scale())
+		sample := s.sample(c, p.ChineseTypesetting && s.lang == prefs.LanguageChinese, size).FontSize(size).
+			TextColor(theme.Prose(paper)).LineHeight(float32(p.Leading(s.lang == prefs.LanguageChinese))).Wrap().
+			MaxWidth(float32(math.Round(typesetSampleWidth*p.WidthFactor()))).Margin(0, ui.Auto)
+		if face := s.deps.ReadingFont(); face != "" {
+			sample.Font(face)
+		}
+	})
+}
+
+// swatches is a choice among small pictures with their names under them, design CSwatch; thumb draws the picture of one
+// choice, filling a thumbnail. It returns the index chosen and whether the user just chose it. The ring of the chosen
+// picture stands off it, so every picture keeps that room and the gaps are smaller by it.
+func (s *Screen) swatches(c *ui.Context, label string, names []string, current int, thumb func(int)) (int, bool) {
+	t := c.Theme()
+	chosen := max(current, 0)
+	ring, off := float32(tokens.FocusRing), theme.Px(t, tokens.Space0_5)
+	room := ring + off
+	w, h := theme.Px(t, tokens.ThumbW), theme.Px(t, tokens.ThumbH)
+	radius := theme.Px(t, tokens.RadiusControl)
+	seg := ui.SegmentedBase(c, &chosen, len(names))
+	seg.Track.Wrap().Gap(theme.Px(t, tokens.Space4)-2*room).Label(label).
+		Padding(theme.Px(t, tokens.Space2)-room, theme.Px(t, tokens.Space1)-room, theme.Px(t, tokens.Space1)-room, theme.Px(t, tokens.Space1)-room).
+		Children(func() {
+			for i, name := range names {
+				b := seg.Segment(i).Column().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2) - room).Label(name)
+				b.Children(func() {
+					frame := ui.Box(c).Size(w+2*room, h+2*room).Shrink(0).Radius(theme.Px(t, tokens.RadiusCard)).Center()
+					if i == chosen {
+						frame.Border(ring, t.Accent)
+					}
+					frame.Children(func() {
+						picture := ui.Box(c).Size(w, h).Radius(radius).Clip()
+						if i != chosen {
+							picture.Border(tokens.Hairline, theme.LineStrong(t))
+						}
+						picture.Children(func() { thumb(i) })
+					})
+					text := ui.Text(c, name).NoWrap().FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t))
+					if i == chosen {
+						text.FontWeight(tokens.TextLabel.Weight).TextColor(t.Text)
+					}
+				})
+			}
+		})
+	return chosen, seg.Track.Changed()
+}
+
+// themeThumb is the picture of a theme: a small window in that theme, and for following the system a window that is
+// light on its left half and dark on its right.
+func themeThumb(c *ui.Context, value string) {
+	t := c.Theme()
+	w := theme.Px(t, tokens.ThumbW)
+	if value == prefs.ThemeDark {
+		themeWindow(c, &tokens.SchemeDark)
+		return
+	}
+	themeWindow(c, &tokens.SchemeLight)
+	if value == "" {
+		ui.Box(c).Absolute().Top(0).Bottom(0).Left(w / 2).Width(w / 2).Clip().Children(func() {
+			ui.Box(c).Absolute().Top(0).Bottom(0).Left(-w / 2).Width(w).Children(func() { themeWindow(c, &tokens.SchemeDark) })
+		})
+	}
+}
+
+// themeWindow draws a small window in the colors of a scheme: the sidebar, then a title and two lines.
+func themeWindow(c *ui.Context, scheme *tokens.Scheme) {
+	t := c.Theme()
+	w := theme.Px(t, tokens.ThumbW)
+	line := theme.Px(t, tokens.Space1)
+	inset := theme.Px(t, tokens.Space3)
+	ui.Box(c).Absolute().Top(0).Bottom(0).Left(0).Width(w).Background(scheme.Paper).Children(func() {
+		ui.Box(c).Absolute().Top(line).Bottom(line).Left(line).Width(w / 4).Radius(theme.Px(t, tokens.RadiusXS)).Background(scheme.Pane)
+		ui.Column(c).Absolute().Top(inset).Left(w/4 + inset).Right(inset).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(line).Children(func() {
+				dot := theme.Px(t, tokens.Dot)
+				ui.Box(c).Size(dot, dot).Shrink(0).Radius(theme.Pill(dot)).Background(scheme.Accent)
+				ui.Box(c).Grow(1).Height(line).Radius(theme.Pill(line)).Background(scheme.Fg2)
+			})
+			ui.Box(c).FillWidth().Height(line).Radius(theme.Pill(line)).Background(scheme.Rule)
+			ui.Box(c).Width((w - w/4 - 2*inset) * 0.7).Height(line).Radius(theme.Pill(line)).Background(scheme.Rule)
+		})
+	})
+}
+
+// readingThumb is the picture of a reading preset: Aa in the serif over a short bar, on the preset's paper.
+func readingThumb(c *ui.Context, preset, serif string) {
+	t := c.Theme()
+	paper := theme.ReadingTheme(t, preset)
+	ui.Column(c).FillWidth().Grow(1).AlignItems(ui.Center).Justify(ui.Center).Gap(theme.Px(t, tokens.Space1)).Background(paper.Background).Children(func() {
+		aa := ui.Text(c, "Aa").FontSize(theme.Px(t, tokens.TextDisplay.Size.En)).FontWeight(tokens.TextDisplay.Weight).TextColor(paper.Text)
+		if serif != "" {
+			aa.Font(serif)
+		}
+		ui.Box(c).Size(theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space0_5)).Radius(theme.Pill(theme.Px(t, tokens.Space0_5))).Background(paper.Accent)
+	})
 }
 
 // desktopCard is the Desktop card: open at login, the menu bar or tray icon and, on macOS, the Dock badge. Each switch
@@ -3491,60 +3698,44 @@ func (s *Screen) desktopCard(c *ui.Context, p prefs.Preferences, d Desktop) {
 	if needsApp {
 		loginHelp = s.text.OpenAtLoginNeedsApp
 	}
-	rows := []cardRow{
-		{"login", toggle(icons.Laptop, s.text.OpenAtLogin, loginHelp, &p.OpenAtLogin, needsApp, func(on bool) {
-			s.loginFailed = false
-			p.OpenAtLogin = on
-			s.deps.Change(p)
-		})},
-	}
-	if s.loginFailed {
-		rows = append(rows, cardRow{"loginFailed", func() { statusLine(c, status{text: s.text.LoginFailed}) }})
-	}
-	rows = append(rows,
-		cardRow{"tray", toggle(icons.AppWindow, trayLabel, trayHelp, &p.TrayIcon, false, func(on bool) {
-			s.trayFailed = false
-			p.TrayIcon = on
-			s.deps.Change(p)
-		})})
-	if s.trayFailed {
-		rows = append(rows, cardRow{"trayFailed", func() { statusLine(c, status{text: s.text.TrayFailed}) }})
-	}
+	var rows []cardRow
 	if mac {
-		rows = append(rows, cardRow{"dock", toggle(icons.CircleDot, s.text.DockBadge, s.text.DockBadgeHelp, &p.DockBadge, false, func(on bool) {
+		rows = append(rows, cardRow{"dock", toggle(icons.AppWindow, s.text.DockBadge, "", &p.DockBadge, false, func(on bool) {
 			p.DockBadge = on
 			s.deps.Change(p)
 		})})
 	}
+	rows = append(rows, cardRow{"tray", toggle(icons.CircleDot, trayLabel, trayHelp, &p.TrayIcon, false, func(on bool) {
+		s.trayFailed = false
+		p.TrayIcon = on
+		s.deps.Change(p)
+	})})
+	if s.trayFailed {
+		rows = append(rows, cardRow{"trayFailed", func() { statusLine(c, status{text: s.text.TrayFailed}) }})
+	}
+	rows = append(rows, cardRow{"login", toggle(icons.Play, s.text.OpenAtLogin, loginHelp, &p.OpenAtLogin, needsApp, func(on bool) {
+		s.loginFailed = false
+		p.OpenAtLogin = on
+		s.deps.Change(p)
+	})})
+	if s.loginFailed {
+		rows = append(rows, cardRow{"loginFailed", func() { statusLine(c, status{text: s.text.LoginFailed}) }})
+	}
 	cardOf(c, rows)
 }
 
-// viewer is the segmented control of one kind's viewer; it returns the viewer chosen and whether the user just chose it.
+// viewer is the drop-down of one kind's viewer; it returns the viewer chosen and whether the user just chose it.
 func (s *Screen) viewer(c *ui.Context, label, current string, viewers []string) (string, bool) {
-	names := make([]string, len(viewers))
+	names := map[string]string{prefs.ViewPanes: s.text.ViewPanes, prefs.ViewList: s.text.ViewList, prefs.ViewCompact: s.text.ViewCompact,
+		prefs.ViewCover: s.text.ViewCover, prefs.ViewGrid: s.text.ViewGrid, prefs.ViewWall: s.text.ViewWall, prefs.ViewCard: s.text.ViewCard}
+	options := make([]choice, len(viewers))
 	for i, v := range viewers {
-		switch v {
-		case prefs.ViewPanes:
-			names[i] = s.text.ViewPanes
-		case prefs.ViewList:
-			names[i] = s.text.ViewList
-		case prefs.ViewCompact:
-			names[i] = s.text.ViewCompact
-		case prefs.ViewCover:
-			names[i] = s.text.ViewCover
-		case prefs.ViewGrid:
-			names[i] = s.text.ViewGrid
-		case prefs.ViewWall:
-			names[i] = s.text.ViewWall
-		case prefs.ViewCard:
-			names[i] = s.text.ViewCard
-		}
+		options[i] = choice{value: v, name: names[v]}
 	}
-	i, changed := s.segments(c, label, names, slices.Index(viewers, current))
-	return viewers[i], changed
+	return s.pick(c, current, label, options)
 }
 
-// sample is the sample paragraph of the Reading card, spaced by the rules of Chinese typesetting when chinese is set,
+// sample is the sample paragraph of the dialog of the article's text, spaced by the rules of Chinese typesetting when chinese is set,
 // which is when it is Chinese and the switch is on; size is the font size it will have.
 func (s *Screen) sample(c *ui.Context, chinese bool, size float32) ui.Element {
 	text := s.text.PreviewText
