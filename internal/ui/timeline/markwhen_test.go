@@ -134,7 +134,7 @@ func TestMarkWhenStay(t *testing.T) {
 	if !s.entries[0].IsRead || len(f.patches[id]) != 1 {
 		t.Fatalf("not marked after the stay: %v", f.patches[id])
 	}
-	if !slices.Contains(tt.Announcements(), s.text.MarkRead) {
+	if !slices.Contains(tt.Announcements(), "Marked as read") {
 		t.Fatalf("announcements %v", tt.Announcements())
 	}
 	if tt.HasText("Undo") {
