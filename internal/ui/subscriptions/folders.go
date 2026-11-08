@@ -278,22 +278,3 @@ func (s *Screen) folderName(id int64) string {
 	}
 	return s.text.NoFolder
 }
-
-// folderField is the folder picker of the edit dialog. It is not there while there are no folders and the
-// subscription is in none.
-func (s *Screen) folderField(c *ui.Context) {
-	t := c.Theme()
-	e := s.form
-	folders := s.folders()
-	if len(folders) == 0 {
-		return
-	}
-	options := []int64{0}
-	for _, f := range folders {
-		options = append(options, f.ID)
-	}
-	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space1)).Children(func() {
-		s.choiceSelect(c, &e.folder, options, s.text.Folder, s.folderName(e.folder), s.folderName, e.busy, e.folder == 0)
-		help(c, s.text.FolderHelp)
-	})
-}

@@ -693,7 +693,7 @@ func (s *Screen) kindFilter(c *ui.Context) {
 		return s.kindName(kinds[v-1])
 	}
 	ui.Box(c).Width(theme.Px(t, tokens.MenuMin)).Shrink(0).Children(func() {
-		s.selectTrigger(c, &m.kind, options, s.text.KindFilter, name(m.kind), name, m.run != nil, false)
+		s.selectTrigger(c, &m.kind, options, s.text.KindFilter, name(m.kind), name, nil, m.run != nil, false)
 	})
 }
 

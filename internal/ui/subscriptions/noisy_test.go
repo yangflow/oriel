@@ -7,61 +7,29 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 )
 
-func TestEditDailyCap(t *testing.T) {
-	s, f, tt := setup(t, "en")
-	tt.SetSize(1000, 1600)
-	s.Edit(f.sources[0])
-	tt.Frame()
-	f.settle(tt)
-	if s.edit.dailyCap != 0 || !tt.HasText("At most per day") || !tt.HasText(s.text.CapHelp) {
-		t.Fatalf("cap %d, texts %v", s.edit.dailyCap, tt.Texts())
+// The At most per day select of the page applies at once and sends only the cap.
+func TestPageDailyCap(t *testing.T) {
+	s, _, tt := paged(t, "en", 0, nil)
+	if s.pg.e.dailyCap != 0 || !tt.HasText("At most per day") || !tt.HasText(s.text.CapHelp) {
+		t.Fatalf("cap %d, texts %v", s.pg.e.dailyCap, tt.Texts())
 	}
 
 	// A cap the menu does not list shows as a number and can be set to a preset.
-	src := f.sources[1]
-	src.DailyCap = 30
-	s.Edit(src)
-	tt.Frame()
-	f.settle(tt)
+	_, f, tt := paged(t, "en", 1, func(src *client.Source) { src.DailyCap = 30 })
 	if !tt.HasText("30 entries") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
-	if err := tt.Click("30 entries"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("10 entries"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
-	}
+	mustClick(t, tt, "30 entries")
+	mustClick(t, tt, "10 entries")
 	f.settle(tt)
-	p := f.patches[src.ID]
+	p := f.patches[2]
 	if len(p) != 1 || p[0].DailyCap == nil || *p[0].DailyCap != 10 || p[0].PaceSec != nil {
-		t.Fatalf("patches %+v", p)
-	}
-
-	// Untouched, the cap is not sent.
-	src.DailyCap = 20
-	s.Edit(src)
-	tt.Frame()
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
-	}
-	f.settle(tt)
-	if p := f.patches[src.ID]; len(p) != 1 {
 		t.Fatalf("patches %+v", p)
 	}
 }
 
-func TestEditDailyCapChinese(t *testing.T) {
-	s, f, tt := setup(t, "zh-Hans")
-	tt.SetSize(1000, 1600)
-	src := f.sources[0]
-	src.DailyCap = 20
-	s.Edit(src)
-	tt.Frame()
-	f.settle(tt)
+func TestPageDailyCapChinese(t *testing.T) {
+	s, _, tt := paged(t, "zh-Hans", 0, func(src *client.Source) { src.DailyCap = 20 })
 	for _, want := range []string{"每天最多", "20 条", s.text.CapHelp} {
 		if !tt.HasText(want) {
 			t.Errorf("no %q in %v", want, tt.Texts())

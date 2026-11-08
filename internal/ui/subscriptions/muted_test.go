@@ -2,31 +2,19 @@ package subscriptions
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
-	"github.com/egoist/mygo/ui"
 	"github.com/yangflow/oriel/internal/client"
 )
 
-// focusMute tabs from the title to the mute keywords.
-func focusMute(t *testing.T, tt *ui.Tester) {
-	t.Helper()
-	for range 14 {
-		if tt.Focused("Mute keywords") {
-			return
-		}
-		tt.Key(0, ui.KeyTab)
-	}
-	t.Fatal("the mute keywords never got the focus")
-}
-
-func TestEditMutedCount(t *testing.T) {
-	s, f, tt := setup(t, "en")
+// The Mute keywords of the page say how many entries they hide, asked again as they are typed.
+func TestPageMutedCount(t *testing.T) {
+	s, f, _ := setup(t, "en")
 	f.hidden = 7
-	src := f.sources[0]
-	src.MuteKeywords = "sponsored"
-	s.Edit(src)
-	tt.Frame()
+	f.sources[0].MuteKeywords = "sponsored"
+	s.OpenSource(f.sources[0])
+	tt := pageTester(s)
 	if tt.HasText("7 hidden now.") {
 		t.Fatal("the count shows before the server answered")
 	}
@@ -37,7 +25,7 @@ func TestEditMutedCount(t *testing.T) {
 
 	// Typing asks again, and only the last of quick changes is asked for; the old number stays meanwhile.
 	f.hidden = 0
-	focusMute(t, tt)
+	focusField(t, tt, s.text.Mute)
 	tt.Type("x")
 	tt.Type("y")
 	if !tt.HasText("7 hidden now.") {
@@ -47,45 +35,51 @@ func TestEditMutedCount(t *testing.T) {
 	if !tt.HasText("Nothing hidden now.") || len(f.asked) != 2 || f.asked[1] == "sponsored" {
 		t.Fatalf("asked %q, texts %v", f.asked, tt.Texts())
 	}
-
-	// An empty box hides nothing and asks nothing; a failed question leaves no number.
-	s.Edit(f.sources[1])
-	tt.Frame()
+	if len(f.patches[1]) != 0 {
+		t.Fatalf("the keywords were sent before Save keywords: %+v", f.patches)
+	}
+	mustClick(t, tt, s.text.SaveMute)
 	f.settle(tt)
-	if tt.HasText("Nothing hidden now.") || len(f.asked) != 2 {
+	if p := f.patches[1]; len(p) != 1 || p[0].MuteKeywords == nil || !strings.Contains(*p[0].MuteKeywords, "xy") || p[0].Title != nil {
+		t.Fatalf("patches %+v", p)
+	}
+}
+
+// An empty box hides nothing and asks nothing; a failed question leaves no number.
+func TestPageMutedCountFails(t *testing.T) {
+	s, f, tt := paged(t, "en", 1, nil)
+	if tt.HasText("Nothing hidden now.") || len(f.asked) != 0 {
 		t.Fatalf("no keywords: asked %q, texts %v", f.asked, tt.Texts())
 	}
 	f.hidden, f.hiddenErr = 7, &client.APIError{Status: 500, Code: "internal"}
-	focusMute(t, tt)
+	focusField(t, tt, s.text.Mute)
 	tt.Type("ad")
 	f.settle(tt)
-	if len(f.asked) != 3 || tt.HasText("Nothing hidden now.") || tt.HasText("7 hidden now.") {
+	if len(f.asked) != 1 || tt.HasText("Nothing hidden now.") || tt.HasText("7 hidden now.") {
 		t.Fatalf("failed: asked %q, texts %v", f.asked, tt.Texts())
 	}
 }
 
-func TestEditMutedCountChinese(t *testing.T) {
-	s, f, tt := setup(t, "zh-Hans")
+func TestPageMutedCountChinese(t *testing.T) {
+	s, f, _ := setup(t, "zh-Hans")
 	f.hidden = 3
-	src := f.sources[0]
-	src.MuteKeywords = "广告"
-	s.Edit(src)
-	tt.Frame()
+	f.sources[0].MuteKeywords = "广告"
+	s.OpenSource(f.sources[0])
+	tt := pageTester(s)
 	f.settle(tt)
 	if !tt.HasText("现在隐藏了 3 条。") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 }
 
-func TestEditMutedCountSessionEnds(t *testing.T) {
-	s, f, tt := setup(t, "en")
+func TestPageMutedCountSessionEnds(t *testing.T) {
+	s, f, _ := setup(t, "en")
 	f.hiddenErr = client.ErrUnauthorized
-	src := f.sources[0]
-	src.MuteKeywords = "ad"
-	s.Edit(src)
-	tt.Frame()
+	f.sources[0].MuteKeywords = "ad"
+	s.OpenSource(f.sources[0])
+	tt := pageTester(s)
 	f.settle(tt)
-	if s.Open() || f.expired != 1 {
-		t.Fatalf("open %v, expired %d", s.Open(), f.expired)
+	if f.expired != 1 {
+		t.Fatalf("expired %d", f.expired)
 	}
 }

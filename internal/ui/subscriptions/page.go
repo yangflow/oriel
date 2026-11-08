@@ -33,7 +33,6 @@ func (s *Screen) OpenSource(src client.Source) {
 	s.pg = paging{open: true, e: editingOf(src)}
 	e := &s.pg.e
 	e.extract, e.headers = false, false
-	e.proxyOpen = true
 	s.pg.prompts = src.PromptSummary != "" || src.PromptTranslate != ""
 	s.loadFormSettings(e)
 }
@@ -444,7 +443,8 @@ type pick struct {
 	shown   string
 	names   func(int64) string
 	muted   bool
-	done    func() // takes the value chosen, for a value that is not an int64 of the form
+	icon    *ui.SVG // before the value, as the kind's icon
+	done    func()  // takes the value chosen, for a value that is not an int64 of the form
 }
 
 func (s *Screen) selectRow(c *ui.Context, of func() pick) {
@@ -452,7 +452,7 @@ func (s *Screen) selectRow(c *ui.Context, of func() pick) {
 	p := of()
 	s.row(c, p.name, p.help, func() {
 		ui.Box(c).Width(theme.Px(t, tokens.MenuMin+tokens.Space12)).Shrink(0).Children(func() {
-			s.selectTrigger(c, p.value, p.options, p.name, p.shown, p.names, s.form.busy, p.muted)
+			s.selectTrigger(c, p.value, p.options, p.name, p.shown, p.names, p.icon, s.form.busy, p.muted)
 		})
 	})
 	if p.done != nil {
@@ -468,7 +468,7 @@ func (s *Screen) kindRow() pick {
 		options[i] = int64(i)
 	}
 	return pick{value: &value, options: options, name: s.text.ShowAs, shown: s.kindName(kinds[e.kind]),
-		names: func(i int64) string { return s.kindName(kinds[i]) }, done: func() { e.kind = int(value) }}
+		names: func(i int64) string { return s.kindName(kinds[i]) }, icon: kindIcon(kinds[e.kind]), done: func() { e.kind = int(value) }}
 }
 
 func (s *Screen) folderRow() pick {
