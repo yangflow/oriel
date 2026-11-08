@@ -1,5 +1,5 @@
 // Package ai summarizes and translates entries through the user's OpenAI-compatible endpoint.
-// See docs/product.md "AI 摘要和翻译".
+// See docs/product/ai.md "AI 摘要和翻译".
 package ai
 
 import (

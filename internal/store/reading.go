@@ -23,7 +23,7 @@ const (
 	readingBackfillPause = 50 * time.Millisecond
 )
 
-// readingSeconds estimates the time an entry takes, see docs/product.md "阅读时间". The second result is false when
+// readingSeconds estimates the time an entry takes, see docs/product/data.md "阅读时间". The second result is false when
 // there is nothing to estimate. searchText is the extracted text and must be empty unless the extraction succeeded.
 func readingSeconds(kind string, durationSec int, searchText, contentHTML, summary string) (int, bool) {
 	if durationSec > 0 {

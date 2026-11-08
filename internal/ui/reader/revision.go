@@ -12,7 +12,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
-// What changed when an article was updated, see docs/product.md "条目的修订" and "阅读器": a notice under the title says
+// What changed when an article was updated, see docs/product/data.md "条目的修订" and docs/product/screens.md "阅读器": a notice under the title says
 // when, and opens a paragraph-by-paragraph difference between the version before and the one now.
 const (
 	kept    = iota // paragraphs both versions have, folded into one line with their count

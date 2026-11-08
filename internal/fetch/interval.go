@@ -7,7 +7,7 @@ import (
 	"github.com/yangflow/oriel/internal/store"
 )
 
-// The automatic fetch interval, docs/product.md "抓取".
+// The automatic fetch interval, docs/product/fetching.md "抓取".
 const (
 	// DefaultInterval is the interval of a new source, and of an automatic one with too little history.
 	DefaultInterval = 15 * time.Minute

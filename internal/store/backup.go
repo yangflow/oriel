@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// A backup is a zip file holding a manifest and a snapshot of the database. docs/product.md describes it.
+// A backup is a zip file holding a manifest and a snapshot of the database. docs/product/import-export.md describes it.
 const (
 	manifestName  = "manifest.json"
 	snapshotName  = "oriel.sqlite"

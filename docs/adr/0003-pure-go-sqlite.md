@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-12
-- Related: [docs/product.md](../product.md), 存储
+- Related: [docs/product/data.md](../product/data.md#存储)
 
 ## Context
 

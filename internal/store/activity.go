@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// FetchLogKeep is how many attempts of each source are kept. docs/product.md ("抓取记录") gives the reason.
+// FetchLogKeep is how many attempts of each source are kept. docs/product/data.md ("抓取记录") gives the reason.
 const FetchLogKeep = 10
 
 // fetchLogError is the longest error text kept, in characters.

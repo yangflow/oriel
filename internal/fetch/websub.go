@@ -20,7 +20,7 @@ import (
 
 const (
 	// WebSubSetting is the setting that holds the public base address of the server, such as https://oriel.example.com.
-	// WebSub is off while it is empty. See docs/product.md "WebSub 推送".
+	// WebSub is off while it is empty. See docs/product/fetching.md "WebSub 推送".
 	WebSubSetting = "websub_base_url"
 
 	// WebSubPath is the callback route; the key of a source follows it.

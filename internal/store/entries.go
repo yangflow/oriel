@@ -34,14 +34,14 @@ type Entry struct {
 	DurationSec     int
 	Platform        string
 	Language        string   // BCP 47 code, "" when unknown
-	ReadingSec      *int     // estimated seconds, nil when unknown; see docs/product.md "阅读时间"
-	ReadProgress    *float64 // how far the article was read, 0 to 1, nil when never scrolled; see docs/product.md "阅读器"
+	ReadingSec      *int     // estimated seconds, nil when unknown; see docs/product/data.md "阅读时间"
+	ReadProgress    *float64 // how far the article was read, 0 to 1, nil when never scrolled; see docs/product/screens.md "阅读器"
 	Images          []Image
 	ExtractStatus   string
 	IsRead          bool
 	ReadAt          time.Time
 	// Folded is set in a timeline list that asked for folded entries (EntryFilter.WithFolded): the entry is over its
-	// source's daily cap and stands for a fold row, not for a row of its own. See docs/product.md "每日上限".
+	// source's daily cap and stands for a fold row, not for a row of its own. See docs/product/timeline.md "每日上限".
 	Folded    bool
 	RemindAt  time.Time // when a reminded entry comes back as unread; zero when there is no reminder
 	Starred   bool
@@ -54,7 +54,7 @@ type Entry struct {
 	FadesAt   time.Time
 	ExpiresAt time.Time
 	// Group lists the other visible entries with the same link, earliest arrival first, when the caller asked for them
-	// (AttachGroups); IsRead and Starred then say so for the whole group. See docs/product.md "同一篇文章只显示一次".
+	// (AttachGroups); IsRead and Starred then say so for the whole group. See docs/product/data.md "同一篇文章只显示一次".
 	Group []GroupMember
 }
 
@@ -131,12 +131,12 @@ const globalMute = "coalesce((SELECT value FROM settings WHERE key = '" + MuteSe
 
 // live keeps out the unread entries whose source has a pace and whose time is up: they leave All and Unread and
 // their counts, and stay in search, Starred and the source's own view. The time is the published time, else the
-// time the entry was fetched, plus the pace; read and starred entries never expire. See docs/product.md "节奏".
+// time the entry was fetched, plus the pace; read and starred entries never expire. See docs/product/timeline.md "节奏".
 const live = "(s.pace_sec = 0 OR e.is_read = 1 OR e.starred = 1 OR " +
 	"coalesce(nullif(e.published_at, 0), e.created_at) + s.pace_sec * 1000 > CAST(unixepoch('subsec') * 1000 AS INTEGER))"
 
 // notHidden keeps out the entries of a source that is hidden from All: they show only in the source's own view, in
-// search and in Starred. See docs/product.md "不在全部里出现".
+// search and in Starred. See docs/product/timeline.md "不在全部里出现".
 const notHidden = "s.hide_from_all = 0"
 
 // copyOf rewrites a condition on entries e and sources s to one on entries m and sources ms.

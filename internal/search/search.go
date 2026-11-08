@@ -1,4 +1,4 @@
-// Package search parses what is typed in the timeline's search field (docs/product.md, Search syntax). It touches no
+// Package search parses what is typed in the timeline's search field (docs/product/timeline.md, "检索语法"). It touches no
 // storage: the server turns the result into a query and the screen reads the words to highlight from it, so both
 // agree on the grammar. Parsing never fails; whatever is not understood is a plain word.
 package search
@@ -69,7 +69,7 @@ func (q Query) Short() bool {
 	return false
 }
 
-// Parse reads a query. Tokens are separated by white space; see docs/product.md for the grammar.
+// Parse reads a query. Tokens are separated by white space; see docs/product/timeline.md for the grammar.
 func Parse(s string) Query {
 	var q Query
 	p := parser{rs: []rune(s)}

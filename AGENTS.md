@@ -10,8 +10,8 @@ Sources of truth:
 
 - The screens canvas (`design/README.md`): how every screen looks, meaning its layout, controls, copy and visual
   states, with one artboard per state. It is the only description of a screen's look; the docs do not repeat it.
-- `docs/product.md`: product behavior, data model, API and flows, with no layout or copy. New rules go into the
-  docs first, then into code.
+- `docs/product.md` and the topic files under `docs/product/` it lists: product behavior, data model, API and flows,
+  with no layout or copy. New rules go into the docs first, then into code.
 - `design/tokens.md`: the design values every screen shares (color, type, spacing, sizes, motion), mapped to MyGo
   theme roles; the design system artifact draws them (`design/README.md`).
 - GitHub milestones and issues: the plan and its order. `CHANGELOG.md` is the finished history.
@@ -52,14 +52,14 @@ internal/ui/pictures/    the picture queue the reader and the timeline share: do
 internal/ui/tray/        copy for the tray menu and the unread count on the icon and badge
 internal/ui/theme/       palette and the helpers every screen shares: Px, Monogram
 internal/ui/theme/tokens/ the design tokens generated from design/tokens.json (`go generate` there), and their contrast audit
-internal/ui/typeset/     the spacing of Chinese text (docs/product.md, 中文排版)
+internal/ui/typeset/     the spacing of Chinese text (docs/product/screens.md, 中文排版)
 internal/ui/icons/       the Lucide icon set
 internal/ui/startup/     copy for the native error dialog when desktop startup fails
 resources/               shipped licenses and product assets
 scripts/                 checks, packaging, secret scan
 mygo.json                name, identifier, version, packaging
 release-please-config.json, .release-please-manifest.json  the release pull request: version and changelog from the merged titles
-docs/, design/           product spec, design language, ADRs, tokens, product icon
+docs/, design/           product spec (docs/product.md, topic files in docs/product/), ADRs, release, tokens, product icon
 ```
 
 ## Commands

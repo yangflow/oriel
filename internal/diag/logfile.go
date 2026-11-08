@@ -12,7 +12,7 @@ import (
 	"sync"
 )
 
-// The log file (docs/product.md, "日志文件"): LogName in the LogDir folder of the data directory, at most LogSize bytes
+// The log file (docs/product/running.md, "日志文件"): LogName in the LogDir folder of the data directory, at most LogSize bytes
 // each, LogFiles of them kept: LogName, LogName.1, LogName.2.
 const (
 	LogDir   = "logs"

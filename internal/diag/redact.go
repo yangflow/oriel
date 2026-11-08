@@ -1,4 +1,4 @@
-// Package diag writes the diagnostics file (docs/product.md, "诊断文件"): the version, the system, the recent errors and
+// Package diag writes the diagnostics file (docs/product/running.md, "诊断文件"): the version, the system, the recent errors and
 // the failures of each subscription, with nothing in it that is a secret, a full address or the reader's own content.
 package diag
 

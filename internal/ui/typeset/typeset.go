@@ -1,4 +1,4 @@
-// Package typeset works out the spacing of Chinese text (docs/product.md, 中文排版): a gap between
+// Package typeset works out the spacing of Chinese text (docs/product/screens.md, 中文排版): a gap between
 // a Han character and a Latin letter or digit, and tighter runs of full-width punctuation. It only splits text
 // into pieces that carry extra letter spacing; no character is inserted or removed, and the pieces joined give back
 // the text.

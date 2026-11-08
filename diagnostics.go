@@ -16,7 +16,7 @@ import (
 	"github.com/yangflow/oriel/internal/store"
 )
 
-// diagnostics writes the diagnostics file from a data directory, without a running server (docs/product.md, "诊断文件").
+// diagnostics writes the diagnostics file from a data directory, without a running server (docs/product/running.md, "诊断文件").
 // The recent errors live in the memory of a server, so the file says it has none to show.
 func diagnostics(args []string, stdout io.Writer) int {
 	flags := flag.NewFlagSet("oriel diagnostics", flag.ContinueOnError)

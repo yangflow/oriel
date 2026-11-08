@@ -1,5 +1,5 @@
 // Package autobackup writes a backup file into a chosen folder on a schedule and keeps only the newest few of them
-// (docs/product.md, "自动备份"). The settings and the outcome of the last try live in the settings table.
+// (docs/product/import-export.md, "自动备份"). The settings and the outcome of the last try live in the settings table.
 package autobackup
 
 import (

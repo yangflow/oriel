@@ -222,7 +222,7 @@ type Screen struct {
 	// The pieces of the texts drawn as one string, for Chinese typesetting.
 	titleSet, summarySet memo
 
-	// The reading position, see docs/product.md "阅读器": the fraction last stored, the one asked to restore (-1 for
+	// The reading position, see docs/product/screens.md "阅读器": the fraction last stored, the one asked to restore (-1 for
 	// none), the scroll offset last seen and when it moved, and the writes under way. known holds what this session
 	// stored, which the list and the cache may not have yet.
 	stored, resume float64
@@ -1149,7 +1149,7 @@ func (s *Screen) language() string {
 
 // CopyLink puts the original link of the entry e on the clipboard and says so in a toast and to screen readers. It
 // does no work of its own; the clipboard and the messages follow in the next frame (see Flush). An entry with no link
-// does nothing. See docs/product.md, Copy link.
+// does nothing. See docs/product/screens.md, Copy link.
 func (s *Screen) CopyLink(e client.Entry) {
 	if e.URL == "" {
 		return
@@ -1159,7 +1159,7 @@ func (s *Screen) CopyLink(e client.Entry) {
 
 // Export copies the entry e as Markdown to the clipboard, or with save asks where to save it and writes the file. The
 // open article is converted as it shows; any other is got from the server first. The work runs in the background,
-// and the clipboard and the messages follow in the next frame (see Flush). See docs/product.md, Export as Markdown.
+// and the clipboard and the messages follow in the next frame (see Flush). See docs/product/screens.md, Export as Markdown.
 func (s *Screen) Export(e client.Entry, save bool) {
 	if s.api == nil || s.deps.Save == nil && save {
 		return

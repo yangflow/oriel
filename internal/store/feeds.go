@@ -517,7 +517,7 @@ type ExtractTarget struct {
 	URL      string
 	Title    string
 	Attempts int // extractions already tried and failed
-	// The extraction rules of the entry's source; see docs/product.md "正文抽取".
+	// The extraction rules of the entry's source; see docs/product/fetching.md "正文抽取".
 	Selector string
 	Referer  string
 	Rewrites string

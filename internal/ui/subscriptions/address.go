@@ -91,7 +91,7 @@ func recognize(input, base string) (target, bool) {
 	return target{URL: input, Platform: feed, Name: u.Hostname(), Public: publicInstance(u)}, true
 }
 
-// known recognizes the links of the platforms in docs/product.md; an address ending as a feed does is one already.
+// known recognizes the links of the platforms in docs/product/fetching.md; an address ending as a feed does is one already.
 func known(u *url.URL) (target, bool) {
 	if path := strings.ToLower(u.Path); strings.HasSuffix(path, ".atom") || strings.HasSuffix(path, ".rss") ||
 		strings.HasSuffix(path, ".xml") {
