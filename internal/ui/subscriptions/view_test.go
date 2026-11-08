@@ -477,13 +477,10 @@ func TestAdd(t *testing.T) {
 	if s.add.kind != slices.Index(kinds, "social") {
 		t.Fatalf("kind %d is not the platform's", s.add.kind)
 	}
+	if err := tt.Click(s.kindName("social")); err != nil {
+		t.Fatal(err)
+	}
 	if err := tt.Click("Videos"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("Auto"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("1 h"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("Add"); err != nil {
@@ -493,7 +490,7 @@ func TestAdd(t *testing.T) {
 		t.Fatalf("not busy: %v", tt.Texts())
 	}
 	f.settle(tt)
-	want := client.NewSource{RSSHubPath: "/twitter/user/golang", Kind: "video", FetchIntervalSec: 3600}
+	want := client.NewSource{RSSHubPath: "/twitter/user/golang", Kind: "video"}
 	if len(f.added) != 1 || f.added[0] != want {
 		t.Fatalf("added %+v", f.added)
 	}
@@ -509,12 +506,9 @@ func TestAddAndContinue(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	open(t, s, f, tt)
 	tt.Type("https://x.com/golang")
-	tt.Frame()
-	if err := tt.Click("Add and continue"); err != nil {
-		t.Fatal(err)
-	}
+	tt.Key(ui.Cmd, ui.KeyEnter)
 	f.settle(tt)
-	if !s.Open() || s.add.address != "" || s.add.title != "" || !tt.Focused(s.text.Address) {
+	if !s.Open() || s.add.address != "" || !tt.Focused(s.text.Address) {
 		t.Fatalf("open %v, address %q, texts %v", s.Open(), s.add.address, tt.Texts())
 	}
 	if !tt.HasText("Added “/twitter/user/golang”") {
@@ -556,6 +550,36 @@ func TestAddAndContinue(t *testing.T) {
 	}
 }
 
+// The folder row is there only when there are folders; the choice is sent and stays for the next address.
+func TestAddIntoFolder(t *testing.T) {
+	s, f, tt := setup(t, "en")
+	open(t, s, f, tt)
+	tt.Type("https://example.com/feed.xml")
+	tt.Frame()
+	if tt.HasText(s.text.Folder) || !tt.HasText(s.text.ShowAs) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(0, ui.KeyBackspace)
+	f.folders = []client.Folder{{ID: 5, Name: "Tech"}}
+	tt.Type("https://example.org/feed.xml")
+	tt.Frame()
+	if err := tt.Click(s.text.NoFolder); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Tech"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click(s.text.Address); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyEnter)
+	f.settle(tt)
+	if len(f.added) != 1 || f.added[0].FolderID != 5 || s.add.folder != 5 {
+		t.Fatalf("added %+v, folder %d", f.added, s.add.folder)
+	}
+}
+
 func TestAddAndContinueNeedsAnAddress(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	open(t, s, f, tt)
@@ -570,10 +594,7 @@ func TestAddAndContinueChinese(t *testing.T) {
 	s, f, tt := setup(t, "zh-Hans")
 	open(t, s, f, tt)
 	tt.Type("https://example.com/feed.xml")
-	tt.Frame()
-	if err := tt.Click("添加并继续"); err != nil {
-		t.Fatal(err)
-	}
+	tt.Key(ui.Cmd, ui.KeyEnter)
 	f.settle(tt)
 	if !tt.HasText("已添加「example.com」") || !tt.HasText("完成") {
 		t.Fatalf("texts %v", tt.Texts())
@@ -702,7 +723,7 @@ func TestAddAnyway(t *testing.T) {
 		if tt.HasText("Add anyway") || tt.HasText(s.text.ExistsUnknown) {
 			t.Fatalf("the notice stayed: %v", tt.Texts())
 		}
-		// "Add and continue" keeps the dialog open for the next address; "Add" closes it.
+		// Cmd+Enter keeps the dialog open for the next address; "Add" closes it.
 		if s.Open() != more || (more && s.add.address != "") {
 			t.Fatalf("more %v, open %v, address %q", more, s.Open(), s.add.address)
 		}
@@ -1689,17 +1710,11 @@ func tipShows(t *testing.T, tt *ui.Tester, name string) bool {
 	return count() > before
 }
 
-// The kinds of the add dialog and "Add and continue" show their names and have no tooltip; the close button, which
-// shows only an icon, keeps its own.
+// The close button of the add dialog shows only an icon, so it keeps its tooltip.
 func TestAddDialogTooltips(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	tt.SetSize(1400, 900)
 	open(t, s, f, tt)
-	for _, name := range []string{s.text.Video, "Add and continue"} {
-		if tipShows(t, tt, name) {
-			t.Errorf("%q has a tooltip", name)
-		}
-	}
 	if !tipShows(t, tt, s.text.Close) {
 		t.Errorf("%q has no tooltip", s.text.Close)
 	}

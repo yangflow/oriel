@@ -356,6 +356,23 @@ func TestSourcePatchAIOptions(t *testing.T) {
 	}
 }
 
+func TestCreateSourceInFolder(t *testing.T) {
+	s, _ := newServer(t, "")
+	folder, err := s.store.CreateFolder(context.Background(), "Tech", s.now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strconv.FormatInt(folder.ID, 10)
+	w := do(s, "POST", "/api/sources", `{"url":"https://a.org/f","kind":"article","folderId":`+id+`}`, nil)
+	if w.Code != http.StatusCreated || decode(t, w)["folderId"] != float64(folder.ID) {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	w = do(s, "POST", "/api/sources", `{"url":"https://a.org/g","kind":"article","folderId":`+id+`1}`, nil)
+	if w.Code != http.StatusBadRequest || decode(t, w)["error"] != "invalid_folder" {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+}
+
 func TestCreateSourceEdges(t *testing.T) {
 	s, _ := newServer(t, "")
 	for body, want := range map[string]int{

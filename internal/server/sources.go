@@ -199,16 +199,20 @@ func (s *Server) createSource(w http.ResponseWriter, r *http.Request) {
 		FetchIntervalSec  *int64 `json:"fetchIntervalSec"`
 		FetchIntervalAuto *bool  `json:"fetchIntervalAuto"`
 		AllowDuplicate    bool   `json:"allowDuplicate"`
+		FolderID          int64  `json:"folderId"`
 	}
 	if !readBody(w, r, &body) {
 		return
 	}
 	src := store.NewSource{
 		URL: strings.TrimSpace(body.URL), RSSHubPath: strings.TrimSpace(body.RSSHubPath), Kind: body.Kind,
-		FetchInterval: defaultInterval, FetchIntervalAuto: true, AllowDuplicate: body.AllowDuplicate,
+		FetchInterval: defaultInterval, FetchIntervalAuto: true, AllowDuplicate: body.AllowDuplicate, FolderID: body.FolderID,
 	}
 	if code := checkSource(src); code != "" {
 		fail(w, http.StatusBadRequest, code)
+		return
+	}
+	if body.FolderID != 0 && !s.checkFolder(w, r, body.FolderID) {
 		return
 	}
 	fullText, err := fetch.FullTextDefault(r.Context(), s.store)
