@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.13.0](https://github.com/yangflow/oriel/compare/v0.12.0...v0.13.0) (2026-11-08)
+
+
+### Added
+
+* **settings:** add AI service presets, a model menu and a remembered test result ([#567](https://github.com/yangflow/oriel/issues/567)) ([6227205](https://github.com/yangflow/oriel/commit/6227205b7f901482c3b2c056afae731b009db1ac))
+* **settings:** clear the image cache from Activity and storage ([#563](https://github.com/yangflow/oriel/issues/563)) ([ebef1b5](https://github.com/yangflow/oriel/commit/ebef1b5291489405ef460054c979f7db55f0706a))
+* **settings:** delete all read entries from the server ([#564](https://github.com/yangflow/oriel/issues/564)) ([b8e4e04](https://github.com/yangflow/oriel/commit/b8e4e04faa33163a74e7ed1290870f3bfabc6f3d))
+* **settings:** give RSSHub instances their own page and match the canvas's proxy rows ([#586](https://github.com/yangflow/oriel/issues/586)) ([0eb00e5](https://github.com/yangflow/oriel/commit/0eb00e595bd09c84710bdfc38bc5fab5c9efac7c))
+* **settings:** group the AI page as on the canvas ([#587](https://github.com/yangflow/oriel/issues/587)) ([1744643](https://github.com/yangflow/oriel/commit/174464357112c467407032cda086f323d7a15429))
+* **settings:** lay out rules and muted keywords as on the canvas ([#588](https://github.com/yangflow/oriel/issues/588)) ([ea8fb6d](https://github.com/yangflow/oriel/commit/ea8fb6d62bc70c1d274eaad8a1f7845c5f2fd70f))
+* **settings:** manage subscriptions in Settings, with a page for each one ([#544](https://github.com/yangflow/oriel/issues/544)) ([7fba0de](https://github.com/yangflow/oriel/commit/7fba0de4b72d0333daa37704d21456e5a4562536))
+* **settings:** match the canvas's Appearance page and add an interface size ([#585](https://github.com/yangflow/oriel/issues/585)) ([8955278](https://github.com/yangflow/oriel/commit/8955278bc7dee0dd0dbeff13d7b8e63a3282aeff))
+* **settings:** rename a signed-in device and reset this device ([#566](https://github.com/yangflow/oriel/issues/566)) ([6f13f45](https://github.com/yangflow/oriel/commit/6f13f45c71b8db3d8837c4ce5aae2cf58f580f0c))
+* **settings:** set the default check interval and full-text fetching for all subscriptions ([#565](https://github.com/yangflow/oriel/issues/565)) ([a1b70bb](https://github.com/yangflow/oriel/commit/a1b70bb6c25c74d45bcc08044a65757879375517))
+* **settings:** show elapsed time, attempt and RSSHub instance while fetching ([#568](https://github.com/yangflow/oriel/issues/568)) ([7b93fb2](https://github.com/yangflow/oriel/commit/7b93fb28090aec155fca39e5764106c3bc240e45))
+* **subscriptions:** lay out the edit dialog as the screens canvas has it ([#550](https://github.com/yangflow/oriel/issues/550)) ([92725a6](https://github.com/yangflow/oriel/commit/92725a6295e919fbaab75acb58b6af15e0b71ab6))
+* **subscriptions:** preview a plain feed before adding it ([#592](https://github.com/yangflow/oriel/issues/592)) ([ff0448f](https://github.com/yangflow/oriel/commit/ff0448f8c10cadb227e55ea5d5d8c78110f3a188))
+
+
+### Changed
+
+* enlarge the ink drop in the app icon so it holds its own in the Dock ([#547](https://github.com/yangflow/oriel/issues/547)) ([4ff5e8d](https://github.com/yangflow/oriel/commit/4ff5e8d92ff49d33c561e608315f60a318b74195))
+* **reader:** take every size from the design tokens ([#570](https://github.com/yangflow/oriel/issues/570)) ([2cb87e2](https://github.com/yangflow/oriel/commit/2cb87e2c3e67d14eed82eb13187fa1cb7ac8b50e))
+* **timeline:** take every size and color from the design tokens ([#569](https://github.com/yangflow/oriel/issues/569)) ([edf4f4c](https://github.com/yangflow/oriel/commit/edf4f4c1375fa89a7a3086ecd741927be6907cb4))
+* **ui:** guard every screen against sizes, colors and motion written in place ([#571](https://github.com/yangflow/oriel/issues/571)) ([d0a1783](https://github.com/yangflow/oriel/commit/d0a17835f86a15620e4649cea1974828554ade5a))
+* **ui:** take every opacity from the design tokens ([#572](https://github.com/yangflow/oriel/issues/572)) ([04a0555](https://github.com/yangflow/oriel/commit/04a0555412fa7a8f20dafbed067b4bde242889c7))
+
+
+### Fixed
+
+* **connect:** use the canvas wording on the connect screen ([#581](https://github.com/yangflow/oriel/issues/581)) ([e4f2657](https://github.com/yangflow/oriel/commit/e4f2657410088b32e72756c931d11ef371ad034b))
+* **reader:** say "1 column", "1 row" and "1 unchanged paragraph" in English ([#559](https://github.com/yangflow/oriel/issues/559)) ([28bf810](https://github.com/yangflow/oriel/commit/28bf810476c1a2256fc568dd8a9937fafeb189fb))
+* **reader:** say "Translating…" or "Explaining…" while a selection's answer comes ([#561](https://github.com/yangflow/oriel/issues/561)) ([56e12bc](https://github.com/yangflow/oriel/commit/56e12bcb93c5dc70ae316a318ed7b2ef52431394))
+* **settings:** keep the back link of a subscription's page at the left ([#574](https://github.com/yangflow/oriel/issues/574)) ([0e9623b](https://github.com/yangflow/oriel/commit/0e9623bfae006dc0ff55ae88b95672edd33d34f3))
+* **settings:** match the canvas's page heads, groups and icons ([#584](https://github.com/yangflow/oriel/issues/584)) ([acf8f80](https://github.com/yangflow/oriel/commit/acf8f80ee1db343d56f183212643333d2deabe7a))
+* **subscriptions:** simplify the add dialog to match the design ([#583](https://github.com/yangflow/oriel/issues/583)) ([3c0de40](https://github.com/yangflow/oriel/commit/3c0de4071f1c09015942a89c30c539e81ce4c323))
+* **timeline:** announce "Marked as read" when staying marks an article read ([#560](https://github.com/yangflow/oriel/issues/560)) ([1133b07](https://github.com/yangflow/oriel/commit/1133b07484890b9d00ba62daba2616c82d47f21f))
+* **timeline:** follow the canvas for the sidebar filter, its footer and the entry list ([#589](https://github.com/yangflow/oriel/issues/589)) ([91f9b35](https://github.com/yangflow/oriel/commit/91f9b35bad3ec0e96b192445747720f15b57e6f1))
+* **timeline:** match the social cards and picture grid to the design ([#591](https://github.com/yangflow/oriel/issues/591)) ([53c7d55](https://github.com/yangflow/oriel/commit/53c7d5567fdb25f7c72ed08114ffe311854ccc90))
+* **timeline:** show a post's only picture across the width at 3:2 ([#562](https://github.com/yangflow/oriel/issues/562)) ([44446eb](https://github.com/yangflow/oriel/commit/44446eb5cd8ae52dd392a155ded1c0be0571f19f))
+* **ui:** match the timeline, palette, reader and subscription page to the canvas ([#590](https://github.com/yangflow/oriel/issues/590)) ([36ee32b](https://github.com/yangflow/oriel/commit/36ee32b31bbc7606b1f4148391af69123f2a2515))
+
 ## [0.12.0](https://github.com/yangflow/oriel/compare/v0.11.0...v0.12.0) (2026-11-07)
 
 
