@@ -2147,6 +2147,11 @@ func (s *Screen) follow(c *ui.Context, b block, sp span) {
 
 // table is a table of the text: a grid in a frame that scrolls sideways when it is wider than the text, with a fade
 // where cells are cut off and a bar for the place.
+// tableName is the accessible name of a table with its counts of columns and rows.
+func tableName(text string, cols, rows int) string {
+	return locale.Count(locale.Count(text, "c", cols), "r", rows)
+}
+
 func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 	t := c.Theme()
 	g := b.table
@@ -2166,7 +2171,7 @@ func (s *Screen) table(c *ui.Context, b block, unit int, lit bool) {
 	}
 	wide := st.MaxX > 0.5
 	radius := theme.Px(t, 12)
-	label := strings.NewReplacer("{c}", strconv.Itoa(g.cols), "{r}", strconv.Itoa(len(g.rows))).Replace(s.text.TableName)
+	label := tableName(s.text.TableName, g.cols, len(g.rows))
 	frame := ui.Box(c).AlignSelf(ui.Start).MaxWidth(math.MaxFloat32).Radius(radius).Clip()
 	var view ui.Element
 	frame.Children(func() {
