@@ -4844,7 +4844,7 @@ func TestCopyLinkFromMenu(t *testing.T) {
 }
 
 // TestSidebarAddAlignsWithRows checks that the icon of the add button in the Subscriptions header ends where the counts
-// of the rows below it end, 10 in from the edge of the row highlight. The button is a 24 wide target around the 22 wide
+// of the rows below it end, 8 in from the edge of the row highlight. The button is a 24 wide target around the 22 wide
 // drawn square, so the icon ends 5 in from the edge of the target.
 func TestSidebarAddAlignsWithRows(t *testing.T) {
 	f := newPlaceFake()

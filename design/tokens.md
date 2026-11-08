@@ -140,3 +140,9 @@ only fades of 120 ms or less remain.
 
 The `logo-*` tokens color the mark only and never appear in the interface. The drawings and how they are kept in
 step with the design system are in [README.md](README.md#icons).
+
+## Guard
+
+`TestViewsUseTokens` in `internal/ui/theme/tokens` fails when a guarded screen writes a color in place or passes a bare
+number as a size. Geometry the canvas leaves to one screen, such as a breakpoint or a sentinel, is a named constant in
+that screen's package; a size more than one place shares is a token.
