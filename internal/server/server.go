@@ -57,8 +57,8 @@ type Config struct {
 	// AI works through the queue of summaries and translations. Nil makes one that is never run, so
 	// requests stay queued.
 	AI *ai.Worker
-	// Fetching returns the ids of the sources being fetched now, for GET /api/activity; nil means none are.
-	Fetching func() []int64
+	// Fetching returns the sources being fetched now, for GET /api/activity; nil means none are.
+	Fetching func() []fetch.InFlight
 	// InstanceHealth returns how the latest requests to each of the RSSHub instances went, for GET /api/rsshub/health;
 	// nil means there is no data.
 	InstanceHealth func(instances []string) []fetch.InstanceHealth
@@ -113,7 +113,7 @@ type Server struct {
 	probe          writeProbe
 	writable       func(context.Context) error // the write probe of /health; tests replace it
 	handler        http.Handler
-	fetching       func() []int64
+	fetching       func() []fetch.InFlight
 	instanceHealth func(instances []string) []fetch.InstanceHealth
 	log            *diag.Handler
 	dataDir        string

@@ -241,7 +241,7 @@ HTTP 约定和订阅、时间线、设置、图片代理、活动和存储的接
 `GET /api/activity` 返回 `{ "keep": 10, "fetching": [...], "sources": [...] }`。
 
 - `keep` 是每个源保留的次数（见[「抓取记录」](data.md#抓取记录)）。
-- `fetching` 是此刻有工作线程在抓的源，按 `id` 排，每项有 `id`、`url`、`rsshubPath`、`title`。没有时是空数组。主机忙、还在队列里等的源不算。
+- `fetching` 是此刻有工作线程在抓的源，按 `id` 排，每项有 `id`、`url`、`rsshubPath`、`title`、`elapsedMs`、`attempt`、`instance`（后三项的含义见[「抓取」](fetching.md#抓取)，`instance` 没有时为空串）。没有时是空数组。主机忙、还在队列里等的源不算。
 - `sources` 是至少有一次记录的源，最近一次抓取最新的排前面（同一时刻按 `id`）；暂停的源只要还有记录也列出。每项有 `id`、`url`、`rsshubPath`、`title`、`paused`，和 `attempts`：该源最近的记录，最新的在前，最多 `keep` 条，每条 `at`（毫秒时间戳）、`durationMs`、`ok`、`status`、`newEntries`、`error`（含义见[「抓取记录」](data.md#抓取记录)）。
 
 `GET /api/storage` 返回：
