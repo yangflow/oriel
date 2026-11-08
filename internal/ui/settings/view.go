@@ -54,8 +54,8 @@ type copy struct {
 	AutoNeedFolder, AutoBadFolder, AutoInvalidKeep, AutoSaveFailed                                                         string
 	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                     string
 	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry                             string
-	AI, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset                     string
-	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing                      string
+	AI, Endpoint, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset                                   string
+	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, Test, Testing                                    string
 	Proxy, ProxyAddress, ProxyHelp, ProxyPlaceholder, ProxyAuth, ProxyAuthHelp, ProxyUser,
 	ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyChanged, InvalidProxy, InvalidProxyAuth, ProxySaved, ProxyAuthRemoved,
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase string
@@ -70,7 +70,7 @@ type copy struct {
 	LineWidth, WidthNarrow, WidthStandard, WidthWide                                                                                                                                                                                                                                                                                                                                                                                                                         string
 	ReadingAppearance, PresetTheme, PresetSepia, PresetMist                                                                                                                                                                                                                                                                                                                                                                                                                  string
 	PreviewText, PreferenceFailed, ColDevice, ColPlatform, ColSigned, ColLastUsed, Connection                                                                                                                                                                                                                                                                                                                                                                                string
-	Preset, Limits, SummaryLimit, ChunkLimit, LimitsHelp, DailyCap, FetchCap, CapsHelp, DestinationLocal, DestinationRemote, UsageToday, CapReached, TestConnection, LastPassed, LastFailed, PresetCustom, ModelChoose, ModelManual, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                                                                        string
+	Preset, Usage, UsageLead, KeyChange, KeyAdd, UnitChars, UnitTimes, UnitEntries, SummaryLimit, ChunkLimit, DailyCap, FetchCap, DestinationLocal, DestinationRemote, UsageToday, CapReached, TestConnection, LastPassed, LastFailed, PresetCustom, ModelChoose, ModelManual, CheckListed, CheckFits, CheckSmall, AIModelMissing, InvalidLimit                                                                                                                              string
 	ChineseTypesetting, ChineseTypesettingHelp                                                                                                                                                                                                                                                                                                                                                                                                                               string
 	Desktop, OpenAtLogin, OpenAtLoginHelp, OpenAtLoginHelpTray, OpenAtLoginNeedsApp, MenuBarIcon, MenuBarIconHelp                                                                                                                                                                                                                                                                                                                                                            string
 	TrayIcon, TrayIconHelp, DockBadge, LoginFailed, TrayFailed                                                                                                                                                                                                                                                                                                                                                                                                               string
@@ -371,6 +371,8 @@ type Screen struct {
 	aiInvalid              bool // the server refused the endpoint
 	focusAIBase            bool
 	aiStatus               status
+	usageStatus            status // what became of saving the output language and the limits
+	aiKeyForm              bool   // the dialog that takes the API key is open
 	testing                bool
 	proxy                  string // the proxy address as typed
 	proxyUser, proxyPass   string // the sign-in as typed; the one saved is never sent back
@@ -551,8 +553,9 @@ func (s *Screen) Open() {
 	s.baseStatus, s.keepStatus, s.invalid, s.revoking = status{}, status{}, false, false
 	s.fetchStatus = status{}
 	s.dropCopy = false
-	s.aiStatus, s.promptStatus, s.aiInvalid, s.aiManual = status{}, status{}, false, false
+	s.aiStatus, s.usageStatus, s.promptStatus, s.aiInvalid, s.aiManual = status{}, status{}, status{}, false, false
 	s.proxyStatus, s.proxyInvalid, s.proxyDrop = status{}, false, false
+	s.aiKeyForm, s.aiKey = false, ""
 	s.autoStatus = status{}
 	if !s.busy {
 		s.result = result{}
@@ -902,10 +905,29 @@ func (s *Screen) escape() {
 	}
 }
 
-// aiDirty reports whether the AI endpoint as typed is not the one saved; a key typed is always a change.
+// aiPart is what one save of the AI page sends.
+type aiPart int
+
+const (
+	partEndpoint   aiPart = iota // the address and the model
+	partUsage                    // the output language and the limits
+	partKey                      // the key typed in its dialog
+	partKeyRemoval               // the removal of the stored key
+)
+
+// aiDirty reports whether anything on the AI page as typed is not what is saved; a key typed is always a change.
 func (s *Screen) aiDirty() bool {
-	return strings.TrimSpace(s.aiBase) != s.settings.AIBaseURL || strings.TrimSpace(s.aiModel) != s.settings.AIModel ||
-		strings.TrimSpace(s.aiKey) != "" || s.aiLanguage != s.settings.AILanguage || s.limitsDirty()
+	return s.endpointDirty() || strings.TrimSpace(s.aiKey) != "" || s.usageDirty()
+}
+
+// endpointDirty reports whether the address or the model as typed is not the one saved.
+func (s *Screen) endpointDirty() bool {
+	return strings.TrimSpace(s.aiBase) != s.settings.AIBaseURL || strings.TrimSpace(s.aiModel) != s.settings.AIModel
+}
+
+// usageDirty reports whether the output language or a limit as typed is not the one saved.
+func (s *Screen) usageDirty() bool {
+	return s.aiLanguage != s.settings.AILanguage || s.limitsDirty()
 }
 
 // proxyDirty reports whether the proxy address changed, a user name or password is typed, or the stored sign-in is
@@ -1018,22 +1040,37 @@ func (s *Screen) preset() int {
 }
 
 // saveAI saves the changes to the AI endpoint, or removes the key; only what changed is sent.
-func (s *Screen) saveAI(removeKey bool) {
-	if s.aiSaving || s.api == nil || s.state != loaded || !removeKey && !s.aiDirty() {
+func (s *Screen) saveAI(part aiPart) {
+	if s.aiSaving || s.api == nil || s.state != loaded {
 		return
 	}
+	report := &s.aiStatus
+	if part == partUsage {
+		report = &s.usageStatus
+	}
 	var patch client.SettingsPatch
-	if removeKey {
+	switch part {
+	case partKeyRemoval:
 		patch.AIAPIKey = new(string)
-	} else {
+	case partKey:
+		key := strings.TrimSpace(s.aiKey)
+		if key == "" {
+			return
+		}
+		patch.AIAPIKey = &key
+	case partEndpoint:
+		if !s.endpointDirty() {
+			return
+		}
 		if base := strings.TrimSpace(s.aiBase); base != s.settings.AIBaseURL {
 			patch.AIBaseURL = &base
 		}
 		if model := strings.TrimSpace(s.aiModel); model != s.settings.AIModel {
 			patch.AIModel = &model
 		}
-		if key := strings.TrimSpace(s.aiKey); key != "" {
-			patch.AIAPIKey = &key
+	case partUsage:
+		if !s.usageDirty() {
+			return
 		}
 		if s.aiLanguage != s.settings.AILanguage {
 			language := s.aiLanguage
@@ -1047,14 +1084,14 @@ func (s *Screen) saveAI(removeKey bool) {
 			}
 			n, ok := limit(typed)
 			if !ok {
-				s.aiStatus = status{text: s.text.InvalidLimit}
-				s.announce = s.aiStatus.text
+				*report = status{text: s.text.InvalidLimit}
+				s.announce = report.text
 				return
 			}
 			*fields[i] = &n
 		}
 	}
-	s.aiSaving, s.aiStatus, s.aiInvalid = true, status{}, false
+	s.aiSaving, *report, s.aiInvalid = true, status{}, false
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
 		settings, err := api.SetSettings(context.Background(), patch)
@@ -1072,28 +1109,31 @@ func (s *Screen) saveAI(removeKey bool) {
 					s.aiModels = nil
 					defer s.loadModels()
 				}
-				s.aiManual = false
 				s.settings.AIAPIKeySet, s.settings.AILanguage = settings.AIAPIKeySet, settings.AILanguage
 				s.settings.AISummaryLimit, s.settings.AIChunkLimit = settings.AISummaryLimit, settings.AIChunkLimit
 				s.settings.AIAutoDailyLimit, s.settings.AIAutoFetchLimit = settings.AIAutoDailyLimit, settings.AIAutoFetchLimit
 				s.settings.AIAutoCallsToday, s.settings.AIEndpointLocal = settings.AIAutoCallsToday, settings.AIEndpointLocal
-				if removeKey {
-					s.aiStatus = status{ok: true, text: s.text.KeyRemoved}
-				} else {
-					s.aiBase, s.aiModel, s.aiKey, s.aiLanguage = settings.AIBaseURL, settings.AIModel, "", settings.AILanguage
-					s.aiLimits = savedLimits(settings)
-					s.aiStatus = status{ok: true, text: s.text.AISaved}
+				*report = status{ok: true, text: s.text.AISaved}
+				switch part {
+				case partKeyRemoval:
+					*report = status{ok: true, text: s.text.KeyRemoved}
+				case partKey:
+					s.aiKey, s.aiKeyForm = "", false
+				case partEndpoint:
+					s.aiBase, s.aiModel, s.aiManual = settings.AIBaseURL, settings.AIModel, false
+				case partUsage:
+					s.aiLanguage, s.aiLimits = settings.AILanguage, savedLimits(settings)
 				}
-				s.announce = s.aiStatus.text
+				s.announce = report.text
 			case code(err) == "invalid_ai_base_url":
 				s.aiInvalid, s.focusAIBase = true, true
 				s.announce = s.text.InvalidAIBase
 			case code(err) == "invalid_ai_limit":
-				s.aiStatus = status{text: s.text.InvalidLimit}
-				s.announce = s.aiStatus.text
+				*report = status{text: s.text.InvalidLimit}
+				s.announce = report.text
 			default:
-				s.aiStatus = status{text: s.text.SaveFailed}
-				s.announce = s.aiStatus.text
+				*report = status{text: s.text.SaveFailed}
+				s.announce = report.text
 			}
 		}
 	})
@@ -2635,17 +2675,6 @@ func statusText(c *ui.Context, st status) {
 	ui.Text(c, st.text).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(color).Shrink(1).Wrap()
 }
 
-// coded is help text with one placeholder drawn as code, such as an address or a route.
-func coded(c *ui.Context, text, placeholder, code string) ui.Element {
-	t := c.Theme()
-	before, after, _ := strings.Cut(text, placeholder)
-	return ui.RichText(c,
-		ui.Span{Text: before, Color: t.TextMuted},
-		ui.Span{Text: code, Font: "monospace", Color: t.TextMuted},
-		ui.Span{Text: after, Color: t.TextMuted},
-	).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).Wrap()
-}
-
 func (s *Screen) fetchingPage(c *ui.Context) {
 	s.watchHealth()
 	if s.instances {
@@ -2798,8 +2827,13 @@ func (s *Screen) proxyAuthDialog(c *ui.Context) {
 // field draws a text input editing value, width wide or growing for 0, a well of design CField; input names and
 // handles the input.
 func field(c *ui.Context, key string, value *string, width float32, invalid bool, input func(in ui.Element)) (focused bool) {
+	return unitField(c, key, value, width, invalid, "", input)
+}
+
+// unitField is field with the unit of its number at the end of the well.
+func unitField(c *ui.Context, key string, value *string, width float32, invalid bool, unit string, input func(in ui.Element)) (focused bool) {
 	t := c.Theme()
-	b := ui.Row(c).Key(key).MinWidth(0).Height(theme.Px(t, tokens.Control)).AlignItems(ui.Center).
+	b := ui.Row(c).Key(key).MinWidth(0).Height(theme.Px(t, tokens.Control)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
 		PaddingX(theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl))
 	if width > 0 {
 		b.Width(width).Shrink(1)
@@ -2808,7 +2842,12 @@ func field(c *ui.Context, key string, value *string, width float32, invalid bool
 	}
 	focused = b.FocusWithin()
 	well(c, b, focused, invalid)
-	b.Children(func() { input(ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false)) })
+	b.Children(func() {
+		input(ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false))
+		if unit != "" {
+			meta(c, unit).NoWrap()
+		}
+	})
 	return focused
 }
 
@@ -2935,41 +2974,36 @@ func (s *Screen) retentionSelect(c *ui.Context) {
 	}
 }
 
-// aiPage is the connection and the prompts, one under the other or, with room, side by side.
+// aiPage is the endpoint, the output and usage, and the prompts, one under the other or, with room, the prompts beside
+// the other two.
 func (s *Screen) aiPage(c *ui.Context, two bool) {
 	t := c.Theme()
 	if !two {
 		s.aiConnection(c, 0)
+		s.aiUsage(c, gap(t))
 		s.aiPrompts(c, gap(t), false)
 		return
 	}
 	ui.Grid(c).FillWidth().Columns(2).GapX(theme.Px(t, tokens.Space6)).AlignItems(ui.Start).Children(func() {
-		ui.Column(c).MinWidth(0).Children(func() { s.aiConnection(c, 0) })
+		ui.Column(c).MinWidth(0).Children(func() {
+			s.aiConnection(c, 0)
+			s.aiUsage(c, gap(t))
+		})
 		ui.Column(c).MinWidth(0).Children(func() { s.aiPrompts(c, 0, true) })
 	})
 }
 
-// aiConnection is the endpoint, model, key and language, with Test and Save.
+// aiConnection is the service, its address, key and model, and the test; Save shows while the address or model is
+// not the one saved.
 func (s *Screen) aiConnection(c *ui.Context, top float32) {
 	t := c.Theme()
-	sectionTitle(c, s.text.Connection, top)
-	before := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage, s.aiLimits[0], s.aiLimits[1], s.aiLimits[2], s.aiLimits[3]}
-	submit := func(in ui.Element) {
-		if in.Submitted() {
-			s.saveAI(false)
-		}
-	}
+	sectionHead(c, s.text.Connection, s.destination(), top)
+	before := [...]string{s.aiBase, s.aiModel}
 	card(c, func() {
-		setting(c, icons.Server, false, s.text.Preset, nil, func() { s.presetSelect(c) })
+		labeled(c, icons.Server, s.text.Preset, "", func() { s.presetSelect(c) })
 	}, func() {
-		setting(c, icons.Link, false, s.text.Endpoint, func() {
-			coded(c, s.text.EndpointHelp, "{address}", s.text.EndpointPlaceholder)
-			if line := s.destination(); line != "" {
-				meta(c, line)
-			}
-		}, nil)
-		ui.Row(c).FillWidth().Margin(below(t), 0, 0, 0).Children(func() {
-			s.watch(field(c, "endpoint", &s.aiBase, 0, s.aiInvalid, func(in ui.Element) {
+		labeled(c, icons.Link, s.text.Endpoint, "", func() {
+			s.watch(field(c, "endpoint", &s.aiBase, theme.Px(t, tokens.SheetWidth), s.aiInvalid, func(in ui.Element) {
 				in.Font("monospace").Label(s.text.Endpoint).Placeholder(s.text.EndpointPlaceholder).Disabled(s.aiSaving)
 				if s.aiInvalid {
 					in.Error(s.text.InvalidAIBase)
@@ -2978,43 +3012,27 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 					in.Focus()
 					s.focusAIBase = false
 				}
-				submit(in)
+				if in.Submitted() {
+					s.saveAI(partEndpoint)
+				}
 			}))
 		})
 		if s.aiInvalid {
 			statusLine(c, status{text: s.text.InvalidAIBase})
 		}
 	}, func() {
-		setting(c, icons.KeyRound, false, s.text.APIKey, func() { meta(c, s.text.KeyHelp) }, func() {
-			tag(c, s.text.KeyUnset, s.text.KeySet, s.settings.AIAPIKeySet)
-		})
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Margin(below(t), 0, 0, 0).Children(func() {
-			placeholder := s.text.KeyPlaceholder
-			if s.settings.AIAPIKeySet {
-				placeholder = s.text.KeyReplace
-			}
-			s.watch(field(c, "key", &s.aiKey, 0, false, func(in ui.Element) {
-				in.Password().Label(s.text.APIKey).Placeholder(placeholder).Description(s.text.KeyHelp).
-					Disabled(s.aiSaving)
-				submit(in)
-			}))
-			if s.settings.AIAPIKeySet {
-				remove := theme.Button{Style: theme.Secondary, Disabled: s.aiSaving, Text: s.text.RemoveKey}.Draw(c)
-				if remove.Clicked() {
-					s.saveAI(true)
-				}
-			}
+		labeled(c, icons.KeyRound, s.text.APIKey, "", func() {
+			ui.Text(c, pick(s.settings.AIAPIKeySet, s.text.KeySet, s.text.KeyUnset)).TextColor(theme.Text2(t)).NoWrap()
+			s.aiKeyMore(c)
 		})
 	}, func() {
-		s.modelSetting(c, submit)
-	}, func() {
-		labeled(c, icons.Languages, s.text.Language, s.text.LanguageHelp, func() { s.languageSelect(c) })
-	}, func() {
-		s.limitFields(c)
+		s.modelSetting(c)
 	}, func() {
 		dirty := s.aiDirty()
 		st := s.aiStatus
 		switch {
+		case s.aiKeyForm:
+			st = status{}
 		case s.testing:
 			st = status{spin: true, text: s.text.Testing}
 		case st.text == "" && dirty && !s.aiInvalid && s.settings.AIConfigured():
@@ -3029,23 +3047,110 @@ func (s *Screen) aiConnection(c *ui.Context, top float32) {
 				}
 			})
 		}, func() {
-			test := theme.Button{Disabled: !s.settings.AIConfigured() || dirty || s.testing || s.aiSaving, Icon: icons.Plug,
-				Text: s.text.Test}.Draw(c)
+			test := theme.Button{Disabled: !s.settings.AIConfigured() || dirty || s.testing || s.aiSaving, Text: s.text.Test}.Draw(c)
 			if test.Clicked() {
 				s.test()
 			}
-			style := theme.Secondary
-			if dirty {
-				style = theme.Primary
-			}
-			save := theme.Button{Style: style, Disabled: !dirty || s.aiSaving, Text: s.text.Save, Busy: s.aiSaving}.Draw(c)
-			if save.Clicked() {
-				s.saveAI(false)
+			if s.endpointDirty() {
+				save := theme.Button{Style: theme.Primary, Disabled: s.aiSaving, Text: s.text.Save, Busy: s.aiSaving,
+					Label: s.text.Connection + " · " + s.text.Save}.Draw(c)
+				if save.Clicked() {
+					s.saveAI(partEndpoint)
+				}
 			}
 		})
 	})
-	if after := [...]string{s.aiBase, s.aiModel, s.aiKey, s.aiLanguage, s.aiLimits[0], s.aiLimits[1], s.aiLimits[2], s.aiLimits[3]}; after != before {
+	s.aiKeyDialog(c)
+	if after := [...]string{s.aiBase, s.aiModel}; after != before {
 		s.aiInvalid, s.aiStatus = s.aiInvalid && after[0] == before[0], status{}
+	}
+}
+
+// aiKeyMore is the ellipsis of the key's row: enter or replace it, and remove a stored one.
+func (s *Screen) aiKeyMore(c *ui.Context) {
+	t := c.Theme()
+	more, color := theme.ToolButton(c, theme.ToolState{})
+	label := s.fill(s.text.InstanceMore, "{name}", s.text.APIKey)
+	more.Label(label).Tooltip(label)
+	more.Children(func() { ui.Icon(c, icons.Ellipsis).FontSize(theme.IconMedium(t)).TextColor(color) })
+	more.Menu(func(m *ui.Menu) {
+		if m.Item(pick(s.settings.AIAPIKeySet, s.text.KeyChange, s.text.KeyAdd)).Chosen() {
+			s.aiKeyForm, s.aiStatus = true, status{}
+		}
+		if s.settings.AIAPIKeySet && m.Item(s.text.RemoveKey).Chosen() {
+			s.saveAI(partKeyRemoval)
+		}
+	})
+}
+
+// aiKeyDialog asks for the API key. Escape and Cancel forget what was typed.
+func (s *Screen) aiKeyDialog(c *ui.Context) {
+	if !s.aiKeyForm {
+		return
+	}
+	t := c.Theme()
+	open := true
+	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
+		theme.Scrim(c, backdrop).Padding(theme.Px(t, tokens.Space4))
+		panel.Column().Width(theme.Px(t, tokens.Dialog)).Clip().Label(s.text.APIKey)
+		theme.Sheet(c, panel, theme.Dialog)
+		ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space3)).Padding(theme.Px(t, tokens.Space6)).Children(func() {
+			ui.Text(c, s.text.APIKey).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+				Wrap().Role(ui.RoleHeading).Level(2)
+			meta(c, s.text.KeyHelp)
+			field(c, "key", &s.aiKey, 0, false, func(in ui.Element) {
+				in.Password().Label(s.text.APIKey).Placeholder(pick(s.settings.AIAPIKeySet, s.text.KeyReplace, s.text.KeyPlaceholder)).
+					Disabled(s.aiSaving).AutoFocus()
+				if in.Submitted() {
+					s.saveAI(partKey)
+				}
+			})
+			statusLine(c, s.aiStatus)
+		})
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+			Padding(theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space6)).Background(theme.Surface(t)).Children(func() {
+			ui.Box(c).Grow(1)
+			if (theme.Button{Style: theme.Secondary, Text: s.text.Cancel}).Draw(c).Clicked() {
+				open = false
+			}
+			empty := strings.TrimSpace(s.aiKey) == ""
+			if (theme.Button{Style: theme.Primary, Disabled: empty || s.aiSaving, Busy: s.aiSaving, Text: s.text.Save}).Draw(c).Clicked() {
+				s.saveAI(partKey)
+			}
+		})
+	})
+	if !open {
+		s.aiKeyForm, s.aiKey, s.aiStatus = false, "", status{}
+	}
+}
+
+// aiUsage is the output language and the limits; Save shows while they are not the ones saved.
+func (s *Screen) aiUsage(c *ui.Context, top float32) {
+	t := c.Theme()
+	sectionHead(c, s.text.Usage, s.text.UsageLead, top)
+	before := s.aiLimits
+	language := s.aiLanguage
+	rows := []func(){func() {
+		labeled(c, icons.Languages, s.text.Language, "", func() { s.languageSelect(c) })
+	}}
+	rows = append(rows, s.limitRows(c)...)
+	if s.usageDirty() || s.usageStatus.text != "" {
+		rows = append(rows, func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Role(ui.RoleStatus).Children(func() { statusLine(c, s.usageStatus) })
+				if s.usageDirty() {
+					save := theme.Button{Style: theme.Primary, Disabled: s.aiSaving, Text: s.text.Save, Busy: s.aiSaving,
+						Label: s.text.Usage + " · " + s.text.Save}.Draw(c)
+					if save.Clicked() {
+						s.saveAI(partUsage)
+					}
+				}
+			})
+		})
+	}
+	card(c, rows...)
+	if s.aiLimits != before || s.aiLanguage != language {
+		s.usageStatus = status{}
 	}
 }
 
@@ -3068,7 +3173,7 @@ func (s *Screen) presetSelect(c *ui.Context) {
 }
 
 // modelSetting is the model: a menu of what the endpoint lists, or a field when there is no list for the address as typed.
-func (s *Screen) modelSetting(c *ui.Context, submit func(ui.Element)) {
+func (s *Screen) modelSetting(c *ui.Context) {
 	t := c.Theme()
 	listed := len(s.aiModels) > 0 && !s.aiManual && strings.TrimSuffix(strings.TrimSpace(s.aiBase), "/") == s.settings.AIBaseURL &&
 		strings.TrimSpace(s.aiKey) == ""
@@ -3084,22 +3189,20 @@ func (s *Screen) modelSetting(c *ui.Context, submit func(ui.Element)) {
 			}
 		}
 	}
-	var control func()
-	if listed {
-		control = func() { s.modelSelect(c) }
-	}
-	setting(c, icons.Sparkles, false, s.text.Model, help, control)
-	if listed {
-		return
-	}
 	hint := s.text.ModelPlaceholder
 	if i := s.preset(); i >= 0 && presets[i].hint != "" {
 		hint = presets[i].hint
 	}
-	ui.Row(c).FillWidth().Margin(below(t), 0, 0, 0).Children(func() {
-		s.watch(field(c, "model", &s.aiModel, 0, false, func(in ui.Element) {
+	setting(c, icons.Sparkles, false, s.text.Model, help, func() {
+		if listed {
+			s.modelSelect(c)
+			return
+		}
+		s.watch(field(c, "model", &s.aiModel, theme.Px(t, tokens.SheetWidth), false, func(in ui.Element) {
 			in.Font("monospace").Label(s.text.Model).Placeholder(hint).Disabled(s.aiSaving)
-			submit(in)
+			if in.Submitted() {
+				s.saveAI(partEndpoint)
+			}
 		}))
 	})
 }
@@ -3165,39 +3268,33 @@ func (s *Screen) lastTest() status {
 	return status{text: s.fill(s.text.LastFailed, "{reason}", s.reason(last.Error))}
 }
 
-// limitFields are the summary limit and the chunk size in characters, and the two caps on automatic work; empty
-// follows the default. Below them, the sentence about the daily cap, once it is reached.
-func (s *Screen) limitFields(c *ui.Context) {
+// limitRows are the summary limit and the chunk size in characters, and the two caps on automatic work; empty follows
+// the default. The daily cap's row says how much of it today used.
+func (s *Screen) limitRows(c *ui.Context) []func() {
 	t := c.Theme()
 	names := [4]string{s.text.SummaryLimit, s.text.ChunkLimit, s.text.DailyCap, s.text.FetchCap}
+	units := [4]string{s.text.UnitChars, s.text.UnitChars, s.text.UnitTimes, s.text.UnitEntries}
+	glyphs := [4]*ui.SVG{icons.FileText, icons.Layers, icons.CalendarDays, icons.RefreshCw}
 	defaults := [4]int{s.settings.DefaultAISummaryLimit, s.settings.DefaultAIChunkLimit,
 		s.settings.DefaultAIAutoDaily, s.settings.DefaultAIAutoFetch}
-	setting(c, icons.SlidersHorizontal, false, s.text.Limits, nil, nil)
-	for row := 0; row < 2; row++ {
-		ui.Row(c).FillWidth().Gap(theme.Px(t, tokens.Space3)).Margin(below(t), 0, 0, 0).Children(func() {
-			for i := row * 2; i < row*2+2; i++ {
-				ui.Column(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
-					ui.Text(c, names[i]).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t))
-					ui.Row(c).FillWidth().Margin(theme.Px(t, tokens.Space1), 0, 0, 0).Children(func() {
-						s.watch(field(c, "limit"+strconv.Itoa(i), &s.aiLimits[i], 0, false, func(in ui.Element) {
-							in.Font("monospace").Label(names[i]).Placeholder(strconv.Itoa(defaults[i])).Disabled(s.aiSaving)
-							if in.Submitted() {
-								s.saveAI(false)
-							}
-						}))
-					})
-				})
+	rows := make([]func(), 4)
+	for i := range rows {
+		rows[i] = func() {
+			var help func()
+			if st := s.capStatus(); i == 2 && st.text != "" {
+				help = func() { statusLine(c, st) }
 			}
-		})
-		help := s.text.LimitsHelp
-		if row == 1 {
-			help = s.text.CapsHelp
+			setting(c, glyphs[i], false, names[i], help, func() {
+				s.watch(unitField(c, "limit"+strconv.Itoa(i), &s.aiLimits[i], theme.Px(t, tokens.MenuMin), false, units[i], func(in ui.Element) {
+					in.Font("monospace").Label(names[i]).Placeholder(strconv.Itoa(defaults[i])).Disabled(s.aiSaving)
+					if in.Submitted() {
+						s.saveAI(partUsage)
+					}
+				}))
+			})
 		}
-		meta(c, help).Margin(theme.Px(t, tokens.Space1), 0, 0, 0)
 	}
-	if st := s.capStatus(); st.text != "" {
-		statusLine(c, st)
-	}
+	return rows
 }
 
 // capStatus is the plain sentence about the automatic requests of today: the count, and a warning once the daily
@@ -3234,26 +3331,25 @@ func (s *Screen) destination() string {
 // aiPrompts is the summary and translation prompts, with Save.
 func (s *Screen) aiPrompts(c *ui.Context, top float32, two bool) {
 	t := c.Theme()
-	sectionTitle(c, s.text.Prompts, top)
+	sectionHead(c, s.text.Prompts, s.text.PromptHelp, top)
 	typed := s.prompts
-	card(c, func() { s.promptField(c, 0, s.text.PromptSummary, two) },
-		func() { s.promptField(c, 1, s.text.PromptTranslate, two) },
-		func() {
+	rows := []func(){func() { s.promptField(c, 0, s.text.PromptSummary, two) },
+		func() { s.promptField(c, 1, s.text.PromptTranslate, two) }}
+	if s.promptsDirty() || s.promptStatus.text != "" {
+		rows = append(rows, func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
-				coded(c, s.text.PromptHelp, "{language}", "{language}").Grow(1).MinWidth(0)
-				dirty := s.promptsDirty()
-				style := theme.Secondary
-				if dirty {
-					style = theme.Primary
-				}
-				save := theme.Button{Style: style, Disabled: !dirty || s.promptSaving, Text: s.text.Save, Busy: s.promptSaving,
-					Label: s.text.Prompts + " · " + s.text.Save}.Draw(c)
-				if save.Clicked() {
-					s.savePrompts()
+				ui.Column(c).Grow(1).MinWidth(0).Children(func() { statusLine(c, s.promptStatus) })
+				if s.promptsDirty() {
+					save := theme.Button{Style: theme.Primary, Disabled: s.promptSaving, Text: s.text.Save, Busy: s.promptSaving,
+						Label: s.text.Prompts + " · " + s.text.Save}.Draw(c)
+					if save.Clicked() {
+						s.savePrompts()
+					}
 				}
 			})
-			statusLine(c, s.promptStatus)
 		})
+	}
+	card(c, rows...)
 	if s.prompts != typed {
 		s.promptStatus = status{}
 	}
@@ -3267,8 +3363,8 @@ func (s *Screen) promptField(c *ui.Context, i int, label string, two bool) {
 		icon = icons.Languages
 	}
 	setting(c, icon, false, label, nil, func() {
-		reset := theme.Button{Small: true, Disabled: s.promptSaving || strings.TrimSpace(s.prompts[i]) == s.defaults()[i],
-			Icon: icons.RotateCcw, Text: s.text.Reset, Label: label + " · " + s.text.Reset}.Draw(c)
+		reset := theme.Button{Style: theme.Plain, Small: true, Disabled: s.promptSaving || strings.TrimSpace(s.prompts[i]) == s.defaults()[i],
+			Text: s.text.Reset, Label: label + " · " + s.text.Reset}.Draw(c)
 		if reset.Clicked() {
 			s.restored = &restoration{i: i, name: label, before: s.prompts[i]}
 			s.prompts[i] = s.defaults()[i]

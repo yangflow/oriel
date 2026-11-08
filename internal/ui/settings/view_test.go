@@ -1220,11 +1220,10 @@ func press(t *testing.T, tt *ui.Tester, label string) {
 	}
 }
 
-// clickModel clicks into the model field, which sits under its setting row: a control high, centered on the name, then
-// space-3.
+// clickModel clicks into the model field, at the end of its setting row, level with the name.
 func clickModel(tt *ui.Tester, s *Screen) {
 	r, _ := tt.Find(s.text.Model)
-	tt.ClickAt(r.X+20, r.Y+r.H/2+tokens.Control/2+tokens.Space3+tokens.Control/2)
+	tt.ClickAt(r.X+tokens.SheetWidth, r.Y+r.H/2)
 }
 
 // edit changes the AI settings as typed, as the fields do between frames.
@@ -1244,7 +1243,7 @@ func TestAIShows(t *testing.T) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
 	}
-	if tt.HasText(s.text.RemoveKey) || s.prompts != [2]string{summaryPrompt, translatePrompt} {
+	if s.prompts != [2]string{summaryPrompt, translatePrompt} {
 		t.Fatalf("texts %v, prompts %q", tt.Texts(), s.prompts)
 	}
 	press(t, tt, s.text.Test)
@@ -1256,27 +1255,64 @@ func TestAIShows(t *testing.T) {
 
 func TestSaveAI(t *testing.T) {
 	s, f, tt := openAI(t, "en", false)
-	edit(tt, func() { s.aiBase, s.aiModel, s.aiKey = "https://api.example.com/v1/", " small ", "sk-test" })
+	save := s.text.Connection + " · " + s.text.Save
+	if tt.HasText(s.text.Save) {
+		t.Fatalf("Save shows with nothing to save: %v", tt.Texts())
+	}
+	edit(tt, func() { s.aiBase, s.aiModel = "https://api.example.com/v1/", " small " })
 	press(t, tt, "简体中文")
 	press(t, tt, "English")
-	press(t, tt, s.text.Save)
+	press(t, tt, save)
 	f.settle(tt)
 	if len(f.set) != 1 {
 		t.Fatalf("set %v", f.set)
 	}
 	p := f.set[0]
-	if *p.AIBaseURL != "https://api.example.com/v1/" || *p.AIModel != "small" || *p.AIAPIKey != "sk-test" ||
-		*p.AILanguage != "en" || p.RSSHubBaseURLs != nil || p.PromptSummary != nil {
+	if *p.AIBaseURL != "https://api.example.com/v1/" || *p.AIModel != "small" || p.AIAPIKey != nil ||
+		p.AILanguage != nil || p.RSSHubBaseURLs != nil || p.PromptSummary != nil {
 		t.Fatalf("patch %+v", p)
 	}
-	if !tt.HasText(s.text.AISaved) || !tt.HasText(s.text.KeySet) || !tt.HasText(s.text.RemoveKey) || s.aiKey != "" ||
-		s.aiBase != "https://api.example.com/v1" || !slices.Contains(tt.Announcements(), s.text.AISaved) {
-		t.Fatalf("texts %v, base %q", tt.Texts(), s.aiBase)
+	if !tt.HasText(s.text.AISaved) || s.aiBase != "https://api.example.com/v1" || s.aiLanguage != "en" ||
+		!slices.Contains(tt.Announcements(), s.text.AISaved) {
+		t.Fatalf("texts %v, base %q, language %q", tt.Texts(), s.aiBase, s.aiLanguage)
 	}
-	press(t, tt, s.text.Save)
+	if err := tt.Click(save); err == nil {
+		t.Fatal("Save still shows once saved")
+	}
+	press(t, tt, s.text.Usage+" · "+s.text.Save)
 	f.settle(tt)
-	if len(f.set) != 1 {
-		t.Fatalf("saved without a change: %v", f.set)
+	if len(f.set) != 2 || *f.set[1].AILanguage != "en" || f.set[1].AIBaseURL != nil {
+		t.Fatalf("set %+v", f.set)
+	}
+}
+
+// TestAPIKeyDialog keeps a key apart from what else is typed, and forgets it on Cancel.
+func TestAPIKeyDialog(t *testing.T) {
+	s, f, tt := openAI(t, "en", false)
+	more := s.fill(s.text.InstanceMore, "{name}", s.text.APIKey)
+	press(t, tt, more)
+	if err := tt.ChooseMenuItem(s.text.KeyAdd); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	edit(tt, func() { s.aiKey = "sk-test" })
+	press(t, tt, s.text.Cancel)
+	if s.aiKey != "" || s.aiKeyForm || len(f.set) != 0 {
+		t.Fatalf("key %q, form %v, set %v", s.aiKey, s.aiKeyForm, f.set)
+	}
+	press(t, tt, more)
+	if err := tt.ChooseMenuItem(s.text.KeyAdd); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	edit(tt, func() { s.aiKey, s.aiBase = "sk-test", "https://typed.example.com/v1" })
+	tt.Key(0, ui.KeyEnter)
+	f.settle(tt)
+	if len(f.set) != 1 || *f.set[0].AIAPIKey != "sk-test" || f.set[0].AIBaseURL != nil {
+		t.Fatalf("set %+v", f.set)
+	}
+	if s.aiKey != "" || s.aiKeyForm || !tt.HasText(s.text.KeySet) || s.aiBase != "https://typed.example.com/v1" {
+		t.Fatalf("key %q, form %v, base %q, texts %v", s.aiKey, s.aiKeyForm, s.aiBase, tt.Texts())
 	}
 }
 
@@ -1292,7 +1328,7 @@ func TestInvalidAIBase(t *testing.T) {
 	if f.tests != 0 {
 		t.Fatal("tested with unsaved changes")
 	}
-	press(t, tt, s.text.Save)
+	press(t, tt, s.text.Connection+" · "+s.text.Save)
 	f.settle(tt)
 	tt.Frame()
 	if !tt.HasText(s.text.InvalidAIBase) || !tt.Focused(s.text.Endpoint) || tt.HasText(s.text.TestFirst) ||
@@ -1313,12 +1349,15 @@ func TestInvalidAIBase(t *testing.T) {
 
 func TestRemoveKey(t *testing.T) {
 	s, f, tt := openAI(t, "en", true)
-	press(t, tt, s.text.RemoveKey)
+	press(t, tt, s.fill(s.text.InstanceMore, "{name}", s.text.APIKey))
+	if err := tt.ChooseMenuItem(s.text.RemoveKey); err != nil {
+		t.Fatal(err)
+	}
 	f.settle(tt)
 	if len(f.set) != 1 || f.set[0].AIAPIKey == nil || *f.set[0].AIAPIKey != "" || f.set[0].AIModel != nil {
 		t.Fatalf("set %+v", f.set)
 	}
-	if !tt.HasText(s.text.KeyRemoved) || !tt.HasText(s.text.KeyUnset) || tt.HasText(s.text.RemoveKey) {
+	if !tt.HasText(s.text.KeyRemoved) || !tt.HasText(s.text.KeyUnset) {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 }
@@ -1389,12 +1428,12 @@ func TestPresets(t *testing.T) {
 		t.Fatalf("base %q", s.aiBase)
 	}
 
-	// Saved, the preset sends the address and the key typed, and nothing else.
+	// Saved, the preset sends the address and nothing else: the key has its own dialog.
 	press(t, tt, "OpenAI")
 	press(t, tt, "Ollama")
-	press(t, tt, s.text.Save)
+	press(t, tt, s.text.Connection+" · "+s.text.Save)
 	f.settle(tt)
-	if len(f.set) != 1 || *f.set[0].AIBaseURL != "http://127.0.0.1:11434/v1" || *f.set[0].AIAPIKey != "sk-typed" ||
+	if len(f.set) != 1 || *f.set[0].AIBaseURL != "http://127.0.0.1:11434/v1" || f.set[0].AIAPIKey != nil ||
 		f.set[0].AIModel != nil || f.set[0].AISummaryLimit != nil || f.set[0].AIChunkLimit != nil {
 		t.Fatalf("set %+v", f.set)
 	}
@@ -1405,7 +1444,7 @@ func TestPresetKeepsSavedKey(t *testing.T) {
 	s, f, tt := openAI(t, "zh-Hans", true)
 	press(t, tt, s.text.PresetCustom)
 	press(t, tt, "LM Studio")
-	press(t, tt, s.text.Save)
+	press(t, tt, s.text.Connection+" · "+s.text.Save)
 	f.settle(tt)
 	if len(f.set) != 1 || f.set[0].AIAPIKey != nil || !s.settings.AIAPIKeySet || !tt.HasText(s.text.KeySet) {
 		t.Fatalf("set %+v, key set %v", f.set, s.settings.AIAPIKeySet)
@@ -1419,7 +1458,7 @@ func TestLimits(t *testing.T) {
 		t.Fatalf("limits %q", s.aiLimits)
 	}
 	edit(tt, func() { s.aiLimits = [4]string{"8000"} })
-	press(t, tt, s.text.Save)
+	press(t, tt, s.text.Usage+" · "+s.text.Save)
 	f.settle(tt)
 	if len(f.set) != 1 || *f.set[0].AISummaryLimit != 8000 || f.set[0].AIChunkLimit != nil || f.set[0].AIBaseURL != nil ||
 		s.settings.AISummaryLimit != 8000 || s.aiLimits != [4]string{"8000"} || s.aiDirty() {
@@ -1427,7 +1466,7 @@ func TestLimits(t *testing.T) {
 	}
 
 	edit(tt, func() { s.aiLimits = [4]string{"8000", "many"} })
-	press(t, tt, s.text.Save)
+	press(t, tt, s.text.Usage+" · "+s.text.Save)
 	f.settle(tt)
 	if len(f.set) != 1 || !tt.HasText(s.text.InvalidLimit) || !slices.Contains(tt.Announcements(), s.text.InvalidLimit) {
 		t.Fatalf("set %v, texts %v", f.set, tt.Texts())
@@ -1436,7 +1475,7 @@ func TestLimits(t *testing.T) {
 	// The server's refusal says the same.
 	edit(tt, func() { s.aiLimits = [4]string{"8000", "9"} })
 	f.setErr = &client.APIError{Status: 400, Code: "invalid_ai_limit"}
-	press(t, tt, s.text.Save)
+	press(t, tt, s.text.Usage+" · "+s.text.Save)
 	f.settle(tt)
 	if len(f.set) != 2 || !tt.HasText(s.text.InvalidLimit) {
 		t.Fatalf("set %v, texts %v", f.set, tt.Texts())
@@ -1445,7 +1484,7 @@ func TestLimits(t *testing.T) {
 
 	// Emptied, the limit goes back to the default.
 	edit(tt, func() { s.aiLimits = [4]string{" "} })
-	press(t, tt, s.text.Save)
+	press(t, tt, s.text.Usage+" · "+s.text.Save)
 	f.settle(tt)
 	if len(f.set) != 3 || *f.set[2].AISummaryLimit != 0 || s.settings.AISummaryLimit != 24000 || s.aiLimits != [4]string{} {
 		t.Fatalf("set %+v, limits %q", f.set, s.aiLimits)
@@ -1456,7 +1495,7 @@ func TestLimits(t *testing.T) {
 func TestAutomaticCaps(t *testing.T) {
 	s, f, tt := openAI(t, "en", true)
 	edit(tt, func() { s.aiLimits = [4]string{"", "", "50", "5"} })
-	press(t, tt, s.text.Save)
+	press(t, tt, s.text.Usage+" · "+s.text.Save)
 	f.settle(tt)
 	if len(f.set) != 1 || *f.set[0].AIAutoDaily != 50 || *f.set[0].AIAutoFetch != 5 || f.set[0].AISummaryLimit != nil ||
 		s.settings.AIAutoDailyLimit != 50 || s.settings.AIAutoFetchLimit != 5 || s.aiDirty() {
@@ -1584,6 +1623,8 @@ func TestModelMenu(t *testing.T) {
 	}
 	press(t, tt, s.text.Save)
 	f.settle(tt)
+	edit(tt, func() { s.saveAI(partKey) })
+	f.settle(tt)
 	if f.listed != 2 {
 		t.Fatalf("listed %d after a new key", f.listed)
 	}
@@ -1640,10 +1681,8 @@ func TestPrompts(t *testing.T) {
 	if s.settings.PromptSummary != summaryPrompt || s.promptsDirty() {
 		t.Fatalf("settings %+v", s.settings)
 	}
-	press(t, tt, save)
-	f.settle(tt)
-	if len(f.set) != 3 {
-		t.Fatalf("saved unchanged prompts: %v", f.set)
+	if err := tt.Click(save); err == nil || len(f.set) != 3 {
+		t.Fatalf("Save shows for unchanged prompts: %v", f.set)
 	}
 }
 
