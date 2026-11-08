@@ -616,6 +616,11 @@ const (
 	OpacityFaded = 0.55
 	// OpacitySeparator: The middle dot between the parts of a meta line, on muted.
 	OpacitySeparator = 0.7
+	// OpacityTint: A status pill's fill: its own meaning color (warning, danger, fg2) at this alpha, on a pill radius.
+	OpacityTint = 0.14
+	// OpacityWash: A status strip's fill: its meaning color at this alpha over paper, as the failure strip on a
+	// subscription's page.
+	OpacityWash = 0.08
 )
 
 // Spacing, in DIPs at the default text size and density.

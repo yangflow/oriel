@@ -2072,6 +2072,7 @@ func TestPalettes(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		for _, high := range []bool{false, true} {
 			s, f, _ := setup(t, "en", true)
+			s.deps.Subscriptions = func() Subscriptions { return &fakeSubs{} }
 			p := prefs.Default()
 			p.Theme = prefs.ThemeLight
 			if dark {

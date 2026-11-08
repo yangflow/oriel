@@ -96,7 +96,11 @@ func (s *Screen) paletteItems() []paletteItem {
 	add(paletteItem{group: groupActions, name: s.text.RefreshAll, icon: icons.RefreshCw, keys: []string{cmd, "R"}, run: s.RefreshAll})
 	add(paletteItem{group: groupActions, name: s.text.PaletteHealth, icon: icons.HeartPulse, run: s.subs.Health})
 	if s.subs.HasSources() {
-		add(paletteItem{group: groupActions, name: s.text.PaletteManage, icon: icons.ListChecks, run: s.subs.Manage})
+		add(paletteItem{group: groupActions, name: s.text.PaletteManage, icon: icons.ListChecks, run: func() {
+			if s.deps.OpenSettingsPage != nil {
+				s.deps.OpenSettingsPage("subscriptions")
+			}
+		}})
 	}
 	if s.filter == unread {
 		add(paletteItem{group: groupActions, name: s.text.PaletteShowAll, icon: icons.CircleDot, keys: []string{"A"}, run: func() { s.setFilter(everything) }})
@@ -125,7 +129,8 @@ func (s *Screen) paletteItems() []paletteItem {
 	for _, page := range []struct {
 		id, name string
 		icon     *ui.SVG
-	}{{"appearance", s.text.PageAppearance, icons.Palette}, {"fetching", s.text.PageFetching, icons.Rss},
+	}{{"appearance", s.text.PageAppearance, icons.Palette}, {"subscriptions", s.text.PageSubscriptions, icons.ListChecks},
+		{"fetching", s.text.PageFetching, icons.Rss},
 		{"opml", s.text.PageImport, icons.ArrowUpDown}, {"ai", s.text.PageAI, icons.Sparkles},
 		{"devices", s.text.PageDevices, icons.Laptop}, {"activity", s.text.PageActivity, icons.Database}} {
 		add(paletteItem{group: groupSettings, name: page.name, icon: page.icon, run: func() {

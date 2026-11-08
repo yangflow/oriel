@@ -15,6 +15,7 @@ import (
 	"github.com/yangflow/oriel/internal/client"
 	"github.com/yangflow/oriel/internal/prefs"
 	"github.com/yangflow/oriel/internal/ui/settings"
+	"github.com/yangflow/oriel/internal/ui/subscriptions"
 	"github.com/yangflow/oriel/internal/ui/timeline"
 )
 
@@ -54,7 +55,7 @@ type fakeHome struct {
 	keys      int
 	ran       []timeline.Command
 	all       int
-	managed   int
+	subs      *subscriptions.Screen
 	sources   bool
 	checks    int
 	languages []string
@@ -73,11 +74,11 @@ func (h *fakeHome) ViewSources() { h.viewed++ }
 
 func (h *fakeHome) ShowKeys() { h.keys++ }
 
-func (h *fakeHome) Run(cmd timeline.Command) { h.ran = append(h.ran, cmd) }
-func (h *fakeHome) RefreshAll()              { h.all++ }
-func (h *fakeHome) Check()                   { h.checks++ }
-func (h *fakeHome) Manage()                  { h.managed++ }
-func (h *fakeHome) HasSources() bool         { return h.sources }
+func (h *fakeHome) Run(cmd timeline.Command)             { h.ran = append(h.ran, cmd) }
+func (h *fakeHome) RefreshAll()                          { h.all++ }
+func (h *fakeHome) Check()                               { h.checks++ }
+func (h *fakeHome) Subscriptions() *subscriptions.Screen { return h.subs }
+func (h *fakeHome) HasSources() bool                     { return h.sources }
 
 func (h *fakeHome) DropBusy() bool { return h.busy }
 
@@ -392,15 +393,24 @@ func TestShellRefreshAll(t *testing.T) {
 }
 
 func TestShellManage(t *testing.T) {
-	s, _, _ := newTestShell(t)
-	home := s.home.(*fakeHome)
+	s, tt, _ := newTestShell(t)
+	home := &fakeHome{subs: subscriptions.New("en", subscriptions.Deps{})}
+	s.home = home
 	var told []bool
 	s.sources = func(has bool) { told = append(told, has) }
 	home.sources = true
 	s.manage()
-	if home.managed != 1 {
-		t.Fatalf("manages %d", home.managed)
+	tt.Frame()
+	if !s.setting || !tt.HasText("No subscriptions yet") {
+		t.Fatalf("manage shows %v", tt.Texts())
 	}
+	s.settings.ShowPage("devices")
+	s.manage()
+	tt.Frame()
+	if !s.setting || !tt.HasText("No subscriptions yet") {
+		t.Fatalf("manage from the settings shows %v", tt.Texts())
+	}
+	s.setting = false
 	s.tellSources()
 	s.tellSources()
 	home.sources = false
@@ -408,15 +418,9 @@ func TestShellManage(t *testing.T) {
 	if !slices.Equal(told, []bool{true, false}) {
 		t.Fatalf("the menu was told %v", told)
 	}
-	s.openSettings()
-	s.manage()
-	if home.managed != 1 {
-		t.Fatal("managed from the settings")
-	}
-	s.setting = false
 	s.openConnect()
 	s.manage()
-	if home.managed != 1 {
+	if s.setting {
 		t.Fatal("managed from the connect screen")
 	}
 }
