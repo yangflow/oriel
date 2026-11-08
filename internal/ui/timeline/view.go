@@ -3420,9 +3420,9 @@ func (s *Screen) sidebarList() *sideCache {
 // Geometry the canvas leaves to the screen, in DIPs at the default text size. Shared sizes are tokens; these belong
 // only to the timeline.
 const (
-	textInset          = 28  // where a row's text starts, past the unread dot
+	textInset          = 30  // where a row's text starts, past the unread dot
 	rowMark            = 2.5 // the chosen row's mark
-	dotInset           = 14  // where the unread dot starts
+	dotInset           = 12  // where the unread dot starts
 	tightGap           = 3   // a mark against its number
 	chipH              = 20  // a chip and its clear button
 	paneHit            = 22  // a square button in a pane header
@@ -3433,7 +3433,6 @@ const (
 	noteX              = 14  // a search note's side padding
 	noteY              = 7   // and its top and bottom
 	bannerInset        = 20  // a banner from the list's edge; the viewer's arrows from the window's
-	paletteEmptyTop    = 20  // above the palette's empty line
 	skeletonGap        = 14  // the loading rows
 	skeletonWidth      = 420 // the longest bar of a loading row
 	alsoRow            = 30  // a row of the same story elsewhere
@@ -4518,7 +4517,7 @@ func (s *Screen) skeleton(c *ui.Context) {
 		Label(s.text.Loading).Role(ui.RoleProgress).Children(func() {
 		for i := range 4 {
 			ui.Row(c).Key(i).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, skeletonGap)).
-				Padding(theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space4), theme.Px(t, textInset)).Children(func() {
+				Padding(theme.Px(t, tokens.Space3), theme.Px(t, tokens.Space3), theme.Px(t, tokens.Space3), theme.Px(t, textInset)).Children(func() {
 				ui.Column(c).Grow(1).Gap(t.Space(2)).Children(func() {
 					for _, bar := range []struct{ width, height float32 }{{0.36, 10}, {0.7, 14}, {0.92, 10}} {
 						ui.Box(c).Width(theme.Px(t, skeletonWidth) * bar.width).Height(theme.Px(t, bar.height)).Radius(theme.Pill(theme.Px(t, bar.height))).
@@ -5171,7 +5170,7 @@ func (s *Screen) divide(c *ui.Context, newer int) {
 	}
 	label := strings.ReplaceAll(s.text.LastLooked, "{n}", count)
 	b := ui.ButtonBase(c).Key("looked").FillWidth().Height(theme.Px(t, tokens.RowCompact)).
-		Padding(0, theme.Px(t, tokens.Space4), 0, theme.Px(t, textInset)).Label(label)
+		Padding(0, theme.Px(t, tokens.Space3), 0, theme.Px(t, textInset)).Label(label)
 	color := t.Accent
 	if b.Hovered() {
 		color = t.AccentHover
@@ -5200,13 +5199,13 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	switch {
 	case oneLine:
 		r = ui.Row(c).Key(e.ID).FillWidth().Height(s.dense(t, 36, 30)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
-			Padding(0, theme.Px(t, tokens.Space4), 0, theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
+			Padding(0, theme.Px(t, tokens.Space3), 0, theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
 	case e.Kind == "social" && v.SocialViewer == prefs.ViewCompact:
-		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 14, 10)).
-			Padding(s.dense(t, 12, 8), theme.Px(t, tokens.Space4), s.dense(t, 12, 8), theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
+		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 12, 10)).
+			Padding(s.dense(t, 12, 8), theme.Px(t, tokens.Space3), s.dense(t, 12, 8), theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
 	default:
-		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 14, 10)).
-			Padding(s.dense(t, 16, 10), theme.Px(t, tokens.Space4), s.dense(t, 16, 10), theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
+		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 12, 10)).
+			Padding(s.dense(t, 12, 10), theme.Px(t, tokens.Space3), s.dense(t, 12, 10), theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
 	}
 	hovered, chosen := s.item(c, r, i, now, false)
 	muted := t.TextMuted
@@ -5238,7 +5237,7 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 		if oneLine {
 			dot.Top(theme.Px(t, (tokens.RowCompact-tokens.Dot)/2))
 		} else {
-			dot.Top(theme.Px(t, tokens.Space4+(tokens.TextTitle.Line.En-tokens.Dot)/2))
+			dot.Top(theme.Px(t, tokens.Space3+(tokens.TextTitle.Line.En-tokens.Dot)/2))
 		}
 		if !e.IsRead {
 			dot.Background(t.Accent)

@@ -16,12 +16,12 @@ import (
 
 // The measures of the command palette, in the units of the mockup (the timeline page of the screens canvas): px scales them.
 const (
-	paletteMax      = 50  // the most rows it shows
-	paletteWidth    = 560 // the most width
-	paletteRow      = 32  // the height of a row and of the search field
-	paletteHead     = 26  // the height of a group header, which has 8 above its text
-	paletteList     = 456 // the most height of the list
-	paletteBottom   = 8   // the list's padding below
+	paletteMax      = 50                // the most rows it shows
+	paletteWidth    = 560               // the most width
+	paletteRow      = tokens.RowCompact // the height of a row
+	paletteHead     = 26                // the height of a group header, which has 8 above its text
+	paletteList     = 456               // the most height of the list
+	paletteBottom   = 4                 // the list's padding below
 	paletteTop      = 0.15
 	paletteShare    = 0.6                    // the most share of the window's height that the list takes
 	paletteAnnounce = 300 * time.Millisecond // how long the result count waits for more typing before it is announced
@@ -272,7 +272,7 @@ func (s *Screen) palette(c *ui.Context) {
 	// With an empty query the rows keep their groups under headers; with a query they are one ranked list.
 	var lines []paletteLine
 	at := make([]int, len(shown)) // the line of each item
-	listHeight := float32(paletteBottom)
+	listHeight := float32(2 * paletteBottom)
 	for i, it := range shown {
 		if query == "" && (i == 0 || shown[i-1].group != it.group) {
 			lines = append(lines, paletteLine{header: true, group: it.group})
@@ -291,18 +291,17 @@ func (s *Screen) palette(c *ui.Context) {
 			Label(s.text.PaletteTitle)
 		theme.Sheet(c, panel, theme.Dialog)
 		var in ui.Element
-		field := ui.Row(c).Margin(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space2)).Height(theme.Px(t, paletteRow)).AlignItems(ui.Center).
-			Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, fieldInset)).Radius(theme.Px(t, tokens.RadiusControl)).Background(theme.RaisedFill(t)).Shrink(0)
+		field := ui.Row(c).FillWidth().Height(theme.Px(t, tokens.Control+tokens.Space4)).AlignItems(ui.Center).
+			Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space4)).BorderWidth(0, 0, tokens.Hairline, 0).BorderColor(t.Border).Shrink(0)
 		field.Children(func() {
 			ui.Icon(c, icons.Search).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
-			in = ui.TextInputBase(c, &p.query).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.PaletteGoTo).
+			in = ui.TextInputBase(c, &p.query).Grow(1).MinWidth(0).FocusRing(false).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).Label(s.text.PaletteGoTo).
 				Placeholder(s.text.PaletteGoTo)
 			if p.focus {
 				in.Focus()
 				p.focus = false
 			}
 		})
-		field.Shadow(0, 0, 0, 2, t.Focus)
 
 		// The arrows move the highlight, and wrap, while the caret stays in the text. They come through OnTextKey, between
 		// frames; the row is announced at once.
@@ -325,9 +324,9 @@ func (s *Screen) palette(c *ui.Context) {
 		}
 
 		if n == 0 {
-			ui.Row(c).FillWidth().Justify(ui.Center).Padding(theme.Px(t, paletteEmptyTop), theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space2)).Role(ui.RoleStatus).
+			ui.Row(c).FillWidth().Padding(theme.Px(t, tokens.Space3), theme.Px(t, tokens.Space1)+theme.Px(t, tokens.Space2)).Role(ui.RoleStatus).
 				Children(func() {
-					ui.Text(c, s.text.PaletteNone).TextColor(t.TextMuted).TextAlign(ui.Center)
+					ui.Text(c, s.text.PaletteNone).TextColor(t.TextMuted)
 				})
 			return
 		}
@@ -349,7 +348,7 @@ func (s *Screen) palette(c *ui.Context) {
 				run = shown[line.item].run
 			}
 		})
-		list.Height(min(theme.Px(t, listHeight), theme.Px(t, paletteList), height*paletteShare)).Padding(0, theme.Px(t, tokens.Space2), theme.Px(t, paletteBottom), theme.Px(t, tokens.Space2)).
+		list.Height(min(theme.Px(t, listHeight), theme.Px(t, paletteList), height*paletteShare)).Padding(theme.Px(t, paletteBottom)).
 			Label(s.text.PaletteGoTo)
 	})
 
@@ -364,7 +363,7 @@ func (s *Screen) palette(c *ui.Context) {
 func (s *Screen) paletteHeader(c *ui.Context, group int) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().Height(theme.Px(t, paletteHead)).AlignItems(ui.End).Padding(0, theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space2)).Children(func() {
-		ui.Text(c, strings.ToUpper(s.groupName(group))).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).TextColor(t.TextMuted).
+		ui.Text(c, s.groupName(group)).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).TextColor(t.TextMuted).
 			Role(ui.RoleHeading).Level(3)
 	})
 }
@@ -383,9 +382,9 @@ func (s *Screen) paletteRow(c *ui.Context, it paletteItem, highlighted, ranked b
 	}
 	row.Children(func() {
 		if it.icon != nil {
-			ui.Icon(c, it.icon).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
+			ui.Icon(c, it.icon).FontSize(theme.IconMedium(t)).TextColor(theme.Text2(t))
 		} else {
-			s.glyph(c, it.name, it.site, 16)
+			s.glyph(c, it.name, it.site, tokens.TileM)
 		}
 		ui.Text(c, it.name).Grow(1).MinWidth(0).SingleLine().Ellipsis("…").FontSize(theme.Px(t, tokens.TextBody.Size.En))
 		if ranked {

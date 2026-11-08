@@ -2565,16 +2565,7 @@ func gap(t *ui.Theme) float32 { return theme.Px(t, tokens.Space6) }
 
 // chip is the icon square at the start of a setting row, design CSettingRow: control square, radius-control, the
 // paper fill, the glyph icon-m in Text2, or Danger for a row that destroys.
-func chip(c *ui.Context, icon *ui.SVG, danger bool) {
-	t := c.Theme()
-	square := theme.Px(t, tokens.Control)
-	color := theme.Text2(t)
-	if danger {
-		color = t.Danger
-	}
-	ui.Box(c).Size(square, square).Shrink(0).Radius(theme.Px(t, tokens.RadiusControl)).Center().Background(t.Background).
-		Children(func() { ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(color) })
-}
+func chip(c *ui.Context, icon *ui.SVG, danger bool) { theme.RowChip(c, icon, danger) }
 
 // labeled is a setting row, design CSettingRow: the icon chip, the name in body over its help in meta, and the
 // control at the end.

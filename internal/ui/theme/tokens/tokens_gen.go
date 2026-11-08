@@ -848,10 +848,10 @@ var (
 
 // Spaces of the article, in em of the body size.
 const (
-	ReadingParagraph = 1.05
-	ReadingListItem  = 0.3
-	ReadingH2Above   = 1.9
-	ReadingH2Below   = 0.6
+	ReadingParagraph = 1
+	ReadingListItem  = 0
+	ReadingH2Above   = 1.2
+	ReadingH2Below   = 0.5
 	// HanLatin is the space between Han and Latin text; PunctuationCompression what a pair of full-width marks
 	// gives back.
 	HanLatin               = 0.25
