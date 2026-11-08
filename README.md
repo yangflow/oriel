@@ -133,7 +133,6 @@ scripts/check.sh --cross --race   # everything, as CI runs it on main and daily:
 | Topic | Where |
 |---|---|
 | Behavior, data model, API, fetching and sign-in (in Chinese) | [docs/product.md](docs/product.md) |
-| Design rules shared by every screen | [docs/design.md](docs/design.md) |
 | Screens canvas, design system and tokens | [design/README.md](design/README.md) |
 | Architecture decisions | [docs/adr/](docs/adr/README.md) |
 | Releases | [docs/release.md](docs/release.md) |

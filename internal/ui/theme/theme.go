@@ -203,7 +203,7 @@ func Fade(e ui.Element) ui.Element {
 	return e.Transition(fillFade)
 }
 
-// MinTarget is the least side of a pointer target in DIPs (WCAG 2.5.8, docs/design.md): a control drawn smaller is
+// MinTarget is the least side of a pointer target in DIPs (WCAG 2.5.8): a control drawn smaller is
 // still this big to the pointer.
 const MinTarget = 24
 

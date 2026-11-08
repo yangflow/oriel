@@ -12,9 +12,8 @@ Sources of truth:
   states, with one artboard per state. It is the only description of a screen's look; the docs do not repeat it.
 - `docs/product.md`: product behavior, data model, API and flows, with no layout or copy. New rules go into the
   docs first, then into code.
-- `docs/design.md`: the rules every screen shares: spacing, color, type, components, accessibility, motion,
-  localization.
-- `design/tokens.md`: spacing, size and color values, mapped to MyGo theme roles.
+- `design/tokens.md`: the design values every screen shares (color, type, spacing, sizes, motion), mapped to MyGo
+  theme roles; the design system artifact draws them (`design/README.md`).
 - GitHub milestones and issues: the plan and its order. `CHANGELOG.md` is the finished history.
 - `docs/release.md`: the release workflow, its secrets and the steps of a release.
 - `docs/adr/0002-standalone-client-and-server.md`: the client reads and writes only through the HTTP API and never
@@ -53,7 +52,7 @@ internal/ui/pictures/    the picture queue the reader and the timeline share: do
 internal/ui/tray/        copy for the tray menu and the unread count on the icon and badge
 internal/ui/theme/       palette and the helpers every screen shares: Px, Monogram
 internal/ui/theme/tokens/ the design tokens generated from design/tokens.json (`go generate` there), and their contrast audit
-internal/ui/typeset/     the spacing of Chinese text (docs/design.md, Chinese typesetting)
+internal/ui/typeset/     the spacing of Chinese text (docs/product.md, 中文排版)
 internal/ui/icons/       the Lucide icon set
 internal/ui/startup/     copy for the native error dialog when desktop startup fails
 resources/               shipped licenses and product assets
@@ -101,8 +100,8 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
   acceptance.
 - Do not split files just because they are long. Leave no temporary scripts, debug output or commented-out code.
 - A UI change starts from the screens canvas (design/README.md); the maintainer confirms the visual direction before
-  UI code is written. A change to a shared rule or token goes into `docs/design.md` and the tokens in the same pull
-  request as the code; a screen's own layout and copy stay on the canvas only. The pull request body links the
+  UI code is written. A changed token goes into `design/tokens.json` and `design/tokens.md` in the same pull request
+  as the code; a screen's layout and copy stay on the canvas only. The pull request body links the
   artboards it follows; screenshots go in the pull request body, not into the repository.
 - Keep `README.md` and `README.zh-CN.md` in sync; list only merged features, and mark plans as plans.
 - Commit messages and PR titles use Conventional Commits:

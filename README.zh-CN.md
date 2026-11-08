@@ -106,7 +106,6 @@ scripts/check.sh --cross --race   # 全部，CI 在 main 每次推送和每天�
 | 内容 | 位置 |
 |---|---|
 | 产品行为、数据模型、接口、抓取和登录 | [docs/product.md](docs/product.md) |
-| 所有界面共用的设计规则（英文） | [docs/design.md](docs/design.md) |
 | 界面画板、设计系统和设计令牌 | [design/README.md](design/README.md) |
 | 架构决定（英文） | [docs/adr/](docs/adr/README.md) |
 | 发版（英文） | [docs/release.md](docs/release.md) |

@@ -108,8 +108,8 @@ type Preferences struct {
 	ReadingWidth  string `json:"readingWidth"`
 	ReadingPreset string `json:"readingPreset,omitempty"`
 
-	// ChineseTypesetting sets Chinese text in the reader by the rules of docs/design.md. A file without the field
-	// reads as on, because Load starts from Default.
+	// ChineseTypesetting sets Chinese text in the reader (docs/product.md, 中文排版). A file without the
+	// field reads as on, because Load starts from Default.
 	ChineseTypesetting bool `json:"chineseTypesetting"`
 
 	// How the timeline draws each kind of entry: one of ArticleViewers, VideoViewers, SocialViewers, ImageViewers and

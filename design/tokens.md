@@ -1,9 +1,9 @@
 # Design tokens
 
 The values Oriel's UI uses are kept in [tokens.json](tokens.json) and [layout.json](layout.json), the one source, and
-drawn in the [Oriel design system](https://claude.ai/artifact/LBUfZ9m6MHwCsXp4D1d97w). This file explains them; the
-rules for using them on a screen are in [docs/design.md](../docs/design.md). Where this file and `tokens.json`
-differ, `tokens.json` wins.
+drawn in the [Oriel design system](https://claude.ai/artifact/LBUfZ9m6MHwCsXp4D1d97w). This file explains them; how a
+screen uses them is drawn on the screens canvas ([README.md](README.md)). Where this file and `tokens.json` differ,
+`tokens.json` wins.
 
 ## In code
 
@@ -131,8 +131,9 @@ illustration.
 ## Motion
 
 `motion-fast` 120 ms, ease-out, for color and opacity; `motion-base` 200 ms, ease-out, for a fold or a toast;
-`motion-spin` 900 ms, one turn of the busy spinner; `motion-pop` 0.97, the scale a popup opens from. When and how
-they are used, and the reduced-motion rules, are in [docs/design.md](../docs/design.md), Motion.
+`motion-spin` 900 ms, one turn of the busy spinner; `motion-pop` 0.97, the scale a popup opens from. Only color,
+opacity, a popup's scale and a fold change; nothing slides. With reduced motion, scale and folds are immediate and
+only fades of 120 ms or less remain.
 
 ## Logo
 

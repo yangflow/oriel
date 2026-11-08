@@ -1,13 +1,12 @@
 # Design
 
-Design values and the product icon for Oriel's native UI. The design language is
-[docs/design.md](../docs/design.md); the values it uses are in [tokens.json](tokens.json) and
-[layout.json](layout.json), explained in [tokens.md](tokens.md). The screens themselves are drawn outside the
-repository, in two claude.ai Design artifacts kept by the maintainer.
+Design values and the product icon for Oriel's native UI. The values are in [tokens.json](tokens.json) and
+[layout.json](layout.json), explained in [tokens.md](tokens.md). The screens are drawn outside the repository, in two
+claude.ai Design artifacts kept by the maintainer.
 
-The screens canvas is the source of truth for how a screen looks: its layout, controls, copy and states. The docs do
-not describe a screen's look; where older doc text still does and it disagrees with the canvas, the canvas wins and
-the doc is fixed. Mockups approximate the result; the app running on a real device is what counts.
+The screens canvas is the source of truth for how a screen looks: its layout, controls, copy and states. No document
+in the repository describes a screen's look. Mockups approximate the result; the app running on a real device is what
+counts.
 
 ## Layout
 
@@ -28,8 +27,7 @@ the doc is fixed. Mockups approximate the result; the app running on a real devi
 
 The artifacts are private to the maintainer until shared. The canvas draws each state in Simplified Chinese, in the
 light scheme unless the artboard says dark, at the default window size unless it says narrow; English, the other
-scheme and the minimum and wide sizes follow from the tokens and the rules in `docs/design.md`, and are checked in the
-app.
+scheme and the minimum and wide sizes follow from the tokens and are checked in the app.
 
 ## Screens
 
@@ -48,15 +46,15 @@ Each screen's artboards are on the `4 页面` page, titled `4 页面：<screen> 
 A UI change starts from the screens canvas; the maintainer confirms the visual direction before UI code is written.
 
 1. Draw the change on the screens canvas (every state it touches, the longer translation if layout is at risk), and
-   update `tokens.json`, `layout.json`, `tokens.md` and `docs/design.md` if a value or rule changes. A changed value
+   update `tokens.json`, `layout.json` and `tokens.md` if a value or rule changes. A changed value
    is published to the design system too.
 2. The maintainer confirms the visual direction.
 3. Write the native view in `internal/ui/<screen>/` with theme roles and `Space`/`Rem` sizes, localized copy and
    accessible names, plus tests. Sizes and colors come from the token names in `internal/ui/theme/tokens`.
-4. Run `scripts/check.sh`, then the design acceptance checklist in `docs/design.md` on real devices. A headless test
-   is not device acceptance.
+4. Run `scripts/check.sh`, then compare the app on real devices with the artboards, in both schemes and both
+   languages, by keyboard and with a screen reader. A headless test is not device acceptance.
 
-Design notes and code go in the same pull request; the pull request body links the canvas artboards it follows and
+Token changes and code go in the same pull request; the pull request body links the canvas artboards it follows and
 carries the screenshots.
 
 ## Icons

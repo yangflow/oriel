@@ -50,9 +50,9 @@ failure there opens an issue.
 ## UI changes
 
 - A UI change starts from the screens canvas listed in [design/README.md](design/README.md), which is the source of
-  truth for how a screen looks, and follows the shared rules in [docs/design.md](docs/design.md); the maintainer
-  confirms the visual direction before UI code is written. A changed shared rule or token goes in the same pull
-  request as the code.
+  truth for how a screen looks, and uses the values in [design/tokens.md](design/tokens.md); the maintainer
+  confirms the visual direction before UI code is written. A changed token goes in the same pull request as the
+  code.
 - Use only MyGo native controls and theme colors. If a component is missing, specify it and all its states in the
   docs first.
 - Screenshots go in the pull request body (light and dark, one per state), not into the repository.

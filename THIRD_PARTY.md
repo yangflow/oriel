@@ -37,9 +37,3 @@
 - The container image (`Dockerfile`) adds the runtime base `gcr.io/distroless/base-debian12`, a Debian 12 subset
   (glibc, CA certificates, tzdata and others) under its own packages' licenses, which the base keeps in
   `/usr/share/doc/<package>/copyright`; the program in it is the one above.
-
-## Documentation
-
-`docs/design.md` and `design/` summarize, in our own words, the UI documentation of MyGo at the version above (MIT
-License, Copyright (c) egoist): <https://github.com/egoist/mygo/tree/main/docs/ui>. No upstream text or code ships in
-the app.
