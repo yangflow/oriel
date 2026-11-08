@@ -226,6 +226,8 @@ HTTP 约定和订阅、时间线、设置、图片代理、活动和存储的接
 | `GET /api/rsshub/health` | 设置里每个 RSSHub 实例的成功率、中位延迟和冷却（见[「RSSHub 实例健康」](data.md#rsshub-实例健康)）。 |
 | `POST /api/storage/vacuum` | 在后台开始压缩数据库，返回 202 和 `{ "vacuum": {...} }`；已经在压缩时返回 409 `vacuum_running`。 |
 | `DELETE /api/storage/premigrate` | 删除迁移前的副本，返回 204；本来就没有副本时也是 204。 |
+| `GET /api/storage/read-entries` | 返回 `{ "count" }`：删除已读条目现在会删掉多少条。 |
+| `DELETE /api/storage/read-entries` | 删除已读且未收藏的条目（见[「删除所有已读条目」](data.md#删除所有已读条目)），完成后返回 200 和 `{ "deleted" }`；没有可删的时 `deleted` 是 0。 |
 | `DELETE /api/storage/image-cache` | 清空代理图片缓存，返回 204（见[「图片代理」](#图片代理)）。 |
 
 `GET /api/rsshub/health` 返回 `{ "keep": 50, "days": 7, "instances": [...] }`。

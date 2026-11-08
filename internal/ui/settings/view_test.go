@@ -72,6 +72,9 @@ type fake struct {
 	dropErr     error
 	cleared     int // how many times the image cache was cleared
 	clearErr    error
+	readCount   int64 // what counting the read entries answers
+	purged      int   // how many times the read entries were deleted
+	purgeErr    error
 
 	model string        // the model that answers a test
 	check client.AITest // what else the test finds; its Model is model

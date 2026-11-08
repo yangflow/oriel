@@ -75,7 +75,7 @@ type copy struct {
 	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10 string
 	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, CompactRun, Compacting                                                                                                                                                                                                    string
 	PreMigrate, PreMigrateVersion, DeletePreMigrate, DeletePreMigrateTitle, DeletePreMigrateBody                                                                                                                                                                                                                                            string
-	DeletePreMigrateConfirm, PreMigrateDeleted, PreMigrateFailed, ClearImages, ClearImagesLabel, ImagesCleared, ClearImagesFailed                                                                                                                                                                                                           string
+	DeletePreMigrateConfirm, PreMigrateDeleted, PreMigrateFailed, ClearImages, ClearImagesLabel, ImagesCleared, ClearImagesFailed, Danger, DeleteRead, DeleteReadHelp, DeleteReadButton, DeleteReadTitle, DeleteReadBody, DeleteReadConfirm, DeleteReadNone, DeleteReadDone, DeleteReadFailed                                               string
 	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, Recent, RecentNone, RecentKeep                                                                                                                                                                                                                                        string
 	Health, HealthHelp, HealthEmpty, MainBadge, NoData, NoAnswer, LastN, Cooling, CoolingSoon                                                                                                                                                                                                                                               string
 	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                                                                                                                                                          string
@@ -162,6 +162,8 @@ type API interface {
 	StartVacuum(ctx context.Context) (client.Vacuum, error)
 	DeletePreMigrate(ctx context.Context) error
 	ClearImageCache(ctx context.Context) error
+	ReadEntryCount(ctx context.Context) (int64, error)
+	DeleteReadEntries(ctx context.Context) (int64, error)
 	RevokeDevice(ctx context.Context, id int64) error
 	StartOPMLImport(ctx context.Context, opml []byte) (client.OPMLImport, error)
 	OPMLImportStatus(ctx context.Context) (client.OPMLImport, error)
@@ -368,7 +370,9 @@ type Screen struct {
 	doomed   client.Device
 	// dropCopy is the dialog that asks to delete the copy made before the update; dropping is the request running.
 	dropCopy, dropping bool
-	clearing           bool // the image cache is being cleared
+	clearing           bool  // the image cache is being cleared
+	askPurge, purging  bool  // the confirmation of deleting the read entries is open; the count or the delete is running
+	purgeCount         int64 // how many read entries the confirmation names
 	announce           string
 	toast              string
 
@@ -1789,6 +1793,7 @@ func (s *Screen) View(c *ui.Context) {
 		}
 	}
 	s.dropCopyDialog(c)
+	s.deleteReadDialog(c)
 	s.readerDialog(c)
 	s.ruleDialog(c)
 	s.restoreDialog(c)

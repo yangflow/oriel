@@ -940,6 +940,34 @@ func (s Session) ClearImageCache(ctx context.Context) error {
 	return s.call(ctx, http.MethodDelete, "/api/storage/image-cache", nil, nil)
 }
 
+// ReadEntryCount asks how many entries DeleteReadEntries would remove.
+func (s Session) ReadEntryCount(ctx context.Context) (int64, error) {
+	var out struct {
+		Count int64 `json:"count"`
+	}
+	err := s.call(ctx, http.MethodGet, "/api/storage/read-entries", nil, &out)
+	return out.Count, err
+}
+
+// purgeClient allows for a large library: deleting the read entries answers only when it is done.
+var purgeClient = &http.Client{Timeout: 130 * time.Second, Transport: agent{}}
+
+// DeleteReadEntries removes the read, unstarred entries from the server and returns how many went.
+func (s Session) DeleteReadEntries(ctx context.Context) (int64, error) {
+	resp, err := s.send(ctx, purgeClient, http.MethodDelete, "/api/storage/read-entries", "", nil)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	var out struct {
+		Deleted int64 `json:"deleted"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&out); err != nil {
+		return 0, fmt.Errorf("DELETE /api/storage/read-entries: %w", err)
+	}
+	return out.Deleted, nil
+}
+
 // Storage asks the server how big its database and image cache are.
 func (s Session) Storage(ctx context.Context) (Storage, error) {
 	var storage Storage

@@ -261,6 +261,10 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 	if err != nil {
 		return 0, err
 	}
+	removed, err := removedGUIDs(ctx, tx, src.ID)
+	if err != nil {
+		return 0, err
+	}
 	upsert, err := tx.PrepareContext(ctx, upsertEntrySQL)
 	if err != nil {
 		return 0, err
@@ -294,6 +298,13 @@ func (s *Store) SaveFeed(ctx context.Context, src FeedSource, title, siteURL str
 				}
 			}
 		default:
+			if removed[e.GUID] {
+				// Deleted with the read entries and still in the feed: it stays deleted for as long as the feed has it.
+				if _, err := tx.ExecContext(ctx, "UPDATE removed_entries SET seen_at = ? WHERE source_id = ? AND guid = ?", now.UnixMilli(), src.ID, e.GUID); err != nil {
+					return 0, err
+				}
+				continue
+			}
 			if stored == nil {
 				itemLinks, itemGUIDs = map[string]int{}, map[string]int{}
 				for _, it := range entries {
