@@ -84,6 +84,9 @@ and a Chinese line height; Chinese lines are taller and carry no tracking.
 | `caption` | 11 / 14 (zh 12 / 16) | 500, +0.04em | Pane section heads, counts, durations, badges. |
 | `code` | 12 / 19 mono | 400 | Rewrite rules, prompts, addresses. |
 
+The **interface size** multiplies every interface size above and every spacing: small makes `body` 12, standard 13, large 14
+(factors 12/13, 1, 14/13). It does not reach the reading scale.
+
 The **reading scale** is separate and set by the reader's preferences: body 16 at line 1.7 (zh 1.85), h2 19, h3 16,
 code 13; text size Small ×0.933, Large ×1.133, Extra large ×1.267; line spacing Compact 1.55, Relaxed 1.85; line width
 Narrow ×0.85, Wide ×1.2. Between Han and Latin text sits a 0.25em gap.

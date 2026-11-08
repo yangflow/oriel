@@ -1953,11 +1953,18 @@ func (s *Screen) reading() prefs.Preferences {
 }
 
 // scale is the factor of the article's sizes that follow the text size.
-func (s *Screen) scale() float32 { return float32(s.reading().Scale()) }
+// scale is the factor of an article's sizes against the interface's: the interface size must not change an article.
+func (s *Screen) scale() float32 {
+	r := s.reading()
+	return float32(r.Scale() / r.InterfaceFactor())
+}
 
 // column is the greatest width of the text column, the toolbar's ends following it: 680 at the medium text size,
 // growing and shrinking with it. The window can leave less.
-func (s *Screen) column(t *ui.Theme) float32 { return theme.Px(t, float32(s.reading().Column())) }
+func (s *Screen) column(t *ui.Theme) float32 {
+	r := s.reading()
+	return theme.Px(t, float32(float64(r.Column())/r.InterfaceFactor()))
+}
 
 // face is the font list of the article's body, "" for the interface font.
 func (s *Screen) face() string {

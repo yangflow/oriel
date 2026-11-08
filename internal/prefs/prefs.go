@@ -48,6 +48,11 @@ const (
 	PresetSepia = "sepia"
 	PresetMist  = "mist"
 
+	// The sizes of the interface; the second is the default.
+	InterfaceSmall    = "small"
+	InterfaceStandard = "standard"
+	InterfaceLarge    = "large"
+
 	// The densities of the timeline's rows; the first is the default.
 	DensityComfortable = "comfortable"
 	DensityCompact     = "compact"
@@ -79,10 +84,13 @@ const DefaultDwellSec = 5
 
 // Sizes and Spacings list the choices of the reading preferences in the order the settings show them.
 var (
-	Sizes     = []string{SizeSmall, SizeMedium, SizeLarge, SizeXLarge}
-	Spacings  = []string{SpacingCompact, SpacingStandard, SpacingRelaxed}
-	Widths    = []string{WidthNarrow, WidthStandard, WidthWide}
-	Presets   = []string{"", PresetSepia, PresetMist}
+	Sizes    = []string{SizeSmall, SizeMedium, SizeLarge, SizeXLarge}
+	Spacings = []string{SpacingCompact, SpacingStandard, SpacingRelaxed}
+	Widths   = []string{WidthNarrow, WidthStandard, WidthWide}
+	Presets  = []string{"", PresetSepia, PresetMist}
+
+	InterfaceSizes = []string{InterfaceSmall, InterfaceStandard, InterfaceLarge}
+
 	Densities = []string{DensityComfortable, DensityCompact}
 
 	MarkReadChoices = []string{MarkOnOpen, MarkAfterStay, MarkOnScroll, MarkNever}
@@ -97,12 +105,14 @@ var (
 
 // Preferences are the choices of this device. Use Normalize before relying on the reading choices.
 type Preferences struct {
-	Theme       string `json:"theme,omitempty"`       // "" follows the system, else ThemeLight or ThemeDark
-	Language    string `json:"language,omitempty"`    // "" follows the system, else LanguageEnglish or LanguageChinese
-	Font        string `json:"font,omitempty"`        // "" is the system font, else an installed family
-	ReadingFont string `json:"readingFont,omitempty"` // "" follows the interface font, else ReadingSerif or an installed family
-	ReadingSize string `json:"readingSize"`           // one of Sizes
-	LineSpacing string `json:"lineSpacing"`           // one of Spacings
+	Theme    string `json:"theme,omitempty"`    // "" follows the system, else ThemeLight or ThemeDark
+	Language string `json:"language,omitempty"` // "" follows the system, else LanguageEnglish or LanguageChinese
+	Font     string `json:"font,omitempty"`     // "" is the system font, else an installed family
+	// InterfaceSize scales the whole interface: one of InterfaceSizes.
+	InterfaceSize string `json:"interfaceSize"`
+	ReadingFont   string `json:"readingFont,omitempty"` // "" follows the interface font, else ReadingSerif or an installed family
+	ReadingSize   string `json:"readingSize"`           // one of Sizes
+	LineSpacing   string `json:"lineSpacing"`           // one of Spacings
 	// ReadingWidth is the width of the text column: one of Widths. ReadingPreset is the paper and ink of the reader:
 	// "" follows the theme, else PresetSepia or PresetMist.
 	ReadingWidth  string `json:"readingWidth"`
@@ -440,7 +450,7 @@ func (g Folded) normalized() Folded { return encodeFolded(g.entries()) }
 
 // Default has every preference at its default.
 func Default() Preferences {
-	return Preferences{ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ReadingWidth: WidthStandard, ChineseTypesetting: true,
+	return Preferences{InterfaceSize: InterfaceStandard, ReadingSize: SizeMedium, LineSpacing: SpacingStandard, ReadingWidth: WidthStandard, ChineseTypesetting: true,
 		Density: DensityComfortable, ArticleViewer: ViewList, VideoViewer: ViewGrid, SocialViewer: ViewCard, ImageViewer: ViewWall, ForumViewer: ViewPanes, SourceSort: SortTitle,
 		MarkReadWhen: MarkOnOpen, MarkReadDwellSec: DefaultDwellSec}
 }
@@ -453,6 +463,9 @@ func (p Preferences) Normalize() Preferences {
 	}
 	if p.Language != LanguageEnglish && p.Language != LanguageChinese {
 		p.Language = ""
+	}
+	if !slices.Contains(InterfaceSizes, p.InterfaceSize) {
+		p.InterfaceSize = InterfaceStandard
 	}
 	if !slices.Contains(Sizes, p.ReadingSize) {
 		p.ReadingSize = SizeMedium
@@ -532,6 +545,18 @@ func (p Preferences) Dark(system bool) bool {
 		return true
 	}
 	return system
+}
+
+// InterfaceFactor is the factor of the interface's sizes: the standard text of 13 becomes 12 or 14. A value it does not
+// know is the standard.
+func (p Preferences) InterfaceFactor() float64 {
+	switch p.InterfaceSize {
+	case InterfaceSmall:
+		return 12.0 / 13
+	case InterfaceLarge:
+		return 14.0 / 13
+	}
+	return 1
 }
 
 // Scale is the factor of an article's sizes: 1 for the medium text size, whose body is 16. The bodies of the four

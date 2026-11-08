@@ -1658,6 +1658,24 @@ func openAppearanceWith(t *testing.T, language string, newTester func(func(c *ui
 	return s, f, tt
 }
 
+// openReading shows the Reading part of the appearance group.
+func openReading(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	s, f, tt := openAppearance(t, language)
+	press(t, tt, s.text.Reading)
+	tt.Frame()
+	return s, f, tt
+}
+
+// openTypeset shows the dialog of the article's text.
+func openTypeset(t *testing.T, language string) (*Screen, *fake, *ui.Tester) {
+	t.Helper()
+	s, f, tt := openReading(t, language)
+	press(t, tt, s.text.TypesetAdjust)
+	tt.Frame()
+	return s, f, tt
+}
+
 // reveal scrolls the page until the element showing text sits at revealTop, clear of the header and with the rows
 // that follow it in the window, and returns where it is. A test then does not depend on how tall the page is with this
 // platform's fonts. An element outside the window is laid out but has no size, and one above it is reported at the
@@ -1689,27 +1707,25 @@ const revealTop = 200
 
 func TestAppearanceShows(t *testing.T) {
 	s, _, tt := openAppearance(t, "en")
-	for _, want := range []string{s.text.Theme, s.text.ThemeSystem, s.text.UILanguage,
-		s.text.SystemChoice, s.text.UIFont, s.text.SystemFont, s.text.Reading, s.text.TextSize, s.text.SizeMedium,
-		s.text.LineSpacing, s.text.SpacingStandard, s.text.ChineseTypesetting, s.text.PreviewText} {
+	for _, want := range []string{s.text.Theme, s.text.ThemeSystem, s.text.InterfaceSize, s.text.InterfaceStandard, s.text.UILanguage,
+		s.text.SystemChoice, s.text.UIFont, s.text.SystemFont, s.text.Reading} {
 		if !tt.HasText(want) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
 		}
 	}
-	if tt.HasText(s.text.RetentionSaved) || tt.HasText("Keep for") {
-		t.Fatalf("the fetching group shows: %v", tt.Texts())
+	if tt.HasText(s.text.RetentionSaved) || tt.HasText("Keep for") || tt.HasText(s.text.ReadingFont) {
+		t.Fatalf("another page shows: %v", tt.Texts())
 	}
 }
 
 func TestAppearanceChoices(t *testing.T) {
 	s, f, tt := openAppearance(t, "en")
 	press(t, tt, s.text.ThemeDark)
-	press(t, tt, s.text.SizeXLarge)
-	press(t, tt, s.text.SpacingRelaxed)
+	press(t, tt, s.text.SizeLarge)
 	want := prefs.Default()
-	want.Theme, want.ReadingSize, want.LineSpacing = prefs.ThemeDark, prefs.SizeXLarge, prefs.SpacingRelaxed
-	if len(f.changes) != 3 || f.prefs != want {
-		t.Fatalf("changes %v", f.changes)
+	want.Theme, want.InterfaceSize = prefs.ThemeDark, prefs.InterfaceLarge
+	if len(f.changes) != 2 || f.prefs != want {
+		t.Fatalf("changes %v, prefs %+v", f.changes, f.prefs)
 	}
 	press(t, tt, s.text.ThemeSystem)
 	if f.prefs.Theme != "" {
@@ -1717,72 +1733,94 @@ func TestAppearanceChoices(t *testing.T) {
 	}
 }
 
-// pressNext presses the segment right after the one showing text, so a name that repeats in the card can be told apart
-// by the segment before it.
-func pressNext(t *testing.T, tt *ui.Tester, text string) {
-	t.Helper()
-	r := reveal(t, tt, text)
-	tt.ClickAt(r.X+r.W+20, r.Y+r.H/2)
+// TestAppearanceParts shows the two parts switch in the page's head, and that the Reading part has what the Interface
+// part does not.
+func TestAppearanceParts(t *testing.T) {
+	s, _, tt := openReading(t, "en")
+	for _, want := range []string{s.text.ReadingAppearance, s.text.PresetSepia, s.text.ReadingFont, s.text.TypesetTitle,
+		s.typesetSummary(prefs.Default()), s.text.Timeline, s.text.ViewAs} {
+		if !tt.HasText(want) {
+			t.Errorf("missing %q in %v", want, tt.Texts())
+		}
+	}
+	if tt.HasText(s.text.Theme) {
+		t.Fatalf("the Interface part shows: %v", tt.Texts())
+	}
+	press(t, tt, s.text.InterfaceTitle)
+	tt.Frame()
+	if !tt.HasText(s.text.Theme) || tt.HasText(s.text.ReadingFont) {
+		t.Fatalf("the parts did not switch: %v", tt.Texts())
+	}
 }
 
-// TestViewAs shows the View as card has a row for each kind, defaulting to the first segment, and that each segment
-// changes only its own kind's viewer.
+// TestTypesetDialog shows the dialog's choices apply at once, that Restore defaults puts back only its own four
+// preferences, and that Done closes it.
+func TestTypesetDialog(t *testing.T) {
+	s, f, tt := openTypeset(t, "en")
+	for _, want := range []string{s.text.TypesetDesc, s.text.PreviewText, s.text.TextSize, s.text.LineSpacing, s.text.LineWidth,
+		s.text.ChineseTypesetting, s.text.ChineseTypesettingHelp, s.text.TypesetReset, s.text.TypesetDone} {
+		if !tt.HasText(want) {
+			t.Errorf("missing %q in %v", want, tt.Texts())
+		}
+	}
+	sample, _ := tt.Find(s.text.PreviewText)
+	f.prefs.ReadingPreset = prefs.PresetSepia
+	for _, label := range []string{s.text.SizeXLarge, s.text.SpacingRelaxed, s.text.WidthNarrow} {
+		if err := tt.Click(label); err != nil {
+			t.Fatalf("%v in %v", err, tt.Texts())
+		}
+		tt.Frame()
+	}
+	want := prefs.Default()
+	want.ReadingPreset, want.ReadingSize, want.LineSpacing, want.ReadingWidth = prefs.PresetSepia, prefs.SizeXLarge, prefs.SpacingRelaxed, prefs.WidthNarrow
+	if f.prefs != want {
+		t.Fatalf("prefs %+v", f.prefs)
+	}
+	if narrow, _ := tt.Find(s.text.PreviewText); narrow.W >= sample.W {
+		t.Errorf("the sample is %v wide at Narrow, %v at Standard", narrow.W, sample.W)
+	}
+	f.prefs.ChineseTypesetting = false
+	if err := tt.Click(s.text.TypesetReset); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	want = prefs.Default()
+	want.ReadingPreset = prefs.PresetSepia
+	if f.prefs != want {
+		t.Fatalf("after Restore defaults %+v", f.prefs)
+	}
+	if err := tt.Click(s.text.TypesetDone); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if s.typesetOpen || tt.HasText(s.text.TypesetDesc) {
+		t.Fatalf("the dialog stayed: %v", tt.Texts())
+	}
+}
+
+// TestViewAs shows the View as card has a drop-down for each kind, and that a choice changes only its own kind's viewer.
 func TestViewAs(t *testing.T) {
-	s, f, tt := openAppearance(t, "en")
-	for _, want := range []string{s.text.ViewAs, s.text.ViewArticles, s.text.ViewVideos, s.text.ViewSocial,
-		s.text.ViewImages, s.text.ViewForum, s.text.ViewPanes, s.text.ViewCover, s.text.ViewWall, s.text.ViewAsHelp} {
+	s, f, tt := openReading(t, "en")
+	for _, want := range []string{s.text.ViewAs, s.text.ViewAsHelp, s.text.ViewArticles, s.text.ViewVideos, s.text.ViewSocial,
+		s.text.ViewImages, s.text.ViewForum, s.text.ViewList, s.text.ViewGrid, s.text.ViewCard, s.text.ViewWall, s.text.ViewPanes} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q in %v", want, tt.Texts())
 		}
 	}
-	if f.prefs.ArticleViewer != prefs.ViewList || f.prefs.VideoViewer != prefs.ViewGrid ||
-		f.prefs.SocialViewer != prefs.ViewCard || f.prefs.ImageViewer != prefs.ViewWall ||
-		f.prefs.ForumViewer != prefs.ViewPanes {
-		t.Fatalf("defaults %+v", f.prefs)
-	}
+	before := f.prefs
+	press(t, tt, s.text.ViewGrid)
 	press(t, tt, s.text.ViewCover)
-	if f.prefs.VideoViewer != prefs.ViewCover {
-		t.Fatalf("video %q", f.prefs.VideoViewer)
-	}
-	pressNext(t, tt, s.text.ViewCover)
-	if f.prefs.VideoViewer != prefs.ViewList {
-		t.Fatalf("video %q", f.prefs.VideoViewer)
-	}
-	pressNext(t, tt, s.text.ViewWall)
-	if f.prefs.ImageViewer != prefs.ViewGrid {
-		t.Fatalf("image %q", f.prefs.ImageViewer)
-	}
-	press(t, tt, s.text.ViewWall)
-	if f.prefs.ImageViewer != prefs.ViewWall {
-		t.Fatalf("image %q", f.prefs.ImageViewer)
-	}
-	// The first List and Card of the page are the Articles' and the Social's.
-	pressNext(t, tt, s.text.ViewList)
-	if f.prefs.ArticleViewer != prefs.ViewCompact {
-		t.Fatalf("article %q", f.prefs.ArticleViewer)
-	}
-	pressNext(t, tt, s.text.ViewCard)
-	if f.prefs.SocialViewer != prefs.ViewCompact {
-		t.Fatalf("social %q", f.prefs.SocialViewer)
-	}
-	pressNext(t, tt, s.text.ViewPanes)
-	if f.prefs.ForumViewer != prefs.ViewList {
-		t.Fatalf("forum %q", f.prefs.ForumViewer)
-	}
-	press(t, tt, s.text.ViewPanes)
-	if f.prefs.ForumViewer != prefs.ViewPanes {
-		t.Fatalf("forum %q", f.prefs.ForumViewer)
-	}
-	if f.prefs.VideoViewer != prefs.ViewList || f.prefs.ImageViewer != prefs.ViewWall {
-		t.Fatalf("other kinds changed: %+v", f.prefs)
+	before.VideoViewer = prefs.ViewCover
+	if f.prefs != before {
+		t.Fatalf("prefs %+v", f.prefs)
 	}
 }
 
 // TestListDensity shows the Timeline card offers the list density, comfortable by default, and that choosing a
 // segment changes only that preference.
 func TestListDensity(t *testing.T) {
-	s, f, tt := openAppearance(t, "en")
-	for _, want := range []string{s.text.Timeline, s.text.Density, s.text.DensityHelp, s.text.DensityComfortable} {
+	s, f, tt := openReading(t, "en")
+	for _, want := range []string{s.text.Timeline, s.text.Density, s.text.DensityComfortable} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q in %v", want, tt.Texts())
 		}
@@ -1791,7 +1829,7 @@ func TestListDensity(t *testing.T) {
 		t.Fatalf("default %q", f.prefs.Density)
 	}
 	before := f.prefs
-	pressNext(t, tt, s.text.DensityComfortable)
+	press(t, tt, s.text.DensityCompact)
 	if f.prefs.Density != prefs.DensityCompact {
 		t.Fatalf("density %q", f.prefs.Density)
 	}
@@ -1808,7 +1846,7 @@ func TestListDensity(t *testing.T) {
 // TestMarkReadWhen shows the Timeline card offers when entries are marked read, on opening by default, that the stay
 // time shows only for "After staying", and that each choice changes only its own preference.
 func TestMarkReadWhen(t *testing.T) {
-	s, f, tt := openAppearance(t, "en")
+	s, f, tt := openReading(t, "en")
 	for _, want := range []string{s.text.MarkRead, s.text.MarkReadHelpOpen, s.text.MarkReadOpen} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q in %v", want, tt.Texts())
@@ -1830,11 +1868,12 @@ func TestMarkReadWhen(t *testing.T) {
 	if f.prefs != before {
 		t.Fatalf("other preferences changed: %+v", f.prefs)
 	}
-	for _, want := range []string{s.text.MarkReadHelpDwell, s.text.Dwell, s.text.DwellHelp, s.text.Seconds5} {
+	for _, want := range []string{s.text.MarkReadHelpDwell, s.text.Dwell, s.text.Seconds5} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q in %v", want, tt.Texts())
 		}
 	}
+	press(t, tt, s.text.Seconds5)
 	press(t, tt, s.text.Seconds10)
 	if f.prefs.MarkReadDwellSec != 10 || f.prefs.MarkReadWhen != prefs.MarkAfterStay {
 		t.Fatalf("stay %+v", f.prefs)
@@ -1852,7 +1891,7 @@ func TestMarkReadWhen(t *testing.T) {
 // TestGroupSameLinkSwitch shows the Timeline card offers the switch for showing an article once, on by default, that
 // flipping it saves only that setting and has the timeline load again, and that a refusal puts it back.
 func TestGroupSameLinkSwitch(t *testing.T) {
-	s, f, tt := openAppearance(t, "en")
+	s, f, tt := openReading(t, "en")
 	for _, want := range []string{s.text.GroupSameLink, s.text.GroupSameLinkHelp} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q in %v", want, tt.Texts())
@@ -1886,39 +1925,6 @@ func TestGroupSameLinkSwitch(t *testing.T) {
 	toggle()
 	if s.settings.GroupSameLink || f.refreshed != 1 {
 		t.Fatalf("a refused change stayed: %+v, refreshed %d", s.settings, f.refreshed)
-	}
-}
-
-// TestChineseTypesettingSwitch shows the switch follows Line spacing and flips the setting.
-func TestChineseTypesettingSwitch(t *testing.T) {
-	s, f, tt := openAppearance(t, "en")
-	spacing, ok := tt.Find(s.text.LineSpacing)
-	if !ok {
-		t.Fatalf("no %q in %v", s.text.LineSpacing, tt.Texts())
-	}
-	row, ok := tt.Find(s.text.ChineseTypesetting)
-	if !ok || row.Y <= spacing.Y {
-		t.Fatalf("switch %v after line spacing %v: %v", row, spacing, ok)
-	}
-	if !f.prefs.ChineseTypesetting {
-		t.Fatal("off by default")
-	}
-	// The switch ends where the Line spacing choices end, centered on the label and its help, which may wrap.
-	toggle := func() {
-		reveal(t, tt, s.text.SpacingRelaxed) // the topmost of the three, so the others stay in view
-		row, _ := tt.Find(s.text.ChineseTypesetting)
-		help, _ := tt.Find(s.text.ChineseTypesettingHelp)
-		relaxed, _ := tt.Find(s.text.SpacingRelaxed)
-		tt.ClickAt(relaxed.X+relaxed.W-relaxed.H/2, (row.Y+help.Y+help.H)/2)
-		tt.Frame()
-	}
-	toggle()
-	if len(f.changes) != 1 || f.prefs.ChineseTypesetting {
-		t.Fatalf("changes %v, prefs %+v", f.changes, f.prefs)
-	}
-	toggle()
-	if !f.prefs.ChineseTypesetting {
-		t.Fatalf("not back on: %+v", f.prefs)
 	}
 }
 
@@ -2223,6 +2229,8 @@ func TestPalettes(t *testing.T) {
 func openReadingFonts(t *testing.T, p prefs.Preferences) (*Screen, *fake, *ui.Tester) {
 	t.Helper()
 	s, f, tt := openAppearance(t, "en")
+	press(t, tt, s.text.Reading)
+	tt.Frame()
 	f.fonts, f.prefs = pickerFonts, p
 	tt.Frame()
 	label := s.text.FollowInterface
@@ -2241,9 +2249,9 @@ func openReadingFonts(t *testing.T, p prefs.Preferences) (*Screen, *fake, *ui.Te
 }
 
 func TestReadingFontFirst(t *testing.T) {
-	s, _, tt := openAppearance(t, "en")
+	s, _, tt := openReading(t, "en")
 	font, ok1 := tt.Find(s.text.ReadingFont)
-	size, ok2 := tt.Find(s.text.TextSize)
+	size, ok2 := tt.Find(s.text.TypesetTitle)
 	if !ok1 || !ok2 || font.Y >= size.Y || !tt.HasText(s.text.FollowInterface) {
 		t.Fatalf("font %v (%v), size %v (%v), texts %v", font, ok1, size, ok2, tt.Texts())
 	}
@@ -2446,10 +2454,13 @@ func openDesktop(t *testing.T, d *Desktop) (*Screen, *fake, *ui.Tester) {
 func flip(t *testing.T, s *Screen, tt *ui.Tester, label, help string) {
 	t.Helper()
 	row, ok := tt.Find(label)
-	text, ok2 := tt.Find(help)
-	edge, ok3 := tt.Find(s.text.SpacingRelaxed)
+	text, ok2 := row, true
+	if help != "" {
+		text, ok2 = tt.Find(help)
+	}
+	edge, ok3 := tt.Find(s.text.SizeLarge)
 	if !ok || !ok2 || !ok3 {
-		t.Fatalf("no %q, %q or %q in %v", label, help, s.text.SpacingRelaxed, tt.Texts())
+		t.Fatalf("no %q, %q or %q in %v", label, help, s.text.SizeLarge, tt.Texts())
 	}
 	tt.ClickAt(edge.X+edge.W-edge.H/2, (row.Y+text.Y+text.H)/2)
 	tt.Frame()
@@ -2466,8 +2477,7 @@ func TestDesktopCardRows(t *testing.T) {
 			[]func(*Screen) string{
 				func(s *Screen) string { return s.text.Desktop }, func(s *Screen) string { return s.text.OpenAtLogin },
 				func(s *Screen) string { return s.text.OpenAtLoginHelp }, func(s *Screen) string { return s.text.MenuBarIcon },
-				func(s *Screen) string { return s.text.MenuBarIconHelp }, func(s *Screen) string { return s.text.DockBadge },
-				func(s *Screen) string { return s.text.DockBadgeHelp }},
+				func(s *Screen) string { return s.text.MenuBarIconHelp }, func(s *Screen) string { return s.text.DockBadge }},
 			[]func(*Screen) string{
 				func(s *Screen) string { return s.text.TrayIcon }, func(s *Screen) string { return s.text.OpenAtLoginNeedsApp },
 				func(s *Screen) string { return s.text.TrayFailed }}},
@@ -2520,7 +2530,7 @@ func TestDesktopCardSwitches(t *testing.T) {
 	}{
 		{s.text.OpenAtLogin, s.text.OpenAtLoginHelp, func() bool { return f.prefs.OpenAtLogin }},
 		{s.text.MenuBarIcon, s.text.MenuBarIconHelp, func() bool { return f.prefs.TrayIcon }},
-		{s.text.DockBadge, s.text.DockBadgeHelp, func() bool { return f.prefs.DockBadge }},
+		{s.text.DockBadge, "", func() bool { return f.prefs.DockBadge }},
 	} {
 		if tc.on() {
 			t.Fatalf("%s is on by default", tc.label)
@@ -2585,38 +2595,14 @@ func TestDesktopCardKeepsFocusWhenNoteMoves(t *testing.T) {
 	}
 }
 
-// TestReadingAppearanceRows shows the Reading card offers Line width and Reading appearance after Line spacing, that
-// each choice saves only its own setting, and that the sample keeps the paper of the appearance and the width of the line.
-func TestReadingAppearanceRows(t *testing.T) {
-	s, f, tt := openAppearance(t, "en")
-	spacing, _ := tt.Find(s.text.LineSpacing)
-	width, ok := tt.Find(s.text.LineWidth)
-	look, ok2 := tt.Find(s.text.ReadingAppearance)
-	if !ok || !ok2 || width.Y <= spacing.Y || look.Y <= width.Y {
-		t.Fatalf("rows %v %v after line spacing %v: %v", width, look, spacing, tt.Texts())
-	}
-	for _, want := range []string{s.text.LineWidthHelp, s.text.ReadingAppearanceHelp, s.text.WidthNarrow, s.text.WidthStandard,
-		s.text.WidthWide, s.text.PresetTheme, s.text.PresetSepia, s.text.PresetMist} {
-		if !tt.HasText(want) {
-			t.Errorf("missing %q in %v", want, tt.Texts())
-		}
-	}
-	sample := reveal(t, tt, s.text.PreviewText)
-	press(t, tt, s.text.WidthWide)
+// TestReadingColors shows the swatches change only the reading colors.
+func TestReadingColors(t *testing.T) {
+	s, f, tt := openReading(t, "en")
 	press(t, tt, s.text.PresetSepia)
 	want := prefs.Default()
-	want.ReadingWidth, want.ReadingPreset = prefs.WidthWide, prefs.PresetSepia
-	if len(f.changes) != 2 || f.prefs != want {
+	want.ReadingPreset = prefs.PresetSepia
+	if len(f.changes) != 1 || f.prefs != want {
 		t.Fatalf("changes %v, prefs %+v", f.changes, f.prefs)
-	}
-	tt.Frame()
-	if wider := reveal(t, tt, s.text.PreviewText); wider.W <= sample.W {
-		t.Errorf("the sample is %v wide at Wide, %v at Standard", wider.W, sample.W)
-	}
-	press(t, tt, s.text.PresetTheme)
-	press(t, tt, s.text.WidthNarrow)
-	if f.prefs.ReadingPreset != "" || f.prefs.ReadingWidth != prefs.WidthNarrow {
-		t.Fatalf("prefs %+v", f.prefs)
 	}
 }
 
