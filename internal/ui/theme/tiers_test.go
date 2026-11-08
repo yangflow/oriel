@@ -27,12 +27,11 @@ func TestTextSizesAreTiers(t *testing.T) {
 	// (the sixth scale of tokens.md, not interface type), the monogram letter and the title text of an entry (their
 	// literals are checked below).
 	forms := map[string]bool{
-		"size":                             true,
-		"Px(t, font)":                      true,
-		"theme.Px(t, size)":                true,
-		"theme.Px(t, 13)*scale":            true,
-		"theme.Px(t, 16) * scale":          true,
-		"theme.Px(t, 16*0.86) * s.scale()": true,
+		"size":              true,
+		"Px(t, font)":       true,
+		"theme.Px(t, size)": true,
+		"theme.Px(t, tokens.ReadingCode.Size)*scale":                                     true,
+		"theme.Px(t, tokens.TextCodeInline.Size.En*tokens.ReadingBody.Size) * s.scale()": true,
 	}
 	number := regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
 	px := regexp.MustCompile(`^(?:theme\.)?Px\([A-Za-z.()]+, ?([0-9.]+)\)$`)
