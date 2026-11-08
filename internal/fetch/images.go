@@ -173,6 +173,14 @@ func (im *Images) CacheStats() (count int, bytes int64) {
 	return im.cache.stats()
 }
 
+// ClearCache deletes every picture in the disk cache (docs/product/api.md, "图片代理"); without a cache there is
+// nothing to do.
+func (im *Images) ClearCache() {
+	if im.cache != nil {
+		im.cache.clear()
+	}
+}
+
 // download fetches the picture from the origin through the guarded client.
 func (im *Images) download(ctx context.Context, address string) (string, []byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)

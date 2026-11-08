@@ -33,6 +33,14 @@ func (f *fake) DeletePreMigrate(context.Context) error {
 	return f.dropErr
 }
 
+func (f *fake) ClearImageCache(context.Context) error {
+	f.cleared++
+	if f.clearErr == nil {
+		f.storage.Images, f.storage.ImageBytes = 0, 0 // what the server reports afterwards
+	}
+	return f.clearErr
+}
+
 func (f *fake) Diagnostics(context.Context) ([]byte, error) { return f.diag, f.diagErr }
 
 // activityData is two subscriptions with attempts, one of them being fetched now.
@@ -472,6 +480,49 @@ func TestPreMigrateCopyRow(t *testing.T) {
 		f.settle(tt)
 		if f.dropped != 2 || !tt.HasText(s.text.PreMigrateDeleted) || tt.HasText(s.text.PreMigrate) || tt.HasText(version) {
 			t.Fatalf("%s: dropped %d, texts %v", language, f.dropped, tt.Texts())
+		}
+	}
+}
+
+func TestClearImageCache(t *testing.T) {
+	for _, language := range []string{"en", "zh-Hans"} {
+		s, f, tt := setup(t, language, false)
+		f.activity, f.storage = activityData()
+		f.storage.Images, f.storage.ImageBytes, f.storage.Copies, f.storage.CopyBytes = 3, 3<<20, 2, 700
+		tt.SetSize(1000, 1800)
+		s.OpenPage("activity")
+		tt.Frame()
+		f.settle(tt)
+		full := s.fill(locale.Count(s.text.ImagesValue, "n", 3), "{size}", "3.0 MB")
+		if !tt.HasText(full) {
+			t.Fatalf("%s: no cache figures in %v", language, tt.Texts())
+		}
+
+		// A failure keeps the figures and says so.
+		f.clearErr = errors.New("offline")
+		press(t, tt, s.text.ClearImagesLabel)
+		f.settle(tt)
+		if f.cleared != 1 || !tt.HasText(s.text.ClearImagesFailed) || !tt.HasText(full) {
+			t.Fatalf("%s: cleared %d, texts %v", language, f.cleared, tt.Texts())
+		}
+
+		// Clearing asks nothing, shows zero and leaves the starred copies.
+		f.clearErr = nil
+		tt.Frame()
+		press(t, tt, s.text.ClearImagesLabel)
+		f.settle(tt)
+		empty := s.fill(locale.Count(s.text.ImagesValue, "n", 0), "{size}", s.bytes(0))
+		copies := s.fill(locale.Count(s.text.CopiesValue, "n", 2), "{size}", s.bytes(700))
+		if f.cleared != 2 || !tt.HasText(s.text.ImagesCleared) || !tt.HasText(empty) || !tt.HasText(copies) {
+			t.Fatalf("%s: cleared %d, texts %v", language, f.cleared, tt.Texts())
+		}
+
+		// An empty cache cannot be cleared.
+		tt.Frame()
+		press(t, tt, s.text.ClearImagesLabel)
+		f.settle(tt)
+		if f.cleared != 2 {
+			t.Fatalf("%s: an empty cache was cleared again", language)
 		}
 	}
 }

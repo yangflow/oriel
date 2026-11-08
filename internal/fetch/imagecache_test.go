@@ -106,6 +106,33 @@ func TestImageCacheStats(t *testing.T) {
 	}
 }
 
+func TestImageCacheClear(t *testing.T) {
+	origin := newCacheOrigin(t, 10)
+	dir := filepath.Join(t.TempDir(), "image-cache")
+	im := cachedImages(dir)
+	ctx := context.Background()
+	NewImages("test", "").ClearCache() // without a cache there is nothing to do
+	im.ClearCache()                    // nor with an empty one
+	for _, name := range []string{"/a", "/b"} {
+		if _, _, err := im.Get(ctx, origin.URL+name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	im.ClearCache()
+	if n, size := im.CacheStats(); n != 0 || size != 0 {
+		t.Fatalf("after clearing: %d, %d", n, size)
+	}
+	if names := cacheFiles(t, dir); len(names) != 0 {
+		t.Fatalf("files left: %v", names)
+	}
+	if _, _, err := im.Get(ctx, origin.URL+"/a"); err != nil || origin.hits.Load() != 3 {
+		t.Fatalf("after clearing the picture is fetched again: %v, origin hits %d", err, origin.hits.Load())
+	}
+	if n, _ := im.CacheStats(); n != 1 {
+		t.Errorf("stored again: %d", n)
+	}
+}
+
 func TestImageCacheExpiry(t *testing.T) {
 	origin := newCacheOrigin(t, 10)
 	im := cachedImages(t.TempDir())

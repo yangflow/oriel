@@ -11,9 +11,10 @@ import (
 	"github.com/yangflow/oriel/internal/store"
 )
 
-// imageStats is implemented by an Images that keeps a cache on disk.
+// imageStats is implemented by an Images that keeps a cache on disk, which it can count and clear.
 type imageStats interface {
 	CacheStats() (count int, bytes int64)
+	ClearCache()
 }
 
 // vacuumState is what the last (or running) vacuum reports. It lives in memory only (docs/product/api.md, "活动和存储接口").
@@ -170,6 +171,15 @@ func (s *Server) deletePreMigrate(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.DeletePreMigrate(); err != nil {
 		internal(w, err)
 		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// clearImageCache answers DELETE /api/storage/image-cache: every picture in the proxy's disk cache goes. Starred
+// copies live in the database and stay. Without a cache, or with an empty one, it is 204 all the same.
+func (s *Server) clearImageCache(w http.ResponseWriter, r *http.Request) {
+	if cache, ok := s.images.(imageStats); ok {
+		cache.ClearCache()
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
