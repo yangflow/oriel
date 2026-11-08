@@ -277,6 +277,8 @@ type Screen struct {
 
 	sideQuery  string // the sidebar's filter of subscriptions, as typed; not kept between runs
 	filtering  bool   // the sidebar's filter field has the focus
+	filterOpen bool   // the sidebar's filter row was summoned and is still in use
+	filterGo   bool   // the filter field takes the focus when it is next drawn
 	firstFocus bool   // give the first matching subscription the focus in the next frame
 
 	entries   []client.Entry
@@ -2687,6 +2689,7 @@ func (s *Screen) listKeys(c *ui.Context, open bool) {
 		return
 	}
 	c.OnShortcut(0, ui.KeySlash, func() { s.searchBox = true })
+	c.OnShortcut(0, ui.KeyF, s.openSourceFilter)
 	for i, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6} {
 		c.OnShortcut(0, k, func() { s.pickKind(i) })
 	}
@@ -2873,6 +2876,7 @@ const (
 	LoadNew
 	Immersive
 	CycleRange
+	FilterSidebar
 )
 
 // Run does the command, as its key or menu item does. Nothing happens while a dialog shows, and the commands that
@@ -2896,6 +2900,8 @@ func (s *Screen) Run(cmd Command) {
 		s.toggleImmersive()
 	case CycleRange:
 		s.cycleRange()
+	case FilterSidebar:
+		s.openSourceFilter()
 	case LoadNew:
 		if s.fresh > 0 && s.reading == 0 {
 			s.renew()
@@ -2917,7 +2923,7 @@ func TimelineMenu(systemLocale string) (name string, items []MenuItem) {
 	text := translations[locale.Language(systemLocale)]
 	return text.TimelineMenu, []MenuItem{{text.KeyUnread, ShowUnread}, {text.KeyAll, ShowAll},
 		{text.KeyStarred, ShowStarred}, {text.KeyMarkAll, MarkAllRead}, {text.KeyLoadNew, LoadNew},
-		{text.KeyImmersive, Immersive}, {text.KeyRange, CycleRange}}
+		{text.KeyImmersive, Immersive}, {text.KeyRange, CycleRange}, {text.FilterSources, FilterSidebar}}
 }
 
 // RefreshMenuLabels are the Subscriptions menu, its item that refreshes all of them and its item that manages
@@ -2973,6 +2979,7 @@ func (s *Screen) keySheet(c *ui.Context) {
 		{s.text.KeyStarred, one("*")}, {s.text.KeyLoadNew, one("R")},
 		{s.text.KeyRange, one("T")},
 		{s.text.KeySearch, [][]string{{"/"}, {cmd, "F"}}},
+		{s.text.FilterSources, one("F")},
 		{s.text.KeyEscape, one("Esc")}, {s.text.KeyScope, one("1–6")}, {s.text.KeySidebar, one("H", "←")},
 		{s.text.KeyBack, one("L", "→", "Esc")}, {s.text.KeyMenu, menu}, {s.text.KeyUndo, [][]string{{cmd, "Z"}}}}
 	reading := []key{{s.text.KeyNextArticle, one("J")}, {s.text.KeyPreviousArticle, one("K")},
@@ -3135,9 +3142,9 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 				s.section(c, failing)
 				s.sourceTools(c)
 				if len(list) == 0 && strings.TrimSpace(s.sideQuery) != "" {
-					ui.Box(c).FillWidth().Padding(theme.Px(t, tokens.Space1_5), theme.Px(t, tokens.Space2)).Role(ui.RoleStatus).Label(s.text.NoMatchingSources).
+					ui.Box(c).FillWidth().Padding(theme.Px(t, tokens.Space2)).Role(ui.RoleStatus).Label(s.text.NoMatchingSources).
 						Children(func() {
-							ui.Text(c, s.text.NoMatchingSources).FontSize(theme.Px(t, tokens.TextBody.Size.En)).TextColor(t.TextMuted)
+							ui.Text(c, s.text.NoMatchingSources).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
 						})
 				}
 				ui.Column(c).FillWidth().FocusGroup(ui.Vertical).Children(func() {
@@ -3466,17 +3473,31 @@ func paneLineInset(t *ui.Theme, size float32) float32 {
 	return theme.Px(t, paneLine-size/2-paneEdge)
 }
 
-// sourceTools is the row under the section header: the filter field of the subscriptions, which grows, and the toggle
-// that puts those with unread entries first. It is not there while there are no subscriptions.
+// openSourceFilter summons the filter row of the sidebar and gives its field the focus, showing the sidebar if it
+// is hidden. With no subscriptions there is nothing to filter, and immersive reading keeps the sidebar away.
+func (s *Screen) openSourceFilter() {
+	if len(s.sources) == 0 || s.immersive {
+		return
+	}
+	if s.views().SidebarHidden {
+		s.toggleSidebar()
+	}
+	s.filterOpen, s.filterGo = true, true
+}
+
+// sourceTools is the row under the section header while filtering: the filter field of the subscriptions, which
+// grows, and the toggle that puts those with unread entries first. It shows from when it is summoned until neither
+// has the focus or the pointer and the field is empty.
 func (s *Screen) sourceTools(c *ui.Context) {
-	if len(s.sources) == 0 {
+	if len(s.sources) == 0 || !s.filterOpen && s.sideQuery == "" {
+		s.filterOpen, s.filterGo, s.filtering = false, false, false
 		return
 	}
 	t := c.Theme()
 	unreadFirst := s.views().SourceSort == prefs.SortUnread
-	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space1)).Margin(0, 0, theme.Px(t, tokens.Space1_5), 0).
-		Padding(0, paneLineInset(t, tokens.Row), 0, 0).Children(func() {
-		box := ui.Row(c).Key("filter").Grow(1).MinWidth(0).Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space1_5)).
+	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.Control)).Gap(theme.Px(t, tokens.Space1)).Margin(0, 0, theme.Px(t, tokens.Space1), 0).
+		Padding(0, paneLineInset(t, tokens.Control), 0, 0).AlignItems(ui.Center).Children(func() {
+		box := ui.Row(c).Key("filter").Grow(1).MinWidth(0).Height(theme.Px(t, tokens.Control)).Gap(theme.Px(t, tokens.Space1_5)).
 			Padding(0, theme.Px(t, tokens.Space1), 0, theme.Px(t, fieldInset)).Radius(theme.Px(t, tokens.RadiusControl)).AlignItems(ui.Center)
 		switch {
 		case s.filtering:
@@ -3522,10 +3543,10 @@ func (s *Screen) sourceTools(c *ui.Context) {
 		s.filtering = input.Focused()
 		if cleared {
 			s.sideQuery = ""
-			input.Focus()
+			s.filterGo = true
 		}
 
-		b := ui.ButtonBase(c).Key("unread-first").Size(theme.Px(t, tokens.Row), theme.Px(t, tokens.Row)).Shrink(0).Radius(theme.Px(t, tokens.RadiusControl)).
+		b := ui.ButtonBase(c).Key("unread-first").Size(theme.Px(t, tokens.Control), theme.Px(t, tokens.Control)).Shrink(0).Radius(theme.Px(t, tokens.RadiusControl)).
 			Role(ui.RoleToggleButton).Label(s.text.UnreadFirst).Tooltip(s.text.UnreadFirst).Checked(unreadFirst)
 		color := t.TextMuted
 		switch {
@@ -3537,7 +3558,7 @@ func (s *Screen) sourceTools(c *ui.Context) {
 			color = theme.Text2(t)
 		}
 		theme.Fade(b)
-		b.Children(func() { ui.Icon(c, icons.ArrowUpDown).FontSize(theme.IconSmall(t)).TextColor(color) })
+		b.Children(func() { ui.Icon(c, icons.ListFilter).FontSize(theme.IconMedium(t)).TextColor(color) })
 		if b.Clicked() && s.deps.Change != nil {
 			p := s.views()
 			p.SourceSort = prefs.SortUnread
@@ -3545,6 +3566,15 @@ func (s *Screen) sourceTools(c *ui.Context) {
 				p.SourceSort = prefs.SortTitle
 			}
 			s.deps.Change(p)
+		}
+		switch {
+		case s.filterGo:
+			s.filterGo = false
+			input.Focus()
+			c.Invalidate()
+		case s.sideQuery == "" && !input.Focused() && !b.Focused() && !box.Hovered() && !b.Hovered():
+			s.filterOpen = false
+			c.Invalidate()
 		}
 	})
 }
@@ -3790,13 +3820,14 @@ func (s *Screen) iconOf(id int64) string {
 
 func (s *Screen) serverBar(c *ui.Context) {
 	t := c.Theme()
-	name, icon := s.text.ThisComputer, icons.Laptop
+	name := s.text.ThisComputer
 	if s.server != "" {
-		name, icon = s.server, icons.Server
+		name = s.server
 	}
-	// Inset like the rows above it, so its hover fill is a rounded row inside the pane, clear of its corner.
-	ui.Row(c).FillWidth().Height(theme.Px(t, paneFoot)).AlignItems(ui.Center).Padding(0, theme.Px(t, paneEdge)+paneLineInset(t, tokens.Control), 0, theme.Px(t, tokens.Space2)).
-		Children(func() {
+	// A hairline over a control-high row; the gear stays on the line of the pane's other icon buttons.
+	ui.Column(c).FillWidth().Height(theme.Px(t, tokens.Control)).Shrink(0).Padding(0, theme.Px(t, tokens.Space2)).Children(func() {
+		ui.Box(c).FillWidth().Height(tokens.Hairline).Shrink(0).Background(t.Border)
+		ui.Row(c).FillWidth().Grow(1).AlignItems(ui.Center).Padding(theme.Px(t, tokens.Space1), paneLineInset(t, tokens.Control), 0, 0).Children(func() {
 			dot := t.Success
 			if s.offline {
 				dot = t.Warning
@@ -3808,10 +3839,9 @@ func (s *Screen) serverBar(c *ui.Context) {
 			}
 			theme.Fade(bar)
 			bar.Children(func() {
-				ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
-				ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(theme.Px(t, tokens.TextMeta.Size.En)).LetterSpacing(theme.Px(t, tokens.Space3) * 0.01).
-					TextColor(t.TextMuted)
 				ui.Box(c).Size(tokens.Dot, tokens.Dot).Radius(theme.Pill(tokens.Dot)).Background(dot)
+				ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(theme.Px(t, tokens.TextMeta.Size.En)).LetterSpacing(theme.Px(t, tokens.Space3) * 0.01).
+					TextColor(theme.Text2(t))
 			})
 			if bar.Clicked() {
 				s.deps.OpenConnect()
@@ -3828,6 +3858,7 @@ func (s *Screen) serverBar(c *ui.Context) {
 				s.deps.OpenSettings()
 			}
 		})
+	})
 }
 
 // narrowColumn is the main column width under which the toolbar spends less: the segments are icons and the unread
@@ -3904,7 +3935,6 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 			default:
 				title()
 			}
-			s.editButton(c)
 		})
 		// Where the open field has no room beside the other buttons, it takes their room while it is open.
 		open := s.searchOpen || s.searchBox || s.typing || s.query != ""
@@ -4226,21 +4256,6 @@ func (s *Screen) searchIcon(c *ui.Context) {
 	b.Children(func() { ui.Icon(c, icons.Search).FontSize(theme.IconMedium(t)).TextColor(color) })
 	if b.Clicked() {
 		s.searchBox = true
-	}
-}
-
-// editButton edits the subscription chosen in the sidebar.
-func (s *Screen) editButton(c *ui.Context) {
-	i := slices.IndexFunc(s.sources, func(src client.Source) bool { return src.ID == s.scope.source })
-	if s.scope.source == 0 || i < 0 {
-		return
-	}
-	t := c.Theme()
-	b, color := theme.ToolButton(c, theme.ToolState{})
-	b.Label(s.text.EditSource).Tooltip(s.text.EditSource)
-	b.Children(func() { ui.Icon(c, icons.Pencil).FontSize(theme.IconMedium(t)).TextColor(color) })
-	if b.Clicked() {
-		s.subs.Edit(s.sources[i])
 	}
 }
 
@@ -5205,17 +5220,12 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 		r.Background(t.SurfaceHover)
 	}
 	theme.Fade(r)
-	quiet := hovered || chosen || i > 0 && (s.hovered == i-1 || s.selected == i-1)
 	showing := hovered || chosen || r.Focused()
 	r.Children(func() {
-		// The divider, the marker and the dot are always there, clear when they do not show: one that came and went
+		// The marker and the dot are always there, clear when they do not show: one that came and went
 		// would move the ids of the content after it, and a click pressed on a picture as the row is chosen would
 		// land on an element that is no longer there.
 		none := ui.Transparent
-		divider := ui.Box(c).Absolute().Top(0).Left(theme.Px(t, textInset)).Right(theme.Px(t, tokens.Space4)).Height(tokens.Hairline).Background(none)
-		if i > 0 && !quiet && i != s.divider {
-			divider.Background(t.Border)
-		}
 		marker := float32(18)
 		if oneLine {
 			marker = 14
