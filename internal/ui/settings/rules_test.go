@@ -29,7 +29,7 @@ func TestRulesList(t *testing.T) {
 	s, _, tt := openRules(t, "en", append(oneRule(),
 		client.Rule{ID: 2, Author: "Ann", MarkRead: true, Kind: "video"}))
 	for _, text := range []string{s.text.RulesTitle, s.text.RulesDesc, "Title or summary has “release”, “beta”", "Go Blog",
-		"By “Ann”", s.text.ActStar, s.text.ActRead, s.text.RuleOffBadge, s.text.AddRule, s.text.MutedTitle} {
+		"By “Ann”", s.text.ActStar, s.text.ActRead, s.text.RuleOffBadge, s.text.RuleAddTitle, s.text.RulesMax, s.text.AddRuleShort, s.text.MutedTitle, s.text.MutedLines} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
@@ -306,6 +306,9 @@ func TestMutedNone(t *testing.T) {
 
 func TestMutedSave(t *testing.T) {
 	s, f, tt := openRules(t, "en", nil)
+	if tt.HasText(s.text.Save) {
+		t.Errorf("Save shows with nothing to save: %v", tt.Texts())
+	}
 	typeMuted(tt, s, "spoiler\n sale ")
 	press(t, tt, s.text.Save)
 	f.settle(tt)

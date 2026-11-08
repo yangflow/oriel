@@ -246,18 +246,14 @@ func (s *Screen) rulesPage(c *ui.Context) {
 				hairline(c)
 			})
 		}
-		ui.Row(c).Key("add").FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
-			PaddingY(theme.Px(t, tokens.Space3)).Children(func() {
-			full := len(p.list) >= maxRules
-			if full {
-				meta(c, s.text.RulesMax).Grow(1).MinWidth(0)
-			} else {
-				ui.Box(c).Grow(1)
-			}
-			add := theme.Button{Style: theme.Secondary, Disabled: full, Icon: icons.Plus, Text: s.text.AddRule}.Draw(c)
-			if add.Clicked() {
-				s.openRule(nil)
-			}
+		ui.Column(c).Key("add").FillWidth().PaddingY(theme.Px(t, tokens.Space3)).Children(func() {
+			setting(c, icons.Plus, false, s.text.RuleAddTitle, func() { meta(c, s.text.RulesMax) }, func() {
+				add := theme.Button{Style: theme.Secondary, Disabled: len(p.list) >= maxRules, Text: s.text.AddRuleShort,
+					Label: s.text.AddRule}.Draw(c)
+				if add.Clicked() {
+					s.openRule(nil)
+				}
+			})
 		})
 	})
 	s.mutedCard(c)
@@ -270,24 +266,16 @@ func (s *Screen) ruleRow(c *ui.Context, r client.Rule, id string) {
 		PaddingY(theme.Px(t, tokens.Space3)).Children(func() {
 		text := ui.ButtonBase(c).Grow(1).Shrink(1).MinWidth(0).Column().AlignItems(ui.Start).
 			Radius(theme.Px(t, tokens.RadiusSm)).Label(summary)
+		icon, act := s.action(r)
+		line := []string{act}
+		if scope := s.scope(r); scope != "" {
+			line = []string{scope, act}
+		}
 		if !r.Enabled {
-			text.Opacity(tokens.OpacityFaded)
+			line = append(line, s.text.RuleOffBadge)
 		}
 		text.Children(func() {
-			ui.Text(c, summary).Wrap()
-			icon, act := s.action(r)
-			ui.Row(c).Wrap().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Margin(theme.Px(t, tokens.Space0_5), 0, 0, 0).
-				Children(func() {
-					if scope := s.scope(r); scope != "" {
-						ui.Text(c, scope).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
-					}
-					ui.Icon(c, icons.ArrowRight).FontSize(theme.IconSmall(t)).TextColor(theme.Text2(t))
-					ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(theme.Text2(t))
-					ui.Text(c, act).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
-					if !r.Enabled {
-						tag(c, s.text.RuleOffBadge, "", false)
-					}
-				})
+			setting(c, icon, false, summary, func() { meta(c, strings.Join(line, " · ")) }, nil)
 		})
 		if text.Clicked() {
 			s.openRule(&r)
@@ -674,13 +662,23 @@ func (s *Screen) mutedCard(c *ui.Context) {
 	t := c.Theme()
 	p := &s.rules
 	s.watchMuted(c)
-	sectionTitle(c, s.text.MutedTitle, gap(t))
+	sectionHead(c, s.text.MutedTitle, s.text.MutedHelp, gap(t))
 	plate(c).Children(func() {
 		ui.Column(c).FillWidth().PaddingY(theme.Px(t, tokens.Space3)).Children(func() {
-			setting(c, icons.EyeOff, false, s.text.MutedHelp, nil, nil)
+			help := s.text.MutedLines
+			if text := cleanLines(p.muted); text != "" && p.counted && p.asked == text {
+				count := s.text.MutedNone
+				if p.count > 0 {
+					count = locale.Count(s.text.MutedMany, "n", p.count)
+				}
+				help += " · " + count
+			}
+			setting(c, icons.EyeOff, false, s.text.MutedTitle, func() {
+				meta(c, help).FontFeatures("tnum").Role(ui.RoleStatus)
+			}, nil)
 			before := p.muted
 			area := ui.TextArea(c.Key("muted"), &p.muted).FillWidth().Lines(3, 8).Margin(below(t), 0, 0, 0).
-				Font("monospace").FontSize(theme.Px(t, tokens.TextCode.Size.En)).Label(s.text.MutedTitle).Disabled(p.saving)
+				Font("monospace").FontSize(theme.Px(t, tokens.TextCode.Size.En)).Label(s.text.MutedTitle).Placeholder(s.text.MutedLines).Disabled(p.saving)
 			well(c, area, area.Focused(), p.invalid)
 			if p.invalid {
 				area.Error(p.mutedState.text)
@@ -694,25 +692,17 @@ func (s *Screen) mutedCard(c *ui.Context) {
 			}
 			if p.mutedState.text != "" {
 				statusLine(c, p.mutedState)
-			} else if text := cleanLines(p.muted); text != "" && p.counted && p.asked == text {
-				line := s.text.MutedNone
-				if p.count > 0 {
-					line = locale.Count(s.text.MutedMany, "n", p.count)
-				}
-				meta(c, line).Margin(theme.Px(t, tokens.Space2), 0, 0, 0).FontFeatures("tnum").Role(ui.RoleStatus)
 			}
-			dirty := cleanLines(p.muted) != cleanLines(s.settings.MuteKeywords)
-			style := theme.Secondary
-			if dirty {
-				style = theme.Primary
+			if cleanLines(p.muted) != cleanLines(s.settings.MuteKeywords) {
+				ui.Row(c).FillWidth().AlignItems(ui.Center).Margin(below(t), 0, 0, 0).Children(func() {
+					ui.Box(c).Grow(1)
+					save := theme.Button{Style: theme.Primary, Disabled: p.saving, Text: s.text.Save, Busy: p.saving,
+						Label: s.text.MutedTitle + " · " + s.text.Save}.Draw(c)
+					if save.Clicked() {
+						s.saveMuted()
+					}
+				})
 			}
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Margin(below(t), 0, 0, 0).Children(func() {
-				ui.Box(c).Grow(1)
-				save := theme.Button{Style: style, Disabled: !dirty || p.saving, Text: s.text.Save, Busy: p.saving}.Draw(c)
-				if save.Clicked() {
-					s.saveMuted()
-				}
-			})
 		})
 	})
 }

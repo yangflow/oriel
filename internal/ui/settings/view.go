@@ -91,11 +91,11 @@ type copy struct {
 	StoppedMany, LostMany, SkippedWhy                                             string
 	DropHelp, ImportedMany, NotOpmlWhy, TooLargeWhy, ReadWhy, FailedWhy, DropBusy string
 
-	Rules, RulesNone, RulesNoneHelp, AddRule, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs                                                                                                      string
+	Rules, RulesNone, RulesNoneHelp, AddRule, AddRuleShort, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs                                                                                        string
 	RwKeywords, RwExclude, SubsN, RuleExclude, RuleExcludeHelp, RuleCount, RuleCountNone, ErrSources, RwAuthor, RwOnly, ActStar, ActRead, MenuEdit, MenuDelete, RuleDeleted, RuleAddTitle, RuleEditTitle string
 	RuleWhen, RuleWhenHelp, RuleSub, RuleKind, KindAny, RuleKeywords, RuleKeywordsHelp, RuleAuthor, RuleAuthorHint                                                                                       string
 	RuleThen, RuleNote, ErrNoCondition, ErrNoAction, ErrKeywords, ErrAuthor, ErrSource, ErrTooMany, RuleClose                                                                                            string
-	MutedTitle, MutedHelp, MutedNone, MutedMany, MutedInvalid, RulesError, RulesErrorHint                                                                                                                string
+	MutedTitle, MutedLines, MutedHelp, MutedNone, MutedMany, MutedInvalid, RulesError, RulesErrorHint                                                                                                    string
 
 	ReaderLabel, ReaderHelp, ReaderButton, ReaderTitle, ReaderService, ReaderAddress, ReaderAddressHint    string
 	ReaderUser, ReaderToken, ReaderPassword, ReaderMemory, ReaderConnect, ReaderClose, ReaderCancel        string
