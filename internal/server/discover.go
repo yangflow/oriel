@@ -52,3 +52,30 @@ func (s *Server) findFeeds(w http.ResponseWriter, r *http.Request) {
 		reply(w, http.StatusOK, map[string]any{"candidates": candidates})
 	}
 }
+
+// previewFeed answers GET /api/feeds/preview?url=: what a feed address holds. It only looks; nothing is stored.
+func (s *Server) previewFeed(w http.ResponseWriter, r *http.Request) {
+	address := r.URL.Query().Get("url")
+	if !feedURL(address) {
+		fail(w, http.StatusBadRequest, "invalid_url")
+		return
+	}
+	if s.discover == nil {
+		fail(w, http.StatusBadGateway, "page_unavailable")
+		return
+	}
+	got, err := s.discover.Preview(r.Context(), address)
+	switch {
+	case errors.Is(err, fetch.ErrInvalidAddress):
+		fail(w, http.StatusBadRequest, "invalid_url")
+	case errors.Is(err, fetch.ErrBlockedAddress):
+		fail(w, http.StatusUnprocessableEntity, "address_not_public")
+	case errors.Is(err, fetch.ErrNotFeed):
+		fail(w, http.StatusBadGateway, "not_a_feed")
+	case err != nil:
+		slog.Debug("Feed unavailable", "error", err)
+		fail(w, http.StatusBadGateway, "page_unavailable")
+	default:
+		reply(w, http.StatusOK, got)
+	}
+}

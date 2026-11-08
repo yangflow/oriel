@@ -1681,6 +1681,31 @@ func (s Session) PreviewRoute(ctx context.Context, path string) (RoutePreview, e
 	return out, nil
 }
 
+// FeedPreview is what a feed address holds, read without subscribing. UpdatedAt is Unix milliseconds and PerDay the
+// entries a day; each is nil when the feed cannot tell.
+type FeedPreview struct {
+	URL       string         `json:"url"`
+	Title     string         `json:"title"`
+	Format    string         `json:"format"`
+	UpdatedAt *int64         `json:"updatedAt"`
+	PerDay    *float64       `json:"perDay"`
+	Entries   []PreviewEntry `json:"entries"`
+}
+
+// PreviewFeed asks the server what the feed at address holds, without subscribing to it.
+func (s Session) PreviewFeed(ctx context.Context, address string) (FeedPreview, error) {
+	var out FeedPreview
+	resp, err := s.send(ctx, discoverClient, http.MethodGet, "/api/feeds/preview?url="+url.QueryEscape(address), "", nil)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
+		return FeedPreview{}, fmt.Errorf("feed preview: %w", err)
+	}
+	return out, nil
+}
+
 // call sends a JSON request and decodes the JSON reply into out, or drops the reply for a nil out.
 func (s Session) call(ctx context.Context, method, path string, in, out any) error {
 	var body io.Reader

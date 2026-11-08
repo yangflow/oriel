@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/url"
 	"path"
 	"slices"
@@ -33,7 +34,7 @@ type copy struct {
 	FoundGitHubUser, FoundTelegram, FoundWeibo, ViaRSSHub, NeedsBase, RSSHubAddress, RSSHubPlaceholder, PublicNote, PublicNoInstance, UseMine, Blocked, BlockedPublic, FeedRemoved string
 	BaseRequired, InvalidBase, InvalidAddress, Exists, ExistsUnknown, ShowIt, AddAnyway, Subscribed, FoundSubscribed, Unreachable, Failed, Added                                   string
 	AddedSoFar, SearchingFeeds, FoundMany, NoneFound, SiteYouTube, SiteBilibili, SiteWeibo, SiteZhihu, SiteX                                                                       string
-	SearchingRoutes, FoundRoutes, Preview, PreviewOf, PreviewEmpty, PreviewNotFound, NoCatalog, NoRoutes                                                                           string
+	SearchingRoutes, FoundRoutes, PerDay, Preview, PreviewOf, PreviewEmpty, PreviewNotFound, NoCatalog, NoRoutes                                                                   string
 	LabelVideos, LabelDynamic, LabelPosts, LabelActivities, LabelAnswers, LabelColumn, LabelTopic, LabelCollection, LabelQuestion                                                  string
 	LabelChannel, LabelPlaylist                                                                                                                                                    string
 	EditTitle, Refresh, Retry, Edit, Pause, Resume, Delete, ConfirmDelete, Checked, NotChecked, NextIn                                                                             string
@@ -119,6 +120,7 @@ type API interface {
 	Discover(ctx context.Context, address string) ([]client.Candidate, error)
 	FindRoutes(ctx context.Context, query string, refresh bool) (client.Routes, error)
 	PreviewRoute(ctx context.Context, path string) (client.RoutePreview, error)
+	PreviewFeed(ctx context.Context, address string) (client.FeedPreview, error)
 	CreateFolder(ctx context.Context, name string) (client.Folder, error)
 	RenameFolder(ctx context.Context, id int64, name string) (client.Folder, error)
 	DeleteFolder(ctx context.Context, id int64) error
@@ -194,9 +196,19 @@ type lookup struct {
 	chosen  int // the index in found that Add subscribes to
 }
 
+// feedPeek is the preview of the plain feed the dialog would subscribe to. got stays empty until the server has
+// answered, and when it could not.
+type feedPeek struct {
+	address string
+	typedAt time.Time
+	asked   bool
+	got     client.FeedPreview
+}
+
 // adding is the add dialog.
 type adding struct {
 	open       bool
+	peek       feedPeek
 	form       ui.ScrollState
 	address    string
 	base       string // the RSSHub instance typed when the settings have none
@@ -1609,7 +1621,13 @@ func (s *Screen) addressField(c *ui.Context, t target, valid bool) {
 		case s.listed():
 			s.pickList(c)
 		default:
-			s.found(c, t, what, where)
+			address := t.URL
+			if hasCand {
+				address = cand.URL
+			} else if t.Route != "" || t.Public {
+				address = ""
+			}
+			s.found(c, t, what, where, address)
 		}
 	})
 }
@@ -1792,8 +1810,12 @@ func (s *Screen) describe(t target) (what, where string) {
 	return what, where
 }
 
-func (s *Screen) found(c *ui.Context, t target, what, where string) {
+func (s *Screen) found(c *ui.Context, t target, what, where, address string) {
 	th := c.Theme()
+	if got := s.peeked(c, address); got.Format != "" {
+		s.preview(c, got, what)
+		return
+	}
 	icon := icons.Rss
 	if t.Platform != feed {
 		icon = kindIcon(kinds[s.add.kind])
@@ -1809,6 +1831,84 @@ func (s *Screen) found(c *ui.Context, t target, what, where string) {
 			ui.Text(c, where).Font("monospace").FontSize(theme.Px(th, tokens.TextMeta.Size.En)).TextColor(th.TextMuted).SingleLine()
 		})
 		ui.Icon(c, icons.CircleCheckBig).FontSize(theme.IconMedium(th)).TextColor(th.Success)
+	})
+}
+
+// peeked is the preview of the plain feed at address, empty for no address and until the server has answered. It is
+// asked for once per address, after the same pause in typing as the lookup; a preview that fails stays empty.
+func (s *Screen) peeked(c *ui.Context, address string) client.FeedPreview {
+	a := &s.add
+	now := s.deps.Now()
+	if a.peek.address != address {
+		a.peek = feedPeek{address: address, typedAt: now}
+	}
+	if address == "" || a.peek.asked {
+		return a.peek.got
+	}
+	if wait := lookAfter - now.Sub(a.peek.typedAt); wait > 0 {
+		c.After(wait)
+		return a.peek.got
+	}
+	a.peek.asked = true
+	gen, api := s.gen, s.api
+	s.deps.Go(func() func() {
+		got, err := api.PreviewFeed(context.Background(), address)
+		return func() {
+			if gen != s.gen || s.expired(err) || err != nil || s.add.peek.address != address {
+				return
+			}
+			s.add.peek.got = got
+		}
+	})
+	return a.peek.got
+}
+
+// previewMeta is the line under a previewed feed's name: its format, when it last updated and about how often.
+func (s *Screen) previewMeta(got client.FeedPreview) string {
+	parts := []string{got.Format}
+	if got.UpdatedAt != nil {
+		parts = append(parts, locale.Ago(s.lang, s.deps.Now(), time.UnixMilli(*got.UpdatedAt)))
+	}
+	if got.PerDay != nil {
+		if n := int(math.Round(*got.PerDay)); n >= 1 {
+			parts = append(parts, strings.ReplaceAll(s.text.PerDay, "{n}", strconv.Itoa(n)))
+		}
+	}
+	return strings.Join(parts, s.text.Separator)
+}
+
+// preview is the card of a feed the server has read: its name, what it is and how lively, and its latest titles.
+func (s *Screen) preview(c *ui.Context, got client.FeedPreview, what string) {
+	th := c.Theme()
+	name := strings.TrimSpace(got.Title)
+	if name == "" {
+		name = what
+	}
+	meta := s.previewMeta(got)
+	label := []string{name, meta}
+	for _, e := range got.Entries {
+		label = append(label, e.Title)
+	}
+	ui.Column(c).FillWidth().Gap(theme.Px(th, tokens.Space3)).Padding(theme.Px(th, tokens.Space4)).
+		Radius(theme.Px(th, tokens.RadiusCard)).Background(theme.Surface(th)).Role(ui.RoleStatus).
+		Label(strings.Join(label, s.text.Separator)).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(th, tokens.Space3)).Children(func() {
+			theme.Monogram(c, name, tokens.TileL)
+			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+				ui.Text(c, name).FontWeight(tokens.TextLabel.Weight).SingleLine()
+				ui.Text(c, meta).FontSize(theme.Px(th, tokens.TextMeta.Size.En)).TextColor(th.TextMuted).SingleLine()
+			})
+			ui.Icon(c, icons.CircleCheckBig).FontSize(theme.IconMedium(th)).TextColor(th.Success)
+		})
+		if len(got.Entries) == 0 {
+			return
+		}
+		ui.Box(c).FillWidth().Height(theme.Px(th, tokens.Hairline)).Background(th.Border)
+		ui.Column(c).FillWidth().Gap(theme.Px(th, tokens.Space1)).Children(func() {
+			for _, e := range got.Entries {
+				ui.Text(c, e.Title).FontSize(theme.Px(th, tokens.TextBody.Size.En)).TextColor(theme.Text2(th)).SingleLine()
+			}
+		})
 	})
 }
 

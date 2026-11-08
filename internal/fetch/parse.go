@@ -25,6 +25,8 @@ const maxImages = 20
 // parsed is a feed reduced to what the store keeps.
 type parsed struct {
 	title, siteURL string
+	// format names the feed's format and version, such as "RSS 2.0", empty when it is unknown.
+	format string
 	// iconURL is the feed's own image, empty when it has none the image proxy can show.
 	iconURL string
 	entries []store.FeedEntry
@@ -122,7 +124,7 @@ func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
 	if err != nil {
 		return parsed{}, err
 	}
-	out := parsed{title: strings.TrimSpace(feed.Title), siteURL: absolute(base, feed.Link)}
+	out := parsed{title: strings.TrimSpace(feed.Title), siteURL: absolute(base, feed.Link), format: feedFormat(feed)}
 	if feed.Image != nil {
 		if icon := absolute(base, feed.Image.URL); usableIcon(icon, "") {
 			out.iconURL = icon
@@ -181,6 +183,19 @@ func parse(body []byte, contentType string, base *url.URL) (parsed, error) {
 		out.entries = append(out.entries, entry)
 	}
 	return out, nil
+}
+
+// feedFormat names the format of a feed as people know it. It is a proper name, the same in every language.
+func feedFormat(feed *gofeed.Feed) string {
+	switch feed.FeedType {
+	case "rss":
+		return strings.TrimSpace("RSS " + feed.FeedVersion)
+	case "atom":
+		return "Atom"
+	case "json":
+		return "JSON Feed"
+	}
+	return ""
 }
 
 // absolute resolves ref against base and keeps it only if it is an http or https URL.

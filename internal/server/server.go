@@ -88,6 +88,7 @@ type Images interface {
 // fetch.ErrPageUnavailable for the failures the API tells apart.
 type Discoverer interface {
 	Discover(ctx context.Context, address string) ([]fetch.Candidate, error)
+	Preview(ctx context.Context, address string) (fetch.FeedPreview, error)
 }
 
 // RouteFinder looks up the routes of the RSSHub instances and previews one. Find never fails: a catalog that cannot
@@ -227,6 +228,7 @@ func New(st *store.Store, cfg Config) (*Server, error) {
 	mux.HandleFunc("GET /api/discover", s.authed(s.findFeeds))
 	mux.HandleFunc("GET /api/routes", s.authed(s.findRoutes))
 	mux.HandleFunc("GET /api/routes/preview", s.authed(s.previewRoute))
+	mux.HandleFunc("GET /api/feeds/preview", s.authed(s.previewFeed))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "not_found") })
 	s.handler = s.guard(mux)
 	return s, nil

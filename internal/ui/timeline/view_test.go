@@ -361,6 +361,10 @@ func (f *fake) FindRoutes(context.Context, string, bool) (client.Routes, error) 
 	return client.Routes{}, nil
 }
 
+func (f *fake) PreviewFeed(context.Context, string) (client.FeedPreview, error) {
+	return client.FeedPreview{}, nil
+}
+
 func (f *fake) PreviewRoute(context.Context, string) (client.RoutePreview, error) {
 	return client.RoutePreview{}, nil
 }
