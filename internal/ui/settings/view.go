@@ -41,7 +41,7 @@ type copy struct {
 	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Fetching, OPML, Devices, RSSHub                                string
 	RSSHubHelp, RSSHubPlaceholder, Save, Saved, Unsaved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp string
 	FetchEvery, FetchEveryHelp, FetchAuto, FetchMinutes, FetchHours, FetchDays, FullText, FullTextHelp, FetchDefaultSaved  string
-	InvalidBaseAny, TooManyBase                                                                                            string
+	TooManyBase                                                                                                            string
 	Forever, Days, Week, Month, Months3, Months6, Year, OPMLHelp, ImportLabel, ImportHelp, ExportLabel, ExportHelp         string
 	OPMLFiles, NotAdded, Import, Export, Importing, Imported, ImportedOk, InvalidOPML, TooLarge, ReadFailed                string
 	ImportFailed, Exported, ExportFailed, WriteFailed, Dismiss, InvalidURL, InvalidRoute, InvalidKind                      string
@@ -56,7 +56,7 @@ type copy struct {
 	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry                             string
 	AI, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset                     string
 	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing                      string
-	Proxy, ProxyAddress, ProxyHelp, ProxyPlaceholder, ProxyExample, ProxyAuth, ProxyAuthHelp, ProxyUser,
+	Proxy, ProxyAddress, ProxyHelp, ProxyPlaceholder, ProxyAuth, ProxyAuthHelp, ProxyUser,
 	ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyChanged, InvalidProxy, InvalidProxyAuth, ProxySaved, ProxyAuthRemoved,
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase string
 	UpdateTitle, RulesTitle, RulesDesc, DevicesTitle, BackupTitle, AutoEnable, AutoLastLabel, EntriesValue, ReaderBusy, DiagnosticsButton                                                                                                                                                                                                                                                                                                                                    string
@@ -81,7 +81,8 @@ type copy struct {
 	PreMigrate, PreMigrateVersion, DeletePreMigrate, DeletePreMigrateTitle, DeletePreMigrateBody                                                                                                                                                                                                                                                                                                                                                                             string
 	DeletePreMigrateConfirm, PreMigrateDeleted, PreMigrateFailed, ClearImages, ClearImagesLabel, ImagesCleared, ClearImagesFailed, Danger, DeleteRead, DeleteReadHelp, DeleteReadButton, DeleteReadTitle, DeleteReadBody, DeleteReadConfirm, DeleteReadNone, DeleteReadDone, DeleteReadFailed, Rename, RenameTitle, RenameHelp, RenameFailed, RenameTooLong, Renamed, ResetDevice, ResetDeviceHelp, ResetDeviceButton, ResetDeviceTitle, ResetDeviceBody, ResetDeviceConfirm string
 	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, FetchingAttempt, FetchingVia, FetchingElapsed, Recent, RecentNone, RecentKeep                                                                                                                                                                                                                                                                                                                          string
-	Health, HealthHelp, HealthEmpty, MainBadge, NoData, NoAnswer, LastN, Cooling, CoolingSoon                                                                                                                                                                                                                                                                                                                                                                                string
+	ProxyLead, ProxyAuthDialogHelp, ProxyAuthChange, ProxyAuthAdd, Instances, InstanceCount, AddInstance, InstanceLimit, Standby, CoolingTag, MakeMain, MoveUp, MoveDown, RemoveInstance, InstanceMore, BackFetching, HealthRate, HealthMedian, Milliseconds, Seconds                                                                                                                                                                                                        string
+	MainBadge, NoData, NoAnswer, LastN, Cooling, CoolingSoon                                                                                                                                                                                                                                                                                                                                                                                                                 string
 	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                                                                                                                                                                                                                                                                                           string
 	DiagnosticsFile, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                                                                                                                                                                         string
 	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                                                                                                                                                                                                                                                                                       string
@@ -321,24 +322,28 @@ type Screen struct {
 		ok     bool
 	} // the sample's pieces under Chinese typesetting, for the text they were made from
 
-	state       int
-	settings    client.Settings
-	base        string // the RSSHub instances as typed, one per line
-	saving      bool
-	invalid     bool
-	baseStatus  status
-	focusBase   bool
-	typing      bool // a text field has the focus, as of the last frame
-	blur        bool // the next frame moves the focus to the back button
-	retention   int
-	keeping     bool  // the retention is being saved
-	every       int64 // the default fetch interval in the picker
-	savingEvery bool  // the default fetch interval is being saved
-	savingFull  bool  // the full-text default is being saved
-	fetchStatus status
-	keepStatus  status
-	devices     []client.Device
-	deviceState int
+	state        int
+	settings     client.Settings
+	base         string // the RSSHub instances as typed, one per line
+	saving       bool
+	invalid      bool
+	baseStatus   status
+	focusBase    bool
+	instances    bool   // the page of the RSSHub instances is shown, inside the Fetching group
+	adding       string // the address typed in the row that adds an instance
+	proxyFocused bool   // the proxy address had the focus when last drawn, to save it when it leaves
+	proxyForm    bool   // the dialog of the proxy sign-in is open
+	typing       bool   // a text field has the focus, as of the last frame
+	blur         bool   // the next frame moves the focus to the back button
+	retention    int
+	keeping      bool  // the retention is being saved
+	every        int64 // the default fetch interval in the picker
+	savingEvery  bool  // the default fetch interval is being saved
+	savingFull   bool  // the full-text default is being saved
+	fetchStatus  status
+	keepStatus   status
+	devices      []client.Device
+	deviceState  int
 
 	activity    client.Activity
 	storage     client.Storage
@@ -453,6 +458,7 @@ func (s *Screen) Use(api API, server string, signedIn bool) {
 	s.api, s.server, s.signedIn = api, server, signedIn
 	s.gen++
 	s.group, s.busy, s.run, s.result, s.revoking = fetching, false, nil, result{}, false
+	s.instances, s.proxyForm, s.proxyFocused = false, false, false
 	s.dropCopy, s.dropping = false, false
 	s.working, s.confirming, s.backupFile = "", false, ""
 	s.autoSaving, s.autoStatus = false, status{}
@@ -509,6 +515,7 @@ func (s *Screen) choose(g int) {
 	if g != s.group {
 		s.healthAsked = false
 	}
+	s.instances = false
 	s.group = g
 	if g == ai {
 		s.loadModels()
@@ -603,7 +610,7 @@ func (s *Screen) loadSettings() {
 				return
 			}
 			s.state, s.settings = loaded, settings
-			s.base, s.retention = strings.Join(settings.RSSHubBaseURLs, "\n"), settings.RetentionDays
+			s.adding, s.retention = "", settings.RetentionDays
 			s.every = settings.FetchIntervalSec
 			s.aiBase, s.aiModel, s.aiKey, s.aiLanguage = settings.AIBaseURL, settings.AIModel, "", settings.AILanguage
 			s.aiLimits = savedLimits(settings)
@@ -672,53 +679,64 @@ func (s *Screen) loadDevices() {
 	})
 }
 
-// baseList is the RSSHub instances in text: one per line, blank lines and trailing slashes dropped, a repeated
-// address kept once, as the server keeps them.
-func baseList(text string) []string {
-	var list []string
-	for line := range strings.SplitSeq(text, "\n") {
-		base := strings.TrimRight(strings.TrimSpace(line), "/")
-		if base != "" && !slices.ContainsFunc(list, func(have string) bool { return strings.EqualFold(have, base) }) {
-			list = append(list, base)
-		}
-	}
-	return list
+// maxInstances is how many RSSHub instances the server keeps.
+const maxInstances = 5
+
+// validBase reports whether address is a full http or https address with a host name.
+func validBase(address string) bool {
+	u, err := url.Parse(address)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != ""
 }
 
-// badBase is the number of the first line of text that is not a full http or https address with a host name, or 0.
-func badBase(text string) int {
-	for i, line := range slices.Collect(strings.SplitSeq(text, "\n")) {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		u, err := url.Parse(line)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
-			return i + 1
-		}
-	}
-	return 0
-}
+// dirty reports whether an address is typed in the row that adds an instance.
+func (s *Screen) dirty() bool { return strings.TrimSpace(s.adding) != "" }
 
-// dirty reports whether the RSSHub instances typed are not the ones saved.
-func (s *Screen) dirty() bool { return !slices.Equal(baseList(s.base), s.settings.RSSHubBaseURLs) }
-
-// refuseBase shows that the list cannot be saved and puts the cursor back in it.
+// refuseBase shows that the address cannot be saved and puts the cursor back in it.
 func (s *Screen) refuseBase(text string) {
 	s.invalid, s.focusBase = true, true
 	s.baseStatus = status{text: text}
 	s.announce = text
 }
 
-func (s *Screen) saveBase() {
+// addInstance adds the typed address at the end of the list; one already there only clears the field.
+func (s *Screen) addInstance() {
 	if s.saving || s.api == nil || s.state != loaded || !s.dirty() {
 		return
 	}
-	if line := badBase(s.base); line > 0 {
-		s.refuseBase(strings.ReplaceAll(s.text.InvalidBase, "{n}", strconv.Itoa(line)))
+	base := strings.TrimRight(strings.TrimSpace(s.adding), "/")
+	if !validBase(base) {
+		s.refuseBase(s.text.InvalidBase)
 		return
 	}
-	list := baseList(s.base)
+	list := s.settings.RSSHubBaseURLs
+	if slices.ContainsFunc(list, func(have string) bool { return strings.EqualFold(have, base) }) {
+		s.adding = ""
+		return
+	}
+	if len(list) >= maxInstances {
+		s.refuseBase(s.text.TooManyBase)
+		return
+	}
+	s.saveInstances(append(slices.Clone(list), base), true)
+}
+
+// moveInstance puts the instance at from at the position to.
+func (s *Screen) moveInstance(from, to int) {
+	list := slices.Clone(s.settings.RSSHubBaseURLs)
+	base := list[from]
+	s.saveInstances(slices.Insert(slices.Delete(list, from, from+1), to, base), false)
+}
+
+// removeInstance takes the instance at i out of the list.
+func (s *Screen) removeInstance(i int) {
+	s.saveInstances(slices.Delete(slices.Clone(s.settings.RSSHubBaseURLs), i, i+1), false)
+}
+
+// saveInstances sends the whole list; added says it holds the typed address, which then leaves the field.
+func (s *Screen) saveInstances(list []string, added bool) {
+	if s.saving || s.api == nil || s.state != loaded {
+		return
+	}
 	s.saving, s.baseStatus, s.invalid = true, status{}, false
 	gen, api := s.gen, s.api
 	s.deps.Go(func() func() {
@@ -731,12 +749,14 @@ func (s *Screen) saveBase() {
 			switch {
 			case err == nil:
 				s.settings.RSSHubBaseURL, s.settings.RSSHubBaseURLs = settings.RSSHubBaseURL, settings.RSSHubBaseURLs
-				s.base = strings.Join(settings.RSSHubBaseURLs, "\n")
+				if added {
+					s.adding = ""
+				}
 				s.baseStatus = status{ok: true, text: s.text.Saved}
 				s.fetchHealth()
 				s.announce = s.baseStatus.text
 			case code(err) == "invalid_rsshub_base_url":
-				s.refuseBase(s.text.InvalidBaseAny)
+				s.refuseBase(s.text.InvalidBase)
 			case code(err) == "too_many_rsshub_base_urls":
 				s.refuseBase(s.text.TooManyBase)
 			default:
@@ -875,6 +895,8 @@ func (s *Screen) escape() {
 	case shown && p.Escape():
 	case s.state == loaded && s.unsaved() || shown && p.Unsaved():
 		s.announce = s.text.Unsaved
+	case s.group == fetching && s.instances:
+		s.instances = false
 	default:
 		s.deps.Back()
 	}
@@ -886,8 +908,8 @@ func (s *Screen) aiDirty() bool {
 		strings.TrimSpace(s.aiKey) != "" || s.aiLanguage != s.settings.AILanguage || s.limitsDirty()
 }
 
-// proxyDirty reports whether the proxy address changed, a user name or password is typed, or the removal of the
-// stored sign-in is waiting for Save.
+// proxyDirty reports whether the proxy address changed, a user name or password is typed, or the stored sign-in is
+// being removed.
 func (s *Screen) proxyDirty() bool {
 	return strings.TrimSpace(s.proxy) != s.settings.ProxyURL || s.proxyUser != "" || s.proxyPass != "" || s.proxyDrop
 }
@@ -927,10 +949,13 @@ func (s *Screen) saveProxy() {
 				return
 			}
 			s.proxySaving = false
+			if err != nil {
+				s.proxyDrop = false
+			}
 			switch {
 			case err == nil:
 				s.settings.ProxyURL, s.settings.ProxyAuthSet = settings.ProxyURL, settings.ProxyAuthSet
-				s.proxy, s.proxyUser, s.proxyPass, s.proxyDrop = settings.ProxyURL, "", "", false
+				s.proxy, s.proxyUser, s.proxyPass, s.proxyDrop, s.proxyForm = settings.ProxyURL, "", "", false, false
 				if removeOnly {
 					s.proxyStatus = status{ok: true, text: s.text.ProxyAuthRemoved}
 				} else {
@@ -2004,7 +2029,7 @@ func (s *Screen) View(c *ui.Context) {
 	if s.group == subscriptions && p == nil {
 		s.group = appearance
 	}
-	if !s.revoking && !s.dropCopy && !s.reader.open && !s.rules.dialog.open && !s.uiFont.open && !s.rdFont.open &&
+	if !s.revoking && !s.proxyForm && !s.dropCopy && !s.reader.open && !s.rules.dialog.open && !s.uiFont.open && !s.rdFont.open &&
 		(p == nil || !p.Open()) {
 		c.OnShortcut(0, ui.KeyEscape, s.escape)
 	}
@@ -2337,36 +2362,45 @@ func (s *Screen) head(c *ui.Context, compact bool, room float32) {
 	})
 }
 
-// crumb names the subscription whose page the Subscriptions group shows, "" on its list and in other groups. The
+// crumb names the page shown inside a group: a subscription's, or the RSSHub instances; "" on a group's own page. The
 // page scrolls back to the top when it changes.
 func (s *Screen) crumb() string {
-	p := s.subs()
-	if p == nil || s.group != subscriptions {
-		return ""
+	crumb := ""
+	if s.group == fetching && s.instances {
+		crumb = s.text.RSSHub
+	} else if p := s.subs(); p != nil && s.group == subscriptions {
+		crumb = p.Crumb()
 	}
-	crumb := p.Crumb()
 	if crumb != s.crumbWas {
 		s.crumbWas, s.scroll = crumb, ui.ScrollState{}
 	}
 	return crumb
 }
 
-// crumbTitle is the title of a subscription's page: a quiet "‹ Subscriptions" link back to the list in meta, muted
-// and the text color under the pointer, over the subscription's name in display.
+// crumbTitle is the title of a page inside a group: a quiet "‹ Group" link back in meta, muted and the text color
+// under the pointer, over the page's name in display.
 func (s *Screen) crumbTitle(c *ui.Context, name string) {
 	t := c.Theme()
+	parent, label := s.text.SubscriptionsGroup, s.text.BackList
+	if s.group == fetching {
+		parent, label = s.groupName(fetching), s.text.BackFetching
+	}
 	back := ui.ButtonBase(c).Row().AlignSelf(ui.Start).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).
-		Radius(theme.Px(t, tokens.RadiusXS)).Label(s.text.BackList)
+		Radius(theme.Px(t, tokens.RadiusXS)).Label(label)
 	ink := t.TextMuted
 	if back.Hovered() {
 		ink = t.Text
 	}
 	back.Children(func() {
 		ui.Icon(c, icons.ChevronLeft).FontSize(theme.IconSmall(t)).TextColor(ink)
-		ui.Text(c, s.text.SubscriptionsGroup).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(ink).NoWrap()
+		ui.Text(c, parent).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(ink).NoWrap()
 	})
 	if back.Clicked() {
-		s.subs().Back()
+		if s.group == fetching {
+			s.instances = false
+		} else {
+			s.subs().Back()
+		}
 	}
 	ui.Text(c, name).FontSize(theme.Px(t, tokens.TextDisplay.Size.En)).FontWeight(tokens.TextDisplay.Weight).
 		SingleLine().MinWidth(0).Role(ui.RoleHeading).Level(1)
@@ -2544,10 +2578,16 @@ func meta(c *ui.Context, text string) ui.Element {
 // tag is the small pill that says whether a secret is kept: off in Track and Text2, on in the soft accent.
 func tag(c *ui.Context, off, on string, set bool) {
 	t := c.Theme()
-	text, fill, color := off, theme.Track(t), theme.Text2(t)
 	if set {
-		text, fill, color = on, theme.Soft(t, t.Accent), t.Accent
+		pill(c, on, theme.Soft(t, t.Accent), t.Accent)
+		return
 	}
+	pill(c, off, theme.Track(t), theme.Text2(t))
+}
+
+// pill is text in a small pill of the given fill.
+func pill(c *ui.Context, text string, fill, color ui.Color) {
+	t := c.Theme()
 	h := theme.Px(t, tokens.Tag)
 	ui.Box(c).Height(h).PaddingX(theme.Px(t, tokens.Space1_5)).Radius(theme.Pill(h)).Center().Background(fill).Shrink(0).
 		Children(func() {
@@ -2607,8 +2647,11 @@ func coded(c *ui.Context, text, placeholder, code string) ui.Element {
 }
 
 func (s *Screen) fetchingPage(c *ui.Context) {
-	t := c.Theme()
 	s.watchHealth()
+	if s.instances {
+		s.instancesPage(c)
+		return
+	}
 	sectionTitle(c, s.text.UpdateTitle, 0)
 	card(c, func() {
 		labeled(c, icons.Clock, s.text.FetchEvery, s.text.FetchEveryHelp, func() { s.everySelect(c) })
@@ -2625,48 +2668,20 @@ func (s *Screen) fetchingPage(c *ui.Context) {
 			}
 		})
 	}, func() {
-		setting(c, icons.Rss, false, s.text.RSSHub, func() {
-			coded(c, s.text.RSSHubHelp, "{route}", "/github/issue/golang/go")
-		}, nil)
-		s.baseField(c)
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Margin(theme.Px(t, tokens.Space2), 0, 0, 0).Children(func() {
-			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).Children(func() {
-				if s.baseStatus.text != "" {
-					statusText(c, s.baseStatus)
-				}
-			})
-			dirty := s.dirty()
-			style := theme.Secondary
-			if dirty {
-				style = theme.Primary
-			}
-			save := theme.Button{Style: style, Disabled: !dirty || s.saving, Text: s.text.Save, Busy: s.saving}.Draw(c)
-			if save.Clicked() {
-				s.saveBase()
-			}
-		})
-		s.healthBlock(c)
+		s.instancesRow(c)
 	})
 	s.proxyCard(c)
 }
 
-// proxyCard is the proxy for fetches: its address, its sign-in and a Save of its own.
+// proxyCard is the proxy for fetches: its address, saved with Enter or on leaving the field, and its sign-in.
 func (s *Screen) proxyCard(c *ui.Context) {
 	t := c.Theme()
-	sectionTitle(c, s.text.Proxy, gap(t))
-	before := [...]string{s.proxy, s.proxyUser, s.proxyPass}
-	submit := func(in ui.Element) {
-		if in.Submitted() {
-			s.saveProxy()
-		}
-	}
+	sectionHead(c, s.text.Proxy, s.text.ProxyLead, gap(t))
+	before := s.proxy
 	card(c, func() {
-		setting(c, icons.Globe, false, s.text.ProxyAddress, func() {
-			coded(c, s.text.ProxyHelp, "{address}", s.text.ProxyExample)
-		}, nil)
-		ui.Row(c).FillWidth().Margin(below(t), 0, 0, 0).Children(func() {
-			s.watch(field(c, "proxy", &s.proxy, 0, s.proxyInvalid, func(in ui.Element) {
-				in.Font("monospace").Label(s.text.ProxyAddress).Placeholder(s.text.ProxyPlaceholder).Disabled(s.proxySaving)
+		labeled(c, icons.Globe, s.text.ProxyAddress, s.text.ProxyHelp, func() {
+			focused := field(c, "proxy", &s.proxy, theme.Px(t, tokens.SheetWidth), s.proxyInvalid, func(in ui.Element) {
+				in.Label(s.text.ProxyAddress).Placeholder(s.text.ProxyPlaceholder).Disabled(s.proxySaving)
 				if s.proxyInvalid {
 					in.Error(s.text.InvalidProxy)
 				}
@@ -2674,59 +2689,109 @@ func (s *Screen) proxyCard(c *ui.Context) {
 					in.Focus()
 					s.focusProxy = false
 				}
-				submit(in)
-			}))
+				if in.Submitted() {
+					s.saveProxy()
+				}
+			})
+			s.watch(focused)
+			if s.proxyFocused && !focused && !s.proxyInvalid {
+				s.saveProxy()
+			}
+			s.proxyFocused = focused
 		})
 		if s.proxyInvalid {
 			statusLine(c, status{text: s.text.InvalidProxy})
 		}
-	}, func() {
-		setting(c, icons.LockKeyhole, false, s.text.ProxyAuth, func() { meta(c, s.text.ProxyAuthHelp) }, func() {
-			tag(c, s.text.KeyUnset, s.text.KeySet, s.proxyAuthKept())
-		})
-		placeholder := s.text.ProxyOptional
-		if s.proxyAuthKept() {
-			placeholder = s.text.ProxySet
-		}
-		ui.Row(c).FillWidth().Gap(theme.Px(t, tokens.Space2)).Margin(below(t), 0, 0, 0).Children(func() {
-			s.watch(field(c, "proxy-user", &s.proxyUser, 0, false, func(in ui.Element) {
-				in.Label(s.text.ProxyUser).Placeholder(placeholder).Disabled(s.proxySaving)
-				submit(in)
-			}))
-			s.watch(field(c, "proxy-pass", &s.proxyPass, 0, false, func(in ui.Element) {
-				in.Password().Label(s.text.ProxyPassword).Placeholder(placeholder).Disabled(s.proxySaving)
-				submit(in)
-			}))
-		})
-		if s.proxyAuthKept() {
-			remove := theme.Link{Muted: true, Disabled: s.proxySaving, Text: s.text.ProxyRemoveAuth}.Draw(c).Margin(theme.Px(t, tokens.Space2), 0, 0, 0)
-			if remove.Clicked() {
-				s.proxyDrop, s.proxyStatus = true, status{}
-			}
-		}
-		if s.proxyAuthKept() && strings.TrimSpace(s.proxy) != s.settings.ProxyURL && s.proxyUser == "" && s.proxyPass == "" {
+		if s.settings.ProxyAuthSet && strings.TrimSpace(s.proxy) != s.settings.ProxyURL {
 			statusLine(c, status{warn: true, text: s.text.ProxyChanged})
 		}
+		if !s.proxyForm {
+			statusLine(c, s.proxyStatus)
+		}
 	}, func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
-			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space1_5)).Role(ui.RoleStatus).Children(func() {
-				if s.proxyStatus.text != "" {
-					statusText(c, s.proxyStatus)
-				}
-			})
-			dirty := s.proxyDirty()
-			style := theme.Secondary
-			if dirty {
-				style = theme.Primary
+		labeled(c, icons.LockKeyhole, s.text.ProxyAuth, s.text.ProxyAuthHelp, func() {
+			value := pick(s.settings.ProxyAuthSet, s.text.KeySet, s.text.KeyUnset)
+			ui.Text(c, value).TextColor(theme.Text2(t)).NoWrap()
+			s.proxyAuthMore(c)
+		})
+	})
+	s.proxyAuthDialog(c)
+	if s.proxy != before {
+		s.proxyInvalid, s.proxyStatus = false, status{}
+	}
+}
+
+// pick is on when set and off when not.
+func pick(set bool, on, off string) string {
+	if set {
+		return on
+	}
+	return off
+}
+
+// proxyAuthMore is the ellipsis of the sign-in's row: enter or change it, and remove a stored one.
+func (s *Screen) proxyAuthMore(c *ui.Context) {
+	t := c.Theme()
+	more, color := theme.ToolButton(c, theme.ToolState{})
+	label := s.fill(s.text.InstanceMore, "{name}", s.text.ProxyAuth)
+	more.Label(label).Tooltip(label)
+	more.Children(func() { ui.Icon(c, icons.Ellipsis).FontSize(theme.IconMedium(t)).TextColor(color) })
+	more.Menu(func(m *ui.Menu) {
+		if m.Item(pick(s.settings.ProxyAuthSet, s.text.ProxyAuthChange, s.text.ProxyAuthAdd)).Chosen() {
+			s.proxyForm, s.proxyStatus = true, status{}
+		}
+		if s.settings.ProxyAuthSet && m.Item(s.text.ProxyRemoveAuth).Chosen() {
+			s.proxyDrop, s.proxyStatus = true, status{}
+			s.saveProxy()
+		}
+	})
+}
+
+// proxyAuthDialog asks for the proxy's user name and password. Escape and Cancel forget what was typed.
+func (s *Screen) proxyAuthDialog(c *ui.Context) {
+	if !s.proxyForm {
+		return
+	}
+	t := c.Theme()
+	placeholder := pick(s.settings.ProxyAuthSet, s.text.ProxySet, s.text.ProxyOptional)
+	open := true
+	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
+		theme.Scrim(c, backdrop).Padding(theme.Px(t, tokens.Space4))
+		panel.Column().Width(theme.Px(t, tokens.Dialog)).Clip().Label(s.text.ProxyAuth)
+		theme.Sheet(c, panel, theme.Dialog)
+		submit := func(in ui.Element) {
+			if in.Submitted() {
+				s.saveProxy()
 			}
-			save := theme.Button{Style: style, Disabled: !dirty || s.proxySaving, Text: s.text.Save, Busy: s.proxySaving}.Draw(c)
-			if save.Clicked() {
+		}
+		ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space3)).Padding(theme.Px(t, tokens.Space6)).Children(func() {
+			ui.Text(c, s.text.ProxyAuth).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+				Wrap().Role(ui.RoleHeading).Level(2)
+			meta(c, s.text.ProxyAuthDialogHelp)
+			field(c, "proxy-user", &s.proxyUser, 0, false, func(in ui.Element) {
+				in.Label(s.text.ProxyUser).Placeholder(placeholder).Disabled(s.proxySaving).AutoFocus()
+				submit(in)
+			})
+			field(c, "proxy-pass", &s.proxyPass, 0, false, func(in ui.Element) {
+				in.Password().Label(s.text.ProxyPassword).Placeholder(placeholder).Disabled(s.proxySaving)
+				submit(in)
+			})
+			statusLine(c, s.proxyStatus)
+		})
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+			Padding(theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space6)).Background(theme.Surface(t)).Children(func() {
+			ui.Box(c).Grow(1)
+			if (theme.Button{Style: theme.Secondary, Text: s.text.Cancel}).Draw(c).Clicked() {
+				open = false
+			}
+			empty := s.proxyUser == "" && s.proxyPass == ""
+			if (theme.Button{Style: theme.Primary, Disabled: empty || s.proxySaving, Busy: s.proxySaving, Text: s.text.Save}).Draw(c).Clicked() {
 				s.saveProxy()
 			}
 		})
 	})
-	if after := [...]string{s.proxy, s.proxyUser, s.proxyPass}; after != before {
-		s.proxyInvalid, s.proxyStatus = s.proxyInvalid && after[0] == before[0], status{}
+	if !open {
+		s.proxyForm, s.proxyUser, s.proxyPass, s.proxyStatus = false, "", "", status{}
 	}
 }
 
@@ -2806,26 +2871,6 @@ func menuItem(t *ui.Theme, item ui.Element) ui.Element {
 		item.Background(theme.Chosen(t))
 	}
 	return item
-}
-
-// baseField is the list of RSSHub instances, one address per line. Enter starts a new line, so only Save saves.
-func (s *Screen) baseField(c *ui.Context) {
-	t := c.Theme()
-	before := s.base
-	area := ui.TextArea(c.Key("base"), &s.base).FillWidth().Lines(2, 6).Margin(below(t), 0, 0, 0).Font("monospace").
-		FontSize(theme.Px(t, tokens.TextCode.Size.En)).Label(s.text.RSSHub).Placeholder(s.text.RSSHubPlaceholder).Disabled(s.saving)
-	well(c, area, area.Focused(), s.invalid)
-	if s.invalid {
-		area.Error(s.baseStatus.text)
-	}
-	s.watch(area.Focused())
-	if s.focusBase {
-		area.Focus()
-		s.focusBase = false
-	}
-	if s.base != before {
-		s.invalid, s.baseStatus = false, status{}
-	}
 }
 
 func (s *Screen) everySelect(c *ui.Context) {

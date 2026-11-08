@@ -2,7 +2,8 @@ package settings
 
 import (
 	"context"
-	"slices"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +32,8 @@ func openHealth(t *testing.T, language string, health client.RSSHubHealth) (*Scr
 	tt := newTester(func(c *ui.Context) { s.View(c) }, 1000, 1200)
 	tt.Frame()
 	f.settle(tt)
+	s.instances = true
+	tt.Frame()
 	return s, f, tt
 }
 
@@ -50,26 +53,23 @@ func TestHealthShows(t *testing.T) {
 			t.Fatalf("%s: %d reads", language, f.healthReads)
 		}
 		for _, text := range []string{
-			s.text.Health, s.fill(s.text.HealthHelp, "{keep}", "50", "{days}", "7"),
-			"rsshub.example.net", "rsshub.backup.example", "localhost:1200", s.text.MainBadge,
-			"98% · 420 ms · " + s.fill(s.text.LastN, "{n}", "50"),
-			"66% · 1.8 s · " + s.fill(s.text.LastN, "{n}", "14"),
-			"0% · " + s.text.NoAnswer + " · " + s.fill(s.text.LastN, "{n}", "3"),
-			s.cooling(now.Add(3*time.Minute+20*time.Second).UnixMilli(), now),
+			"rsshub.example.net", "rsshub.backup.example", "localhost:1200", s.text.MainBadge, s.text.Standby, s.text.CoolingTag,
+			figures(s, 50, "98%", "420"), figures(s, 14, "66%", "1.8"),
+			s.fill(s.text.LastN, "{n}", "3") + " · " + s.text.NoAnswer + " · " + s.cooling(now.Add(3*time.Minute+20*time.Second).UnixMilli(), now),
 		} {
 			if !tt.HasText(text) {
 				t.Errorf("%s: no %q in %v", language, text, tt.Texts())
 			}
 		}
-		if tt.HasText(s.text.HealthEmpty) || tt.HasText(s.text.NoData) {
+		if tt.HasText(s.text.NoData) {
 			t.Errorf("%s: shows the empty state: %v", language, tt.Texts())
 		}
 	}
 	s, _, _ := openHealth(t, "en", healthData())
-	if got := s.cooling(now.Add(3*time.Minute+20*time.Second).UnixMilli(), now); got != "Cooling down, about 4 minutes to retry" {
+	if got := s.cooling(now.Add(3*time.Minute+20*time.Second).UnixMilli(), now); got != "about 4 minutes to retry" {
 		t.Errorf("cooling = %q", got)
 	}
-	if got := s.cooling(now.Add(time.Minute+time.Second).UnixMilli(), now); got != "Cooling down, about 2 minutes to retry" {
+	if got := s.cooling(now.Add(time.Minute+time.Second).UnixMilli(), now); got != "about 2 minutes to retry" {
 		t.Errorf("cooling just over a minute = %q", got)
 	}
 	if got := s.cooling(now.Add(30*time.Second).UnixMilli(), now); got != s.text.CoolingSoon {
@@ -80,15 +80,22 @@ func TestHealthShows(t *testing.T) {
 	}
 }
 
+// figures is the line of an instance with requests, its time in the unit of its value.
+func figures(s *Screen, requests int, rate, ms string) string {
+	unit := s.text.Milliseconds
+	if strings.Contains(ms, ".") {
+		unit = s.text.Seconds
+	}
+	return s.fill(s.text.LastN, "{n}", strconv.Itoa(requests)) + " · " + s.fill(s.text.HealthRate, "{rate}", rate) + " · " +
+		s.fill(s.text.HealthMedian, "{time}", s.fill(unit, "{n}", ms))
+}
+
 func TestHealthOneRowWithoutData(t *testing.T) {
 	health := healthData()
 	health.Instances[1] = client.InstanceHealth{URL: "https://rsshub.backup.example"}
 	s, _, tt := openHealth(t, "en", health)
-	if !tt.HasText(s.text.NoData) || !tt.HasText("98% · 420 ms · "+s.fill(s.text.LastN, "{n}", "50")) {
+	if !tt.HasText(s.text.NoData) || !tt.HasText(figures(s, 50, "98%", "420")) {
 		t.Errorf("texts %v", tt.Texts())
-	}
-	if tt.HasText(s.text.HealthEmpty) {
-		t.Errorf("shows the empty line although an instance has data")
 	}
 }
 
@@ -99,19 +106,15 @@ func TestHealthEmpty(t *testing.T) {
 	}
 	for _, language := range []string{"en", "zh-Hans"} {
 		s, _, tt := openHealth(t, language, empty)
-		if !tt.HasText(s.text.Health) || !tt.HasText(s.text.HealthEmpty) {
+		if !tt.HasText("rsshub.example.net") || !tt.HasText(s.text.NoData) {
 			t.Errorf("%s: texts %v", language, tt.Texts())
-		}
-		// The badge is matched as a whole text: the help above the field names the main instance too.
-		if tt.HasText("rsshub.example.net") || slices.Contains(tt.Texts(), s.text.MainBadge) {
-			t.Errorf("%s: shows an instance or the main badge with no data: %v", language, tt.Texts())
 		}
 	}
 }
 
 func TestHealthHiddenWithoutInstancesOrOnError(t *testing.T) {
 	s, f, tt := openHealth(t, "en", client.RSSHubHealth{Keep: 50, Days: 7, Instances: []client.InstanceHealth{}})
-	if tt.HasText(s.text.Health) || f.healthReads != 1 {
+	if tt.HasText(s.text.NoData) || f.healthReads != 1 {
 		t.Errorf("no instances: %d reads, %v", f.healthReads, tt.Texts())
 	}
 
@@ -123,9 +126,10 @@ func TestHealthHiddenWithoutInstancesOrOnError(t *testing.T) {
 	tt = newTester(func(c *ui.Context) { s.View(c) }, 1000, 1200)
 	tt.Frame()
 	f.settle(tt)
+	s.instances = true
 	tt.Frame()
 	f.settle(tt)
-	if tt.HasText(s.text.Health) || tt.HasText(s.text.Error) || f.healthReads != 1 {
+	if !tt.HasText("rsshub.example.net") || tt.HasText(s.text.NoData) || tt.HasText(s.text.Error) || f.healthReads != 1 {
 		t.Errorf("failed read: %d reads, %v", f.healthReads, tt.Texts())
 	}
 }
@@ -141,21 +145,21 @@ func TestHealthReadWhenOpenedAndAfterSave(t *testing.T) {
 	}
 
 	// Saving the instances reads the health of the new list; until it arrives the old rows are not shown.
-	edit(tt, func() { s.base = "https://rsshub.example.net\nhttps://rsshub.third.example" })
+	edit(tt, func() {})
 	f.health = client.RSSHubHealth{Keep: 50, Days: 7, Instances: []client.InstanceHealth{
 		{URL: "https://rsshub.example.net", Requests: 5, SuccessRate: ptr(1.0), MedianMs: ptr(int64(90))},
 		{URL: "https://rsshub.third.example"},
 	}}
-	press(t, tt, s.text.Save)
+	s.saveInstances([]string{"https://rsshub.example.net", "https://rsshub.third.example"}, false)
 	work := f.queue[0]
 	f.queue = f.queue[1:]
 	work()()
 	tt.Frame()
-	if tt.HasText("localhost:1200") || tt.HasText("98% · 420 ms · "+s.fill(s.text.LastN, "{n}", "50")) {
+	if tt.HasText("localhost:1200") || tt.HasText(figures(s, 50, "98%", "420")) {
 		t.Errorf("shows stale rows: %v", tt.Texts())
 	}
 	f.settle(tt)
-	if f.healthReads != 2 || !tt.HasText("100% · 90 ms · "+s.fill(s.text.LastN, "{n}", "5")) || !tt.HasText("rsshub.third.example") {
+	if f.healthReads != 2 || !tt.HasText(figures(s, 5, "100%", "90")) || !tt.HasText("rsshub.third.example") {
 		t.Errorf("after save: %d reads, %v", f.healthReads, tt.Texts())
 	}
 
@@ -166,7 +170,7 @@ func TestHealthReadWhenOpenedAndAfterSave(t *testing.T) {
 	s.OpenPage("fetching")
 	tt.Frame()
 	f.settle(tt)
-	if f.healthReads != 3 {
+	if s.instances || f.healthReads != 3 {
 		t.Errorf("reads after coming back: %d", f.healthReads)
 	}
 }
@@ -191,13 +195,14 @@ func TestHealthStaleResultDropped(t *testing.T) {
 }
 
 func TestHealthFormats(t *testing.T) {
+	s := New("en", (&fake{}).deps())
 	for rate, want := range map[float64]string{0: "0%", 0.004: "<1%", 0.01: "1%", 0.29: "29%", 0.6666: "66%", 0.995: "99%", 1: "100%"} {
 		if got := percent(rate); got != want {
 			t.Errorf("percent(%v) = %q, want %q", rate, got, want)
 		}
 	}
 	for ms, want := range map[int64]string{0: "0 ms", 420: "420 ms", 999: "999 ms", 1000: "1.0 s", 1800: "1.8 s", 25000: "25.0 s"} {
-		if got := latency(ms); got != want {
+		if got := s.latency(ms); got != want {
 			t.Errorf("latency(%d) = %q, want %q", ms, got, want)
 		}
 	}
