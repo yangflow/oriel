@@ -158,6 +158,7 @@ HTTP 约定和订阅、时间线、设置、图片代理、活动和存储的接
 - `defaultAiSummaryLimit`、`defaultAiChunkLimit`：上面两个的默认值，只读，界面用它们作占位和「恢复默认」。
 - `aiAutoDailyLimit`、`aiAutoFetchLimit`：自动处理每天最多发多少个请求、一次抓取最多给多少条新条目排自动任务，默认 200 和 10，返回的总是现在生效的值，见[「发送与费用」](ai.md#发送与费用)。`defaultAiAutoDailyLimit`、`defaultAiAutoFetchLimit` 是它们的默认值，只读。
 - `aiAutoCallsToday`：今天（服务端本地时间）自动处理已发出的请求数，只读。到了 `aiAutoDailyLimit` 就是已到上限。
+- `aiLastTest`：上次自检的结果，没有或已失效时为 `null`，只读，规则见[「调用」](ai.md)的自检。对象是 `{ "ok", "at", "durationMs", "error", "model", "modelFound", "contextTokens", "contextFits" }`，`at` 是 Unix 毫秒，`error` 是失败的错误码，成功时为空串。
 - `aiEndpointLocal`：`aiBaseUrl` 是否指向服务端所在的这台电脑，只读，规则见[「发送与费用」](ai.md#发送与费用)。
 - `promptSummary`、`promptTranslate`：全局 prompt。没改过时是内置的默认 prompt。
 - `defaultPromptSummary`、`defaultPromptTranslate`：内置的默认 prompt，只读，界面用它判断 prompt 改没改过、恢复默认。

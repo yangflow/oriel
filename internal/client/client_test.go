@@ -618,6 +618,8 @@ func TestAIAPI(t *testing.T) {
 		case "/api/entries/8/summary":
 			w.WriteHeader(http.StatusConflict)
 			w.Write([]byte(`{"error":"ai_not_configured"}`))
+		case "/api/ai/models":
+			w.Write([]byte(`{"models":[{"id":"m-1","contextTokens":4096},{"id":"m-2","contextTokens":null}]}`))
 		case "/api/ai/test":
 			w.Write([]byte(`{"reachable":true,"model":"m-1","modelFound":true,"contextTokens":4096,"contextFits":false}`))
 		case "/api/ai/selection":
@@ -650,6 +652,9 @@ func TestAIAPI(t *testing.T) {
 		got.ContextTokens == nil || *got.ContextTokens != 4096 || got.ContextFits == nil || *got.ContextFits {
 		t.Errorf("TestAI = %+v, %v", got, err)
 	}
+	if got, err := session.AIModels(ctx); err != nil || len(got) != 2 || got[0].ID != "m-1" || *got[0].ContextTokens != 4096 || got[1].ContextTokens != nil {
+		t.Errorf("AIModels = %+v, %v", got, err)
+	}
 	if text, model, err := session.Selection(ctx, "translate", "hello", "Greetings"); err != nil || text != "你好" || model != "m-1" {
 		t.Errorf("Selection = %q, %q, %v", text, model, err)
 	}
@@ -668,6 +673,7 @@ func TestAIAPI(t *testing.T) {
 		"POST /api/entries/7/translation ",
 		"POST /api/entries/8/summary ",
 		"POST /api/ai/test ",
+		"GET /api/ai/models ",
 		`POST /api/ai/selection {"task":"translate","text":"hello","title":"Greetings"}`,
 		`POST /api/ai/selection {"task":"explain","text":"too long","title":""}`,
 		`PATCH /api/settings {"aiApiKey":""}`,

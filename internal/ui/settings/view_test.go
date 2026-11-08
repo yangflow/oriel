@@ -78,9 +78,12 @@ type fake struct {
 	purged      int   // how many times the read entries were deleted
 	purgeErr    error
 
-	model string        // the model that answers a test
-	check client.AITest // what else the test finds; its Model is model
-	tests int
+	model     string        // the model that answers a test
+	check     client.AITest // what else the test finds; its Model is model
+	models    []client.AIModel
+	modelsErr error
+	listed    int // how many times the models were listed
+	tests     int
 
 	importReqs                      []client.ImportRequest // what starting an import sent
 	startAns, statusAns, confirmAns client.ImportStatus
@@ -276,8 +279,13 @@ func (f *fake) Restore(_ context.Context, backup io.Reader) (client.Restored, er
 func (f *fake) TestAI(context.Context) (client.AITest, error) {
 	f.tests++
 	found := f.check
-	found.Model = f.model
+	found.Model, found.OK, found.DurationMs = f.model, f.testErr == nil, 800
 	return found, f.testErr
+}
+
+func (f *fake) AIModels(context.Context) ([]client.AIModel, error) {
+	f.listed++
+	return f.models, f.modelsErr
 }
 
 func (f *fake) StartImport(_ context.Context, req client.ImportRequest) (client.ImportStatus, error) {
@@ -1272,7 +1280,7 @@ func TestTestAI(t *testing.T) {
 	}
 	press(t, tt, s.text.Test)
 	f.settle(tt)
-	if f.tests != 1 || !tt.HasText("Connected. small answered.") {
+	if passed := s.fill(s.text.LastPassed, "{seconds}", "0.8"); f.tests != 1 || !tt.HasText(passed) || !slices.Contains(tt.Announcements(), passed) {
 		t.Fatalf("tests %d, texts %v", f.tests, tt.Texts())
 	}
 	for code, want := range map[string]string{
@@ -1302,18 +1310,20 @@ func TestTestAI(t *testing.T) {
 func TestPresets(t *testing.T) {
 	s, f, tt := openAI(t, "en", true)
 	edit(tt, func() { s.aiKey = "sk-typed" })
+	press(t, tt, s.text.PresetCustom)
 	press(t, tt, "Ollama")
 	if s.aiBase != "http://127.0.0.1:11434/v1" || s.aiKey != "sk-typed" || s.aiModel != "small" || len(f.set) != 0 ||
-		s.preset() != 0 || !s.aiDirty() || !tt.HasText(s.text.TestFirst) {
+		s.preset() != 3 || !s.aiDirty() || !tt.HasText(s.text.TestFirst) {
 		t.Fatalf("base %q, key %q, model %q, set %v", s.aiBase, s.aiKey, s.aiModel, f.set)
 	}
+	press(t, tt, "Ollama")
 	press(t, tt, "LM Studio")
-	if s.aiBase != "http://127.0.0.1:1234/v1" || s.preset() != 1 || s.aiKey != "sk-typed" {
+	if s.aiBase != "http://127.0.0.1:1234/v1" || s.preset() != 4 || s.aiKey != "sk-typed" {
 		t.Fatalf("base %q, key %q", s.aiBase, s.aiKey)
 	}
 	// An address typed by hand that is a preset's counts as it, trailing slash or not.
 	edit(tt, func() { s.aiBase = " http://127.0.0.1:11434/v1/ " })
-	if s.preset() != 0 {
+	if s.preset() != 3 {
 		t.Fatalf("preset %d for %q", s.preset(), s.aiBase)
 	}
 	edit(tt, func() { s.aiBase = "https://api.example.com/v1" })
@@ -1321,7 +1331,15 @@ func TestPresets(t *testing.T) {
 		t.Fatalf("preset %d for %q", s.preset(), s.aiBase)
 	}
 
+	// The hosted services fill their addresses too.
+	press(t, tt, s.text.PresetCustom)
+	press(t, tt, "OpenAI")
+	if s.aiBase != "https://api.openai.com/v1" || s.preset() != 0 {
+		t.Fatalf("base %q", s.aiBase)
+	}
+
 	// Saved, the preset sends the address and the key typed, and nothing else.
+	press(t, tt, "OpenAI")
 	press(t, tt, "Ollama")
 	press(t, tt, s.text.Save)
 	f.settle(tt)
@@ -1334,6 +1352,7 @@ func TestPresets(t *testing.T) {
 // TestPresetKeepsSavedKey is a preset picked with no key typed: the key saved is not part of the patch.
 func TestPresetKeepsSavedKey(t *testing.T) {
 	s, f, tt := openAI(t, "zh-Hans", true)
+	press(t, tt, s.text.PresetCustom)
 	press(t, tt, "LM Studio")
 	press(t, tt, s.text.Save)
 	f.settle(tt)
@@ -1414,42 +1433,133 @@ func TestDestinationAndCap(t *testing.T) {
 	}
 }
 
-// TestChecks lists what a test found under its answer: the model is listed, and the context fits or is too small.
+// TestChecks lists what a test found on the model's row: the model is listed, and the context fits or is too small.
 func TestChecks(t *testing.T) {
 	s, f, tt := openAI(t, "en", true)
 	yes, no, n := true, false, 128000
 	f.check = client.AITest{ModelFound: &yes, ContextTokens: &n, ContextFits: &yes}
 	press(t, tt, s.text.Test)
 	f.settle(tt)
-	fits := s.fill(s.text.CheckFits, "{n}", "128000")
-	if !tt.HasText("Connected. small answered.") || !tt.HasText(s.text.CheckListed) || !tt.HasText(fits) ||
-		len(s.aiChecks) != 2 || s.aiChecks[1].warn {
-		t.Fatalf("checks %+v, texts %v", s.aiChecks, tt.Texts())
+	both := s.text.CheckListed + " · " + s.fill(s.text.CheckFits, "{n}", "128K")
+	if !tt.HasText(both) {
+		t.Fatalf("texts %v", tt.Texts())
 	}
 
 	n = 4096
 	f.check = client.AITest{ModelFound: &yes, ContextTokens: &n, ContextFits: &no}
 	press(t, tt, s.text.Test)
 	f.settle(tt)
-	small := s.fill(s.text.CheckSmall, "{n}", "4096")
-	if !tt.HasText("Connected. small answered.") || !tt.HasText(small) || !s.aiChecks[1].warn || tt.HasText(fits) {
-		t.Fatalf("checks %+v, texts %v", s.aiChecks, tt.Texts())
+	if !tt.HasText(s.text.CheckListed) || !tt.HasText(s.fill(s.text.CheckSmall, "{n}", "4096")) || tt.HasText(both) {
+		t.Fatalf("texts %v", tt.Texts())
 	}
 
-	// What the endpoint did not tell is left out, and a change clears the lines.
+	// What the endpoint did not tell is left out, and a change hides the notes.
 	f.check = client.AITest{}
 	press(t, tt, s.text.Test)
 	f.settle(tt)
-	if len(s.aiChecks) != 0 || tt.HasText(s.text.CheckListed) {
-		t.Fatalf("checks %+v", s.aiChecks)
+	if tt.HasText(s.text.CheckListed) {
+		t.Fatalf("texts %v", tt.Texts())
 	}
 	f.check = client.AITest{ModelFound: &yes}
 	press(t, tt, s.text.Test)
 	f.settle(tt)
+	edit(tt, func() { s.aiModel += "-2" })
+	if tt.HasText(s.text.CheckListed) {
+		t.Fatalf("texts %v after a change", tt.Texts())
+	}
+}
+
+// TestLastTestStays shows the result the server remembers when the page opens, a failure with its reason, and nothing
+// once the server has dropped it.
+func TestLastTestStays(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	tt.SetSize(1000, 1800)
+	yes, n := true, 128000
+	f.settings.AIBaseURL, f.settings.AIModel = "https://api.example.com/v1", "small"
+	f.settings.AILastTest = &client.AITest{OK: true, DurationMs: 1250, ModelFound: &yes, ContextTokens: &n, ContextFits: &yes}
+	s.OpenAI()
+	f.settle(tt)
+	if !tt.HasText(s.fill(s.text.LastPassed, "{seconds}", "1.2")) && !tt.HasText(s.fill(s.text.LastPassed, "{seconds}", "1.3")) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+	if !tt.HasText(s.text.CheckListed + " · " + s.fill(s.text.CheckFits, "{n}", "128K")) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+
+	f.settings.AILastTest = &client.AITest{Error: "ai_unauthorized"}
+	s.Open()
+	f.settle(tt)
+	if !tt.HasText(s.fill(s.text.LastFailed, "{reason}", s.text.AIUnauthorized)) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+
+	f.settings.AILastTest = nil
+	s.Open()
+	f.settle(tt)
+	if tt.HasText(s.fill(s.text.LastFailed, "{reason}", s.text.AIUnauthorized)) {
+		t.Fatalf("texts %v", tt.Texts())
+	}
+}
+
+// TestModelMenu lists the endpoint's models, keeps one it does not list, and turns into a field on request, while the
+// address or key typed is not the one saved, and when there is no list.
+func TestModelMenu(t *testing.T) {
+	s, f, tt := setup(t, "en", true)
+	tt.SetSize(1000, 1800)
+	f.settings.AIBaseURL, f.settings.AIModel, f.settings.AIAPIKeySet = "https://api.example.com/v1", "small", true
+	f.models = []client.AIModel{{ID: "big"}, {ID: "tiny"}}
+	s.OpenAI()
+	f.settle(tt)
+	if f.listed != 1 || len(s.aiModels) != 2 || !tt.HasText("small") {
+		t.Fatalf("listed %d, models %v, texts %v", f.listed, s.aiModels, tt.Texts())
+	}
+	press(t, tt, "small")
+	press(t, tt, "tiny")
+	if s.aiModel != "tiny" || !s.aiDirty() || len(f.set) != 0 {
+		t.Fatalf("model %q, set %v", s.aiModel, f.set)
+	}
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if len(f.set) != 1 || *f.set[0].AIModel != "tiny" || f.listed != 1 {
+		t.Fatalf("set %+v, listed %d", f.set, f.listed)
+	}
+
+	// A new key, or an address typed, has no list yet: the field, and a new list once saved.
+	edit(tt, func() { s.aiKey = "sk-new" })
 	clickModel(tt, s)
-	tt.Type("-2")
-	if len(s.aiChecks) != 0 || tt.HasText(s.text.CheckListed) {
-		t.Fatalf("checks %+v after a change", s.aiChecks)
+	tt.Type("x")
+	if !strings.HasSuffix(s.aiModel, "x") {
+		t.Fatalf("model %q is not typed", s.aiModel)
+	}
+	press(t, tt, s.text.Save)
+	f.settle(tt)
+	if f.listed != 2 {
+		t.Fatalf("listed %d after a new key", f.listed)
+	}
+
+	// The last item of the menu is the field.
+	press(t, tt, s.aiModel)
+	press(t, tt, s.text.ModelManual)
+	if !s.aiManual {
+		t.Fatal("still a menu")
+	}
+	clickModel(tt, s)
+	tt.Type("y")
+	if !strings.HasSuffix(s.aiModel, "y") {
+		t.Fatalf("model %q is not typed", s.aiModel)
+	}
+
+	// No list, for whatever reason, leaves the field.
+	f.modelsErr, f.models = &client.APIError{Status: 502, Code: "ai_unreachable"}, nil
+	s.Open()
+	f.settle(tt)
+	if len(s.aiModels) != 0 || tt.HasText(s.text.AIUnreachable) {
+		t.Fatalf("models %v, texts %v", s.aiModels, tt.Texts())
+	}
+	clickModel(tt, s)
+	tt.Type("z")
+	if !strings.HasSuffix(s.aiModel, "z") {
+		t.Fatalf("model %q is not typed", s.aiModel)
 	}
 }
 

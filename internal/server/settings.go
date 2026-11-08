@@ -43,14 +43,15 @@ type settingsJSON struct {
 	DefaultAIChunkLimit   int `json:"defaultAiChunkLimit"`
 	// The caps on automatic AI work (requests a day, new entries per fetch), their defaults, the requests sent today
 	// and whether the endpoint is on this computer.
-	AIAutoDailyLimit        int    `json:"aiAutoDailyLimit"`
-	AIAutoFetchLimit        int    `json:"aiAutoFetchLimit"`
-	DefaultAIAutoDailyLimit int    `json:"defaultAiAutoDailyLimit"`
-	DefaultAIAutoFetchLimit int    `json:"defaultAiAutoFetchLimit"`
-	AIAutoCallsToday        int    `json:"aiAutoCallsToday"`
-	AIEndpointLocal         bool   `json:"aiEndpointLocal"`
-	PromptSummary           string `json:"promptSummary"`
-	PromptTranslate         string `json:"promptTranslate"`
+	AIAutoDailyLimit        int          `json:"aiAutoDailyLimit"`
+	AIAutoFetchLimit        int          `json:"aiAutoFetchLimit"`
+	DefaultAIAutoDailyLimit int          `json:"defaultAiAutoDailyLimit"`
+	DefaultAIAutoFetchLimit int          `json:"defaultAiAutoFetchLimit"`
+	AIAutoCallsToday        int          `json:"aiAutoCallsToday"`
+	AILastTest              *ai.LastTest `json:"aiLastTest"`
+	AIEndpointLocal         bool         `json:"aiEndpointLocal"`
+	PromptSummary           string       `json:"promptSummary"`
+	PromptTranslate         string       `json:"promptTranslate"`
 	// The built-in prompts, so a client can tell a changed prompt and restore it.
 	DefaultPromptSummary   string `json:"defaultPromptSummary"`
 	DefaultPromptTranslate string `json:"defaultPromptTranslate"`
@@ -142,7 +143,13 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	lastTest, err := ai.LoadLastTest(r.Context(), s.store, cfg)
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	reply(w, http.StatusOK, settingsJSON{
+		AILastTest:       lastTest,
 		AIAutoDailyLimit: cfg.AutoDailyLimit, AIAutoFetchLimit: cfg.AutoFetchLimit,
 		DefaultAIAutoDailyLimit: ai.DefaultAutoDaily, DefaultAIAutoFetchLimit: ai.DefaultAutoFetch,
 		AIAutoCallsToday: calls, AIEndpointLocal: ai.IsLocalEndpoint(cfg.BaseURL),

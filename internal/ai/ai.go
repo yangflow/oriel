@@ -28,6 +28,7 @@ import (
 const (
 	BaseURLSetting         = "ai_base_url"
 	ModelSetting           = "ai_model"
+	LastTestSetting        = "ai_last_test"
 	APIKeySetting          = "ai_api_key"
 	LanguageSetting        = "ai_language"
 	PromptSummarySetting   = "prompt_summary"
@@ -76,6 +77,7 @@ const (
 const (
 	translationLimit = 60000
 	maxResponse      = 1 << 20
+	maxModelList     = 8 << 20 // an aggregator's list of models is long
 )
 
 // Languages maps the target languages to the names used in prompts.
