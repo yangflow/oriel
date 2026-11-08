@@ -38,7 +38,7 @@ type copy struct {
 	ExtractingNote, OpenOriginal, Extracting, Failed, FailedHint, Error, ErrorHint, Retry, Loading, FullText, OpenFailed string
 	Shortcut                                                                                                             string
 	Summarize, HideSummary, Translate, ShowOriginal, Summary, By, Summarizing, Cancel, SummaryFailed                     string
-	Translating, Translated, Translation, Original, ShownText, SummaryReady, TranslationReady                            string
+	Translating, Explaining, Translated, Translation, Original, ShownText, SummaryReady, TranslationReady                string
 	AIUnreachable, AITimeout, AIUnauthorized, AIRateLimited, AICapReached, AIUpstream, AIEmpty, AIOff, AIOffTitle        string
 	OpenSettings, Close, ReadingTime, Resumed, TextSwitch, ShowFull, ShowFeed, RetryFailed                               string
 	TranslateSelection, ExplainSelection, CopyAnswer, Copied, SelectLess, SelectLessHint                                 string
