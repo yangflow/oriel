@@ -10,6 +10,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/icons"
 	"github.com/yangflow/oriel/internal/ui/subscriptions"
 	"github.com/yangflow/oriel/internal/ui/theme"
+	"github.com/yangflow/oriel/internal/ui/theme/tokens"
 )
 
 // The measures of the command palette, in the units of the mockup (the timeline page of the screens canvas): px scales them.
@@ -282,8 +283,8 @@ func (s *Screen) palette(c *ui.Context) {
 			Label(s.text.PaletteTitle)
 		theme.Sheet(c, panel, theme.Dialog)
 		var in ui.Element
-		field := ui.Row(c).Margin(theme.Px(t, 8), theme.Px(t, 8), theme.Px(t, 4), theme.Px(t, 8)).Height(theme.Px(t, paletteRow)).AlignItems(ui.Center).
-			Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 10)).Radius(theme.Px(t, 8)).Background(theme.RaisedFill(t)).Shrink(0)
+		field := ui.Row(c).Margin(theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space2)).Height(theme.Px(t, paletteRow)).AlignItems(ui.Center).
+			Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, fieldInset)).Radius(theme.Px(t, tokens.RadiusControl)).Background(theme.RaisedFill(t)).Shrink(0)
 		field.Children(func() {
 			ui.Icon(c, icons.Search).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
 			in = ui.TextInputBase(c, &p.query).Grow(1).MinWidth(0).FocusRing(false).Label(s.text.PaletteGoTo).
@@ -316,7 +317,7 @@ func (s *Screen) palette(c *ui.Context) {
 		}
 
 		if n == 0 {
-			ui.Row(c).FillWidth().Justify(ui.Center).Padding(theme.Px(t, 20), theme.Px(t, 8), theme.Px(t, 24), theme.Px(t, 8)).Role(ui.RoleStatus).
+			ui.Row(c).FillWidth().Justify(ui.Center).Padding(theme.Px(t, paletteEmptyTop), theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space6), theme.Px(t, tokens.Space2)).Role(ui.RoleStatus).
 				Children(func() {
 					ui.Text(c, s.text.PaletteNone).TextColor(t.TextMuted).TextAlign(ui.Center)
 				})
@@ -340,7 +341,7 @@ func (s *Screen) palette(c *ui.Context) {
 				run = shown[line.item].run
 			}
 		})
-		list.Height(min(theme.Px(t, listHeight), theme.Px(t, paletteList), height*paletteShare)).Padding(0, theme.Px(t, 8), theme.Px(t, paletteBottom), theme.Px(t, 8)).
+		list.Height(min(theme.Px(t, listHeight), theme.Px(t, paletteList), height*paletteShare)).Padding(0, theme.Px(t, tokens.Space2), theme.Px(t, paletteBottom), theme.Px(t, tokens.Space2)).
 			Label(s.text.PaletteGoTo)
 	})
 
@@ -354,8 +355,8 @@ func (s *Screen) palette(c *ui.Context) {
 // paletteHeader is the muted header over the rows of a group.
 func (s *Screen) paletteHeader(c *ui.Context, group int) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().Height(theme.Px(t, paletteHead)).AlignItems(ui.End).Padding(0, theme.Px(t, 8), theme.Px(t, 4), theme.Px(t, 8)).Children(func() {
-		ui.Text(c, strings.ToUpper(s.groupName(group))).FontSize(theme.Px(t, 11)).FontWeight(500).TextColor(t.TextMuted).
+	ui.Row(c).FillWidth().Height(theme.Px(t, paletteHead)).AlignItems(ui.End).Padding(0, theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space2)).Children(func() {
+		ui.Text(c, strings.ToUpper(s.groupName(group))).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).TextColor(t.TextMuted).
 			Role(ui.RoleHeading).Level(3)
 	})
 }
@@ -364,8 +365,8 @@ func (s *Screen) paletteHeader(c *ui.Context, group int) {
 // unread count or the keys that do the same.
 func (s *Screen) paletteRow(c *ui.Context, it paletteItem, highlighted, ranked bool) ui.Element {
 	t := c.Theme()
-	row := ui.Row(c).FillWidth().Height(theme.Px(t, paletteRow)).AlignItems(ui.Center).Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 8)).
-		Radius(theme.Px(t, 6)).Role(ui.RoleListItem).Label(s.paletteLabel(it)).KeepFocus()
+	row := ui.Row(c).FillWidth().Height(theme.Px(t, paletteRow)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space2)).
+		Radius(theme.Px(t, tokens.RadiusSm)).Role(ui.RoleListItem).Label(s.paletteLabel(it)).KeepFocus()
 	switch {
 	case highlighted:
 		row.Background(theme.Chosen(t))
@@ -378,19 +379,19 @@ func (s *Screen) paletteRow(c *ui.Context, it paletteItem, highlighted, ranked b
 		} else {
 			s.glyph(c, it.name, it.site, 16)
 		}
-		ui.Text(c, it.name).Grow(1).MinWidth(0).SingleLine().Ellipsis("…").FontSize(theme.Px(t, 13))
+		ui.Text(c, it.name).Grow(1).MinWidth(0).SingleLine().Ellipsis("…").FontSize(theme.Px(t, tokens.TextBody.Size.En))
 		if ranked {
-			ui.Text(c, s.groupName(it.group)).FontSize(theme.Px(t, 11)).TextColor(t.TextMuted).NoWrap().Shrink(0)
+			ui.Text(c, s.groupName(it.group)).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).TextColor(t.TextMuted).NoWrap().Shrink(0)
 		}
 		if it.count > 0 {
-			ui.Text(c, countText(it.count)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
+			ui.Text(c, countText(it.count)).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).FontFeatures("tnum").
 				TextColor(t.TextMuted).NoWrap().Shrink(0)
 		}
 		if len(it.keys) > 0 {
-			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 4)).Shrink(0).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).Shrink(0).Children(func() {
 				for _, k := range it.keys {
-					ui.Box(c).MinWidth(theme.Px(t, 22)).Height(theme.Px(t, 22)).PaddingX(theme.Px(t, 6)).Center().Radius(6).
-						Background(theme.Track(t)).Children(func() { ui.Text(c, k).FontSize(theme.Px(t, 11)).FontWeight(500).NoWrap() })
+					ui.Box(c).MinWidth(theme.Px(t, tokens.IconL)).PaddingX(theme.Px(t, tokens.Space1_5)).PaddingY(theme.Px(t, tokens.Space0_5)).Center().Radius(theme.Px(t, tokens.RadiusXS)).
+						Background(theme.Track(t)).Children(func() { ui.Text(c, k).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).NoWrap() })
 				}
 			})
 		}

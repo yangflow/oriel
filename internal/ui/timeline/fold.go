@@ -105,7 +105,7 @@ func (s *Screen) foldRow(c *ui.Context, g foldGroup) {
 	text := strings.ReplaceAll(s.format(s.text.FoldMore, n), "{name}", g.name)
 	label := strings.ReplaceAll(s.format(s.text.FoldLabel, n), "{name}", g.name)
 	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.RowCompact)).Justify(ui.Center).AlignItems(ui.Center).
-		Padding(0, theme.Px(t, tokens.Space4), 0, theme.Px(t, 28)).Children(func() {
+		Padding(0, theme.Px(t, tokens.Space4), 0, theme.Px(t, textInset)).Children(func() {
 		b := theme.Link{Key: "fold" + strconv.FormatInt(g.source, 10) + "-" + strconv.Itoa(g.day), Text: text,
 			Label: label, Icon: icons.ChevronDown, IconAfter: true, Muted: true}.Draw(c)
 		b.MinWidth(0)

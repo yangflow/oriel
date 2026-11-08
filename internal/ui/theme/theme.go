@@ -441,3 +441,9 @@ func IconMedium(t *ui.Theme) float32 { return Px(t, iconMedium) }
 
 // IconLarge is the icon size of states, such as the tile of an empty state, for t.
 func IconLarge(t *ui.Theme) float32 { return Px(t, iconLarge) }
+
+// Badge is the fill of a badge or overlay on a picture, the same in both schemes because it sits on the picture.
+func Badge(t *ui.Theme) ui.Color { return tokens.SchemeLight.Badge }
+
+// OnInverse is the text on a Badge.
+func OnInverse(t *ui.Theme) ui.Color { return tokens.SchemeLight.OnInverse }

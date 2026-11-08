@@ -2983,14 +2983,14 @@ func (s *Screen) keySheet(c *ui.Context) {
 		{s.text.KeyToggleSidebar, [][]string{{cmd, "\\"}}}, {s.text.KeyKeys, one("?")}}
 	ui.DialogBase(c, &s.keys, func(backdrop, panel ui.Element) {
 		theme.Scrim(c, backdrop).Padding(t.Space(4))
-		panel.Column().Width(min(theme.Px(t, 560), width-t.Space(8))).MaxHeight(height - t.Space(8)).
+		panel.Column().Width(min(theme.Px(t, tokens.DialogWide), width-t.Space(8))).MaxHeight(height - t.Space(8)).
 			Label(s.text.KeysTitle)
 		theme.Sheet(c, panel, theme.Dialog)
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Padding(t.Space(4), t.Space(4), t.Space(2), t.Space(5)).
 			Children(func() {
-				ui.Text(c, s.text.KeysTitle).Grow(1).FontSize(theme.Px(t, 15)).FontWeight(600).Role(ui.RoleHeading).
+				ui.Text(c, s.text.KeysTitle).Grow(1).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(600).Role(ui.RoleHeading).
 					Level(2)
-				x := ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(t.Space(1.5)).Label(s.text.Close).
+				x := ui.ButtonBase(c).Size(theme.Px(t, tokens.Row), theme.Px(t, tokens.Row)).Radius(t.Space(1.5)).Label(s.text.Close).
 					Tooltip(s.text.Close)
 				color := t.TextMuted
 				if x.Hovered() {
@@ -3003,7 +3003,7 @@ func (s *Screen) keySheet(c *ui.Context) {
 				}
 			})
 		ui.Scroll(c).FillWidth().Shrink(1).MinHeight(0).Children(func() {
-			cols := ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, 24)).Padding(theme.Px(t, 4), t.Space(5), t.Space(5))
+			cols := ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space6)).Padding(theme.Px(t, tokens.Space1), t.Space(5), t.Space(5))
 			if width < 760 {
 				cols.Column().Gap(0)
 			}
@@ -3022,20 +3022,20 @@ func (s *Screen) keySheet(c *ui.Context) {
 
 func (s *Screen) keyGroup(c *ui.Context, name string, rows []key) {
 	t := c.Theme()
-	ui.Text(c, strings.ToUpper(name)).FontSize(theme.Px(t, 11)).FontWeight(600).TextColor(t.TextMuted).
-		Margin(theme.Px(t, 12), 0, theme.Px(t, 4), 0).Role(ui.RoleHeading).Level(3)
+	ui.Text(c, strings.ToUpper(name)).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(600).TextColor(t.TextMuted).
+		Margin(theme.Px(t, tokens.Space3), 0, theme.Px(t, tokens.Space1), 0).Role(ui.RoleHeading).Level(3)
 	for _, row := range rows {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).PaddingY(theme.Px(t, 5)).Children(func() {
-			ui.Text(c, row.name).Grow(1).MinWidth(0).FontSize(theme.Px(t, 12))
-			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 4)).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(t.Space(2)).Height(theme.Px(t, tokens.RowDense)).Children(func() {
+			ui.Text(c, row.name).Grow(1).MinWidth(0).FontSize(theme.Px(t, tokens.TextMeta.Size.En))
+			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).Children(func() {
 				for i, keys := range row.keys {
 					if i > 0 {
-						ui.Text(c, s.text.Or).FontSize(theme.Px(t, 11)).TextColor(t.TextMuted)
+						ui.Text(c, s.text.Or).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).TextColor(t.TextMuted)
 					}
 					for _, k := range keys {
-						ui.Box(c).MinWidth(theme.Px(t, 22)).Height(theme.Px(t, 22)).PaddingX(theme.Px(t, 6)).Center().Radius(6).
+						ui.Box(c).MinWidth(theme.Px(t, tokens.IconL)).PaddingX(theme.Px(t, tokens.Space1_5)).PaddingY(theme.Px(t, tokens.Space0_5)).Center().Radius(theme.Px(t, tokens.RadiusXS)).
 							Background(theme.Track(t)).Border(0.5, theme.LineStrong(t)).Children(func() {
-							ui.Text(c, k).FontSize(theme.Px(t, 11)).NoWrap()
+							ui.Text(c, k).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).NoWrap()
 						})
 					}
 				}
@@ -3080,7 +3080,7 @@ func (s *Screen) panes(c *ui.Context, now time.Time, open bool, column float32, 
 		s.toolbar(c, true, hidden)
 		s.pill(c)
 	})
-	ui.Box(c).Width(1).Shrink(0).Background(t.Border)
+	ui.Box(c).Width(tokens.Hairline).Shrink(0).Background(t.Border)
 	if s.reading == 0 {
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 			s.empty(c, icons.MessagesSquare, s.text.PanePlaceholder, "", nil)
@@ -3105,16 +3105,16 @@ func mainColumn(t *ui.Theme, width float32, hidden, compact bool) float32 {
 // sideWidth is the width of the sidebar, in units of the main theme.
 func sideWidth(t *ui.Theme, compact bool) float32 {
 	if compact {
-		return theme.Px(t, 184)
+		return theme.Px(t, tokens.PaneWidthNarrow)
 	}
-	return theme.Px(t, 216)
+	return theme.Px(t, tokens.PaneWidth)
 }
 
 // sidebar is the ink pane. It is drawn with the pane's own theme, set before its elements are created and put back
 // after, so every role in it (text, hover and chosen fills, the accent) is the pane's.
 func (s *Screen) sidebar(c *ui.Context, compact bool) {
 	main := c.Theme()
-	pane := ui.Column(c).Width(sideWidth(main, compact)).Margin(8, 0, 8, 8)
+	pane := ui.Column(c).Width(sideWidth(main, compact)).Margin(tokens.Space2, 0, tokens.Space2, tokens.Space2)
 	theme.Pane(c, pane)
 	// The focus is moving to the sidebar or to an entry in this frame, which FocusWithin does not show yet. Focus that
 	// a click put on an item does not count: the pointer chose, and the keys of the entries still act on the list.
@@ -3125,19 +3125,19 @@ func (s *Screen) sidebar(c *ui.Context, compact bool) {
 		t := c.Theme()
 		// The top 40 are the window buttons' at the left and the button that hides the pane at the right, centered
 		// on the toolbar row's middle line (the pane floats 8 from the top); the rest of it drags the window.
-		ui.Row(c).FillWidth().Height(40).AlignItems(ui.Start).Justify(ui.End).
-			Padding(theme.Bar/2-8-theme.Px(t, 32)/2, theme.Px(t, paneLine-32/2), 0, 0).DragWindow().Children(func() { s.sidebarButton(c, false) })
+		ui.Row(c).FillWidth().Height(paneFoot).AlignItems(ui.Start).Justify(ui.End).
+			Padding(theme.Bar/2-8-theme.Px(t, tokens.Space8)/2, theme.Px(t, paneLine-32/2), 0, 0).DragWindow().Children(func() { s.sidebarButton(c, false) })
 		side := s.sidebarList()
 		list, failing := side.list, side.failing
 		s.tabs(c, s.sideFocus && !side.onSource)
 		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-			ui.Column(c).FillWidth().Padding(theme.Px(t, 4), theme.Px(t, 8), theme.Px(t, 6)).Label(s.text.Sources).Children(func() {
+			ui.Column(c).FillWidth().Padding(theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space1_5)).Label(s.text.Sources).Children(func() {
 				s.section(c, failing)
 				s.sourceTools(c)
 				if len(list) == 0 && strings.TrimSpace(s.sideQuery) != "" {
-					ui.Box(c).FillWidth().Padding(theme.Px(t, 6), theme.Px(t, 10)).Role(ui.RoleStatus).Label(s.text.NoMatchingSources).
+					ui.Box(c).FillWidth().Padding(theme.Px(t, tokens.Space1_5), theme.Px(t, tokens.Space2)).Role(ui.RoleStatus).Label(s.text.NoMatchingSources).
 						Children(func() {
-							ui.Text(c, s.text.NoMatchingSources).FontSize(theme.Px(t, 13)).TextColor(t.TextMuted)
+							ui.Text(c, s.text.NoMatchingSources).FontSize(theme.Px(t, tokens.TextBody.Size.En)).TextColor(t.TextMuted)
 						})
 				}
 				ui.Column(c).FillWidth().FocusGroup(ui.Vertical).Children(func() {
@@ -3166,12 +3166,12 @@ func (s *Screen) tabs(c *ui.Context, focus bool) {
 	t := c.Theme()
 	before := s.tab
 	seg := ui.SegmentedBase(c, &s.tab, len(kinds))
-	seg.Track.Column().FocusGroup(ui.Vertical).FillWidth().Gap(theme.Px(t, 1)).Padding(0, theme.Px(t, 8), theme.Px(t, 8)).Label(s.text.Kinds).
+	seg.Track.Column().FocusGroup(ui.Vertical).FillWidth().Gap(theme.Px(t, tokens.Hairline)).Padding(0, theme.Px(t, tokens.Space2), theme.Px(t, tokens.Space2)).Label(s.text.Kinds).
 		Children(func() {
 			for i, kind := range kinds {
 				name := s.kindName(kind)
 				on := i == s.tab
-				tab := seg.Segment(i).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, 10)).PaddingX(theme.Px(t, 10)).
+				tab := seg.Segment(i).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space2)).
 					Radius(theme.Px(t, tokens.RadiusControl)).Label(name)
 				icon, count := t.TextMuted, t.TextMuted
 				// The kind is selected while it is the timeline; while a folder or a subscription of it is, it holds
@@ -3199,7 +3199,7 @@ func (s *Screen) tabs(c *ui.Context, focus bool) {
 					if on {
 						// The marker of design AMarker, at the pane's edge.
 						ui.Box(c).Attach(ui.AnchorLeft, ui.AnchorLeft).Left(-theme.Px(t, paneEdge)).
-							Size(theme.Px(t, 3), theme.Px(t, 18)).Radius(theme.Pill(theme.Px(t, 3))).Background(theme.Marker(t))
+							Size(theme.Px(t, tokens.MarkerW), theme.Px(t, tokens.MarkerH)).Radius(theme.Pill(theme.Px(t, tokens.MarkerW))).Background(theme.Marker(t))
 					}
 					ui.Icon(c, kindIcon(kind)).FontSize(theme.IconMedium(t)).TextColor(icon)
 					label := ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().TextColor(theme.Text2(t))
@@ -3245,14 +3245,14 @@ func (s *Screen) section(c *ui.Context, failing int) {
 	if s.failingOnly {
 		name = s.text.FailingTitle
 	}
-	size, tracking := theme.Px(t, 11), theme.Px(t, 11)*0.04
+	size, tracking := theme.Px(t, tokens.TextCaption.Size.En), theme.Px(t, tokens.TextCaption.Size.En)*tokens.TextCaption.Tracking.En
 	if theme.Han(name) {
-		size, tracking = theme.Px(t, 12), theme.Px(t, 12)*0.02
+		size, tracking = theme.Px(t, tokens.Space3), theme.Px(t, tokens.Space3)*0.02
 	}
 	// The label follows the icons of the rows (10 in). The button is centered on the pane's trailing line, so its
 	// 22 square sits paneLineInset(22) in from the column's edge.
-	ui.Row(c).FillWidth().Height(theme.Px(t, 22)).AlignItems(ui.Center).Margin(theme.Px(t, 14), 0, theme.Px(t, 4), 0).
-		Padding(0, paneLineInset(t, 22), 0, theme.Px(t, 10)).
+	ui.Row(c).FillWidth().Height(theme.Px(t, paneHit)).AlignItems(ui.Center).Margin(theme.Px(t, paneHeadTop), 0, theme.Px(t, tokens.Space1), 0).
+		Padding(0, paneLineInset(t, paneHit), 0, theme.Px(t, tokens.Space2)).
 		Children(func() {
 			ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(size).FontWeight(500).
 				LetterSpacing(tracking).TextColor(t.TextMuted)
@@ -3284,7 +3284,7 @@ func (s *Screen) sectionButton(c *ui.Context, icon *ui.SVG, label string, click 
 		fill = t.SurfaceHover
 		color = t.Text
 	}
-	mx, my := theme.Hit{W: theme.Px(t, 22), H: theme.Px(t, 22), Radius: theme.Px(t, tokens.RadiusSm), Fill: fill}.Apply(c, b, func() {
+	mx, my := theme.Hit{W: theme.Px(t, paneHit), H: theme.Px(t, paneHit), Radius: theme.Px(t, tokens.RadiusSm), Fill: fill}.Apply(c, b, func() {
 		ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
 	})
 	b.Margin(my, mx, my, mx)
@@ -3410,11 +3410,53 @@ func (s *Screen) sidebarList() *sideCache {
 	return c
 }
 
+// Geometry the canvas leaves to the screen, in DIPs at the default text size. Shared sizes are tokens; these belong
+// only to the timeline.
+const (
+	textInset          = 28  // where a row's text starts, past the unread dot
+	rowMark            = 2.5 // the chosen row's mark
+	dotInset           = 14  // where the unread dot starts
+	tightGap           = 3   // a mark against its number
+	chipH              = 20  // a chip and its clear button
+	paneHit            = 22  // a square button in a pane header
+	paneHeadTop        = 14  // above a pane section
+	paneFoot           = 40  // the pane's server line
+	fieldInset         = 10  // inside a search field, before its icon
+	scopeMin           = 40  // the narrowest the scope name gets
+	noteX              = 14  // a search note's side padding
+	noteY              = 7   // and its top and bottom
+	bannerInset        = 20  // a banner from the list's edge; the viewer's arrows from the window's
+	paletteEmptyTop    = 20  // above the palette's empty line
+	skeletonGap        = 14  // the loading rows
+	skeletonWidth      = 420 // the longest bar of a loading row
+	alsoRow            = 30  // a row of the same story elsewhere
+	alsoSource         = 140 // its longest source name
+	markUnderline      = 1.5 // a match's underline
+	viewerFailedGap    = 10  // inside the viewer's failed card
+	metaField          = 88  // the time at the end of a meta line
+	compactField       = 128 // the source in a compact row
+	compactFieldNarrow = 96  // the same in a narrow window
+	whenCol            = 56  // the time in a compact row
+	whenColWide        = 84  // the time and the actions in a compact row
+	socialThumb        = 184 // a video's picture in a social row
+	socialThumbNarrow  = 136 // the same in a narrow window
+	gridWide           = 520 // the most a picture grid grows
+	stripCell          = 40  // the count cell after a picture strip
+	stripPicture       = 56  // a picture in a strip
+	cardMin            = 200 // the narrowest video card
+	cardMinNarrow      = 170 // the narrowest picture tile
+	viewerBar          = 56  // the picture viewer's top bar
+	viewerHit          = 44  // its arrows and bottom bar
+	viewerSide         = 72  // its picture from the window's side
+	viewerMax          = 640 // the widest picture it shows at first
+	viewerFailed       = 480 // the widest failed card
+)
+
 // paneLine is how far from the pane's right edge the centers of its icon buttons are: the button that hides the
 // pane, the add button, the Unread first toggle and the settings gear all sit on it. paneEdge is the pane's side
 // padding of the lists, which the rows of the section and the filter sit inside of.
 const (
-	paneLine = 25
+	paneLine = 23
 	paneEdge = 8
 )
 
@@ -3432,10 +3474,10 @@ func (s *Screen) sourceTools(c *ui.Context) {
 	}
 	t := c.Theme()
 	unreadFirst := s.views().SourceSort == prefs.SortUnread
-	ui.Row(c).FillWidth().Height(theme.Px(t, 28)).Gap(theme.Px(t, 4)).Margin(0, 0, theme.Px(t, 6), 0).
-		Padding(0, paneLineInset(t, 28), 0, 0).Children(func() {
-		box := ui.Row(c).Key("filter").Grow(1).MinWidth(0).Height(theme.Px(t, 28)).Gap(theme.Px(t, 6)).
-			Padding(0, theme.Px(t, 4), 0, theme.Px(t, 10)).Radius(theme.Px(t, tokens.RadiusControl)).AlignItems(ui.Center)
+	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space1)).Margin(0, 0, theme.Px(t, tokens.Space1_5), 0).
+		Padding(0, paneLineInset(t, tokens.Row), 0, 0).Children(func() {
+		box := ui.Row(c).Key("filter").Grow(1).MinWidth(0).Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space1_5)).
+			Padding(0, theme.Px(t, tokens.Space1), 0, theme.Px(t, fieldInset)).Radius(theme.Px(t, tokens.RadiusControl)).AlignItems(ui.Center)
 		switch {
 		case s.filtering:
 			box.Background(theme.Ink(t, 0.085)).Shadow(0, 0, 0, 2, t.Focus)
@@ -3467,7 +3509,7 @@ func (s *Screen) sourceTools(c *ui.Context) {
 				if clear.Hovered() {
 					fill = t.SurfaceHover
 				}
-				mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: theme.Px(t, tokens.RadiusSm), Fill: fill}.Apply(c, clear, func() {
+				mx, my := theme.Hit{W: theme.Px(t, chipH), H: theme.Px(t, chipH), Radius: theme.Px(t, tokens.RadiusSm), Fill: fill}.Apply(c, clear, func() {
 					ui.Icon(c, icons.X).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 				})
 				clear.Margin(my, mx, my, mx)
@@ -3483,7 +3525,7 @@ func (s *Screen) sourceTools(c *ui.Context) {
 			input.Focus()
 		}
 
-		b := ui.ButtonBase(c).Key("unread-first").Size(theme.Px(t, 28), theme.Px(t, 28)).Shrink(0).Radius(theme.Px(t, tokens.RadiusControl)).
+		b := ui.ButtonBase(c).Key("unread-first").Size(theme.Px(t, tokens.Row), theme.Px(t, tokens.Row)).Shrink(0).Radius(theme.Px(t, tokens.RadiusControl)).
 			Role(ui.RoleToggleButton).Label(s.text.UnreadFirst).Tooltip(s.text.UnreadFirst).Checked(unreadFirst)
 		color := t.TextMuted
 		switch {
@@ -3515,7 +3557,7 @@ func (s *Screen) link(c *ui.Context, icon *ui.SVG, text, label string, color ui.
 	if b.Hovered() {
 		fill = t.SurfaceHover
 	}
-	_, y := theme.Hit{H: theme.Px(t, 20), Radius: theme.Px(t, 6), Fill: fill, PadX: theme.Px(t, 6), Gap: theme.Px(t, 4)}.Apply(c, b, func() {
+	_, y := theme.Hit{H: theme.Px(t, chipH), Radius: theme.Px(t, tokens.Space1_5), Fill: fill, PadX: theme.Px(t, tokens.Space1_5), Gap: theme.Px(t, tokens.Space1)}.Apply(c, b, func() {
 		if icon != nil {
 			ui.Icon(c, icon).FontSize(theme.IconSmall(t)).TextColor(color)
 		}
@@ -3531,7 +3573,7 @@ func (s *Screen) progressLink(c *ui.Context) {
 	t := c.Theme()
 	r := s.refresh
 	label := s.format(strings.ReplaceAll(s.text.RefreshingName, "{done}", strconv.Itoa(r.done)), r.queued)
-	ui.Row(c).Height(theme.Px(t, 20)).AlignItems(ui.Center).Gap(theme.Px(t, 4)).PaddingX(theme.Px(t, 6)).Label(label).
+	ui.Row(c).Height(theme.Px(t, chipH)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).PaddingX(theme.Px(t, tokens.Space1_5)).Label(label).
 		Children(func() {
 			spin := ui.Icon(c, icons.LoaderCircle).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 			spin.Rotate(spin.Loop("spin", tokens.MotionSpin, ui.Linear) * 360)
@@ -3555,13 +3597,13 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first, inside bool
 	if src.HideFromAll {
 		label = strings.ReplaceAll(s.text.HiddenName, "{name}", label)
 	}
-	// A subscription under a folder sits 12 in from the folder's row, so its icon is under the folder's name.
-	left := theme.Px(t, 10)
+	// A subscription under a folder starts where the folder's icon does, past the chevron.
+	left := theme.Px(t, tokens.Space2)
 	if inside {
-		left = theme.Px(t, 22)
+		left = theme.Px(t, tokens.Space2+tokens.IconS+tokens.Space2)
 	}
-	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, 10)).
-		Padding(0, theme.Px(t, 10), 0, left).
+	item := ui.ButtonBase(c).Key(src.ID).FillWidth().Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space2)).
+		Padding(0, theme.Px(t, tokens.Space2), 0, left).
 		Radius(theme.Px(t, tokens.RadiusControl)).Label(label).ContextMenu(func(m *ui.Menu) { s.subs.Menu(m, src) })
 	if src.UnreadCount > 0 && !src.Paused {
 		item.Description(s.format(s.text.UnreadCount, src.UnreadCount))
@@ -3604,7 +3646,7 @@ func (s *Screen) sourceItem(c *ui.Context, src client.Source, first, inside bool
 			})
 		}
 		if fetching && !src.Paused {
-			ui.Spinner(c).FontSize(theme.Px(t, 13)).Label(label)
+			ui.Spinner(c).FontSize(theme.Px(t, tokens.TextBody.Size.En)).Label(label)
 		} else if src.Paused {
 			ui.Box(c).Label(s.text.PausedMark).Tooltip(s.text.PausedMark).Role(ui.RoleImage).Children(func() {
 				ui.Icon(c, icons.Pause).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
@@ -3640,7 +3682,7 @@ func (s *Screen) folderItem(c *ui.Context, row sideRow, first bool) {
 		if row.folded {
 			chevron, verb = icons.ChevronRight, s.text.Expand
 		}
-		fold := ui.ButtonBase(c).Shrink(0).Size(theme.Px(t, 22), theme.Px(t, tokens.Row)).Radius(theme.Px(t, tokens.RadiusControl)).
+		fold := ui.ButtonBase(c).Shrink(0).Size(theme.Px(t, tokens.Space2+tokens.IconS+tokens.Space1), theme.Px(t, tokens.Row)).Padding(0, 0, 0, theme.Px(t, tokens.Space1)).Radius(theme.Px(t, tokens.RadiusControl)).
 			Label(strings.ReplaceAll(verb, "{name}", f.Name)).Tooltip(strings.ReplaceAll(verb, "{name}", f.Name))
 		color := t.TextMuted
 		if fold.Hovered() {
@@ -3654,8 +3696,8 @@ func (s *Screen) folderItem(c *ui.Context, row sideRow, first bool) {
 			s.sideKeyed = fold.FocusVisible()
 			s.fold(f.ID, !row.folded)
 		}
-		item := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, 8)).
-			Padding(0, theme.Px(t, 10), 0, theme.Px(t, 4)).Radius(theme.Px(t, tokens.RadiusControl)).Label(f.Name).
+		item := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space2)).
+			Padding(0, theme.Px(t, tokens.Space2), 0, theme.Px(t, tokens.Space1)).Radius(theme.Px(t, tokens.RadiusControl)).Label(f.Name).
 			ContextMenu(func(m *ui.Menu) { s.subs.FolderMenu(m, f) })
 		if row.unread > 0 {
 			item.Description(s.format(s.text.UnreadCount, row.unread))
@@ -3753,13 +3795,13 @@ func (s *Screen) serverBar(c *ui.Context) {
 		name, icon = s.server, icons.Server
 	}
 	// Inset like the rows above it, so its hover fill is a rounded row inside the pane, clear of its corner.
-	ui.Row(c).FillWidth().Height(theme.Px(t, 40)).AlignItems(ui.Center).Padding(0, theme.Px(t, paneEdge)+paneLineInset(t, 28), 0, theme.Px(t, 8)).
+	ui.Row(c).FillWidth().Height(theme.Px(t, paneFoot)).AlignItems(ui.Center).Padding(0, theme.Px(t, paneEdge)+paneLineInset(t, tokens.Control), 0, theme.Px(t, tokens.Space2)).
 		Children(func() {
 			dot := t.Success
 			if s.offline {
 				dot = t.Warning
 			}
-			bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 10)).
+			bar := ui.ButtonBase(c).Grow(1).MinWidth(0).Height(theme.Px(t, tokens.Row)).Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space2)).
 				Radius(theme.Px(t, tokens.RadiusControl)).Label(strings.ReplaceAll(s.text.Server, "{server}", name))
 			if bar.Hovered() {
 				bar.Background(t.SurfaceHover)
@@ -3767,14 +3809,14 @@ func (s *Screen) serverBar(c *ui.Context) {
 			theme.Fade(bar)
 			bar.Children(func() {
 				ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
-				ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(theme.Px(t, 12)).LetterSpacing(theme.Px(t, 12) * 0.01).
+				ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(theme.Px(t, tokens.TextMeta.Size.En)).LetterSpacing(theme.Px(t, tokens.Space3) * 0.01).
 					TextColor(t.TextMuted)
-				ui.Box(c).Size(6, 6).Radius(theme.Pill(6)).Background(dot)
+				ui.Box(c).Size(tokens.Dot, tokens.Dot).Radius(theme.Pill(tokens.Dot)).Background(dot)
 			})
 			if bar.Clicked() {
 				s.deps.OpenConnect()
 			}
-			gear := ui.ButtonBase(c).Size(theme.Px(t, 28), theme.Px(t, 28)).Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Settings).
+			gear := ui.ButtonBase(c).Size(theme.Px(t, tokens.Control), theme.Px(t, tokens.Control)).Radius(theme.Px(t, tokens.RadiusControl)).Label(s.text.Settings).
 				Tooltip(s.text.Settings)
 			color := t.TextMuted
 			if gear.Hovered() {
@@ -3829,7 +3871,7 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 				s.sidebarButton(c, true)
 			}
 			title := func() {
-				ui.Text(c, s.scopeName()).FontSize(theme.Px(t, 15)).FontWeight(600).SingleLine().MinWidth(theme.Px(t, 40)).Shrink(1).
+				ui.Text(c, s.scopeName()).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(600).SingleLine().MinWidth(theme.Px(t, scopeMin)).Shrink(1).
 					Role(ui.RoleHeading).Level(1)
 			}
 			sub := ""
@@ -3845,7 +3887,7 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 				}
 			}
 			count := func() {
-				ui.Text(c, sub).FontSize(theme.Px(t, 12)).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
+				ui.Text(c, sub).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
 			}
 			switch {
 			case s.paned && sub != "":
@@ -3924,7 +3966,7 @@ func (s *Screen) filters(c *ui.Context, compact bool) {
 					ui.Icon(c, item.icon).FontSize(theme.IconSmall(t)).TextColor(color)
 					return
 				}
-				ui.Text(c, item.name).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(color)
+				ui.Text(c, item.name).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).NoWrap().TextColor(color)
 			})
 		}
 	})
@@ -3984,7 +4026,7 @@ func (s *Screen) rangeButton(c *ui.Context, tight bool) {
 				if s.span == lastDay {
 					chip = s.text.RangeChip24
 				}
-				ui.Text(c, chip).FontSize(theme.Px(t, 12)).FontWeight(500).NoWrap().TextColor(t.Accent)
+				ui.Text(c, chip).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).NoWrap().TextColor(t.Accent)
 			})
 			clear := ui.ButtonBase(c).Key("range-clear").Label(s.text.RangeClear).Tooltip(s.text.RangeClear)
 			var fill ui.Color
@@ -4108,7 +4150,7 @@ func (s *Screen) switchOrder() {
 // nothing in it.
 func (s *Screen) searchField(c *ui.Context) {
 	t := c.Theme()
-	box := ui.Row(c).Key("search").Width(theme.Px(t, tokens.SheetWidth)).MinWidth(theme.Px(t, 48)).Shrink(100).
+	box := ui.Row(c).Key("search").Width(theme.Px(t, tokens.SheetWidth)).MinWidth(theme.Px(t, tokens.Space12)).Shrink(100).
 		Height(theme.Px(t, tokens.Control)).Gap(theme.Px(t, tokens.Space1_5)).
 		Padding(0, theme.Px(t, tokens.Space1_5), 0, theme.Px(t, tokens.Space3)).Radius(theme.Px(t, tokens.RadiusControl))
 	switch {
@@ -4140,7 +4182,7 @@ func (s *Screen) searchField(c *ui.Context) {
 			if clear.Hovered() {
 				fill = t.SurfaceHover
 			}
-			mx, my := theme.Hit{W: theme.Px(t, 20), H: theme.Px(t, 20), Radius: theme.Px(t, tokens.RadiusSm), Fill: fill}.Apply(c, clear, func() {
+			mx, my := theme.Hit{W: theme.Px(t, chipH), H: theme.Px(t, chipH), Radius: theme.Px(t, tokens.RadiusSm), Fill: fill}.Apply(c, clear, func() {
 				ui.Icon(c, icons.X).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted)
 			})
 			clear.Margin(my, mx, my, mx)
@@ -4240,11 +4282,11 @@ func (s *Screen) hint(c *ui.Context) {
 	switch {
 	case s.limited():
 		// Under the toolbar row, the content starting below it.
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(theme.Px(t, 8)).Margin(theme.Bar+4, theme.Px(t, 12), 4).
-			Padding(theme.Px(t, 7), theme.Px(t, 14)).Radius(theme.Px(t, 12)).Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Margin(theme.Bar+tokens.Space1, theme.Px(t, tokens.Space3), tokens.Space1).
+			Padding(theme.Px(t, noteY), theme.Px(t, noteX)).Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Soft(t, t.Warning)).Role(ui.RoleStatus).
 			Children(func() {
 				ui.Icon(c, icons.CircleAlert).FontSize(theme.IconSmall(t)).TextColor(t.Warning)
-				ui.Text(c, s.text.Limited).FontSize(theme.Px(t, 12)).TextColor(theme.Text2(t))
+				ui.Text(c, s.text.Limited).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t))
 			})
 	case s.syntaxShown():
 		s.syntax(c)
@@ -4276,14 +4318,14 @@ func (s *Screen) syntaxDescription() string {
 // and not the warning tint. It wraps to a second line in a narrow column.
 func (s *Screen) syntax(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).Key("syntax").AlignSelf(ui.Stretch).AlignItems(ui.Start).Gap(theme.Px(t, 8)).Margin(theme.Bar+4, theme.Px(t, 12), 4).
-		Padding(theme.Px(t, 7), theme.Px(t, 14)).Radius(theme.Px(t, 12)).Background(theme.Track(t)).Children(func() {
-		ui.Icon(c, icons.Info).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted).Margin(theme.Px(t, 1), 0, 0, 0)
-		ui.Row(c).Wrap().Grow(1).MinWidth(0).GapX(theme.Px(t, 12)).GapY(theme.Px(t, 4)).Children(func() {
-			ui.Text(c, s.text.SyntaxLead).FontSize(theme.Px(t, 12)).TextColor(theme.Text2(t)).NoWrap()
+	ui.Row(c).Key("syntax").AlignSelf(ui.Stretch).AlignItems(ui.Start).Gap(theme.Px(t, tokens.Space2)).Margin(theme.Bar+tokens.Space1, theme.Px(t, tokens.Space3), tokens.Space1).
+		Padding(theme.Px(t, noteY), theme.Px(t, noteX)).Radius(theme.Px(t, tokens.RadiusCard)).Background(theme.Track(t)).Children(func() {
+		ui.Icon(c, icons.Info).FontSize(theme.IconSmall(t)).TextColor(t.TextMuted).Margin(theme.Px(t, tokens.Hairline), 0, 0, 0)
+		ui.Row(c).Wrap().Grow(1).MinWidth(0).GapX(theme.Px(t, tokens.Space3)).GapY(theme.Px(t, tokens.Space1)).Children(func() {
+			ui.Text(c, s.text.SyntaxLead).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t)).NoWrap()
 			for _, w := range s.syntaxWords() {
 				ui.RichText(c, ui.Span{Text: w[0], Weight: 500, Color: t.Text}, ui.Span{Text: w[1], Color: theme.Text2(t)}).
-					FontSize(theme.Px(t, 12)).NoWrap()
+					FontSize(theme.Px(t, tokens.TextMeta.Size.En)).NoWrap()
 			}
 		})
 	})
@@ -4311,13 +4353,13 @@ func (s *Screen) stale(c *ui.Context) {
 	}
 	box := ui.Column(c).FillWidth().Shrink(0)
 	if s.inColumn() {
-		maxWidth := theme.Px(t, 680)
+		maxWidth := theme.Px(t, tokens.Column)
 		if s.scope.kind == "social" {
-			maxWidth = theme.Px(t, 720)
+			maxWidth = theme.Px(t, tokens.ColumnSocial)
 		}
-		box.MaxWidth(maxWidth).Margin(top, ui.Auto, tokens.Space2).Padding(0, theme.Px(t, 20))
+		box.MaxWidth(maxWidth).Margin(top, ui.Auto, tokens.Space2).Padding(0, theme.Px(t, bannerInset))
 	} else {
-		box.Margin(top, 0, tokens.Space2).Padding(0, theme.Px(t, 20))
+		box.Margin(top, 0, tokens.Space2).Padding(0, theme.Px(t, bannerInset))
 	}
 	box.Children(func() {
 		since := strings.ReplaceAll(s.text.OfflineSince, "{time}", locale.Clock(s.lang, s.hours, s.updated))
@@ -4456,21 +4498,21 @@ func (s *Screen) top() float32 {
 
 func (s *Screen) skeleton(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).FillWidth().MaxWidth(theme.Px(t, 680)).Margin(0, ui.Auto).
+	ui.Column(c).FillWidth().MaxWidth(theme.Px(t, tokens.Column)).Margin(0, ui.Auto).
 		Padding(s.top()+t.Space(1), t.Space(5), t.Space(1)).
 		Label(s.text.Loading).Role(ui.RoleProgress).Children(func() {
 		for i := range 4 {
-			ui.Row(c).Key(i).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, 14)).
-				Padding(theme.Px(t, 16), theme.Px(t, 16), theme.Px(t, 16), theme.Px(t, 28)).Children(func() {
+			ui.Row(c).Key(i).FillWidth().AlignItems(ui.Start).Gap(theme.Px(t, skeletonGap)).
+				Padding(theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space4), theme.Px(t, tokens.Space4), theme.Px(t, textInset)).Children(func() {
 				ui.Column(c).Grow(1).Gap(t.Space(2)).Children(func() {
 					for _, bar := range []struct{ width, height float32 }{{0.36, 10}, {0.7, 14}, {0.92, 10}} {
-						ui.Box(c).Width(theme.Px(t, 420) * bar.width).Height(theme.Px(t, bar.height)).Radius(theme.Pill(theme.Px(t, bar.height))).
+						ui.Box(c).Width(theme.Px(t, skeletonWidth) * bar.width).Height(theme.Px(t, bar.height)).Radius(theme.Pill(theme.Px(t, bar.height))).
 							Background(theme.Track(t))
 					}
 				})
 				if i%2 == 0 {
-					ui.Box(c).Size(theme.Px(t, 96), theme.Px(t, 64)).Radius(theme.Px(t, 8)).Background(theme.Track(t)).
-						Margin(theme.Px(t, 24), 0, 0, 0)
+					ui.Box(c).Size(theme.Px(t, tokens.ThumbW), theme.Px(t, tokens.ThumbH)).Radius(theme.Px(t, tokens.RadiusControl)).Background(theme.Track(t)).
+						Margin(theme.Px(t, tokens.Space6), 0, 0, 0)
 				}
 			})
 		}
@@ -4770,16 +4812,16 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 	if e.IsRead {
 		source = muted
 	}
-	ui.Row(c).FillWidth().Height(theme.Px(t, 20)).MinWidth(0).AlignItems(ui.Center).Gap(theme.Px(t, 6)).Padding(0, right, 0, 0).
+	ui.Row(c).FillWidth().Height(theme.Px(t, chipH)).MinWidth(0).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Padding(0, right, 0, 0).
 		Children(func() {
 			if lead && !e.IsRead {
-				ui.Box(c).Size(theme.Px(t, 7), theme.Px(t, 7)).Radius(theme.Pill(theme.Px(t, 7))).Background(t.Accent)
+				ui.Box(c).Size(theme.Px(t, tokens.Dot), theme.Px(t, tokens.Dot)).Radius(theme.Pill(theme.Px(t, tokens.Dot))).Background(t.Accent)
 			}
 			s.glyph(c, e.SourceTitle, s.iconOf(e.SourceID), 15)
-			ui.Text(c, e.SourceTitle).FontSize(theme.Px(t, 12)).FontWeight(500).SingleLine().MinWidth(0).Shrink(1).
+			ui.Text(c, e.SourceTitle).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).SingleLine().MinWidth(0).Shrink(1).
 				TextColor(source)
-			ui.Text(c, "·").FontSize(theme.Px(t, 12)).TextColor(muted).Opacity(0.7)
-			ui.Text(c, s.when(e, now)).FontSize(theme.Px(t, 12)).FontFeatures("tnum").TextColor(muted).NoWrap()
+			ui.Text(c, "·").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted).Opacity(0.7)
+			ui.Text(c, s.when(e, now)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(muted).NoWrap()
 			if !lead {
 				s.alsoChip(c, e, muted)
 			}
@@ -4787,8 +4829,8 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 				s.revisedMark(c, muted)
 			}
 			if reading := s.readLabel(e); reading != "" {
-				ui.Text(c, "·").FontSize(theme.Px(t, 12)).TextColor(muted).Opacity(0.7)
-				ui.Text(c, reading).FontSize(theme.Px(t, 12)).FontFeatures("tnum").TextColor(muted).NoWrap()
+				ui.Text(c, "·").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted).Opacity(0.7)
+				ui.Text(c, reading).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(muted).NoWrap()
 			}
 			if e.Starred {
 				ui.Icon(c, icons.Star).FontSize(theme.IconSmall(t)).TextColor(theme.Star(t))
@@ -4800,9 +4842,9 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 				ui.Icon(c, icons.Upload).FontSize(theme.IconSmall(t)).TextColor(muted)
 			}
 			if platform && e.Platform != "" {
-				ui.Text(c, "·").FontSize(theme.Px(t, 12)).TextColor(muted).Opacity(0.7)
+				ui.Text(c, "·").FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted).Opacity(0.7)
 				ui.Icon(c, icons.Play).FontSize(theme.IconSmall(t)).TextColor(muted)
-				ui.Text(c, e.Platform).FontSize(theme.Px(t, 12)).SingleLine().MinWidth(0).Shrink(1).TextColor(muted)
+				ui.Text(c, e.Platform).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).SingleLine().MinWidth(0).Shrink(1).TextColor(muted)
 			}
 		})
 }
@@ -4811,9 +4853,9 @@ func (s *Screen) meta(c *ui.Context, e client.Entry, now time.Time, lead bool, r
 // an icon and the word, in the quiet color, so that it does not rely on color. Read rows have it too.
 func (s *Screen) revisedMark(c *ui.Context, muted ui.Color) {
 	t := c.Theme()
-	ui.Row(c).Key("revised").AlignItems(ui.Center).Gap(theme.Px(t, 3)).Children(func() {
+	ui.Row(c).Key("revised").AlignItems(ui.Center).Gap(theme.Px(t, tightGap)).Children(func() {
 		ui.Icon(c, icons.Pencil).FontSize(theme.IconSmall(t)).TextColor(muted)
-		ui.Text(c, s.text.Revised).FontSize(theme.Px(t, 12)).NoWrap().TextColor(muted)
+		ui.Text(c, s.text.Revised).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).NoWrap().TextColor(muted)
 	})
 }
 
@@ -4845,10 +4887,10 @@ func (s *Screen) alsoChip(c *ui.Context, e client.Entry, muted ui.Color) {
 	case open:
 		color = theme.Text2(t)
 	}
-	_, y := theme.Hit{H: theme.Px(t, 20), Radius: theme.Px(t, 6), Fill: fill}.Apply(c, b, func() {
-		ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 3)).Padding(0, theme.Px(t, 6), 0, theme.Px(t, 4)).Children(func() {
+	_, y := theme.Hit{H: theme.Px(t, chipH), Radius: theme.Px(t, tokens.Space1_5), Fill: fill}.Apply(c, b, func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tightGap)).Padding(0, theme.Px(t, tokens.Space1_5), 0, theme.Px(t, tokens.Space1)).Children(func() {
 			ui.Icon(c, icons.Layers).FontSize(theme.IconSmall(t)).TextColor(color)
-			ui.Text(c, s.format(s.text.AlsoChip, n)).FontSize(theme.Px(t, 12)).NoWrap().TextColor(color)
+			ui.Text(c, s.format(s.text.AlsoChip, n)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).NoWrap().TextColor(color)
 		})
 	})
 	b.Margin(y, 0, y, 0)
@@ -4868,10 +4910,10 @@ func (s *Screen) alsoList(c *ui.Context, e client.Entry, now time.Time, muted ui
 		return
 	}
 	t := c.Theme()
-	ui.Row(c).Key("also-list").FillWidth().AlignItems(ui.Stretch).Margin(theme.Px(t, 6), 0, 0, theme.Px(t, 1)).Role(ui.RoleList).
+	ui.Row(c).Key("also-list").FillWidth().AlignItems(ui.Stretch).Margin(theme.Px(t, tokens.Space1_5), 0, 0, theme.Px(t, tokens.Hairline)).Role(ui.RoleList).
 		Label(s.text.AlsoHead).Children(func() {
-		ui.Box(c).Width(2).Shrink(0).Background(t.Border)
-		ui.Column(c).Grow(1).MinWidth(0).Padding(0, 0, 0, theme.Px(t, 12)).Children(func() {
+		ui.Box(c).Width(tokens.Space0_5).Shrink(0).Background(t.Border)
+		ui.Column(c).Grow(1).MinWidth(0).Padding(0, 0, 0, theme.Px(t, tokens.Space3)).Children(func() {
 			for _, m := range e.Group.Entries {
 				s.alsoItem(c, e, m, now, muted)
 			}
@@ -4890,8 +4932,8 @@ func (s *Screen) alsoItem(c *ui.Context, row client.Entry, m client.GroupMember,
 	if row.IsRead {
 		color = muted
 	}
-	b := ui.ButtonBase(c).Key(m.ID).FillWidth().Height(theme.Px(t, 30)).Margin(0, theme.Px(t, -8), 0, theme.Px(t, -4)).
-		Padding(0, theme.Px(t, 8), 0, theme.Px(t, 4)).Radius(theme.Px(t, 8)).Role(ui.RoleListItem).
+	b := ui.ButtonBase(c).Key(m.ID).FillWidth().Height(theme.Px(t, alsoRow)).Margin(0, -theme.Px(t, tokens.Space2), 0, -theme.Px(t, tokens.Space1)).
+		Padding(0, theme.Px(t, tokens.Space2), 0, theme.Px(t, tokens.Space1)).Radius(theme.Px(t, tokens.RadiusControl)).Role(ui.RoleListItem).
 		Label(m.SourceTitle + s.text.Separator + title)
 	switch {
 	case b.Pressed():
@@ -4900,12 +4942,12 @@ func (s *Screen) alsoItem(c *ui.Context, row client.Entry, m client.GroupMember,
 		b.Background(t.SurfaceHover)
 	}
 	b.Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, 8)).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
 			s.glyph(c, m.SourceTitle, s.iconOf(m.SourceID), 16)
-			ui.Text(c, m.SourceTitle).FontSize(theme.Px(t, 12)).FontWeight(500).SingleLine().MaxWidth(theme.Px(t, 140)).Shrink(0).
+			ui.Text(c, m.SourceTitle).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).SingleLine().MaxWidth(theme.Px(t, alsoSource)).Shrink(0).
 				TextColor(source)
-			ui.Text(c, title).FontSize(theme.Px(t, 13)).SingleLine().Grow(1).MinWidth(0).TextColor(color)
-			ui.Text(c, s.when(client.Entry{CreatedAt: m.CreatedAt}, now)).FontSize(theme.Px(t, 12)).FontFeatures("tnum").
+			ui.Text(c, title).FontSize(theme.Px(t, tokens.TextBody.Size.En)).SingleLine().Grow(1).MinWidth(0).TextColor(color)
+			ui.Text(c, s.when(client.Entry{CreatedAt: m.CreatedAt}, now)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").
 				TextColor(muted).NoWrap()
 		})
 	})
@@ -5027,9 +5069,9 @@ func (s *Screen) marked(c *ui.Context, text string, color ui.Color) []ui.Span {
 	t := c.Theme()
 	var spans []ui.Span
 	at := 0
-	fill, thickness := theme.Soft(t, t.Warning), theme.Px(t, 1.5)
+	fill, thickness := theme.Soft(t, t.Warning), theme.Px(t, markUnderline)
 	if c.Preferences().HighContrast {
-		fill, thickness = t.Warning.Alpha(0.16), theme.Px(t, 2)
+		fill, thickness = t.Warning.Alpha(0.16), theme.Px(t, tokens.Space0_5)
 	}
 	ink := color
 	if color == t.TextMuted {
@@ -5039,7 +5081,7 @@ func (s *Screen) marked(c *ui.Context, text string, color ui.Color) []ui.Span {
 		if r[0] > at {
 			spans = append(spans, ui.Span{Text: text[at:r[0]], Color: color})
 		}
-		spans = append(spans, ui.Span{Text: text[r[0]:r[1]], Color: ink, Background: fill, Radius: theme.Px(t, 4),
+		spans = append(spans, ui.Span{Text: text[r[0]:r[1]], Color: ink, Background: fill, Radius: theme.Px(t, tokens.RadiusXS),
 			Underline: true, DecorationColor: ink, DecorationThickness: thickness})
 		at = r[1]
 	}
@@ -5071,9 +5113,9 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 	} else if i := s.index(s.pin); s.pin != 0 && i >= 0 {
 		s.list.ScrollTo(i, ui.Start)
 	}
-	maxWidth := theme.Px(t, 680)
+	maxWidth := theme.Px(t, tokens.Column)
 	if s.scope.kind == "social" {
-		maxWidth = theme.Px(t, 720)
+		maxWidth = theme.Px(t, tokens.ColumnSocial)
 	}
 	n := len(s.entries)
 	if s.hasFooter() || tail {
@@ -5082,7 +5124,7 @@ func (s *Screen) rows(c *ui.Context, now time.Time, compact bool) {
 	s.divider = s.dividerAt()
 	ui.List(c, &s.list, n, func(i int) {
 		// The row is 16 wider than the column on each side, so its text lines up with the toolbar's.
-		ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto).PaddingX(theme.Px(t, 8)).Children(func() {
+		ui.Column(c).FillWidth().MaxWidth(maxWidth).Margin(0, ui.Auto).PaddingX(theme.Px(t, tokens.Space2)).Children(func() {
 			for _, g := range folds[min(i, len(s.entries))] {
 				s.foldRow(c, g)
 			}
@@ -5114,16 +5156,16 @@ func (s *Screen) divide(c *ui.Context, newer int) {
 	}
 	label := strings.ReplaceAll(s.text.LastLooked, "{n}", count)
 	b := ui.ButtonBase(c).Key("looked").FillWidth().Height(theme.Px(t, tokens.RowCompact)).
-		Padding(0, theme.Px(t, tokens.Space4), 0, theme.Px(t, 28)).Label(label)
+		Padding(0, theme.Px(t, tokens.Space4), 0, theme.Px(t, textInset)).Label(label)
 	color := t.Accent
 	if b.Hovered() {
 		color = t.AccentHover
 	}
 	b.Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Children(func() {
-			ui.Box(c).Grow(1).Height(1).Background(t.Accent.Alpha(0.3))
+			ui.Box(c).Grow(1).Height(tokens.Hairline).Background(t.Accent.Alpha(0.3))
 			ui.Text(c, label).FontSize(theme.Px(t, tokens.TextMetaStrong.Size.En)).FontWeight(500).TextColor(color).NoWrap()
-			ui.Box(c).Grow(1).Height(1).Background(t.Accent.Alpha(0.3))
+			ui.Box(c).Grow(1).Height(tokens.Hairline).Background(t.Accent.Alpha(0.3))
 		})
 	})
 	if b.Clicked() {
@@ -5142,14 +5184,14 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	var r ui.Element
 	switch {
 	case oneLine:
-		r = ui.Row(c).Key(e.ID).FillWidth().Height(s.dense(t, 36, 30)).AlignItems(ui.Center).Gap(theme.Px(t, 12)).
-			Padding(0, theme.Px(t, 16), 0, theme.Px(t, 28)).Radius(theme.Px(t, 10))
+		r = ui.Row(c).Key(e.ID).FillWidth().Height(s.dense(t, 36, 30)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
+			Padding(0, theme.Px(t, tokens.Space4), 0, theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
 	case e.Kind == "social" && v.SocialViewer == prefs.ViewCompact:
 		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 14, 10)).
-			Padding(s.dense(t, 12, 8), theme.Px(t, 16), s.dense(t, 12, 8), theme.Px(t, 28)).Radius(theme.Px(t, 12))
+			Padding(s.dense(t, 12, 8), theme.Px(t, tokens.Space4), s.dense(t, 12, 8), theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
 	default:
 		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 14, 10)).
-			Padding(s.dense(t, 16, 10), theme.Px(t, 16), s.dense(t, 16, 10), theme.Px(t, 28)).Radius(theme.Px(t, 12))
+			Padding(s.dense(t, 16, 10), theme.Px(t, tokens.Space4), s.dense(t, 16, 10), theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
 	}
 	hovered, chosen := s.item(c, r, i, now, false)
 	muted := t.TextMuted
@@ -5169,8 +5211,8 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 		// The divider, the marker and the dot are always there, clear when they do not show: one that came and went
 		// would move the ids of the content after it, and a click pressed on a picture as the row is chosen would
 		// land on an element that is no longer there.
-		none := ui.RGBA(0, 0, 0, 0)
-		divider := ui.Box(c).Absolute().Top(0).Left(theme.Px(t, 28)).Right(theme.Px(t, 16)).Height(1).Background(none)
+		none := ui.Transparent
+		divider := ui.Box(c).Absolute().Top(0).Left(theme.Px(t, textInset)).Right(theme.Px(t, tokens.Space4)).Height(tokens.Hairline).Background(none)
 		if i > 0 && !quiet && i != s.divider {
 			divider.Background(t.Border)
 		}
@@ -5178,15 +5220,15 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 		if oneLine {
 			marker = 14
 		}
-		mark := ui.Box(c).Attach(ui.AnchorLeft, ui.AnchorLeft).Left(8).Size(2.5, marker).Radius(2).Background(none)
+		mark := ui.Box(c).Attach(ui.AnchorLeft, ui.AnchorLeft).Left(tokens.Space2).Size(rowMark, marker).Radius(theme.Pill(rowMark)).Background(none)
 		if chosen {
 			mark.Background(theme.Marker(t))
 		}
-		dot := ui.Box(c).Absolute().Left(theme.Px(t, 14)).Size(theme.Px(t, 7), theme.Px(t, 7)).Radius(theme.Pill(theme.Px(t, 7))).Background(none)
+		dot := ui.Box(c).Absolute().Left(theme.Px(t, dotInset)).Size(theme.Px(t, tokens.Dot), theme.Px(t, tokens.Dot)).Radius(theme.Pill(theme.Px(t, tokens.Dot))).Background(none)
 		if oneLine {
-			dot.Top(theme.Px(t, 18) - theme.Px(t, 3.5))
+			dot.Top(theme.Px(t, (tokens.RowCompact-tokens.Dot)/2))
 		} else {
-			dot.Top(theme.Px(t, 23))
+			dot.Top(theme.Px(t, tokens.Space4+(tokens.TextTitle.Line.En-tokens.Dot)/2))
 		}
 		if !e.IsRead {
 			dot.Background(t.Accent)
@@ -5240,14 +5282,14 @@ func (s *Screen) titleText(c *ui.Context, e client.Entry, size float32, muted ui
 func (s *Screen) subtitle(c *ui.Context, e client.Entry, muted ui.Color) {
 	if o := original(e); o != "" {
 		t := c.Theme()
-		ui.Text(c, o).FontSize(theme.Px(t, 12)).TextColor(muted).SingleLine().MinWidth(0)
+		ui.Text(c, o).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted).SingleLine().MinWidth(0)
 	}
 }
 
 func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
 	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
-		s.meta(c, e, now, false, theme.Px(t, 88), muted, false)
+		s.meta(c, e, now, false, theme.Px(t, metaField), muted, false)
 		s.titleText(c, e, 15, muted)
 		s.subtitle(c, e, muted)
 		summary, generated := strings.Join(strings.Fields(e.Summary), " "), false
@@ -5264,7 +5306,7 @@ func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted 
 				if !generated {
 					spans = s.marked(c, summary, color)
 				}
-				text := ui.RichText(c, spans...).FontSize(theme.Px(t, 13)).MaxLines(2).LineHeight(1.5)
+				text := ui.RichText(c, spans...).FontSize(theme.Px(t, tokens.TextBody.Size.En)).MaxLines(2).LineHeight(1.5)
 				if theme.Han(summary) {
 					text.LineHeight(1.7)
 				}
@@ -5274,8 +5316,8 @@ func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted 
 			}
 			if generated {
 				// The sparkle says the text was generated; its label is how assistive technology says so.
-				ui.Row(c).Gap(theme.Px(t, 6)).AlignItems(ui.Start).Children(func() {
-					ui.Icon(c, icons.Sparkles).FontSize(theme.IconSmall(t)).TextColor(muted).Margin(theme.Px(t, 4), 0, 0, 0).
+				ui.Row(c).Gap(theme.Px(t, tokens.Space1_5)).AlignItems(ui.Start).Children(func() {
+					ui.Icon(c, icons.Sparkles).FontSize(theme.IconSmall(t)).TextColor(muted).Margin(theme.Px(t, tokens.Space1), 0, 0, 0).
 						Label(s.text.AISummary).Role(ui.RoleImage)
 					line()
 				})
@@ -5287,8 +5329,8 @@ func (s *Screen) articleRow(c *ui.Context, e client.Entry, now time.Time, muted 
 	})
 	if e.ThumbnailURL != "" {
 		// Under the meta line, so the row's actions never cover it, and never taller than the text: it starts 24 down.
-		s.picture(c, e.ThumbnailURL, true, theme.Px(t, 8), nil).Size(theme.Px(t, 96), theme.Px(t, 64)).AlignSelf(ui.Start).
-			Margin(theme.Px(t, 24), 0, 0, 0)
+		s.picture(c, e.ThumbnailURL, true, theme.Px(t, tokens.Space2), nil).Size(theme.Px(t, tokens.ThumbW), theme.Px(t, tokens.ThumbH)).AlignSelf(ui.Start).
+			Margin(theme.Px(t, tokens.Space6), 0, 0, 0)
 	}
 }
 
@@ -5300,13 +5342,13 @@ func (s *Screen) compactRow(c *ui.Context, e client.Entry, now time.Time, narrow
 	if e.IsRead {
 		source, color, weight = muted, muted, 500
 	}
-	field := theme.Px(t, 128)
+	field := theme.Px(t, compactField)
 	if narrow {
-		field = theme.Px(t, 96)
+		field = theme.Px(t, compactFieldNarrow)
 	}
 	s.glyph(c, e.SourceTitle, s.iconOf(e.SourceID), 16)
-	ui.Text(c, e.SourceTitle).FontSize(theme.Px(t, 12)).FontWeight(500).SingleLine().Width(field).Shrink(0).TextColor(source)
-	ui.RichText(c, s.marked(c, title(e), color)...).FontSize(theme.Px(t, 13)).FontWeight(weight).SingleLine().Grow(1).
+	ui.Text(c, e.SourceTitle).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).SingleLine().Width(field).Shrink(0).TextColor(source)
+	ui.RichText(c, s.marked(c, title(e), color)...).FontSize(theme.Px(t, tokens.TextBody.Size.En)).FontWeight(weight).SingleLine().Grow(1).
 		MinWidth(0)
 	if e.Starred {
 		ui.Icon(c, icons.Star).FontSize(theme.IconSmall(t)).TextColor(theme.Star(t))
@@ -5317,11 +5359,11 @@ func (s *Screen) compactRow(c *ui.Context, e client.Entry, now time.Time, narrow
 	if s.waitingFor(e.ID) >= 0 {
 		ui.Icon(c, icons.Upload).FontSize(theme.IconSmall(t)).TextColor(muted)
 	}
-	when, width := ui.Color(muted), theme.Px(t, 56)
+	when, width := ui.Color(muted), theme.Px(t, whenCol)
 	if acting {
-		when, width = ui.RGBA(0, 0, 0, 0), theme.Px(t, 84)
+		when, width = ui.Transparent, theme.Px(t, whenColWide)
 	}
-	ui.Text(c, s.when(e, now)).FontSize(theme.Px(t, 12)).FontFeatures("tnum").TextColor(when).NoWrap().MinWidth(width).
+	ui.Text(c, s.when(e, now)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontFeatures("tnum").TextColor(when).NoWrap().MinWidth(width).
 		TextAlign(ui.End)
 }
 
@@ -5329,16 +5371,16 @@ func (s *Screen) compactRow(c *ui.Context, e client.Entry, now time.Time, narrow
 func (s *Screen) largeRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
 	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 8, 6)).Children(func() {
-		s.coverOf(c, e, true, true, theme.Px(t, 12), 44).FillWidth().MaxWidth(theme.Px(t, 640))
+		s.coverOf(c, e, true, true, theme.Px(t, tokens.Space3), 44).FillWidth().MaxWidth(theme.Px(t, viewerMax))
 		s.titleText(c, e, 15, muted)
 		s.subtitle(c, e, muted)
-		s.meta(c, e, now, false, theme.Px(t, 88), muted, true)
+		s.meta(c, e, now, false, theme.Px(t, metaField), muted, true)
 		s.alsoList(c, e, now, muted)
 	})
 }
 
 func (s *Screen) cover(c *ui.Context, e client.Entry, load, play bool) ui.Element {
-	return s.coverOf(c, e, load, play, theme.Px(c.Theme(), 10), 36)
+	return s.coverOf(c, e, load, play, theme.Px(c.Theme(), tokens.RadiusCard), 36)
 }
 
 // coverOf is the 16:9 cover of a video with the given corner radius; play is the diameter of the disc of its play
@@ -5352,33 +5394,33 @@ func (s *Screen) coverOf(c *ui.Context, e client.Entry, load, play bool, radius,
 	return s.picture(c, e.ThumbnailURL, load, radius, func() {
 		if play {
 			ui.Box(c).Attach(ui.AnchorCenter, ui.AnchorCenter).Size(disc, disc).Radius(theme.Pill(disc)).Center().
-				Background(ui.RGBA(28, 24, 18, 0.4)).Children(func() {
-				ui.Icon(c, icons.Play).FontSize(theme.IconMedium(t)).TextColor(ui.Hex("#ffffff")).Margin(0, 0, 0, 2)
+				Background(theme.Badge(t)).Children(func() {
+				ui.Icon(c, icons.Play).FontSize(theme.IconMedium(t)).TextColor(theme.OnInverse(t)).Margin(0, 0, 0, tokens.Space0_5)
 			})
 		}
 		if e.DurationSec > 0 {
-			ui.Text(c, duration(e.DurationSec)).Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).Right(6).Bottom(6).
-				Padding(1, 6).Radius(4).Background(ui.RGBA(28, 24, 18, 0.62)).FontSize(theme.Px(t, 11)).FontWeight(500).
-				FontFeatures("tnum").TextColor(ui.Hex("#ffffff"))
+			ui.Text(c, duration(e.DurationSec)).Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).Right(tokens.Space1_5).Bottom(tokens.Space1_5).
+				Padding(0, theme.Px(t, tokens.Space1)).Radius(theme.Px(t, tokens.RadiusXS)).Background(theme.Badge(t)).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).
+				FontFeatures("tnum").TextColor(theme.OnInverse(t))
 		}
 	}).AspectRatio(16.0 / 9).Label(label).Role(ui.RoleImage)
 }
 
 func (s *Screen) videoRow(c *ui.Context, e client.Entry, now time.Time, compact bool, muted ui.Color) {
 	t := c.Theme()
-	width := theme.Px(t, 184)
+	width := theme.Px(t, socialThumb)
 	if compact {
-		width = theme.Px(t, 136)
+		width = theme.Px(t, socialThumbNarrow)
 	}
-	s.cover(c, e, true, true).Width(width).Margin(theme.Px(t, 24), 0, 0, 0).AlignSelf(ui.Start)
+	s.cover(c, e, true, true).Width(width).Margin(theme.Px(t, tokens.Space6), 0, 0, 0).AlignSelf(ui.Start)
 	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
-		s.meta(c, e, now, false, theme.Px(t, 88), muted, false)
+		s.meta(c, e, now, false, theme.Px(t, metaField), muted, false)
 		s.titleText(c, e, 15, muted)
 		s.subtitle(c, e, muted)
 		if e.Platform != "" {
-			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, 6)).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).Children(func() {
 				ui.Icon(c, icons.Play).FontSize(theme.IconSmall(t)).TextColor(muted)
-				ui.Text(c, e.Platform).FontSize(theme.Px(t, 12)).TextColor(muted)
+				ui.Text(c, e.Platform).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(muted)
 			})
 		}
 		s.alsoList(c, e, now, muted)
@@ -5396,16 +5438,16 @@ func (s *Screen) socialRow(c *ui.Context, e client.Entry, now time.Time, muted u
 		return
 	}
 	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
-		s.meta(c, e, now, false, theme.Px(t, 88), muted, false)
+		s.meta(c, e, now, false, theme.Px(t, metaField), muted, false)
 		if e.Author != "" || e.Platform != "" {
 			ui.RichText(c, ui.Span{Text: e.Author, Weight: 500, Color: author},
-				ui.Span{Text: " " + e.Platform, Color: muted}).FontSize(theme.Px(t, 13)).SingleLine()
+				ui.Span{Text: " " + e.Platform, Color: muted}).FontSize(theme.Px(t, tokens.TextBody.Size.En)).SingleLine()
 		}
 		text := strings.TrimSpace(e.Summary)
 		if text == "" {
 			text = title(e)
 		}
-		body := ui.RichText(c, s.marked(c, text, color)...).FontSize(theme.Px(t, 13)).MaxLines(6).Wrap().LineHeight(1.55)
+		body := ui.RichText(c, s.marked(c, text, color)...).FontSize(theme.Px(t, tokens.TextBody.Size.En)).MaxLines(6).Wrap().LineHeight(1.55)
 		if theme.Han(text) {
 			body.LineHeight(1.7)
 		}
@@ -5422,13 +5464,13 @@ func (s *Screen) briefPost(c *ui.Context, e client.Entry, now time.Time, muted, 
 	if text == "" {
 		text = title(e)
 	}
-	ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Px(t, 4)).Children(func() {
-		s.meta(c, e, now, false, theme.Px(t, 88), muted, false)
+	ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Px(t, tokens.Space1)).Children(func() {
+		s.meta(c, e, now, false, theme.Px(t, metaField), muted, false)
 		spans := []ui.Span{{Text: e.Author, Weight: 500, Color: author}, {Text: " " + e.Platform + " ", Color: muted}}
 		if e.Author == "" && e.Platform == "" {
 			spans = nil
 		}
-		body := ui.RichText(c, append(spans, s.marked(c, text, color)...)...).FontSize(theme.Px(t, 13)).MaxLines(2).Wrap().
+		body := ui.RichText(c, append(spans, s.marked(c, text, color)...)...).FontSize(theme.Px(t, tokens.TextBody.Size.En)).MaxLines(2).Wrap().
 			LineHeight(1.55)
 		if theme.Han(text) {
 			body.LineHeight(1.7)
@@ -5440,8 +5482,8 @@ func (s *Screen) briefPost(c *ui.Context, e client.Entry, now time.Time, muted, 
 	})
 	if len(e.Images) == 1 {
 		// Under the meta line, so the row's actions never cover it, as an article's thumbnail is.
-		s.zoom(s.pictureOf(c, e.Images[0].URL, true, theme.Px(t, 8), theme.IconMedium(t), nil), s.index(e.ID), 0).Size(theme.Px(t, 56), theme.Px(t, 56)).
-			AlignSelf(ui.Start).Margin(theme.Px(t, 24), 0, 0, 0).Label(s.format(s.text.Pictures, 1)).Role(ui.RoleImage)
+		s.zoom(s.pictureOf(c, e.Images[0].URL, true, theme.Px(t, tokens.Space2), theme.IconMedium(t), nil), s.index(e.ID), 0).Size(theme.Px(t, stripPicture), theme.Px(t, stripPicture)).
+			AlignSelf(ui.Start).Margin(theme.Px(t, tokens.Space6), 0, 0, 0).Label(s.format(s.text.Pictures, 1)).Role(ui.RoleImage)
 	}
 }
 
@@ -5450,22 +5492,22 @@ func (s *Screen) strip(c *ui.Context, e client.Entry) {
 	t := c.Theme()
 	n := len(e.Images)
 	shown := min(n, 4)
-	ui.Row(c).Gap(theme.Px(t, 4)).Margin(theme.Px(t, 4), 0, 0, 0).Label(s.format(s.text.Pictures, n)).Role(ui.RoleImage).
+	ui.Row(c).Gap(theme.Px(t, tokens.Space1)).Margin(theme.Px(t, tokens.Space1), 0, 0, 0).Label(s.format(s.text.Pictures, n)).Role(ui.RoleImage).
 		Children(func() {
 			for k, img := range e.Images[:shown] {
 				var over func()
 				if k == shown-1 && n > shown {
 					more := s.format(s.text.MorePictures, n-shown)
 					over = func() {
-						ui.Box(c).Fill().Absolute().Center().Background(ui.RGBA(28, 24, 18, 0.5)).Label(more).
+						ui.Box(c).Fill().Absolute().Center().Background(theme.Badge(t)).Label(more).
 							Children(func() {
-								ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(theme.Px(t, 11)).FontWeight(600).
-									FontFeatures("tnum").TextColor(ui.Hex("#ffffff"))
+								ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(600).
+									FontFeatures("tnum").TextColor(theme.OnInverse(t))
 							})
 					}
 				}
-				s.zoom(s.pictureOf(c, img.URL, true, theme.Px(t, 6), theme.IconMedium(t), over).Key(k), s.index(e.ID), k).
-					Size(theme.Px(t, 40), theme.Px(t, 40))
+				s.zoom(s.pictureOf(c, img.URL, true, theme.Px(t, tokens.Space1_5), theme.IconMedium(t), over).Key(k), s.index(e.ID), k).
+					Size(theme.Px(t, stripCell), theme.Px(t, stripCell))
 			}
 		})
 }
@@ -5479,13 +5521,13 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 	}
 	t := c.Theme()
 	shown := min(n, 3)
-	grid := ui.Grid(c).Columns(shown).Gap(4).Radius(theme.Px(t, 12)).Clip().Margin(theme.Px(t, 8), 0, 0, 0).
+	grid := ui.Grid(c).Columns(shown).Gap(tokens.Space1).Radius(theme.Px(t, tokens.RadiusCard)).Clip().Margin(theme.Px(t, tokens.Space2), 0, 0, 0).
 		Label(s.format(s.text.Pictures, n)).Role(ui.RoleImage)
 	switch {
 	case s.scope.kind == "social":
-		grid.MaxWidth(theme.Px(t, 520))
+		grid.MaxWidth(theme.Px(t, gridWide))
 	default:
-		grid.MaxWidth(theme.Px(t, 440))
+		grid.MaxWidth(theme.Px(t, tokens.Dialog))
 	}
 	grid.Children(func() {
 		for k, img := range e.Images[:shown] {
@@ -5493,9 +5535,9 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 			if k == shown-1 && n > shown {
 				more := s.format(s.text.MorePictures, n-shown)
 				over = func() {
-					ui.Box(c).Fill().Absolute().Center().Background(ui.RGBA(28, 24, 18, 0.5)).Label(more).Children(func() {
-						ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(theme.Px(t, 15)).FontWeight(600).
-							FontFeatures("tnum").TextColor(ui.Hex("#ffffff"))
+					ui.Box(c).Fill().Absolute().Center().Background(theme.Badge(t)).Label(more).Children(func() {
+						ui.Text(c, "+"+strconv.Itoa(n-shown)).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(600).
+							FontFeatures("tnum").TextColor(theme.OnInverse(t))
 					})
 				}
 			}
@@ -5515,11 +5557,11 @@ func (s *Screen) gallery(c *ui.Context, e client.Entry) {
 func (s *Screen) imageRow(c *ui.Context, e client.Entry, now time.Time, muted ui.Color) {
 	t := c.Theme()
 	ui.Column(c).Grow(1).MinWidth(0).Gap(s.dense(t, 3, 2)).Children(func() {
-		s.meta(c, e, now, false, theme.Px(t, 88), muted, false)
+		s.meta(c, e, now, false, theme.Px(t, metaField), muted, false)
 		s.titleText(c, e, 15, muted)
 		if address := firstPicture(e); address != "" {
-			s.zoom(s.picture(c, address, true, theme.Px(t, 12), nil), s.index(e.ID), 0).FillWidth().AspectRatio(1.5).
-				MaxHeight(theme.Px(t, 320)).Margin(theme.Px(t, 8), 0, 0, 0)
+			s.zoom(s.picture(c, address, true, theme.Px(t, tokens.Space3), nil), s.index(e.ID), 0).FillWidth().AspectRatio(1.5).
+				MaxHeight(theme.Px(t, tokens.SheetWidth)).Margin(theme.Px(t, tokens.Space2), 0, 0, 0)
 		}
 		s.alsoList(c, e, now, muted)
 	})
@@ -5711,30 +5753,30 @@ func (s *Screen) viewPictures(c *ui.Context) {
 			return b.Clicked()
 		}
 		if last > 0 {
-			ui.Box(c).Absolute().Left(0).Right(0).Top(0).Height(theme.Px(t, 56)).Center().PassThrough().Children(func() {
-				ui.Text(c, strconv.Itoa(at+1)+" / "+strconv.Itoa(last+1)).FontSize(theme.Px(t, 13)).FontWeight(500).
+			ui.Box(c).Absolute().Left(0).Right(0).Top(0).Height(theme.Px(t, viewerBar)).Center().PassThrough().Children(func() {
+				ui.Text(c, strconv.Itoa(at+1)+" / "+strconv.Itoa(last+1)).FontSize(theme.Px(t, tokens.TextBody.Size.En)).FontWeight(500).
 					FontFeatures("tnum").TextColor(p.Text)
 			})
 		}
-		ui.Row(c).Absolute().Left(0).Right(0).Top(0).Height(theme.Px(t, 56)).AlignItems(ui.Center).Justify(ui.End).
-			Gap(theme.Px(t, 8)).PaddingX(theme.Px(t, 12)).Children(func() {
-			browser := ui.ButtonBase(c).Height(theme.Px(t, 32)).Background(theme.Ink(p, 0.10))
+		ui.Row(c).Absolute().Left(0).Right(0).Top(0).Height(theme.Px(t, viewerBar)).AlignItems(ui.Center).Justify(ui.End).
+			Gap(theme.Px(t, tokens.Space2)).PaddingX(theme.Px(t, tokens.Space3)).Children(func() {
+			browser := ui.ButtonBase(c).Height(theme.Px(t, tokens.Space8)).Background(theme.Ink(p, 0.10))
 			if width < 760 {
-				browser.Width(theme.Px(t, 32))
+				browser.Width(theme.Px(t, tokens.Space8))
 			}
-			if button(browser, s.text.Open, theme.Px(t, 8), false) {
+			if button(browser, s.text.Open, theme.Px(t, tokens.Space2), false) {
 				s.browse(c, i)
 			}
 			browser.Children(func() {
-				ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(theme.Px(t, 6)).PaddingX(theme.Px(t, 12)).Children(func() {
+				ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).PaddingX(theme.Px(t, tokens.Space3)).Children(func() {
 					ui.Icon(c, icons.ExternalLink).FontSize(theme.IconMedium(t)).TextColor(p.Text)
 					if width >= 760 {
-						ui.Text(c, s.text.Open).FontSize(theme.Px(t, 13)).FontWeight(500).TextColor(p.Text)
+						ui.Text(c, s.text.Open).FontSize(theme.Px(t, tokens.TextBody.Size.En)).FontWeight(500).TextColor(p.Text)
 					}
 				})
 			})
-			pic := ui.ButtonBase(c).Size(theme.Px(t, 32), theme.Px(t, 32)).Center()
-			if button(pic, s.text.LbOpenPicture, theme.Px(t, 8), true) {
+			pic := ui.ButtonBase(c).Size(theme.Px(t, tokens.Space8), theme.Px(t, tokens.Space8)).Center()
+			if button(pic, s.text.LbOpenPicture, theme.Px(t, tokens.Space2), true) {
 				svc := c.Services()
 				c.OpenURLThen(list[at], func(err error) {
 					if err != nil {
@@ -5744,8 +5786,8 @@ func (s *Screen) viewPictures(c *ui.Context) {
 				})
 			}
 			pic.Children(func() { ui.Icon(c, icons.Image).FontSize(theme.IconMedium(t)).TextColor(theme.Text2(p)) })
-			closer := ui.ButtonBase(c).Size(theme.Px(t, 32), theme.Px(t, 32)).Center()
-			if button(closer, s.text.Close, theme.Px(t, 8), true) {
+			closer := ui.ButtonBase(c).Size(theme.Px(t, tokens.Space8), theme.Px(t, tokens.Space8)).Center()
+			if button(closer, s.text.Close, theme.Px(t, tokens.Space2), true) {
 				s.lb.open = false
 			}
 			closer.Children(func() { ui.Icon(c, icons.X).FontSize(theme.IconMedium(t)).TextColor(theme.Text2(p)) })
@@ -5754,12 +5796,12 @@ func (s *Screen) viewPictures(c *ui.Context) {
 			side := func(prev bool, icon *ui.SVG, label string, to int, off bool) {
 				holder := ui.Box(c).Absolute().Top(0).Bottom(0).Center().PassThrough()
 				if prev {
-					holder.Left(theme.Px(t, 20))
+					holder.Left(theme.Px(t, bannerInset))
 				} else {
-					holder.Right(theme.Px(t, 20))
+					holder.Right(theme.Px(t, bannerInset))
 				}
 				holder.Children(func() {
-					b := ui.ButtonBase(c).Size(theme.Px(t, 44), theme.Px(t, 44)).Center().Background(theme.Ink(p, 0.10)).
+					b := ui.ButtonBase(c).Size(theme.Px(t, viewerHit), theme.Px(t, viewerHit)).Center().Background(theme.Ink(p, 0.10)).
 						Disabled(off)
 					color := p.Text
 					if off {
@@ -5767,7 +5809,7 @@ func (s *Screen) viewPictures(c *ui.Context) {
 					} else if b.Hovered() {
 						b.Background(theme.Ink(p, 0.18))
 					}
-					if button(b, label, theme.Px(t, 22), true) {
+					if button(b, label, theme.Px(t, paneHit), true) {
 						s.page(to)
 					}
 					b.Children(func() { ui.Icon(c, icon).FontSize(theme.IconLarge(t)).TextColor(color) })
@@ -5776,40 +5818,40 @@ func (s *Screen) viewPictures(c *ui.Context) {
 			side(true, icons.ChevronLeft, s.text.LbPrev, at-1, at == 0)
 			side(false, icons.ChevronRight, s.text.LbNext, at+1, at == last)
 		}
-		fitW, fitH := width-theme.Px(t, 144), height-theme.Px(t, 100)
-		ui.Box(c).Absolute().Left(theme.Px(t, 72)).Right(theme.Px(t, 72)).Top(theme.Px(t, 56)).Bottom(theme.Px(t, 44)).Center().
+		fitW, fitH := width-theme.Px(t, 2*viewerSide), height-theme.Px(t, viewerBar+viewerHit)
+		ui.Box(c).Absolute().Left(theme.Px(t, viewerSide)).Right(theme.Px(t, viewerSide)).Top(theme.Px(t, viewerBar)).Bottom(theme.Px(t, viewerHit)).Center().
 			Focusable().FocusRing(false).AutoFocus().Label(s.pictureName(at) + s.text.Separator + name).
 			Role(ui.RoleImage).Children(func() {
 			switch {
 			case failed:
-				w := min(fitW*0.6, theme.Px(t, 480))
-				card := ui.Column(c).Size(w, w*3/4).AlignItems(ui.Center).Justify(ui.Center).Gap(theme.Px(t, 10)).Radius(8).
+				w := min(fitW*0.6, theme.Px(t, viewerFailed))
+				card := ui.Column(c).Size(w, w*3/4).AlignItems(ui.Center).Justify(ui.Center).Gap(theme.Px(t, viewerFailedGap)).Radius(theme.Px(t, tokens.RadiusControl)).
 					Background(ui.RGB(42, 38, 33))
 				card.Clicked()
 				card.Children(func() {
 					ui.Icon(c, icons.ImageOff).FontSize(theme.IconLarge(t)).TextColor(p.TextMuted)
-					ui.Text(c, s.text.LbFailed).FontSize(theme.Px(t, 13)).TextColor(p.TextMuted)
+					ui.Text(c, s.text.LbFailed).FontSize(theme.Px(t, tokens.TextBody.Size.En)).TextColor(p.TextMuted)
 				})
 			case bitmap != nil:
 				w, h := bitmap.Size()
 				scale := min(1, fitW/float32(w), fitH/float32(h))
-				shown := ui.Box(c).Size(float32(w)*scale, float32(h)*scale).Radius(8).Clip()
+				shown := ui.Box(c).Size(float32(w)*scale, float32(h)*scale).Radius(tokens.RadiusControl).Clip()
 				shown.Clicked()
 				shown.Children(func() { ui.Image(c, bitmap).Fill() })
 			default:
-				w := min(fitW, fitH*4/3, theme.Px(t, 640))
-				ui.Box(c).Size(w, w*3/4).Center().Radius(8).Background(theme.Ink(p, 0.06)).Children(func() {
+				w := min(fitW, fitH*4/3, theme.Px(t, viewerMax))
+				ui.Box(c).Size(w, w*3/4).Center().Radius(tokens.RadiusControl).Background(theme.Ink(p, 0.06)).Children(func() {
 					ui.Spinner(c)
 				})
 			}
 		})
-		ui.Row(c).Absolute().Left(theme.Px(t, 72)).Right(theme.Px(t, 72)).Bottom(0).Height(theme.Px(t, 44)).AlignItems(ui.Center).
-			Justify(ui.Center).Gap(theme.Px(t, 6)).PassThrough().Children(func() {
+		ui.Row(c).Absolute().Left(theme.Px(t, viewerSide)).Right(theme.Px(t, viewerSide)).Bottom(0).Height(theme.Px(t, viewerHit)).AlignItems(ui.Center).
+			Justify(ui.Center).Gap(theme.Px(t, tokens.Space1_5)).PassThrough().Children(func() {
 			if e.Kind == "social" && (e.Author != "" || e.Platform != "") {
 				ui.RichText(c, ui.Span{Text: e.Author, Weight: 500, Color: theme.Text2(p)},
-					ui.Span{Text: " " + e.Platform, Color: p.TextMuted}).FontSize(theme.Px(t, 12)).SingleLine()
+					ui.Span{Text: " " + e.Platform, Color: p.TextMuted}).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).SingleLine()
 			} else {
-				ui.Text(c, title(e)).FontSize(theme.Px(t, 12)).TextColor(p.TextMuted).SingleLine()
+				ui.Text(c, title(e)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(p.TextMuted).SingleLine()
 			}
 		})
 	})
@@ -5820,7 +5862,7 @@ func (s *Screen) viewPictures(c *ui.Context) {
 func columns(c *ui.Context, compact bool, minWidth, gap, most float32) (int, float32) {
 	t := c.Theme()
 	width, _ := c.Size()
-	width -= sideWidth(t, compact) + 8 + 2*theme.Px(t, 24)
+	width -= sideWidth(t, compact) + 8 + 2*theme.Px(t, tokens.Space6)
 	n := max(1, int((width+gap)/(minWidth+gap)))
 	if most > 0 {
 		n = min(n, int(most))
@@ -5838,22 +5880,22 @@ func (s *Screen) cells(c *ui.Context, now time.Time, compact, square bool) {
 	} else if i := s.index(s.pin); s.pin != 0 && i >= 0 {
 		s.grid.ScrollTo(i, ui.Start)
 	}
-	gap, minWidth := s.dense(t, 14, 10), theme.Px(t, 200)
+	gap, minWidth := s.dense(t, 14, 10), theme.Px(t, cardMin)
 	if square {
-		minWidth = theme.Px(t, 170)
+		minWidth = theme.Px(t, cardMinNarrow)
 	}
 	// The cells are as wide as the grid lays them out, its own space-2 apart, not gap: a narrower guess leaves the
 	// rows too short for a square and squeezes it.
 	_, cell := columns(c, compact, minWidth, t.Space(2), 0)
-	height := cell*9/16 + theme.Px(t, 13.5)*2.9 + theme.Px(t, 18) + t.Space(3) + theme.Px(t, 20)
+	height := cell*9/16 + theme.Px(t, tokens.TextLabel.Line.En)*2 + theme.Px(t, tokens.Tag) + t.Space(3) + theme.Px(t, chipH)
 	if square {
-		height = cell + theme.Px(t, 13)*1.5 + theme.Px(t, 20) + t.Space(3)
+		height = cell + theme.Px(t, tokens.TextBody.Size.En)*1.5 + theme.Px(t, chipH) + t.Space(3)
 	}
 	ui.GridView(c, &s.grid, len(s.entries), minWidth, height, func(i int) {
 		e := s.entries[i]
-		card := ui.Column(c).Fill().Gap(theme.Px(t, 8)).Radius(theme.Px(t, 10))
+		card := ui.Column(c).Fill().Gap(theme.Px(t, tokens.Space2)).Radius(theme.Px(t, tokens.RadiusCard))
 		if square {
-			card.Gap(theme.Px(t, 4))
+			card.Gap(theme.Px(t, tokens.Space1))
 		}
 		hovered, chosen := s.item(c, card, i, now, true)
 		card.Children(func() {
@@ -5868,7 +5910,7 @@ func (s *Screen) cells(c *ui.Context, now time.Time, compact, square bool) {
 				s.actions(c, i, onCard)
 			}
 		})
-	}).TrackScroll(&s.scrolls[1]).Grow(1).FillWidth().Gap(gap).Padding(s.top()+t.Space(4), theme.Px(t, 24), t.Space(6), theme.Px(t, 24)).
+	}).TrackScroll(&s.scrolls[1]).Grow(1).FillWidth().Gap(gap).Padding(s.top()+t.Space(4), theme.Px(t, tokens.Space6), t.Space(6), theme.Px(t, tokens.Space6)).
 		ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName())
 	s.edge = s.scrolls[1].Y > 0
 	if s.hasFooter() {
@@ -5885,22 +5927,22 @@ func (s *Screen) square(c *ui.Context, e client.Entry) {
 	if n := len(e.Images); n > 1 {
 		label += s.text.Separator + s.format(s.text.Pictures, n)
 		over = func() {
-			ui.Row(c).Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(theme.Px(t, 6)).Right(theme.Px(t, 6)).
-				AlignItems(ui.Center).Gap(theme.Px(t, 3)).Padding(theme.Px(t, 1), theme.Px(t, 6), theme.Px(t, 1), theme.Px(t, 5)).Radius(4).
-				Background(ui.RGBA(28, 24, 18, 0.62)).Children(func() {
-				ui.Icon(c, icons.Images).FontSize(theme.IconSmall(t)).TextColor(ui.Hex("#ffffff"))
-				ui.Text(c, strconv.Itoa(n)).FontSize(theme.Px(t, 11)).FontWeight(500).FontFeatures("tnum").
-					TextColor(ui.Hex("#ffffff"))
+			ui.Row(c).Attach(ui.AnchorTopRight, ui.AnchorTopRight).Top(theme.Px(t, tokens.Space1_5)).Right(theme.Px(t, tokens.Space1_5)).
+				AlignItems(ui.Center).Gap(theme.Px(t, tightGap)).Padding(0, theme.Px(t, tokens.Space1)).Radius(theme.Px(t, tokens.RadiusXS)).
+				Background(theme.Badge(t)).Children(func() {
+				ui.Icon(c, icons.Images).FontSize(theme.IconSmall(t)).TextColor(theme.OnInverse(t))
+				ui.Text(c, strconv.Itoa(n)).FontSize(theme.Px(t, tokens.TextCaption.Size.En)).FontWeight(500).FontFeatures("tnum").
+					TextColor(theme.OnInverse(t))
 			})
 		}
 	}
-	s.zoom(s.picture(c, firstPicture(e), true, theme.Px(t, 10), over), s.index(e.ID), 0).FillWidth().AspectRatio(1).
+	s.zoom(s.picture(c, firstPicture(e), true, theme.Px(t, tokens.RadiusCard), over), s.index(e.ID), 0).FillWidth().AspectRatio(1).
 		Label(label).Role(ui.RoleImage)
 	color, weight := t.Text, 600
 	if e.IsRead {
 		color, weight = t.TextMuted, 500
 	}
-	ui.Text(c, title(e)).FontSize(theme.Px(t, 13)).FontWeight(weight).SingleLine().MinWidth(0).TextColor(color)
+	ui.Text(c, title(e)).FontSize(theme.Px(t, tokens.TextBody.Size.En)).FontWeight(weight).SingleLine().MinWidth(0).TextColor(color)
 }
 
 // wallOf is the Images tab: a masonry wall, each picture in the shortest column.
@@ -5914,9 +5956,9 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 	if s.tight() {
 		tile = tile * 10 / 16
 	}
-	n, width := columns(c, compact, theme.Px(t, 170), gap, 3)
+	n, width := columns(c, compact, theme.Px(t, cardMinNarrow), gap, 3)
 	_, viewHeight := c.Size()
-	caption := theme.Px(t, 12)*1.45 + theme.Px(t, 18) + 2*t.Space(1) + tile
+	caption := theme.Px(t, tokens.Space3)*1.45 + theme.Px(t, tokens.Tag) + 2*t.Space(1) + tile
 	cols := make([][]int, n)
 	tops := make([][]float32, n)
 	heights := make([]float32, n)
@@ -5942,7 +5984,7 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 	s.edge = s.wall.Y > 0
 	ui.Scroll(c).TrackScroll(&s.wall).Grow(1).FillWidth().ScrollbarInsets(s.top(), 0, 0, 0).Label(s.scopeName()).
 		Children(func() {
-			ui.Row(c).FillWidth().Gap(gap).Padding(top, theme.Px(t, 24), t.Space(6), theme.Px(t, 24)).
+			ui.Row(c).FillWidth().Gap(gap).Padding(top, theme.Px(t, tokens.Space6), t.Space(6), theme.Px(t, tokens.Space6)).
 				AlignItems(ui.Start).Children(func() {
 				for k := range cols {
 					ui.Column(c).Key(k).Grow(1).Basis(0).MinWidth(0).Gap(tile).Children(func() {
@@ -5966,15 +6008,15 @@ func (s *Screen) wallOf(c *ui.Context, now time.Time, compact bool) {
 func (s *Screen) tile(c *ui.Context, i int, now time.Time, near bool) {
 	t := c.Theme()
 	e := s.entries[i]
-	tile := ui.Column(c).Key(e.ID).FillWidth().Gap(theme.Px(t, 6)).Radius(theme.Px(t, 10))
+	tile := ui.Column(c).Key(e.ID).FillWidth().Gap(theme.Px(t, tokens.Space1_5)).Radius(theme.Px(t, tokens.RadiusCard))
 	hovered, chosen := s.item(c, tile, i, now, true)
 	tile.Children(func() {
-		s.zoom(s.picture(c, firstPicture(e), near, theme.Px(t, 10), nil), i, 0).FillWidth().AspectRatio(aspect(e))
+		s.zoom(s.picture(c, firstPicture(e), near, theme.Px(t, tokens.RadiusCard), nil), i, 0).FillWidth().AspectRatio(aspect(e))
 		color := t.Text
 		if e.IsRead {
 			color = t.TextMuted
 		}
-		ui.Text(c, title(e)).FontSize(theme.Px(t, 12)).FontWeight(500).SingleLine().TextColor(color)
+		ui.Text(c, title(e)).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).FontWeight(500).SingleLine().TextColor(color)
 		s.meta(c, e, now, true, 0, t.TextMuted, false)
 		if hovered || chosen || tile.Focused() {
 			s.actions(c, i, onCard)
