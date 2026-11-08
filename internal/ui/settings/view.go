@@ -38,7 +38,7 @@ import (
 var catalog []byte
 
 type copy struct {
-	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Lead, Fetching, OPML, Devices, RSSHub                          string
+	Menu, Settings, ThisComputer, BackTimeline, ServerNote, Fetching, OPML, Devices, RSSHub                                string
 	RSSHubHelp, RSSHubPlaceholder, Save, Saved, Unsaved, RetentionSaved, InvalidBase, SaveFailed, Retention, RetentionHelp string
 	FetchEvery, FetchEveryHelp, FetchAuto, FetchMinutes, FetchHours, FetchDays, FullText, FullTextHelp, FetchDefaultSaved  string
 	InvalidBaseAny, TooManyBase                                                                                            string
@@ -49,19 +49,20 @@ type copy struct {
 	BackupFailed, Restoring, RestoreDone, RestoreNotBackup, RestoreCorrupt, RestoreNewer, RestoreTooLarge                  string
 	RestoreBusy, RestoreFailed, RestoreTitle, RestoreBody, RestoreConfirm                                                  string
 	AutoLabel, AutoHelp, AutoFolder, AutoChoose, AutoNoFolder, AutoFrequency, AutoDaily, AutoWeekly, AutoKeep              string
-	AutoCopies, AutoNever, AutoLast, AutoFailed, AutoRemote, AutoPlaceholder                                               string
+	AutoCopies, AutoNever, AutoFailed, AutoRemote, AutoPlaceholder                                                         string
 	AutoReasonMissing, AutoReasonNotDir, AutoReasonNoWrite, AutoReasonDisk, AutoReasonOther                                string
 	AutoNeedFolder, AutoBadFolder, AutoInvalidKeep, AutoSaveFailed                                                         string
 	InvalidSource, DevicesHelp, LocalDevices, ThisDevice, UnknownDevice, Revoke, SignedIn, RevokeTitle                     string
 	RevokeBody, Cancel, RevokeConfirm, Revoked, RevokeFailed, Loading, Error, ErrorHint, Retry                             string
-	AI, AILead, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset             string
+	AI, Endpoint, EndpointHelp, EndpointPlaceholder, Model, ModelPlaceholder, APIKey, KeySet, KeyUnset                     string
 	KeyHelp, KeyPlaceholder, KeyReplace, RemoveKey, KeyRemoved, Language, LanguageHelp, Test, Testing                      string
 	Proxy, ProxyAddress, ProxyHelp, ProxyPlaceholder, ProxyExample, ProxyAuth, ProxyAuthHelp, ProxyUser,
 	ProxyPassword, ProxyOptional, ProxySet, ProxyRemoveAuth, ProxyChanged, InvalidProxy, InvalidProxyAuth, ProxySaved, ProxyAuthRemoved,
 	TestFirst, AIUnauthorized, AIUnreachable, AITimeout, AIRateLimited, AIUpstream, AISaved, InvalidAIBase string
+	UpdateTitle, RulesTitle, RulesDesc, DevicesTitle, BackupTitle, AutoEnable, AutoLastLabel, EntriesValue, ReaderBusy, DiagnosticsButton                                                                                                                                                                                                                                                                                                                                    string
 	Prompts, PromptSummary, PromptTranslate, PromptHelp, Reset, PromptRestored, Undo, InvalidPrompt                                                                                                                                                                                                                                                                                                                                                                          string
 	SubscriptionsGroup, SubscriptionsLead, AddSubscription, BackList                                                                                                                                                                                                                                                                                                                                                                                                         string
-	Appearance, AppearanceLead, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp                                                                                                                                                                                                                                                                                                                                                             string
+	Appearance, Theme, ThemeHelp, ThemeSystem, ThemeLight, ThemeDark, UILanguage, UILanguageHelp                                                                                                                                                                                                                                                                                                                                                                             string
 	ReadingFont, ReadingFontHelp, FollowInterface, Serif                                                                                                                                                                                                                                                                                                                                                                                                                     string
 	SystemChoice, UIFont, UIFontHelp, SystemFont, Reading, TextSize, TextSizeHelp, SizeSmall, SizeMedium                                                                                                                                                                                                                                                                                                                                                                     string
 	SizeLarge, SizeXLarge, LineSpacing, LineSpacingHelp, SpacingCompact, SpacingStandard, SpacingRelaxed                                                                                                                                                                                                                                                                                                                                                                     string
@@ -75,20 +76,20 @@ type copy struct {
 	FontSearch, FontList, FontNone, FontLoading, FontCountOne, FontCount, FontCurrent                                                                                                                                                                                                                                                                                                                                                                                        string
 	ViewAs, ViewArticles, ViewVideos, ViewSocial, ViewImages, ViewForum, ViewPanes, ViewList, ViewCompact, ViewCover, ViewGrid                                                                                                                                                                                                                                                                                                                                               string
 	ViewWall, ViewCard, ViewAsHelp, Timeline, GroupSameLink, GroupSameLinkHelp, Density, DensityHelp, DensityComfortable, DensityCompact, MarkRead, MarkReadHelpOpen, MarkReadHelpDwell, MarkReadHelpScroll, MarkReadHelpNever, MarkReadOpen, MarkReadDwell, MarkReadScroll, MarkReadNever, Dwell, DwellHelp, Seconds3, Seconds5, Seconds10                                                                                                                                  string
-	Activity, ActivityLead, Refresh, Storage, DBSize, Entries, Images, ImagesValue, Copies, CopiesValue, Compact, CompactRun, Compacting                                                                                                                                                                                                                                                                                                                                     string
+	Activity, Refresh, Storage, DBSize, Images, ImagesValue, Copies, CopiesValue, Compact, CompactRun, Compacting                                                                                                                                                                                                                                                                                                                                                            string
 	PreMigrate, PreMigrateVersion, DeletePreMigrate, DeletePreMigrateTitle, DeletePreMigrateBody                                                                                                                                                                                                                                                                                                                                                                             string
 	DeletePreMigrateConfirm, PreMigrateDeleted, PreMigrateFailed, ClearImages, ClearImagesLabel, ImagesCleared, ClearImagesFailed, Danger, DeleteRead, DeleteReadHelp, DeleteReadButton, DeleteReadTitle, DeleteReadBody, DeleteReadConfirm, DeleteReadNone, DeleteReadDone, DeleteReadFailed, Rename, RenameTitle, RenameHelp, RenameFailed, RenameTooLong, Renamed, ResetDevice, ResetDeviceHelp, ResetDeviceButton, ResetDeviceTitle, ResetDeviceBody, ResetDeviceConfirm string
 	Compacted, CompactFailed, CompactHelp, FetchingNow, FetchingNone, FetchingAttempt, FetchingVia, FetchingElapsed, Recent, RecentNone, RecentKeep                                                                                                                                                                                                                                                                                                                          string
 	Health, HealthHelp, HealthEmpty, MainBadge, NoData, NoAnswer, LastN, Cooling, CoolingSoon                                                                                                                                                                                                                                                                                                                                                                                string
 	NewCount, NothingNew, FailedWord, ShowAttempts                                                                                                                                                                                                                                                                                                                                                                                                                           string
-	Diagnostics, DiagnosticsFile, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                                                                                                                                                            string
+	DiagnosticsFile, DiagnosticsHelp, ExportDiagnostics, ExportingDiagnostics, DiagnosticsFiles, DiagnosticsExported                                                                                                                                                                                                                                                                                                                                                         string
 	DiagnosticsFailed, DiagnosticsMenu                                                                                                                                                                                                                                                                                                                                                                                                                                       string
 
 	ImportingOf, Progress, ViewSources, Stopped, Lost, ImportBusy, BusyWhy        string
 	StoppedMany, LostMany, SkippedWhy                                             string
 	DropHelp, ImportedMany, NotOpmlWhy, TooLargeWhy, ReadWhy, FailedWhy, DropBusy string
 
-	Rules, RulesLead, RulesNone, RulesNoneHelp, AddRule, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs                                                                                           string
+	Rules, RulesNone, RulesNoneHelp, AddRule, RulesMax, RuleMore, RuleSwitch, RuleOffBadge, AllSubs                                                                                                      string
 	RwKeywords, RwExclude, SubsN, RuleExclude, RuleExcludeHelp, RuleCount, RuleCountNone, ErrSources, RwAuthor, RwOnly, ActStar, ActRead, MenuEdit, MenuDelete, RuleDeleted, RuleAddTitle, RuleEditTitle string
 	RuleWhen, RuleWhenHelp, RuleSub, RuleKind, KindAny, RuleKeywords, RuleKeywordsHelp, RuleAuthor, RuleAuthorHint                                                                                       string
 	RuleThen, RuleNote, ErrNoCondition, ErrNoAction, ErrKeywords, ErrAuthor, ErrSource, ErrTooMany, RuleClose                                                                                            string
@@ -2086,7 +2087,7 @@ func (s *Screen) room(c *ui.Context, width float32, compact bool) float32 {
 }
 
 // groupIcons are the groups' icons in the order of the groups, for the sidebar and the page head.
-var groupIcons = [...]*ui.SVG{icons.Palette, icons.ListChecks, icons.RefreshCw, icons.ListFilter, icons.ArrowUpDown, icons.Sparkles,
+var groupIcons = [...]*ui.SVG{icons.Palette, icons.Rss, icons.RefreshCw, icons.ListFilter, icons.ArrowUpDown, icons.Sparkles,
 	icons.Laptop, icons.Database}
 
 // sidebar is the settings pane, design BSettingsNav: the window buttons' strip, Back to the timeline and the groups,
@@ -2164,15 +2165,14 @@ func (s *Screen) navItem(c *ui.Context, g int, icon *ui.SVG) {
 // serverBar says whose settings these are; unlike the timeline's, it does not open the connect screen.
 func (s *Screen) serverBar(c *ui.Context) {
 	t := c.Theme()
-	name, icon := s.text.ThisComputer, icons.Laptop
+	name := s.text.ThisComputer
 	if s.server != "" {
-		name, icon = s.server, icons.Server
+		name = s.server
 	}
-	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.RowCompact)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
 		PaddingX(theme.Px(t, tokens.Space2)).Tooltip(s.text.ServerNote).Children(func() {
-		ui.Icon(c, icon).FontSize(theme.IconMedium(t)).TextColor(t.TextMuted)
+		ui.Box(c).Size(tokens.Dot, tokens.Dot).Shrink(0).Radius(theme.Pill(tokens.Dot)).Background(t.Success)
 		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
-		ui.Box(c).Size(tokens.Dot, tokens.Dot).Radius(theme.Pill(tokens.Dot)).Background(t.Success)
 	})
 }
 
@@ -2277,8 +2277,8 @@ func (s *Screen) titleLeft(t *ui.Theme, compact bool, room float32) float32 {
 var headFade = ui.ElementTransition{Duration: tokens.MotionFast, Colors: true}
 
 // head is the page's head, which stays while the page scrolls under it: the group's icon in a soft accent chip
-// (control plus space-4 square, radius-card), the name in display and what the page is for in meta. It drags the
-// window, and a hairline fades in under it once the page has scrolled.
+// (control plus space-4 square, radius-card) and the name in display, with a line in meta on the Subscriptions page
+// only. It drags the window, and a hairline fades in under it once the page has scrolled.
 func (s *Screen) head(c *ui.Context, compact bool, room float32) {
 	t := c.Theme()
 	bar := c.TitleBar()
@@ -2302,8 +2302,8 @@ func (s *Screen) head(c *ui.Context, compact bool, room float32) {
 				}
 				ui.Text(c, s.groupName(s.group)).FontSize(theme.Px(t, tokens.TextDisplay.Size.En)).
 					FontWeight(tokens.TextDisplay.Weight).SingleLine().MinWidth(0).Role(ui.RoleHeading).Level(1)
-				if lead := s.lead(); lead != "" {
-					ui.Text(c, lead).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Wrap()
+				if s.group == subscriptions {
+					ui.Text(c, s.text.SubscriptionsLead).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted).Wrap()
 				}
 			})
 			if s.group == subscriptions && s.crumb() == "" {
@@ -2364,31 +2364,6 @@ func (s *Screen) crumbTitle(c *ui.Context, name string) {
 	}
 	ui.Text(c, name).FontSize(theme.Px(t, tokens.TextDisplay.Size.En)).FontWeight(tokens.TextDisplay.Weight).
 		SingleLine().MinWidth(0).Role(ui.RoleHeading).Level(1)
-}
-
-// lead is the sentence under the page's name: what the page is for.
-func (s *Screen) lead() string {
-	switch s.group {
-	case appearance:
-		return s.text.AppearanceLead
-	case subscriptions:
-		return s.text.SubscriptionsLead
-	case fetching:
-		return s.text.Lead
-	case rules:
-		return s.text.RulesLead
-	case opml:
-		return s.text.OPMLHelp
-	case ai:
-		return s.text.AILead
-	case devices:
-		if s.signedIn {
-			return s.text.DevicesHelp
-		}
-	case activity:
-		return s.text.ActivityLead
-	}
-	return ""
 }
 
 func (s *Screen) page(c *ui.Context, compact bool, maxWidth float32, children func()) {
@@ -2489,9 +2464,20 @@ func hairline(c *ui.Context) {
 // sectionTitle is the title over a card, design BSettingsCard: title, space-1 in, space-3 over the card; top is the
 // space over it, space-6 between one card and the next title.
 func sectionTitle(c *ui.Context, text string, top float32) {
+	sectionHead(c, text, "", top)
+}
+
+// sectionHead is sectionTitle with what the card is about in meta under the title, space-0_5 apart.
+func sectionHead(c *ui.Context, title, desc string, top float32) {
 	t := c.Theme()
-	ui.Text(c, text).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
-		Margin(top, theme.Px(t, tokens.Space1), theme.Px(t, tokens.Space3)).Role(ui.RoleHeading).Level(2)
+	ui.Column(c).FillWidth().Gap(theme.Px(t, tokens.Space0_5)).Margin(top, 0, theme.Px(t, tokens.Space3), 0).
+		PaddingX(theme.Px(t, tokens.Space1)).Children(func() {
+		ui.Text(c, title).FontSize(theme.Px(t, tokens.TextTitle.Size.En)).FontWeight(tokens.TextTitle.Weight).
+			Role(ui.RoleHeading).Level(2)
+		if desc != "" {
+			meta(c, desc)
+		}
+	})
 }
 
 // gap is the space over a card's title when another card is above it.
@@ -2617,6 +2603,7 @@ func coded(c *ui.Context, text, placeholder, code string) ui.Element {
 func (s *Screen) fetchingPage(c *ui.Context) {
 	t := c.Theme()
 	s.watchHealth()
+	sectionTitle(c, s.text.UpdateTitle, 0)
 	card(c, func() {
 		labeled(c, icons.Clock, s.text.FetchEvery, s.text.FetchEveryHelp, func() { s.everySelect(c) })
 		statusLine(c, s.fetchStatus)
@@ -3666,42 +3653,50 @@ func (s *Screen) pickIn(c *ui.Context, current, label string, options []choice, 
 
 func (s *Screen) opmlPage(c *ui.Context) {
 	t := c.Theme()
+	// A file can be dropped anywhere on the page.
+	zone := ui.Column(c).FillWidth().Radius(theme.Px(t, tokens.RadiusCard))
+	over := zone.FileDragOver()
+	if over {
+		zone.Background(theme.Soft(t, t.Accent)).Border(theme.Px(t, tokens.Hairline), t.Accent).BorderStyle(ui.BorderDashed)
+	}
+	if paths := zone.DroppedFiles(); len(paths) > 0 {
+		s.ImportFiles(paths)
+	}
+	zone.Children(func() {
+		sectionHead(c, s.text.SubscriptionsGroup, s.text.OPMLHelp, 0)
+		s.opmlCard(c, over)
+		sectionHead(c, s.text.BackupTitle, s.text.BackupHelp, gap(t))
+		s.backupCard(c)
+		sectionHead(c, s.text.AutoLabel, s.text.AutoHelp, gap(t))
+		cardOf(c, s.autoRows(c))
+	})
+}
+
+// opmlCard is the OPML import and export and the import from another reader. While an import runs its progress takes
+// the place of the button.
+func (s *Screen) opmlCard(c *ui.Context, over bool) {
 	card(c, func() {
-		zone := ui.Column(c).FillWidth().Radius(theme.Px(t, tokens.RadiusControl))
-		over := zone.FileDragOver()
+		help := s.text.ImportHelp
 		if over {
-			zone.Background(theme.Soft(t, t.Accent)).Border(theme.Px(t, tokens.Hairline), t.Accent).BorderStyle(ui.BorderDashed).
-				Padding(theme.Px(t, tokens.Space2))
+			help = s.text.DropHelp
 		}
-		if paths := zone.DroppedFiles(); len(paths) > 0 {
-			s.ImportFiles(paths)
-		}
-		zone.Children(func() {
-			help := s.text.ImportHelp
-			if over {
-				help = s.text.DropHelp
-			}
-			labeled(c, icons.Upload, s.text.ImportLabel, help, func() {
-				b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Upload, Text: s.text.Import}.Draw(c)
+		var choose func()
+		if s.run == nil {
+			choose = func() {
+				b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Text: s.text.Import}.Draw(c)
 				if b.Clicked() {
 					s.chooseImport()
 				}
-			})
-		})
+			}
+		}
+		labeled(c, icons.Download, s.text.ImportLabel, help, choose)
 		s.importProgress(c)
 		if s.result.text != "" && !s.result.export && !s.result.backup {
 			s.resultBox(c)
 		}
 	}, func() {
-		labeled(c, icons.ArrowUpDown, s.text.ReaderLabel, s.text.ReaderHelp, func() {
-			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.ArrowUpDown, Text: s.text.ReaderButton}.Draw(c)
-			if b.Clicked() {
-				s.openReader()
-			}
-		})
-	}, func() {
-		labeled(c, icons.Download, s.text.ExportLabel, s.text.ExportHelp, func() {
-			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Download, Text: s.text.Export}.Draw(c)
+		labeled(c, icons.Upload, s.text.ExportLabel, s.text.ExportHelp, func() {
+			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Text: s.text.Export}.Draw(c)
 			if b.Clicked() {
 				s.export()
 			}
@@ -3710,15 +3705,31 @@ func (s *Screen) opmlPage(c *ui.Context) {
 			s.resultBox(c)
 		}
 	}, func() {
-		labeled(c, icons.Database, s.text.BackupLabel, s.text.BackupHelp, func() {
-			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.Database, Text: s.text.BackupButton}.Draw(c)
+		help := s.text.ReaderHelp
+		if s.run != nil {
+			help = s.text.ReaderBusy
+		}
+		labeled(c, icons.ArrowUpDown, s.text.ReaderLabel, help, func() {
+			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Text: s.text.ReaderButton}.Draw(c)
+			if b.Clicked() {
+				s.openReader()
+			}
+		})
+	})
+}
+
+// backupCard is making a backup and restoring one.
+func (s *Screen) backupCard(c *ui.Context) {
+	card(c, func() {
+		labeled(c, icons.Database, s.text.BackupLabel, "", func() {
+			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Text: s.text.BackupButton}.Draw(c)
 			if b.Clicked() {
 				s.backUp()
 			}
 		})
 	}, func() {
 		labeled(c, icons.RotateCcw, s.text.RestoreLabel, s.text.RestoreHelp, func() {
-			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Icon: icons.RotateCcw, Text: s.text.RestoreButton}.Draw(c)
+			b := theme.Button{Style: theme.Secondary, Disabled: s.busy, Text: s.text.RestoreButton}.Draw(c)
 			if b.Clicked() {
 				s.chooseRestore()
 			}
@@ -3729,7 +3740,7 @@ func (s *Screen) opmlPage(c *ui.Context) {
 		if s.result.text != "" && s.result.backup {
 			s.resultBox(c)
 		}
-	}, func() { s.autoRows(c) })
+	})
 }
 
 // autoRemote reports that the folder of automatic backups is on another computer, which a dialog here cannot browse,
@@ -3840,83 +3851,85 @@ func (s *Screen) commitAuto() {
 	}
 }
 
-// autoRows is the automatic backup row: the switch, the folder, how often, how many to keep and how the last one went.
-func (s *Screen) autoRows(c *ui.Context) {
+// autoRows are the rows of automatic backups: the switch, the folder, how often, how many to keep and how the last one
+// went. The canvas has no row for the switch; it stays first until the maintainer rules on it (#575).
+func (s *Screen) autoRows(c *ui.Context) []cardRow {
 	t := c.Theme()
 	st := s.settings
-	labeled(c, icons.Clock, s.text.AutoLabel, s.text.AutoHelp, func() {
-		on := st.AutoBackupEnabled
-		ui.Switch(c, &on).Label(s.text.AutoLabel).Description(s.text.AutoHelp).Disabled(s.autoSaving)
-		if on != st.AutoBackupEnabled {
-			patch := client.SettingsPatch{AutoBackupEnabled: &on}
-			if folder := strings.TrimSpace(s.autoFolder); on && s.autoRemote() && folder != st.AutoBackupFolder {
-				patch.AutoBackupFolder = &folder
-			}
-			s.saveAuto(patch)
-		}
-	})
-	// The lines under the switch start under its name, past the chip.
-	indent := theme.Px(t, tokens.Control+tokens.Space3)
-	line := func(name string, control func()) {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).Margin(theme.Px(t, tokens.Space2), 0, 0, indent).
-			MinHeight(theme.Px(t, tokens.Control)).Children(func() {
-			ui.Text(c, name).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(theme.Text2(t)).
-				Width(theme.Px(t, tokens.ThumbW)).Shrink(0)
-			control()
-		})
-	}
-	line(s.text.AutoFolder, func() {
-		switch {
-		case s.autoRemote():
-			s.watch(field(c, "autofolder", &s.autoFolder, 0, false, func(in ui.Element) {
-				in.Font("monospace").Label(s.text.AutoFolder).Placeholder(s.text.AutoPlaceholder).Disabled(s.autoSaving)
-				if in.Submitted() {
-					s.commitAuto()
+	return []cardRow{{key: "auto-on", draw: func() {
+		labeled(c, icons.Clock, s.text.AutoEnable, "", func() {
+			on := st.AutoBackupEnabled
+			ui.Switch(c, &on).Label(s.text.AutoEnable).Description(s.text.AutoHelp).Disabled(s.autoSaving)
+			if on != st.AutoBackupEnabled {
+				patch := client.SettingsPatch{AutoBackupEnabled: &on}
+				if folder := strings.TrimSpace(s.autoFolder); on && s.autoRemote() && folder != st.AutoBackupFolder {
+					patch.AutoBackupFolder = &folder
 				}
-			}))
-		case st.AutoBackupFolder == "":
-			ui.Text(c, s.text.AutoNoFolder).Grow(1).MinWidth(0).TextColor(t.TextMuted)
-		default:
-			ui.Text(c, st.AutoBackupFolder).Font("monospace").NoWrap().Grow(1).MinWidth(0)
+				s.saveAuto(patch)
+			}
+		})
+	}}, {key: "auto-folder", draw: func() {
+		if s.autoRemote() {
+			labeled(c, icons.Folder, s.text.AutoFolder, s.text.AutoRemote, func() {
+				s.watch(field(c, "autofolder", &s.autoFolder, theme.Px(t, tokens.SheetWidth), false, func(in ui.Element) {
+					in.Font("monospace").Label(s.text.AutoFolder).Placeholder(s.text.AutoPlaceholder).Disabled(s.autoSaving)
+					if in.Submitted() {
+						s.commitAuto()
+					}
+				}))
+			})
+			return
 		}
-		if !s.autoRemote() {
-			b := theme.Button{Small: true, Disabled: s.autoSaving, Icon: icons.Folder, Text: s.text.AutoChoose}.Draw(c)
+		folder := st.AutoBackupFolder
+		if folder == "" {
+			folder = s.text.AutoNoFolder
+		}
+		labeled(c, icons.Folder, s.text.AutoFolder, folder, func() {
+			b := theme.Button{Style: theme.Secondary, Disabled: s.autoSaving, Text: s.text.AutoChoose}.Draw(c)
 			if b.Clicked() {
 				s.chooseFolder()
 			}
-		}
-	})
-	if s.autoRemote() {
-		meta(c, s.text.AutoRemote).Margin(theme.Px(t, tokens.Space1), 0, 0, indent+theme.Px(t, tokens.ThumbW+tokens.Space3))
-	}
-	line(s.text.AutoFrequency, func() {
-		frequencies := []string{"daily", "weekly"}
-		names := []string{s.text.AutoDaily, s.text.AutoWeekly}
-		if i, changed := s.segments(c, s.text.AutoFrequency, names, slices.Index(frequencies, st.AutoBackupFrequency)); changed &&
-			frequencies[i] != st.AutoBackupFrequency {
-			s.saveAuto(client.SettingsPatch{AutoBackupFrequency: &frequencies[i]})
-		}
-	})
-	line(s.text.AutoKeep, func() {
-		s.watch(field(c, "autokeep", &s.autoKeep, theme.Px(t, 2*tokens.Space8), false, func(in ui.Element) {
-			in.Font("monospace").Label(s.text.AutoKeep).Disabled(s.autoSaving)
-			if in.Submitted() {
-				s.commitAuto()
+		})
+	}}, {key: "auto-frequency", draw: func() {
+		labeled(c, icons.CalendarDays, s.text.AutoFrequency, "", func() {
+			frequencies := []string{"daily", "weekly"}
+			names := []string{s.text.AutoDaily, s.text.AutoWeekly}
+			if i, changed := s.segments(c, s.text.AutoFrequency, names, slices.Index(frequencies, st.AutoBackupFrequency)); changed &&
+				frequencies[i] != st.AutoBackupFrequency {
+				s.saveAuto(client.SettingsPatch{AutoBackupFrequency: &frequencies[i]})
 			}
-		}))
-		ui.Text(c, s.text.AutoCopies).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
+		})
+	}}, {key: "auto-keep", draw: func() {
+		labeled(c, icons.Layers, s.text.AutoKeep, "", func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).Children(func() {
+				s.watch(field(c, "autokeep", &s.autoKeep, theme.Px(t, 2*tokens.Space8), false, func(in ui.Element) {
+					in.Font("monospace").Label(s.text.AutoKeep).Disabled(s.autoSaving)
+					if in.Submitted() {
+						s.commitAuto()
+					}
+				}))
+				ui.Text(c, s.text.AutoCopies).FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
+			})
+		})
+	}}, {key: "auto-last", draw: func() { s.autoLast(c) }}}
+}
+
+// autoLast is how the last automatic backup went: when and which file, with a refusal or a failure under it.
+func (s *Screen) autoLast(c *ui.Context) {
+	t := c.Theme()
+	st := s.settings
+	when, file := s.text.AutoNever, ""
+	if st.AutoBackupLastAt != 0 {
+		when, file = s.ago(st.AutoBackupLastAt, s.deps.Now()), st.AutoBackupLastFile
+	}
+	labeled(c, icons.CircleCheckBig, s.text.AutoLastLabel, file, func() {
+		ui.Text(c, when).SingleLine().TextColor(theme.Text2(t)).FontFeatures("tnum")
 	})
-	now := s.deps.Now()
 	switch {
 	case s.autoStatus.text != "":
 		statusLine(c, s.autoStatus)
 	case st.AutoBackupFailedAt != 0:
 		statusLine(c, status{warn: true, text: s.fill(s.text.AutoFailed, "{reason}", s.autoReason(st.AutoBackupError))})
-	case st.AutoBackupLastAt != 0:
-		statusLine(c, status{muted: true, text: s.fill(s.text.AutoLast, "{time}", s.ago(st.AutoBackupLastAt, now),
-			"{file}", st.AutoBackupLastFile)})
-	default:
-		statusLine(c, status{muted: true, text: s.text.AutoNever})
 	}
 }
 
@@ -4045,6 +4058,7 @@ func (s *Screen) devicesPage(c *ui.Context, table bool) {
 		card(c, func() { setting(c, icons.Laptop, false, s.text.LocalDevices, nil, nil) })
 		return
 	}
+	sectionHead(c, s.text.DevicesTitle, s.text.DevicesHelp, 0)
 	now := s.deps.Now()
 	if table {
 		s.deviceTable(c, now)

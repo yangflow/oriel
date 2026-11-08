@@ -225,7 +225,7 @@ func TestShellSettings(t *testing.T) {
 	s.connected(client.Session{Server: server.URL, Token: "t1"})
 	s.openSettings()
 	tt.Frame()
-	if !tt.HasText("Keep entries") || !tt.HasText(strings.TrimPrefix(server.URL, "http://")) {
+	if !tt.HasText("Keep for") || !tt.HasText(strings.TrimPrefix(server.URL, "http://")) {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	if err := tt.Click("Devices"); err != nil {

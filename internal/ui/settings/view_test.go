@@ -499,7 +499,7 @@ func TestCatalogsMatch(t *testing.T) {
 func TestShows(t *testing.T) {
 	_, _, tt := setup(t, "en", true)
 	for _, text := range []string{"Fetching", "Import and export", "Devices", "reader.example.com", "RSSHub instance",
-		"Keep entries", "1 month"} {
+		"Keep for", "1 month"} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())
 		}
@@ -1093,11 +1093,6 @@ func TestAIColumns(t *testing.T) {
 	if prompts.Y != conn.Y || prompts.X <= conn.X {
 		t.Errorf("two columns: connection %v, prompts %v", conn, prompts)
 	}
-	// The lead, in the head after the page's chip, starts over the first column and stops at 600, scaled with the text
-	// size, short of the two columns under it.
-	if lead := rect(t, tt, s.text.AILead); lead.X <= conn.X || lead.X >= prompts.X || lead.W >= 2*conn.W {
-		t.Errorf("lead %v, connection %v", lead, conn)
-	}
 	// At the minimum window the single column keeps its Connection heading.
 	tt.SetSize(640, 600)
 	tt.Frame()
@@ -1187,7 +1182,7 @@ func TestAIShows(t *testing.T) {
 	if s.group != ai {
 		t.Fatalf("group %d", s.group)
 	}
-	for _, text := range []string{s.text.AILead, s.text.Endpoint, s.text.Model, s.text.KeyUnset, "简体中文",
+	for _, text := range []string{s.text.Endpoint, s.text.Model, s.text.KeyUnset, "简体中文",
 		s.text.PromptSummary, s.text.Reset} {
 		if !tt.HasText(text) {
 			t.Errorf("no %q in %v", text, tt.Texts())
@@ -1694,14 +1689,14 @@ const revealTop = 200
 
 func TestAppearanceShows(t *testing.T) {
 	s, _, tt := openAppearance(t, "en")
-	for _, want := range []string{s.text.AppearanceLead, s.text.Theme, s.text.ThemeSystem, s.text.UILanguage,
+	for _, want := range []string{s.text.Theme, s.text.ThemeSystem, s.text.UILanguage,
 		s.text.SystemChoice, s.text.UIFont, s.text.SystemFont, s.text.Reading, s.text.TextSize, s.text.SizeMedium,
 		s.text.LineSpacing, s.text.SpacingStandard, s.text.ChineseTypesetting, s.text.PreviewText} {
 		if !tt.HasText(want) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
 		}
 	}
-	if tt.HasText(s.text.RetentionSaved) || tt.HasText("Keep entries") {
+	if tt.HasText(s.text.RetentionSaved) || tt.HasText("Keep for") {
 		t.Fatalf("the fetching group shows: %v", tt.Texts())
 	}
 }
