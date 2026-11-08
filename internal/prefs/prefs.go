@@ -108,7 +108,7 @@ type Preferences struct {
 	ReadingWidth  string `json:"readingWidth"`
 	ReadingPreset string `json:"readingPreset,omitempty"`
 
-	// ChineseTypesetting sets Chinese text in the reader (docs/product.md, 中文排版). A file without the
+	// ChineseTypesetting sets Chinese text in the reader (docs/product/screens.md, 中文排版). A file without the
 	// field reads as on, because Load starts from Default.
 	ChineseTypesetting bool `json:"chineseTypesetting"`
 

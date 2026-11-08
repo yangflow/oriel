@@ -14,7 +14,7 @@ import (
 )
 
 // Revision is the version of an entry from before its latest substantive update, next to the version it has now. Both
-// are reduced to a title and paragraphs of text, so a client can compare them. See docs/product.md "条目的修订".
+// are reduced to a title and paragraphs of text, so a client can compare them. See docs/product/data.md "条目的修订".
 type Revision struct {
 	// FetchedAt is when the earlier version was fetched, ReplacedAt when the update that replaced it was.
 	FetchedAt, ReplacedAt time.Time

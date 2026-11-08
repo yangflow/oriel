@@ -20,7 +20,7 @@ var forumRoutes = []string{"v2ex", "linuxdo", "discourse"}
 var discourseRoots = []string{"latest", "top", "posts", "c", "tag", "tags", "t", "u"}
 
 // ForumFeed reports whether the address of a feed, or the RSSHub route of one, belongs to a community: a known site
-// (V2EX, LINUX DO), a Discourse feed by the shape of its path, or an RSSHub route of such a site. See docs/product.md
+// (V2EX, LINUX DO), a Discourse feed by the shape of its path, or an RSSHub route of such a site. See docs/product/fetching.md
 // "形态建议".
 func ForumFeed(address, route string) bool {
 	if route != "" {

@@ -84,7 +84,7 @@ ORIEL_PASSWORD=<口令> go run . serve -data ./data -port 7470
 
 ### Docker 或 systemd
 
-文件在 [`deploy/`](deploy/)，数据目录、端口、反向代理和 HTTPS、健康检查、备份、升级的细节在 [docs/product.md](docs/product.md)「部署」一节。镜像从源码目录构建，不从注册表拉取，支持 `linux/amd64` 和 `linux/arm64`：
+文件在 [`deploy/`](deploy/)，数据目录、端口、反向代理和 HTTPS、健康检查、备份、升级的细节在 [docs/product/running.md](docs/product/running.md#部署)「部署」一节。镜像从源码目录构建，不从注册表拉取，支持 `linux/amd64` 和 `linux/arm64`：
 
 ```bash
 echo 'ORIEL_PASSWORD=<口令>' > deploy/.env && chmod 600 deploy/.env
@@ -105,7 +105,7 @@ scripts/check.sh --cross --race   # 全部，CI 在 main 每次推送和每天�
 
 | 内容 | 位置 |
 |---|---|
-| 产品行为、数据模型、接口、抓取和登录 | [docs/product.md](docs/product.md) |
+| 产品行为、数据模型、接口、抓取和登录 | [docs/product.md](docs/product.md) 和 [docs/product/](docs/product/) |
 | 界面画板、设计系统和设计令牌 | [design/README.md](design/README.md) |
 | 架构决定（英文） | [docs/adr/](docs/adr/README.md) |
 | 发版（英文） | [docs/release.md](docs/release.md) |

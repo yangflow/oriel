@@ -37,7 +37,7 @@ func init() {
 	})
 }
 
-// groupKey is how entries of any sources are compared to show one article once (docs/product.md "同一篇文章只显示一次").
+// groupKey is how entries of any sources are compared to show one article once (docs/product/data.md "同一篇文章只显示一次").
 // It is the link, or the GUID when there is no link and the GUID is an http or https address, with the scheme ignored,
 // the host lowercase without "www." and the default port, no fragment, no trailing slash on the path, tracking
 // parameters dropped and the other parameters sorted. It is empty when there is nothing to compare: no usable link, or

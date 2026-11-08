@@ -12,7 +12,7 @@ import (
 	"github.com/yangflow/oriel/internal/tracker"
 )
 
-// What an article becomes as Markdown, see docs/product.md "阅读器", Export as Markdown. It is made from the same
+// What an article becomes as Markdown, see docs/product/screens.md "阅读器", Export as Markdown. It is made from the same
 // blocks the reader draws, so the text matches what is read, and it is one function for both the copy and the file.
 
 // markdown is the article as a Markdown document: the title, the lines of its source, author, date and link, and

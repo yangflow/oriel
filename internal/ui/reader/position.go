@@ -10,7 +10,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/theme"
 )
 
-// The reading position, see docs/product.md "阅读器": where the reader stopped is kept as a fraction of the article's
+// The reading position, see docs/product/screens.md "阅读器": where the reader stopped is kept as a fraction of the article's
 // scrollable height, Y over MaxY of the scroll state.
 const (
 	saveAfter    = time.Second // how long the offset stays still before the position is stored

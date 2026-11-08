@@ -14,7 +14,7 @@ language of the thread.
 - Search existing issues and pull requests first.
 - Open an issue before a large change so the direction can be agreed before you write code. Small fixes can go
   straight to a pull request.
-- The scope is in [docs/product.md](docs/product.md) (no multiple users, plugins or recommendations). A pull
+- The scope is in [docs/product.md](docs/product.md#范围) (no multiple users, plugins or recommendations). A pull
   request outside it may be closed.
 - Questions go to issues; there are no Discussions and no paid support.
 - Report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
@@ -45,7 +45,7 @@ failure there opens an issue.
 - When behavior changes, update the existing tests for that area. The `feat`, `refactor`, `fix` and `perf` titles become the
   release notes (docs/release.md), so write them for users; do not edit `CHANGELOG.md`.
 - Interface strings live in each screen's `copy.json`, in English and Simplified Chinese only; change both.
-  Product behavior changes start in [docs/product.md](docs/product.md).
+  Product behavior changes start in [docs/product.md](docs/product.md) and the topic files it lists.
 
 ## UI changes
 

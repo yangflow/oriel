@@ -33,7 +33,7 @@ type execer interface {
 // refold folds the unread, unstarred entries of a source that are over its daily cap, from the entries created at since
 // (Unix milliseconds) on; a source without a cap folds nothing. The entries of one local day are ranked by arrival, and
 // the ones the mute keywords hide do not take a place. It only ever folds: unfolding happens when the entry is read
-// or starred (a trigger) or when the cap changes (see UpdateSource). See docs/product.md "每日上限".
+// or starred (a trigger) or when the cap changes (see UpdateSource). See docs/product/timeline.md "每日上限".
 func refold(ctx context.Context, db execer, sourceID, since int64) error {
 	_, err := db.ExecContext(ctx, `
 		UPDATE entries SET folded = 1 WHERE folded = 0 AND is_read = 0 AND starred = 0 AND id IN (

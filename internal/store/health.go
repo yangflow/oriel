@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// The thresholds of subscription health; docs/product.md ("订阅健康") gives the reasons.
+// The thresholds of subscription health; docs/product/data.md ("订阅健康") gives the reasons.
 const (
 	healthSilentDays     = 90 // no new entry for this long makes a source dead
 	healthFailingDays    = 30 // failing for this long makes a source dead
@@ -22,7 +22,7 @@ const (
 	healthNoisyPerDay    = 20 // entries a day, on average, that make a source noisy
 	healthNoisyReadMax   = 5  // a read share of at most this many percent, with that volume, is noisy
 	healthNoisyRearmFold = 2  // a dismissed source is named again when its entries a day reach this many times the dismissed number
-	// NoisyPaceSec is the pace the "slow down" action sets: Breaking, see docs/product.md "节奏".
+	// NoisyPaceSec is the pace the "slow down" action sets: Breaking, see docs/product/timeline.md "节奏".
 	NoisyPaceSec = 3 * 60 * 60
 )
 

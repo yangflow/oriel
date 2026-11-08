@@ -107,7 +107,7 @@ ORIEL_PASSWORD=<password> go run . serve -data ./data -port 7470
 ### Docker or systemd
 
 The files are in [`deploy/`](deploy/); the details (data directory, port, reverse proxy and HTTPS, health check,
-backups, upgrading) are in [docs/product.md](docs/product.md) ("部署", in Chinese). The image is built from a
+backups, upgrading) are in [docs/product/running.md](docs/product/running.md#部署) ("部署", in Chinese). The image is built from a
 checkout, not pulled from a registry, for `linux/amd64` and `linux/arm64`:
 
 ```bash
@@ -132,7 +132,7 @@ scripts/check.sh --cross --race   # everything, as CI runs it on main and daily:
 
 | Topic | Where |
 |---|---|
-| Behavior, data model, API, fetching and sign-in (in Chinese) | [docs/product.md](docs/product.md) |
+| Behavior, data model, API, fetching and sign-in (in Chinese) | [docs/product.md](docs/product.md) and [docs/product/](docs/product/) |
 | Screens canvas, design system and tokens | [design/README.md](design/README.md) |
 | Architecture decisions | [docs/adr/](docs/adr/README.md) |
 | Releases | [docs/release.md](docs/release.md) |

@@ -10,7 +10,7 @@ import (
 	"github.com/yangflow/oriel/internal/prefs"
 )
 
-// The settings "Mark as read" decides when the timeline marks an entry as read (docs/product.md, "何时标为已读"):
+// The settings "Mark as read" decides when the timeline marks an entry as read (docs/product/screens.md, "何时标为已读"):
 // when it opens, after the reader stayed on it for a while, once it scrolled off the top of the list, or never.
 
 const (

@@ -175,7 +175,7 @@ type healthJSON struct {
 	DailyCap            int    `json:"dailyCap"`
 }
 
-// sourcesHealth lists the sources that are dead, failing, moved, noisy or rarely read (docs/product.md, "订阅健康").
+// sourcesHealth lists the sources that are dead, failing, moved, noisy or rarely read (docs/product/data.md, "订阅健康").
 func (s *Server) sourcesHealth(w http.ResponseWriter, r *http.Request) {
 	list, err := s.store.SourcesHealth(r.Context(), s.now())
 	if err != nil {

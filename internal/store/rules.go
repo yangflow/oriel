@@ -14,7 +14,7 @@ import (
 )
 
 // MuteSetting is the setting that holds the global muted keywords, one per line. They hide entries of every source,
-// together with each source's own. See docs/product.md "屏蔽词".
+// together with each source's own. See docs/product/api.md "屏蔽词".
 const MuteSetting = "mute_keywords"
 
 // The limits of rules and of the global muted keywords.
@@ -39,7 +39,7 @@ var (
 	ErrMuteKeywords    = errors.New("muted keywords are too many or too long")
 )
 
-// Rule stars or marks as read the new entries that match all its conditions. See docs/product.md "规则".
+// Rule stars or marks as read the new entries that match all its conditions. See docs/product/timeline.md "规则".
 type Rule struct {
 	ID        int64
 	SourceIDs []int64 // none is every source

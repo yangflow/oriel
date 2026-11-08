@@ -2489,7 +2489,7 @@ func (s *Screen) label(e client.Entry, now time.Time) string {
 const fadedOpacity = 0.55
 
 // fade is the opacity of an entry: 1 until the server says it starts to fade (the last quarter of its source's
-// pace), then down to fadedOpacity at the moment it leaves All and Unread. See docs/product.md "节奏".
+// pace), then down to fadedOpacity at the moment it leaves All and Unread. See docs/product/timeline.md "节奏".
 func fade(e client.Entry, now time.Time) float32 {
 	if e.FadesAt <= 0 || e.ExpiresAt <= e.FadesAt || e.IsRead || e.Starred {
 		return 1

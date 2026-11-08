@@ -12,7 +12,7 @@ import (
 	"github.com/yangflow/oriel/internal/store"
 )
 
-// The title translation of a subscription (see docs/product.md "标题翻译"): titles go to the endpoint in batches.
+// The title translation of a subscription (see docs/product/ai.md "标题翻译"): titles go to the endpoint in batches.
 const (
 	// PromptTitles is the built-in prompt of a batch; it is not a setting.
 	PromptTitles = "Translate each title in the JSON array into {language}. Reply with a JSON array of strings of the same length and in the same order, and nothing else. Keep a title that is already in {language} as it is."

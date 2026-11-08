@@ -9,7 +9,7 @@ import (
 	"github.com/andybalholm/cascadia"
 )
 
-// The limits of a source's extraction rules (docs/product.md, "正文抽取").
+// The limits of a source's extraction rules (docs/product/fetching.md, "正文抽取").
 const (
 	maxSelectorLen = 500
 	maxRefererLen  = 2000

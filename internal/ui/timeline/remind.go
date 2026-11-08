@@ -9,7 +9,7 @@ import (
 	"github.com/yangflow/oriel/internal/ui/locale"
 )
 
-// A reminder choice is a time worked out here in local time and sent as an absolute time (docs/product.md "稍后提醒我").
+// A reminder choice is a time worked out here in local time and sent as an absolute time (docs/product/api.md "稍后提醒我").
 type remindChoice struct {
 	name string
 	at   time.Time

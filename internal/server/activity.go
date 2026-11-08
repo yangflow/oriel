@@ -16,7 +16,7 @@ type imageStats interface {
 	CacheStats() (count int, bytes int64)
 }
 
-// vacuumState is what the last (or running) vacuum reports. It lives in memory only (docs/product.md, "活动和存储接口").
+// vacuumState is what the last (or running) vacuum reports. It lives in memory only (docs/product/api.md, "活动和存储接口").
 type vacuumState struct {
 	State      string `json:"state"` // idle, running, done or failed
 	StartedAt  int64  `json:"startedAt"`
