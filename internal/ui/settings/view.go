@@ -3852,7 +3852,7 @@ func (s *Screen) commitAuto() {
 }
 
 // autoRows are the rows of automatic backups: the switch, the folder, how often, how many to keep and how the last one
-// went. The canvas has no row for the switch; it stays first until the maintainer rules on it (#575).
+// went.
 func (s *Screen) autoRows(c *ui.Context) []cardRow {
 	t := c.Theme()
 	st := s.settings
