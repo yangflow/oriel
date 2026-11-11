@@ -588,6 +588,39 @@ func TestAddIntoFolder(t *testing.T) {
 	}
 }
 
+func TestAddAndContinueFromSelect(t *testing.T) {
+	for _, field := range []string{"kind", "folder"} {
+		t.Run(field, func(t *testing.T) {
+			s, f, tt := setup(t, "en")
+			f.folders = []client.Folder{{ID: 5, Name: "Tech"}}
+			open(t, s, f, tt)
+			tt.Type("https://example.com/feed.xml")
+			tt.Frame()
+			trigger, choice := s.kindName("article"), s.kindName("video")
+			if field == "folder" {
+				trigger, choice = s.text.NoFolder, "Tech"
+			}
+			if err := tt.Click(trigger); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.Click(choice); err != nil {
+				t.Fatal(err)
+			}
+			tt.Key(ui.Cmd, ui.KeyEnter)
+			f.settle(tt)
+			if len(f.added) != 1 || !s.Open() || s.add.address != "" || !tt.Focused(s.text.Address) {
+				t.Fatalf("added %v, open %v, address %q, focus %v", f.added, s.Open(), s.add.address, tt.Focused(s.text.Address))
+			}
+			if field == "kind" && f.added[0].Kind != "video" {
+				t.Fatalf("added %+v", f.added[0])
+			}
+			if field == "folder" && (f.added[0].FolderID != 5 || s.add.folder != 5) {
+				t.Fatalf("added %+v, folder %d", f.added[0], s.add.folder)
+			}
+		})
+	}
+}
+
 func TestAddAndContinueNeedsAnAddress(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	open(t, s, f, tt)

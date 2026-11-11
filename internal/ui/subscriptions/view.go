@@ -1506,10 +1506,9 @@ func (s *Screen) addDialog(c *ui.Context) {
 		a.kind, a.suggested = suggested, suggested
 	}
 	s.syncRoute()
-	if a.open {
-		c.OnShortcut(ui.Cmd, ui.KeyEnter, func() { s.submit(true) })
-	}
 	s.dialog(c, &a.open, &a.form, tokens.DialogWide, s.text.Add, func() {
+		// Keep the shortcut inside the modal's focus scope so selects can use it too.
+		c.OnShortcut(ui.Cmd, ui.KeyEnter, func() { s.submit(true) })
 		s.header(c, head{open: &a.open, lead: func() { chip(c, icons.Plus, false) }, title: s.text.Add})
 	}, func() {
 		if line := s.addedLine(); line != "" {
