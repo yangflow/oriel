@@ -592,6 +592,30 @@ func TestTimeline(t *testing.T) {
 	}
 }
 
+func TestServerBarStaysInsideSidebar(t *testing.T) {
+	for _, font := range []float32{13, 14, 17} {
+		t.Run(fmt.Sprint(font), func(t *testing.T) {
+			s, f, _ := setup(t, "en")
+			var center float32
+			tt := newTester(func(c *ui.Context) {
+				c.Theme().FontSize = font
+				center = 800 - 8 - theme.Px(c.Theme(), paneFoot)/2
+				s.View(c)
+			}, 1100, 800)
+			f.settle(t, tt)
+			for _, name := range []string{"Server: This computer", "Settings"} {
+				r, ok := tt.Find(name)
+				if !ok || r.Y+r.H > 800-8 {
+					t.Errorf("%q at %v extends below the floating sidebar (found %v)", name, r, ok)
+				}
+				if ok && math.Abs(float64(r.Y+r.H/2-center)) > 1 {
+					t.Errorf("%q at %v is not centered at %v in the sidebar footer", name, r, center)
+				}
+			}
+		})
+	}
+}
+
 func TestFailingSubscriptions(t *testing.T) {
 	s, f, tt := setup(t, "en")
 	for _, label := range []string{"Gopher, 1 unread, last fetch failed", "Last fetch failed: The site has an error on its side. Oriel will try again later.\nOriginal: status 500",

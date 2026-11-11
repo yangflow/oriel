@@ -2237,7 +2237,7 @@ func (s *Screen) serverBar(c *ui.Context) {
 	if s.server != "" {
 		name = s.server
 	}
-	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.Row)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
+	ui.Row(c).FillWidth().Height(theme.Px(t, tokens.Control+tokens.Space2)).Shrink(0).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space2)).
 		PaddingX(theme.Px(t, tokens.Space2)).Tooltip(s.text.ServerNote).Children(func() {
 		ui.Box(c).Size(tokens.Dot, tokens.Dot).Shrink(0).Radius(theme.Pill(tokens.Dot)).Background(t.Success)
 		ui.Text(c, name).Grow(1).MinWidth(0).SingleLine().FontSize(theme.Px(t, tokens.TextMeta.Size.En)).TextColor(t.TextMuted)
