@@ -3800,7 +3800,7 @@ func (s *Screen) glyph(c *ui.Context, name, icon string, size float32) {
 		return
 	}
 	radius := float32(tokens.RadiusXS)
-	ui.Box(c).Size(theme.Px(t, size), theme.Px(t, size)).Radius(radius).Clip().Children(func() {
+	ui.Box(c).Size(theme.Px(t, size), theme.Px(t, size)).Shrink(0).Radius(radius).Clip().Children(func() {
 		ui.Image(c, bitmap).Fit(ui.Cover).Fill()
 		ui.Box(c).Absolute().Fill().Radius(radius).Border(0.5, theme.Rule(t))
 	})
