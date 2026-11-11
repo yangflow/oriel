@@ -33,7 +33,7 @@
 - The MyGo CLI is a build tool from the same module version; it does not ship.
 - Transitive modules are listed because their code ships. Directories with several notices keep every `LICENSE*`
   file the module carries; the memory logo license is left out because the logo does not ship.
-- Go standard-library components keep their Go license; a copy ships under `resources/ThirdPartyLicenses/go/`.
+- Go 1.27.4 standard-library components keep their Go license; a copy ships under `resources/ThirdPartyLicenses/go/`.
 - The container image (`Dockerfile`) adds the runtime base `gcr.io/distroless/base-debian12`, a Debian 12 subset
   (glibc, CA certificates, tzdata and others) under its own packages' licenses, which the base keeps in
   `/usr/share/doc/<package>/copyright`; the program in it is the one above.

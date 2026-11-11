@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # The headless server, `oriel serve`, for Docker and Kubernetes. The program is built for the target platform on the
 # build platform (no emulation), so one build covers linux/amd64 and linux/arm64. See docs/product/running.md, "部署".
-ARG GO_VERSION=1.27.3
+ARG GO_VERSION=1.27.4
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS build
 ARG TARGETOS
 ARG TARGETARCH
