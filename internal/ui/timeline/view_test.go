@@ -2793,6 +2793,27 @@ func TestSiteIcons(t *testing.T) {
 	}
 }
 
+func TestMetaKeepsSourceIconWidth(t *testing.T) {
+	for _, bitmap := range []bool{false, true} {
+		t.Run(strconv.FormatBool(bitmap), func(t *testing.T) {
+			s, _, _ := setup(t, "en")
+			if bitmap {
+				s.sources[0].IconURL = "https://go.dev/favicon.ico"
+				s.pics.Get(s.sources[0].IconURL, now).Bitmap = ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 16, 16)))
+			}
+			e := client.Entry{SourceID: s.sources[0].ID, SourceTitle: "A long source name", CreatedAt: ago(12 * time.Minute), ReadingSec: 120, IsRead: true}
+			tt := newTester(func(c *ui.Context) {
+				s.meta(c, e, now, false, theme.Px(c.Theme(), metaField), c.Theme().TextMuted, false)
+			}, 272, 40)
+			tt.Frame()
+			r, ok := tt.Find(e.SourceTitle)
+			if !ok || r.X < 21 { // the 15-DIP icon and the 6-DIP gap must not shrink
+				t.Fatalf("source name at %v (found %v): the icon lost its width", r, ok)
+			}
+		})
+	}
+}
+
 // pixel is the color drawn at a point of the tester's last frame, as 0 to 255 channels.
 func pixel(img image.Image, x, y float32) [3]int {
 	r, g, b, _ := img.At(int(x), int(y)).RGBA()
