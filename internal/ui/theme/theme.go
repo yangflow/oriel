@@ -280,7 +280,7 @@ func Lifted(t *ui.Theme, b ui.Element) {
 // main theme or the pane's) and radius-pane, with no rim; with high contrast a 1 DIP rim in the pane theme's Border.
 func Pane(c *ui.Context, e ui.Element) ui.Element {
 	t := PaneTheme(c.Theme())
-	e.Background(t.Background).Radius(Px(t, tokens.RadiusPane))
+	e.Background(t.Background).Radius(Px(t, tokens.RadiusPane)).Clip()
 	if highContrast(t) {
 		return e.Border(1, t.Border)
 	}

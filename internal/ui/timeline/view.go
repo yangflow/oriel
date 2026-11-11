@@ -3822,10 +3822,9 @@ func (s *Screen) serverBar(c *ui.Context) {
 	if s.server != "" {
 		name = s.server
 	}
-	// A hairline over a control-high row; the gear stays on the line of the pane's other icon buttons.
-	ui.Column(c).FillWidth().Height(theme.Px(t, tokens.Control)).Shrink(0).Padding(0, theme.Px(t, tokens.Space2)).Children(func() {
-		ui.Box(c).FillWidth().Height(tokens.Hairline).Shrink(0).Background(t.Border)
-		ui.Row(c).FillWidth().Grow(1).AlignItems(ui.Center).Padding(theme.Px(t, tokens.Space1), paneLineInset(t, tokens.Control), 0, 0).Children(func() {
+	// Center both controls in the footer; the gear shares the pane's icon line.
+	ui.Column(c).FillWidth().Height(theme.Px(t, paneFoot)).Shrink(0).Padding(0, theme.Px(t, tokens.Space2)).Children(func() {
+		ui.Row(c).FillWidth().Grow(1).AlignItems(ui.Center).Padding(0, paneLineInset(t, tokens.Control), 0, 0).Children(func() {
 			dot := t.Success
 			if s.offline {
 				dot = t.Warning
@@ -3851,7 +3850,10 @@ func (s *Screen) serverBar(c *ui.Context) {
 				gear.Background(t.SurfaceHover)
 				color = t.Text
 			}
-			gear.Children(func() { ui.Icon(c, icons.Settings).FontSize(theme.IconMedium(t)).TextColor(color) })
+			gear.Children(func() {
+				// Match the label's visible center without moving the button's hit target.
+				ui.Icon(c, icons.Settings).FontSize(theme.IconMedium(t)).TextColor(color).Translate(0, theme.Px(t, tokens.Hairline)/2)
+			})
 			if gear.Clicked() {
 				s.deps.OpenSettings()
 			}

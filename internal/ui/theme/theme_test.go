@@ -334,6 +334,28 @@ func TestPaneOpaque(t *testing.T) {
 	}
 }
 
+func TestPaneClipsChildrenToCorners(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		var background, child ui.Color
+		tt := ui.NewTester(func(c *ui.Context) {
+			Apply(c, prefs.Default())
+			background, child = c.Theme().Background, c.Theme().Danger
+			Pane(c, ui.Box(c).Size(100, 100)).Children(func() {
+				ui.Box(c).Fill().Background(child)
+			})
+		}, 120, 120)
+		tt.SetDark(dark)
+		tt.Frame()
+		corner, center := tt.Image().RGBAAt(1, 99), tt.Image().RGBAAt(50, 50)
+		if got := [4]uint8{corner.R, corner.G, corner.B, corner.A}; got != rgba(background) {
+			t.Errorf("dark %v: child paints outside the pane corner: %v, want %v", dark, got, rgba(background))
+		}
+		if got := [4]uint8{center.R, center.G, center.B, center.A}; got != rgba(child) {
+			t.Errorf("dark %v: child did not paint inside the pane: %v", dark, got)
+		}
+	}
+}
+
 func TestCapsuleOpaqueInHighContrast(t *testing.T) {
 	paint := func(c *ui.Context, e ui.Element) { Capsule(c, e, false) }
 	th, glass := fill(t, ui.Preferences{}, paint)
