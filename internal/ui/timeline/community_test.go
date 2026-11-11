@@ -150,6 +150,27 @@ func TestCommunityMarkAllRead(t *testing.T) {
 	}
 }
 
+func TestCommunityHiddenSidebarWidth(t *testing.T) {
+	p := prefs.Default()
+	s, _, tt := communing(t, &p)
+	p.SidebarHidden = true
+	tt.SetTitleBar(ui.TitleBar{Height: 52, Left: 78})
+	tt.Frame()
+	tt.Frame()
+	after, ok := tt.Find(s.scopeName())
+	button, hasButton := tt.Find("Show sidebar")
+	if !s.paned || !ok || !hasButton || after.W < listPane+78+button.W {
+		t.Fatalf("list %v; sidebar button %v; paned %v", after, button, s.paned)
+	}
+	// When the extra controls would leave too little room for reading, use the existing single-list fallback.
+	tt.SetSize(900, 800)
+	tt.Frame()
+	tt.Frame()
+	if s.paned {
+		t.Fatal("panes leave too little room for the reader")
+	}
+}
+
 // The toolbars of the two panes: the list's keeps the title with the unread count, the filters, Mark all as read and
 // search; the reader's has its actions, which work from the pane, but no Back and no previous and next arrows.
 func TestCommunityPaneToolbars(t *testing.T) {

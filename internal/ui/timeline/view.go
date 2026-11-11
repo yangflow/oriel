@@ -2579,7 +2579,7 @@ func (s *Screen) View(c *ui.Context) {
 	}
 	// Immersive reading covers the sidebar without touching the preference, which comes back when it ends.
 	hidden := s.views().SidebarHidden || s.immersive
-	s.paned = s.panable(t, mainColumn(t, width, hidden, compact))
+	s.paned = s.panable(c, mainColumn(t, width, hidden, compact), hidden)
 	if s.reading != 0 && !s.paned {
 		s.typing, s.filtering = false, false
 	}
@@ -3061,9 +3061,21 @@ const (
 
 // panable tells whether the Community is drawn in three panes: a Community scope, the viewer Panes, reading not
 // immersive and the main column wide enough. Otherwise a post opens in place of the list, as an article does.
-func (s *Screen) panable(t *ui.Theme, column float32) bool {
+func (s *Screen) panable(c *ui.Context, column float32, hidden bool) bool {
+	t := c.Theme()
+	extra := communityListWidth(c, hidden) - theme.Px(t, listPane)
 	return s.scope.kind == "forum" && s.views().ForumViewer == prefs.ViewPanes && !s.immersive &&
-		column >= theme.Px(t, panedColumn)
+		column >= theme.Px(t, panedColumn)+extra
+}
+
+// communityListWidth preserves the list's usable toolbar space when it also hosts the window controls and the
+// button that shows the sidebar. The extra left padding and button gaps cancel, leaving the inset and one control.
+func communityListWidth(c *ui.Context, hidden bool) float32 {
+	width := theme.Px(c.Theme(), listPane)
+	if hidden {
+		width += c.TitleBar().Left + theme.Px(c.Theme(), tokens.Control)
+	}
+	return width
 }
 
 // step1 is J and K in the list: they choose the next or previous entry, and in three panes open it, so the reader
@@ -3079,7 +3091,8 @@ func (s *Screen) step1(c *ui.Context, by int) {
 // reader takes the rest, or a note to choose a post while none is open.
 func (s *Screen) panes(c *ui.Context, now time.Time, open bool, column float32, hidden bool) {
 	t := c.Theme()
-	ui.Column(c).Width(theme.Px(t, listPane)).Shrink(0).Children(func() {
+	listWidth := communityListWidth(c, hidden)
+	ui.Column(c).Width(listWidth).Shrink(0).Children(func() {
 		s.hint(c)
 		s.stale(c)
 		s.content(c, now, true)
@@ -3098,7 +3111,7 @@ func (s *Screen) panes(c *ui.Context, now time.Time, open bool, column float32, 
 	s.reader.View(c, reader.Nav{Entry: e, Icon: s.bitmap(s.iconOf(e.SourceID)), Scope: s.scopeName(),
 		Previous: s.article(-1) >= 0, Next: s.article(1) >= 0 || s.next != "",
 		Keys: !open && !s.typing && !s.filtering, Pane: true,
-		Column: column - theme.Px(t, listPane) - 1})
+		Column: column - listWidth - 1})
 }
 
 // mainColumn is the width of the column right of the sidebar, the whole window while the sidebar is hidden.
@@ -3887,7 +3900,7 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 	right := theme.Px(t, tokens.Space2) + bar.Right
 	if s.paned {
 		// The list is the left pane: the reader beside it holds the window's right edge.
-		column, right = theme.Px(t, listPane), theme.Px(t, tokens.Space2)
+		column, right = communityListWidth(c, hidden), theme.Px(t, tokens.Space2)
 	}
 	narrow := column < narrowColumn
 	room := column >= fieldColumn
@@ -5191,22 +5204,26 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 	t := c.Theme()
 	e := s.entries[i]
 	v := s.views()
+	textLeft, dotLeft := float32(textInset), float32(dotInset)
+	if s.paned {
+		textLeft, dotLeft = 20, tokens.Space2
+	}
 	oneLine := e.Kind == "article" && v.ArticleViewer == prefs.ViewCompact
 	card := e.Kind == "social" && v.SocialViewer != prefs.ViewCompact
 	var r ui.Element
 	switch {
 	case oneLine:
 		r = ui.Row(c).Key(e.ID).FillWidth().Height(s.dense(t, 36, 30)).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space3)).
-			Padding(0, theme.Px(t, tokens.Space3), 0, theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
+			Padding(0, theme.Px(t, tokens.Space3), 0, theme.Px(t, textLeft)).Radius(theme.Px(t, tokens.RadiusCard))
 	case card:
 		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 12, 10)).
 			Padding(s.dense(t, 12, 10)).Radius(theme.Px(t, tokens.RadiusCard))
 	case e.Kind == "social":
 		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 12, 10)).
-			Padding(s.dense(t, 12, 8), theme.Px(t, tokens.Space3), s.dense(t, 12, 8), theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
+			Padding(s.dense(t, 12, 8), theme.Px(t, tokens.Space3), s.dense(t, 12, 8), theme.Px(t, textLeft)).Radius(theme.Px(t, tokens.RadiusCard))
 	default:
 		r = ui.Row(c).Key(e.ID).FillWidth().AlignItems(ui.Start).Gap(s.dense(t, 12, 10)).
-			Padding(s.dense(t, 12, 10), theme.Px(t, tokens.Space3), s.dense(t, 12, 10), theme.Px(t, textInset)).Radius(theme.Px(t, tokens.RadiusCard))
+			Padding(s.dense(t, 12, 10), theme.Px(t, tokens.Space3), s.dense(t, 12, 10), theme.Px(t, textLeft)).Radius(theme.Px(t, tokens.RadiusCard))
 	}
 	hovered, chosen := s.item(c, r, i, now, false)
 	muted := t.TextMuted
@@ -5234,7 +5251,7 @@ func (s *Screen) row(c *ui.Context, i int, now time.Time, compact bool) {
 		if chosen {
 			mark.Background(theme.Marker(t))
 		}
-		dot := ui.Box(c).Absolute().Left(theme.Px(t, dotInset)).Size(theme.Px(t, tokens.Dot), theme.Px(t, tokens.Dot)).Radius(theme.Pill(theme.Px(t, tokens.Dot))).Background(none)
+		dot := ui.Box(c).Absolute().Left(theme.Px(t, dotLeft)).Size(theme.Px(t, tokens.Dot), theme.Px(t, tokens.Dot)).Radius(theme.Pill(theme.Px(t, tokens.Dot))).Background(none)
 		if oneLine {
 			dot.Top(theme.Px(t, (tokens.RowCompact-tokens.Dot)/2))
 		} else {
