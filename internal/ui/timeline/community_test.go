@@ -127,7 +127,30 @@ func TestCommunityFallsBack(t *testing.T) {
 	}
 }
 
-// The toolbars of the two panes: the list's keeps the title with the unread count, the filters, the time range and
+func TestCommunityMarkAllRead(t *testing.T) {
+	p := prefs.Default()
+	s, f, tt := communing(t, &p)
+	if !s.paned {
+		t.Fatal("expected the community panes")
+	}
+	label := s.markAllLabel()
+	if err := tt.Click(label); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if len(f.marked) != 1 || f.marked[0].Kind != "forum" || s.unreadIn(s.scope) != 0 {
+		t.Fatalf("marked %v, unread %d", f.marked, s.unreadIn(s.scope))
+	}
+	if err := tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, tt)
+	if len(f.unmarked) != 1 || len(f.unmarked[0]) != 3 || s.unreadIn(s.scope) != 3 {
+		t.Fatalf("unmarked %v, unread %d", f.unmarked, s.unreadIn(s.scope))
+	}
+}
+
+// The toolbars of the two panes: the list's keeps the title with the unread count, the filters, Mark all as read and
 // search; the reader's has its actions, which work from the pane, but no Back and no previous and next arrows.
 func TestCommunityPaneToolbars(t *testing.T) {
 	p := prefs.Default()
@@ -137,7 +160,7 @@ func TestCommunityPaneToolbars(t *testing.T) {
 			t.Fatalf("no %q in the list pane: %v", text, tt.Texts())
 		}
 	}
-	for _, label := range []string{"Time range: any time", "Search", "Show"} {
+	for _, label := range []string{s.markAllLabel(), "Search", "Show"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Errorf("no %q in the list pane", label)
 		}
