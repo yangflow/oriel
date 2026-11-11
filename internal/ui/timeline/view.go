@@ -3943,13 +3943,10 @@ func (s *Screen) toolbar(c *ui.Context, compact, hidden bool) {
 		s.filters(c, narrow)
 		// The icon buttons are one group with the same gap between them, whatever the column.
 		ui.Row(c).AlignItems(ui.Center).Gap(theme.Px(t, tokens.Space1)).Shrink(0).Children(func() {
-			// The 320 wide list pane has room for the time range and search only; Mark all as read is in the list
-			// of the narrow fallback and on the keys.
-			s.rangeButton(c, column < rangeColumn && !s.paned)
+			// The list pane follows the narrow toolbar's range rule, leaving room for Mark all as read.
+			s.rangeButton(c, column < rangeColumn)
 			s.gridButton(c)
-			if !s.paned {
-				s.markAllButton(c)
-			}
+			s.markAllButton(c)
 			if !open {
 				s.searchIcon(c)
 			}
