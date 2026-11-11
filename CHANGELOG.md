@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.13.1](https://github.com/yangflow/oriel/compare/v0.13.0...v0.13.1) (2026-11-11)
+
+
+### Fixed
+
+* **subscriptions:** keep adding after choosing kind or folder ([#594](https://github.com/yangflow/oriel/issues/594)) ([ac7d92b](https://github.com/yangflow/oriel/commit/ac7d92b2c4e3ca68195f76974d0c3921b9c79c4d))
+* **timeline:** keep community toolbar clear with the sidebar hidden ([#602](https://github.com/yangflow/oriel/issues/602)) ([f43ce3e](https://github.com/yangflow/oriel/commit/f43ce3e78f84f51b863ebc38dbc63b45e383a53d))
+* **timeline:** keep source icons whole in crowded entry rows ([#601](https://github.com/yangflow/oriel/issues/601)) ([ff1c533](https://github.com/yangflow/oriel/commit/ff1c533e0b95100f9a39254b16d71a1b8e155751))
+* **timeline:** restore mark all as read in community panes ([#600](https://github.com/yangflow/oriel/issues/600)) ([5c906ab](https://github.com/yangflow/oriel/commit/5c906abbf011c6a2bcfcf33275bb0ddb14d67a8e))
+* **ui:** align sidebar footers and clip their rounded edges ([#605](https://github.com/yangflow/oriel/issues/605)) ([94e7b2b](https://github.com/yangflow/oriel/commit/94e7b2b6af943ded7ab3a98eb5ca5eda97a82e14))
+
 ## [0.13.0](https://github.com/yangflow/oriel/compare/v0.12.0...v0.13.0) (2026-11-08)
 
 
