@@ -197,7 +197,8 @@ type trayActions struct{ Open, Refresh, Quit func() }
 
 // nativeHost is the desktop integration on MyGo: the tray, the Dock badge and the login item of this system. tick is
 // the unread poll, which runs every unreadEvery on a goroutine of its own and must hand its work to the UI thread.
-func nativeHost(actions trayActions, tick func()) desktopHost {
+func nativeHost(actions trayActions, tick func(), dispatch func(func())) desktopHost {
+	badge := &dockBadgeWriter{request: requestDockBadge, apply: mygo.App.Dock.SetBadge, dispatch: dispatch}
 	return desktopHost{
 		OS:       runtime.GOOS,
 		Packaged: mygo.App.IsPackaged(),
@@ -214,7 +215,7 @@ func nativeHost(actions trayActions, tick func()) desktopHost {
 			t.OnClick(actions.Open)
 			return nativeTray{t, actions}, nil
 		},
-		Badge:          mygo.App.Dock.SetBadge,
+		Badge:          badge.Set,
 		OpenAtLogin:    mygo.App.OpenAtLogin,
 		SetOpenAtLogin: mygo.App.SetOpenAtLogin,
 		Poll: func(every time.Duration) func() {
@@ -234,6 +235,38 @@ func nativeHost(actions trayActions, tick func()) desktopHost {
 			return func() { close(done) }
 		},
 	}
+}
+
+// dockBadgeWriter runs on the UI thread. Permission callbacks return through dispatch so a late answer uses the
+// current label, including an empty one after the user turned badges off.
+type dockBadgeWriter struct {
+	label    string
+	pending  bool
+	request  func(func(bool))
+	apply    func(string)
+	dispatch func(func())
+}
+
+func (b *dockBadgeWriter) Set(label string) {
+	b.label = label
+	if label == "" {
+		b.apply("")
+		return
+	}
+	if b.pending {
+		return
+	}
+	b.pending = true
+	b.request(func(allowed bool) {
+		b.dispatch(func() {
+			b.pending = false
+			label := ""
+			if allowed {
+				label = b.label
+			}
+			b.apply(label)
+		})
+	})
 }
 
 type nativeTray struct {

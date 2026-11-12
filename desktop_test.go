@@ -181,6 +181,63 @@ func TestBadge(t *testing.T) {
 	}
 }
 
+func TestDockBadgePermissionUsesLatestLabel(t *testing.T) {
+	for _, latest := range []string{"", "19"} {
+		t.Run(latest, func(t *testing.T) {
+			var reply func(bool)
+			var queued []func()
+			var shown []string
+			requests := 0
+			b := dockBadgeWriter{
+				request:  func(done func(bool)) { requests++; reply = done },
+				apply:    func(label string) { shown = append(shown, label) },
+				dispatch: func(fn func()) { queued = append(queued, fn) },
+			}
+			b.Set("7")
+			if len(shown) != 0 || requests != 1 {
+				t.Fatalf("shown %v before permission; requests %d", shown, requests)
+			}
+			reply(true)
+			b.Set(latest) // changes after the answer, but before its UI callback
+			if requests != 1 || len(queued) != 1 {
+				t.Fatalf("requests %d, queued %d", requests, len(queued))
+			}
+			queued[0]()
+			if b.pending || shown[len(shown)-1] != latest {
+				t.Fatalf("pending %v, shown %v, want %q", b.pending, shown, latest)
+			}
+		})
+	}
+}
+
+func TestDockBadgePermissionCanChange(t *testing.T) {
+	var reply func(bool)
+	var shown []string
+	requests := 0
+	b := dockBadgeWriter{
+		request:  func(done func(bool)) { requests++; reply = done },
+		apply:    func(label string) { shown = append(shown, label) },
+		dispatch: func(fn func()) { fn() },
+	}
+	b.Set("")
+	if requests != 0 {
+		t.Fatal("clearing a badge requested permission")
+	}
+	b.Set("7")
+	reply(false)
+	if shown[len(shown)-1] != "" {
+		t.Fatalf("denied badge shown: %v", shown)
+	}
+	b.Set("8")
+	if requests != 2 {
+		t.Fatal("did not recheck after the system permission could change")
+	}
+	reply(true)
+	if shown[len(shown)-1] != "8" {
+		t.Fatalf("authorized badge missing: %v", shown)
+	}
+}
+
 func TestPollRunsOnlyWhileHiddenAndTheCountIsShown(t *testing.T) {
 	sys := &fakeSystem{}
 	c := newDesktopController(sys.host("darwin", true), "en")

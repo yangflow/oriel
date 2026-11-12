@@ -31,6 +31,7 @@
 ## Notes
 
 - The MyGo CLI is a build tool from the same module version; it does not ship.
+- Oriel also uses the listed purego module directly to request macOS Dock badge permission; its version and shipped license are unchanged.
 - Transitive modules are listed because their code ships. Directories with several notices keep every `LICENSE*`
   file the module carries; the memory logo license is left out because the logo does not ship.
 - Go 1.27.4 standard-library components keep their Go license; a copy ships under `resources/ThirdPartyLicenses/go/`.

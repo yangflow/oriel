@@ -6,6 +6,7 @@ require (
 	codeberg.org/readeck/go-readability/v2 v2.1.3
 	github.com/abadojack/whatlanggo v1.0.1
 	github.com/andybalholm/cascadia v1.3.5
+	github.com/ebitengine/purego v0.11.1
 	github.com/egoist/mygo v0.7.4
 	github.com/mmcdole/gofeed v1.5.0
 	golang.org/x/net v0.62.0
@@ -16,7 +17,6 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-shiori/dom v0.0.0-20230515143342-73569d674e1c // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f // indirect

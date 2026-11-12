@@ -361,7 +361,12 @@ func desktop() {
 			Open:    reveal,
 			Refresh: func() { window.Update(root.refreshAll) },
 			Quit:    mygo.App.Quit,
-		}, tick), locale.Resolve(root.prefs.Language, system))
+		}, tick, func(fn func()) {
+			go func() {
+				<-made
+				window.Update(fn)
+			}()
+		}), locale.Resolve(root.prefs.Language, system))
 		root.startDesktop(integration)
 		options := mainWindowOptions(ui.View(root.View))
 		// A launch at login leaves only the icon, when there is one.
